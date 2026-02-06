@@ -275,6 +275,26 @@ pub enum UiAction {
     SeekWaveform { position_milli: u16 },
     /// Set waveform cursor to a normalized milli position (`0..=1000`).
     SetWaveformCursor { position_milli: u16 },
+    /// Set waveform selection bounds in normalized milli space (`0..=1000`).
+    SetWaveformSelectionRange {
+        /// Selection start position in normalized milli-units.
+        start_milli: u16,
+        /// Selection end position in normalized milli-units.
+        end_milli: u16,
+    },
+    /// Clear active waveform selection.
+    ClearWaveformSelection,
+    /// Zoom waveform view by discrete steps.
+    ZoomWaveform {
+        /// When true, zooms in; otherwise zooms out.
+        zoom_in: bool,
+        /// Number of discrete zoom steps to apply.
+        steps: u8,
+    },
+    /// Fit waveform view to the active selection.
+    ZoomWaveformToSelection,
+    /// Reset waveform view to full-range (`0..=1000`).
+    ZoomWaveformFull,
     /// Trigger undo.
     Undo,
     /// Trigger redo.

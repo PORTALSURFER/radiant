@@ -207,6 +207,55 @@ impl NativeShellState {
             x += scan_step;
         }
 
+        if let Some(selection) = model.waveform.selection_milli {
+            let start_ratio = f32::from(selection.start_milli.min(1000)) / 1000.0;
+            let end_ratio = f32::from(selection.end_milli.min(1000)) / 1000.0;
+            let start_x =
+                waveform_inner.min.x + waveform_inner.width() * start_ratio.min(end_ratio);
+            let end_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.max(end_ratio);
+            let rect = Rect::from_min_max(
+                Point::new(start_x, waveform_inner.min.y),
+                Point::new(end_x.max(start_x + 1.0), waveform_inner.max.y),
+            );
+            primitives.push(Primitive::Rect(FillRect {
+                rect,
+                color: style.grid_strong,
+            }));
+            push_border(&mut primitives, rect, style.accent_mint);
+        }
+
+        if let Some(cursor_milli) = model.waveform.cursor_milli {
+            let ratio = f32::from(cursor_milli.min(1000)) / 1000.0;
+            let cursor_x = waveform_inner.min.x + waveform_inner.width() * ratio;
+            let cursor_rect = Rect::from_min_max(
+                Point::new(cursor_x, waveform_inner.min.y),
+                Point::new(
+                    (cursor_x + 1.5).min(waveform_inner.max.x),
+                    waveform_inner.max.y,
+                ),
+            );
+            primitives.push(Primitive::Rect(FillRect {
+                rect: cursor_rect,
+                color: style.accent_warning,
+            }));
+        }
+
+        if let Some(playhead_milli) = model.waveform.playhead_milli {
+            let ratio = f32::from(playhead_milli.min(1000)) / 1000.0;
+            let playhead_x = waveform_inner.min.x + waveform_inner.width() * ratio;
+            let playhead_rect = Rect::from_min_max(
+                Point::new(playhead_x, waveform_inner.min.y),
+                Point::new(
+                    (playhead_x + 1.5).min(waveform_inner.max.x),
+                    waveform_inner.max.y,
+                ),
+            );
+            primitives.push(Primitive::Rect(FillRect {
+                rect: playhead_rect,
+                color: style.accent_copper,
+            }));
+        }
+
         for (index, column_rect) in layout.columns.iter().copied().enumerate() {
             let hovered = self.hovered == Some(ShellNodeKind::TriageColumn(index));
             let selected = self.selected_column == index;
@@ -349,14 +398,18 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
-        for (row_index, row_rect) in build_column_rows(source_rows_area(layout.sidebar), rendered_sources, 4.0)
-            .iter()
-            .copied()
-            .enumerate()
+        for (row_index, row_rect) in
+            build_column_rows(source_rows_area(layout.sidebar), rendered_sources, 4.0)
+                .iter()
+                .copied()
+                .enumerate()
         {
             let row = &model.sources.rows[row_index];
-            let row_selected =
-                row.selected || model.sources.selected_row.is_some_and(|selected| selected == row_index);
+            let row_selected = row.selected
+                || model
+                    .sources
+                    .selected_row
+                    .is_some_and(|selected| selected == row_index);
             primitives.push(Primitive::Rect(FillRect {
                 rect: row_rect,
                 color: if row_selected {
@@ -399,11 +452,7 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
         }
-        let waveform_title = model
-            .waveform
-            .loaded_label
-            .as_deref()
-            .unwrap_or("Waveform");
+        let waveform_title = model.waveform.loaded_label.as_deref().unwrap_or("Waveform");
         text_runs.push(TextRun {
             text: waveform_title.to_string(),
             position: Point::new(
@@ -433,7 +482,11 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: format!(
                 "loop: {} | playhead: {} | cursor: {} | view: {}",
-                if model.waveform.loop_enabled { "on" } else { "off" },
+                if model.waveform.loop_enabled {
+                    "on"
+                } else {
+                    "off"
+                },
                 playhead_text,
                 cursor_text,
                 view_text,
@@ -450,8 +503,7 @@ impl NativeShellState {
         for (index, column) in layout.columns.iter().enumerate() {
             let label = format!(
                 "{} ({})",
-                model.columns[index].title,
-                model.columns[index].item_count
+                model.columns[index].title, model.columns[index].item_count
             );
             text_runs.push(TextRun {
                 text: label,
@@ -496,7 +548,11 @@ impl NativeShellState {
             } else {
                 model.browser.search_query.as_str()
             },
-            if model.browser.busy { " | filtering…" } else { "" }
+            if model.browser.busy {
+                " | filtering…"
+            } else {
+                ""
+            }
         );
         text_runs.push(TextRun {
             text: status_text,

@@ -337,14 +337,14 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         &self.shell_state,
                         point,
                         self.modifiers,
-                    )
-                    {
+                    ) {
                         self.bridge.on_action(action);
                         handled = true;
                     } else if self.shell_state.handle_primary_click(layout, point)
                         && let Some(column) = layout.column_at_point(point)
                     {
-                        self.bridge.on_action(UiAction::SelectColumn { index: column });
+                        self.bridge
+                            .on_action(UiAction::SelectColumn { index: column });
                         handled = true;
                     }
                     if handled {
@@ -421,9 +421,20 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState) -> Option<UiAction> 
         KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
         KeyCode::A => Some(UiAction::SelectAllBrowserRows),
+        KeyCode::C => Some(UiAction::ClearWaveformSelection),
         KeyCode::Enter => Some(UiAction::ToggleTransport),
         KeyCode::F => Some(UiAction::FocusBrowserSearch),
         KeyCode::L => Some(UiAction::ToggleLoopPlayback),
+        KeyCode::M => Some(UiAction::ZoomWaveformToSelection),
+        KeyCode::OpenBracket => Some(UiAction::ZoomWaveform {
+            zoom_in: false,
+            steps: 1,
+        }),
+        KeyCode::CloseBracket => Some(UiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1,
+        }),
+        KeyCode::Slash => Some(UiAction::ZoomWaveformFull),
         KeyCode::R => Some(UiAction::Redo),
         KeyCode::S => Some(UiAction::FocusSourcesPanel),
         KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
@@ -465,9 +476,19 @@ fn action_from_pointer(
             let inner = layout.waveform_card.inset(8.0);
             let width = inner.width().max(1.0);
             let ratio = ((point.x - inner.min.x) / width).clamp(0.0, 1.0);
-            Some(UiAction::SeekWaveform {
-                position_milli: ratio_to_milli(ratio),
-            })
+            let position_milli = ratio_to_milli(ratio);
+            let shift = modifiers.shift_key();
+            let command = modifiers.control_key() || modifiers.super_key();
+            if shift {
+                Some(UiAction::SetWaveformSelectionRange {
+                    start_milli: waveform_anchor_milli(model),
+                    end_milli: position_milli,
+                })
+            } else if command {
+                Some(UiAction::SetWaveformCursor { position_milli })
+            } else {
+                Some(UiAction::SeekWaveform { position_milli })
+            }
         }
         ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
         ShellNodeKind::Content => Some(UiAction::FocusBrowserPanel),
@@ -478,6 +499,16 @@ fn action_from_pointer(
 
 fn ratio_to_milli(ratio: f32) -> u16 {
     (ratio.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+fn waveform_anchor_milli(model: &AppModel) -> u16 {
+    model
+        .waveform
+        .selection_milli
+        .map(|selection| selection.start_milli)
+        .or(model.waveform.cursor_milli)
+        .or(model.waveform.playhead_milli)
+        .unwrap_or(0)
 }
 
 #[derive(Clone, Debug)]
@@ -716,4 +747,116 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 /// Vello primitives and exercises native input hit-testing without `egui`.
 pub fn run_native_vello_preview(options: EguiRunOptions) -> Result<(), String> {
     run_native_vello_app(options, PreviewBridge)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::{BrowserPanelModel, ColumnModel, SourcesPanelModel, WaveformPanelModel};
+    use crate::gui::types::Vector2;
+
+    #[test]
+    fn key_bindings_emit_waveform_zoom_actions() {
+        assert_eq!(
+            action_from_key(KeyCode::OpenBracket, ModifiersState::default()),
+            Some(UiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 1,
+            })
+        );
+        assert_eq!(
+            action_from_key(KeyCode::CloseBracket, ModifiersState::default()),
+            Some(UiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 1,
+            })
+        );
+        assert_eq!(
+            action_from_key(KeyCode::M, ModifiersState::default()),
+            Some(UiAction::ZoomWaveformToSelection)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::C, ModifiersState::default()),
+            Some(UiAction::ClearWaveformSelection)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::Slash, ModifiersState::default()),
+            Some(UiAction::ZoomWaveformFull)
+        );
+    }
+
+    #[test]
+    fn waveform_click_modifiers_route_expected_actions() {
+        let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+        let shell_state = NativeShellState::new();
+        let point = Point::new(
+            layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
+            layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+        );
+        let model = AppModel {
+            columns: [
+                ColumnModel::new("Trash", 0),
+                ColumnModel::new("Neutral", 0),
+                ColumnModel::new("Keep", 0),
+            ],
+            sources: SourcesPanelModel::default(),
+            browser: BrowserPanelModel::default(),
+            waveform: WaveformPanelModel {
+                selection_milli: Some(crate::app::NormalizedRangeModel::new(120, 360)),
+                cursor_milli: Some(220),
+                playhead_milli: Some(260),
+                ..WaveformPanelModel::default()
+            },
+            ..AppModel::default()
+        };
+
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::SeekWaveform {
+                position_milli: 500
+            })
+        );
+
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                point,
+                ModifiersState::CONTROL,
+            ),
+            Some(UiAction::SetWaveformCursor {
+                position_milli: 500
+            })
+        );
+
+        assert_eq!(
+            action_from_pointer(&layout, &model, &shell_state, point, ModifiersState::SHIFT,),
+            Some(UiAction::SetWaveformSelectionRange {
+                start_milli: 120,
+                end_milli: 500,
+            })
+        );
+    }
+
+    #[test]
+    fn waveform_anchor_prefers_selection_then_cursor_then_playhead() {
+        let mut model = AppModel::default();
+        assert_eq!(waveform_anchor_milli(&model), 0);
+
+        model.waveform.playhead_milli = Some(333);
+        assert_eq!(waveform_anchor_milli(&model), 333);
+
+        model.waveform.cursor_milli = Some(222);
+        assert_eq!(waveform_anchor_milli(&model), 222);
+
+        model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(111, 444));
+        assert_eq!(waveform_anchor_milli(&model), 111);
+    }
 }

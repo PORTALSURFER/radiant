@@ -363,8 +363,12 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && let PhysicalKey::Code(code) = event.physical_key
                     && let Some(key) = key_code_from_winit(code)
                 {
-                    let mut handled = self.shell_state.handle_key(key);
-                    if let Some(action) = action_from_key(key, self.modifiers) {
+                    let mut handled = if self.model.confirm_prompt.visible {
+                        false
+                    } else {
+                        self.shell_state.handle_key(key)
+                    };
+                    if let Some(action) = action_from_key(key, self.modifiers, &self.model) {
                         self.bridge.on_action(action);
                         handled = true;
                     }
@@ -393,7 +397,14 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
     }
 }
 
-fn action_from_key(key: KeyCode, modifiers: ModifiersState) -> Option<UiAction> {
+fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) -> Option<UiAction> {
+    if model.confirm_prompt.visible {
+        return match key {
+            KeyCode::Enter => Some(UiAction::ConfirmPrompt),
+            KeyCode::C => Some(UiAction::CancelPrompt),
+            _ => None,
+        };
+    }
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
     match key {
@@ -422,14 +433,23 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState) -> Option<UiAction> 
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
         KeyCode::A => Some(UiAction::SelectAllBrowserRows),
         KeyCode::C => Some(UiAction::ClearWaveformSelection),
+        KeyCode::D => Some(UiAction::DeleteBrowserSelection),
         KeyCode::Enter => Some(UiAction::ToggleTransport),
         KeyCode::F => Some(UiAction::FocusBrowserSearch),
+        KeyCode::I => Some(UiAction::StartBrowserRename),
         KeyCode::L => Some(UiAction::ToggleLoopPlayback),
         KeyCode::M => Some(UiAction::ZoomWaveformToSelection),
+        KeyCode::N => Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Neutral,
+        }),
         KeyCode::OpenBracket => Some(UiAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
         }),
+        KeyCode::P => model
+            .progress_overlay
+            .cancelable
+            .then_some(UiAction::CancelProgress),
         KeyCode::CloseBracket => Some(UiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
@@ -440,6 +460,12 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState) -> Option<UiAction> 
         KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
         KeyCode::U => Some(UiAction::Undo),
         KeyCode::W => Some(UiAction::FocusWaveformPanel),
+        KeyCode::X => Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Trash,
+        }),
+        KeyCode::Y => Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Keep,
+        }),
         _ => None,
     }
 }
@@ -451,6 +477,15 @@ fn action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
+    if let Some(action) = shell_state.prompt_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.browser_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();
@@ -473,7 +508,7 @@ fn action_from_pointer(
                 Some(UiAction::SelectSourceRow { index })
             }),
         ShellNodeKind::WaveformCard => {
-            let inner = layout.waveform_card.inset(8.0);
+            let inner = layout.waveform_plot;
             let width = inner.width().max(1.0);
             let ratio = ((point.x - inner.min.x) / width).clamp(0.0, 1.0);
             let position_milli = ratio_to_milli(ratio);
@@ -757,31 +792,75 @@ mod tests {
 
     #[test]
     fn key_bindings_emit_waveform_zoom_actions() {
+        let model = AppModel::default();
         assert_eq!(
-            action_from_key(KeyCode::OpenBracket, ModifiersState::default()),
+            action_from_key(KeyCode::OpenBracket, ModifiersState::default(), &model),
             Some(UiAction::ZoomWaveform {
                 zoom_in: false,
                 steps: 1,
             })
         );
         assert_eq!(
-            action_from_key(KeyCode::CloseBracket, ModifiersState::default()),
+            action_from_key(KeyCode::CloseBracket, ModifiersState::default(), &model),
             Some(UiAction::ZoomWaveform {
                 zoom_in: true,
                 steps: 1,
             })
         );
         assert_eq!(
-            action_from_key(KeyCode::M, ModifiersState::default()),
+            action_from_key(KeyCode::M, ModifiersState::default(), &model),
             Some(UiAction::ZoomWaveformToSelection)
         );
         assert_eq!(
-            action_from_key(KeyCode::C, ModifiersState::default()),
+            action_from_key(KeyCode::C, ModifiersState::default(), &model),
             Some(UiAction::ClearWaveformSelection)
         );
         assert_eq!(
-            action_from_key(KeyCode::Slash, ModifiersState::default()),
+            action_from_key(KeyCode::Slash, ModifiersState::default(), &model),
             Some(UiAction::ZoomWaveformFull)
+        );
+    }
+
+    #[test]
+    fn key_bindings_emit_browser_actions() {
+        let model = AppModel::default();
+        assert_eq!(
+            action_from_key(KeyCode::D, ModifiersState::default(), &model),
+            Some(UiAction::DeleteBrowserSelection)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::I, ModifiersState::default(), &model),
+            Some(UiAction::StartBrowserRename)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::N, ModifiersState::default(), &model),
+            Some(UiAction::TagBrowserSelection {
+                target: crate::app::BrowserTagTarget::Neutral
+            })
+        );
+        assert_eq!(
+            action_from_key(KeyCode::X, ModifiersState::default(), &model),
+            Some(UiAction::TagBrowserSelection {
+                target: crate::app::BrowserTagTarget::Trash
+            })
+        );
+    }
+
+    #[test]
+    fn prompt_visible_routes_enter_and_cancel_keys() {
+        let mut model = AppModel::default();
+        model.confirm_prompt.visible = true;
+        assert_eq!(
+            action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
+            Some(UiAction::ConfirmPrompt)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::C, ModifiersState::default(), &model),
+            Some(UiAction::CancelPrompt)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::W, ModifiersState::default(), &model),
+            None
         );
     }
 

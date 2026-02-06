@@ -133,4 +133,96 @@ mod tests {
         assert!((layout.top_bar.height() - tokens.sizing.top_bar_height).abs() < 0.001);
         assert!((layout.status_bar.height() - tokens.sizing.status_bar_height).abs() < 0.001);
     }
+
+    #[test]
+    fn action_strip_hit_test_emits_browser_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.browser_actions.can_delete = true;
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let sizing = style.sizing;
+        let button_count = 5.0;
+        let total_width =
+            (sizing.action_button_width * button_count) + (sizing.action_button_gap * 4.0);
+        let start_x = (layout.top_bar.max.x - (sizing.text_inset_x + 32.0) - total_width)
+            .max(layout.top_bar.min.x + 180.0);
+        let y = (layout.top_bar.max.y - sizing.action_button_height - sizing.text_inset_y)
+            .max(layout.top_bar.min.y + 1.0);
+        let point = Point::new(
+            start_x
+                + ((sizing.action_button_width + sizing.action_button_gap) * 4.0)
+                + (sizing.action_button_width * 0.5),
+            y + (sizing.action_button_height * 0.5),
+        );
+        assert_eq!(
+            state.browser_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::DeleteBrowserSelection)
+        );
+    }
+
+    #[test]
+    fn prompt_hit_test_emits_confirm_and_cancel() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.confirm_prompt.visible = true;
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let dialog = {
+            let sizing = style.sizing;
+            let width = sizing
+                .prompt_width
+                .min(layout.content.width() - (sizing.overlay_padding * 2.0))
+                .max(260.0);
+            let height = sizing
+                .prompt_min_height
+                .min(layout.content.height() - (sizing.overlay_padding * 2.0))
+                .max(108.0);
+            let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
+            let y = layout.content.min.y + (layout.content.height() - height).max(0.0) * 0.35;
+            crate::gui::types::Rect::from_min_max(
+                Point::new(x, y),
+                Point::new(x + width, y + height),
+            )
+        };
+        let cancel = {
+            let sizing = style.sizing;
+            crate::gui::types::Rect::from_min_max(
+                Point::new(
+                    dialog.max.x - sizing.overlay_button_width - sizing.text_inset_x,
+                    dialog.max.y - sizing.overlay_button_height - sizing.text_inset_y,
+                ),
+                Point::new(
+                    dialog.max.x - sizing.text_inset_x,
+                    dialog.max.y - sizing.text_inset_y,
+                ),
+            )
+        };
+        let confirm = {
+            let sizing = style.sizing;
+            crate::gui::types::Rect::from_min_max(
+                Point::new(
+                    cancel.min.x - sizing.overlay_button_width - sizing.action_button_gap,
+                    cancel.min.y,
+                ),
+                Point::new(cancel.min.x - sizing.action_button_gap, cancel.max.y),
+            )
+        };
+        let confirm_point = Point::new(
+            (confirm.min.x + confirm.max.x) * 0.5,
+            (confirm.min.y + confirm.max.y) * 0.5,
+        );
+        let cancel_point = Point::new(
+            (cancel.min.x + cancel.max.x) * 0.5,
+            (cancel.min.y + cancel.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.prompt_action_at_point(&layout, &model, confirm_point),
+            Some(crate::app::UiAction::ConfirmPrompt)
+        );
+        assert_eq!(
+            state.prompt_action_at_point(&layout, &model, cancel_point),
+            Some(crate::app::UiAction::CancelPrompt)
+        );
+    }
 }

@@ -121,6 +121,28 @@ pub struct BrowserPanelModel {
     pub rows: Vec<BrowserRowModel>,
 }
 
+/// Triage targets used by native browser action surfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrowserTagTarget {
+    /// Move selected/focused rows to trash.
+    Trash,
+    /// Set selected/focused rows to neutral.
+    Neutral,
+    /// Mark selected/focused rows as keep.
+    Keep,
+}
+
+/// Browser action availability consumed by the native shell action strip.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserActionsModel {
+    /// Whether rename can be started for the focused row.
+    pub can_rename: bool,
+    /// Whether delete can be applied to focused/selected rows.
+    pub can_delete: bool,
+    /// Whether tag actions can be applied to focused/selected rows.
+    pub can_tag: bool,
+}
+
 /// Normalized range in milli-units (`0..=1000`) for deterministic UI contracts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NormalizedRangeModel {
@@ -186,6 +208,70 @@ pub struct StatusBarModel {
     pub right: String,
 }
 
+/// Progress overlay state projected into the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ProgressOverlayModel {
+    /// Whether the overlay is currently visible.
+    pub visible: bool,
+    /// Whether the overlay is modal.
+    pub modal: bool,
+    /// Title text for the progress surface.
+    pub title: String,
+    /// Optional detail line.
+    pub detail: Option<String>,
+    /// Completed steps.
+    pub completed: usize,
+    /// Total steps.
+    pub total: usize,
+    /// Whether the running operation supports cancel.
+    pub cancelable: bool,
+    /// Whether cancel has already been requested.
+    pub cancel_requested: bool,
+}
+
+/// Prompt types that can block interaction in the native shell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConfirmPromptKind {
+    /// Pending destructive waveform edit prompt.
+    DestructiveEdit,
+    /// Pending browser rename prompt.
+    BrowserRename,
+    /// Pending folder rename prompt.
+    FolderRename,
+}
+
+/// Modal confirmation prompt projected into the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ConfirmPromptModel {
+    /// Whether the prompt is currently visible.
+    pub visible: bool,
+    /// Prompt kind used by the bridge to resolve confirm/cancel behavior.
+    pub kind: Option<ConfirmPromptKind>,
+    /// Prompt title text.
+    pub title: String,
+    /// Prompt body text.
+    pub message: String,
+    /// Confirm action label.
+    pub confirm_label: String,
+    /// Cancel action label.
+    pub cancel_label: String,
+    /// Optional target label shown as supplemental metadata.
+    pub target_label: Option<String>,
+}
+
+/// Drag/drop overlay content for native-shell feedback.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct DragOverlayModel {
+    /// Whether a drag payload is currently active.
+    pub active: bool,
+    /// Human-friendly payload label.
+    pub label: String,
+    /// Current hover target label.
+    pub target_label: String,
+    /// Whether the current target is a valid drop.
+    pub valid_target: bool,
+}
+
 /// Snapshot of app state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppModel {
@@ -199,6 +285,14 @@ pub struct AppModel {
     pub status_text: String,
     /// Structured footer status segments used by the native shell footer.
     pub status: StatusBarModel,
+    /// Browser action availability for native action surfaces.
+    pub browser_actions: BrowserActionsModel,
+    /// Progress overlay projection.
+    pub progress_overlay: ProgressOverlayModel,
+    /// Modal confirm prompt projection.
+    pub confirm_prompt: ConfirmPromptModel,
+    /// Drag/drop overlay projection.
+    pub drag_overlay: DragOverlayModel,
     /// Logical triage/browser columns.
     pub columns: [ColumnModel; 3],
     /// Selected column index (0..=2).
@@ -225,6 +319,10 @@ impl Default for AppModel {
                 center: String::from("rows: 0 | selected: 0 | anchor: — | search: —"),
                 right: String::from("col: 2/3"),
             },
+            browser_actions: BrowserActionsModel::default(),
+            progress_overlay: ProgressOverlayModel::default(),
+            confirm_prompt: ConfirmPromptModel::default(),
+            drag_overlay: DragOverlayModel::default(),
             columns: [
                 ColumnModel::new("Trash", 0),
                 ColumnModel::new("Samples", 0),
@@ -287,6 +385,22 @@ pub enum UiAction {
     SelectAllBrowserRows,
     /// Set browser search query.
     SetBrowserSearch { query: String },
+    /// Start inline rename flow for the focused browser row.
+    StartBrowserRename,
+    /// Confirm the currently pending browser rename prompt.
+    ConfirmBrowserRename,
+    /// Cancel the currently pending browser rename prompt.
+    CancelBrowserRename,
+    /// Apply a triage tag to focused/selected browser rows.
+    TagBrowserSelection { target: BrowserTagTarget },
+    /// Delete focused/selected browser rows.
+    DeleteBrowserSelection,
+    /// Confirm the currently visible modal prompt.
+    ConfirmPrompt,
+    /// Cancel the currently visible modal prompt.
+    CancelPrompt,
+    /// Request cancellation of the active progress operation.
+    CancelProgress,
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).

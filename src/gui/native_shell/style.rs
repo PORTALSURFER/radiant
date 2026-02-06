@@ -92,6 +92,26 @@ pub(crate) struct SizingTokens {
     pub source_bottom_padding: f32,
     /// Bottom padding reserved for triage columns.
     pub column_bottom_padding: f32,
+    /// Browser action button width.
+    pub action_button_width: f32,
+    /// Browser action button height.
+    pub action_button_height: f32,
+    /// Gap between browser action buttons.
+    pub action_button_gap: f32,
+    /// Outer padding for modal overlays.
+    pub overlay_padding: f32,
+    /// Prompt dialog width.
+    pub prompt_width: f32,
+    /// Prompt dialog minimum height.
+    pub prompt_min_height: f32,
+    /// Overlay button width.
+    pub overlay_button_width: f32,
+    /// Overlay button height.
+    pub overlay_button_height: f32,
+    /// Progress bar height.
+    pub progress_bar_height: f32,
+    /// Drag overlay banner height.
+    pub drag_overlay_height: f32,
     /// Border stroke width.
     pub border_width: f32,
     /// Waveform scanline step width.
@@ -161,6 +181,16 @@ impl StyleTokens {
                 waveform_header_block_height: 30.0,
                 source_bottom_padding: 8.0,
                 column_bottom_padding: 6.0,
+                action_button_width: 54.0,
+                action_button_height: 18.0,
+                action_button_gap: 4.0,
+                overlay_padding: 14.0,
+                prompt_width: 420.0,
+                prompt_min_height: 128.0,
+                overlay_button_width: 84.0,
+                overlay_button_height: 24.0,
+                progress_bar_height: 12.0,
+                drag_overlay_height: 24.0,
                 border_width: 1.0,
                 waveform_scan_step: 12.0,
                 font_title: 14.0,
@@ -195,6 +225,16 @@ impl StyleTokens {
             tokens.sizing.waveform_header_block_height = 28.0;
             tokens.sizing.source_bottom_padding = 6.0;
             tokens.sizing.column_bottom_padding = 5.0;
+            tokens.sizing.action_button_width = 48.0;
+            tokens.sizing.action_button_height = 16.0;
+            tokens.sizing.action_button_gap = 3.0;
+            tokens.sizing.overlay_padding = 12.0;
+            tokens.sizing.prompt_width = 360.0;
+            tokens.sizing.prompt_min_height = 118.0;
+            tokens.sizing.overlay_button_width = 78.0;
+            tokens.sizing.overlay_button_height = 22.0;
+            tokens.sizing.progress_bar_height = 10.0;
+            tokens.sizing.drag_overlay_height = 22.0;
             tokens.sizing.waveform_scan_step = 10.0;
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
@@ -226,6 +266,16 @@ impl StyleTokens {
             tokens.sizing.waveform_header_block_height = 34.0;
             tokens.sizing.source_bottom_padding = 10.0;
             tokens.sizing.column_bottom_padding = 8.0;
+            tokens.sizing.action_button_width = 60.0;
+            tokens.sizing.action_button_height = 20.0;
+            tokens.sizing.action_button_gap = 5.0;
+            tokens.sizing.overlay_padding = 16.0;
+            tokens.sizing.prompt_width = 480.0;
+            tokens.sizing.prompt_min_height = 138.0;
+            tokens.sizing.overlay_button_width = 92.0;
+            tokens.sizing.overlay_button_height = 26.0;
+            tokens.sizing.progress_bar_height = 14.0;
+            tokens.sizing.drag_overlay_height = 26.0;
             tokens.sizing.waveform_scan_step = 14.0;
             tokens.sizing.font_title = 15.0;
             tokens.sizing.font_header = 13.0;

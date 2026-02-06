@@ -29,7 +29,7 @@ use winit::{
     dpi::{LogicalSize, Size},
     event::{ElementState, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::PhysicalKey,
+    keyboard::{ModifiersState, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
 
@@ -48,6 +48,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     shell_state: NativeShellState,
     clear_color: Rgba8,
     last_cursor: Option<Point>,
+    modifiers: ModifiersState,
     last_redraw: Instant,
 }
 
@@ -73,6 +74,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 a: 255,
             },
             last_cursor: None,
+            modifiers: ModifiersState::default(),
             last_redraw: Instant::now(),
         }
     }
@@ -329,15 +331,20 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     (self.last_cursor, self.shell_layout.as_ref(), window)
                 {
                     let mut handled = false;
-                    if self.shell_state.handle_primary_click(layout, point) {
-                        if let Some(column) = layout.column_at_point(point) {
-                            self.bridge.on_action(UiAction::SelectColumn { index: column });
-                            handled = true;
-                        }
-                    }
-                    if let Some(action) = action_from_pointer(layout, &self.model, &self.shell_state, point)
+                    if let Some(action) = action_from_pointer(
+                        layout,
+                        &self.model,
+                        &self.shell_state,
+                        point,
+                        self.modifiers,
+                    )
                     {
                         self.bridge.on_action(action);
+                        handled = true;
+                    } else if self.shell_state.handle_primary_click(layout, point)
+                        && let Some(column) = layout.column_at_point(point)
+                    {
+                        self.bridge.on_action(UiAction::SelectColumn { index: column });
                         handled = true;
                     }
                     if handled {
@@ -345,6 +352,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         window.request_redraw();
                     }
                 }
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.modifiers = modifiers.state();
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let window = self.window.as_ref().cloned();
@@ -354,7 +364,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && let Some(key) = key_code_from_winit(code)
                 {
                     let mut handled = self.shell_state.handle_key(key);
-                    if let Some(action) = action_from_key(key) {
+                    if let Some(action) = action_from_key(key, self.modifiers) {
                         self.bridge.on_action(action);
                         handled = true;
                     }
@@ -383,12 +393,30 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
     }
 }
 
-fn action_from_key(key: KeyCode) -> Option<UiAction> {
+fn action_from_key(key: KeyCode, modifiers: ModifiersState) -> Option<UiAction> {
+    let shift = modifiers.shift_key();
+    let command = modifiers.control_key() || modifiers.super_key();
     match key {
         KeyCode::ArrowLeft => Some(UiAction::MoveColumn { delta: -1 }),
         KeyCode::ArrowRight => Some(UiAction::MoveColumn { delta: 1 }),
-        KeyCode::ArrowUp => Some(UiAction::MoveBrowserFocus { delta: -1 }),
-        KeyCode::ArrowDown => Some(UiAction::MoveBrowserFocus { delta: 1 }),
+        KeyCode::ArrowUp => {
+            if shift && command {
+                Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: -1 })
+            } else if shift {
+                Some(UiAction::ExtendBrowserSelectionFromFocus { delta: -1 })
+            } else {
+                Some(UiAction::MoveBrowserFocus { delta: -1 })
+            }
+        }
+        KeyCode::ArrowDown => {
+            if shift && command {
+                Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
+            } else if shift {
+                Some(UiAction::ExtendBrowserSelectionFromFocus { delta: 1 })
+            } else {
+                Some(UiAction::MoveBrowserFocus { delta: 1 })
+            }
+        }
         KeyCode::Num1 => Some(UiAction::SelectColumn { index: 0 }),
         KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
@@ -410,7 +438,22 @@ fn action_from_pointer(
     model: &AppModel,
     shell_state: &NativeShellState,
     point: Point,
+    modifiers: ModifiersState,
 ) -> Option<UiAction> {
+    if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
+        let shift = modifiers.shift_key();
+        let command = modifiers.control_key() || modifiers.super_key();
+        return Some(if shift && command {
+            UiAction::AddRangeBrowserSelection { visible_row }
+        } else if shift {
+            UiAction::ExtendBrowserSelectionToRow { visible_row }
+        } else if command {
+            UiAction::ToggleBrowserRowSelection { visible_row }
+        } else {
+            UiAction::FocusBrowserRow { visible_row }
+        });
+    }
+
     let hit = layout.hit_test(point)?;
     match hit {
         ShellNodeKind::Sidebar => shell_state

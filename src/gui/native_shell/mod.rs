@@ -65,4 +65,26 @@ mod tests {
         assert!(state.handle_key(KeyCode::ArrowRight));
         assert!(state.handle_key(KeyCode::ArrowLeft));
     }
+
+    #[test]
+    fn browser_row_hit_test_resolves_visible_row() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.browser.rows.push(crate::app::BrowserRowModel::new(
+            7,
+            "kick",
+            0,
+            false,
+            true,
+        ));
+        let point = Point::new(
+            (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
+            (layout.columns[0].min.y + layout.columns[0].max.y) * 0.5,
+        );
+        assert_eq!(state.browser_row_at_point(&layout, &model, point), Some(7));
+        state.sync_from_model(&model);
+        let frame = state.build_frame(&layout, &model);
+        assert!(frame.text_runs.iter().any(|run| run.text == "kick"));
+    }
 }

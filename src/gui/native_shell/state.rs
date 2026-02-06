@@ -5,7 +5,7 @@ use super::{
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::StyleTokens,
 };
-use crate::app::AppModel;
+use crate::app::{AppModel, BrowserRowModel};
 use crate::gui::{
     input::KeyCode,
     types::{Point, Rect},
@@ -131,6 +131,19 @@ impl NativeShellState {
             .position(|rect| rect.contains(point))
     }
 
+    /// Resolve a rendered browser visible-row index for a point in the triage pane.
+    pub(crate) fn browser_row_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        rendered_browser_rows(layout, model)
+            .into_iter()
+            .find(|row| row.rect.contains(point))
+            .map(|row| row.visible_row)
+    }
+
     /// Build a native frame from state + layout + style tokens.
     pub(crate) fn build_frame_with_style(
         &self,
@@ -218,17 +231,60 @@ impl NativeShellState {
                 },
             );
 
-            let row_count = model.columns[index].item_count.clamp(1, 10);
-            for row_rect in build_column_rows(column_rect.inset(8.0), row_count, 6.0) {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: row_rect,
-                    color: if selected {
-                        style.grid_strong
-                    } else {
-                        style.grid_soft
-                    },
-                }));
+            let has_rendered_rows = model
+                .browser
+                .rows
+                .iter()
+                .any(|row| row.column.min(2) == index);
+            if !has_rendered_rows {
+                let row_count = model.columns[index].item_count.clamp(1, 10);
+                for row_rect in build_column_rows(column_rect.inset(8.0), row_count, 6.0) {
+                    primitives.push(Primitive::Rect(FillRect {
+                        rect: row_rect,
+                        color: if selected {
+                            style.grid_strong
+                        } else {
+                            style.grid_soft
+                        },
+                    }));
+                }
             }
+        }
+
+        for row in rendered_browser_rows(layout, model) {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: row.rect,
+                color: if row.selected || row.focused {
+                    style.bg_tertiary
+                } else {
+                    style.bg_primary
+                },
+            }));
+            push_border(
+                &mut primitives,
+                row.rect,
+                if row.focused {
+                    style.accent_warning
+                } else if row.selected {
+                    style.accent_mint
+                } else {
+                    style.border
+                },
+            );
+            text_runs.push(TextRun {
+                text: row.label,
+                position: Point::new(row.rect.min.x + 6.0, row.rect.min.y + 4.0),
+                font_size: 11.0,
+                color: if row.focused {
+                    style.accent_warning
+                } else if row.selected {
+                    style.accent_mint
+                } else {
+                    style.text_primary
+                },
+                max_width: Some((row.rect.width() - 12.0).max(24.0)),
+                align: TextAlign::Left,
+            });
         }
 
         push_border(&mut primitives, layout.top_bar, style.border);
@@ -427,9 +483,14 @@ impl NativeShellState {
             model.status_text.clone()
         };
         let browser_summary = format!(
-            "rows: {} | selected: {} | search: {}{}",
+            "rows: {} | selected: {} | anchor: {} | search: {}{}",
             model.browser.visible_count,
             model.browser.selected_path_count,
+            model
+                .browser
+                .anchor_visible_row
+                .map(|row| row.to_string())
+                .unwrap_or_else(|| String::from("—")),
             if model.browser.search_query.is_empty() {
                 "—"
             } else {
@@ -474,6 +535,16 @@ impl NativeShellState {
 }
 
 const MAX_RENDERED_SOURCE_ROWS: usize = 8;
+const MAX_RENDERED_BROWSER_ROWS_PER_COLUMN: usize = 14;
+
+#[derive(Clone, Debug)]
+struct RenderedBrowserRow {
+    visible_row: usize,
+    label: String,
+    selected: bool,
+    focused: bool,
+    rect: Rect,
+}
 
 fn source_rows_area(sidebar: Rect) -> Rect {
     let top = (sidebar.min.y + 44.0).min(sidebar.max.y);
@@ -486,6 +557,37 @@ fn source_rows_area(sidebar: Rect) -> Rect {
 
 fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
+}
+
+fn rendered_browser_rows(layout: &ShellLayout, model: &AppModel) -> Vec<RenderedBrowserRow> {
+    let mut rows_by_column: [Vec<&BrowserRowModel>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for row in &model.browser.rows {
+        let column = row.column.min(2);
+        if rows_by_column[column].len() < MAX_RENDERED_BROWSER_ROWS_PER_COLUMN {
+            rows_by_column[column].push(row);
+        }
+    }
+
+    let mut rendered = Vec::new();
+    for (column, rows) in rows_by_column.iter().enumerate() {
+        if rows.is_empty() {
+            continue;
+        }
+        let column_rect = layout.columns[column].inset(8.0);
+        for (row, rect) in rows
+            .iter()
+            .zip(build_column_rows(column_rect, rows.len(), 4.0))
+        {
+            rendered.push(RenderedBrowserRow {
+                visible_row: row.visible_row,
+                label: row.label.clone(),
+                selected: row.selected,
+                focused: row.focused,
+                rect,
+            });
+        }
+    }
+    rendered
 }
 
 fn push_border(primitives: &mut Vec<Primitive>, rect: Rect, color: crate::gui::types::Rgba8) {

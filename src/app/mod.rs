@@ -67,6 +67,40 @@ pub struct SourcesPanelModel {
 }
 
 /// Summary of browser/list state consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserRowModel {
+    /// Visible row index in the filtered browser list.
+    pub visible_row: usize,
+    /// Display label for the row.
+    pub label: String,
+    /// Triage column index (`0..=2`) that currently owns the row.
+    pub column: usize,
+    /// Whether this row is currently selected in multi-selection state.
+    pub selected: bool,
+    /// Whether this row currently has focus/caret.
+    pub focused: bool,
+}
+
+impl BrowserRowModel {
+    /// Build a row model, clamping the column into `0..=2`.
+    pub fn new(
+        visible_row: usize,
+        label: impl Into<String>,
+        column: usize,
+        selected: bool,
+        focused: bool,
+    ) -> Self {
+        Self {
+            visible_row,
+            label: label.into(),
+            column: column.min(2),
+            selected,
+            focused,
+        }
+    }
+}
+
+/// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BrowserPanelModel {
     /// Number of rows currently visible in the browser.
@@ -81,6 +115,10 @@ pub struct BrowserPanelModel {
     pub busy: bool,
     /// Display label for the currently focused sample, when known.
     pub focused_sample_label: Option<String>,
+    /// Selection anchor in visible-row space.
+    pub anchor_visible_row: Option<usize>,
+    /// Visible rows rendered by the native browser panel.
+    pub rows: Vec<BrowserRowModel>,
 }
 
 /// Normalized range in milli-units (`0..=1000`) for deterministic UI contracts.
@@ -217,6 +255,14 @@ pub enum UiAction {
     FocusBrowserRow { visible_row: usize },
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection { visible_row: usize },
+    /// Extend selection from the anchor to the target visible row.
+    ExtendBrowserSelectionToRow { visible_row: usize },
+    /// Extend selection additively from the anchor to the target visible row.
+    AddRangeBrowserSelection { visible_row: usize },
+    /// Move browser focus and extend selection by a visible-row delta.
+    ExtendBrowserSelectionFromFocus { delta: i8 },
+    /// Move browser focus and extend selection additively by a visible-row delta.
+    AddRangeBrowserSelectionFromFocus { delta: i8 },
     /// Toggle selection state for the currently focused browser row.
     ToggleFocusedBrowserRowSelection,
     /// Select every row in the current visible browser list.

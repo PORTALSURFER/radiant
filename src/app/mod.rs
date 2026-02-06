@@ -175,6 +175,17 @@ impl Default for WaveformPanelModel {
     }
 }
 
+/// Structured footer status content for left/center/right status segments.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct StatusBarModel {
+    /// Left-aligned status segment.
+    pub left: String,
+    /// Center-aligned status segment.
+    pub center: String,
+    /// Right-aligned status segment.
+    pub right: String,
+}
+
 /// Snapshot of app state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppModel {
@@ -186,6 +197,8 @@ pub struct AppModel {
     pub sources_label: String,
     /// Footer status text.
     pub status_text: String,
+    /// Structured footer status segments used by the native shell footer.
+    pub status: StatusBarModel,
     /// Logical triage/browser columns.
     pub columns: [ColumnModel; 3],
     /// Selected column index (0..=2).
@@ -207,6 +220,11 @@ impl Default for AppModel {
             backend_label: String::from("backend: native_vello"),
             sources_label: String::from("Sources"),
             status_text: String::from("Native shell preview"),
+            status: StatusBarModel {
+                left: String::from("Native shell preview"),
+                center: String::from("rows: 0 | selected: 0 | anchor: — | search: —"),
+                right: String::from("col: 2/3"),
+            },
             columns: [
                 ColumnModel::new("Trash", 0),
                 ColumnModel::new("Samples", 0),

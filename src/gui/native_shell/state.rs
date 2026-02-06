@@ -125,13 +125,13 @@ impl NativeShellState {
         if model.sources.rows.is_empty() {
             return None;
         }
-        let style = StyleTokens::default();
+        let style = style_for_layout(layout);
         let rendered_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
-        build_column_rows(
+        build_stacked_rows(
             source_rows_area(layout.sidebar, &style),
             rendered_rows,
             style.sizing.source_row_gap,
-            10.0,
+            style.sizing.source_row_height,
         )
         .iter()
         .position(|rect| rect.contains(point))
@@ -144,7 +144,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
-        rendered_browser_rows(layout, model, &StyleTokens::default())
+        rendered_browser_rows(layout, model, &style_for_layout(layout))
             .into_iter()
             .find(|row| row.rect.contains(point))
             .map(|row| row.visible_row)
@@ -303,11 +303,11 @@ impl NativeShellState {
                 .any(|row| row.column.min(2) == index);
             if !has_rendered_rows {
                 let row_count = model.columns[index].item_count.clamp(1, 10);
-                for row_rect in build_column_rows(
-                    column_rect.inset(sizing.panel_inset),
+                for row_rect in build_stacked_rows(
+                    column_rows_area(column_rect, style),
                     row_count,
                     sizing.browser_row_gap,
-                    8.0,
+                    sizing.browser_row_height,
                 ) {
                     primitives.push(Primitive::Rect(FillRect {
                         rect: row_rect,
@@ -459,11 +459,11 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
-        for (row_index, row_rect) in build_column_rows(
+        for (row_index, row_rect) in build_stacked_rows(
             source_rows_area(layout.sidebar, style),
             rendered_sources,
             sizing.source_row_gap,
-            10.0,
+            sizing.source_row_height,
         )
         .iter()
         .copied()
@@ -632,8 +632,23 @@ impl NativeShellState {
                 ""
             }
         );
+        let status_left = if model.status.left.is_empty() {
+            status_text
+        } else {
+            model.status.left.clone()
+        };
+        let status_center = if model.status.center.is_empty() {
+            browser_summary
+        } else {
+            model.status.center.clone()
+        };
+        let status_right = if model.status.right.is_empty() {
+            format!("col: {}/3", self.selected_column + 1)
+        } else {
+            model.status.right.clone()
+        };
         text_runs.push(TextRun {
-            text: status_text,
+            text: status_left,
             position: Point::new(
                 layout.status_bar.min.x + sizing.text_inset_x + 4.0,
                 layout.status_bar.min.y + sizing.text_inset_y,
@@ -644,7 +659,7 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
-            text: browser_summary,
+            text: status_center,
             position: Point::new(
                 layout.status_bar.min.x + sizing.text_inset_x + 4.0,
                 layout.status_bar.min.y + sizing.text_inset_y,
@@ -653,6 +668,17 @@ impl NativeShellState {
             color: style.text_primary,
             max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Center,
+        });
+        text_runs.push(TextRun {
+            text: status_right,
+            position: Point::new(
+                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
+                layout.status_bar.min.y + sizing.text_inset_y,
+            ),
+            font_size: sizing.font_status,
+            color: style.text_muted,
+            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            align: TextAlign::Right,
         });
 
         NativeViewFrame {
@@ -664,7 +690,7 @@ impl NativeShellState {
 
     /// Build a native frame using default style tokens.
     pub(crate) fn build_frame(&self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
-        self.build_frame_with_style(layout, &StyleTokens::default(), model)
+        self.build_frame_with_style(layout, &style_for_layout(layout), model)
     }
 }
 
@@ -687,6 +713,16 @@ fn source_rows_area(sidebar: Rect, style: &StyleTokens) -> Rect {
     Rect::from_min_max(
         Point::new(sidebar.min.x + sizing.panel_inset, top),
         Point::new(sidebar.max.x - sizing.panel_inset, bottom),
+    )
+}
+
+fn column_rows_area(column: Rect, style: &StyleTokens) -> Rect {
+    let sizing = style.sizing;
+    let top = (column.min.y + sizing.column_header_block_height).min(column.max.y);
+    let bottom = (column.max.y - sizing.column_bottom_padding).max(top);
+    Rect::from_min_max(
+        Point::new(column.min.x + sizing.panel_inset, top),
+        Point::new(column.max.x - sizing.panel_inset, bottom),
     )
 }
 
@@ -713,12 +749,12 @@ fn rendered_browser_rows(
         if rows.is_empty() {
             continue;
         }
-        let column_rect = layout.columns[column].inset(sizing.panel_inset);
-        for (row, rect) in rows.iter().zip(build_column_rows(
+        let column_rect = column_rows_area(layout.columns[column], style);
+        for (row, rect) in rows.iter().zip(build_stacked_rows(
             column_rect,
             rows.len(),
             sizing.browser_row_gap,
-            10.0,
+            sizing.browser_row_height,
         )) {
             rendered.push(RenderedBrowserRow {
                 visible_row: row.visible_row,
@@ -730,6 +766,10 @@ fn rendered_browser_rows(
         }
     }
     rendered
+}
+
+fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
+    StyleTokens::for_viewport_width(layout.root.rect.width())
 }
 
 fn push_border(
@@ -760,26 +800,26 @@ fn push_border(
     }));
 }
 
-fn build_column_rows(column: Rect, rows: usize, gap: f32, min_height: f32) -> Vec<Rect> {
+fn build_stacked_rows(column: Rect, rows: usize, gap: f32, row_height: f32) -> Vec<Rect> {
     if rows == 0 {
         return Vec::new();
     }
-    let total_gap = gap * (rows.saturating_sub(1) as f32);
-    let row_height = ((column.height() - total_gap) / rows as f32).max(min_height);
+    let row_height = row_height.max(8.0);
     let mut y = column.min.y;
     let mut output = Vec::with_capacity(rows);
-    for row_index in 0..rows {
-        let remaining = rows - row_index;
-        let max_y = if remaining == 1 {
-            column.max.y
-        } else {
-            (y + row_height).min(column.max.y)
-        };
+    for _ in 0..rows {
+        let max_y = (y + row_height).min(column.max.y);
+        if max_y <= y {
+            break;
+        }
         output.push(Rect::from_min_max(
             Point::new(column.min.x, y),
             Point::new(column.max.x, max_y),
         ));
-        y = (max_y + gap).min(column.max.y);
+        y = max_y + gap;
+        if y >= column.max.y {
+            break;
+        }
     }
     output
 }

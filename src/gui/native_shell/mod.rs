@@ -75,9 +75,14 @@ mod tests {
             .browser
             .rows
             .push(crate::app::BrowserRowModel::new(7, "kick", 0, false, true));
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let row_center_y = layout.columns[0].min.y
+            + style.sizing.column_header_block_height
+            + style.sizing.panel_inset
+            + (style.sizing.browser_row_height * 0.5);
         let point = Point::new(
             (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
-            (layout.columns[0].min.y + layout.columns[0].max.y) * 0.5,
+            row_center_y,
         );
         assert_eq!(state.browser_row_at_point(&layout, &model, point), Some(7));
         state.sync_from_model(&model);
@@ -99,5 +104,13 @@ mod tests {
         assert!(layout.sidebar.width() >= 160.0);
         assert!(layout.content.width() >= 200.0);
         assert!(layout.columns.iter().all(|column| column.width() >= 40.0));
+    }
+
+    #[test]
+    fn viewport_tier_sizing_changes_row_density() {
+        let narrow = style::StyleTokens::for_viewport_width(820.0);
+        let wide = style::StyleTokens::for_viewport_width(1900.0);
+        assert!(narrow.sizing.browser_row_height < wide.sizing.browser_row_height);
+        assert!(narrow.sizing.source_row_height < wide.sizing.source_row_height);
     }
 }

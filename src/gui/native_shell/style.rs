@@ -44,8 +44,12 @@ pub(crate) struct SizingTokens {
     pub panel_inset: f32,
     /// Gap between browser rows.
     pub browser_row_gap: f32,
+    /// Browser row card height.
+    pub browser_row_height: f32,
     /// Gap between source rows.
     pub source_row_gap: f32,
+    /// Source row card height.
+    pub source_row_height: f32,
     /// Space between compact metadata text rows.
     pub text_row_gap: f32,
     /// Horizontal text inset inside row cards.
@@ -54,8 +58,14 @@ pub(crate) struct SizingTokens {
     pub text_inset_y: f32,
     /// Top block height reserved for source header + search line.
     pub source_header_block_height: f32,
+    /// Top block height reserved for triage column headers.
+    pub column_header_block_height: f32,
+    /// Top block height reserved for waveform title + metadata.
+    pub waveform_header_block_height: f32,
     /// Bottom padding reserved for source list footer hints.
     pub source_bottom_padding: f32,
+    /// Bottom padding reserved for triage columns.
+    pub column_bottom_padding: f32,
     /// Border stroke width.
     pub border_width: f32,
     /// Waveform scanline step width.
@@ -78,7 +88,14 @@ pub(crate) struct SizingTokens {
 
 impl Default for StyleTokens {
     fn default() -> Self {
-        Self {
+        Self::for_viewport_width(1280.0)
+    }
+}
+
+impl StyleTokens {
+    /// Build style tokens tuned for a viewport width tier.
+    pub(crate) fn for_viewport_width(viewport_width: f32) -> Self {
+        let mut tokens = Self {
             clear_color: rgba(12, 11, 10, 255),
             bg_primary: rgba(12, 11, 10, 255),
             bg_secondary: rgba(20, 18, 16, 255),
@@ -94,12 +111,17 @@ impl Default for StyleTokens {
             sizing: SizingTokens {
                 panel_inset: 6.0,
                 browser_row_gap: 3.0,
+                browser_row_height: 21.0,
                 source_row_gap: 3.0,
+                source_row_height: 20.0,
                 text_row_gap: 2.0,
                 text_inset_x: 5.0,
                 text_inset_y: 3.0,
                 source_header_block_height: 34.0,
+                column_header_block_height: 20.0,
+                waveform_header_block_height: 30.0,
                 source_bottom_padding: 8.0,
+                column_bottom_padding: 6.0,
                 border_width: 1.0,
                 waveform_scan_step: 12.0,
                 font_title: 14.0,
@@ -110,6 +132,69 @@ impl Default for StyleTokens {
                 lamp_radius_base: 4.0,
                 lamp_radius_amp: 2.0,
             },
+        };
+        if viewport_width < 980.0 {
+            tokens.sizing.panel_inset = 5.0;
+            tokens.sizing.browser_row_gap = 2.0;
+            tokens.sizing.browser_row_height = 19.0;
+            tokens.sizing.source_row_gap = 2.0;
+            tokens.sizing.source_row_height = 18.0;
+            tokens.sizing.source_header_block_height = 32.0;
+            tokens.sizing.column_header_block_height = 19.0;
+            tokens.sizing.waveform_header_block_height = 28.0;
+            tokens.sizing.source_bottom_padding = 6.0;
+            tokens.sizing.column_bottom_padding = 5.0;
+            tokens.sizing.waveform_scan_step = 10.0;
+            tokens.sizing.font_title = 13.0;
+            tokens.sizing.font_header = 11.0;
+            tokens.sizing.font_body = 9.5;
+            tokens.sizing.font_meta = 9.5;
+            tokens.sizing.font_status = 10.5;
+            return tokens;
         }
+        if viewport_width > 1700.0 {
+            tokens.sizing.panel_inset = 8.0;
+            tokens.sizing.browser_row_gap = 4.0;
+            tokens.sizing.browser_row_height = 24.0;
+            tokens.sizing.source_row_gap = 4.0;
+            tokens.sizing.source_row_height = 23.0;
+            tokens.sizing.source_header_block_height = 38.0;
+            tokens.sizing.column_header_block_height = 24.0;
+            tokens.sizing.waveform_header_block_height = 34.0;
+            tokens.sizing.source_bottom_padding = 10.0;
+            tokens.sizing.column_bottom_padding = 8.0;
+            tokens.sizing.waveform_scan_step = 14.0;
+            tokens.sizing.font_title = 15.0;
+            tokens.sizing.font_header = 13.0;
+            tokens.sizing.font_body = 11.0;
+            tokens.sizing.font_meta = 10.5;
+            tokens.sizing.font_status = 11.5;
+        }
+        tokens
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StyleTokens;
+
+    #[test]
+    fn viewport_tiers_adjust_row_heights() {
+        let narrow = StyleTokens::for_viewport_width(820.0);
+        let standard = StyleTokens::for_viewport_width(1280.0);
+        let wide = StyleTokens::for_viewport_width(1900.0);
+        assert!(narrow.sizing.browser_row_height < standard.sizing.browser_row_height);
+        assert!(standard.sizing.browser_row_height < wide.sizing.browser_row_height);
+        assert!(narrow.sizing.source_row_height < wide.sizing.source_row_height);
+    }
+
+    #[test]
+    fn viewport_tiers_adjust_header_bands() {
+        let narrow = StyleTokens::for_viewport_width(900.0);
+        let wide = StyleTokens::for_viewport_width(1800.0);
+        assert!(narrow.sizing.column_header_block_height < wide.sizing.column_header_block_height);
+        assert!(
+            narrow.sizing.waveform_header_block_height < wide.sizing.waveform_header_block_height
+        );
     }
 }

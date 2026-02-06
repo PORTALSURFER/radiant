@@ -76,10 +76,7 @@ mod tests {
             .rows
             .push(crate::app::BrowserRowModel::new(7, "kick", 0, false, true));
         let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
-        let row_center_y = layout.columns[0].min.y
-            + style.sizing.column_header_block_height
-            + style.sizing.panel_inset
-            + (style.sizing.browser_row_height * 0.5);
+        let row_center_y = layout.column_rows[0].min.y + (style.sizing.browser_row_height * 0.5);
         let point = Point::new(
             (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
             row_center_y,
@@ -112,5 +109,28 @@ mod tests {
         let wide = style::StyleTokens::for_viewport_width(1900.0);
         assert!(narrow.sizing.browser_row_height < wide.sizing.browser_row_height);
         assert!(narrow.sizing.source_row_height < wide.sizing.source_row_height);
+    }
+
+    #[test]
+    fn layout_bands_stay_within_panel_bounds() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert!(layout.sidebar_header.max.y <= layout.sidebar_rows.min.y);
+        assert!(layout.sidebar_rows.max.y <= layout.sidebar_footer.min.y);
+        assert!(layout.waveform_header.max.y <= layout.waveform_plot.min.y);
+        for index in 0..3 {
+            assert!(layout.column_headers[index].max.y <= layout.column_rows[index].min.y);
+            assert!(layout.column_rows[index].min.x >= layout.columns[index].min.x);
+            assert!(layout.column_rows[index].max.x <= layout.columns[index].max.x);
+        }
+    }
+
+    #[test]
+    fn layout_uses_tokenized_shell_heights() {
+        let width = 1280.0;
+        let height = 720.0;
+        let layout = ShellLayout::build(Vector2::new(width, height));
+        let tokens = style::StyleTokens::for_viewport_width(width);
+        assert!((layout.top_bar.height() - tokens.sizing.top_bar_height).abs() < 0.001);
+        assert!((layout.status_bar.height() - tokens.sizing.status_bar_height).abs() < 0.001);
     }
 }

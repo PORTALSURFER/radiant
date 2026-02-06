@@ -128,7 +128,7 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let rendered_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
         build_stacked_rows(
-            source_rows_area(layout.sidebar, &style),
+            layout.sidebar_rows,
             rendered_rows,
             style.sizing.source_row_gap,
             style.sizing.source_row_height,
@@ -194,7 +194,7 @@ impl NativeShellState {
             color: style.bg_secondary,
         }));
 
-        let waveform_inner = layout.waveform_card.inset(sizing.panel_inset);
+        let waveform_inner = layout.waveform_plot;
         let scan_step = sizing.waveform_scan_step;
         let mut x = waveform_inner.min.x;
         while x < waveform_inner.max.x {
@@ -304,7 +304,7 @@ impl NativeShellState {
             if !has_rendered_rows {
                 let row_count = model.columns[index].item_count.clamp(1, 10);
                 for row_rect in build_stacked_rows(
-                    column_rows_area(column_rect, style),
+                    layout.column_rows[index],
                     row_count,
                     sizing.browser_row_gap,
                     sizing.browser_row_height,
@@ -429,12 +429,14 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: sources_header.to_string(),
             position: Point::new(
-                layout.sidebar.min.x + sizing.text_inset_x + 4.0,
-                layout.sidebar.min.y + sizing.text_inset_y,
+                layout.sidebar_header.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar_header.min.y + sizing.text_inset_y,
             ),
             font_size: sizing.font_header,
             color: style.text_primary,
-            max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.sidebar_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            ),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
@@ -447,20 +449,22 @@ impl NativeShellState {
                 }
             ),
             position: Point::new(
-                layout.sidebar.min.x + sizing.text_inset_x + 4.0,
-                layout.sidebar.min.y
+                layout.sidebar_header.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar_header.min.y
                     + sizing.text_inset_y
                     + sizing.font_header
                     + sizing.text_row_gap,
             ),
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.sidebar_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            ),
             align: TextAlign::Left,
         });
         let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
         for (row_index, row_rect) in build_stacked_rows(
-            source_rows_area(layout.sidebar, style),
+            layout.sidebar_rows,
             rendered_sources,
             sizing.source_row_gap,
             sizing.source_row_height,
@@ -515,12 +519,14 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
                 position: Point::new(
-                    layout.sidebar.min.x + sizing.text_inset_x + 4.0,
-                    layout.sidebar.max.y - sizing.font_meta - sizing.text_inset_y,
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.y + sizing.text_inset_y,
                 ),
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(56.0)),
+                max_width: Some(
+                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
+                ),
                 align: TextAlign::Left,
             });
         }
@@ -528,12 +534,14 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: waveform_title.to_string(),
             position: Point::new(
-                layout.waveform_card.min.x + sizing.text_inset_x + 4.0,
-                layout.waveform_card.min.y + sizing.text_inset_y,
+                layout.waveform_header.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_header.min.y + sizing.text_inset_y,
             ),
             font_size: sizing.font_header,
             color: style.text_muted,
-            max_width: Some((layout.waveform_card.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            ),
             align: TextAlign::Left,
         });
         let playhead_text = model
@@ -564,18 +572,20 @@ impl NativeShellState {
                 view_text,
             ),
             position: Point::new(
-                layout.waveform_card.min.x + sizing.text_inset_x + 4.0,
-                layout.waveform_card.min.y
+                layout.waveform_header.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_header.min.y
                     + sizing.text_inset_y
                     + sizing.font_header
                     + sizing.text_row_gap,
             ),
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.waveform_card.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            ),
             align: TextAlign::Left,
         });
-        for (index, column) in layout.columns.iter().enumerate() {
+        for (index, column) in layout.column_headers.iter().enumerate() {
             let label = format!(
                 "{} ({})",
                 model.columns[index].title, model.columns[index].item_count
@@ -706,26 +716,6 @@ struct RenderedBrowserRow {
     rect: Rect,
 }
 
-fn source_rows_area(sidebar: Rect, style: &StyleTokens) -> Rect {
-    let sizing = style.sizing;
-    let top = (sidebar.min.y + sizing.source_header_block_height).min(sidebar.max.y);
-    let bottom = (sidebar.max.y - sizing.source_bottom_padding).max(top);
-    Rect::from_min_max(
-        Point::new(sidebar.min.x + sizing.panel_inset, top),
-        Point::new(sidebar.max.x - sizing.panel_inset, bottom),
-    )
-}
-
-fn column_rows_area(column: Rect, style: &StyleTokens) -> Rect {
-    let sizing = style.sizing;
-    let top = (column.min.y + sizing.column_header_block_height).min(column.max.y);
-    let bottom = (column.max.y - sizing.column_bottom_padding).max(top);
-    Rect::from_min_max(
-        Point::new(column.min.x + sizing.panel_inset, top),
-        Point::new(column.max.x - sizing.panel_inset, bottom),
-    )
-}
-
 fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
 }
@@ -749,9 +739,8 @@ fn rendered_browser_rows(
         if rows.is_empty() {
             continue;
         }
-        let column_rect = column_rows_area(layout.columns[column], style);
         for (row, rect) in rows.iter().zip(build_stacked_rows(
-            column_rect,
+            layout.column_rows[column],
             rows.len(),
             sizing.browser_row_gap,
             sizing.browser_row_height,

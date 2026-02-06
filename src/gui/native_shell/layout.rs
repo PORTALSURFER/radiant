@@ -1,5 +1,6 @@
 //! Retained view-tree layout and hit-testing for the native shell.
 
+use super::style::StyleTokens;
 use crate::gui::types::{Point, Rect, Vector2};
 
 /// Stable identifier for nodes in the retained shell tree.
@@ -15,13 +16,6 @@ pub(crate) enum ShellNodeKind {
     WaveformCard,
     TriageColumn(usize),
     StatusBar,
-}
-
-/// Layout density profile used to build shell geometry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LayoutDensity {
-    /// Compact, studio-oriented layout with tight panel framing.
-    CompactStudio,
 }
 
 /// A retained view node with stable identity, geometry, and optional children.
@@ -53,123 +47,63 @@ pub(crate) struct ShellLayout {
     pub root: ShellNode,
     pub top_bar: Rect,
     pub sidebar: Rect,
+    pub sidebar_header: Rect,
+    pub sidebar_rows: Rect,
+    pub sidebar_footer: Rect,
     pub content: Rect,
     pub waveform_card: Rect,
+    pub waveform_header: Rect,
+    pub waveform_plot: Rect,
     pub columns: [Rect; 3],
+    pub column_headers: [Rect; 3],
+    pub column_rows: [Rect; 3],
     pub status_bar: Rect,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct LayoutMetrics {
-    frame_inset: f32,
-    panel_gap: f32,
-    top_bar_height: f32,
-    status_bar_height: f32,
-    sidebar_ratio: f32,
-    sidebar_min_width: f32,
-    sidebar_max_width: f32,
-    content_min_width: f32,
-    waveform_ratio: f32,
-    waveform_min_height: f32,
-    waveform_max_height: f32,
-    column_gap: f32,
-}
-
-impl LayoutMetrics {
-    fn compact_for_width(viewport_width: f32) -> Self {
-        if viewport_width < 980.0 {
-            return Self {
-                frame_inset: 6.0,
-                panel_gap: 5.0,
-                top_bar_height: 34.0,
-                status_bar_height: 20.0,
-                sidebar_ratio: 0.23,
-                sidebar_min_width: 168.0,
-                sidebar_max_width: 252.0,
-                content_min_width: 180.0,
-                waveform_ratio: 0.34,
-                waveform_min_height: 120.0,
-                waveform_max_height: 220.0,
-                column_gap: 5.0,
-            };
-        }
-        if viewport_width > 1700.0 {
-            return Self {
-                frame_inset: 10.0,
-                panel_gap: 8.0,
-                top_bar_height: 38.0,
-                status_bar_height: 22.0,
-                sidebar_ratio: 0.20,
-                sidebar_min_width: 190.0,
-                sidebar_max_width: 320.0,
-                content_min_width: 260.0,
-                waveform_ratio: 0.36,
-                waveform_min_height: 140.0,
-                waveform_max_height: 280.0,
-                column_gap: 8.0,
-            };
-        }
-        Self {
-            frame_inset: 7.0,
-            panel_gap: 6.0,
-            top_bar_height: 36.0,
-            status_bar_height: 20.0,
-            sidebar_ratio: 0.22,
-            sidebar_min_width: 176.0,
-            sidebar_max_width: 280.0,
-            content_min_width: 220.0,
-            waveform_ratio: 0.35,
-            waveform_min_height: 126.0,
-            waveform_max_height: 250.0,
-            column_gap: 6.0,
-        }
-    }
 }
 
 impl ShellLayout {
     /// Build shell layout for the provided logical viewport dimensions.
     pub(crate) fn build(viewport: Vector2) -> Self {
-        Self::build_with_density(viewport, LayoutDensity::CompactStudio)
+        let viewport_width = viewport.x.max(620.0);
+        let style = StyleTokens::for_viewport_width(viewport_width);
+        Self::build_with_style(viewport, &style)
     }
 
-    /// Build shell layout for the provided viewport and density profile.
-    pub(crate) fn build_with_density(viewport: Vector2, density: LayoutDensity) -> Self {
+    /// Build shell layout for the provided viewport and style token set.
+    pub(crate) fn build_with_style(viewport: Vector2, style: &StyleTokens) -> Self {
         let viewport_width = viewport.x.max(620.0);
         let viewport_height = viewport.y.max(400.0);
-        let metrics = match density {
-            LayoutDensity::CompactStudio => LayoutMetrics::compact_for_width(viewport_width),
-        };
+        let sizing = style.sizing;
 
         let root_rect = Rect::from_min_size(
             Point::new(0.0, 0.0),
             Vector2::new(viewport_width, viewport_height),
         );
-        let frame = root_rect.inset(metrics.frame_inset);
+        let frame = root_rect.inset(sizing.frame_inset);
         let top_bar = Rect::from_min_max(
             frame.min,
-            Point::new(frame.max.x, frame.min.y + metrics.top_bar_height),
+            Point::new(frame.max.x, frame.min.y + sizing.top_bar_height),
         );
         let status_bar = Rect::from_min_max(
-            Point::new(frame.min.x, frame.max.y - metrics.status_bar_height),
+            Point::new(frame.min.x, frame.max.y - sizing.status_bar_height),
             frame.max,
         );
         let body = Rect::from_min_max(
-            Point::new(frame.min.x, top_bar.max.y + metrics.panel_gap),
-            Point::new(frame.max.x, status_bar.min.y - metrics.panel_gap),
+            Point::new(frame.min.x, top_bar.max.y + sizing.panel_gap),
+            Point::new(frame.max.x, status_bar.min.y - sizing.panel_gap),
         );
 
-        let max_sidebar = (body.width() - metrics.content_min_width).max(metrics.sidebar_min_width);
-        let sidebar_width = (body.width() * metrics.sidebar_ratio).clamp(
-            metrics.sidebar_min_width,
-            metrics.sidebar_max_width.min(max_sidebar),
+        let max_sidebar = (body.width() - sizing.content_min_width).max(sizing.sidebar_min_width);
+        let sidebar_width = (body.width() * sizing.sidebar_ratio).clamp(
+            sizing.sidebar_min_width,
+            sizing.sidebar_max_width.min(max_sidebar),
         );
         let sidebar =
             Rect::from_min_max(body.min, Point::new(body.min.x + sidebar_width, body.max.y));
-        let content_min_x = (sidebar.max.x + metrics.panel_gap).min(body.max.x - 64.0);
+        let content_min_x = (sidebar.max.x + sizing.panel_gap).min(body.max.x - 64.0);
         let content = Rect::from_min_max(Point::new(content_min_x, body.min.y), body.max);
 
-        let waveform_height = (content.height() * metrics.waveform_ratio)
-            .clamp(metrics.waveform_min_height, metrics.waveform_max_height)
+        let waveform_height = (content.height() * sizing.waveform_ratio)
+            .clamp(sizing.waveform_min_height, sizing.waveform_max_height)
             .min((content.height() - 64.0).max(70.0));
         let waveform_card = Rect::from_min_max(
             content.min,
@@ -179,14 +113,14 @@ impl ShellLayout {
             ),
         );
 
-        let triage_top = (waveform_card.max.y + metrics.panel_gap).min(content.max.y - 1.0);
+        let triage_top = (waveform_card.max.y + sizing.panel_gap).min(content.max.y - 1.0);
         let triage_rect = Rect::from_min_max(Point::new(content.min.x, triage_top), content.max);
         let base_column_width =
-            ((triage_rect.width() - (metrics.column_gap * 2.0)) / 3.0).max(40.0);
+            ((triage_rect.width() - (sizing.column_gap * 2.0)) / 3.0).max(sizing.column_min_width);
 
         let mut columns = [Rect::default(), Rect::default(), Rect::default()];
         for (index, column) in columns.iter_mut().enumerate() {
-            let x0 = triage_rect.min.x + (base_column_width + metrics.column_gap) * index as f32;
+            let x0 = triage_rect.min.x + (base_column_width + sizing.column_gap) * index as f32;
             let x1 = if index == 2 {
                 triage_rect.max.x
             } else {
@@ -195,6 +129,44 @@ impl ShellLayout {
             *column = Rect::from_min_max(
                 Point::new(x0, triage_rect.min.y),
                 Point::new(x1, triage_rect.max.y),
+            );
+        }
+
+        let sidebar_header = band_header(sidebar, sizing.source_header_block_height);
+        let sidebar_footer =
+            band_footer(sidebar, sizing.source_bottom_padding, sidebar_header.max.y);
+        let sidebar_rows = inset_horizontal(
+            Rect::from_min_max(
+                Point::new(sidebar.min.x, sidebar_header.max.y),
+                Point::new(sidebar.max.x, sidebar_footer.min.y),
+            ),
+            sizing.panel_inset,
+        );
+
+        let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
+        let waveform_inset = waveform_card.inset(sizing.panel_inset);
+        let waveform_body_top = waveform_header
+            .max
+            .y
+            .max(waveform_inset.min.y)
+            .min(waveform_inset.max.y);
+        let waveform_plot = Rect::from_min_max(
+            Point::new(waveform_inset.min.x, waveform_body_top),
+            waveform_inset.max,
+        );
+
+        let mut column_headers = [Rect::default(), Rect::default(), Rect::default()];
+        let mut column_rows = [Rect::default(), Rect::default(), Rect::default()];
+        for (index, column) in columns.iter().copied().enumerate() {
+            let header = band_header(column, sizing.column_header_block_height);
+            let rows_bottom = (column.max.y - sizing.column_bottom_padding).max(header.max.y);
+            column_headers[index] = header;
+            column_rows[index] = inset_horizontal(
+                Rect::from_min_max(
+                    Point::new(column.min.x, header.max.y),
+                    Point::new(column.max.x, rows_bottom),
+                ),
+                sizing.panel_inset,
             );
         }
 
@@ -250,9 +222,16 @@ impl ShellLayout {
             root,
             top_bar,
             sidebar,
+            sidebar_header,
+            sidebar_rows,
+            sidebar_footer,
             content,
             waveform_card,
+            waveform_header,
+            waveform_plot,
             columns,
+            column_headers,
+            column_rows,
             status_bar,
         }
     }
@@ -269,4 +248,25 @@ impl ShellLayout {
             _ => None,
         }
     }
+}
+
+fn band_header(panel: Rect, header_height: f32) -> Rect {
+    Rect::from_min_max(
+        panel.min,
+        Point::new(panel.max.x, (panel.min.y + header_height).min(panel.max.y)),
+    )
+}
+
+fn band_footer(panel: Rect, footer_height: f32, min_y: f32) -> Rect {
+    let footer_start = (panel.max.y - footer_height).max(min_y).min(panel.max.y);
+    Rect::from_min_max(Point::new(panel.min.x, footer_start), panel.max)
+}
+
+fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
+    let max_inset = (rect.width() * 0.5).max(0.0);
+    let inset = inset.min(max_inset);
+    Rect::from_min_max(
+        Point::new(rect.min.x + inset, rect.min.y),
+        Point::new(rect.max.x - inset, rect.max.y),
+    )
 }

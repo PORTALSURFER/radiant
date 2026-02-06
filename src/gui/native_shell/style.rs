@@ -40,6 +40,32 @@ pub(crate) struct StyleTokens {
 /// Compact sizing tokens used by the native shell.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SizingTokens {
+    /// Root frame inset around the full shell viewport.
+    pub frame_inset: f32,
+    /// Shared gap between major shell panels.
+    pub panel_gap: f32,
+    /// Fixed top-bar band height.
+    pub top_bar_height: f32,
+    /// Fixed status-bar band height.
+    pub status_bar_height: f32,
+    /// Sidebar width ratio against body width.
+    pub sidebar_ratio: f32,
+    /// Sidebar minimum width.
+    pub sidebar_min_width: f32,
+    /// Sidebar maximum width.
+    pub sidebar_max_width: f32,
+    /// Main content minimum width.
+    pub content_min_width: f32,
+    /// Waveform card height ratio against content height.
+    pub waveform_ratio: f32,
+    /// Waveform card minimum height.
+    pub waveform_min_height: f32,
+    /// Waveform card maximum height.
+    pub waveform_max_height: f32,
+    /// Gap between triage columns.
+    pub column_gap: f32,
+    /// Minimum width allowed for each triage column.
+    pub column_min_width: f32,
     /// Shared panel inset for nested regions.
     pub panel_inset: f32,
     /// Gap between browser rows.
@@ -109,6 +135,19 @@ impl StyleTokens {
             text_primary: rgba(224, 227, 234, 255),
             text_muted: rgba(166, 173, 184, 255),
             sizing: SizingTokens {
+                frame_inset: 7.0,
+                panel_gap: 6.0,
+                top_bar_height: 36.0,
+                status_bar_height: 20.0,
+                sidebar_ratio: 0.22,
+                sidebar_min_width: 176.0,
+                sidebar_max_width: 280.0,
+                content_min_width: 220.0,
+                waveform_ratio: 0.35,
+                waveform_min_height: 126.0,
+                waveform_max_height: 250.0,
+                column_gap: 6.0,
+                column_min_width: 40.0,
                 panel_inset: 6.0,
                 browser_row_gap: 3.0,
                 browser_row_height: 21.0,
@@ -134,6 +173,18 @@ impl StyleTokens {
             },
         };
         if viewport_width < 980.0 {
+            tokens.sizing.frame_inset = 6.0;
+            tokens.sizing.panel_gap = 5.0;
+            tokens.sizing.top_bar_height = 34.0;
+            tokens.sizing.status_bar_height = 20.0;
+            tokens.sizing.sidebar_ratio = 0.23;
+            tokens.sizing.sidebar_min_width = 168.0;
+            tokens.sizing.sidebar_max_width = 252.0;
+            tokens.sizing.content_min_width = 180.0;
+            tokens.sizing.waveform_ratio = 0.34;
+            tokens.sizing.waveform_min_height = 120.0;
+            tokens.sizing.waveform_max_height = 220.0;
+            tokens.sizing.column_gap = 5.0;
             tokens.sizing.panel_inset = 5.0;
             tokens.sizing.browser_row_gap = 2.0;
             tokens.sizing.browser_row_height = 19.0;
@@ -153,6 +204,18 @@ impl StyleTokens {
             return tokens;
         }
         if viewport_width > 1700.0 {
+            tokens.sizing.frame_inset = 10.0;
+            tokens.sizing.panel_gap = 8.0;
+            tokens.sizing.top_bar_height = 38.0;
+            tokens.sizing.status_bar_height = 22.0;
+            tokens.sizing.sidebar_ratio = 0.20;
+            tokens.sizing.sidebar_min_width = 190.0;
+            tokens.sizing.sidebar_max_width = 320.0;
+            tokens.sizing.content_min_width = 260.0;
+            tokens.sizing.waveform_ratio = 0.36;
+            tokens.sizing.waveform_min_height = 140.0;
+            tokens.sizing.waveform_max_height = 280.0;
+            tokens.sizing.column_gap = 8.0;
             tokens.sizing.panel_inset = 8.0;
             tokens.sizing.browser_row_gap = 4.0;
             tokens.sizing.browser_row_height = 24.0;
@@ -196,5 +259,14 @@ mod tests {
         assert!(
             narrow.sizing.waveform_header_block_height < wide.sizing.waveform_header_block_height
         );
+    }
+
+    #[test]
+    fn viewport_tiers_adjust_shell_frame_metrics() {
+        let narrow = StyleTokens::for_viewport_width(900.0);
+        let wide = StyleTokens::for_viewport_width(1800.0);
+        assert!(narrow.sizing.top_bar_height < wide.sizing.top_bar_height);
+        assert!(narrow.sizing.frame_inset < wide.sizing.frame_inset);
+        assert!(narrow.sizing.column_gap < wide.sizing.column_gap);
     }
 }

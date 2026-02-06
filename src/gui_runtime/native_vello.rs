@@ -1,8 +1,9 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
 use super::egui_wgpu::{EguiRunOptions, WindowIconRgba};
+use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
-    input::key_code_from_winit,
+    input::{KeyCode, key_code_from_winit},
     native_shell::{NativeShellState, Primitive, ShellLayout, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
@@ -32,8 +33,10 @@ use winit::{
     window::{Icon, Window, WindowAttributes, WindowId},
 };
 
-struct NativeVelloRunner {
+struct NativeVelloRunner<B: NativeAppBridge> {
     options: EguiRunOptions,
+    bridge: B,
+    model: AppModel,
     window_id: Option<WindowId>,
     window: Option<Arc<Window>>,
     render_ctx: Option<RenderContext>,
@@ -48,10 +51,12 @@ struct NativeVelloRunner {
     last_redraw: Instant,
 }
 
-impl NativeVelloRunner {
-    fn new(options: EguiRunOptions) -> Self {
+impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    fn new(options: EguiRunOptions, bridge: B) -> Self {
         Self {
             options,
+            bridge,
+            model: AppModel::default(),
             window_id: None,
             window: None,
             render_ctx: None,
@@ -154,8 +159,16 @@ impl NativeVelloRunner {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let frame = self.shell_state.build_frame(layout);
+        self.model = self.bridge.pull_model();
+        self.shell_state.sync_from_model(&self.model);
+        let frame = self.shell_state.build_frame(layout, &self.model);
         self.clear_color = frame.clear_color;
+        let frame_result = FrameBuildResult {
+            primitive_count: frame.primitives.len(),
+            text_run_count: frame.text_runs.len(),
+            needs_animation: self.shell_state.needs_animation(),
+        };
+        self.bridge.on_frame_result(frame_result);
         for primitive in frame.primitives {
             match primitive {
                 Primitive::Rect(fill) => {
@@ -257,7 +270,7 @@ impl NativeVelloRunner {
     }
 }
 
-impl ApplicationHandler for NativeVelloRunner {
+impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_none() {
             self.initialize_runtime(event_loop);
@@ -316,6 +329,9 @@ impl ApplicationHandler for NativeVelloRunner {
                     (self.last_cursor, self.shell_layout.as_ref(), window)
                     && self.shell_state.handle_primary_click(layout, point)
                 {
+                    if let Some(column) = layout.column_at_point(point) {
+                        self.bridge.on_action(UiAction::SelectColumn { index: column });
+                    }
                     self.rebuild_scene();
                     window.request_redraw();
                 }
@@ -329,6 +345,9 @@ impl ApplicationHandler for NativeVelloRunner {
                     && self.shell_state.handle_key(key)
                     && let Some(window) = window
                 {
+                    if let Some(action) = action_from_key(key) {
+                        self.bridge.on_action(action);
+                    }
                     self.rebuild_scene();
                     window.request_redraw();
                 }
@@ -349,6 +368,18 @@ impl ApplicationHandler for NativeVelloRunner {
         } else {
             event_loop.set_control_flow(ControlFlow::Wait);
         }
+    }
+}
+
+fn action_from_key(key: KeyCode) -> Option<UiAction> {
+    match key {
+        KeyCode::ArrowLeft => Some(UiAction::MoveColumn { delta: -1 }),
+        KeyCode::ArrowRight => Some(UiAction::MoveColumn { delta: 1 }),
+        KeyCode::Num1 => Some(UiAction::SelectColumn { index: 0 }),
+        KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
+        KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
+        KeyCode::Enter => Some(UiAction::ToggleTransport),
+        _ => None,
     }
 }
 
@@ -559,14 +590,33 @@ fn icon_from_rgba(icon: &WindowIconRgba) -> Option<Icon> {
     Icon::from_rgba(icon.rgba.clone(), icon.width, icon.height).ok()
 }
 
+#[derive(Default)]
+struct PreviewBridge;
+
+impl NativeAppBridge for PreviewBridge {
+    fn pull_model(&mut self) -> AppModel {
+        AppModel::default()
+    }
+}
+
+/// Run the native Vello backend window with a host-provided app bridge.
+pub fn run_native_vello_app<B: NativeAppBridge>(
+    options: EguiRunOptions,
+    bridge: B,
+) -> Result<(), String> {
+    let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
+    let mut runner = NativeVelloRunner::new(options, bridge);
+    let run_result = event_loop
+        .run_app(&mut runner)
+        .map_err(|err| err.to_string());
+    runner.bridge.on_exit();
+    run_result
+}
+
 /// Run the experimental native Vello backend window for backend-selection testing.
 ///
 /// This preview path now renders an interactive backend-neutral shell model with
 /// Vello primitives and exercises native input hit-testing without `egui`.
 pub fn run_native_vello_preview(options: EguiRunOptions) -> Result<(), String> {
-    let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
-    let mut runner = NativeVelloRunner::new(options);
-    event_loop
-        .run_app(&mut runner)
-        .map_err(|err| err.to_string())
+    run_native_vello_app(options, PreviewBridge)
 }

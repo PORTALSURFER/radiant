@@ -5,6 +5,7 @@ use super::{
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::StyleTokens,
 };
+use crate::app::AppModel;
 use crate::gui::{
     input::KeyCode,
     types::{Point, Rect},
@@ -33,6 +34,12 @@ impl NativeShellState {
     /// Return whether the shell currently needs continuous animation.
     pub(crate) fn needs_animation(&self) -> bool {
         self.transport_running
+    }
+
+    /// Synchronize local interaction state from the latest app model.
+    pub(crate) fn sync_from_model(&mut self, model: &AppModel) {
+        self.selected_column = model.selected_column.min(2);
+        self.transport_running = model.transport_running;
     }
 
     /// Update animation clocks by a frame delta.
@@ -113,6 +120,7 @@ impl NativeShellState {
         &self,
         layout: &ShellLayout,
         style: &StyleTokens,
+        model: &AppModel,
     ) -> NativeViewFrame {
         let mut primitives = Vec::new();
         let mut text_runs = Vec::new();
@@ -194,7 +202,8 @@ impl NativeShellState {
                 },
             );
 
-            for row_rect in build_column_rows(column_rect.inset(8.0), 8, 6.0) {
+            let row_count = model.columns[index].item_count.clamp(1, 10);
+            for row_rect in build_column_rows(column_rect.inset(8.0), row_count, 6.0) {
                 primitives.push(Primitive::Rect(FillRect {
                     rect: row_rect,
                     color: if selected {
@@ -224,7 +233,7 @@ impl NativeShellState {
         }));
 
         text_runs.push(TextRun {
-            text: String::from("Sempal Native Shell"),
+            text: model.title.clone(),
             position: Point::new(layout.top_bar.min.x + 12.0, layout.top_bar.min.y + 10.0),
             font_size: 16.0,
             color: style.text_primary,
@@ -232,7 +241,7 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
-            text: String::from("backend: native_vello"),
+            text: model.backend_label.clone(),
             position: Point::new(layout.top_bar.min.x + 12.0, layout.top_bar.min.y + 24.0),
             font_size: 12.0,
             color: style.text_muted,
@@ -240,7 +249,7 @@ impl NativeShellState {
             align: TextAlign::Right,
         });
         text_runs.push(TextRun {
-            text: String::from("Sources"),
+            text: model.sources_label.clone(),
             position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.min.y + 10.0),
             font_size: 14.0,
             color: style.text_primary,
@@ -259,13 +268,13 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         for (index, column) in layout.columns.iter().enumerate() {
-            let label = match index {
-                0 => "Trash",
-                1 => "Samples",
-                _ => "Keep",
-            };
+            let label = format!(
+                "{} ({})",
+                model.columns[index].title,
+                model.columns[index].item_count
+            );
             text_runs.push(TextRun {
-                text: label.to_string(),
+                text: label,
                 position: Point::new(column.min.x + 10.0, column.min.y + 8.0),
                 font_size: 13.0,
                 color: if self.selected_column == index {
@@ -278,16 +287,20 @@ impl NativeShellState {
             });
         }
 
-        let status_text = if self.transport_running {
-            format!(
-                "Transport: running | Selected column: {}",
-                self.selected_column + 1
-            )
+        let status_text = if model.status_text.is_empty() {
+            if self.transport_running {
+                format!(
+                    "Transport: running | Selected column: {}",
+                    self.selected_column + 1
+                )
+            } else {
+                format!(
+                    "Transport: stopped | Selected column: {}",
+                    self.selected_column + 1
+                )
+            }
         } else {
-            format!(
-                "Transport: stopped | Selected column: {}",
-                self.selected_column + 1
-            )
+            model.status_text.clone()
         };
         text_runs.push(TextRun {
             text: status_text,
@@ -320,8 +333,8 @@ impl NativeShellState {
     }
 
     /// Build a native frame using default style tokens.
-    pub(crate) fn build_frame(&self, layout: &ShellLayout) -> NativeViewFrame {
-        self.build_frame_with_style(layout, &StyleTokens::default())
+    pub(crate) fn build_frame(&self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
+        self.build_frame_with_style(layout, &StyleTokens::default(), model)
     }
 }
 

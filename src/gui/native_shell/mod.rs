@@ -51,7 +51,7 @@ mod tests {
             (layout.columns[2].min.y + layout.columns[2].max.y) * 0.5,
         );
         assert!(state.handle_primary_click(&layout, point));
-        let frame = state.build_frame(&layout);
+        let frame = state.build_frame(&layout, &crate::app::AppModel::default());
         assert!(frame.primitives.len() > 10);
         assert!(!frame.text_runs.is_empty());
     }

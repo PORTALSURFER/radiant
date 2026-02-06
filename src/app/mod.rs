@@ -23,6 +23,120 @@ impl ColumnModel {
     }
 }
 
+/// Render data for one source row shown in the sidebar.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceRowModel {
+    /// Primary label shown for the source.
+    pub label: String,
+    /// Optional secondary detail text (usually a path or status).
+    pub detail: String,
+    /// Whether the row is currently selected.
+    pub selected: bool,
+    /// Whether the source is missing from disk.
+    pub missing: bool,
+}
+
+impl SourceRowModel {
+    /// Build a new source row model.
+    pub fn new(
+        label: impl Into<String>,
+        detail: impl Into<String>,
+        selected: bool,
+        missing: bool,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            detail: detail.into(),
+            selected,
+            missing,
+        }
+    }
+}
+
+/// Sidebar model for source browsing controls.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SourcesPanelModel {
+    /// Header text for the source panel.
+    pub header: String,
+    /// Active source-search query.
+    pub search_query: String,
+    /// Selected row index, if any.
+    pub selected_row: Option<usize>,
+    /// Rows to render in the source panel.
+    pub rows: Vec<SourceRowModel>,
+}
+
+/// Summary of browser/list state consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserPanelModel {
+    /// Number of rows currently visible in the browser.
+    pub visible_count: usize,
+    /// Focused visible row index, if any.
+    pub selected_visible_row: Option<usize>,
+    /// Number of rows currently in multi-selection.
+    pub selected_path_count: usize,
+    /// Active browser search query.
+    pub search_query: String,
+    /// Whether browser search/filter work is still running in the background.
+    pub busy: bool,
+    /// Display label for the currently focused sample, when known.
+    pub focused_sample_label: Option<String>,
+}
+
+/// Normalized range in milli-units (`0..=1000`) for deterministic UI contracts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NormalizedRangeModel {
+    /// Start position in normalized milli-units.
+    pub start_milli: u16,
+    /// End position in normalized milli-units.
+    pub end_milli: u16,
+}
+
+impl NormalizedRangeModel {
+    /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
+    pub fn new(start_milli: u16, end_milli: u16) -> Self {
+        let start = start_milli.min(1000);
+        let end = end_milli.min(1000);
+        Self {
+            start_milli: start.min(end),
+            end_milli: end.max(start),
+        }
+    }
+}
+
+/// Waveform preview metadata consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformPanelModel {
+    /// Display label for the loaded sample, when any.
+    pub loaded_label: Option<String>,
+    /// Cursor position in normalized milli-units.
+    pub cursor_milli: Option<u16>,
+    /// Playhead position in normalized milli-units.
+    pub playhead_milli: Option<u16>,
+    /// Current waveform selection bounds.
+    pub selection_milli: Option<NormalizedRangeModel>,
+    /// Visible view start in normalized milli-units.
+    pub view_start_milli: u16,
+    /// Visible view end in normalized milli-units.
+    pub view_end_milli: u16,
+    /// Whether loop playback is enabled.
+    pub loop_enabled: bool,
+}
+
+impl Default for WaveformPanelModel {
+    fn default() -> Self {
+        Self {
+            loaded_label: None,
+            cursor_milli: None,
+            playhead_milli: None,
+            selection_milli: None,
+            view_start_milli: 0,
+            view_end_milli: 1000,
+            loop_enabled: false,
+        }
+    }
+}
+
 /// Snapshot of app state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AppModel {
@@ -40,6 +154,12 @@ pub struct AppModel {
     pub selected_column: usize,
     /// Whether transport/animation should be considered running.
     pub transport_running: bool,
+    /// Source panel model consumed by the native renderer.
+    pub sources: SourcesPanelModel,
+    /// Browser panel summary consumed by the native renderer.
+    pub browser: BrowserPanelModel,
+    /// Waveform panel summary consumed by the native renderer.
+    pub waveform: WaveformPanelModel,
 }
 
 impl Default for AppModel {
@@ -56,12 +176,20 @@ impl Default for AppModel {
             ],
             selected_column: 1,
             transport_running: true,
+            sources: SourcesPanelModel {
+                header: String::from("Sources"),
+                search_query: String::new(),
+                selected_row: None,
+                rows: Vec::new(),
+            },
+            browser: BrowserPanelModel::default(),
+            waveform: WaveformPanelModel::default(),
         }
     }
 }
 
 /// Action emitted by the native runtime input layer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UiAction {
     /// Select a target triage/browser column.
     SelectColumn { index: usize },
@@ -69,6 +197,42 @@ pub enum UiAction {
     MoveColumn { delta: i8 },
     /// Toggle transport playback state.
     ToggleTransport,
+    /// Focus the browser/list panel.
+    FocusBrowserPanel,
+    /// Focus the sources panel.
+    FocusSourcesPanel,
+    /// Focus the waveform panel.
+    FocusWaveformPanel,
+    /// Focus the currently loaded sample in the browser.
+    FocusLoadedSampleInBrowser,
+    /// Focus the browser search field.
+    FocusBrowserSearch,
+    /// Focus the source-folder search field.
+    FocusFolderSearch,
+    /// Select a source row by index.
+    SelectSourceRow { index: usize },
+    /// Move browser focus by a row delta in the visible list.
+    MoveBrowserFocus { delta: i8 },
+    /// Focus a browser row by visible index.
+    FocusBrowserRow { visible_row: usize },
+    /// Toggle browser-row selection by visible index.
+    ToggleBrowserRowSelection { visible_row: usize },
+    /// Toggle selection state for the currently focused browser row.
+    ToggleFocusedBrowserRowSelection,
+    /// Select every row in the current visible browser list.
+    SelectAllBrowserRows,
+    /// Set browser search query.
+    SetBrowserSearch { query: String },
+    /// Toggle loop-playback state.
+    ToggleLoopPlayback,
+    /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
+    SeekWaveform { position_milli: u16 },
+    /// Set waveform cursor to a normalized milli position (`0..=1000`).
+    SetWaveformCursor { position_milli: u16 },
+    /// Trigger undo.
+    Undo,
+    /// Trigger redo.
+    Redo,
 }
 
 /// Frame-level feedback from renderer to host bridge.

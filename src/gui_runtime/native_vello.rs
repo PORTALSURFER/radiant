@@ -4,7 +4,7 @@ use super::egui_wgpu::{EguiRunOptions, WindowIconRgba};
 use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
-    native_shell::{NativeShellState, Primitive, ShellLayout, TextAlign, TextRun},
+    native_shell::{NativeShellState, Primitive, ShellLayout, ShellNodeKind, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use skrifa::{
@@ -327,13 +327,23 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 let window = self.window.as_ref().cloned();
                 if let (Some(point), Some(layout), Some(window)) =
                     (self.last_cursor, self.shell_layout.as_ref(), window)
-                    && self.shell_state.handle_primary_click(layout, point)
                 {
-                    if let Some(column) = layout.column_at_point(point) {
-                        self.bridge.on_action(UiAction::SelectColumn { index: column });
+                    let mut handled = false;
+                    if self.shell_state.handle_primary_click(layout, point) {
+                        if let Some(column) = layout.column_at_point(point) {
+                            self.bridge.on_action(UiAction::SelectColumn { index: column });
+                            handled = true;
+                        }
                     }
-                    self.rebuild_scene();
-                    window.request_redraw();
+                    if let Some(action) = action_from_pointer(layout, &self.model, &self.shell_state, point)
+                    {
+                        self.bridge.on_action(action);
+                        handled = true;
+                    }
+                    if handled {
+                        self.rebuild_scene();
+                        window.request_redraw();
+                    }
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
@@ -342,14 +352,16 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && !event.repeat
                     && let PhysicalKey::Code(code) = event.physical_key
                     && let Some(key) = key_code_from_winit(code)
-                    && self.shell_state.handle_key(key)
-                    && let Some(window) = window
                 {
+                    let mut handled = self.shell_state.handle_key(key);
                     if let Some(action) = action_from_key(key) {
                         self.bridge.on_action(action);
+                        handled = true;
                     }
-                    self.rebuild_scene();
-                    window.request_redraw();
+                    if handled && let Some(window) = window {
+                        self.rebuild_scene();
+                        window.request_redraw();
+                    }
                 }
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
@@ -375,12 +387,54 @@ fn action_from_key(key: KeyCode) -> Option<UiAction> {
     match key {
         KeyCode::ArrowLeft => Some(UiAction::MoveColumn { delta: -1 }),
         KeyCode::ArrowRight => Some(UiAction::MoveColumn { delta: 1 }),
+        KeyCode::ArrowUp => Some(UiAction::MoveBrowserFocus { delta: -1 }),
+        KeyCode::ArrowDown => Some(UiAction::MoveBrowserFocus { delta: 1 }),
         KeyCode::Num1 => Some(UiAction::SelectColumn { index: 0 }),
         KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
+        KeyCode::A => Some(UiAction::SelectAllBrowserRows),
         KeyCode::Enter => Some(UiAction::ToggleTransport),
+        KeyCode::F => Some(UiAction::FocusBrowserSearch),
+        KeyCode::L => Some(UiAction::ToggleLoopPlayback),
+        KeyCode::R => Some(UiAction::Redo),
+        KeyCode::S => Some(UiAction::FocusSourcesPanel),
+        KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
+        KeyCode::U => Some(UiAction::Undo),
+        KeyCode::W => Some(UiAction::FocusWaveformPanel),
         _ => None,
     }
+}
+
+fn action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    shell_state: &NativeShellState,
+    point: Point,
+) -> Option<UiAction> {
+    let hit = layout.hit_test(point)?;
+    match hit {
+        ShellNodeKind::Sidebar => shell_state
+            .source_row_at_point(layout, model, point)
+            .map_or(Some(UiAction::FocusSourcesPanel), |index| {
+                Some(UiAction::SelectSourceRow { index })
+            }),
+        ShellNodeKind::WaveformCard => {
+            let inner = layout.waveform_card.inset(8.0);
+            let width = inner.width().max(1.0);
+            let ratio = ((point.x - inner.min.x) / width).clamp(0.0, 1.0);
+            Some(UiAction::SeekWaveform {
+                position_milli: ratio_to_milli(ratio),
+            })
+        }
+        ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
+        ShellNodeKind::Content => Some(UiAction::FocusBrowserPanel),
+        ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedSampleInBrowser),
+        _ => None,
+    }
+}
+
+fn ratio_to_milli(ratio: f32) -> u16 {
+    (ratio.clamp(0.0, 1.0) * 1000.0).round() as u16
 }
 
 #[derive(Clone, Debug)]

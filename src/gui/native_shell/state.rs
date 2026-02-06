@@ -115,6 +115,22 @@ impl NativeShellState {
         }
     }
 
+    /// Resolve a rendered source-row index for a point within the sidebar.
+    pub(crate) fn source_row_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        if model.sources.rows.is_empty() {
+            return None;
+        }
+        let rendered_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
+        build_column_rows(source_rows_area(layout.sidebar), rendered_rows, 4.0)
+            .iter()
+            .position(|rect| rect.contains(point))
+    }
+
     /// Build a native frame from state + layout + style tokens.
     pub(crate) fn build_frame_with_style(
         &self,
@@ -248,8 +264,13 @@ impl NativeShellState {
             max_width: Some((layout.top_bar.width() - 24.0).max(100.0)),
             align: TextAlign::Right,
         });
+        let sources_header = if model.sources.header.is_empty() {
+            model.sources_label.as_str()
+        } else {
+            model.sources.header.as_str()
+        };
         text_runs.push(TextRun {
-            text: model.sources_label.clone(),
+            text: sources_header.to_string(),
             position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.min.y + 10.0),
             font_size: 14.0,
             color: style.text_primary,
@@ -257,12 +278,115 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
-            text: String::from("Waveform"),
+            text: format!(
+                "search: {}",
+                if model.sources.search_query.is_empty() {
+                    "—"
+                } else {
+                    model.sources.search_query.as_str()
+                }
+            ),
+            position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.min.y + 26.0),
+            font_size: 11.0,
+            color: style.text_muted,
+            max_width: Some((layout.sidebar.width() - 24.0).max(80.0)),
+            align: TextAlign::Left,
+        });
+        let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
+        for (row_index, row_rect) in build_column_rows(source_rows_area(layout.sidebar), rendered_sources, 4.0)
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            let row = &model.sources.rows[row_index];
+            let row_selected =
+                row.selected || model.sources.selected_row.is_some_and(|selected| selected == row_index);
+            primitives.push(Primitive::Rect(FillRect {
+                rect: row_rect,
+                color: if row_selected {
+                    style.bg_tertiary
+                } else {
+                    style.bg_primary
+                },
+            }));
+            push_border(
+                &mut primitives,
+                row_rect,
+                if row_selected {
+                    style.accent_mint
+                } else if row.missing {
+                    style.accent_warning
+                } else {
+                    style.border
+                },
+            );
+            text_runs.push(TextRun {
+                text: row.label.clone(),
+                position: Point::new(row_rect.min.x + 6.0, row_rect.min.y + 4.0),
+                font_size: 11.0,
+                color: if row_selected {
+                    style.accent_mint
+                } else {
+                    style.text_primary
+                },
+                max_width: Some((row_rect.width() - 12.0).max(30.0)),
+                align: TextAlign::Left,
+            });
+        }
+        if model.sources.rows.len() > rendered_sources {
+            text_runs.push(TextRun {
+                text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
+                position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.max.y - 20.0),
+                font_size: 11.0,
+                color: style.text_muted,
+                max_width: Some((layout.sidebar.width() - 24.0).max(60.0)),
+                align: TextAlign::Left,
+            });
+        }
+        let waveform_title = model
+            .waveform
+            .loaded_label
+            .as_deref()
+            .unwrap_or("Waveform");
+        text_runs.push(TextRun {
+            text: waveform_title.to_string(),
             position: Point::new(
                 layout.waveform_card.min.x + 12.0,
                 layout.waveform_card.min.y + 10.0,
             ),
             font_size: 13.0,
+            color: style.text_muted,
+            max_width: Some((layout.waveform_card.width() - 24.0).max(80.0)),
+            align: TextAlign::Left,
+        });
+        let playhead_text = model
+            .waveform
+            .playhead_milli
+            .map(format_milli_value)
+            .unwrap_or_else(|| String::from("—"));
+        let cursor_text = model
+            .waveform
+            .cursor_milli
+            .map(format_milli_value)
+            .unwrap_or_else(|| String::from("—"));
+        let view_text = format!(
+            "{}..{}",
+            format_milli_value(model.waveform.view_start_milli),
+            format_milli_value(model.waveform.view_end_milli)
+        );
+        text_runs.push(TextRun {
+            text: format!(
+                "loop: {} | playhead: {} | cursor: {} | view: {}",
+                if model.waveform.loop_enabled { "on" } else { "off" },
+                playhead_text,
+                cursor_text,
+                view_text,
+            ),
+            position: Point::new(
+                layout.waveform_card.min.x + 12.0,
+                layout.waveform_card.min.y + 24.0,
+            ),
+            font_size: 11.0,
             color: style.text_muted,
             max_width: Some((layout.waveform_card.width() - 24.0).max(80.0)),
             align: TextAlign::Left,
@@ -302,6 +426,17 @@ impl NativeShellState {
         } else {
             model.status_text.clone()
         };
+        let browser_summary = format!(
+            "rows: {} | selected: {} | search: {}{}",
+            model.browser.visible_count,
+            model.browser.selected_path_count,
+            if model.browser.search_query.is_empty() {
+                "—"
+            } else {
+                model.browser.search_query.as_str()
+            },
+            if model.browser.busy { " | filtering…" } else { "" }
+        );
         text_runs.push(TextRun {
             text: status_text,
             position: Point::new(
@@ -314,7 +449,7 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
-            text: String::from("trash | samples | keep"),
+            text: browser_summary,
             position: Point::new(
                 layout.status_bar.min.x + 10.0,
                 layout.status_bar.min.y + 4.0,
@@ -336,6 +471,21 @@ impl NativeShellState {
     pub(crate) fn build_frame(&self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
         self.build_frame_with_style(layout, &StyleTokens::default(), model)
     }
+}
+
+const MAX_RENDERED_SOURCE_ROWS: usize = 8;
+
+fn source_rows_area(sidebar: Rect) -> Rect {
+    let top = (sidebar.min.y + 44.0).min(sidebar.max.y);
+    let bottom = (sidebar.max.y - 10.0).max(top);
+    Rect::from_min_max(
+        Point::new(sidebar.min.x + 8.0, top),
+        Point::new(sidebar.max.x - 8.0, bottom),
+    )
+}
+
+fn format_milli_value(value: u16) -> String {
+    format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
 }
 
 fn push_border(primitives: &mut Vec<Primitive>, rect: Rect, color: crate::gui::types::Rgba8) {

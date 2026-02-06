@@ -71,13 +71,10 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
-        model.browser.rows.push(crate::app::BrowserRowModel::new(
-            7,
-            "kick",
-            0,
-            false,
-            true,
-        ));
+        model
+            .browser
+            .rows
+            .push(crate::app::BrowserRowModel::new(7, "kick", 0, false, true));
         let point = Point::new(
             (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
             (layout.columns[0].min.y + layout.columns[0].max.y) * 0.5,
@@ -86,5 +83,21 @@ mod tests {
         state.sync_from_model(&model);
         let frame = state.build_frame(&layout, &model);
         assert!(frame.text_runs.iter().any(|run| run.text == "kick"));
+    }
+
+    #[test]
+    fn compact_layout_keeps_tight_header_and_footer_bands() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert!(layout.top_bar.height() <= 40.0);
+        assert!(layout.status_bar.height() <= 24.0);
+        assert!(layout.waveform_card.height() >= 120.0);
+    }
+
+    #[test]
+    fn compact_layout_preserves_content_on_narrow_viewports() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        assert!(layout.sidebar.width() >= 160.0);
+        assert!(layout.content.width() >= 200.0);
+        assert!(layout.columns.iter().all(|column| column.width() >= 40.0));
     }
 }

@@ -125,10 +125,16 @@ impl NativeShellState {
         if model.sources.rows.is_empty() {
             return None;
         }
+        let style = StyleTokens::default();
         let rendered_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
-        build_column_rows(source_rows_area(layout.sidebar), rendered_rows, 4.0)
-            .iter()
-            .position(|rect| rect.contains(point))
+        build_column_rows(
+            source_rows_area(layout.sidebar, &style),
+            rendered_rows,
+            style.sizing.source_row_gap,
+            10.0,
+        )
+        .iter()
+        .position(|rect| rect.contains(point))
     }
 
     /// Resolve a rendered browser visible-row index for a point in the triage pane.
@@ -138,7 +144,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
-        rendered_browser_rows(layout, model)
+        rendered_browser_rows(layout, model, &StyleTokens::default())
             .into_iter()
             .find(|row| row.rect.contains(point))
             .map(|row| row.visible_row)
@@ -151,6 +157,7 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> NativeViewFrame {
+        let sizing = style.sizing;
         let mut primitives = Vec::new();
         let mut text_runs = Vec::new();
 
@@ -187,8 +194,8 @@ impl NativeShellState {
             color: style.bg_secondary,
         }));
 
-        let waveform_inner = layout.waveform_card.inset(8.0);
-        let scan_step = 14.0;
+        let waveform_inner = layout.waveform_card.inset(sizing.panel_inset);
+        let scan_step = sizing.waveform_scan_step;
         let mut x = waveform_inner.min.x;
         while x < waveform_inner.max.x {
             let strong = ((x - waveform_inner.min.x) / scan_step).floor() as i32 % 4 == 0;
@@ -200,7 +207,10 @@ impl NativeShellState {
             primitives.push(Primitive::Rect(FillRect {
                 rect: Rect::from_min_max(
                     Point::new(x, waveform_inner.min.y),
-                    Point::new((x + 1.0).min(waveform_inner.max.x), waveform_inner.max.y),
+                    Point::new(
+                        (x + sizing.border_width).min(waveform_inner.max.x),
+                        waveform_inner.max.y,
+                    ),
                 ),
                 color: line_color,
             }));
@@ -221,7 +231,12 @@ impl NativeShellState {
                 rect,
                 color: style.grid_strong,
             }));
-            push_border(&mut primitives, rect, style.accent_mint);
+            push_border(
+                &mut primitives,
+                rect,
+                style.accent_mint,
+                sizing.border_width,
+            );
         }
 
         if let Some(cursor_milli) = model.waveform.cursor_milli {
@@ -230,7 +245,7 @@ impl NativeShellState {
             let cursor_rect = Rect::from_min_max(
                 Point::new(cursor_x, waveform_inner.min.y),
                 Point::new(
-                    (cursor_x + 1.5).min(waveform_inner.max.x),
+                    (cursor_x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
                     waveform_inner.max.y,
                 ),
             );
@@ -246,7 +261,7 @@ impl NativeShellState {
             let playhead_rect = Rect::from_min_max(
                 Point::new(playhead_x, waveform_inner.min.y),
                 Point::new(
-                    (playhead_x + 1.5).min(waveform_inner.max.x),
+                    (playhead_x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
                     waveform_inner.max.y,
                 ),
             );
@@ -278,6 +293,7 @@ impl NativeShellState {
                 } else {
                     style.border
                 },
+                sizing.border_width,
             );
 
             let has_rendered_rows = model
@@ -287,7 +303,12 @@ impl NativeShellState {
                 .any(|row| row.column.min(2) == index);
             if !has_rendered_rows {
                 let row_count = model.columns[index].item_count.clamp(1, 10);
-                for row_rect in build_column_rows(column_rect.inset(8.0), row_count, 6.0) {
+                for row_rect in build_column_rows(
+                    column_rect.inset(sizing.panel_inset),
+                    row_count,
+                    sizing.browser_row_gap,
+                    8.0,
+                ) {
                     primitives.push(Primitive::Rect(FillRect {
                         rect: row_rect,
                         color: if selected {
@@ -300,7 +321,7 @@ impl NativeShellState {
             }
         }
 
-        for row in rendered_browser_rows(layout, model) {
+        for row in rendered_browser_rows(layout, model, style) {
             primitives.push(Primitive::Rect(FillRect {
                 rect: row.rect,
                 color: if row.selected || row.focused {
@@ -319,11 +340,15 @@ impl NativeShellState {
                 } else {
                     style.border
                 },
+                sizing.border_width,
             );
             text_runs.push(TextRun {
                 text: row.label,
-                position: Point::new(row.rect.min.x + 6.0, row.rect.min.y + 4.0),
-                font_size: 11.0,
+                position: Point::new(
+                    row.rect.min.x + sizing.text_inset_x,
+                    row.rect.min.y + sizing.text_inset_y,
+                ),
+                font_size: sizing.font_body,
                 color: if row.focused {
                     style.accent_warning
                 } else if row.selected {
@@ -331,42 +356,69 @@ impl NativeShellState {
                 } else {
                     style.text_primary
                 },
-                max_width: Some((row.rect.width() - 12.0).max(24.0)),
+                max_width: Some((row.rect.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
                 align: TextAlign::Left,
             });
         }
 
-        push_border(&mut primitives, layout.top_bar, style.border);
-        push_border(&mut primitives, layout.sidebar, style.border);
-        push_border(&mut primitives, layout.waveform_card, style.border);
-        push_border(&mut primitives, layout.status_bar, style.border);
+        push_border(
+            &mut primitives,
+            layout.top_bar,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            &mut primitives,
+            layout.sidebar,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            &mut primitives,
+            layout.waveform_card,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            &mut primitives,
+            layout.status_bar,
+            style.border,
+            sizing.border_width,
+        );
 
-        let lamp_radius = 5.0 + (((self.pulse_phase.sin() + 1.0) * 0.5) * 4.0);
+        let lamp_radius = sizing.lamp_radius_base
+            + (((self.pulse_phase.sin() + 1.0) * 0.5) * sizing.lamp_radius_amp);
         let lamp_color = if self.transport_running {
             style.accent_mint
         } else {
             style.accent_copper
         };
         primitives.push(Primitive::Circle(FillCircle {
-            center: Point::new(layout.top_bar.max.x - 20.0, layout.top_bar.min.y + 22.0),
+            center: Point::new(
+                layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
+                layout.top_bar.min.y + (layout.top_bar.height() * 0.5),
+            ),
             radius: lamp_radius,
             color: lamp_color,
         }));
 
+        let top_text_x = layout.top_bar.min.x + sizing.text_inset_x + 4.0;
+        let top_title_y = layout.top_bar.min.y + sizing.text_inset_y;
+        let top_meta_y = top_title_y + sizing.font_title + sizing.text_row_gap;
         text_runs.push(TextRun {
             text: model.title.clone(),
-            position: Point::new(layout.top_bar.min.x + 12.0, layout.top_bar.min.y + 10.0),
-            font_size: 16.0,
+            position: Point::new(top_text_x, top_title_y),
+            font_size: sizing.font_title,
             color: style.text_primary,
-            max_width: Some((layout.top_bar.width() - 120.0).max(100.0)),
+            max_width: Some((layout.top_bar.width() - 112.0).max(90.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: model.backend_label.clone(),
-            position: Point::new(layout.top_bar.min.x + 12.0, layout.top_bar.min.y + 24.0),
-            font_size: 12.0,
+            position: Point::new(top_text_x, top_meta_y),
+            font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.top_bar.width() - 24.0).max(100.0)),
+            max_width: Some((layout.top_bar.width() - (sizing.text_inset_x * 2.0)).max(90.0)),
             align: TextAlign::Right,
         });
         let sources_header = if model.sources.header.is_empty() {
@@ -376,10 +428,13 @@ impl NativeShellState {
         };
         text_runs.push(TextRun {
             text: sources_header.to_string(),
-            position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.min.y + 10.0),
-            font_size: 14.0,
+            position: Point::new(
+                layout.sidebar.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar.min.y + sizing.text_inset_y,
+            ),
+            font_size: sizing.font_header,
             color: style.text_primary,
-            max_width: Some((layout.sidebar.width() - 24.0).max(80.0)),
+            max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
@@ -391,18 +446,28 @@ impl NativeShellState {
                     model.sources.search_query.as_str()
                 }
             ),
-            position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.min.y + 26.0),
-            font_size: 11.0,
+            position: Point::new(
+                layout.sidebar.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar.min.y
+                    + sizing.text_inset_y
+                    + sizing.font_header
+                    + sizing.text_row_gap,
+            ),
+            font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.sidebar.width() - 24.0).max(80.0)),
+            max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Left,
         });
         let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
-        for (row_index, row_rect) in
-            build_column_rows(source_rows_area(layout.sidebar), rendered_sources, 4.0)
-                .iter()
-                .copied()
-                .enumerate()
+        for (row_index, row_rect) in build_column_rows(
+            source_rows_area(layout.sidebar, style),
+            rendered_sources,
+            sizing.source_row_gap,
+            10.0,
+        )
+        .iter()
+        .copied()
+        .enumerate()
         {
             let row = &model.sources.rows[row_index];
             let row_selected = row.selected
@@ -428,27 +493,34 @@ impl NativeShellState {
                 } else {
                     style.border
                 },
+                sizing.border_width,
             );
             text_runs.push(TextRun {
                 text: row.label.clone(),
-                position: Point::new(row_rect.min.x + 6.0, row_rect.min.y + 4.0),
-                font_size: 11.0,
+                position: Point::new(
+                    row_rect.min.x + sizing.text_inset_x,
+                    row_rect.min.y + sizing.text_inset_y,
+                ),
+                font_size: sizing.font_body,
                 color: if row_selected {
                     style.accent_mint
                 } else {
                     style.text_primary
                 },
-                max_width: Some((row_rect.width() - 12.0).max(30.0)),
+                max_width: Some((row_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
                 align: TextAlign::Left,
             });
         }
         if model.sources.rows.len() > rendered_sources {
             text_runs.push(TextRun {
                 text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
-                position: Point::new(layout.sidebar.min.x + 12.0, layout.sidebar.max.y - 20.0),
-                font_size: 11.0,
+                position: Point::new(
+                    layout.sidebar.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar.max.y - sizing.font_meta - sizing.text_inset_y,
+                ),
+                font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some((layout.sidebar.width() - 24.0).max(60.0)),
+                max_width: Some((layout.sidebar.width() - (sizing.text_inset_x * 2.0)).max(56.0)),
                 align: TextAlign::Left,
             });
         }
@@ -456,12 +528,12 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: waveform_title.to_string(),
             position: Point::new(
-                layout.waveform_card.min.x + 12.0,
-                layout.waveform_card.min.y + 10.0,
+                layout.waveform_card.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_card.min.y + sizing.text_inset_y,
             ),
-            font_size: 13.0,
+            font_size: sizing.font_header,
             color: style.text_muted,
-            max_width: Some((layout.waveform_card.width() - 24.0).max(80.0)),
+            max_width: Some((layout.waveform_card.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Left,
         });
         let playhead_text = model
@@ -492,12 +564,15 @@ impl NativeShellState {
                 view_text,
             ),
             position: Point::new(
-                layout.waveform_card.min.x + 12.0,
-                layout.waveform_card.min.y + 24.0,
+                layout.waveform_card.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_card.min.y
+                    + sizing.text_inset_y
+                    + sizing.font_header
+                    + sizing.text_row_gap,
             ),
-            font_size: 11.0,
+            font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.waveform_card.width() - 24.0).max(80.0)),
+            max_width: Some((layout.waveform_card.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Left,
         });
         for (index, column) in layout.columns.iter().enumerate() {
@@ -507,14 +582,17 @@ impl NativeShellState {
             );
             text_runs.push(TextRun {
                 text: label,
-                position: Point::new(column.min.x + 10.0, column.min.y + 8.0),
-                font_size: 13.0,
+                position: Point::new(
+                    column.min.x + sizing.text_inset_x + 3.0,
+                    column.min.y + sizing.text_inset_y + 2.0,
+                ),
+                font_size: sizing.font_header,
                 color: if self.selected_column == index {
                     style.accent_mint
                 } else {
                     style.text_muted
                 },
-                max_width: Some((column.width() - 20.0).max(60.0)),
+                max_width: Some((column.width() - (sizing.text_inset_x * 2.0)).max(56.0)),
                 align: TextAlign::Left,
             });
         }
@@ -557,23 +635,23 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: status_text,
             position: Point::new(
-                layout.status_bar.min.x + 10.0,
-                layout.status_bar.min.y + 4.0,
+                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
+                layout.status_bar.min.y + sizing.text_inset_y,
             ),
-            font_size: 12.0,
+            font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some((layout.status_bar.width() - 20.0).max(80.0)),
+            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: browser_summary,
             position: Point::new(
-                layout.status_bar.min.x + 10.0,
-                layout.status_bar.min.y + 4.0,
+                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
+                layout.status_bar.min.y + sizing.text_inset_y,
             ),
-            font_size: 12.0,
+            font_size: sizing.font_status,
             color: style.text_primary,
-            max_width: Some((layout.status_bar.width() - 20.0).max(80.0)),
+            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
             align: TextAlign::Center,
         });
 
@@ -590,8 +668,8 @@ impl NativeShellState {
     }
 }
 
-const MAX_RENDERED_SOURCE_ROWS: usize = 8;
-const MAX_RENDERED_BROWSER_ROWS_PER_COLUMN: usize = 14;
+const MAX_RENDERED_SOURCE_ROWS: usize = 10;
+const MAX_RENDERED_BROWSER_ROWS_PER_COLUMN: usize = 18;
 
 #[derive(Clone, Debug)]
 struct RenderedBrowserRow {
@@ -602,12 +680,13 @@ struct RenderedBrowserRow {
     rect: Rect,
 }
 
-fn source_rows_area(sidebar: Rect) -> Rect {
-    let top = (sidebar.min.y + 44.0).min(sidebar.max.y);
-    let bottom = (sidebar.max.y - 10.0).max(top);
+fn source_rows_area(sidebar: Rect, style: &StyleTokens) -> Rect {
+    let sizing = style.sizing;
+    let top = (sidebar.min.y + sizing.source_header_block_height).min(sidebar.max.y);
+    let bottom = (sidebar.max.y - sizing.source_bottom_padding).max(top);
     Rect::from_min_max(
-        Point::new(sidebar.min.x + 8.0, top),
-        Point::new(sidebar.max.x - 8.0, bottom),
+        Point::new(sidebar.min.x + sizing.panel_inset, top),
+        Point::new(sidebar.max.x - sizing.panel_inset, bottom),
     )
 }
 
@@ -615,7 +694,12 @@ fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
 }
 
-fn rendered_browser_rows(layout: &ShellLayout, model: &AppModel) -> Vec<RenderedBrowserRow> {
+fn rendered_browser_rows(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> Vec<RenderedBrowserRow> {
+    let sizing = style.sizing;
     let mut rows_by_column: [Vec<&BrowserRowModel>; 3] = [Vec::new(), Vec::new(), Vec::new()];
     for row in &model.browser.rows {
         let column = row.column.min(2);
@@ -629,11 +713,13 @@ fn rendered_browser_rows(layout: &ShellLayout, model: &AppModel) -> Vec<Rendered
         if rows.is_empty() {
             continue;
         }
-        let column_rect = layout.columns[column].inset(8.0);
-        for (row, rect) in rows
-            .iter()
-            .zip(build_column_rows(column_rect, rows.len(), 4.0))
-        {
+        let column_rect = layout.columns[column].inset(sizing.panel_inset);
+        for (row, rect) in rows.iter().zip(build_column_rows(
+            column_rect,
+            rows.len(),
+            sizing.browser_row_gap,
+            10.0,
+        )) {
             rendered.push(RenderedBrowserRow {
                 visible_row: row.visible_row,
                 label: row.label.clone(),
@@ -646,34 +732,40 @@ fn rendered_browser_rows(layout: &ShellLayout, model: &AppModel) -> Vec<Rendered
     rendered
 }
 
-fn push_border(primitives: &mut Vec<Primitive>, rect: Rect, color: crate::gui::types::Rgba8) {
-    if rect.width() <= 2.0 || rect.height() <= 2.0 {
+fn push_border(
+    primitives: &mut Vec<Primitive>,
+    rect: Rect,
+    color: crate::gui::types::Rgba8,
+    stroke: f32,
+) {
+    let stroke = stroke.max(1.0);
+    if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
         return;
     }
     primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + 1.0)),
+        rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
         color,
     }));
     primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - 1.0), rect.max),
+        rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
         color,
     }));
     primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + 1.0, rect.max.y)),
+        rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
         color,
     }));
     primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(Point::new(rect.max.x - 1.0, rect.min.y), rect.max),
+        rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
         color,
     }));
 }
 
-fn build_column_rows(column: Rect, rows: usize, gap: f32) -> Vec<Rect> {
+fn build_column_rows(column: Rect, rows: usize, gap: f32, min_height: f32) -> Vec<Rect> {
     if rows == 0 {
         return Vec::new();
     }
     let total_gap = gap * (rows.saturating_sub(1) as f32);
-    let row_height = ((column.height() - total_gap) / rows as f32).max(6.0);
+    let row_height = ((column.height() - total_gap) / rows as f32).max(min_height);
     let mut y = column.min.y;
     let mut output = Vec::with_capacity(rows);
     for row_index in 0..rows {

@@ -554,9 +554,9 @@ impl NativeShellState {
                         style.state_selected_blend,
                     )
                 } else if row.visible_row % 2 == 0 {
-                    blend_color(style.surface_base, style.bg_secondary, 0.18)
+                    blend_color(style.surface_base, style.bg_secondary, 0.20)
                 } else {
-                    style.surface_base
+                    blend_color(style.surface_base, style.bg_secondary, 0.10)
                 };
                 let row_border = if row.focused {
                     blend_color(
@@ -614,9 +614,9 @@ impl NativeShellState {
                     .bucket
                     .inset(sizing.text_inset_y.min(sizing.text_inset_x).max(1.0));
                 let chip_color = match row.column {
-                    0 => blend_color(style.accent_warning, style.bg_secondary, 0.62),
-                    2 => blend_color(style.accent_mint, style.bg_secondary, 0.62),
-                    _ => blend_color(style.text_muted, style.bg_secondary, 0.62),
+                    0 => blend_color(style.accent_warning, style.bg_secondary, 0.54),
+                    2 => blend_color(style.accent_mint, style.bg_secondary, 0.54),
+                    _ => blend_color(style.text_muted, style.bg_secondary, 0.54),
                 };
                 primitives.push(Primitive::Rect(FillRect {
                     rect: chip_rect,
@@ -1347,7 +1347,7 @@ impl NativeShellState {
                 layout.waveform_header.min.y + sizing.text_inset_y,
             ),
             font_size: sizing.font_header,
-            color: style.text_muted,
+            color: style.text_primary,
             max_width: Some(
                 (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
             ),
@@ -3780,6 +3780,60 @@ mod tests {
             .text_runs
             .iter()
             .any(|run| run.text.contains("165 BPM")));
+    }
+
+    #[test]
+    fn browser_rows_use_alternating_fill_stripes_for_readability() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(0, "row_even", 1, false, false));
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(1, "row_odd", 1, false, false));
+        model.browser.visible_count = model.browser.rows.len();
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        assert!(rendered.len() >= 2);
+
+        let frame = state.build_frame(&layout, &model);
+        let even_rect = rendered[0].rect;
+        let odd_rect = rendered[1].rect;
+        let even_fill = frame
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                Primitive::Rect(rect) if rect.rect == even_rect => Some(rect.color),
+                _ => None,
+            });
+        let odd_fill = frame
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                Primitive::Rect(rect) if rect.rect == odd_rect => Some(rect.color),
+                _ => None,
+            });
+        assert!(even_fill.is_some());
+        assert!(odd_fill.is_some());
+        assert_ne!(even_fill, odd_fill);
+    }
+
+    #[test]
+    fn waveform_title_uses_primary_text_hierarchy_color() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.waveform.loaded_label = Some(String::from("WaveTitle"));
+        let frame = state.build_frame(&layout, &model);
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text == "WaveTitle" && run.color == style.text_primary));
     }
 
     #[test]

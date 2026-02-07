@@ -203,6 +203,28 @@ mod tests {
     }
 
     #[test]
+    fn visual_density_snapshot_scales_across_tiers() {
+        let compact_viewport = Vector2::new(820.0, 520.0);
+        let standard_viewport = Vector2::new(1280.0, 720.0);
+        let wide_viewport = Vector2::new(1900.0, 1080.0);
+
+        let compact_style = style::StyleTokens::for_viewport_width(compact_viewport.x);
+        let standard_style = style::StyleTokens::for_viewport_width(standard_viewport.x);
+        let wide_style = style::StyleTokens::for_viewport_width(wide_viewport.x);
+
+        let compact = ShellLayout::build(compact_viewport).contract_snapshot(&compact_style);
+        let standard = ShellLayout::build(standard_viewport).contract_snapshot(&standard_style);
+        let wide = ShellLayout::build(wide_viewport).contract_snapshot(&wide_style);
+
+        assert!(compact.top_bar_height >= standard.top_bar_height);
+        assert!(wide.top_bar_height >= standard.top_bar_height);
+        assert!(compact.status_bar_height >= standard.status_bar_height);
+        assert!(wide.status_bar_height >= standard.status_bar_height);
+        assert!(compact.browser_row_capacity <= standard.browser_row_capacity);
+        assert!(standard.browser_row_capacity <= wide.browser_row_capacity);
+    }
+
+    #[test]
     fn layout_bands_stay_within_panel_bounds() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         assert!(layout.top_bar_title_row.max.y <= layout.top_bar_controls_row.min.y);

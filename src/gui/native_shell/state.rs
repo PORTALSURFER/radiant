@@ -56,10 +56,14 @@ impl NativeShellState {
             || model.confirm_prompt.visible;
     }
 
-    /// Update animation clocks by a frame delta.
-    pub(crate) fn tick(&mut self, delta_seconds: f32) {
+    /// Update animation clocks by a frame delta using explicit style motion tokens.
+    pub(crate) fn tick_with_style(&mut self, delta_seconds: f32, style: &StyleTokens) {
         if self.needs_animation() {
-            let speed = if self.transport_running { 2.6 } else { 1.2 };
+            let speed = if self.transport_running {
+                style.motion_speed_transport
+            } else {
+                style.motion_speed_idle
+            };
             self.pulse_phase =
                 (self.pulse_phase + delta_seconds * speed).rem_euclid(std::f32::consts::TAU);
         }
@@ -315,6 +319,8 @@ impl NativeShellState {
     ) -> NativeViewFrame {
         let sizing = style.sizing;
         let motion_wave = interaction_wave(self.pulse_phase);
+        let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
+        let focus_text_emphasis = focus_text_blend(style, motion_wave);
         let mut primitives = Vec::new();
         let mut text_runs = Vec::new();
 
@@ -514,7 +520,7 @@ impl NativeShellState {
                 blend_color(
                     style.bg_tertiary,
                     style.grid_strong,
-                    style.state_focus_pulse_blend + (motion_wave * 0.08),
+                    focus_fill_emphasis,
                 )
             } else if row.selected {
                 blend_color(
@@ -544,7 +550,7 @@ impl NativeShellState {
                 blend_color(
                     style.accent_warning,
                     style.text_primary,
-                    motion_wave * (style.state_focus_pulse_blend + 0.04),
+                    motion_wave * focus_text_emphasis,
                 )
             } else if row.selected {
                 style.accent_mint
@@ -881,7 +887,8 @@ impl NativeShellState {
                     blend_color(
                         style.bg_tertiary,
                         style.grid_strong,
-                        style.state_hover_soft + (motion_wave * 0.08),
+                        (style.state_hover_soft + (motion_wave * style.motion_focus_wave_amp))
+                            .clamp(0.0, 1.0),
                     )
                 } else if row_selected {
                     blend_color(
@@ -1343,6 +1350,15 @@ fn rendered_folder_row_rects(
 
 fn interaction_wave(pulse_phase: f32) -> f32 {
     ((pulse_phase.sin() + 1.0) * 0.5).clamp(0.0, 1.0)
+}
+
+fn focus_fill_blend(style: &StyleTokens, motion_wave: f32) -> f32 {
+    (style.state_focus_pulse_blend + (motion_wave * style.motion_focus_wave_amp)).clamp(0.0, 1.0)
+}
+
+fn focus_text_blend(style: &StyleTokens, motion_wave: f32) -> f32 {
+    (style.state_focus_pulse_blend + (motion_wave * style.motion_focus_text_wave_amp))
+        .clamp(0.0, 1.0)
 }
 
 fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
@@ -2567,5 +2583,24 @@ mod tests {
                 assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
             }
         }
+    }
+
+    #[test]
+    fn tick_with_style_uses_tier_motion_speed_tokens() {
+        let mut model = AppModel::default();
+        model.transport_running = true;
+        let compact_style = StyleTokens::for_viewport_width(820.0);
+        let wide_style = StyleTokens::for_viewport_width(1900.0);
+
+        let mut compact_state = NativeShellState::new();
+        compact_state.sync_from_model(&model);
+        compact_state.tick_with_style(1.0, &compact_style);
+
+        let mut wide_state = NativeShellState::new();
+        wide_state.sync_from_model(&model);
+        wide_state.tick_with_style(1.0, &wide_style);
+
+        assert!(compact_state.pulse_phase > 0.0);
+        assert!(wide_state.pulse_phase > compact_state.pulse_phase);
     }
 }

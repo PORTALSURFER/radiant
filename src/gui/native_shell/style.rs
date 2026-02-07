@@ -83,6 +83,14 @@ pub(crate) struct StyleTokens {
     pub state_selected_blend: f32,
     /// Blend amount for pulsing focused-state fills/borders.
     pub state_focus_pulse_blend: f32,
+    /// Pulse speed used while transport is running.
+    pub motion_speed_transport: f32,
+    /// Pulse speed used while transport is stopped but focus emphasis is active.
+    pub motion_speed_idle: f32,
+    /// Additional blend amplitude injected into focused row/card fills.
+    pub motion_focus_wave_amp: f32,
+    /// Additional blend amplitude injected into focused text emphasis.
+    pub motion_focus_text_wave_amp: f32,
     /// Alpha used by non-modal background scrims.
     pub scrim_soft_alpha: u8,
     /// Alpha used by modal-blocking background scrims.
@@ -284,6 +292,10 @@ impl StyleTokens {
             state_hover_strong: 0.20,
             state_selected_blend: 0.12,
             state_focus_pulse_blend: 0.24,
+            motion_speed_transport: 2.6,
+            motion_speed_idle: 1.2,
+            motion_focus_wave_amp: 0.08,
+            motion_focus_text_wave_amp: 0.04,
             scrim_soft_alpha: 172,
             scrim_modal_alpha: 188,
             sizing: SizingTokens {
@@ -430,6 +442,10 @@ impl StyleTokens {
             tokens.state_hover_strong = 0.16;
             tokens.state_selected_blend = 0.10;
             tokens.state_focus_pulse_blend = 0.20;
+            tokens.motion_speed_transport = 2.2;
+            tokens.motion_speed_idle = 1.0;
+            tokens.motion_focus_wave_amp = 0.06;
+            tokens.motion_focus_text_wave_amp = 0.03;
             tokens.scrim_soft_alpha = 164;
             tokens.scrim_modal_alpha = 180;
             tokens.sizing.waveform_scan_step = 11.0;
@@ -513,6 +529,10 @@ impl StyleTokens {
             tokens.state_hover_strong = 0.22;
             tokens.state_selected_blend = 0.14;
             tokens.state_focus_pulse_blend = 0.28;
+            tokens.motion_speed_transport = 3.0;
+            tokens.motion_speed_idle = 1.4;
+            tokens.motion_focus_wave_amp = 0.10;
+            tokens.motion_focus_text_wave_amp = 0.05;
             tokens.scrim_soft_alpha = 180;
             tokens.scrim_modal_alpha = 196;
             tokens.sizing.waveform_scan_step = 14.0;
@@ -616,5 +636,7 @@ mod tests {
         assert!(narrow.sizing.recovery_badge_height < wide.sizing.recovery_badge_height);
         assert!(narrow.sizing.recovery_badge_min_width < wide.sizing.recovery_badge_min_width);
         assert!(narrow.state_hover_strong < wide.state_hover_strong);
+        assert!(narrow.motion_speed_transport < wide.motion_speed_transport);
+        assert!(narrow.motion_focus_wave_amp < wide.motion_focus_wave_amp);
     }
 }

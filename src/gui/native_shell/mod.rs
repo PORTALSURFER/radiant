@@ -13,6 +13,7 @@ pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
 pub(crate) use paint::{Primitive, TextAlign, TextRun};
 pub(crate) use state::NativeShellState;
+pub(crate) use style::StyleTokens;
 
 #[cfg(test)]
 mod tests {
@@ -21,6 +22,68 @@ mod tests {
         input::KeyCode,
         types::{Point, Vector2},
     };
+
+    fn canonical_shell_model() -> crate::app::AppModel {
+        let mut model = crate::app::AppModel::default();
+        model.title = String::from("Sempal Native");
+        model.backend_label = String::from("radiant/native_vello");
+        model.transport_running = true;
+        model.status.left = String::from("Indexing complete");
+        model.status.center = String::from("rows: 48 | selected: 3");
+        model.status.right = String::from("col: 2/3");
+        model.sources.search_query = String::from("drum");
+        model.sources.folder_search_query = String::from("kicks");
+        model.sources.folder_recovery.in_progress = false;
+        model.sources.folder_recovery.entry_count = 12;
+        model.sources.folder_actions.can_create_folder = true;
+        model.sources.folder_actions.can_create_folder_at_root = true;
+        model.sources.folder_actions.can_rename_folder = true;
+        model.sources.folder_actions.can_delete_folder = true;
+        model.sources.folder_actions.can_clear_recovery_log = true;
+        for index in 0..10 {
+            model.sources.rows.push(crate::app::SourceRowModel::new(
+                format!("source_{index:02}"),
+                format!("/samples/source_{index:02}"),
+                index == 2,
+                index == 5,
+            ));
+        }
+        for index in 0..14 {
+            model
+                .sources
+                .folder_rows
+                .push(crate::app::FolderRowModel::new(
+                    format!("folder_{index:02}"),
+                    String::new(),
+                    index % 3,
+                    index == 1,
+                    index == 3,
+                    index == 0,
+                    true,
+                    true,
+                ));
+        }
+        for index in 0..36 {
+            model.browser.rows.push(crate::app::BrowserRowModel::new(
+                index,
+                format!("row_{index:02}.wav"),
+                index % 3,
+                index % 8 == 0,
+                index == 5,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_path_count = 3;
+        model.browser.search_query = String::from("kick");
+        model.waveform.loaded_label = Some(String::from("Kick-Loop-01.wav"));
+        model.waveform.cursor_milli = Some(345);
+        model.waveform.playhead_milli = Some(512);
+        model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 680));
+        model.waveform.loop_enabled = true;
+        model.waveform.view_start_milli = 100;
+        model.waveform.view_end_milli = 900;
+        model
+    }
 
     #[test]
     fn layout_exposes_non_overlapping_columns() {
@@ -458,5 +521,49 @@ mod tests {
             .filter(|run| run.text.starts_with("row_"))
             .count();
         assert!(wide_rows > narrow_rows);
+    }
+
+    #[test]
+    fn canonical_frame_rebuild_is_deterministic_across_tiers() {
+        let mut state = NativeShellState::new();
+        let model = canonical_shell_model();
+        state.sync_from_model(&model);
+        for viewport in [
+            Vector2::new(820.0, 520.0),
+            Vector2::new(1280.0, 720.0),
+            Vector2::new(1900.0, 1080.0),
+        ] {
+            let layout = ShellLayout::build(viewport);
+            let frame_a = state.build_frame(&layout, &model);
+            let frame_b = state.build_frame(&layout, &model);
+            assert_eq!(frame_a, frame_b);
+            assert!(!frame_a.primitives.is_empty());
+            assert!(!frame_a.text_runs.is_empty());
+        }
+    }
+
+    #[test]
+    fn canonical_frame_contains_expected_sidebar_and_status_contract_text() {
+        let mut state = NativeShellState::new();
+        let model = canonical_shell_model();
+        state.sync_from_model(&model);
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let frame = state.build_frame(&layout, &model);
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Folders (")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("entries")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("rows: 48")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("col: 2/3")));
     }
 }

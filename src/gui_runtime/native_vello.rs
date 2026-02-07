@@ -4,7 +4,9 @@ use super::egui_wgpu::{EguiRunOptions, WindowIconRgba};
 use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
-    native_shell::{NativeShellState, Primitive, ShellLayout, ShellNodeKind, TextAlign, TextRun},
+    native_shell::{
+        NativeShellState, Primitive, ShellLayout, ShellNodeKind, StyleTokens, TextAlign, TextRun,
+    },
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use skrifa::{
@@ -216,7 +218,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        self.shell_state.tick(delta);
+        let style = self
+            .shell_layout
+            .as_ref()
+            .map(|layout| StyleTokens::for_viewport_width(layout.root.rect.width()))
+            .unwrap_or_default();
+        self.shell_state.tick_with_style(delta, &style);
         self.rebuild_scene();
 
         let window = self.window.as_ref().cloned();

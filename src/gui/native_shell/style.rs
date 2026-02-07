@@ -364,7 +364,7 @@ impl StyleTokens {
                 waveform_min_height: 124.0,
                 waveform_max_height: 248.0,
                 column_gap: 5.0,
-                browser_rows_max_per_column: 40,
+                browser_rows_max_per_column: 48,
                 column_min_width: 40.0,
                 browser_tabs_height: 17.0,
                 browser_tabs_min_height: 16.0,
@@ -462,7 +462,7 @@ impl StyleTokens {
             tokens.sizing.waveform_min_height = 120.0;
             tokens.sizing.waveform_max_height = 220.0;
             tokens.sizing.column_gap = 5.0;
-            tokens.sizing.browser_rows_max_per_column = 28;
+            tokens.sizing.browser_rows_max_per_column = 36;
             tokens.sizing.panel_inset = 5.0;
             tokens.sizing.header_label_gutter = 3.0;
             tokens.sizing.browser_tabs_height = 18.0;
@@ -560,7 +560,7 @@ impl StyleTokens {
             tokens.sizing.waveform_min_height = 140.0;
             tokens.sizing.waveform_max_height = 280.0;
             tokens.sizing.column_gap = 8.0;
-            tokens.sizing.browser_rows_max_per_column = 44;
+            tokens.sizing.browser_rows_max_per_column = 64;
             tokens.sizing.panel_inset = 8.0;
             tokens.sizing.header_label_gutter = 5.0;
             tokens.sizing.browser_tabs_height = 22.0;

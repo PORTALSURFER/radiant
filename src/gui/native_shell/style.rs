@@ -108,6 +108,8 @@ pub(crate) struct SizingTokens {
     pub panel_gap: f32,
     /// Fixed top-bar band height.
     pub top_bar_height: f32,
+    /// Height of the top title/menu row inside the top bar.
+    pub top_bar_title_row_height: f32,
     /// Fixed status-bar band height.
     pub status_bar_height: f32,
     /// Sidebar width ratio against body width.
@@ -218,6 +220,10 @@ pub(crate) struct SizingTokens {
     pub action_button_gap: f32,
     /// Gap between top-bar title and action clusters.
     pub top_bar_cluster_gap: f32,
+    /// Width of the top-bar volume meter track.
+    pub top_volume_meter_width: f32,
+    /// Height of the top-bar volume meter track.
+    pub top_volume_meter_height: f32,
     /// Minimum width reserved for top-bar actions cluster.
     pub top_bar_action_cluster_min_width: f32,
     /// Maximum width reserved for top-bar actions cluster.
@@ -318,6 +324,7 @@ impl StyleTokens {
                 frame_inset: 7.0,
                 panel_gap: 6.0,
                 top_bar_height: 36.0,
+                top_bar_title_row_height: 16.0,
                 status_bar_height: 20.0,
                 sidebar_ratio: 0.22,
                 sidebar_min_width: 176.0,
@@ -373,6 +380,8 @@ impl StyleTokens {
                 action_button_height: 18.0,
                 action_button_gap: 4.0,
                 top_bar_cluster_gap: 11.0,
+                top_volume_meter_width: 86.0,
+                top_volume_meter_height: 8.0,
                 top_bar_action_cluster_min_width: 300.0,
                 top_bar_action_cluster_max_width: 560.0,
                 status_segment_gap: 11.0,
@@ -404,6 +413,7 @@ impl StyleTokens {
             tokens.sizing.frame_inset = 6.0;
             tokens.sizing.panel_gap = 5.0;
             tokens.sizing.top_bar_height = 34.0;
+            tokens.sizing.top_bar_title_row_height = 15.0;
             tokens.sizing.status_bar_height = 20.0;
             tokens.sizing.sidebar_ratio = 0.23;
             tokens.sizing.sidebar_min_width = 168.0;
@@ -455,6 +465,8 @@ impl StyleTokens {
             tokens.sizing.action_button_height = 16.0;
             tokens.sizing.action_button_gap = 3.0;
             tokens.sizing.top_bar_cluster_gap = 8.0;
+            tokens.sizing.top_volume_meter_width = 72.0;
+            tokens.sizing.top_volume_meter_height = 7.0;
             tokens.sizing.top_bar_action_cluster_min_width = 240.0;
             tokens.sizing.top_bar_action_cluster_max_width = 420.0;
             tokens.sizing.status_segment_gap = 8.0;
@@ -499,6 +511,7 @@ impl StyleTokens {
             tokens.sizing.frame_inset = 10.0;
             tokens.sizing.panel_gap = 8.0;
             tokens.sizing.top_bar_height = 38.0;
+            tokens.sizing.top_bar_title_row_height = 17.0;
             tokens.sizing.status_bar_height = 22.0;
             tokens.sizing.sidebar_ratio = 0.20;
             tokens.sizing.sidebar_min_width = 190.0;
@@ -550,6 +563,8 @@ impl StyleTokens {
             tokens.sizing.action_button_height = 20.0;
             tokens.sizing.action_button_gap = 5.0;
             tokens.sizing.top_bar_cluster_gap = 12.0;
+            tokens.sizing.top_volume_meter_width = 96.0;
+            tokens.sizing.top_volume_meter_height = 9.0;
             tokens.sizing.top_bar_action_cluster_min_width = 360.0;
             tokens.sizing.top_bar_action_cluster_max_width = 680.0;
             tokens.sizing.status_segment_gap = 12.0;

@@ -477,6 +477,8 @@ impl NativeShellState {
                     style.grid_soft,
                     style.state_selected_blend,
                 )
+            } else if row.visible_row % 2 == 0 {
+                blend_color(style.surface_base, style.bg_secondary, 0.18)
             } else {
                 style.surface_base
             };
@@ -510,6 +512,18 @@ impl NativeShellState {
                 rect: row.rect,
                 color: row_fill,
             }));
+            for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        Point::new(separator_x, row.rect.min.y),
+                        Point::new(
+                            (separator_x + sizing.border_width).min(row.rect.max.x),
+                            row.rect.max.y,
+                        ),
+                    ),
+                    color: blend_color(style.border, style.grid_soft, 0.36),
+                }));
+            }
             push_border(
                 &mut primitives,
                 row.rect,
@@ -628,7 +642,7 @@ impl NativeShellState {
         primitives.push(Primitive::Circle(FillCircle {
             center: Point::new(
                 layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
-                layout.top_bar.min.y + (layout.top_bar.height() * 0.5),
+                layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
             ),
             radius: lamp_radius,
             color: lamp_color,
@@ -636,8 +650,11 @@ impl NativeShellState {
 
         let top_text_x =
             layout.top_bar_title_cluster.min.x + sizing.text_inset_x + sizing.header_label_gutter;
-        let top_title_y = layout.top_bar_title_cluster.min.y + sizing.text_inset_y;
-        let top_meta_y = top_title_y + sizing.font_title + sizing.title_meta_gap;
+        let top_title_y = text_top_in_rect(
+            layout.top_bar_title_row,
+            sizing.font_title,
+            sizing.text_inset_y,
+        );
         let top_title_width = (layout.top_bar_title_cluster.width()
             - ((sizing.text_inset_x + sizing.header_label_gutter) * 2.0))
             .max(72.0);
@@ -649,41 +666,97 @@ impl NativeShellState {
             max_width: Some(top_title_width),
             align: TextAlign::Left,
         });
-        text_runs.push(TextRun {
-            text: truncate_to_width(&model.backend_label, top_title_width, sizing.font_meta),
-            position: Point::new(top_text_x, top_meta_y),
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(top_title_width),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: String::from("Options"),
-            position: Point::new(
-                layout.top_bar.min.x + sizing.text_inset_x,
-                text_top_in_rect(layout.top_bar, sizing.font_meta, sizing.text_inset_y),
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_primary,
-            max_width: Some(80.0),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: String::from("Vol"),
-            position: Point::new(
-                layout.top_bar.min.x + 182.0,
-                text_top_in_rect(layout.top_bar, sizing.font_meta, sizing.text_inset_y),
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(48.0),
-            align: TextAlign::Left,
-        });
+        let top_controls = top_bar_controls_layout(layout, sizing);
+        if top_controls.active {
+            let divider_y = layout.top_bar_controls_row.min.y;
+            primitives.push(Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(layout.top_bar.min.x, divider_y),
+                    Point::new(
+                        layout.top_bar.max.x,
+                        (divider_y + sizing.border_width).min(layout.top_bar.max.y),
+                    ),
+                ),
+                color: style.border,
+            }));
+            primitives.push(Primitive::Rect(FillRect {
+                rect: top_controls.volume_meter,
+                color: style.surface_overlay,
+            }));
+            push_border(
+                &mut primitives,
+                top_controls.volume_meter,
+                style.border_emphasis,
+                sizing.border_width,
+            );
+            let volume_level = 0.22_f32;
+            let fill_width = (top_controls.volume_meter.width() * volume_level)
+                .clamp(1.0, top_controls.volume_meter.width());
+            primitives.push(Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    top_controls.volume_meter.min,
+                    Point::new(
+                        top_controls.volume_meter.min.x + fill_width,
+                        top_controls.volume_meter.max.y,
+                    ),
+                ),
+                color: blend_color(style.accent_mint, style.text_primary, 0.28),
+            }));
+            text_runs.push(TextRun {
+                text: String::from("Options"),
+                position: Point::new(
+                    top_controls.options_label.min.x,
+                    text_top_in_rect(
+                        top_controls.options_label,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some(top_controls.options_label.width().max(24.0)),
+                align: TextAlign::Left,
+            });
+            text_runs.push(TextRun {
+                text: String::from("0.22"),
+                position: Point::new(
+                    top_controls.volume_value.min.x,
+                    text_top_in_rect(
+                        top_controls.volume_value,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(top_controls.volume_value.width().max(20.0)),
+                align: TextAlign::Right,
+            });
+            text_runs.push(TextRun {
+                text: String::from("Vol"),
+                position: Point::new(
+                    top_controls.volume_label.min.x,
+                    text_top_in_rect(
+                        top_controls.volume_label,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(top_controls.volume_label.width().max(18.0)),
+                align: TextAlign::Left,
+            });
+        }
         text_runs.push(TextRun {
             text: String::from("Donate   Report issues"),
             position: Point::new(
                 layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
-                layout.top_bar.min.y + sizing.text_inset_y,
+                text_top_in_rect(
+                    layout.top_bar_title_row,
+                    sizing.font_meta,
+                    sizing.text_inset_y,
+                ),
             ),
             font_size: sizing.font_meta,
             color: style.text_muted,
@@ -1576,6 +1649,15 @@ struct BrowserToolbarLayout {
 }
 
 #[derive(Clone, Copy, Debug)]
+struct TopBarControlsLayout {
+    active: bool,
+    options_label: Rect,
+    volume_meter: Rect,
+    volume_value: Rect,
+    volume_label: Rect,
+}
+
+#[derive(Clone, Copy, Debug)]
 struct BrowserTableColumns {
     index: Rect,
     sample: Rect,
@@ -1826,6 +1908,73 @@ fn browser_toolbar_layout(
         search_field,
         activity_chip,
         sort_chip,
+    }
+}
+
+fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBarControlsLayout {
+    let row = layout.top_bar_controls_row;
+    if row.height() <= 1.0 || row.width() <= 1.0 {
+        let empty = Rect::from_min_max(row.min, row.min);
+        return TopBarControlsLayout {
+            active: false,
+            options_label: empty,
+            volume_meter: empty,
+            volume_value: empty,
+            volume_label: empty,
+        };
+    }
+
+    let left = row.min.x + sizing.text_inset_x + sizing.header_label_gutter;
+    let options_width = 64.0_f32.min((row.width() * 0.35).max(24.0));
+    let meter_width = sizing
+        .top_volume_meter_width
+        .min((row.width() * 0.45).max(26.0))
+        .max(26.0);
+    let value_width = 44.0_f32.min((row.width() * 0.2).max(20.0));
+    let label_width = 28.0_f32.min((row.width() * 0.12).max(16.0));
+    let gap = sizing.action_button_gap.max(2.0);
+    let total_width = options_width + gap + meter_width + gap + value_width + gap + label_width;
+    let available_width = row.width() - ((sizing.text_inset_x + sizing.header_label_gutter) * 2.0);
+    if available_width <= 12.0 || total_width > available_width {
+        let empty = Rect::from_min_max(row.min, row.min);
+        return TopBarControlsLayout {
+            active: false,
+            options_label: empty,
+            volume_meter: empty,
+            volume_value: empty,
+            volume_label: empty,
+        };
+    }
+    let center_y = row.min.y + (row.height() * 0.5);
+    let meter_height = sizing
+        .top_volume_meter_height
+        .min(row.height().max(1.0))
+        .max(3.0);
+    let options_label = Rect::from_min_max(
+        Point::new(left, row.min.y),
+        Point::new(left + options_width, row.max.y),
+    );
+    let meter_min_x = options_label.max.x + gap;
+    let volume_meter = Rect::from_min_max(
+        Point::new(meter_min_x, center_y - (meter_height * 0.5)),
+        Point::new(meter_min_x + meter_width, center_y + (meter_height * 0.5)),
+    );
+    let value_min_x = volume_meter.max.x + gap;
+    let volume_value = Rect::from_min_max(
+        Point::new(value_min_x, row.min.y),
+        Point::new(value_min_x + value_width, row.max.y),
+    );
+    let label_min_x = volume_value.max.x + gap;
+    let volume_label = Rect::from_min_max(
+        Point::new(label_min_x, row.min.y),
+        Point::new(label_min_x + label_width, row.max.y),
+    );
+    TopBarControlsLayout {
+        active: true,
+        options_label,
+        volume_meter,
+        volume_value,
+        volume_label,
     }
 }
 
@@ -3047,6 +3196,29 @@ mod tests {
         assert!(controls.search_field.max.x <= action_cluster_left);
         assert!(controls.activity_chip.max.x <= action_cluster_left);
         assert!(controls.sort_chip.max.x <= action_cluster_left);
+    }
+
+    #[test]
+    fn top_bar_controls_fit_inside_control_row() {
+        for viewport in [
+            Vector2::new(820.0, 520.0),
+            Vector2::new(1280.0, 720.0),
+            Vector2::new(1900.0, 1080.0),
+        ] {
+            let layout = ShellLayout::build(viewport);
+            let style = style_for_layout(&layout);
+            let controls = top_bar_controls_layout(&layout, style.sizing);
+            if !controls.active {
+                continue;
+            }
+            assert_rect_inside(layout.top_bar_controls_row, controls.options_label);
+            assert_rect_inside(layout.top_bar_controls_row, controls.volume_meter);
+            assert_rect_inside(layout.top_bar_controls_row, controls.volume_value);
+            assert_rect_inside(layout.top_bar_controls_row, controls.volume_label);
+            assert!(controls.options_label.max.x <= controls.volume_meter.min.x);
+            assert!(controls.volume_meter.max.x <= controls.volume_value.min.x);
+            assert!(controls.volume_value.max.x <= controls.volume_label.min.x);
+        }
     }
 
     #[test]

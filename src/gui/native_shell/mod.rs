@@ -177,6 +177,8 @@ mod tests {
     #[test]
     fn layout_bands_stay_within_panel_bounds() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert!(layout.top_bar_title_row.max.y <= layout.top_bar_controls_row.min.y);
+        assert!(layout.top_bar_controls_row.max.y <= layout.top_bar.max.y);
         assert!(layout.sidebar_header.max.y <= layout.sidebar_rows.min.y);
         assert!(layout.sidebar_rows.max.y <= layout.sidebar_footer.min.y);
         assert!(layout.waveform_header.max.y <= layout.waveform_plot.min.y);
@@ -195,9 +197,9 @@ mod tests {
     fn top_bar_clusters_stay_ordered_and_inside_bar() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         assert!(layout.top_bar_title_cluster.min.x >= layout.top_bar.min.x);
-        assert!(layout.top_bar_title_cluster.max.y <= layout.top_bar.max.y);
+        assert!(layout.top_bar_title_cluster.max.y <= layout.top_bar_title_row.max.y);
         assert!(layout.top_bar_action_cluster.min.x >= layout.top_bar.min.x);
-        assert!(layout.top_bar_action_cluster.max.y <= layout.top_bar.max.y);
+        assert!(layout.top_bar_action_cluster.max.y <= layout.top_bar_title_row.max.y);
         assert!(layout.top_bar_title_cluster.max.x <= layout.top_bar_action_cluster.min.x);
     }
 

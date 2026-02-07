@@ -48,6 +48,8 @@ impl ShellNode {
 pub(crate) struct ShellLayout {
     pub root: ShellNode,
     pub top_bar: Rect,
+    pub top_bar_title_row: Rect,
+    pub top_bar_controls_row: Rect,
     pub top_bar_title_cluster: Rect,
     pub top_bar_action_cluster: Rect,
     pub sidebar: Rect,
@@ -96,7 +98,23 @@ impl ShellLayout {
             frame.min,
             Point::new(frame.max.x, frame.min.y + sizing.top_bar_height),
         );
-        let top_bar_inner = inset_horizontal(top_bar, sizing.panel_inset);
+        let title_row_height = sizing
+            .top_bar_title_row_height
+            .max(12.0)
+            .min((top_bar.height() - 4.0).max(12.0));
+        let top_bar_title_row = Rect::from_min_max(
+            top_bar.min,
+            Point::new(
+                top_bar.max.x,
+                (top_bar.min.y + title_row_height).min(top_bar.max.y),
+            ),
+        );
+        let controls_row_top = (top_bar_title_row.max.y + sizing.text_row_gap)
+            .min(top_bar.max.y)
+            .max(top_bar_title_row.max.y);
+        let top_bar_controls_row =
+            Rect::from_min_max(Point::new(top_bar.min.x, controls_row_top), top_bar.max);
+        let top_bar_inner = inset_horizontal(top_bar_title_row, sizing.panel_inset);
         let desired_action_cluster_width = ((sizing.action_button_width * 5.0)
             + (sizing.action_button_gap * 4.0)
             + (sizing.text_inset_x * 2.0))
@@ -360,6 +378,8 @@ impl ShellLayout {
         Self {
             root,
             top_bar,
+            top_bar_title_row,
+            top_bar_controls_row,
             top_bar_title_cluster,
             top_bar_action_cluster,
             sidebar,

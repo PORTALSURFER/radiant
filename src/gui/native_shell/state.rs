@@ -829,6 +829,13 @@ impl NativeShellState {
         let update_status_text = update_status_text(model);
         let update_hint_text = update_hint_text(model);
         let update_notes_text = update_notes_text(model);
+        let update_controls_text = if update_notes_text.is_empty() {
+            update_hint_text
+        } else if update_hint_text.is_empty() {
+            update_notes_text
+        } else {
+            format!("{update_hint_text} | {update_notes_text}")
+        };
         let reserved_button_width = update_buttons
             .iter()
             .map(|button| button.rect.width())
@@ -861,10 +868,10 @@ impl NativeShellState {
             ),
             align: TextAlign::Left,
         });
-        if !update_hint_text.is_empty() {
+        if !update_controls_text.is_empty() {
             text_runs.push(TextRun {
                 text: truncate_to_width(
-                    &update_hint_text,
+                    &update_controls_text,
                     (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
                     sizing.font_meta,
                 ),
@@ -875,30 +882,6 @@ impl NativeShellState {
                         sizing.font_meta,
                         sizing.text_inset_y,
                     ),
-                ),
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(
-                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                ),
-                align: TextAlign::Left,
-            });
-        }
-        if !update_notes_text.is_empty() {
-            text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &update_notes_text,
-                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                    sizing.font_meta,
-                ),
-                position: Point::new(
-                    layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.top_bar_controls_row,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ) + sizing.font_meta
-                        + sizing.text_row_gap,
                 ),
                 font_size: sizing.font_meta,
                 color: style.text_muted,
@@ -1636,8 +1619,23 @@ impl NativeShellState {
             } else {
                 model.map.legend_label.clone()
             };
+            let header_left_text =
+                format!("{} | {}", model.browser_chrome.map_tab_label, legend_text);
+            let selection_or_error = if let Some(error) = model.map.error.as_deref() {
+                (error.to_string(), style.accent_warning)
+            } else if !model.map.selection_label.is_empty() {
+                (model.map.selection_label.clone(), style.text_muted)
+            } else if !model.map.hover_label.is_empty() {
+                (model.map.hover_label.clone(), style.text_muted)
+            } else {
+                (String::from("Selection: —"), style.text_muted)
+            };
             text_runs.push(TextRun {
-                text: model.browser_chrome.map_tab_label.clone(),
+                text: truncate_to_width(
+                    &header_left_text,
+                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                    sizing.font_meta,
+                ),
                 position: Point::new(
                     layout.browser_table_header.min.x + sizing.text_inset_x,
                     text_top_in_rect(
@@ -1654,121 +1652,26 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
-                text: legend_text,
-                position: Point::new(
-                    layout.browser_table_header.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ) + sizing.font_meta
-                        + sizing.text_row_gap,
-                ),
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(
-                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
-                ),
-                align: TextAlign::Left,
-            });
-            let selection_or_error = if let Some(error) = model.map.error.as_deref() {
-                (error, style.accent_warning)
-            } else {
-                (model.map.selection_label.as_str(), style.text_muted)
-            };
-            text_runs.push(TextRun {
                 text: truncate_to_width(
-                    selection_or_error.0,
-                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                    &selection_or_error.0,
+                    (layout.browser_table_header.width() * 0.42).max(36.0),
                     sizing.font_meta,
                 ),
                 position: Point::new(
-                    layout.browser_table_header.min.x + sizing.text_inset_x,
+                    layout.browser_table_header.max.x
+                        - ((layout.browser_table_header.width() * 0.42).max(36.0))
+                        - sizing.text_inset_x,
                     text_top_in_rect(
                         layout.browser_table_header,
                         sizing.font_meta,
                         sizing.text_inset_y,
-                    ) + ((sizing.font_meta + sizing.text_row_gap) * 2.0),
+                    ),
                 ),
                 font_size: sizing.font_meta,
                 color: selection_or_error.1,
-                max_width: Some(
-                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
-                ),
-                align: TextAlign::Left,
+                max_width: Some((layout.browser_table_header.width() * 0.42).max(36.0)),
+                align: TextAlign::Right,
             });
-            if model.map.error.is_none() && !model.map.hover_label.is_empty() {
-                text_runs.push(TextRun {
-                    text: truncate_to_width(
-                        &model.map.hover_label,
-                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
-                            .max(24.0),
-                        sizing.font_meta,
-                    ),
-                    position: Point::new(
-                        layout.browser_table_header.min.x + sizing.text_inset_x,
-                        text_top_in_rect(
-                            layout.browser_table_header,
-                            sizing.font_meta,
-                            sizing.text_inset_y,
-                        ) + ((sizing.font_meta + sizing.text_row_gap) * 3.0),
-                    ),
-                    font_size: sizing.font_meta,
-                    color: style.text_muted,
-                    max_width: Some(
-                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
-                            .max(24.0),
-                    ),
-                    align: TextAlign::Left,
-                });
-            }
-            if model.map.error.is_none() && !model.map.cluster_label.is_empty() {
-                text_runs.push(TextRun {
-                    text: truncate_to_width(
-                        &model.map.cluster_label,
-                        (layout.browser_table_header.width() * 0.42).max(36.0),
-                        sizing.font_meta,
-                    ),
-                    position: Point::new(
-                        layout.browser_table_header.max.x
-                            - ((layout.browser_table_header.width() * 0.42).max(36.0))
-                            - sizing.text_inset_x,
-                        text_top_in_rect(
-                            layout.browser_table_header,
-                            sizing.font_meta,
-                            sizing.text_inset_y,
-                        ) + sizing.font_meta
-                            + sizing.text_row_gap,
-                    ),
-                    font_size: sizing.font_meta,
-                    color: style.text_muted,
-                    max_width: Some((layout.browser_table_header.width() * 0.42).max(36.0)),
-                    align: TextAlign::Right,
-                });
-            }
-            if !model.map.viewport_label.is_empty() {
-                text_runs.push(TextRun {
-                    text: truncate_to_width(
-                        &model.map.viewport_label,
-                        (layout.browser_table_header.width() * 0.42).max(36.0),
-                        sizing.font_meta,
-                    ),
-                    position: Point::new(
-                        layout.browser_table_header.max.x
-                            - ((layout.browser_table_header.width() * 0.42).max(36.0))
-                            - sizing.text_inset_x,
-                        text_top_in_rect(
-                            layout.browser_table_header,
-                            sizing.font_meta,
-                            sizing.text_inset_y,
-                        ),
-                    ),
-                    font_size: sizing.font_meta,
-                    color: style.text_muted,
-                    max_width: Some((layout.browser_table_header.width() * 0.42).max(36.0)),
-                    align: TextAlign::Right,
-                });
-            }
         } else {
             let header = browser_table_columns(layout.browser_table_header, sizing);
             for separator_x in [header.index.max.x, header.sample.max.x] {
@@ -1831,15 +1734,23 @@ impl NativeShellState {
             });
         }
         let footer_text = if model.map.active {
-            if model.map.viewport_label.is_empty() && model.map.cluster_label.is_empty() {
+            let mut parts = Vec::new();
+            if !model.map.summary.is_empty() {
+                parts.push(model.map.summary.clone());
+            }
+            if !model.map.cluster_label.is_empty() {
+                parts.push(model.map.cluster_label.clone());
+            }
+            if !model.map.hover_label.is_empty() {
+                parts.push(model.map.hover_label.clone());
+            }
+            if !model.map.viewport_label.is_empty() {
+                parts.push(model.map.viewport_label.clone());
+            }
+            if parts.is_empty() {
                 model.map.summary.clone()
-            } else if model.map.cluster_label.is_empty() {
-                format!("{} | {}", model.map.summary, model.map.viewport_label)
             } else {
-                format!(
-                    "{} | {} | {}",
-                    model.map.summary, model.map.cluster_label, model.map.viewport_label
-                )
+                parts.join(" | ")
             }
         } else {
             format!(
@@ -3636,6 +3547,13 @@ mod tests {
         assert!(inner.max.y <= outer.max.y);
     }
 
+    fn assert_text_run_inside_band(run: &TextRun, band: Rect) {
+        assert!(run.position.x >= band.min.x);
+        assert!(run.position.x <= band.max.x);
+        assert!(run.position.y >= band.min.y);
+        assert!(run.position.y + run.font_size <= band.max.y + 0.5);
+    }
+
     #[test]
     fn sidebar_sections_keep_non_overlapping_bands_across_tiers() {
         let sizes = [
@@ -3914,7 +3832,7 @@ mod tests {
     #[test]
     fn large_dataset_frame_build_is_deterministic_across_tiers() {
         let mut state = NativeShellState::new();
-        let model = browser_model_with_rows(1500, 777);
+        let model = browser_model_with_rows(5000, 4777);
         state.sync_from_model(&model);
         for viewport in [
             Vector2::new(820.0, 520.0),
@@ -3932,6 +3850,24 @@ mod tests {
                     .any(|run| run.text.contains("row_"))
             );
         }
+    }
+
+    #[test]
+    fn browser_virtualization_5k_rows_keeps_focus_and_tail_visible() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut model = browser_model_with_rows(5000, 4999);
+        model.browser.selected_visible_row = Some(4999);
+        model.browser.anchor_visible_row = Some(4995);
+
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        assert!(!rendered.is_empty());
+        assert_eq!(rendered.last().map(|row| row.visible_row), Some(4999));
+        assert!(
+            rendered
+                .iter()
+                .any(|row| row.visible_row == 4999 && row.focused)
+        );
     }
 
     #[test]
@@ -4051,12 +3987,6 @@ mod tests {
             frame
                 .text_runs
                 .iter()
-                .any(|run| run.text.contains("Hover: kick_hover.wav"))
-        );
-        assert!(
-            frame
-                .text_runs
-                .iter()
                 .any(|run| run.text.contains("Clusters: 7"))
         );
         assert!(
@@ -4071,6 +4001,28 @@ mod tests {
                 .iter()
                 .any(|run| run.text.contains("248 points"))
         );
+    }
+
+    #[test]
+    fn map_header_metadata_stays_within_header_band() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.map.active = true;
+        model.map.legend_label = String::from("Render: points");
+        model.map.selection_label = String::from("Selection: very_long_sample_name.wav");
+        model.map.cluster_label = String::from("Clusters: 42");
+
+        let frame = state.build_frame(&layout, &model);
+        let header_runs = frame
+            .text_runs
+            .iter()
+            .filter(|run| run.text.contains("Render:") || run.text.contains("Selection:"))
+            .collect::<Vec<_>>();
+        assert!(!header_runs.is_empty());
+        for run in header_runs {
+            assert_text_run_inside_band(run, layout.browser_table_header);
+        }
     }
 
     #[test]
@@ -4097,12 +4049,12 @@ mod tests {
                 .iter()
                 .any(|run| run.text.contains("Actions: open"))
         );
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("Release: v20.1.0"))
-        );
+        let controls_run = frame
+            .text_runs
+            .iter()
+            .find(|run| run.text.contains("Actions: open"))
+            .expect("combined update controls text should be present");
+        assert_text_run_inside_band(controls_run, layout.top_bar_controls_row);
     }
 
     #[test]

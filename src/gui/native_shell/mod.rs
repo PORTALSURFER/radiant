@@ -254,6 +254,21 @@ mod tests {
     }
 
     #[test]
+    fn top_bar_clusters_reserve_minimum_title_and_action_widths() {
+        let viewport = Vector2::new(1280.0, 720.0);
+        let tokens = style::StyleTokens::for_viewport_width(viewport.x);
+        let layout = ShellLayout::build(viewport);
+        assert!(
+            layout.top_bar_action_cluster.width()
+                >= tokens.sizing.top_bar_action_cluster_min_width - 1.0
+        );
+        assert!(
+            layout.top_bar_title_cluster.width()
+                >= tokens.sizing.top_bar_action_cluster_title_reserve_width - 1.0
+        );
+    }
+
+    #[test]
     fn status_segments_remain_non_overlapping_and_bounded() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         assert!(layout.status_left_segment.min.x >= layout.status_bar.min.x);
@@ -273,6 +288,23 @@ mod tests {
         let tokens = style::StyleTokens::for_viewport_width(width);
         assert!((layout.top_bar.height() - tokens.sizing.top_bar_height).abs() < 0.001);
         assert!((layout.status_bar.height() - tokens.sizing.status_bar_height).abs() < 0.001);
+    }
+
+    #[test]
+    fn browser_header_band_can_fit_single_metadata_line_across_tiers() {
+        for viewport in [
+            Vector2::new(820.0, 520.0),
+            Vector2::new(1280.0, 720.0),
+            Vector2::new(1900.0, 1080.0),
+        ] {
+            let tokens = style::StyleTokens::for_viewport_width(viewport.x);
+            let layout = ShellLayout::build(viewport);
+            let centered_y = layout.browser_table_header.min.y
+                + ((layout.browser_table_header.height() - tokens.sizing.font_meta).max(0.0) * 0.5);
+            let top =
+                centered_y.max(layout.browser_table_header.min.y + tokens.sizing.text_inset_y);
+            assert!(top + tokens.sizing.font_meta <= layout.browser_table_header.max.y + 0.5);
+        }
     }
 
     #[test]
@@ -605,33 +637,47 @@ mod tests {
         state.sync_from_model(&model);
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let frame = state.build_frame(&layout, &model);
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Folders (")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("entries")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("rows: 48")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("col: 2/3")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Find: kick")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Order: List order")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Loop engaged")));
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Folders ("))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("entries"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("rows: 48"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("col: 2/3"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Find: kick"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Order: List order"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Loop engaged"))
+        );
     }
 }

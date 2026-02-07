@@ -432,10 +432,12 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
         KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
         KeyCode::A => Some(UiAction::SelectAllBrowserRows),
+        KeyCode::B => Some(UiAction::StartNewFolder),
         KeyCode::C => Some(UiAction::ClearWaveformSelection),
         KeyCode::D => Some(UiAction::DeleteBrowserSelection),
         KeyCode::Enter => Some(UiAction::ToggleTransport),
         KeyCode::F => Some(UiAction::FocusBrowserSearch),
+        KeyCode::G => Some(UiAction::DeleteFocusedFolder),
         KeyCode::I => Some(UiAction::StartBrowserRename),
         KeyCode::L => Some(UiAction::ToggleLoopPlayback),
         KeyCode::M => Some(UiAction::ZoomWaveformToSelection),
@@ -455,6 +457,7 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
             steps: 1,
         }),
         KeyCode::Slash => Some(UiAction::ZoomWaveformFull),
+        KeyCode::Quote => Some(UiAction::FocusFolderSearch),
         KeyCode::R => Some(UiAction::Redo),
         KeyCode::S => Some(UiAction::FocusSourcesPanel),
         KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
@@ -466,6 +469,7 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
         KeyCode::Y => Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Keep,
         }),
+        KeyCode::Z => Some(UiAction::StartFolderRename),
         _ => None,
     }
 }
@@ -486,6 +490,9 @@ fn action_from_pointer(
     if let Some(action) = shell_state.browser_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();
@@ -498,6 +505,9 @@ fn action_from_pointer(
         } else {
             UiAction::FocusBrowserRow { visible_row }
         });
+    }
+    if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
+        return Some(UiAction::FocusFolderRow { index });
     }
 
     let hit = layout.hit_test(point)?;
@@ -843,6 +853,27 @@ mod tests {
             Some(UiAction::TagBrowserSelection {
                 target: crate::app::BrowserTagTarget::Trash
             })
+        );
+    }
+
+    #[test]
+    fn key_bindings_emit_folder_actions() {
+        let model = AppModel::default();
+        assert_eq!(
+            action_from_key(KeyCode::B, ModifiersState::default(), &model),
+            Some(UiAction::StartNewFolder)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::G, ModifiersState::default(), &model),
+            Some(UiAction::DeleteFocusedFolder)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::Quote, ModifiersState::default(), &model),
+            Some(UiAction::FocusFolderSearch)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::Z, ModifiersState::default(), &model),
+            Some(UiAction::StartFolderRename)
         );
     }
 

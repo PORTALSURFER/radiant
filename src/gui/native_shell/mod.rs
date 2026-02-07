@@ -225,4 +225,60 @@ mod tests {
             Some(crate::app::UiAction::CancelPrompt)
         );
     }
+
+    #[test]
+    fn source_action_hit_test_emits_folder_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.sources.folder_actions.can_delete_folder = true;
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let sizing = style.sizing;
+        let button_count = 5.0;
+        let total_width = (sizing.sidebar_action_button_width * button_count)
+            + (sizing.sidebar_action_button_gap * 4.0);
+        let start_x = (layout.sidebar_footer.max.x - sizing.text_inset_x - total_width)
+            .max(layout.sidebar_footer.min.x + sizing.text_inset_x);
+        let y = (layout.sidebar_footer.max.y
+            - sizing.sidebar_action_button_height
+            - sizing.text_inset_y)
+            .max(layout.sidebar_footer.min.y + 1.0);
+        let point = Point::new(
+            start_x
+                + ((sizing.sidebar_action_button_width + sizing.sidebar_action_button_gap) * 3.0)
+                + (sizing.sidebar_action_button_width * 0.5),
+            y + (sizing.sidebar_action_button_height * 0.5),
+        );
+        assert_eq!(
+            state.source_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::DeleteFocusedFolder)
+        );
+    }
+
+    #[test]
+    fn folder_row_hit_test_resolves_rendered_folder_row() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model
+            .sources
+            .folder_rows
+            .push(crate::app::FolderRowModel::new(
+                "Drums", "Drums", 0, false, true, false, true, true,
+            ));
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let sizing = style.sizing;
+        let source_rows = layout.sidebar_rows;
+        let source_max_y = source_rows.min.y;
+        let folder_header_min_y =
+            (source_max_y + sizing.sidebar_section_gap).min(source_rows.max.y);
+        let folder_header_max_y =
+            (folder_header_min_y + sizing.folder_header_block_height).min(source_rows.max.y);
+        let folder_rows_min_y = folder_header_max_y;
+        let point = Point::new(
+            source_rows.min.x + (source_rows.width() * 0.5),
+            folder_rows_min_y + (sizing.folder_row_height * 0.5),
+        );
+        assert_eq!(state.folder_row_at_point(&layout, &model, point), Some(0));
+    }
 }

@@ -126,15 +126,57 @@ impl NativeShellState {
             return None;
         }
         let style = style_for_layout(layout);
+        let sections = sidebar_sections(layout, &style, model);
         let rendered_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
         build_stacked_rows(
-            layout.sidebar_rows,
+            sections.source_rows,
             rendered_rows,
             style.sizing.source_row_gap,
             style.sizing.source_row_height,
         )
         .iter()
         .position(|rect| rect.contains(point))
+    }
+
+    /// Resolve a rendered folder-row index for a point within the sidebar.
+    pub(crate) fn folder_row_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        if model.sources.folder_rows.is_empty() {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let sections = sidebar_sections(layout, &style, model);
+        let rendered_rows = model
+            .sources
+            .folder_rows
+            .len()
+            .min(MAX_RENDERED_FOLDER_ROWS);
+        build_stacked_rows(
+            sections.folder_rows,
+            rendered_rows,
+            style.sizing.folder_row_gap,
+            style.sizing.folder_row_height,
+        )
+        .iter()
+        .position(|rect| rect.contains(point))
+    }
+
+    /// Resolve a source-management action button click into a native UI action.
+    pub(crate) fn source_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        source_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action)
     }
 
     /// Resolve a rendered browser visible-row index for a point in the triage pane.
@@ -511,6 +553,7 @@ impl NativeShellState {
         } else {
             model.sources.header.as_str()
         };
+        let sidebar_sections = sidebar_sections(layout, style, model);
         text_runs.push(TextRun {
             text: sources_header.to_string(),
             position: Point::new(
@@ -549,7 +592,7 @@ impl NativeShellState {
         });
         let rendered_sources = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
         for (row_index, row_rect) in build_stacked_rows(
-            layout.sidebar_rows,
+            sidebar_sections.source_rows,
             rendered_sources,
             sizing.source_row_gap,
             sizing.source_row_height,
@@ -600,12 +643,195 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
         }
+        let rendered_folders = model
+            .sources
+            .folder_rows
+            .len()
+            .min(MAX_RENDERED_FOLDER_ROWS);
+        if rendered_folders > 0 {
+            text_runs.push(TextRun {
+                text: format!("Folders ({})", model.sources.folder_rows.len()),
+                position: Point::new(
+                    sidebar_sections.folder_header.min.x + sizing.text_inset_x + 4.0,
+                    sidebar_sections.folder_header.min.y + sizing.text_inset_y,
+                ),
+                font_size: sizing.font_header,
+                color: style.text_primary,
+                max_width: Some(
+                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0))
+                        .max(64.0),
+                ),
+                align: TextAlign::Left,
+            });
+            text_runs.push(TextRun {
+                text: format!(
+                    "query: {}{}",
+                    if model.sources.folder_search_query.is_empty() {
+                        "—"
+                    } else {
+                        model.sources.folder_search_query.as_str()
+                    },
+                    if model.sources.folder_recovery.in_progress {
+                        " | recovery running"
+                    } else {
+                        ""
+                    }
+                ),
+                position: Point::new(
+                    sidebar_sections.folder_header.min.x + sizing.text_inset_x + 4.0,
+                    sidebar_sections.folder_header.min.y
+                        + sizing.text_inset_y
+                        + sizing.font_header
+                        + sizing.text_row_gap,
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0))
+                        .max(64.0),
+                ),
+                align: TextAlign::Left,
+            });
+            for (row_index, row_rect) in build_stacked_rows(
+                sidebar_sections.folder_rows,
+                rendered_folders,
+                sizing.folder_row_gap,
+                sizing.folder_row_height,
+            )
+            .iter()
+            .copied()
+            .enumerate()
+            {
+                let row = &model.sources.folder_rows[row_index];
+                let row_selected = row.selected || row.focused;
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: row_rect,
+                    color: if row_selected {
+                        style.bg_tertiary
+                    } else {
+                        style.bg_primary
+                    },
+                }));
+                push_border(
+                    &mut primitives,
+                    row_rect,
+                    if row.focused {
+                        style.accent_warning
+                    } else if row.selected {
+                        style.accent_mint
+                    } else {
+                        style.border
+                    },
+                    sizing.border_width,
+                );
+                let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
+                    .min((row_rect.width() * 0.45).max(0.0));
+                let glyph = if row.is_root {
+                    "•"
+                } else if row.has_children {
+                    if row.expanded { "▼" } else { "▶" }
+                } else {
+                    "·"
+                };
+                text_runs.push(TextRun {
+                    text: format!("{glyph} {}", row.label),
+                    position: Point::new(
+                        row_rect.min.x + sizing.text_inset_x + depth_indent,
+                        row_rect.min.y + sizing.text_inset_y,
+                    ),
+                    font_size: sizing.font_body,
+                    color: if row.focused {
+                        style.accent_warning
+                    } else if row.selected {
+                        style.accent_mint
+                    } else {
+                        style.text_primary
+                    },
+                    max_width: Some(
+                        (row_rect.width() - (sizing.text_inset_x * 2.0) - depth_indent).max(24.0),
+                    ),
+                    align: TextAlign::Left,
+                });
+            }
+        }
+        for button in source_action_buttons(layout, style, model) {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: button.rect,
+                color: if button.enabled {
+                    style.bg_tertiary
+                } else {
+                    style.grid_soft
+                },
+            }));
+            push_border(
+                &mut primitives,
+                button.rect,
+                if button.enabled {
+                    style.border
+                } else {
+                    style.grid_soft
+                },
+                sizing.border_width,
+            );
+            text_runs.push(TextRun {
+                text: button.label.to_string(),
+                position: Point::new(
+                    button.rect.min.x + sizing.text_inset_x,
+                    button.rect.min.y + sizing.text_inset_y,
+                ),
+                font_size: sizing.font_meta,
+                color: button.text_color,
+                max_width: Some((button.rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                align: TextAlign::Center,
+            });
+        }
         if model.sources.rows.len() > rendered_sources {
             text_runs.push(TextRun {
                 text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
                 position: Point::new(
                     layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
                     layout.sidebar_footer.min.y + sizing.text_inset_y,
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
+                ),
+                align: TextAlign::Left,
+            });
+        }
+        if model.sources.folder_rows.len() > rendered_folders {
+            text_runs.push(TextRun {
+                text: format!(
+                    "folders: +{} more…",
+                    model.sources.folder_rows.len() - rendered_folders
+                ),
+                position: Point::new(
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.y
+                        + sizing.text_inset_y
+                        + sizing.font_meta
+                        + sizing.text_row_gap,
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
+                ),
+                align: TextAlign::Left,
+            });
+        } else if model.sources.folder_recovery.entry_count > 0 {
+            text_runs.push(TextRun {
+                text: format!(
+                    "recovery entries: {}",
+                    model.sources.folder_recovery.entry_count
+                ),
+                position: Point::new(
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.y
+                        + sizing.text_inset_y
+                        + sizing.font_meta
+                        + sizing.text_row_gap,
                 ),
                 font_size: sizing.font_meta,
                 color: style.text_muted,
@@ -794,6 +1020,7 @@ impl NativeShellState {
 }
 
 const MAX_RENDERED_SOURCE_ROWS: usize = 10;
+const MAX_RENDERED_FOLDER_ROWS: usize = 16;
 const MAX_RENDERED_BROWSER_ROWS_PER_COLUMN: usize = 18;
 
 #[derive(Clone, Debug)]
@@ -812,6 +1039,13 @@ struct ActionButton {
     enabled: bool,
     action: UiAction,
     text_color: Rgba8,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SidebarSections {
+    source_rows: Rect,
+    folder_header: Rect,
+    folder_rows: Rect,
 }
 
 fn format_milli_value(value: u16) -> String {
@@ -853,6 +1087,57 @@ fn rendered_browser_rows(
         }
     }
     rendered
+}
+
+fn sidebar_sections(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> SidebarSections {
+    let sizing = style.sizing;
+    if model.sources.folder_rows.is_empty() {
+        return SidebarSections {
+            source_rows: layout.sidebar_rows,
+            folder_header: Rect::from_min_max(layout.sidebar_rows.max, layout.sidebar_rows.max),
+            folder_rows: Rect::from_min_max(layout.sidebar_rows.max, layout.sidebar_rows.max),
+        };
+    }
+
+    let source_rows = model.sources.rows.len().min(MAX_RENDERED_SOURCE_ROWS);
+    let source_stack_height = if source_rows == 0 {
+        0.0
+    } else {
+        (source_rows as f32 * sizing.source_row_height)
+            + ((source_rows.saturating_sub(1)) as f32 * sizing.source_row_gap)
+    };
+    let max_source_height =
+        (layout.sidebar_rows.height() * 0.45).max(sizing.source_row_height * 2.0);
+    let source_height = source_stack_height.min(max_source_height);
+    let source_max_y = (layout.sidebar_rows.min.y + source_height).min(layout.sidebar_rows.max.y);
+    let source_rows_rect = Rect::from_min_max(
+        layout.sidebar_rows.min,
+        Point::new(layout.sidebar_rows.max.x, source_max_y),
+    );
+
+    let folder_header_min_y =
+        (source_rows_rect.max.y + sizing.sidebar_section_gap).min(layout.sidebar_rows.max.y);
+    let folder_header = Rect::from_min_max(
+        Point::new(layout.sidebar_rows.min.x, folder_header_min_y),
+        Point::new(
+            layout.sidebar_rows.max.x,
+            (folder_header_min_y + sizing.folder_header_block_height)
+                .min(layout.sidebar_rows.max.y),
+        ),
+    );
+    let folder_rows_rect = Rect::from_min_max(
+        Point::new(layout.sidebar_rows.min.x, folder_header.max.y),
+        layout.sidebar_rows.max,
+    );
+    SidebarSections {
+        source_rows: source_rows_rect,
+        folder_header,
+        folder_rows: folder_rows_rect,
+    }
 }
 
 fn browser_action_buttons(
@@ -918,6 +1203,75 @@ fn browser_action_buttons(
             Point::new(
                 (x + button_width).min(layout.top_bar.max.x - 1.0),
                 y + sizing.action_button_height,
+            ),
+        );
+        buttons.push(ActionButton {
+            rect,
+            label,
+            enabled,
+            action,
+            text_color,
+        });
+    }
+    buttons
+}
+
+fn source_action_buttons(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> Vec<ActionButton> {
+    let sizing = style.sizing;
+    let definitions = [
+        (
+            "New",
+            model.sources.folder_actions.can_create_folder,
+            UiAction::StartNewFolder,
+            style.text_primary,
+        ),
+        (
+            "Root",
+            model.sources.folder_actions.can_create_folder_at_root,
+            UiAction::StartNewFolderAtRoot,
+            style.text_muted,
+        ),
+        (
+            "Rename",
+            model.sources.folder_actions.can_rename_folder,
+            UiAction::StartFolderRename,
+            style.accent_warning,
+        ),
+        (
+            "Delete",
+            model.sources.folder_actions.can_delete_folder,
+            UiAction::DeleteFocusedFolder,
+            style.accent_copper,
+        ),
+        (
+            "Recovery",
+            model.sources.folder_actions.can_clear_recovery_log,
+            UiAction::ClearFolderDeleteRecoveryLog,
+            style.accent_mint,
+        ),
+    ];
+    let button_width = sizing.sidebar_action_button_width;
+    let gap = sizing.sidebar_action_button_gap;
+    let total_width = (button_width * definitions.len() as f32)
+        + (gap * (definitions.len().saturating_sub(1)) as f32);
+    let start_x = (layout.sidebar_footer.max.x - sizing.text_inset_x - total_width)
+        .max(layout.sidebar_footer.min.x + sizing.text_inset_x);
+    let y =
+        (layout.sidebar_footer.max.y - sizing.sidebar_action_button_height - sizing.text_inset_y)
+            .max(layout.sidebar_footer.min.y + 1.0);
+
+    let mut buttons = Vec::with_capacity(definitions.len());
+    for (index, (label, enabled, action, text_color)) in definitions.into_iter().enumerate() {
+        let x = start_x + (index as f32 * (button_width + gap));
+        let rect = Rect::from_min_max(
+            Point::new(x, y),
+            Point::new(
+                (x + button_width).min(layout.sidebar_footer.max.x - 1.0),
+                y + sizing.sidebar_action_button_height,
             ),
         );
         buttons.push(ActionButton {

@@ -53,6 +53,77 @@ impl SourceRowModel {
     }
 }
 
+/// Render data for one folder row shown in the sidebar folder tree.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FolderRowModel {
+    /// Display label for the folder row.
+    pub label: String,
+    /// Optional secondary detail text for the folder row.
+    pub detail: String,
+    /// Tree depth used for indentation.
+    pub depth: usize,
+    /// Whether this row is currently selected.
+    pub selected: bool,
+    /// Whether this row currently has keyboard focus.
+    pub focused: bool,
+    /// Whether this row represents the synthetic source root.
+    pub is_root: bool,
+    /// Whether this row has child folders.
+    pub has_children: bool,
+    /// Whether this row is expanded in the folder tree.
+    pub expanded: bool,
+}
+
+impl FolderRowModel {
+    /// Build a new folder row model.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        label: impl Into<String>,
+        detail: impl Into<String>,
+        depth: usize,
+        selected: bool,
+        focused: bool,
+        is_root: bool,
+        has_children: bool,
+        expanded: bool,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            detail: detail.into(),
+            depth,
+            selected,
+            focused,
+            is_root,
+            has_children,
+            expanded,
+        }
+    }
+}
+
+/// Native folder-action availability consumed by sidebar action surfaces.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct FolderActionsModel {
+    /// Whether creating a folder at the focused parent is allowed.
+    pub can_create_folder: bool,
+    /// Whether creating a folder at source root is allowed.
+    pub can_create_folder_at_root: bool,
+    /// Whether renaming the focused folder is allowed.
+    pub can_rename_folder: bool,
+    /// Whether deleting the focused folder is allowed.
+    pub can_delete_folder: bool,
+    /// Whether clearing folder delete-recovery logs is allowed.
+    pub can_clear_recovery_log: bool,
+}
+
+/// Delete-recovery status for staged folder delete recovery in the sidebar.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct FolderRecoveryModel {
+    /// Whether delete recovery is still running in the background.
+    pub in_progress: bool,
+    /// Number of recovery log entries currently visible.
+    pub entry_count: usize,
+}
+
 /// Sidebar model for source browsing controls.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SourcesPanelModel {
@@ -60,10 +131,20 @@ pub struct SourcesPanelModel {
     pub header: String,
     /// Active source-search query.
     pub search_query: String,
+    /// Active folder-search query.
+    pub folder_search_query: String,
     /// Selected row index, if any.
     pub selected_row: Option<usize>,
+    /// Focused folder row index, if any.
+    pub focused_folder_row: Option<usize>,
     /// Rows to render in the source panel.
     pub rows: Vec<SourceRowModel>,
+    /// Folder rows to render in the folder browser section.
+    pub folder_rows: Vec<FolderRowModel>,
+    /// Folder action availability for native sidebar controls.
+    pub folder_actions: FolderActionsModel,
+    /// Folder delete-recovery summary for native sidebar status.
+    pub folder_recovery: FolderRecoveryModel,
 }
 
 /// Summary of browser/list state consumed by the native shell.
@@ -333,8 +414,13 @@ impl Default for AppModel {
             sources: SourcesPanelModel {
                 header: String::from("Sources"),
                 search_query: String::new(),
+                folder_search_query: String::new(),
                 selected_row: None,
+                focused_folder_row: None,
                 rows: Vec::new(),
+                folder_rows: Vec::new(),
+                folder_actions: FolderActionsModel::default(),
+                folder_recovery: FolderRecoveryModel::default(),
             },
             browser: BrowserPanelModel::default(),
             waveform: WaveformPanelModel::default(),
@@ -365,6 +451,20 @@ pub enum UiAction {
     FocusFolderSearch,
     /// Select a source row by index.
     SelectSourceRow { index: usize },
+    /// Focus a folder row by index.
+    FocusFolderRow { index: usize },
+    /// Move folder focus by row delta.
+    MoveFolderFocus { delta: i8 },
+    /// Create a folder relative to the focused folder.
+    StartNewFolder,
+    /// Create a folder at the source root.
+    StartNewFolderAtRoot,
+    /// Start folder rename flow for the focused folder.
+    StartFolderRename,
+    /// Delete the currently focused folder.
+    DeleteFocusedFolder,
+    /// Clear staged delete recovery log entries.
+    ClearFolderDeleteRecoveryLog,
     /// Move browser focus by a row delta in the visible list.
     MoveBrowserFocus { delta: i8 },
     /// Focus a browser row by visible index.

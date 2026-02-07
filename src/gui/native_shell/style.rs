@@ -76,6 +76,16 @@ pub(crate) struct SizingTokens {
     pub source_row_gap: f32,
     /// Source row card height.
     pub source_row_height: f32,
+    /// Gap between folder rows.
+    pub folder_row_gap: f32,
+    /// Folder row card height.
+    pub folder_row_height: f32,
+    /// Gap between source/folder sections in the sidebar.
+    pub sidebar_section_gap: f32,
+    /// Top block height reserved for folder section header + metadata.
+    pub folder_header_block_height: f32,
+    /// Horizontal indent step for nested folder rows.
+    pub folder_indent_step: f32,
     /// Space between compact metadata text rows.
     pub text_row_gap: f32,
     /// Horizontal text inset inside row cards.
@@ -112,6 +122,12 @@ pub(crate) struct SizingTokens {
     pub progress_bar_height: f32,
     /// Drag overlay banner height.
     pub drag_overlay_height: f32,
+    /// Sidebar action button width.
+    pub sidebar_action_button_width: f32,
+    /// Sidebar action button height.
+    pub sidebar_action_button_height: f32,
+    /// Gap between sidebar action buttons.
+    pub sidebar_action_button_gap: f32,
     /// Border stroke width.
     pub border_width: f32,
     /// Waveform scanline step width.
@@ -173,6 +189,11 @@ impl StyleTokens {
                 browser_row_height: 21.0,
                 source_row_gap: 3.0,
                 source_row_height: 20.0,
+                folder_row_gap: 2.0,
+                folder_row_height: 18.0,
+                sidebar_section_gap: 8.0,
+                folder_header_block_height: 30.0,
+                folder_indent_step: 12.0,
                 text_row_gap: 2.0,
                 text_inset_x: 5.0,
                 text_inset_y: 3.0,
@@ -191,6 +212,9 @@ impl StyleTokens {
                 overlay_button_height: 24.0,
                 progress_bar_height: 12.0,
                 drag_overlay_height: 24.0,
+                sidebar_action_button_width: 56.0,
+                sidebar_action_button_height: 18.0,
+                sidebar_action_button_gap: 4.0,
                 border_width: 1.0,
                 waveform_scan_step: 12.0,
                 font_title: 14.0,
@@ -220,6 +244,11 @@ impl StyleTokens {
             tokens.sizing.browser_row_height = 19.0;
             tokens.sizing.source_row_gap = 2.0;
             tokens.sizing.source_row_height = 18.0;
+            tokens.sizing.folder_row_gap = 2.0;
+            tokens.sizing.folder_row_height = 16.0;
+            tokens.sizing.sidebar_section_gap = 6.0;
+            tokens.sizing.folder_header_block_height = 28.0;
+            tokens.sizing.folder_indent_step = 10.0;
             tokens.sizing.source_header_block_height = 32.0;
             tokens.sizing.column_header_block_height = 19.0;
             tokens.sizing.waveform_header_block_height = 28.0;
@@ -235,6 +264,9 @@ impl StyleTokens {
             tokens.sizing.overlay_button_height = 22.0;
             tokens.sizing.progress_bar_height = 10.0;
             tokens.sizing.drag_overlay_height = 22.0;
+            tokens.sizing.sidebar_action_button_width = 50.0;
+            tokens.sizing.sidebar_action_button_height = 16.0;
+            tokens.sizing.sidebar_action_button_gap = 3.0;
             tokens.sizing.waveform_scan_step = 10.0;
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
@@ -261,6 +293,11 @@ impl StyleTokens {
             tokens.sizing.browser_row_height = 24.0;
             tokens.sizing.source_row_gap = 4.0;
             tokens.sizing.source_row_height = 23.0;
+            tokens.sizing.folder_row_gap = 3.0;
+            tokens.sizing.folder_row_height = 21.0;
+            tokens.sizing.sidebar_section_gap = 10.0;
+            tokens.sizing.folder_header_block_height = 34.0;
+            tokens.sizing.folder_indent_step = 14.0;
             tokens.sizing.source_header_block_height = 38.0;
             tokens.sizing.column_header_block_height = 24.0;
             tokens.sizing.waveform_header_block_height = 34.0;
@@ -276,6 +313,9 @@ impl StyleTokens {
             tokens.sizing.overlay_button_height = 26.0;
             tokens.sizing.progress_bar_height = 14.0;
             tokens.sizing.drag_overlay_height = 26.0;
+            tokens.sizing.sidebar_action_button_width = 62.0;
+            tokens.sizing.sidebar_action_button_height = 20.0;
+            tokens.sizing.sidebar_action_button_gap = 5.0;
             tokens.sizing.waveform_scan_step = 14.0;
             tokens.sizing.font_title = 15.0;
             tokens.sizing.font_header = 13.0;

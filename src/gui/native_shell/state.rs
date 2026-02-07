@@ -233,6 +233,9 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
+        if model.map.active {
+            return None;
+        }
         rendered_browser_rows(layout, model, &style_for_layout(layout))
             .into_iter()
             .find(|row| row.rect.contains(point))
@@ -251,6 +254,50 @@ impl NativeShellState {
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| button.action)
+    }
+
+    /// Resolve a browser tab click into a list/map tab selection action.
+    pub(crate) fn browser_tab_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let tabs = browser_tabs_layout(layout, style_for_layout(layout).sizing);
+        if tabs.samples.contains(point) {
+            return Some(UiAction::SetBrowserTab { map: false });
+        }
+        if tabs.map.contains(point) {
+            return Some(UiAction::SetBrowserTab { map: true });
+        }
+        None
+    }
+
+    /// Resolve a top-bar update action button click.
+    pub(crate) fn update_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        update_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action)
+    }
+
+    /// Resolve a map-point click to a sample-id action when map tab is active.
+    pub(crate) fn map_sample_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        if !model.map.active {
+            return None;
+        }
+        map_sample_id_at_point(layout, model, point)
+            .map(|sample_id| UiAction::FocusMapSample { sample_id })
     }
 
     /// Resolve a modal confirm prompt button click into confirm/cancel actions.
@@ -467,132 +514,162 @@ impl NativeShellState {
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
-        for row in rendered_browser_rows(layout, model, style) {
-            let row_columns = browser_table_columns(row.rect, sizing);
-            let row_fill = if row.focused {
-                blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
-            } else if row.selected {
-                blend_color(
-                    style.bg_tertiary,
-                    style.grid_soft,
-                    style.state_selected_blend,
-                )
-            } else if row.visible_row % 2 == 0 {
-                blend_color(style.surface_base, style.bg_secondary, 0.18)
-            } else {
-                style.surface_base
-            };
-            let row_border = if row.focused {
-                blend_color(
-                    style.accent_warning,
-                    style.text_primary,
-                    motion_wave * style.state_focus_pulse_blend,
-                )
-            } else if row.selected {
-                blend_color(
-                    style.accent_mint,
-                    style.text_primary,
-                    motion_wave * style.state_selected_blend,
-                )
-            } else {
-                style.border
-            };
-            let row_text_color = if row.focused {
-                blend_color(
-                    style.accent_warning,
-                    style.text_primary,
-                    motion_wave * focus_text_emphasis,
-                )
-            } else if row.selected {
-                style.accent_mint
-            } else {
-                style.text_primary
-            };
+        if model.map.active {
+            let canvas = map_canvas_rect(layout.browser_rows, sizing);
             primitives.push(Primitive::Rect(FillRect {
-                rect: row.rect,
-                color: row_fill,
-            }));
-            for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: Rect::from_min_max(
-                        Point::new(separator_x, row.rect.min.y),
-                        Point::new(
-                            (separator_x + sizing.border_width).min(row.rect.max.x),
-                            row.rect.max.y,
-                        ),
-                    ),
-                    color: blend_color(style.border, style.grid_soft, 0.36),
-                }));
-            }
-            push_border(
-                &mut primitives,
-                row.rect,
-                row_border,
-                if row.focused {
-                    sizing.focus_stroke_width
-                } else {
-                    sizing.border_width
-                },
-            );
-            let chip_rect = row_columns
-                .bucket
-                .inset(sizing.text_inset_y.min(sizing.text_inset_x).max(1.0));
-            let chip_color = match row.column {
-                0 => blend_color(style.accent_warning, style.bg_secondary, 0.62),
-                2 => blend_color(style.accent_mint, style.bg_secondary, 0.62),
-                _ => blend_color(style.text_muted, style.bg_secondary, 0.62),
-            };
-            primitives.push(Primitive::Rect(FillRect {
-                rect: chip_rect,
-                color: chip_color,
+                rect: canvas,
+                color: blend_color(style.surface_base, style.bg_secondary, 0.24),
             }));
             push_border(
                 &mut primitives,
-                chip_rect,
-                style.border,
+                canvas,
+                style.border_emphasis,
                 sizing.border_width,
             );
-            text_runs.push(TextRun {
-                text: row.visible_row.to_string(),
-                position: Point::new(
-                    row_columns.index.min.x + sizing.text_inset_x,
-                    text_top_in_rect(row_columns.index, sizing.font_meta, sizing.text_inset_y),
-                ),
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(
-                    (row_columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
-                ),
-                align: TextAlign::Right,
-            });
-            let label_max_width =
-                (row_columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0);
-            text_runs.push(TextRun {
-                text: row.label,
-                position: Point::new(
-                    row_columns.sample.min.x + sizing.text_inset_x,
-                    text_top_in_rect(row_columns.sample, sizing.font_body, sizing.text_inset_y),
-                ),
-                font_size: sizing.font_body,
-                color: row_text_color,
-                max_width: Some(label_max_width.max(20.0)),
-                align: TextAlign::Left,
-            });
-            text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &row.bucket_label,
-                    (chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0),
-                    sizing.font_meta,
-                ),
-                position: Point::new(
-                    chip_rect.min.x + sizing.text_inset_x,
-                    text_top_in_rect(chip_rect, sizing.font_meta, sizing.text_inset_y),
-                ),
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some((chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0)),
-                align: TextAlign::Center,
-            });
+            for point in &model.map.points {
+                let center = map_point_center(canvas, point);
+                let color = map_point_color(style, point);
+                let radius = if point.focused {
+                    4.5
+                } else if point.selected {
+                    3.8
+                } else {
+                    2.6
+                };
+                primitives.push(Primitive::Circle(FillCircle {
+                    center,
+                    radius,
+                    color,
+                }));
+            }
+        } else {
+            for row in rendered_browser_rows(layout, model, style) {
+                let row_columns = browser_table_columns(row.rect, sizing);
+                let row_fill = if row.focused {
+                    blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
+                } else if row.selected {
+                    blend_color(
+                        style.bg_tertiary,
+                        style.grid_soft,
+                        style.state_selected_blend,
+                    )
+                } else if row.visible_row % 2 == 0 {
+                    blend_color(style.surface_base, style.bg_secondary, 0.18)
+                } else {
+                    style.surface_base
+                };
+                let row_border = if row.focused {
+                    blend_color(
+                        style.accent_warning,
+                        style.text_primary,
+                        motion_wave * style.state_focus_pulse_blend,
+                    )
+                } else if row.selected {
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    )
+                } else {
+                    style.border
+                };
+                let row_text_color = if row.focused {
+                    blend_color(
+                        style.accent_warning,
+                        style.text_primary,
+                        motion_wave * focus_text_emphasis,
+                    )
+                } else if row.selected {
+                    style.accent_mint
+                } else {
+                    style.text_primary
+                };
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: row.rect,
+                    color: row_fill,
+                }));
+                for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
+                    primitives.push(Primitive::Rect(FillRect {
+                        rect: Rect::from_min_max(
+                            Point::new(separator_x, row.rect.min.y),
+                            Point::new(
+                                (separator_x + sizing.border_width).min(row.rect.max.x),
+                                row.rect.max.y,
+                            ),
+                        ),
+                        color: blend_color(style.border, style.grid_soft, 0.36),
+                    }));
+                }
+                push_border(
+                    &mut primitives,
+                    row.rect,
+                    row_border,
+                    if row.focused {
+                        sizing.focus_stroke_width
+                    } else {
+                        sizing.border_width
+                    },
+                );
+                let chip_rect = row_columns
+                    .bucket
+                    .inset(sizing.text_inset_y.min(sizing.text_inset_x).max(1.0));
+                let chip_color = match row.column {
+                    0 => blend_color(style.accent_warning, style.bg_secondary, 0.62),
+                    2 => blend_color(style.accent_mint, style.bg_secondary, 0.62),
+                    _ => blend_color(style.text_muted, style.bg_secondary, 0.62),
+                };
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: chip_rect,
+                    color: chip_color,
+                }));
+                push_border(
+                    &mut primitives,
+                    chip_rect,
+                    style.border,
+                    sizing.border_width,
+                );
+                text_runs.push(TextRun {
+                    text: row.visible_row.to_string(),
+                    position: Point::new(
+                        row_columns.index.min.x + sizing.text_inset_x,
+                        text_top_in_rect(row_columns.index, sizing.font_meta, sizing.text_inset_y),
+                    ),
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(
+                        (row_columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
+                    ),
+                    align: TextAlign::Right,
+                });
+                let label_max_width =
+                    (row_columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0);
+                text_runs.push(TextRun {
+                    text: row.label,
+                    position: Point::new(
+                        row_columns.sample.min.x + sizing.text_inset_x,
+                        text_top_in_rect(row_columns.sample, sizing.font_body, sizing.text_inset_y),
+                    ),
+                    font_size: sizing.font_body,
+                    color: row_text_color,
+                    max_width: Some(label_max_width.max(20.0)),
+                    align: TextAlign::Left,
+                });
+                text_runs.push(TextRun {
+                    text: truncate_to_width(
+                        &row.bucket_label,
+                        (chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0),
+                        sizing.font_meta,
+                    ),
+                    position: Point::new(
+                        chip_rect.min.x + sizing.text_inset_x,
+                        text_top_in_rect(chip_rect, sizing.font_meta, sizing.text_inset_y),
+                    ),
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some((chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0)),
+                    align: TextAlign::Center,
+                });
+            }
         }
 
         push_border(
@@ -748,8 +825,22 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
         }
+        let update_buttons = update_action_buttons(layout, style, model);
+        let update_status_text = update_status_text(model);
+        let reserved_button_width = update_buttons
+            .iter()
+            .map(|button| button.rect.width())
+            .sum::<f32>()
+            + (update_buttons.len().saturating_sub(1) as f32 * sizing.action_button_gap.max(1.0));
         text_runs.push(TextRun {
-            text: String::from("Donate   Report issues"),
+            text: truncate_to_width(
+                &update_status_text,
+                (layout.top_bar_action_cluster.width()
+                    - reserved_button_width
+                    - (sizing.text_inset_x * 2.0))
+                    .max(20.0),
+                sizing.font_meta,
+            ),
             position: Point::new(
                 layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
                 text_top_in_rect(
@@ -760,9 +851,53 @@ impl NativeShellState {
             ),
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.top_bar_action_cluster.width() - 72.0).max(24.0)),
+            max_width: Some(
+                (layout.top_bar_action_cluster.width()
+                    - reserved_button_width
+                    - (sizing.text_inset_x * 2.0))
+                    .max(20.0),
+            ),
             align: TextAlign::Left,
         });
+        for button in &update_buttons {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: button.rect,
+                color: if button.enabled {
+                    style.surface_overlay
+                } else {
+                    style.control_disabled_fill
+                },
+            }));
+            push_border(
+                &mut primitives,
+                button.rect,
+                if button.enabled {
+                    blend_color(
+                        style.border_emphasis,
+                        style.text_primary,
+                        style.state_hover_soft,
+                    )
+                } else {
+                    style.border
+                },
+                sizing.border_width,
+            );
+            text_runs.push(TextRun {
+                text: button.label.to_string(),
+                position: Point::new(
+                    button.rect.min.x + sizing.text_inset_x,
+                    text_top_in_rect(button.rect, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: if button.enabled {
+                    button.text_color
+                } else {
+                    style.text_muted
+                },
+                max_width: Some((button.rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                align: TextAlign::Center,
+            });
+        }
         for button in &browser_buttons {
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
@@ -1049,7 +1184,11 @@ impl NativeShellState {
                 let glyph = if row.is_root {
                     "•"
                 } else if row.has_children {
-                    if row.expanded { "▼" } else { "▶" }
+                    if row.expanded {
+                        "▼"
+                    } else {
+                        "▶"
+                    }
                 } else {
                     "·"
                 };
@@ -1443,74 +1582,146 @@ impl NativeShellState {
                 align: TextAlign::Center,
             });
         }
-        let header = browser_table_columns(layout.browser_table_header, sizing);
-        for separator_x in [header.index.max.x, header.sample.max.x] {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(separator_x, layout.browser_table_header.min.y),
-                    Point::new(
-                        (separator_x + sizing.border_width).min(layout.browser_table_header.max.x),
-                        layout.browser_table_header.max.y,
+        if model.map.active {
+            text_runs.push(TextRun {
+                text: String::from("Similarity map"),
+                position: Point::new(
+                    layout.browser_table_header.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
                     ),
                 ),
-                color: style.border,
-            }));
-        }
-        text_runs.push(TextRun {
-            text: String::from("#"),
-            position: Point::new(
-                header.index.min.x + sizing.text_inset_x,
-                text_top_in_rect(
-                    layout.browser_table_header,
-                    sizing.font_meta,
-                    sizing.text_inset_y,
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some(
+                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
                 ),
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some((header.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
-            align: TextAlign::Right,
-        });
-        text_runs.push(TextRun {
-            text: String::from("Sample"),
-            position: Point::new(
-                header.sample.min.x + sizing.text_inset_x,
-                text_top_in_rect(
-                    layout.browser_table_header,
-                    sizing.font_meta,
-                    sizing.text_inset_y,
+                align: TextAlign::Left,
+            });
+            let mode_label = match model.map.render_mode {
+                crate::app::MapRenderModeModel::Heatmap => "heatmap",
+                crate::app::MapRenderModeModel::Points => "points",
+            };
+            text_runs.push(TextRun {
+                text: format!("mode: {mode_label}"),
+                position: Point::new(
+                    layout.browser_table_header.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ) + sizing.font_meta
+                        + sizing.text_row_gap,
                 ),
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_primary,
-            max_width: Some((header.sample.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: String::from("Bucket"),
-            position: Point::new(
-                header.bucket.min.x + sizing.text_inset_x,
-                text_top_in_rect(
-                    layout.browser_table_header,
-                    sizing.font_meta,
-                    sizing.text_inset_y,
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
                 ),
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_primary,
-            max_width: Some((header.bucket.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
-            align: TextAlign::Center,
-        });
-        let footer_text = format!(
-            "{} rows | {} selected{}",
-            model.browser.visible_count,
-            model.browser.selected_path_count,
-            if model.browser.busy {
-                " | filtering…"
-            } else {
-                ""
+                align: TextAlign::Left,
+            });
+            if let Some(error) = model.map.error.as_deref() {
+                text_runs.push(TextRun {
+                    text: truncate_to_width(
+                        error,
+                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
+                            .max(24.0),
+                        sizing.font_meta,
+                    ),
+                    position: Point::new(
+                        layout.browser_table_header.min.x + sizing.text_inset_x,
+                        text_top_in_rect(
+                            layout.browser_table_header,
+                            sizing.font_meta,
+                            sizing.text_inset_y,
+                        ) + ((sizing.font_meta + sizing.text_row_gap) * 2.0),
+                    ),
+                    font_size: sizing.font_meta,
+                    color: style.accent_warning,
+                    max_width: Some(
+                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
+                            .max(24.0),
+                    ),
+                    align: TextAlign::Left,
+                });
             }
-        );
+        } else {
+            let header = browser_table_columns(layout.browser_table_header, sizing);
+            for separator_x in [header.index.max.x, header.sample.max.x] {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        Point::new(separator_x, layout.browser_table_header.min.y),
+                        Point::new(
+                            (separator_x + sizing.border_width)
+                                .min(layout.browser_table_header.max.x),
+                            layout.browser_table_header.max.y,
+                        ),
+                    ),
+                    color: style.border,
+                }));
+            }
+            text_runs.push(TextRun {
+                text: String::from("#"),
+                position: Point::new(
+                    header.index.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some((header.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                align: TextAlign::Right,
+            });
+            text_runs.push(TextRun {
+                text: String::from("Sample"),
+                position: Point::new(
+                    header.sample.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some((header.sample.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+                align: TextAlign::Left,
+            });
+            text_runs.push(TextRun {
+                text: String::from("Bucket"),
+                position: Point::new(
+                    header.bucket.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some((header.bucket.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
+                align: TextAlign::Center,
+            });
+        }
+        let footer_text = if model.map.active {
+            model.map.summary.clone()
+        } else {
+            format!(
+                "{} rows | {} selected{}",
+                model.browser.visible_count,
+                model.browser.selected_path_count,
+                if model.browser.busy {
+                    " | filtering…"
+                } else {
+                    ""
+                }
+            )
+        };
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &footer_text,
@@ -1820,7 +2031,7 @@ fn rendered_browser_rows(
     style: &StyleTokens,
 ) -> Vec<RenderedBrowserRow> {
     let sizing = style.sizing;
-    if model.browser.rows.is_empty() {
+    if model.map.active || model.browser.rows.is_empty() {
         return Vec::new();
     }
 
@@ -1914,6 +2125,144 @@ fn browser_tabs_layout(layout: &ShellLayout, sizing: SizingTokens) -> BrowserTab
         layout.browser_tabs.max,
     );
     BrowserTabsLayout { samples, map }
+}
+
+fn map_canvas_rect(browser_rows: Rect, sizing: SizingTokens) -> Rect {
+    browser_rows.inset((sizing.text_inset_x * 0.5).max(2.0))
+}
+
+fn map_point_center(canvas: Rect, point: &crate::app::MapPointModel) -> Point {
+    let x_ratio = f32::from(point.x_milli.min(1000)) / 1000.0;
+    let y_ratio = f32::from(point.y_milli.min(1000)) / 1000.0;
+    Point::new(
+        canvas.min.x + (canvas.width() * x_ratio),
+        canvas.min.y + (canvas.height() * y_ratio),
+    )
+}
+
+fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {
+    if point.focused {
+        return style.accent_warning;
+    }
+    if point.selected {
+        return style.accent_mint;
+    }
+    match point.cluster_id.map(|id| id.rem_euclid(5)) {
+        Some(0) => blend_color(style.accent_mint, style.bg_secondary, 0.42),
+        Some(1) => blend_color(style.accent_copper, style.bg_secondary, 0.42),
+        Some(2) => blend_color(style.accent_warning, style.bg_secondary, 0.42),
+        Some(3) => blend_color(style.text_primary, style.bg_secondary, 0.35),
+        Some(_) => blend_color(style.text_muted, style.bg_secondary, 0.35),
+        None => blend_color(style.text_muted, style.bg_secondary, 0.5),
+    }
+}
+
+fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) -> Option<String> {
+    if !model.map.active || model.map.points.is_empty() {
+        return None;
+    }
+    let canvas = map_canvas_rect(layout.browser_rows, style_for_layout(layout).sizing);
+    if !canvas.contains(point) {
+        return None;
+    }
+
+    let mut best: Option<(f32, &str)> = None;
+    for map_point in &model.map.points {
+        let center = map_point_center(canvas, map_point);
+        let radius = if map_point.focused {
+            7.0
+        } else if map_point.selected {
+            6.0
+        } else {
+            5.0
+        };
+        let dx = point.x - center.x;
+        let dy = point.y - center.y;
+        let distance_sq = (dx * dx) + (dy * dy);
+        if distance_sq > (radius * radius) {
+            continue;
+        }
+        match best {
+            Some((best_distance_sq, _)) if distance_sq >= best_distance_sq => {}
+            _ => best = Some((distance_sq, map_point.sample_id.as_str())),
+        }
+    }
+    best.map(|(_, sample_id)| sample_id.to_string())
+}
+
+fn update_status_text(model: &AppModel) -> String {
+    match model.update.status {
+        crate::app::UpdateStatusModel::Idle => String::from("Updates: idle"),
+        crate::app::UpdateStatusModel::Checking => String::from("Checking updates..."),
+        crate::app::UpdateStatusModel::Available => model
+            .update
+            .available_tag
+            .as_deref()
+            .map(|tag| format!("Update available: {tag}"))
+            .unwrap_or_else(|| String::from("Update available")),
+        crate::app::UpdateStatusModel::Error => model
+            .update
+            .last_error
+            .as_deref()
+            .map(|err| format!("Update check failed: {err}"))
+            .unwrap_or_else(|| String::from("Update check failed")),
+    }
+}
+
+fn update_action_buttons(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> Vec<ActionButton> {
+    let specs: Vec<(&'static str, bool, UiAction)> = match model.update.status {
+        crate::app::UpdateStatusModel::Idle => {
+            vec![("Check", true, UiAction::CheckForUpdates)]
+        }
+        crate::app::UpdateStatusModel::Checking => Vec::new(),
+        crate::app::UpdateStatusModel::Available => {
+            let has_url = model.update.available_url.is_some();
+            vec![
+                ("Open", has_url, UiAction::OpenUpdateLink),
+                ("Install", has_url, UiAction::InstallUpdate),
+                ("Dismiss", true, UiAction::DismissUpdate),
+            ]
+        }
+        crate::app::UpdateStatusModel::Error => {
+            vec![("Retry", true, UiAction::CheckForUpdates)]
+        }
+    };
+    if specs.is_empty() {
+        return Vec::new();
+    }
+    let sizing = style.sizing;
+    let gap = sizing.action_button_gap.max(1.0);
+    let row = layout.top_bar_title_row;
+    let button_height = (row.height() - (sizing.text_inset_y * 0.4)).max(12.0);
+    let y = row.min.y + ((row.height() - button_height) * 0.5);
+    let mut right = layout.top_bar_action_cluster.max.x - sizing.text_inset_x;
+    let mut buttons = Vec::with_capacity(specs.len());
+    for (label, enabled, action) in specs.iter().rev() {
+        let width = ((*label).chars().count() as f32 * (sizing.font_meta * 0.62)
+            + (sizing.text_inset_x * 2.0))
+            .clamp(42.0, 84.0);
+        let left = (right - width).max(layout.top_bar_action_cluster.min.x);
+        if left <= layout.top_bar_action_cluster.min.x {
+            break;
+        }
+        buttons.push(ActionButton {
+            rect: Rect::from_min_max(
+                Point::new(left, y),
+                Point::new(right, (y + button_height).min(row.max.y)),
+            ),
+            label,
+            enabled: *enabled,
+            action: action.clone(),
+            text_color: style.text_primary,
+        });
+        right = left - gap;
+    }
+    buttons.reverse();
+    buttons
 }
 
 fn browser_toolbar_layout(
@@ -3350,12 +3699,10 @@ mod tests {
             .rows
             .push(BrowserRowModel::new(0, "Kick 01", 1, true, true).with_bucket_label("165 BPM"));
         let frame = state.build_frame(&layout, &model);
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("165 BPM"))
-        );
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("165 BPM")));
     }
 
     #[test]

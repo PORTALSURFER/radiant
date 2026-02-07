@@ -617,6 +617,15 @@ fn action_from_pointer(
     if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.update_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.map_sample_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(action) = shell_state.browser_action_at_point(layout, model, point) {
         return Some(action);
     }
@@ -930,7 +939,10 @@ pub fn run_native_vello_preview(options: EguiRunOptions) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::{BrowserPanelModel, ColumnModel, SourcesPanelModel, WaveformPanelModel};
+    use crate::app::{
+        BrowserPanelModel, ColumnModel, MapPanelModel, MapPointModel, SourcesPanelModel,
+        UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
+    };
     use crate::gui::types::Vector2;
 
     #[test]
@@ -1107,5 +1119,109 @@ mod tests {
 
         model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(111, 444));
         assert_eq!(waveform_anchor_milli(&model), 111);
+    }
+
+    #[test]
+    fn browser_tab_clicks_route_to_tab_actions() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let shell_state = NativeShellState::new();
+        let model = AppModel::default();
+        let map_tab_point = Point::new(
+            layout.browser_tabs.min.x + (layout.browser_tabs.width() * 0.75),
+            layout.browser_tabs.min.y + (layout.browser_tabs.height() * 0.5),
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                map_tab_point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::SetBrowserTab { map: true })
+        );
+
+        let list_tab_point = Point::new(
+            layout.browser_tabs.min.x + (layout.browser_tabs.width() * 0.25),
+            layout.browser_tabs.min.y + (layout.browser_tabs.height() * 0.5),
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                list_tab_point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::SetBrowserTab { map: false })
+        );
+    }
+
+    #[test]
+    fn map_point_click_routes_to_focus_map_sample() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let shell_state = NativeShellState::new();
+        let point = Point::new(
+            layout.browser_rows.min.x + (layout.browser_rows.width() * 0.5),
+            layout.browser_rows.min.y + (layout.browser_rows.height() * 0.5),
+        );
+        let model = AppModel {
+            map: MapPanelModel {
+                active: true,
+                summary: String::from("1 point"),
+                error: None,
+                render_mode: crate::app::MapRenderModeModel::Points,
+                points: vec![MapPointModel {
+                    sample_id: String::from("source::kick.wav"),
+                    x_milli: 500,
+                    y_milli: 500,
+                    cluster_id: Some(1),
+                    selected: true,
+                    focused: true,
+                }],
+            },
+            ..AppModel::default()
+        };
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::FocusMapSample {
+                sample_id: String::from("source::kick.wav")
+            })
+        );
+    }
+
+    #[test]
+    fn update_button_click_routes_update_check_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let shell_state = NativeShellState::new();
+        let model = AppModel {
+            update: UpdatePanelModel {
+                status: UpdateStatusModel::Idle,
+                available_tag: None,
+                available_url: None,
+                last_error: None,
+            },
+            ..AppModel::default()
+        };
+        let button_point = Point::new(
+            layout.top_bar_action_cluster.max.x - 18.0,
+            layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &shell_state,
+                button_point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::CheckForUpdates)
+        );
     }
 }

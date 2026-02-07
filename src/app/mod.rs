@@ -220,6 +220,48 @@ pub struct BrowserPanelModel {
     pub rows: Vec<BrowserRowModel>,
 }
 
+/// Render mode label for the map panel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum MapRenderModeModel {
+    /// Rendered as a density heatmap.
+    Heatmap,
+    /// Rendered as individual points.
+    #[default]
+    Points,
+}
+
+/// Render data for one map point shown in the native map canvas.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MapPointModel {
+    /// Stable sample id used to route click actions back to the host.
+    pub sample_id: String,
+    /// X position normalized to milli-units (`0..=1000`) across map bounds.
+    pub x_milli: u16,
+    /// Y position normalized to milli-units (`0..=1000`) across map bounds.
+    pub y_milli: u16,
+    /// Optional cluster id for color grouping.
+    pub cluster_id: Option<i32>,
+    /// Whether this point is currently selected in map state.
+    pub selected: bool,
+    /// Whether this point corresponds to the focused browser sample.
+    pub focused: bool,
+}
+
+/// Summary of map state consumed by the native shell map tab.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct MapPanelModel {
+    /// Whether the map tab is currently active in the browser panel.
+    pub active: bool,
+    /// Human-readable map summary line.
+    pub summary: String,
+    /// Optional error text shown when map data cannot be loaded.
+    pub error: Option<String>,
+    /// Current map render mode.
+    pub render_mode: MapRenderModeModel,
+    /// Points available for rendering in normalized map space.
+    pub points: Vec<MapPointModel>,
+}
+
 /// Triage targets used by native browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BrowserTagTarget {
@@ -311,6 +353,33 @@ pub struct StatusBarModel {
     pub center: String,
     /// Right-aligned status segment.
     pub right: String,
+}
+
+/// Update-check status projected into the native shell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum UpdateStatusModel {
+    /// No update activity in progress.
+    #[default]
+    Idle,
+    /// Update check is running.
+    Checking,
+    /// A newer update is available.
+    Available,
+    /// Update check failed.
+    Error,
+}
+
+/// Update panel state used by native top-bar actions.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct UpdatePanelModel {
+    /// Current update-check status.
+    pub status: UpdateStatusModel,
+    /// Available release tag, when present.
+    pub available_tag: Option<String>,
+    /// Available release URL, when present.
+    pub available_url: Option<String>,
+    /// Last error message from update checks, if any.
+    pub last_error: Option<String>,
 }
 
 /// Progress overlay state projected into the native shell.
@@ -416,8 +485,12 @@ pub struct AppModel {
     pub sources: SourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
+    /// Map panel summary consumed by the native renderer.
+    pub map: MapPanelModel,
     /// Waveform panel summary consumed by the native renderer.
     pub waveform: WaveformPanelModel,
+    /// Update surface summary consumed by the native top bar.
+    pub update: UpdatePanelModel,
 }
 
 impl Default for AppModel {
@@ -455,7 +528,9 @@ impl Default for AppModel {
                 folder_recovery: FolderRecoveryModel::default(),
             },
             browser: BrowserPanelModel::default(),
+            map: MapPanelModel::default(),
             waveform: WaveformPanelModel::default(),
+            update: UpdatePanelModel::default(),
         }
     }
 }
@@ -519,6 +594,10 @@ pub enum UiAction {
     SelectAllBrowserRows,
     /// Set browser search query.
     SetBrowserSearch { query: String },
+    /// Set active browser tab (`map = true` selects map; otherwise list).
+    SetBrowserTab { map: bool },
+    /// Focus a specific map sample by stable sample id.
+    FocusMapSample { sample_id: String },
     /// Set editable text for the active prompt input field.
     SetPromptInput { value: String },
     /// Start inline rename flow for the focused browser row.
@@ -567,6 +646,14 @@ pub enum UiAction {
     Undo,
     /// Trigger redo.
     Redo,
+    /// Trigger an explicit update check.
+    CheckForUpdates,
+    /// Open the available update URL.
+    OpenUpdateLink,
+    /// Install update and exit where supported.
+    InstallUpdate,
+    /// Dismiss current update notification.
+    DismissUpdate,
 }
 
 /// Frame-level feedback from renderer to host bridge.

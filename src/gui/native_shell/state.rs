@@ -1205,14 +1205,18 @@ impl NativeShellState {
             format_milli_value(model.waveform.view_start_milli),
             format_milli_value(model.waveform.view_end_milli)
         );
+        let tempo_text = model.waveform.tempo_label.as_deref().unwrap_or("— BPM");
+        let zoom_text = model.waveform.zoom_label.as_deref().unwrap_or("100%");
         text_runs.push(TextRun {
             text: format!(
-                "loop: {} | playhead: {} | cursor: {} | view: {}",
+                "loop: {} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
                 if model.waveform.loop_enabled {
                     "on"
                 } else {
                     "off"
                 },
+                tempo_text,
+                zoom_text,
                 playhead_text,
                 cursor_text,
                 view_text,
@@ -1232,25 +1236,69 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         let tabs = browser_tabs_layout(layout, sizing);
+        let map_active = model
+            .browser
+            .active_tab_label
+            .as_deref()
+            .is_some_and(|label| label.eq_ignore_ascii_case("similarity map"));
+        let list_active = !map_active;
+        let (
+            samples_fill,
+            map_fill,
+            samples_border,
+            map_border,
+            samples_text_color,
+            map_text_color,
+        ) = if list_active {
+            (
+                blend_color(
+                    style.surface_overlay,
+                    style.bg_tertiary,
+                    style.state_selected_blend + (motion_wave * 0.1),
+                ),
+                style.surface_base,
+                blend_color(style.accent_mint, style.text_primary, 0.42),
+                style.border,
+                blend_color(
+                    style.accent_mint,
+                    style.text_primary,
+                    motion_wave * style.state_selected_blend,
+                ),
+                style.text_muted,
+            )
+        } else {
+            (
+                style.surface_base,
+                blend_color(
+                    style.surface_overlay,
+                    style.bg_tertiary,
+                    style.state_selected_blend + (motion_wave * 0.1),
+                ),
+                style.border,
+                blend_color(style.accent_mint, style.text_primary, 0.42),
+                style.text_muted,
+                blend_color(
+                    style.accent_mint,
+                    style.text_primary,
+                    motion_wave * style.state_selected_blend,
+                ),
+            )
+        };
         primitives.push(Primitive::Rect(FillRect {
             rect: tabs.samples,
-            color: blend_color(
-                style.surface_overlay,
-                style.bg_tertiary,
-                style.state_selected_blend + (motion_wave * 0.1),
-            ),
+            color: samples_fill,
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: tabs.map,
-            color: style.surface_base,
+            color: map_fill,
         }));
         push_border(
             &mut primitives,
             tabs.samples,
-            blend_color(style.accent_mint, style.text_primary, 0.42),
+            samples_border,
             sizing.border_width,
         );
-        push_border(&mut primitives, tabs.map, style.border, sizing.border_width);
+        push_border(&mut primitives, tabs.map, map_border, sizing.border_width);
         let samples_text = format!(
             "Samples ({})",
             model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
@@ -1266,22 +1314,24 @@ impl NativeShellState {
                 text_top_in_rect(tabs.samples, sizing.font_header, sizing.text_inset_y),
             ),
             font_size: sizing.font_header,
-            color: blend_color(
-                style.accent_mint,
-                style.text_primary,
-                motion_wave * style.state_selected_blend,
-            ),
+            color: samples_text_color,
             max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
             align: TextAlign::Left,
         });
+        let map_text = model
+            .browser
+            .active_tab_label
+            .as_deref()
+            .filter(|label| label.eq_ignore_ascii_case("similarity map"))
+            .unwrap_or("Similarity map");
         text_runs.push(TextRun {
-            text: String::from("Similarity map"),
+            text: String::from(map_text),
             position: Point::new(
                 tabs.map.min.x + sizing.text_inset_x,
                 text_top_in_rect(tabs.map, sizing.font_header, sizing.text_inset_y),
             ),
             font_size: sizing.font_header,
-            color: style.text_muted,
+            color: map_text_color,
             max_width: Some((tabs.map.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
             align: TextAlign::Left,
         });
@@ -1327,7 +1377,11 @@ impl NativeShellState {
             );
         }
         let search_text = if model.browser.search_query.is_empty() {
-            String::from("Search samples (Ctrl+F)")
+            model
+                .browser
+                .search_placeholder
+                .clone()
+                .unwrap_or_else(|| String::from("Search samples (Ctrl+F)"))
         } else {
             format!("Search: {}", model.browser.search_query)
         };
@@ -1374,8 +1428,9 @@ impl NativeShellState {
             });
         }
         if toolbar.sort_chip.width() > 1.0 {
+            let sort_label = model.browser.sort_label.as_deref().unwrap_or("List order");
             text_runs.push(TextRun {
-                text: String::from("List order"),
+                text: String::from(sort_label),
                 position: Point::new(
                     toolbar.sort_chip.min.x + sizing.text_inset_x,
                     text_top_in_rect(toolbar.sort_chip, sizing.font_meta, sizing.text_inset_y),

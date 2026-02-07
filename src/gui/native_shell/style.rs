@@ -322,24 +322,24 @@ impl StyleTokens {
             scrim_modal_alpha: 188,
             sizing: SizingTokens {
                 frame_inset: 7.0,
-                panel_gap: 6.0,
-                top_bar_height: 36.0,
-                top_bar_title_row_height: 16.0,
-                status_bar_height: 20.0,
+                panel_gap: 5.0,
+                top_bar_height: 34.0,
+                top_bar_title_row_height: 14.0,
+                status_bar_height: 19.0,
                 sidebar_ratio: 0.22,
                 sidebar_min_width: 176.0,
                 sidebar_max_width: 280.0,
                 content_min_width: 220.0,
-                waveform_ratio: 0.35,
-                waveform_min_height: 126.0,
-                waveform_max_height: 250.0,
+                waveform_ratio: 0.38,
+                waveform_min_height: 132.0,
+                waveform_max_height: 270.0,
                 column_gap: 6.0,
                 browser_rows_max_per_column: 34,
                 column_min_width: 40.0,
-                browser_tabs_height: 21.0,
-                browser_toolbar_height: 22.0,
-                browser_table_header_height: 21.0,
-                browser_footer_height: 18.0,
+                browser_tabs_height: 20.0,
+                browser_toolbar_height: 21.0,
+                browser_table_header_height: 20.0,
+                browser_footer_height: 17.0,
                 browser_search_field_min_width: 140.0,
                 browser_search_field_ratio: 0.46,
                 browser_index_col_width: 44.0,
@@ -347,9 +347,9 @@ impl StyleTokens {
                 panel_inset: 6.0,
                 header_label_gutter: 4.0,
                 browser_row_gap: 3.0,
-                browser_row_height: 22.0,
+                browser_row_height: 21.0,
                 source_row_gap: 3.0,
-                source_row_height: 21.0,
+                source_row_height: 20.0,
                 source_rows_max: 11,
                 source_rows_min_when_split: 3,
                 folder_row_gap: 2.0,
@@ -380,7 +380,7 @@ impl StyleTokens {
                 action_button_height: 18.0,
                 action_button_gap: 4.0,
                 top_bar_cluster_gap: 11.0,
-                top_volume_meter_width: 86.0,
+                top_volume_meter_width: 90.0,
                 top_volume_meter_height: 8.0,
                 top_bar_action_cluster_min_width: 300.0,
                 top_bar_action_cluster_max_width: 560.0,
@@ -402,8 +402,8 @@ impl StyleTokens {
                 font_title: 14.0,
                 font_header: 12.0,
                 font_body: 10.0,
-                font_meta: 10.0,
-                font_status: 11.0,
+                font_meta: 9.5,
+                font_status: 10.5,
                 lamp_radius_base: 4.0,
                 lamp_radius_amp: 2.0,
             },
@@ -413,31 +413,31 @@ impl StyleTokens {
             tokens.sizing.frame_inset = 6.0;
             tokens.sizing.panel_gap = 5.0;
             tokens.sizing.top_bar_height = 34.0;
-            tokens.sizing.top_bar_title_row_height = 15.0;
-            tokens.sizing.status_bar_height = 20.0;
+            tokens.sizing.top_bar_title_row_height = 14.0;
+            tokens.sizing.status_bar_height = 19.0;
             tokens.sizing.sidebar_ratio = 0.23;
             tokens.sizing.sidebar_min_width = 168.0;
             tokens.sizing.sidebar_max_width = 252.0;
             tokens.sizing.content_min_width = 180.0;
-            tokens.sizing.waveform_ratio = 0.34;
+            tokens.sizing.waveform_ratio = 0.36;
             tokens.sizing.waveform_min_height = 120.0;
             tokens.sizing.waveform_max_height = 220.0;
             tokens.sizing.column_gap = 5.0;
             tokens.sizing.browser_rows_max_per_column = 28;
             tokens.sizing.panel_inset = 5.0;
             tokens.sizing.header_label_gutter = 3.0;
-            tokens.sizing.browser_tabs_height = 19.0;
-            tokens.sizing.browser_toolbar_height = 20.0;
-            tokens.sizing.browser_table_header_height = 19.0;
+            tokens.sizing.browser_tabs_height = 18.0;
+            tokens.sizing.browser_toolbar_height = 19.0;
+            tokens.sizing.browser_table_header_height = 18.0;
             tokens.sizing.browser_footer_height = 16.0;
             tokens.sizing.browser_search_field_min_width = 108.0;
             tokens.sizing.browser_search_field_ratio = 0.44;
             tokens.sizing.browser_index_col_width = 38.0;
             tokens.sizing.browser_bucket_col_width = 76.0;
             tokens.sizing.browser_row_gap = 2.0;
-            tokens.sizing.browser_row_height = 19.0;
+            tokens.sizing.browser_row_height = 18.5;
             tokens.sizing.source_row_gap = 2.0;
-            tokens.sizing.source_row_height = 18.5;
+            tokens.sizing.source_row_height = 18.0;
             tokens.sizing.source_rows_max = 9;
             tokens.sizing.source_rows_min_when_split = 2;
             tokens.sizing.folder_row_gap = 2.0;
@@ -465,7 +465,7 @@ impl StyleTokens {
             tokens.sizing.action_button_height = 16.0;
             tokens.sizing.action_button_gap = 3.0;
             tokens.sizing.top_bar_cluster_gap = 8.0;
-            tokens.sizing.top_volume_meter_width = 72.0;
+            tokens.sizing.top_volume_meter_width = 76.0;
             tokens.sizing.top_volume_meter_height = 7.0;
             tokens.sizing.top_bar_action_cluster_min_width = 240.0;
             tokens.sizing.top_bar_action_cluster_max_width = 420.0;
@@ -496,8 +496,8 @@ impl StyleTokens {
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
             tokens.sizing.font_body = 9.5;
-            tokens.sizing.font_meta = 9.5;
-            tokens.sizing.font_status = 10.5;
+            tokens.sizing.font_meta = 9.0;
+            tokens.sizing.font_status = 10.0;
             tokens.surface_overlay = rgba(32, 29, 26, 255);
             tokens.border_emphasis = rgba(66, 60, 54, 255);
             tokens.source_section_divider = rgba(59, 53, 48, 255);
@@ -510,23 +510,23 @@ impl StyleTokens {
         if layout_tier == LayoutScaleTier::Wide {
             tokens.sizing.frame_inset = 10.0;
             tokens.sizing.panel_gap = 8.0;
-            tokens.sizing.top_bar_height = 38.0;
-            tokens.sizing.top_bar_title_row_height = 17.0;
+            tokens.sizing.top_bar_height = 36.0;
+            tokens.sizing.top_bar_title_row_height = 15.0;
             tokens.sizing.status_bar_height = 22.0;
             tokens.sizing.sidebar_ratio = 0.20;
             tokens.sizing.sidebar_min_width = 190.0;
             tokens.sizing.sidebar_max_width = 320.0;
             tokens.sizing.content_min_width = 260.0;
-            tokens.sizing.waveform_ratio = 0.36;
+            tokens.sizing.waveform_ratio = 0.40;
             tokens.sizing.waveform_min_height = 140.0;
             tokens.sizing.waveform_max_height = 280.0;
             tokens.sizing.column_gap = 8.0;
             tokens.sizing.browser_rows_max_per_column = 44;
             tokens.sizing.panel_inset = 8.0;
             tokens.sizing.header_label_gutter = 5.0;
-            tokens.sizing.browser_tabs_height = 24.0;
-            tokens.sizing.browser_toolbar_height = 24.0;
-            tokens.sizing.browser_table_header_height = 24.0;
+            tokens.sizing.browser_tabs_height = 22.0;
+            tokens.sizing.browser_toolbar_height = 23.0;
+            tokens.sizing.browser_table_header_height = 22.0;
             tokens.sizing.browser_footer_height = 20.0;
             tokens.sizing.browser_search_field_min_width = 176.0;
             tokens.sizing.browser_search_field_ratio = 0.48;
@@ -563,7 +563,7 @@ impl StyleTokens {
             tokens.sizing.action_button_height = 20.0;
             tokens.sizing.action_button_gap = 5.0;
             tokens.sizing.top_bar_cluster_gap = 12.0;
-            tokens.sizing.top_volume_meter_width = 96.0;
+            tokens.sizing.top_volume_meter_width = 104.0;
             tokens.sizing.top_volume_meter_height = 9.0;
             tokens.sizing.top_bar_action_cluster_min_width = 360.0;
             tokens.sizing.top_bar_action_cluster_max_width = 680.0;

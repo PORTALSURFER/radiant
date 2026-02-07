@@ -192,8 +192,14 @@ pub struct BrowserPanelModel {
     pub selected_path_count: usize,
     /// Active browser search query.
     pub search_query: String,
+    /// Placeholder shown when the browser search query is empty.
+    pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
     pub busy: bool,
+    /// Display label for the active browser sort mode.
+    pub sort_label: Option<String>,
+    /// Display label for the currently active browser tab.
+    pub active_tab_label: Option<String>,
     /// Display label for the currently focused sample, when known.
     pub focused_sample_label: Option<String>,
     /// Selection anchor in visible-row space.
@@ -262,6 +268,10 @@ pub struct WaveformPanelModel {
     pub view_end_milli: u16,
     /// Whether loop playback is enabled.
     pub loop_enabled: bool,
+    /// Optional tempo label rendered in waveform metadata.
+    pub tempo_label: Option<String>,
+    /// Optional zoom label rendered in waveform metadata.
+    pub zoom_label: Option<String>,
 }
 
 impl Default for WaveformPanelModel {
@@ -274,6 +284,8 @@ impl Default for WaveformPanelModel {
             view_start_milli: 0,
             view_end_milli: 1000,
             loop_enabled: false,
+            tempo_label: None,
+            zoom_label: None,
         }
     }
 }

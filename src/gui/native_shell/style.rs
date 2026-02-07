@@ -130,6 +130,22 @@ pub(crate) struct SizingTokens {
     pub browser_rows_max_per_column: usize,
     /// Minimum width allowed for each triage column.
     pub column_min_width: f32,
+    /// Height of the browser tab band.
+    pub browser_tabs_height: f32,
+    /// Height of the browser toolbar band.
+    pub browser_toolbar_height: f32,
+    /// Height of the browser table-header band.
+    pub browser_table_header_height: f32,
+    /// Height of the browser footer band.
+    pub browser_footer_height: f32,
+    /// Minimum width reserved for browser search controls.
+    pub browser_search_field_min_width: f32,
+    /// Preferred browser search width as a ratio of toolbar width.
+    pub browser_search_field_ratio: f32,
+    /// Width reserved for the browser row index column.
+    pub browser_index_col_width: f32,
+    /// Width reserved for the browser bucket/tag column.
+    pub browser_bucket_col_width: f32,
     /// Shared panel inset for nested regions.
     pub panel_inset: f32,
     /// Small horizontal gutter applied to header/status text anchors.
@@ -313,6 +329,14 @@ impl StyleTokens {
                 column_gap: 6.0,
                 browser_rows_max_per_column: 34,
                 column_min_width: 40.0,
+                browser_tabs_height: 21.0,
+                browser_toolbar_height: 22.0,
+                browser_table_header_height: 21.0,
+                browser_footer_height: 18.0,
+                browser_search_field_min_width: 140.0,
+                browser_search_field_ratio: 0.46,
+                browser_index_col_width: 44.0,
+                browser_bucket_col_width: 88.0,
                 panel_inset: 6.0,
                 header_label_gutter: 4.0,
                 browser_row_gap: 3.0,
@@ -392,6 +416,14 @@ impl StyleTokens {
             tokens.sizing.browser_rows_max_per_column = 28;
             tokens.sizing.panel_inset = 5.0;
             tokens.sizing.header_label_gutter = 3.0;
+            tokens.sizing.browser_tabs_height = 19.0;
+            tokens.sizing.browser_toolbar_height = 20.0;
+            tokens.sizing.browser_table_header_height = 19.0;
+            tokens.sizing.browser_footer_height = 16.0;
+            tokens.sizing.browser_search_field_min_width = 108.0;
+            tokens.sizing.browser_search_field_ratio = 0.44;
+            tokens.sizing.browser_index_col_width = 38.0;
+            tokens.sizing.browser_bucket_col_width = 76.0;
             tokens.sizing.browser_row_gap = 2.0;
             tokens.sizing.browser_row_height = 19.0;
             tokens.sizing.source_row_gap = 2.0;
@@ -479,6 +511,14 @@ impl StyleTokens {
             tokens.sizing.browser_rows_max_per_column = 44;
             tokens.sizing.panel_inset = 8.0;
             tokens.sizing.header_label_gutter = 5.0;
+            tokens.sizing.browser_tabs_height = 24.0;
+            tokens.sizing.browser_toolbar_height = 24.0;
+            tokens.sizing.browser_table_header_height = 24.0;
+            tokens.sizing.browser_footer_height = 20.0;
+            tokens.sizing.browser_search_field_min_width = 176.0;
+            tokens.sizing.browser_search_field_ratio = 0.48;
+            tokens.sizing.browser_index_col_width = 50.0;
+            tokens.sizing.browser_bucket_col_width = 100.0;
             tokens.sizing.browser_row_gap = 4.0;
             tokens.sizing.browser_row_height = 24.0;
             tokens.sizing.source_row_gap = 4.0;

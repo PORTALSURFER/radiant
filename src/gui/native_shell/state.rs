@@ -466,7 +466,9 @@ impl NativeShellState {
             }));
         }
 
+        let browser_buttons = browser_action_buttons(layout, style, model);
         for row in rendered_browser_rows(layout, model, style) {
+            let row_columns = browser_table_columns(row.rect, sizing);
             let row_fill = if row.focused {
                 blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
             } else if row.selected {
@@ -518,17 +520,9 @@ impl NativeShellState {
                     sizing.border_width
                 },
             );
-            let chip_width = 52.0_f32.min((row.rect.width() * 0.24).max(20.0));
-            let chip_rect = Rect::from_min_max(
-                Point::new(
-                    (row.rect.max.x - chip_width - sizing.text_inset_x).max(row.rect.min.x + 8.0),
-                    row.rect.min.y + sizing.text_inset_y,
-                ),
-                Point::new(
-                    row.rect.max.x - sizing.text_inset_x,
-                    row.rect.max.y - sizing.text_inset_y,
-                ),
-            );
+            let chip_rect = row_columns
+                .bucket
+                .inset(sizing.text_inset_y.min(sizing.text_inset_x).max(1.0));
             let chip_color = match row.column {
                 0 => blend_color(style.accent_warning, style.bg_secondary, 0.62),
                 2 => blend_color(style.accent_mint, style.bg_secondary, 0.62),
@@ -544,12 +538,26 @@ impl NativeShellState {
                 style.border,
                 sizing.border_width,
             );
-            let label_max_width = row_label_width(row.rect, &sizing, 0.0, 20.0) - chip_width - 6.0;
+            text_runs.push(TextRun {
+                text: row.visible_row.to_string(),
+                position: Point::new(
+                    row_columns.index.min.x + sizing.text_inset_x,
+                    text_top_in_rect(row_columns.index, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (row_columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
+                ),
+                align: TextAlign::Right,
+            });
+            let label_max_width =
+                (row_columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0);
             text_runs.push(TextRun {
                 text: row.label,
                 position: Point::new(
-                    row_label_x(row.rect, &sizing, 0.0),
-                    text_top_in_rect(row.rect, sizing.font_body, sizing.text_inset_y),
+                    row_columns.sample.min.x + sizing.text_inset_x,
+                    text_top_in_rect(row_columns.sample, sizing.font_body, sizing.text_inset_y),
                 ),
                 font_size: sizing.font_body,
                 color: row_text_color,
@@ -682,7 +690,7 @@ impl NativeShellState {
             max_width: Some((layout.top_bar_action_cluster.width() - 72.0).max(24.0)),
             align: TextAlign::Left,
         });
-        for button in browser_action_buttons(layout, style, model) {
+        for button in &browser_buttons {
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
@@ -1150,22 +1158,26 @@ impl NativeShellState {
             ),
             align: TextAlign::Left,
         });
-        let tab_width =
-            ((layout.browser_tabs.width() - sizing.action_button_gap).max(0.0) * 0.5).max(80.0);
-        let samples_tab = Rect::from_min_max(
-            layout.browser_tabs.min,
-            Point::new(
-                layout.browser_tabs.min.x + tab_width,
-                layout.browser_tabs.max.y,
+        let tabs = browser_tabs_layout(layout, sizing);
+        primitives.push(Primitive::Rect(FillRect {
+            rect: tabs.samples,
+            color: blend_color(
+                style.surface_overlay,
+                style.bg_tertiary,
+                style.state_selected_blend + (motion_wave * 0.1),
             ),
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: tabs.map,
+            color: style.surface_base,
+        }));
+        push_border(
+            &mut primitives,
+            tabs.samples,
+            blend_color(style.accent_mint, style.text_primary, 0.42),
+            sizing.border_width,
         );
-        let map_tab = Rect::from_min_max(
-            Point::new(
-                samples_tab.max.x + sizing.action_button_gap,
-                layout.browser_tabs.min.y,
-            ),
-            layout.browser_tabs.max,
-        );
+        push_border(&mut primitives, tabs.map, style.border, sizing.border_width);
         let samples_text = format!(
             "Samples ({})",
             model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
@@ -1173,12 +1185,12 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &samples_text,
-                (samples_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0),
+                (tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0),
                 sizing.font_header,
             ),
             position: Point::new(
-                samples_tab.min.x + sizing.text_inset_x,
-                text_top_in_rect(samples_tab, sizing.font_header, sizing.text_inset_y),
+                tabs.samples.min.x + sizing.text_inset_x,
+                text_top_in_rect(tabs.samples, sizing.font_header, sizing.text_inset_y),
             ),
             font_size: sizing.font_header,
             color: blend_color(
@@ -1186,49 +1198,155 @@ impl NativeShellState {
                 style.text_primary,
                 motion_wave * style.state_selected_blend,
             ),
-            max_width: Some((samples_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: String::from("Similarity map"),
             position: Point::new(
-                map_tab.min.x + sizing.text_inset_x,
-                text_top_in_rect(map_tab, sizing.font_header, sizing.text_inset_y),
+                tabs.map.min.x + sizing.text_inset_x,
+                text_top_in_rect(tabs.map, sizing.font_header, sizing.text_inset_y),
             ),
             font_size: sizing.font_header,
             color: style.text_muted,
-            max_width: Some((map_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some((tabs.map.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
             align: TextAlign::Left,
         });
-        let toolbar_text =
-            format!("Search samples (Ctrl+F)    Find similar    Similarity sort    List order");
+        let toolbar = browser_toolbar_layout(layout, style, &browser_buttons);
+        if toolbar.search_field.width() > 1.0 {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: toolbar.search_field,
+                color: style.surface_overlay,
+            }));
+            push_border(
+                &mut primitives,
+                toolbar.search_field,
+                blend_color(style.border_emphasis, style.text_primary, 0.35),
+                sizing.border_width,
+            );
+        }
+        if toolbar.activity_chip.width() > 1.0 {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: toolbar.activity_chip,
+                color: if model.browser.busy {
+                    blend_color(style.accent_warning, style.bg_secondary, 0.45)
+                } else {
+                    blend_color(style.accent_mint, style.bg_secondary, 0.40)
+                },
+            }));
+            push_border(
+                &mut primitives,
+                toolbar.activity_chip,
+                style.border,
+                sizing.border_width,
+            );
+        }
+        if toolbar.sort_chip.width() > 1.0 {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: toolbar.sort_chip,
+                color: style.surface_overlay,
+            }));
+            push_border(
+                &mut primitives,
+                toolbar.sort_chip,
+                style.border,
+                sizing.border_width,
+            );
+        }
+        let search_text = if model.browser.search_query.is_empty() {
+            String::from("Search samples (Ctrl+F)")
+        } else {
+            format!("Search: {}", model.browser.search_query)
+        };
+        if toolbar.search_field.width() > 1.0 {
+            text_runs.push(TextRun {
+                text: truncate_to_width(
+                    &search_text,
+                    (toolbar.search_field.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                    sizing.font_meta,
+                ),
+                position: Point::new(
+                    toolbar.search_field.min.x + sizing.text_inset_x,
+                    text_top_in_rect(toolbar.search_field, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: if model.browser.search_query.is_empty() {
+                    style.text_muted
+                } else {
+                    style.text_primary
+                },
+                max_width: Some(
+                    (toolbar.search_field.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                ),
+                align: TextAlign::Left,
+            });
+        }
+        if toolbar.activity_chip.width() > 1.0 {
+            text_runs.push(TextRun {
+                text: if model.browser.busy {
+                    String::from("Filtering")
+                } else {
+                    String::from("Ready")
+                },
+                position: Point::new(
+                    toolbar.activity_chip.min.x + sizing.text_inset_x,
+                    text_top_in_rect(toolbar.activity_chip, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some(
+                    (toolbar.activity_chip.width() - (sizing.text_inset_x * 2.0)).max(20.0),
+                ),
+                align: TextAlign::Center,
+            });
+        }
+        if toolbar.sort_chip.width() > 1.0 {
+            text_runs.push(TextRun {
+                text: String::from("List order"),
+                position: Point::new(
+                    toolbar.sort_chip.min.x + sizing.text_inset_x,
+                    text_top_in_rect(toolbar.sort_chip, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (toolbar.sort_chip.width() - (sizing.text_inset_x * 2.0)).max(20.0),
+                ),
+                align: TextAlign::Center,
+            });
+        }
+        let header = browser_table_columns(layout.browser_table_header, sizing);
+        for separator_x in [header.index.max.x, header.sample.max.x] {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(separator_x, layout.browser_table_header.min.y),
+                    Point::new(
+                        (separator_x + sizing.border_width).min(layout.browser_table_header.max.x),
+                        layout.browser_table_header.max.y,
+                    ),
+                ),
+                color: style.border,
+            }));
+        }
         text_runs.push(TextRun {
-            text: truncate_to_width(
-                &toolbar_text,
-                (layout.browser_toolbar.width() - (sizing.text_inset_x * 2.0)).max(48.0),
-                sizing.font_meta,
-            ),
+            text: String::from("#"),
             position: Point::new(
-                layout.browser_toolbar.min.x + sizing.text_inset_x,
+                header.index.min.x + sizing.text_inset_x,
                 text_top_in_rect(
-                    layout.browser_toolbar,
+                    layout.browser_table_header,
                     sizing.font_meta,
                     sizing.text_inset_y,
                 ),
             ),
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some(
-                (layout.browser_toolbar.width() - (sizing.text_inset_x * 2.0)).max(48.0),
-            ),
-            align: TextAlign::Left,
+            max_width: Some((header.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+            align: TextAlign::Right,
         });
         text_runs.push(TextRun {
-            text: String::from(
-                "#   Sample name                                           BPM   Tag",
-            ),
+            text: String::from("Sample"),
             position: Point::new(
-                layout.browser_table_header.min.x + sizing.text_inset_x,
+                header.sample.min.x + sizing.text_inset_x,
                 text_top_in_rect(
                     layout.browser_table_header,
                     sizing.font_meta,
@@ -1237,8 +1355,48 @@ impl NativeShellState {
             ),
             font_size: sizing.font_meta,
             color: style.text_primary,
+            max_width: Some((header.sample.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from("Bucket"),
+            position: Point::new(
+                header.bucket.min.x + sizing.text_inset_x,
+                text_top_in_rect(
+                    layout.browser_table_header,
+                    sizing.font_meta,
+                    sizing.text_inset_y,
+                ),
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_primary,
+            max_width: Some((header.bucket.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
+            align: TextAlign::Center,
+        });
+        let footer_text = format!(
+            "{} rows | {} selected{}",
+            model.browser.visible_count,
+            model.browser.selected_path_count,
+            if model.browser.busy {
+                " | filtering…"
+            } else {
+                ""
+            }
+        );
+        text_runs.push(TextRun {
+            text: truncate_to_width(
+                &footer_text,
+                (layout.browser_footer.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                sizing.font_meta,
+            ),
+            position: Point::new(
+                layout.browser_footer.min.x + sizing.text_inset_x,
+                text_top_in_rect(layout.browser_footer, sizing.font_meta, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_muted,
             max_width: Some(
-                (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(48.0),
+                (layout.browser_footer.width() - (sizing.text_inset_x * 2.0)).max(36.0),
             ),
             align: TextAlign::Left,
         });
@@ -1402,6 +1560,26 @@ struct SidebarSections {
     source_rows: Rect,
     folder_header: Rect,
     folder_rows: Rect,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BrowserTabsLayout {
+    samples: Rect,
+    map: Rect,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BrowserToolbarLayout {
+    search_field: Rect,
+    activity_chip: Rect,
+    sort_chip: Rect,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BrowserTableColumns {
+    index: Rect,
+    sample: Rect,
+    bucket: Rect,
 }
 
 fn format_milli_value(value: u16) -> String {
@@ -1570,6 +1748,103 @@ fn browser_window_start(
     let half = window_len / 2;
     let max_start = rows.len() - window_len;
     focus_index.saturating_sub(half).min(max_start)
+}
+
+fn browser_tabs_layout(layout: &ShellLayout, sizing: SizingTokens) -> BrowserTabsLayout {
+    let gap = sizing.action_button_gap.max(1.0);
+    let tab_width = ((layout.browser_tabs.width() - gap).max(0.0) * 0.5).max(64.0);
+    let samples = Rect::from_min_max(
+        layout.browser_tabs.min,
+        Point::new(
+            (layout.browser_tabs.min.x + tab_width).min(layout.browser_tabs.max.x),
+            layout.browser_tabs.max.y,
+        ),
+    );
+    let map = Rect::from_min_max(
+        Point::new(
+            (samples.max.x + gap).min(layout.browser_tabs.max.x),
+            layout.browser_tabs.min.y,
+        ),
+        layout.browser_tabs.max,
+    );
+    BrowserTabsLayout { samples, map }
+}
+
+fn browser_toolbar_layout(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    browser_buttons: &[ActionButton],
+) -> BrowserToolbarLayout {
+    let sizing = style.sizing;
+    let rect = layout.browser_toolbar;
+    let empty_rect = Rect::from_min_max(rect.min, rect.min);
+    let action_left = browser_buttons
+        .iter()
+        .map(|button| button.rect.min.x)
+        .min_by(f32::total_cmp)
+        .unwrap_or(rect.max.x - sizing.text_inset_x);
+    let left_min = rect.min.x + sizing.text_inset_x;
+    let left_max = (action_left - sizing.action_button_gap.max(1.0)).max(left_min);
+    let available = (left_max - left_min).max(0.0);
+    if available <= 1.0 {
+        return BrowserToolbarLayout {
+            search_field: empty_rect,
+            activity_chip: empty_rect,
+            sort_chip: empty_rect,
+        };
+    }
+
+    let min_search = sizing.browser_search_field_min_width.min(available);
+    let search_width =
+        (rect.width() * sizing.browser_search_field_ratio).clamp(min_search, available);
+    let search_field = Rect::from_min_max(
+        Point::new(left_min, rect.min.y),
+        Point::new(left_min + search_width, rect.max.y),
+    );
+    let remainder = (available - search_width).max(0.0);
+    let chip_gap = sizing.action_button_gap.max(1.0);
+    let chip_width = ((remainder - chip_gap).max(0.0) * 0.5).max(0.0);
+    if chip_width < 1.0 {
+        return BrowserToolbarLayout {
+            search_field,
+            activity_chip: empty_rect,
+            sort_chip: empty_rect,
+        };
+    }
+
+    let activity_x = search_field.max.x + chip_gap;
+    let activity_chip = Rect::from_min_max(
+        Point::new(activity_x, rect.min.y),
+        Point::new((activity_x + chip_width).min(left_max), rect.max.y),
+    );
+    let sort_x = activity_chip.max.x + chip_gap;
+    let sort_chip = Rect::from_min_max(
+        Point::new(sort_x, rect.min.y),
+        Point::new((sort_x + chip_width).min(left_max), rect.max.y),
+    );
+    BrowserToolbarLayout {
+        search_field,
+        activity_chip,
+        sort_chip,
+    }
+}
+
+fn browser_table_columns(rect: Rect, sizing: SizingTokens) -> BrowserTableColumns {
+    let index_width = sizing.browser_index_col_width.max(20.0).min(rect.width());
+    let bucket_width = sizing
+        .browser_bucket_col_width
+        .max(32.0)
+        .min((rect.width() - index_width).max(0.0));
+    let index_max_x = (rect.min.x + index_width).min(rect.max.x);
+    let bucket_min_x = (rect.max.x - bucket_width).max(index_max_x);
+    BrowserTableColumns {
+        index: Rect::from_min_max(rect.min, Point::new(index_max_x, rect.max.y)),
+        sample: Rect::from_min_max(
+            Point::new(index_max_x, rect.min.y),
+            Point::new(bucket_min_x, rect.max.y),
+        ),
+        bucket: Rect::from_min_max(Point::new(bucket_min_x, rect.min.y), rect.max),
+    }
 }
 
 fn sidebar_sections(
@@ -2721,6 +2996,57 @@ mod tests {
                 assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
             }
         }
+    }
+
+    #[test]
+    fn browser_action_buttons_stay_inside_toolbar() {
+        let mut model = AppModel::default();
+        model.browser_actions.can_rename = true;
+        model.browser_actions.can_tag = true;
+        model.browser_actions.can_delete = true;
+        for viewport in [
+            Vector2::new(820.0, 520.0),
+            Vector2::new(1280.0, 720.0),
+            Vector2::new(1900.0, 1080.0),
+        ] {
+            let layout = ShellLayout::build(viewport);
+            let style = style_for_layout(&layout);
+            let buttons = browser_action_buttons(&layout, &style, &model);
+            assert!(!buttons.is_empty());
+            for button in &buttons {
+                assert_rect_inside(layout.browser_toolbar, button.rect);
+            }
+            for pair in buttons.windows(2) {
+                assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
+            }
+        }
+    }
+
+    #[test]
+    fn browser_toolbar_controls_do_not_overlap_action_cluster() {
+        let mut model = AppModel::default();
+        model.browser_actions.can_rename = true;
+        model.browser_actions.can_tag = true;
+        model.browser_actions.can_delete = true;
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let buttons = browser_action_buttons(&layout, &style, &model);
+        let controls = browser_toolbar_layout(&layout, &style, &buttons);
+        let action_cluster_left = buttons
+            .iter()
+            .map(|button| button.rect.min.x)
+            .min_by(f32::total_cmp)
+            .unwrap_or(layout.browser_toolbar.max.x);
+        assert_rect_inside(layout.browser_toolbar, controls.search_field);
+        if controls.activity_chip.width() > 1.0 {
+            assert_rect_inside(layout.browser_toolbar, controls.activity_chip);
+        }
+        if controls.sort_chip.width() > 1.0 {
+            assert_rect_inside(layout.browser_toolbar, controls.sort_chip);
+        }
+        assert!(controls.search_field.max.x <= action_cluster_left);
+        assert!(controls.activity_chip.max.x <= action_cluster_left);
+        assert!(controls.sort_chip.max.x <= action_cluster_left);
     }
 
     #[test]

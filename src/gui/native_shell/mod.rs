@@ -180,6 +180,10 @@ mod tests {
         assert!(layout.sidebar_header.max.y <= layout.sidebar_rows.min.y);
         assert!(layout.sidebar_rows.max.y <= layout.sidebar_footer.min.y);
         assert!(layout.waveform_header.max.y <= layout.waveform_plot.min.y);
+        assert!(layout.browser_tabs.max.y <= layout.browser_toolbar.min.y);
+        assert!(layout.browser_toolbar.max.y <= layout.browser_table_header.min.y);
+        assert!(layout.browser_table_header.max.y <= layout.browser_rows.min.y);
+        assert!(layout.browser_rows.max.y <= layout.browser_footer.min.y);
         for index in 0..3 {
             assert!(layout.column_headers[index].max.y <= layout.column_rows[index].min.y);
             assert!(layout.column_rows[index].min.x >= layout.columns[index].min.x);

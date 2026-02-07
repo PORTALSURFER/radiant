@@ -181,8 +181,8 @@ impl ShellLayout {
         let browser_top = (waveform_card.max.y + sizing.panel_gap).min(content.max.y - 1.0);
         let browser_panel = Rect::from_min_max(Point::new(content.min.x, browser_top), content.max);
         let browser_tabs_height = sizing
-            .column_header_block_height
-            .max(18.0)
+            .browser_tabs_height
+            .max(16.0)
             .min(browser_panel.height());
         let browser_tabs = inset_horizontal(
             band_header(browser_panel, browser_tabs_height),
@@ -190,9 +190,9 @@ impl ShellLayout {
         );
         let browser_toolbar_top =
             (browser_tabs.max.y + sizing.text_row_gap).min(browser_panel.max.y);
-        let browser_toolbar_height = (sizing.action_button_height + (sizing.text_inset_y * 2.0))
-            .max(20.0)
-            .min(30.0)
+        let browser_toolbar_height = sizing
+            .browser_toolbar_height
+            .max(18.0)
             .min((browser_panel.max.y - browser_toolbar_top).max(0.0));
         let browser_toolbar = inset_horizontal(
             Rect::from_min_max(
@@ -207,9 +207,8 @@ impl ShellLayout {
         let browser_header_top =
             (browser_toolbar.max.y + sizing.text_row_gap).min(browser_panel.max.y);
         let browser_header_height = sizing
-            .browser_row_height
-            .max(18.0)
-            .min(26.0)
+            .browser_table_header_height
+            .max(16.0)
             .min((browser_panel.max.y - browser_header_top).max(0.0));
         let browser_table_header = inset_horizontal(
             Rect::from_min_max(
@@ -223,7 +222,7 @@ impl ShellLayout {
         );
         let browser_footer = band_footer(
             browser_panel,
-            (sizing.font_meta + (sizing.text_inset_y * 2.0) + 2.0).clamp(16.0, 24.0),
+            sizing.browser_footer_height.clamp(14.0, 28.0),
             browser_table_header.max.y,
         );
         let browser_rows_top = (browser_table_header.max.y + sizing.text_row_gap)

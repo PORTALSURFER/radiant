@@ -64,6 +64,8 @@ pub(crate) struct SizingTokens {
     pub waveform_max_height: f32,
     /// Gap between triage columns.
     pub column_gap: f32,
+    /// Maximum rendered browser rows per triage column.
+    pub browser_rows_max_per_column: usize,
     /// Minimum width allowed for each triage column.
     pub column_min_width: f32,
     /// Shared panel inset for nested regions.
@@ -76,10 +78,18 @@ pub(crate) struct SizingTokens {
     pub source_row_gap: f32,
     /// Source row card height.
     pub source_row_height: f32,
+    /// Maximum number of source rows rendered in compact sidebar mode.
+    pub source_rows_max: usize,
+    /// Minimum number of source rows preserved when folder rows are also visible.
+    pub source_rows_min_when_split: usize,
     /// Gap between folder rows.
     pub folder_row_gap: f32,
     /// Folder row card height.
     pub folder_row_height: f32,
+    /// Maximum number of folder rows rendered in the sidebar tree.
+    pub folder_rows_max: usize,
+    /// Minimum number of folder rows preserved when source rows are visible.
+    pub folder_rows_min: usize,
     /// Gap between source/folder sections in the sidebar.
     pub sidebar_section_gap: f32,
     /// Top block height reserved for folder section header + metadata.
@@ -159,17 +169,17 @@ impl StyleTokens {
     pub(crate) fn for_viewport_width(viewport_width: f32) -> Self {
         let mut tokens = Self {
             clear_color: rgba(12, 11, 10, 255),
-            bg_primary: rgba(12, 11, 10, 255),
-            bg_secondary: rgba(20, 18, 16, 255),
-            bg_tertiary: rgba(28, 26, 23, 255),
-            border: rgba(44, 40, 36, 255),
-            grid_strong: rgba(55, 50, 45, 255),
-            grid_soft: rgba(42, 38, 34, 255),
-            accent_mint: rgba(152, 172, 158, 255),
-            accent_copper: rgba(186, 148, 108, 255),
-            accent_warning: rgba(194, 158, 108, 255),
-            text_primary: rgba(224, 227, 234, 255),
-            text_muted: rgba(166, 173, 184, 255),
+            bg_primary: rgba(13, 12, 11, 255),
+            bg_secondary: rgba(22, 20, 18, 255),
+            bg_tertiary: rgba(31, 28, 25, 255),
+            border: rgba(52, 47, 43, 255),
+            grid_strong: rgba(65, 58, 52, 255),
+            grid_soft: rgba(45, 40, 36, 255),
+            accent_mint: rgba(154, 186, 170, 255),
+            accent_copper: rgba(194, 154, 112, 255),
+            accent_warning: rgba(209, 172, 114, 255),
+            text_primary: rgba(230, 233, 239, 255),
+            text_muted: rgba(167, 175, 186, 255),
             sizing: SizingTokens {
                 frame_inset: 7.0,
                 panel_gap: 6.0,
@@ -183,23 +193,28 @@ impl StyleTokens {
                 waveform_min_height: 126.0,
                 waveform_max_height: 250.0,
                 column_gap: 6.0,
+                browser_rows_max_per_column: 20,
                 column_min_width: 40.0,
                 panel_inset: 6.0,
                 browser_row_gap: 3.0,
-                browser_row_height: 21.0,
+                browser_row_height: 22.0,
                 source_row_gap: 3.0,
-                source_row_height: 20.0,
+                source_row_height: 21.0,
+                source_rows_max: 11,
+                source_rows_min_when_split: 3,
                 folder_row_gap: 2.0,
-                folder_row_height: 18.0,
+                folder_row_height: 19.0,
+                folder_rows_max: 18,
+                folder_rows_min: 4,
                 sidebar_section_gap: 8.0,
-                folder_header_block_height: 30.0,
+                folder_header_block_height: 32.0,
                 folder_indent_step: 12.0,
                 text_row_gap: 2.0,
-                text_inset_x: 5.0,
+                text_inset_x: 6.0,
                 text_inset_y: 3.0,
-                source_header_block_height: 34.0,
-                column_header_block_height: 20.0,
-                waveform_header_block_height: 30.0,
+                source_header_block_height: 35.0,
+                column_header_block_height: 21.0,
+                waveform_header_block_height: 31.0,
                 source_bottom_padding: 8.0,
                 column_bottom_padding: 6.0,
                 action_button_width: 54.0,
@@ -239,13 +254,18 @@ impl StyleTokens {
             tokens.sizing.waveform_min_height = 120.0;
             tokens.sizing.waveform_max_height = 220.0;
             tokens.sizing.column_gap = 5.0;
+            tokens.sizing.browser_rows_max_per_column = 16;
             tokens.sizing.panel_inset = 5.0;
             tokens.sizing.browser_row_gap = 2.0;
             tokens.sizing.browser_row_height = 19.0;
             tokens.sizing.source_row_gap = 2.0;
-            tokens.sizing.source_row_height = 18.0;
+            tokens.sizing.source_row_height = 18.5;
+            tokens.sizing.source_rows_max = 9;
+            tokens.sizing.source_rows_min_when_split = 2;
             tokens.sizing.folder_row_gap = 2.0;
             tokens.sizing.folder_row_height = 16.0;
+            tokens.sizing.folder_rows_max = 14;
+            tokens.sizing.folder_rows_min = 3;
             tokens.sizing.sidebar_section_gap = 6.0;
             tokens.sizing.folder_header_block_height = 28.0;
             tokens.sizing.folder_indent_step = 10.0;
@@ -288,13 +308,18 @@ impl StyleTokens {
             tokens.sizing.waveform_min_height = 140.0;
             tokens.sizing.waveform_max_height = 280.0;
             tokens.sizing.column_gap = 8.0;
+            tokens.sizing.browser_rows_max_per_column = 24;
             tokens.sizing.panel_inset = 8.0;
             tokens.sizing.browser_row_gap = 4.0;
             tokens.sizing.browser_row_height = 24.0;
             tokens.sizing.source_row_gap = 4.0;
             tokens.sizing.source_row_height = 23.0;
+            tokens.sizing.source_rows_max = 13;
+            tokens.sizing.source_rows_min_when_split = 4;
             tokens.sizing.folder_row_gap = 3.0;
             tokens.sizing.folder_row_height = 21.0;
+            tokens.sizing.folder_rows_max = 22;
+            tokens.sizing.folder_rows_min = 5;
             tokens.sizing.sidebar_section_gap = 10.0;
             tokens.sizing.folder_header_block_height = 34.0;
             tokens.sizing.folder_indent_step = 14.0;
@@ -358,5 +383,16 @@ mod tests {
         assert!(narrow.sizing.top_bar_height < wide.sizing.top_bar_height);
         assert!(narrow.sizing.frame_inset < wide.sizing.frame_inset);
         assert!(narrow.sizing.column_gap < wide.sizing.column_gap);
+    }
+
+    #[test]
+    fn viewport_tiers_adjust_render_row_caps() {
+        let narrow = StyleTokens::for_viewport_width(900.0);
+        let wide = StyleTokens::for_viewport_width(1800.0);
+        assert!(narrow.sizing.source_rows_max < wide.sizing.source_rows_max);
+        assert!(narrow.sizing.folder_rows_max < wide.sizing.folder_rows_max);
+        assert!(
+            narrow.sizing.browser_rows_max_per_column < wide.sizing.browser_rows_max_per_column
+        );
     }
 }

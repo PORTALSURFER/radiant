@@ -315,4 +315,76 @@ mod tests {
         );
         assert_eq!(state.folder_row_at_point(&layout, &model, point), Some(0));
     }
+
+    #[test]
+    fn focused_rows_enable_idle_animation_when_transport_is_stopped() {
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.transport_running = false;
+        model
+            .browser
+            .rows
+            .push(crate::app::BrowserRowModel::new(0, "kick", 1, false, true));
+        state.sync_from_model(&model);
+        assert!(state.needs_animation());
+
+        let mut idle_model = crate::app::AppModel::default();
+        idle_model.transport_running = false;
+        state.sync_from_model(&idle_model);
+        assert!(!state.needs_animation());
+    }
+
+    #[test]
+    fn long_browser_labels_are_truncated_with_ellipsis() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.browser.rows.push(crate::app::BrowserRowModel::new(
+            0,
+            "this_is_a_very_long_browser_row_label_that_should_truncate_in_native_shell_rendering.wav",
+            1,
+            false,
+            false,
+        ));
+        state.sync_from_model(&model);
+        let frame = state.build_frame(&layout, &model);
+        let truncated = frame
+            .text_runs
+            .iter()
+            .find(|run| run.text.starts_with("this_is_a"))
+            .map(|run| run.text.as_str())
+            .unwrap_or_default();
+        assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn wide_viewport_renders_more_browser_rows_than_narrow_viewport() {
+        let narrow_layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let wide_layout = ShellLayout::build(Vector2::new(1900.0, 1080.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        for index in 0..40 {
+            model.browser.rows.push(crate::app::BrowserRowModel::new(
+                index,
+                format!("row_{index:02}"),
+                1,
+                false,
+                false,
+            ));
+        }
+        state.sync_from_model(&model);
+        let narrow_frame = state.build_frame(&narrow_layout, &model);
+        let wide_frame = state.build_frame(&wide_layout, &model);
+        let narrow_rows = narrow_frame
+            .text_runs
+            .iter()
+            .filter(|run| run.text.starts_with("row_"))
+            .count();
+        let wide_rows = wide_frame
+            .text_runs
+            .iter()
+            .filter(|run| run.text.starts_with("row_"))
+            .count();
+        assert!(wide_rows > narrow_rows);
+    }
 }

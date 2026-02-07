@@ -135,9 +135,12 @@ impl ShellLayout {
         let sidebar_header = band_header(sidebar, sizing.source_header_block_height);
         let sidebar_footer =
             band_footer(sidebar, sizing.source_bottom_padding, sidebar_header.max.y);
+        let sidebar_rows_top = (sidebar_header.max.y + sizing.header_to_rows_gap)
+            .min(sidebar_footer.min.y)
+            .max(sidebar.min.y);
         let sidebar_rows = inset_horizontal(
             Rect::from_min_max(
-                Point::new(sidebar.min.x, sidebar_header.max.y),
+                Point::new(sidebar.min.x, sidebar_rows_top),
                 Point::new(sidebar.max.x, sidebar_footer.min.y),
             ),
             sizing.panel_inset,
@@ -145,11 +148,11 @@ impl ShellLayout {
 
         let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
         let waveform_inset = waveform_card.inset(sizing.panel_inset);
-        let waveform_body_top = waveform_header
-            .max
-            .y
-            .max(waveform_inset.min.y)
-            .min(waveform_inset.max.y);
+        let waveform_body_top = waveform_header.max.y
+            + sizing
+                .header_to_rows_gap
+                .max(waveform_inset.min.y)
+                .min(waveform_inset.max.y);
         let waveform_plot = Rect::from_min_max(
             Point::new(waveform_inset.min.x, waveform_body_top),
             waveform_inset.max,
@@ -159,11 +162,12 @@ impl ShellLayout {
         let mut column_rows = [Rect::default(), Rect::default(), Rect::default()];
         for (index, column) in columns.iter().copied().enumerate() {
             let header = band_header(column, sizing.column_header_block_height);
+            let rows_top = (header.max.y + sizing.header_to_rows_gap).min(column.max.y);
             let rows_bottom = (column.max.y - sizing.column_bottom_padding).max(header.max.y);
             column_headers[index] = header;
             column_rows[index] = inset_horizontal(
                 Rect::from_min_max(
-                    Point::new(column.min.x, header.max.y),
+                    Point::new(column.min.x, rows_top),
                     Point::new(column.max.x, rows_bottom),
                 ),
                 sizing.panel_inset,

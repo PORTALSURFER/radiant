@@ -266,22 +266,12 @@ mod tests {
         let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.sources.folder_actions.can_delete_folder = true;
-        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
-        let sizing = style.sizing;
-        let button_count = 5.0;
-        let total_width = (sizing.sidebar_action_button_width * button_count)
-            + (sizing.sidebar_action_button_gap * 4.0);
-        let start_x = (layout.sidebar_footer.max.x - sizing.text_inset_x - total_width)
-            .max(layout.sidebar_footer.min.x + sizing.text_inset_x);
-        let y = (layout.sidebar_footer.max.y
-            - sizing.sidebar_action_button_height
-            - sizing.text_inset_y)
-            .max(layout.sidebar_footer.min.y + 1.0);
+        let button = state
+            .source_action_button_rect(&layout, &model, crate::app::UiAction::DeleteFocusedFolder)
+            .expect("delete action button should be present");
         let point = Point::new(
-            start_x
-                + ((sizing.sidebar_action_button_width + sizing.sidebar_action_button_gap) * 3.0)
-                + (sizing.sidebar_action_button_width * 0.5),
-            y + (sizing.sidebar_action_button_height * 0.5),
+            (button.min.x + button.max.x) * 0.5,
+            (button.min.y + button.max.y) * 0.5,
         );
         assert_eq!(
             state.source_action_at_point(&layout, &model, point),
@@ -300,18 +290,12 @@ mod tests {
             .push(crate::app::FolderRowModel::new(
                 "Drums", "Drums", 0, false, true, false, true, true,
             ));
-        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
-        let sizing = style.sizing;
-        let source_rows = layout.sidebar_rows;
-        let source_max_y = source_rows.min.y;
-        let folder_header_min_y =
-            (source_max_y + sizing.sidebar_section_gap).min(source_rows.max.y);
-        let folder_header_max_y =
-            (folder_header_min_y + sizing.folder_header_block_height).min(source_rows.max.y);
-        let folder_rows_min_y = folder_header_max_y;
+        let folder_rects = state.rendered_folder_row_rects(&layout, &model);
+        assert_eq!(folder_rects.len(), 1);
+        let folder_rect = folder_rects[0];
         let point = Point::new(
-            source_rows.min.x + (source_rows.width() * 0.5),
-            folder_rows_min_y + (sizing.folder_row_height * 0.5),
+            (folder_rect.min.x + folder_rect.max.x) * 0.5,
+            (folder_rect.min.y + folder_rect.max.y) * 0.5,
         );
         assert_eq!(state.folder_row_at_point(&layout, &model, point), Some(0));
     }

@@ -6,9 +6,35 @@ const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
     Rgba8 { r, g, b, a }
 }
 
+/// Viewport density tier used to select a sizing token pack.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayoutScaleTier {
+    /// Compact layout tuned for narrow plugin windows.
+    Compact,
+    /// Baseline layout for common desktop window sizes.
+    Standard,
+    /// Spacious layout tuned for wide desktop windows.
+    Wide,
+}
+
+impl LayoutScaleTier {
+    /// Resolve a scale tier from a logical viewport width.
+    pub(crate) fn from_viewport_width(viewport_width: f32) -> Self {
+        if viewport_width < 980.0 {
+            Self::Compact
+        } else if viewport_width > 1700.0 {
+            Self::Wide
+        } else {
+            Self::Standard
+        }
+    }
+}
+
 /// Style tokens consumed by the retained shell paint pass.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct StyleTokens {
+    /// Viewport scale tier used to derive the token set.
+    pub layout_tier: LayoutScaleTier,
     /// Root clear color for the frame.
     pub clear_color: Rgba8,
     /// Primary surface fill.
@@ -92,6 +118,12 @@ pub(crate) struct SizingTokens {
     pub folder_rows_min: usize,
     /// Gap between source/folder sections in the sidebar.
     pub sidebar_section_gap: f32,
+    /// Shared vertical spacing between section headers and their row stacks.
+    pub header_to_rows_gap: f32,
+    /// Top padding inside row-stack regions.
+    pub panel_section_padding_top: f32,
+    /// Bottom padding inside row-stack regions.
+    pub panel_section_padding_bottom: f32,
     /// Top block height reserved for folder section header + metadata.
     pub folder_header_block_height: f32,
     /// Horizontal indent step for nested folder rows.
@@ -102,6 +134,8 @@ pub(crate) struct SizingTokens {
     pub text_inset_x: f32,
     /// Vertical text inset inside row cards.
     pub text_inset_y: f32,
+    /// Extra horizontal inset used for row labels inside bordered cards.
+    pub row_corner_inset: f32,
     /// Top block height reserved for source header + search line.
     pub source_header_block_height: f32,
     /// Top block height reserved for triage column headers.
@@ -140,6 +174,10 @@ pub(crate) struct SizingTokens {
     pub sidebar_action_button_gap: f32,
     /// Border stroke width.
     pub border_width: f32,
+    /// Stroke width used for focused controls.
+    pub focus_stroke_width: f32,
+    /// Hover fill blend factor for panel/card surfaces.
+    pub hover_fill_alpha: f32,
     /// Waveform scanline step width.
     pub waveform_scan_step: f32,
     /// Primary title font size.
@@ -167,7 +205,13 @@ impl Default for StyleTokens {
 impl StyleTokens {
     /// Build style tokens tuned for a viewport width tier.
     pub(crate) fn for_viewport_width(viewport_width: f32) -> Self {
+        Self::for_tier(LayoutScaleTier::from_viewport_width(viewport_width))
+    }
+
+    /// Build style tokens for an explicit scale tier.
+    pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
         let mut tokens = Self {
+            layout_tier,
             clear_color: rgba(12, 11, 10, 255),
             bg_primary: rgba(13, 12, 11, 255),
             bg_secondary: rgba(22, 20, 18, 255),
@@ -207,11 +251,15 @@ impl StyleTokens {
                 folder_rows_max: 18,
                 folder_rows_min: 4,
                 sidebar_section_gap: 8.0,
+                header_to_rows_gap: 4.0,
+                panel_section_padding_top: 2.0,
+                panel_section_padding_bottom: 2.0,
                 folder_header_block_height: 32.0,
                 folder_indent_step: 12.0,
                 text_row_gap: 2.0,
                 text_inset_x: 6.0,
                 text_inset_y: 3.0,
+                row_corner_inset: 1.5,
                 source_header_block_height: 35.0,
                 column_header_block_height: 21.0,
                 waveform_header_block_height: 31.0,
@@ -231,6 +279,8 @@ impl StyleTokens {
                 sidebar_action_button_height: 18.0,
                 sidebar_action_button_gap: 4.0,
                 border_width: 1.0,
+                focus_stroke_width: 1.4,
+                hover_fill_alpha: 0.18,
                 waveform_scan_step: 12.0,
                 font_title: 14.0,
                 font_header: 12.0,
@@ -241,7 +291,8 @@ impl StyleTokens {
                 lamp_radius_amp: 2.0,
             },
         };
-        if viewport_width < 980.0 {
+
+        if layout_tier == LayoutScaleTier::Compact {
             tokens.sizing.frame_inset = 6.0;
             tokens.sizing.panel_gap = 5.0;
             tokens.sizing.top_bar_height = 34.0;
@@ -267,8 +318,12 @@ impl StyleTokens {
             tokens.sizing.folder_rows_max = 14;
             tokens.sizing.folder_rows_min = 3;
             tokens.sizing.sidebar_section_gap = 6.0;
+            tokens.sizing.header_to_rows_gap = 3.0;
+            tokens.sizing.panel_section_padding_top = 1.0;
+            tokens.sizing.panel_section_padding_bottom = 1.0;
             tokens.sizing.folder_header_block_height = 28.0;
             tokens.sizing.folder_indent_step = 10.0;
+            tokens.sizing.row_corner_inset = 1.0;
             tokens.sizing.source_header_block_height = 32.0;
             tokens.sizing.column_header_block_height = 19.0;
             tokens.sizing.waveform_header_block_height = 28.0;
@@ -287,7 +342,9 @@ impl StyleTokens {
             tokens.sizing.sidebar_action_button_width = 50.0;
             tokens.sizing.sidebar_action_button_height = 16.0;
             tokens.sizing.sidebar_action_button_gap = 3.0;
-            tokens.sizing.waveform_scan_step = 10.0;
+            tokens.sizing.focus_stroke_width = 1.2;
+            tokens.sizing.hover_fill_alpha = 0.14;
+            tokens.sizing.waveform_scan_step = 11.0;
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
             tokens.sizing.font_body = 9.5;
@@ -295,7 +352,8 @@ impl StyleTokens {
             tokens.sizing.font_status = 10.5;
             return tokens;
         }
-        if viewport_width > 1700.0 {
+
+        if layout_tier == LayoutScaleTier::Wide {
             tokens.sizing.frame_inset = 10.0;
             tokens.sizing.panel_gap = 8.0;
             tokens.sizing.top_bar_height = 38.0;
@@ -321,8 +379,12 @@ impl StyleTokens {
             tokens.sizing.folder_rows_max = 22;
             tokens.sizing.folder_rows_min = 5;
             tokens.sizing.sidebar_section_gap = 10.0;
+            tokens.sizing.header_to_rows_gap = 5.0;
+            tokens.sizing.panel_section_padding_top = 3.0;
+            tokens.sizing.panel_section_padding_bottom = 3.0;
             tokens.sizing.folder_header_block_height = 34.0;
             tokens.sizing.folder_indent_step = 14.0;
+            tokens.sizing.row_corner_inset = 2.5;
             tokens.sizing.source_header_block_height = 38.0;
             tokens.sizing.column_header_block_height = 24.0;
             tokens.sizing.waveform_header_block_height = 34.0;
@@ -341,6 +403,8 @@ impl StyleTokens {
             tokens.sizing.sidebar_action_button_width = 62.0;
             tokens.sizing.sidebar_action_button_height = 20.0;
             tokens.sizing.sidebar_action_button_gap = 5.0;
+            tokens.sizing.focus_stroke_width = 1.6;
+            tokens.sizing.hover_fill_alpha = 0.20;
             tokens.sizing.waveform_scan_step = 14.0;
             tokens.sizing.font_title = 15.0;
             tokens.sizing.font_header = 13.0;
@@ -354,7 +418,35 @@ impl StyleTokens {
 
 #[cfg(test)]
 mod tests {
-    use super::StyleTokens;
+    use super::{LayoutScaleTier, StyleTokens};
+
+    #[test]
+    fn viewport_width_maps_to_expected_tier() {
+        assert_eq!(
+            LayoutScaleTier::from_viewport_width(820.0),
+            LayoutScaleTier::Compact
+        );
+        assert_eq!(
+            LayoutScaleTier::from_viewport_width(1280.0),
+            LayoutScaleTier::Standard
+        );
+        assert_eq!(
+            LayoutScaleTier::from_viewport_width(1900.0),
+            LayoutScaleTier::Wide
+        );
+    }
+
+    #[test]
+    fn explicit_tier_builder_matches_width_builder() {
+        let compact = StyleTokens::for_tier(LayoutScaleTier::Compact);
+        assert_eq!(compact, StyleTokens::for_viewport_width(820.0));
+
+        let standard = StyleTokens::for_tier(LayoutScaleTier::Standard);
+        assert_eq!(standard, StyleTokens::for_viewport_width(1280.0));
+
+        let wide = StyleTokens::for_tier(LayoutScaleTier::Wide);
+        assert_eq!(wide, StyleTokens::for_viewport_width(1900.0));
+    }
 
     #[test]
     fn viewport_tiers_adjust_row_heights() {
@@ -394,5 +486,14 @@ mod tests {
         assert!(
             narrow.sizing.browser_rows_max_per_column < wide.sizing.browser_rows_max_per_column
         );
+    }
+
+    #[test]
+    fn viewport_tiers_adjust_interaction_density_tokens() {
+        let narrow = StyleTokens::for_viewport_width(900.0);
+        let wide = StyleTokens::for_viewport_width(1800.0);
+        assert!(narrow.sizing.focus_stroke_width < wide.sizing.focus_stroke_width);
+        assert!(narrow.sizing.header_to_rows_gap < wide.sizing.header_to_rows_gap);
+        assert!(narrow.sizing.row_corner_inset < wide.sizing.row_corner_inset);
     }
 }

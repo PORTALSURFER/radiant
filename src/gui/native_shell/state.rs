@@ -517,11 +517,7 @@ impl NativeShellState {
 
         for row in rendered_browser_rows(layout, model, style) {
             let row_fill = if row.focused {
-                blend_color(
-                    style.bg_tertiary,
-                    style.grid_strong,
-                    focus_fill_emphasis,
-                )
+                blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
             } else if row.selected {
                 blend_color(
                     style.bg_tertiary,
@@ -836,7 +832,9 @@ impl NativeShellState {
             let header_text_max_width = folder_header_text_max_width(
                 sidebar_sections.folder_header,
                 sizing,
-                recovery_badge.as_ref().map(|(badge_rect, _, _)| *badge_rect),
+                recovery_badge
+                    .as_ref()
+                    .map(|(badge_rect, _, _)| *badge_rect),
             );
             if header_text_max_width > 8.0 {
                 text_runs.push(TextRun {
@@ -932,7 +930,11 @@ impl NativeShellState {
                 let glyph = if row.is_root {
                     "•"
                 } else if row.has_children {
-                    if row.expanded { "▼" } else { "▶" }
+                    if row.expanded {
+                        "▼"
+                    } else {
+                        "▶"
+                    }
                 } else {
                     "·"
                 };
@@ -1404,13 +1406,10 @@ fn rendered_browser_rows(
     style: &StyleTokens,
 ) -> Vec<RenderedBrowserRow> {
     let sizing = style.sizing;
-    let max_rows_per_column = sizing.browser_rows_max_per_column.max(1);
     let mut rows_by_column: [Vec<&BrowserRowModel>; 3] = [Vec::new(), Vec::new(), Vec::new()];
     for row in &model.browser.rows {
         let column = row.column.min(2);
-        if rows_by_column[column].len() < max_rows_per_column {
-            rows_by_column[column].push(row);
-        }
+        rows_by_column[column].push(row);
     }
 
     let mut rendered = Vec::new();
@@ -1418,9 +1417,19 @@ fn rendered_browser_rows(
         if rows.is_empty() {
             continue;
         }
-        for (row, rect) in rows.iter().zip(build_stacked_rows(
+        let max_rows_per_column =
+            browser_rows_per_column_capacity(layout.column_rows[column], sizing);
+        let window_start = browser_window_start_for_column(
+            rows,
+            max_rows_per_column,
+            model.browser.selected_visible_row,
+            model.browser.anchor_visible_row,
+        );
+        let window_end = (window_start + max_rows_per_column).min(rows.len());
+        let window = &rows[window_start..window_end];
+        for (row, rect) in window.iter().zip(build_stacked_rows(
             layout.column_rows[column],
-            rows.len(),
+            window.len(),
             sizing.browser_row_gap,
             sizing.browser_row_height,
         )) {
@@ -1435,6 +1444,40 @@ fn rendered_browser_rows(
         }
     }
     rendered
+}
+
+fn browser_rows_per_column_capacity(column_rect: Rect, sizing: SizingTokens) -> usize {
+    let row_height = sizing.browser_row_height.max(1.0);
+    let row_gap = sizing.browser_row_gap.max(0.0);
+    let geometric_capacity = ((column_rect.height() + row_gap) / (row_height + row_gap))
+        .floor()
+        .max(1.0) as usize;
+    geometric_capacity
+        .max(1)
+        .min(sizing.browser_rows_max_per_column.max(1))
+}
+
+fn browser_window_start_for_column(
+    rows: &[&BrowserRowModel],
+    window_len: usize,
+    selected_visible_row: Option<usize>,
+    anchor_visible_row: Option<usize>,
+) -> usize {
+    if rows.len() <= window_len {
+        return 0;
+    }
+    let focus_index = selected_visible_row
+        .and_then(|target| rows.iter().position(|row| row.visible_row == target))
+        .or_else(|| {
+            anchor_visible_row
+                .and_then(|target| rows.iter().position(|row| row.visible_row == target))
+        })
+        .or_else(|| rows.iter().position(|row| row.focused))
+        .or_else(|| rows.iter().position(|row| row.selected))
+        .unwrap_or(0);
+    let half = window_len / 2;
+    let max_start = rows.len() - window_len;
+    focus_index.saturating_sub(half).min(max_start)
 }
 
 fn sidebar_sections(
@@ -2343,14 +2386,17 @@ fn folder_recovery_badge_rect(
             String::from("R"),
         ]
     } else {
-        vec![format!("{recovery_entry_count} entries"), recovery_entry_count.to_string()]
+        vec![
+            format!("{recovery_entry_count} entries"),
+            recovery_entry_count.to_string(),
+        ]
     };
     labels.dedup();
     let mut label = labels
         .iter()
         .find(|label| {
-            let required_width =
-                (label.chars().count() as f32 * approx_char_width) + (sizing.recovery_badge_padding_x * 2.0);
+            let required_width = (label.chars().count() as f32 * approx_char_width)
+                + (sizing.recovery_badge_padding_x * 2.0);
             required_width <= available_width
         })
         .cloned()
@@ -2582,6 +2628,61 @@ mod tests {
             for pair in buttons.windows(2) {
                 assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
             }
+        }
+    }
+
+    #[test]
+    fn browser_virtualization_keeps_focused_row_visible_in_dense_column() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        for visible_row in 0..200 {
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == 150,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(150);
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        assert!(!rendered.is_empty());
+        assert!(rendered.iter().any(|row| row.visible_row == 150));
+        assert!(rendered.first().is_some_and(|first| first.visible_row > 0));
+    }
+
+    #[test]
+    fn browser_virtualization_hit_test_maps_first_middle_last_rendered_rows() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        for visible_row in 0..200 {
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == 120,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(120);
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        assert!(rendered.len() > 2);
+        let middle = rendered.len() / 2;
+        for index in [0, middle, rendered.len() - 1] {
+            let row = &rendered[index];
+            let point = Point::new(
+                (row.rect.min.x + row.rect.max.x) * 0.5,
+                (row.rect.min.y + row.rect.max.y) * 0.5,
+            );
+            assert_eq!(
+                state.browser_row_at_point(&layout, &model, point),
+                Some(row.visible_row)
+            );
         }
     }
 

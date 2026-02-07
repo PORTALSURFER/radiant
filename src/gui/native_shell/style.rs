@@ -269,9 +269,9 @@ impl StyleTokens {
             surface_overlay: rgba(36, 32, 29, 255),
             border: rgba(52, 47, 43, 255),
             border_emphasis: rgba(74, 67, 60, 255),
-            source_section_divider: rgba(67, 60, 55, 255),
-            source_recovery_badge_idle: rgba(58, 52, 46, 255),
-            source_recovery_badge_active: rgba(128, 100, 69, 255),
+            source_section_divider: rgba(72, 64, 58, 255),
+            source_recovery_badge_idle: rgba(62, 55, 49, 255),
+            source_recovery_badge_active: rgba(133, 104, 72, 255),
             control_disabled_fill: rgba(39, 35, 32, 255),
             grid_strong: rgba(65, 58, 52, 255),
             grid_soft: rgba(45, 40, 36, 255),
@@ -313,14 +313,14 @@ impl StyleTokens {
                 folder_row_height: 19.0,
                 folder_rows_max: 18,
                 folder_rows_min: 4,
-                sidebar_section_gap: 8.0,
+                sidebar_section_gap: 9.0,
                 source_section_divider_width: 1.0,
-                header_to_rows_gap: 4.0,
+                header_to_rows_gap: 5.0,
                 panel_section_padding_top: 2.0,
                 panel_section_padding_bottom: 2.0,
-                folder_header_block_height: 32.0,
+                folder_header_block_height: 34.0,
                 recovery_badge_height: 15.0,
-                recovery_badge_min_width: 62.0,
+                recovery_badge_min_width: 60.0,
                 recovery_badge_padding_x: 6.0,
                 folder_indent_step: 12.0,
                 text_row_gap: 2.0,
@@ -328,18 +328,18 @@ impl StyleTokens {
                 text_inset_x: 6.0,
                 text_inset_y: 3.0,
                 row_corner_inset: 1.5,
-                source_header_block_height: 35.0,
+                source_header_block_height: 36.0,
                 column_header_block_height: 21.0,
                 waveform_header_block_height: 31.0,
-                source_bottom_padding: 8.0,
+                source_bottom_padding: 9.0,
                 column_bottom_padding: 6.0,
                 action_button_width: 54.0,
                 action_button_height: 18.0,
                 action_button_gap: 4.0,
-                top_bar_cluster_gap: 10.0,
+                top_bar_cluster_gap: 11.0,
                 top_bar_action_cluster_min_width: 300.0,
                 top_bar_action_cluster_max_width: 560.0,
-                status_segment_gap: 10.0,
+                status_segment_gap: 11.0,
                 overlay_padding: 14.0,
                 prompt_width: 420.0,
                 prompt_min_height: 128.0,
@@ -397,7 +397,7 @@ impl StyleTokens {
             tokens.sizing.panel_section_padding_bottom = 1.0;
             tokens.sizing.folder_header_block_height = 28.0;
             tokens.sizing.recovery_badge_height = 13.0;
-            tokens.sizing.recovery_badge_min_width = 54.0;
+            tokens.sizing.recovery_badge_min_width = 48.0;
             tokens.sizing.recovery_badge_padding_x = 5.0;
             tokens.sizing.folder_indent_step = 10.0;
             tokens.sizing.title_meta_gap = 2.0;

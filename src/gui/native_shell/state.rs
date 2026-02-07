@@ -827,54 +827,53 @@ impl NativeShellState {
                     align: TextAlign::Center,
                 });
             }
-            let header_text_max_width = recovery_badge
-                .as_ref()
-                .map(|(badge_rect, _, _)| {
-                    (badge_rect.min.x
-                        - sidebar_sections.folder_header.min.x
-                        - (sizing.text_inset_x * 2.0)
-                        - sizing.header_label_gutter)
-                        .max(56.0)
-                })
-                .unwrap_or_else(|| {
-                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0)).max(56.0)
+            let header_text_max_width = folder_header_text_max_width(
+                sidebar_sections.folder_header,
+                sizing,
+                recovery_badge.as_ref().map(|(badge_rect, _, _)| *badge_rect),
+            );
+            if header_text_max_width > 8.0 {
+                text_runs.push(TextRun {
+                    text: format!("Folders ({})", model.sources.folder_rows.len()),
+                    position: Point::new(
+                        sidebar_sections.folder_header.min.x
+                            + sizing.text_inset_x
+                            + sizing.header_label_gutter,
+                        sidebar_sections.folder_header.min.y + sizing.text_inset_y,
+                    ),
+                    font_size: sizing.font_header,
+                    color: style.text_primary,
+                    max_width: Some(header_text_max_width),
+                    align: TextAlign::Left,
                 });
-            text_runs.push(TextRun {
-                text: format!("Folders ({})", model.sources.folder_rows.len()),
-                position: Point::new(
-                    sidebar_sections.folder_header.min.x
-                        + sizing.text_inset_x
-                        + sizing.header_label_gutter,
-                    sidebar_sections.folder_header.min.y + sizing.text_inset_y,
-                ),
-                font_size: sizing.font_header,
-                color: style.text_primary,
-                max_width: Some(header_text_max_width),
-                align: TextAlign::Left,
-            });
-            text_runs.push(TextRun {
-                text: format!(
-                    "query: {}",
-                    if model.sources.folder_search_query.is_empty() {
-                        "—"
-                    } else {
-                        model.sources.folder_search_query.as_str()
-                    }
-                ),
-                position: Point::new(
-                    sidebar_sections.folder_header.min.x
-                        + sizing.text_inset_x
-                        + sizing.header_label_gutter,
-                    sidebar_sections.folder_header.min.y
-                        + sizing.text_inset_y
-                        + sizing.font_header
-                        + sizing.text_row_gap,
-                ),
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(header_text_max_width),
-                align: TextAlign::Left,
-            });
+                if folder_header_has_metadata_row(sidebar_sections.folder_header, sizing)
+                    && header_text_max_width > 24.0
+                {
+                    text_runs.push(TextRun {
+                        text: format!(
+                            "query: {}",
+                            if model.sources.folder_search_query.is_empty() {
+                                "—"
+                            } else {
+                                model.sources.folder_search_query.as_str()
+                            }
+                        ),
+                        position: Point::new(
+                            sidebar_sections.folder_header.min.x
+                                + sizing.text_inset_x
+                                + sizing.header_label_gutter,
+                            sidebar_sections.folder_header.min.y
+                                + sizing.text_inset_y
+                                + sizing.font_header
+                                + sizing.text_row_gap,
+                        ),
+                        font_size: sizing.font_meta,
+                        color: style.text_muted,
+                        max_width: Some(header_text_max_width),
+                        align: TextAlign::Left,
+                    });
+                }
+            }
             for (row_index, row_rect) in folder_row_rects.into_iter().enumerate() {
                 let row = &model.sources.folder_rows[row_index];
                 let row_selected = row.selected || row.focused;
@@ -2271,15 +2270,39 @@ fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_wid
 }
 
 fn source_section_divider_rect(sections: &SidebarSections, sizing: SizingTokens) -> Option<Rect> {
+    if sections.folder_header.height() <= 0.0 {
+        return None;
+    }
     let divider_height = sizing.source_section_divider_width.max(0.5);
-    let divider_y =
-        sections.folder_header.min.y.max(sections.source_rows.max.y) - (divider_height * 0.5);
-    let min_y = divider_y.max(sections.source_rows.min.y);
-    let max_y = (min_y + divider_height).min(sections.folder_rows.max.y);
+    let gap_above_header = (sections.folder_header.min.y - sections.source_rows.max.y).max(0.0);
+    let min_y = if gap_above_header >= divider_height {
+        sections.source_rows.max.y + ((gap_above_header - divider_height) * 0.5)
+    } else {
+        sections.folder_header.min.y
+    };
+    let max_y = (min_y + divider_height).min(sections.folder_header.max.y);
     (max_y > min_y).then_some(Rect::from_min_max(
         Point::new(sections.source_rows.min.x, min_y),
         Point::new(sections.source_rows.max.x, max_y),
     ))
+}
+
+fn folder_header_has_metadata_row(header_rect: Rect, sizing: SizingTokens) -> bool {
+    let required_height =
+        (sizing.text_inset_y * 2.0) + sizing.font_header + sizing.text_row_gap + sizing.font_meta;
+    header_rect.height() >= required_height
+}
+
+fn folder_header_text_max_width(
+    header_rect: Rect,
+    sizing: SizingTokens,
+    badge_rect: Option<Rect>,
+) -> f32 {
+    let text_start_x = header_rect.min.x + sizing.text_inset_x + sizing.header_label_gutter;
+    let text_end_x = badge_rect
+        .map(|badge_rect| badge_rect.min.x - sizing.text_inset_x)
+        .unwrap_or_else(|| header_rect.max.x - sizing.text_inset_x);
+    (text_end_x - text_start_x).max(0.0)
 }
 
 fn folder_recovery_badge_rect(
@@ -2292,15 +2315,43 @@ fn folder_recovery_badge_rect(
         return None;
     }
     let sizing = style.sizing;
-    let label = if recovery_in_progress {
-        String::from("Recovery")
-    } else {
-        format!("{} entries", recovery_entry_count)
-    };
+    let available_width = (header_rect.width() - (style.sizing.text_inset_x * 2.0)).max(0.0);
+    if available_width < 12.0 {
+        return None;
+    }
     let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
+    let mut labels = if recovery_in_progress {
+        vec![
+            String::from("Recovery"),
+            String::from("Active"),
+            String::from("R"),
+        ]
+    } else {
+        vec![format!("{recovery_entry_count} entries"), recovery_entry_count.to_string()]
+    };
+    labels.dedup();
+    let mut label = labels
+        .iter()
+        .find(|label| {
+            let required_width =
+                (label.chars().count() as f32 * approx_char_width) + (sizing.recovery_badge_padding_x * 2.0);
+            required_width <= available_width
+        })
+        .cloned()
+        .unwrap_or_else(|| {
+            if recovery_in_progress {
+                String::from("R")
+            } else {
+                recovery_entry_count.to_string()
+            }
+        });
+    if label.is_empty() {
+        label = String::from("R");
+    }
     let label_width = label.chars().count() as f32 * approx_char_width;
     let badge_width = (label_width + (sizing.recovery_badge_padding_x * 2.0))
-        .max(sizing.recovery_badge_min_width);
+        .max(sizing.recovery_badge_min_width.min(available_width))
+        .min(available_width);
     let badge_height = sizing
         .recovery_badge_height
         .min((header_rect.height() - 2.0).max(10.0));
@@ -2452,6 +2503,49 @@ mod tests {
         assert_rect_inside(layout.sidebar_rows, sections.folder_rows);
         assert!(sections.source_rows.max.y <= sections.folder_header.min.y);
         assert!(sections.folder_header.max.y <= sections.folder_rows.min.y);
+    }
+
+    #[test]
+    fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
+        let style = style_for_layout(&layout);
+        let model = populated_sidebar_model();
+        let sections = sidebar_sections(&layout, &style, &model);
+        let divider =
+            source_section_divider_rect(&sections, style.sizing).expect("divider should exist");
+        assert_rect_inside(layout.sidebar_rows, divider);
+        assert!(divider.max.y <= sections.folder_rows.min.y);
+        assert!(divider.min.y >= sections.source_rows.min.y);
+    }
+
+    #[test]
+    fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let style = style_for_layout(&layout);
+        let header_rect = Rect::from_min_max(
+            Point::new(0.0, 0.0),
+            Point::new(58.0, style.sizing.folder_header_block_height),
+        );
+        let (badge_rect, badge_label, _) =
+            folder_recovery_badge_rect(header_rect, &style, false, 153)
+                .expect("badge should still render");
+        assert_rect_inside(header_rect, badge_rect);
+        assert!(badge_label.chars().count() <= 3);
+    }
+
+    #[test]
+    fn folder_header_text_width_yields_no_overlap_with_recovery_badge() {
+        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let style = style_for_layout(&layout);
+        let header_rect = Rect::from_min_max(
+            Point::new(24.0, 40.0),
+            Point::new(120.0, 40.0 + style.sizing.folder_header_block_height),
+        );
+        let (badge_rect, _, _) = folder_recovery_badge_rect(header_rect, &style, true, 0)
+            .expect("badge should render for active recovery");
+        let max_width = folder_header_text_max_width(header_rect, style.sizing, Some(badge_rect));
+        assert!(max_width >= 0.0);
+        assert!(max_width <= (badge_rect.min.x - header_rect.min.x));
     }
 
     #[test]

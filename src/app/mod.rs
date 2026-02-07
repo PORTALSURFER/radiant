@@ -299,6 +299,12 @@ pub struct MapPanelModel {
     pub active: bool,
     /// Human-readable map summary line.
     pub summary: String,
+    /// Legend/status label for map render mode and point density.
+    pub legend_label: String,
+    /// Selection/focus label for the currently highlighted map sample.
+    pub selection_label: String,
+    /// Viewport label describing zoom/pan state.
+    pub viewport_label: String,
     /// Optional error text shown when map data cannot be loaded.
     pub error: Option<String>,
     /// Current map render mode.
@@ -434,6 +440,10 @@ pub enum UpdateStatusModel {
 pub struct UpdatePanelModel {
     /// Current update-check status.
     pub status: UpdateStatusModel,
+    /// Status label rendered in native top-bar chrome.
+    pub status_label: String,
+    /// Action hint label rendered near update controls.
+    pub action_hint_label: String,
     /// Available release tag, when present.
     pub available_tag: Option<String>,
     /// Available release URL, when present.

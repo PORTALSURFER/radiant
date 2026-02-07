@@ -1169,6 +1169,9 @@ mod tests {
             map: MapPanelModel {
                 active: true,
                 summary: String::from("1 point"),
+                legend_label: String::from("Render: points"),
+                selection_label: String::from("Selection: source::kick.wav"),
+                viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
                 error: None,
                 render_mode: crate::app::MapRenderModeModel::Points,
                 points: vec![MapPointModel {
@@ -1203,6 +1206,8 @@ mod tests {
         let model = AppModel {
             update: UpdatePanelModel {
                 status: UpdateStatusModel::Idle,
+                status_label: String::from("Updates: idle"),
+                action_hint_label: String::from("Action: check"),
                 available_tag: None,
                 available_url: None,
                 last_error: None,

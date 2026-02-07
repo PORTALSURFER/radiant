@@ -827,6 +827,7 @@ impl NativeShellState {
         }
         let update_buttons = update_action_buttons(layout, style, model);
         let update_status_text = update_status_text(model);
+        let update_hint_text = update_hint_text(model);
         let reserved_button_width = update_buttons
             .iter()
             .map(|button| button.rect.width())
@@ -859,6 +860,29 @@ impl NativeShellState {
             ),
             align: TextAlign::Left,
         });
+        if !update_hint_text.is_empty() {
+            text_runs.push(TextRun {
+                text: truncate_to_width(
+                    &update_hint_text,
+                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
+                    sizing.font_meta,
+                ),
+                position: Point::new(
+                    layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.top_bar_controls_row,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(
+                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
+                ),
+                align: TextAlign::Left,
+            });
+        }
         for button in &update_buttons {
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
@@ -1579,6 +1603,18 @@ impl NativeShellState {
             });
         }
         if model.map.active {
+            let mode_label = match model.map.render_mode {
+                crate::app::MapRenderModeModel::Heatmap => "heatmap",
+                crate::app::MapRenderModeModel::Points => "points",
+            };
+            let legend_text = if model.map.legend_label.is_empty() {
+                format!(
+                    "{}: {mode_label}",
+                    model.browser_chrome.similarity_toggle_label
+                )
+            } else {
+                model.map.legend_label.clone()
+            };
             text_runs.push(TextRun {
                 text: model.browser_chrome.map_tab_label.clone(),
                 position: Point::new(
@@ -1596,15 +1632,8 @@ impl NativeShellState {
                 ),
                 align: TextAlign::Left,
             });
-            let mode_label = match model.map.render_mode {
-                crate::app::MapRenderModeModel::Heatmap => "heatmap",
-                crate::app::MapRenderModeModel::Points => "points",
-            };
             text_runs.push(TextRun {
-                text: format!(
-                    "{}: {mode_label}",
-                    model.browser_chrome.similarity_toggle_label
-                ),
+                text: legend_text,
                 position: Point::new(
                     layout.browser_table_header.min.x + sizing.text_inset_x,
                     text_top_in_rect(
@@ -1621,29 +1650,53 @@ impl NativeShellState {
                 ),
                 align: TextAlign::Left,
             });
-            if let Some(error) = model.map.error.as_deref() {
+            let selection_or_error = if let Some(error) = model.map.error.as_deref() {
+                (error, style.accent_warning)
+            } else {
+                (model.map.selection_label.as_str(), style.text_muted)
+            };
+            text_runs.push(TextRun {
+                text: truncate_to_width(
+                    selection_or_error.0,
+                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                    sizing.font_meta,
+                ),
+                position: Point::new(
+                    layout.browser_table_header.min.x + sizing.text_inset_x,
+                    text_top_in_rect(
+                        layout.browser_table_header,
+                        sizing.font_meta,
+                        sizing.text_inset_y,
+                    ) + ((sizing.font_meta + sizing.text_row_gap) * 2.0),
+                ),
+                font_size: sizing.font_meta,
+                color: selection_or_error.1,
+                max_width: Some(
+                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                ),
+                align: TextAlign::Left,
+            });
+            if !model.map.viewport_label.is_empty() {
                 text_runs.push(TextRun {
                     text: truncate_to_width(
-                        error,
-                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
-                            .max(24.0),
+                        &model.map.viewport_label,
+                        (layout.browser_table_header.width() * 0.42).max(36.0),
                         sizing.font_meta,
                     ),
                     position: Point::new(
-                        layout.browser_table_header.min.x + sizing.text_inset_x,
+                        layout.browser_table_header.max.x
+                            - ((layout.browser_table_header.width() * 0.42).max(36.0))
+                            - sizing.text_inset_x,
                         text_top_in_rect(
                             layout.browser_table_header,
                             sizing.font_meta,
                             sizing.text_inset_y,
-                        ) + ((sizing.font_meta + sizing.text_row_gap) * 2.0),
+                        ),
                     ),
                     font_size: sizing.font_meta,
-                    color: style.accent_warning,
-                    max_width: Some(
-                        (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0))
-                            .max(24.0),
-                    ),
-                    align: TextAlign::Left,
+                    color: style.text_muted,
+                    max_width: Some((layout.browser_table_header.width() * 0.42).max(36.0)),
+                    align: TextAlign::Right,
                 });
             }
         } else {
@@ -1708,7 +1761,11 @@ impl NativeShellState {
             });
         }
         let footer_text = if model.map.active {
-            model.map.summary.clone()
+            if model.map.viewport_label.is_empty() {
+                model.map.summary.clone()
+            } else {
+                format!("{} | {}", model.map.summary, model.map.viewport_label)
+            }
         } else {
             format!(
                 "{} | {} selected{}",
@@ -2190,6 +2247,9 @@ fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) 
 }
 
 fn update_status_text(model: &AppModel) -> String {
+    if !model.update.status_label.is_empty() {
+        return model.update.status_label.clone();
+    }
     match model.update.status {
         crate::app::UpdateStatusModel::Idle => String::from("Updates: idle"),
         crate::app::UpdateStatusModel::Checking => String::from("Checking updates..."),
@@ -2205,6 +2265,24 @@ fn update_status_text(model: &AppModel) -> String {
             .as_deref()
             .map(|err| format!("Update check failed: {err}"))
             .unwrap_or_else(|| String::from("Update check failed")),
+    }
+}
+
+fn update_hint_text(model: &AppModel) -> String {
+    if !model.update.action_hint_label.is_empty() {
+        return model.update.action_hint_label.clone();
+    }
+    match model.update.status {
+        crate::app::UpdateStatusModel::Idle => String::from("Action: check"),
+        crate::app::UpdateStatusModel::Checking => String::from("Action: waiting"),
+        crate::app::UpdateStatusModel::Available => {
+            if model.update.available_url.is_some() {
+                String::from("Actions: open | install | dismiss")
+            } else {
+                String::from("Action: dismiss")
+            }
+        }
+        crate::app::UpdateStatusModel::Error => String::from("Action: retry"),
     }
 }
 
@@ -3702,6 +3780,57 @@ mod tests {
             .text_runs
             .iter()
             .any(|run| run.text.contains("165 BPM")));
+    }
+
+    #[test]
+    fn map_header_prefers_projected_legend_selection_and_viewport_copy() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.map.active = true;
+        model.map.legend_label = String::from("Render: points");
+        model.map.selection_label = String::from("Selection: kick_24.wav");
+        model.map.viewport_label = String::from("zoom 1.75x | pan (12, -8)");
+        model.map.summary = String::from("248 points");
+
+        let frame = state.build_frame(&layout, &model);
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Render: points")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Selection: kick_24.wav")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("zoom 1.75x | pan (12, -8)")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("248 points")));
+    }
+
+    #[test]
+    fn top_bar_update_prefers_projected_status_and_hint_copy() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.update.status = crate::app::UpdateStatusModel::Available;
+        model.update.status_label = String::from("Update available: v20.1.0");
+        model.update.action_hint_label = String::from("Actions: open | install | dismiss");
+        model.update.available_url = Some(String::from("https://example.invalid/release"));
+
+        let frame = state.build_frame(&layout, &model);
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Update available")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Actions: open")));
     }
 
     #[test]

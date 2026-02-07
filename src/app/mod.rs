@@ -220,6 +220,51 @@ pub struct BrowserPanelModel {
     pub rows: Vec<BrowserRowModel>,
 }
 
+/// Browser chrome copy used by the native shell toolbar and tab strip.
+///
+/// This separates rendered UI labels from interaction state so hosts can
+/// provide layout-specific wording without hardcoded renderer strings.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserChromeModel {
+    /// Label for the list tab.
+    pub samples_tab_label: String,
+    /// Label for the map tab.
+    pub map_tab_label: String,
+    /// Prefix label shown before active search queries.
+    pub search_prefix_label: String,
+    /// Placeholder label shown when no search query is active.
+    pub search_placeholder: String,
+    /// Status label shown when browser background work is idle.
+    pub activity_ready_label: String,
+    /// Status label shown when browser background work is running.
+    pub activity_busy_label: String,
+    /// Prefix label shown before active sort order labels.
+    pub sort_prefix_label: String,
+    /// Label describing the active sort order.
+    pub sort_order_label: String,
+    /// Label describing similarity mode in the map/header chrome.
+    pub similarity_toggle_label: String,
+    /// Footer/status label for total browser item counts.
+    pub item_count_label: String,
+}
+
+impl Default for BrowserChromeModel {
+    fn default() -> Self {
+        Self {
+            samples_tab_label: String::from("Samples"),
+            map_tab_label: String::from("Similarity map"),
+            search_prefix_label: String::from("Search"),
+            search_placeholder: String::from("Search samples (Ctrl+F)"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Filtering"),
+            sort_prefix_label: String::from("Sort"),
+            sort_order_label: String::from("List order"),
+            similarity_toggle_label: String::from("points"),
+            item_count_label: String::from("0 items"),
+        }
+    }
+}
+
 /// Render mode label for the map panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum MapRenderModeModel {
@@ -340,6 +385,21 @@ impl Default for WaveformPanelModel {
             loop_enabled: false,
             tempo_label: None,
             zoom_label: None,
+        }
+    }
+}
+
+/// Waveform chrome copy used by metadata lines in the native shell header.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformChromeModel {
+    /// Extra transport metadata hint shown alongside waveform labels.
+    pub transport_hint: String,
+}
+
+impl Default for WaveformChromeModel {
+    fn default() -> Self {
+        Self {
+            transport_hint: String::from("transport idle"),
         }
     }
 }
@@ -485,10 +545,14 @@ pub struct AppModel {
     pub sources: SourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
+    /// Browser chrome labels consumed by native tabs/toolbar/footer text.
+    pub browser_chrome: BrowserChromeModel,
     /// Map panel summary consumed by the native renderer.
     pub map: MapPanelModel,
     /// Waveform panel summary consumed by the native renderer.
     pub waveform: WaveformPanelModel,
+    /// Waveform chrome labels consumed by the native waveform header.
+    pub waveform_chrome: WaveformChromeModel,
     /// Update surface summary consumed by the native top bar.
     pub update: UpdatePanelModel,
 }
@@ -528,8 +592,10 @@ impl Default for AppModel {
                 folder_recovery: FolderRecoveryModel::default(),
             },
             browser: BrowserPanelModel::default(),
+            browser_chrome: BrowserChromeModel::default(),
             map: MapPanelModel::default(),
             waveform: WaveformPanelModel::default(),
+            waveform_chrome: WaveformChromeModel::default(),
             update: UpdatePanelModel::default(),
         }
     }

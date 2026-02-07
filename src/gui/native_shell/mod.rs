@@ -75,6 +75,11 @@ mod tests {
         model.browser.visible_count = model.browser.rows.len();
         model.browser.selected_path_count = 3;
         model.browser.search_query = String::from("kick");
+        model.browser_chrome.search_prefix_label = String::from("Find");
+        model.browser_chrome.sort_prefix_label = String::from("Order");
+        model.browser_chrome.sort_order_label = String::from("List order");
+        model.browser_chrome.item_count_label = String::from("36 items");
+        model.waveform_chrome.transport_hint = String::from("Loop engaged");
         model.waveform.loaded_label = Some(String::from("Kick-Loop-01.wav"));
         model.waveform.cursor_milli = Some(345);
         model.waveform.playhead_milli = Some(512);
@@ -570,29 +575,33 @@ mod tests {
         state.sync_from_model(&model);
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let frame = state.build_frame(&layout, &model);
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("Folders ("))
-        );
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("entries"))
-        );
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("rows: 48"))
-        );
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("col: 2/3"))
-        );
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Folders (")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("entries")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("rows: 48")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("col: 2/3")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Find: kick")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Order: List order")));
+        assert!(frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Loop engaged")));
     }
 }

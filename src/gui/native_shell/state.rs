@@ -1348,12 +1348,8 @@ impl NativeShellState {
         let zoom_text = model.waveform.zoom_label.as_deref().unwrap_or("100%");
         text_runs.push(TextRun {
             text: format!(
-                "loop: {} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
-                if model.waveform.loop_enabled {
-                    "on"
-                } else {
-                    "off"
-                },
+                "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
+                model.waveform_chrome.transport_hint,
                 tempo_text,
                 zoom_text,
                 playhead_text,
@@ -1375,11 +1371,7 @@ impl NativeShellState {
             align: TextAlign::Left,
         });
         let tabs = browser_tabs_layout(layout, sizing);
-        let map_active = model
-            .browser
-            .active_tab_label
-            .as_deref()
-            .is_some_and(|label| label.eq_ignore_ascii_case("similarity map"));
+        let map_active = model.map.active;
         let list_active = !map_active;
         let (
             samples_fill,
@@ -1439,7 +1431,8 @@ impl NativeShellState {
         );
         push_border(&mut primitives, tabs.map, map_border, sizing.border_width);
         let samples_text = format!(
-            "Samples ({})",
+            "{} ({})",
+            model.browser_chrome.samples_tab_label,
             model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
         );
         text_runs.push(TextRun {
@@ -1457,12 +1450,7 @@ impl NativeShellState {
             max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
             align: TextAlign::Left,
         });
-        let map_text = model
-            .browser
-            .active_tab_label
-            .as_deref()
-            .filter(|label| label.eq_ignore_ascii_case("similarity map"))
-            .unwrap_or("Similarity map");
+        let map_text = model.browser_chrome.map_tab_label.as_str();
         text_runs.push(TextRun {
             text: String::from(map_text),
             position: Point::new(
@@ -1516,13 +1504,12 @@ impl NativeShellState {
             );
         }
         let search_text = if model.browser.search_query.is_empty() {
-            model
-                .browser
-                .search_placeholder
-                .clone()
-                .unwrap_or_else(|| String::from("Search samples (Ctrl+F)"))
+            model.browser_chrome.search_placeholder.clone()
         } else {
-            format!("Search: {}", model.browser.search_query)
+            format!(
+                "{}: {}",
+                model.browser_chrome.search_prefix_label, model.browser.search_query
+            )
         };
         if toolbar.search_field.width() > 1.0 {
             text_runs.push(TextRun {
@@ -1550,9 +1537,9 @@ impl NativeShellState {
         if toolbar.activity_chip.width() > 1.0 {
             text_runs.push(TextRun {
                 text: if model.browser.busy {
-                    String::from("Filtering")
+                    model.browser_chrome.activity_busy_label.clone()
                 } else {
-                    String::from("Ready")
+                    model.browser_chrome.activity_ready_label.clone()
                 },
                 position: Point::new(
                     toolbar.activity_chip.min.x + sizing.text_inset_x,
@@ -1567,9 +1554,18 @@ impl NativeShellState {
             });
         }
         if toolbar.sort_chip.width() > 1.0 {
-            let sort_label = model.browser.sort_label.as_deref().unwrap_or("List order");
+            let sort_label = if model.browser_chrome.sort_order_label.is_empty() {
+                model.browser.sort_label.as_deref().unwrap_or("List order")
+            } else {
+                model.browser_chrome.sort_order_label.as_str()
+            };
+            let sort_text = if model.browser_chrome.sort_prefix_label.is_empty() {
+                String::from(sort_label)
+            } else {
+                format!("{}: {}", model.browser_chrome.sort_prefix_label, sort_label)
+            };
             text_runs.push(TextRun {
-                text: String::from(sort_label),
+                text: sort_text,
                 position: Point::new(
                     toolbar.sort_chip.min.x + sizing.text_inset_x,
                     text_top_in_rect(toolbar.sort_chip, sizing.font_meta, sizing.text_inset_y),
@@ -1584,7 +1580,7 @@ impl NativeShellState {
         }
         if model.map.active {
             text_runs.push(TextRun {
-                text: String::from("Similarity map"),
+                text: model.browser_chrome.map_tab_label.clone(),
                 position: Point::new(
                     layout.browser_table_header.min.x + sizing.text_inset_x,
                     text_top_in_rect(
@@ -1605,7 +1601,10 @@ impl NativeShellState {
                 crate::app::MapRenderModeModel::Points => "points",
             };
             text_runs.push(TextRun {
-                text: format!("mode: {mode_label}"),
+                text: format!(
+                    "{}: {mode_label}",
+                    model.browser_chrome.similarity_toggle_label
+                ),
                 position: Point::new(
                     layout.browser_table_header.min.x + sizing.text_inset_x,
                     text_top_in_rect(
@@ -1712,8 +1711,8 @@ impl NativeShellState {
             model.map.summary.clone()
         } else {
             format!(
-                "{} rows | {} selected{}",
-                model.browser.visible_count,
+                "{} | {} selected{}",
+                model.browser_chrome.item_count_label,
                 model.browser.selected_path_count,
                 if model.browser.busy {
                     " | filtering…"

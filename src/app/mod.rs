@@ -303,6 +303,10 @@ pub struct MapPanelModel {
     pub legend_label: String,
     /// Selection/focus label for the currently highlighted map sample.
     pub selection_label: String,
+    /// Hover label for the currently hovered map sample, when any.
+    pub hover_label: String,
+    /// Cluster summary label for projected map points.
+    pub cluster_label: String,
     /// Viewport label describing zoom/pan state.
     pub viewport_label: String,
     /// Optional error text shown when map data cannot be loaded.
@@ -444,6 +448,8 @@ pub struct UpdatePanelModel {
     pub status_label: String,
     /// Action hint label rendered near update controls.
     pub action_hint_label: String,
+    /// Supplemental release-notes label rendered under update hints.
+    pub release_notes_label: String,
     /// Available release tag, when present.
     pub available_tag: Option<String>,
     /// Available release URL, when present.

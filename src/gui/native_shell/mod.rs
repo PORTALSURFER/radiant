@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn viewport_tier_sizing_changes_row_density() {
         let narrow = style::StyleTokens::for_viewport_width(820.0);
-        let wide = style::StyleTokens::for_viewport_width(1900.0);
+        let wide = style::StyleTokens::for_viewport_width(2300.0);
         assert!(narrow.sizing.browser_row_height < wide.sizing.browser_row_height);
         assert!(narrow.sizing.source_row_height < wide.sizing.source_row_height);
     }
@@ -206,7 +206,7 @@ mod tests {
     fn visual_density_snapshot_scales_across_tiers() {
         let compact_viewport = Vector2::new(820.0, 520.0);
         let standard_viewport = Vector2::new(1280.0, 720.0);
-        let wide_viewport = Vector2::new(1900.0, 1080.0);
+        let wide_viewport = Vector2::new(2300.0, 1080.0);
 
         let compact_style = style::StyleTokens::for_viewport_width(compact_viewport.x);
         let standard_style = style::StyleTokens::for_viewport_width(standard_viewport.x);
@@ -295,7 +295,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let tokens = style::StyleTokens::for_viewport_width(viewport.x);
             let layout = ShellLayout::build(viewport);
@@ -583,7 +583,7 @@ mod tests {
     #[test]
     fn wide_viewport_renders_more_browser_rows_than_narrow_viewport() {
         let narrow_layout = ShellLayout::build(Vector2::new(820.0, 520.0));
-        let wide_layout = ShellLayout::build(Vector2::new(1900.0, 1080.0));
+        let wide_layout = ShellLayout::build(Vector2::new(2300.0, 1080.0));
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         for index in 0..40 {
@@ -619,7 +619,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let frame_a = state.build_frame(&layout, &model);

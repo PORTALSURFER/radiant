@@ -3559,7 +3559,7 @@ mod tests {
         let sizes = [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ];
         let state = NativeShellState::new();
         let model = populated_sidebar_model();
@@ -3639,7 +3639,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let style = style_for_layout(&layout);
@@ -3663,7 +3663,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let style = style_for_layout(&layout);
@@ -3710,7 +3710,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let style = style_for_layout(&layout);
@@ -3806,7 +3806,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let style = style_for_layout(&layout);
@@ -3837,7 +3837,7 @@ mod tests {
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
-            Vector2::new(1900.0, 1080.0),
+            Vector2::new(2300.0, 1080.0),
         ] {
             let layout = ShellLayout::build(viewport);
             let frame_a = state.build_frame(&layout, &model);
@@ -4062,7 +4062,7 @@ mod tests {
         let mut model = AppModel::default();
         model.transport_running = true;
         let compact_style = StyleTokens::for_viewport_width(820.0);
-        let wide_style = StyleTokens::for_viewport_width(1900.0);
+        let wide_style = StyleTokens::for_viewport_width(2300.0);
 
         let mut compact_state = NativeShellState::new();
         compact_state.sync_from_model(&model);

@@ -22,7 +22,7 @@ impl LayoutScaleTier {
     pub(crate) fn from_viewport_width(viewport_width: f32) -> Self {
         if viewport_width < 980.0 {
             Self::Compact
-        } else if viewport_width > 1700.0 {
+        } else if viewport_width > 2100.0 {
             Self::Wide
         } else {
             Self::Standard
@@ -547,94 +547,95 @@ impl StyleTokens {
         }
 
         if layout_tier == LayoutScaleTier::Wide {
-            tokens.sizing.frame_inset = 10.0;
-            tokens.sizing.panel_gap = 8.0;
-            tokens.sizing.top_bar_height = 36.0;
-            tokens.sizing.top_bar_title_row_height = 15.0;
-            tokens.sizing.status_bar_height = 22.0;
-            tokens.sizing.sidebar_ratio = 0.20;
-            tokens.sizing.sidebar_min_width = 190.0;
-            tokens.sizing.sidebar_max_width = 320.0;
-            tokens.sizing.content_min_width = 260.0;
-            tokens.sizing.waveform_ratio = 0.40;
-            tokens.sizing.waveform_min_height = 140.0;
-            tokens.sizing.waveform_max_height = 280.0;
-            tokens.sizing.column_gap = 8.0;
+            // Keep wide tier dense to preserve the classic Sempal table-first feel.
+            tokens.sizing.frame_inset = 6.0;
+            tokens.sizing.panel_gap = 4.0;
+            tokens.sizing.top_bar_height = 32.0;
+            tokens.sizing.top_bar_title_row_height = 13.0;
+            tokens.sizing.status_bar_height = 17.0;
+            tokens.sizing.sidebar_ratio = 0.17;
+            tokens.sizing.sidebar_min_width = 170.0;
+            tokens.sizing.sidebar_max_width = 244.0;
+            tokens.sizing.content_min_width = 250.0;
+            tokens.sizing.waveform_ratio = 0.35;
+            tokens.sizing.waveform_min_height = 130.0;
+            tokens.sizing.waveform_max_height = 252.0;
+            tokens.sizing.column_gap = 6.0;
             tokens.sizing.browser_rows_max_per_column = 64;
-            tokens.sizing.panel_inset = 8.0;
-            tokens.sizing.header_label_gutter = 5.0;
-            tokens.sizing.browser_tabs_height = 22.0;
-            tokens.sizing.browser_toolbar_height = 23.0;
-            tokens.sizing.browser_table_header_height = 22.0;
-            tokens.sizing.browser_footer_height = 20.0;
-            tokens.sizing.browser_search_field_min_width = 176.0;
-            tokens.sizing.browser_search_field_ratio = 0.48;
-            tokens.sizing.browser_index_col_width = 50.0;
-            tokens.sizing.browser_bucket_col_width = 100.0;
-            tokens.sizing.browser_row_gap = 4.0;
-            tokens.sizing.browser_row_height = 24.0;
-            tokens.sizing.source_row_gap = 4.0;
-            tokens.sizing.source_row_height = 23.0;
+            tokens.sizing.panel_inset = 5.0;
+            tokens.sizing.header_label_gutter = 3.5;
+            tokens.sizing.browser_tabs_height = 18.0;
+            tokens.sizing.browser_toolbar_height = 19.0;
+            tokens.sizing.browser_table_header_height = 18.0;
+            tokens.sizing.browser_footer_height = 16.0;
+            tokens.sizing.browser_search_field_min_width = 140.0;
+            tokens.sizing.browser_search_field_ratio = 0.47;
+            tokens.sizing.browser_index_col_width = 36.0;
+            tokens.sizing.browser_bucket_col_width = 84.0;
+            tokens.sizing.browser_row_gap = 1.3;
+            tokens.sizing.browser_row_height = 17.4;
+            tokens.sizing.source_row_gap = 1.5;
+            tokens.sizing.source_row_height = 16.9;
             tokens.sizing.source_rows_max = 13;
             tokens.sizing.source_rows_min_when_split = 4;
-            tokens.sizing.folder_row_gap = 3.0;
-            tokens.sizing.folder_row_height = 21.0;
+            tokens.sizing.folder_row_gap = 1.4;
+            tokens.sizing.folder_row_height = 16.2;
             tokens.sizing.folder_rows_max = 22;
             tokens.sizing.folder_rows_min = 5;
-            tokens.sizing.sidebar_section_gap = 10.0;
-            tokens.sizing.source_section_divider_width = 1.2;
-            tokens.sizing.header_to_rows_gap = 5.0;
-            tokens.sizing.panel_section_padding_top = 3.0;
-            tokens.sizing.panel_section_padding_bottom = 3.0;
-            tokens.sizing.folder_header_block_height = 34.0;
-            tokens.sizing.recovery_badge_height = 17.0;
-            tokens.sizing.recovery_badge_min_width = 70.0;
+            tokens.sizing.sidebar_section_gap = 6.0;
+            tokens.sizing.source_section_divider_width = 1.0;
+            tokens.sizing.header_to_rows_gap = 3.5;
+            tokens.sizing.panel_section_padding_top = 1.5;
+            tokens.sizing.panel_section_padding_bottom = 1.5;
+            tokens.sizing.folder_header_block_height = 30.0;
+            tokens.sizing.recovery_badge_height = 14.5;
+            tokens.sizing.recovery_badge_min_width = 60.0;
             tokens.sizing.recovery_badge_padding_x = 7.0;
-            tokens.sizing.folder_indent_step = 14.0;
-            tokens.sizing.title_meta_gap = 4.0;
-            tokens.sizing.row_corner_inset = 2.5;
-            tokens.sizing.source_header_block_height = 38.0;
-            tokens.sizing.column_header_block_height = 24.0;
-            tokens.sizing.waveform_header_block_height = 34.0;
-            tokens.sizing.source_bottom_padding = 10.0;
-            tokens.sizing.column_bottom_padding = 8.0;
-            tokens.sizing.action_button_width = 60.0;
-            tokens.sizing.action_button_height = 20.0;
-            tokens.sizing.action_button_gap = 5.0;
-            tokens.sizing.top_bar_cluster_gap = 12.0;
-            tokens.sizing.top_volume_meter_width = 104.0;
-            tokens.sizing.top_volume_meter_height = 9.0;
-            tokens.sizing.top_bar_action_cluster_min_width = 360.0;
-            tokens.sizing.top_bar_action_cluster_max_width = 680.0;
-            tokens.sizing.status_segment_gap = 12.0;
-            tokens.sizing.overlay_padding = 16.0;
-            tokens.sizing.prompt_width = 480.0;
-            tokens.sizing.prompt_min_height = 138.0;
-            tokens.sizing.overlay_button_width = 92.0;
-            tokens.sizing.overlay_button_height = 26.0;
-            tokens.sizing.progress_bar_height = 14.0;
-            tokens.sizing.drag_overlay_height = 26.0;
-            tokens.sizing.sidebar_action_button_width = 62.0;
-            tokens.sizing.sidebar_action_button_height = 20.0;
-            tokens.sizing.sidebar_action_button_gap = 5.0;
-            tokens.sizing.focus_stroke_width = 1.6;
-            tokens.sizing.hover_fill_alpha = 0.20;
-            tokens.state_hover_soft = 0.14;
-            tokens.state_hover_strong = 0.22;
-            tokens.state_selected_blend = 0.14;
-            tokens.state_focus_pulse_blend = 0.28;
-            tokens.motion_speed_transport = 3.0;
-            tokens.motion_speed_idle = 1.4;
-            tokens.motion_focus_wave_amp = 0.10;
-            tokens.motion_focus_text_wave_amp = 0.05;
+            tokens.sizing.folder_indent_step = 12.0;
+            tokens.sizing.title_meta_gap = 2.0;
+            tokens.sizing.row_corner_inset = 1.3;
+            tokens.sizing.source_header_block_height = 33.0;
+            tokens.sizing.column_header_block_height = 20.0;
+            tokens.sizing.waveform_header_block_height = 29.0;
+            tokens.sizing.source_bottom_padding = 7.0;
+            tokens.sizing.column_bottom_padding = 5.0;
+            tokens.sizing.action_button_width = 52.0;
+            tokens.sizing.action_button_height = 16.5;
+            tokens.sizing.action_button_gap = 3.0;
+            tokens.sizing.top_bar_cluster_gap = 8.0;
+            tokens.sizing.top_volume_meter_width = 82.0;
+            tokens.sizing.top_volume_meter_height = 6.5;
+            tokens.sizing.top_bar_action_cluster_min_width = 270.0;
+            tokens.sizing.top_bar_action_cluster_max_width = 500.0;
+            tokens.sizing.status_segment_gap = 9.0;
+            tokens.sizing.overlay_padding = 14.0;
+            tokens.sizing.prompt_width = 440.0;
+            tokens.sizing.prompt_min_height = 130.0;
+            tokens.sizing.overlay_button_width = 86.0;
+            tokens.sizing.overlay_button_height = 24.0;
+            tokens.sizing.progress_bar_height = 12.0;
+            tokens.sizing.drag_overlay_height = 24.0;
+            tokens.sizing.sidebar_action_button_width = 54.0;
+            tokens.sizing.sidebar_action_button_height = 16.5;
+            tokens.sizing.sidebar_action_button_gap = 3.0;
+            tokens.sizing.focus_stroke_width = 1.3;
+            tokens.sizing.hover_fill_alpha = 0.17;
+            tokens.state_hover_soft = 0.12;
+            tokens.state_hover_strong = 0.20;
+            tokens.state_selected_blend = 0.13;
+            tokens.state_focus_pulse_blend = 0.25;
+            tokens.motion_speed_transport = 2.8;
+            tokens.motion_speed_idle = 1.2;
+            tokens.motion_focus_wave_amp = 0.08;
+            tokens.motion_focus_text_wave_amp = 0.04;
             tokens.scrim_soft_alpha = 180;
             tokens.scrim_modal_alpha = 196;
-            tokens.sizing.waveform_scan_step = 14.0;
-            tokens.sizing.font_title = 15.0;
-            tokens.sizing.font_header = 13.0;
-            tokens.sizing.font_body = 11.0;
-            tokens.sizing.font_meta = 10.5;
-            tokens.sizing.font_status = 11.5;
+            tokens.sizing.waveform_scan_step = 12.0;
+            tokens.sizing.font_title = 13.0;
+            tokens.sizing.font_header = 10.8;
+            tokens.sizing.font_body = 9.4;
+            tokens.sizing.font_meta = 8.9;
+            tokens.sizing.font_status = 9.5;
             tokens.surface_overlay = rgba(42, 37, 33, 255);
             tokens.border_emphasis = rgba(86, 78, 70, 255);
             tokens.source_section_divider = rgba(77, 69, 62, 255);
@@ -661,7 +662,7 @@ mod tests {
             LayoutScaleTier::Standard
         );
         assert_eq!(
-            LayoutScaleTier::from_viewport_width(1900.0),
+            LayoutScaleTier::from_viewport_width(2300.0),
             LayoutScaleTier::Wide
         );
     }
@@ -675,14 +676,14 @@ mod tests {
         assert_eq!(standard, StyleTokens::for_viewport_width(1280.0));
 
         let wide = StyleTokens::for_tier(LayoutScaleTier::Wide);
-        assert_eq!(wide, StyleTokens::for_viewport_width(1900.0));
+        assert_eq!(wide, StyleTokens::for_viewport_width(2300.0));
     }
 
     #[test]
     fn viewport_tiers_adjust_row_heights() {
         let narrow = StyleTokens::for_viewport_width(820.0);
         let standard = StyleTokens::for_viewport_width(1280.0);
-        let wide = StyleTokens::for_viewport_width(1900.0);
+        let wide = StyleTokens::for_viewport_width(2300.0);
         assert!(narrow.sizing.browser_row_height < standard.sizing.browser_row_height);
         assert!(standard.sizing.browser_row_height < wide.sizing.browser_row_height);
         assert!(narrow.sizing.source_row_height < wide.sizing.source_row_height);
@@ -691,7 +692,7 @@ mod tests {
     #[test]
     fn viewport_tiers_adjust_header_bands() {
         let narrow = StyleTokens::for_viewport_width(900.0);
-        let wide = StyleTokens::for_viewport_width(1800.0);
+        let wide = StyleTokens::for_viewport_width(2200.0);
         assert!(narrow.sizing.column_header_block_height < wide.sizing.column_header_block_height);
         assert!(
             narrow.sizing.waveform_header_block_height < wide.sizing.waveform_header_block_height
@@ -700,17 +701,19 @@ mod tests {
 
     #[test]
     fn viewport_tiers_adjust_shell_frame_metrics() {
-        let narrow = StyleTokens::for_viewport_width(900.0);
-        let wide = StyleTokens::for_viewport_width(1800.0);
-        assert!(narrow.sizing.top_bar_height < wide.sizing.top_bar_height);
-        assert!(narrow.sizing.frame_inset < wide.sizing.frame_inset);
-        assert!(narrow.sizing.column_gap < wide.sizing.column_gap);
+        let compact = StyleTokens::for_viewport_width(900.0);
+        let standard = StyleTokens::for_viewport_width(1280.0);
+        let wide = StyleTokens::for_viewport_width(2200.0);
+        assert!(wide.sizing.top_bar_height >= standard.sizing.top_bar_height);
+        assert!(wide.sizing.frame_inset >= standard.sizing.frame_inset);
+        assert!(wide.sizing.column_gap >= standard.sizing.column_gap);
+        assert!(compact.sizing.top_bar_height >= standard.sizing.top_bar_height);
     }
 
     #[test]
     fn viewport_tiers_adjust_render_row_caps() {
         let narrow = StyleTokens::for_viewport_width(900.0);
-        let wide = StyleTokens::for_viewport_width(1800.0);
+        let wide = StyleTokens::for_viewport_width(2200.0);
         assert!(narrow.sizing.source_rows_max < wide.sizing.source_rows_max);
         assert!(narrow.sizing.folder_rows_max < wide.sizing.folder_rows_max);
         assert!(
@@ -735,7 +738,7 @@ mod tests {
     #[test]
     fn viewport_tiers_adjust_interaction_density_tokens() {
         let narrow = StyleTokens::for_viewport_width(900.0);
-        let wide = StyleTokens::for_viewport_width(1800.0);
+        let wide = StyleTokens::for_viewport_width(2200.0);
         assert!(narrow.sizing.focus_stroke_width < wide.sizing.focus_stroke_width);
         assert!(narrow.sizing.header_to_rows_gap < wide.sizing.header_to_rows_gap);
         assert!(narrow.sizing.row_corner_inset < wide.sizing.row_corner_inset);

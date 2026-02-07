@@ -156,6 +156,11 @@ pub struct BrowserRowModel {
     pub label: String,
     /// Triage column index (`0..=2`) that currently owns the row.
     pub column: usize,
+    /// Optional badge/chip label rendered in the browser bucket column.
+    ///
+    /// Hosts can use this for metadata such as BPM (`"150 BPM"`). When absent,
+    /// the shell falls back to a column-derived label.
+    pub bucket_label: Option<String>,
     /// Whether this row is currently selected in multi-selection state.
     pub selected: bool,
     /// Whether this row currently has focus/caret.
@@ -175,9 +180,16 @@ impl BrowserRowModel {
             visible_row,
             label: label.into(),
             column: column.min(2),
+            bucket_label: None,
             selected,
             focused,
         }
+    }
+
+    /// Attach an explicit bucket-column label for this row.
+    pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
+        self.bucket_label = Some(label.into());
+        self
     }
 }
 

@@ -579,11 +579,11 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
-                text: match row.column {
-                    0 => String::from("TRASH"),
-                    2 => String::from("KEEP"),
-                    _ => String::from("SAMPLE"),
-                },
+                text: truncate_to_width(
+                    &row.bucket_label,
+                    (chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0),
+                    sizing.font_meta,
+                ),
                 position: Point::new(
                     chip_rect.min.x + sizing.text_inset_x,
                     text_top_in_rect(chip_rect, sizing.font_meta, sizing.text_inset_y),
@@ -1668,6 +1668,7 @@ impl NativeShellState {
 struct RenderedBrowserRow {
     visible_row: usize,
     label: String,
+    bucket_label: String,
     column: usize,
     selected: bool,
     focused: bool,
@@ -1844,6 +1845,14 @@ fn rendered_browser_rows(
         rendered.push(RenderedBrowserRow {
             visible_row: row.visible_row,
             label: truncate_to_width(&row.label, label_width, sizing.font_body),
+            bucket_label: row
+                .bucket_label
+                .clone()
+                .unwrap_or_else(|| match row.column {
+                    0 => String::from("TRASH"),
+                    2 => String::from("KEEP"),
+                    _ => String::from("SAMPLE"),
+                }),
             column: row.column.min(2),
             selected: row.selected,
             focused: row.focused,
@@ -3060,7 +3069,7 @@ fn build_stacked_rows(column: Rect, rows: usize, gap: f32, row_height: f32) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::{FolderActionsModel, FolderRowModel, SourceRowModel};
+    use crate::app::{BrowserRowModel, FolderActionsModel, FolderRowModel, SourceRowModel};
     use crate::gui::types::Vector2;
 
     fn populated_sidebar_model() -> AppModel {
@@ -3329,6 +3338,24 @@ mod tests {
                 Some(row.visible_row)
             );
         }
+    }
+
+    #[test]
+    fn browser_bucket_label_prefers_explicit_row_metadata() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(0, "Kick 01", 1, true, true).with_bucket_label("165 BPM"));
+        let frame = state.build_frame(&layout, &model);
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("165 BPM"))
+        );
     }
 
     #[test]

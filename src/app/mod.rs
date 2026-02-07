@@ -319,6 +319,8 @@ pub enum ConfirmPromptKind {
     BrowserRename,
     /// Pending folder rename prompt.
     FolderRename,
+    /// Pending folder creation prompt.
+    FolderCreate,
 }
 
 /// Modal confirmation prompt projected into the native shell.
@@ -338,6 +340,12 @@ pub struct ConfirmPromptModel {
     pub cancel_label: String,
     /// Optional target label shown as supplemental metadata.
     pub target_label: Option<String>,
+    /// Optional editable prompt input value.
+    pub input_value: Option<String>,
+    /// Placeholder text for editable prompt input fields.
+    pub input_placeholder: Option<String>,
+    /// Optional validation error shown below editable prompt input.
+    pub input_error: Option<String>,
 }
 
 /// Drag/drop overlay content for native-shell feedback.
@@ -449,6 +457,8 @@ pub enum UiAction {
     FocusBrowserSearch,
     /// Focus the source-folder search field.
     FocusFolderSearch,
+    /// Set folder search query.
+    SetFolderSearch { query: String },
     /// Select a source row by index.
     SelectSourceRow { index: usize },
     /// Focus a folder row by index.
@@ -485,6 +495,8 @@ pub enum UiAction {
     SelectAllBrowserRows,
     /// Set browser search query.
     SetBrowserSearch { query: String },
+    /// Set editable text for the active prompt input field.
+    SetPromptInput { value: String },
     /// Start inline rename flow for the focused browser row.
     StartBrowserRename,
     /// Confirm the currently pending browser rename prompt.

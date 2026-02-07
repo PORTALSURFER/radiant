@@ -29,9 +29,18 @@ use winit::{
     dpi::{LogicalSize, Size},
     event::{ElementState, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::{ModifiersState, PhysicalKey},
+    keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum TextInputTarget {
+    #[default]
+    None,
+    BrowserSearch,
+    FolderSearch,
+    PromptInput,
+}
 
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: EguiRunOptions,
@@ -49,6 +58,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     clear_color: Rgba8,
     last_cursor: Option<Point>,
     modifiers: ModifiersState,
+    text_input_target: TextInputTarget,
     last_redraw: Instant,
 }
 
@@ -75,6 +85,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             },
             last_cursor: None,
             modifiers: ModifiersState::default(),
+            text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
         }
     }
@@ -158,11 +169,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene(&mut self) {
         self.scene.reset();
+        self.model = self.bridge.pull_model();
+        self.shell_state.sync_from_model(&self.model);
+        self.sync_text_input_target();
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        self.model = self.bridge.pull_model();
-        self.shell_state.sync_from_model(&self.model);
         let frame = self.shell_state.build_frame(layout, &self.model);
         self.clear_color = frame.clear_color;
         let frame_result = FrameBuildResult {
@@ -270,6 +282,66 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
     }
+
+    fn sync_text_input_target(&mut self) {
+        if self.model.confirm_prompt.visible && self.model.confirm_prompt.input_value.is_some() {
+            self.text_input_target = TextInputTarget::PromptInput;
+        } else if self.text_input_target == TextInputTarget::PromptInput {
+            self.text_input_target = TextInputTarget::None;
+        }
+    }
+
+    fn current_text_value(&self) -> Option<String> {
+        match self.text_input_target {
+            TextInputTarget::None => None,
+            TextInputTarget::BrowserSearch => Some(self.model.browser.search_query.clone()),
+            TextInputTarget::FolderSearch => Some(self.model.sources.folder_search_query.clone()),
+            TextInputTarget::PromptInput => self.model.confirm_prompt.input_value.clone(),
+        }
+    }
+
+    fn set_text_value(&mut self, value: String) -> bool {
+        let action = match self.text_input_target {
+            TextInputTarget::None => return false,
+            TextInputTarget::BrowserSearch => UiAction::SetBrowserSearch { query: value },
+            TextInputTarget::FolderSearch => UiAction::SetFolderSearch { query: value },
+            TextInputTarget::PromptInput => UiAction::SetPromptInput { value },
+        };
+        self.bridge.on_action(action);
+        true
+    }
+
+    fn append_text(&mut self, appended: &str) -> bool {
+        if appended.is_empty() {
+            return false;
+        }
+        let Some(mut value) = self.current_text_value() else {
+            return false;
+        };
+        value.push_str(appended);
+        self.set_text_value(value)
+    }
+
+    fn backspace_text(&mut self) -> bool {
+        let Some(mut value) = self.current_text_value() else {
+            return false;
+        };
+        if value.pop().is_none() {
+            return false;
+        }
+        self.set_text_value(value)
+    }
+
+    fn update_text_target_after_action(&mut self, action: &UiAction) {
+        match action {
+            UiAction::FocusBrowserSearch => self.text_input_target = TextInputTarget::BrowserSearch,
+            UiAction::FocusFolderSearch => self.text_input_target = TextInputTarget::FolderSearch,
+            UiAction::ConfirmPrompt | UiAction::CancelPrompt => {
+                self.text_input_target = TextInputTarget::None;
+            }
+            _ => {}
+        }
+    }
 }
 
 impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
@@ -330,14 +402,22 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 if let (Some(point), Some(layout), Some(window)) =
                     (self.last_cursor, self.shell_layout.as_ref(), window)
                 {
+                    self.text_input_target = TextInputTarget::None;
                     let mut handled = false;
-                    if let Some(action) = action_from_pointer(
+                    if self
+                        .shell_state
+                        .prompt_input_at_point(layout, &self.model, point)
+                    {
+                        self.text_input_target = TextInputTarget::PromptInput;
+                        handled = true;
+                    } else if let Some(action) = action_from_pointer(
                         layout,
                         &self.model,
                         &self.shell_state,
                         point,
                         self.modifiers,
                     ) {
+                        self.update_text_target_after_action(&action);
                         self.bridge.on_action(action);
                         handled = true;
                     } else if self.shell_state.handle_primary_click(layout, point)
@@ -358,19 +438,57 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let window = self.window.as_ref().cloned();
-                if event.state == ElementState::Pressed
-                    && !event.repeat
-                    && let PhysicalKey::Code(code) = event.physical_key
-                    && let Some(key) = key_code_from_winit(code)
-                {
-                    let mut handled = if self.model.confirm_prompt.visible {
-                        false
-                    } else {
-                        self.shell_state.handle_key(key)
-                    };
-                    if let Some(action) = action_from_key(key, self.modifiers, &self.model) {
-                        self.bridge.on_action(action);
+                if event.state == ElementState::Pressed && !event.repeat {
+                    let mut handled = false;
+                    if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
+                        if self.model.confirm_prompt.visible {
+                            self.bridge.on_action(UiAction::CancelPrompt);
+                            self.text_input_target = TextInputTarget::None;
+                            handled = true;
+                        } else if self.text_input_target != TextInputTarget::None {
+                            self.text_input_target = TextInputTarget::None;
+                            handled = true;
+                        }
+                    }
+                    if !handled && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
+                        handled = self.backspace_text();
+                    }
+                    if !handled
+                        && matches!(event.logical_key, Key::Named(NamedKey::Enter))
+                        && matches!(
+                            self.text_input_target,
+                            TextInputTarget::BrowserSearch | TextInputTarget::FolderSearch
+                        )
+                    {
+                        self.text_input_target = TextInputTarget::None;
                         handled = true;
+                    }
+                    if !handled
+                        && self.text_input_target != TextInputTarget::None
+                        && !self.modifiers.control_key()
+                        && !self.modifiers.super_key()
+                        && !self.modifiers.alt_key()
+                        && let Some(text) = event.text.as_ref()
+                    {
+                        let appended: String = text.chars().filter(|ch| !ch.is_control()).collect();
+                        if !appended.is_empty() {
+                            handled = self.append_text(&appended);
+                        }
+                    }
+                    if !handled
+                        && let PhysicalKey::Code(code) = event.physical_key
+                        && let Some(key) = key_code_from_winit(code)
+                    {
+                        handled = if self.model.confirm_prompt.visible {
+                            false
+                        } else {
+                            self.shell_state.handle_key(key)
+                        };
+                        if let Some(action) = action_from_key(key, self.modifiers, &self.model) {
+                            self.update_text_target_after_action(&action);
+                            self.bridge.on_action(action);
+                            handled = true;
+                        }
                     }
                     if handled && let Some(window) = window {
                         self.rebuild_scene();

@@ -227,6 +227,40 @@ mod tests {
     }
 
     #[test]
+    fn prompt_input_hit_test_resolves_text_entry_rect() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.confirm_prompt.visible = true;
+        model.confirm_prompt.input_value = Some(String::from("kicks"));
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let sizing = style.sizing;
+        let dialog = {
+            let width = sizing
+                .prompt_width
+                .min(layout.content.width() - (sizing.overlay_padding * 2.0))
+                .max(260.0);
+            let height = sizing
+                .prompt_min_height
+                .min(layout.content.height() - (sizing.overlay_padding * 2.0))
+                .max(108.0);
+            let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
+            let y = layout.content.min.y + (layout.content.height() - height).max(0.0) * 0.35;
+            crate::gui::types::Rect::from_min_max(
+                Point::new(x, y),
+                Point::new(x + width, y + height),
+            )
+        };
+        let input_y = dialog.min.y
+            + sizing.text_inset_y
+            + sizing.font_title
+            + sizing.font_meta
+            + (sizing.text_row_gap * 4.0);
+        let point = Point::new(dialog.min.x + 20.0, input_y + 8.0);
+        assert!(state.prompt_input_at_point(&layout, &model, point));
+    }
+
+    #[test]
     fn source_action_hit_test_emits_folder_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let state = NativeShellState::new();

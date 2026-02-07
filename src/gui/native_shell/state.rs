@@ -227,6 +227,20 @@ impl NativeShellState {
         None
     }
 
+    /// Return whether a point falls inside the active prompt text input rect.
+    pub(crate) fn prompt_input_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        if !model.confirm_prompt.visible {
+            return false;
+        }
+        let style = style_for_layout(layout);
+        prompt_input_rect(layout, &style, model).is_some_and(|rect| rect.contains(point))
+    }
+
     /// Resolve a progress-overlay cancel click.
     pub(crate) fn progress_action_at_point(
         &self,
@@ -1356,6 +1370,31 @@ fn prompt_buttons(layout: &ShellLayout, style: &StyleTokens) -> (Rect, Rect) {
     (confirm, cancel)
 }
 
+fn prompt_input_rect(layout: &ShellLayout, style: &StyleTokens, model: &AppModel) -> Option<Rect> {
+    if model.confirm_prompt.input_value.is_none() {
+        return None;
+    }
+    let sizing = style.sizing;
+    let dialog = prompt_dialog_rect(layout, style);
+    let input_y = dialog.min.y
+        + sizing.text_inset_y
+        + sizing.font_title
+        + sizing.font_meta
+        + (sizing.text_row_gap * 4.0)
+        + if model.confirm_prompt.target_label.is_some() {
+            sizing.font_meta + sizing.text_row_gap
+        } else {
+            0.0
+        };
+    let height = (sizing.overlay_button_height - 2.0).max(18.0);
+    let min_y =
+        input_y.min(dialog.max.y - sizing.overlay_button_height - sizing.text_inset_y - 6.0);
+    Some(Rect::from_min_max(
+        Point::new(dialog.min.x + sizing.text_inset_x, min_y),
+        Point::new(dialog.max.x - sizing.text_inset_x, min_y + height),
+    ))
+}
+
 fn drag_overlay_rect(layout: &ShellLayout, style: &StyleTokens) -> Rect {
     let sizing = style.sizing;
     let width = (layout.content.width() * 0.72).clamp(260.0, 520.0);
@@ -1589,6 +1628,59 @@ fn render_confirm_prompt(
             max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
             align: TextAlign::Left,
         });
+    }
+    if let Some(input_rect) = prompt_input_rect(layout, style, model) {
+        primitives.push(Primitive::Rect(FillRect {
+            rect: input_rect,
+            color: style.bg_primary,
+        }));
+        push_border(
+            primitives,
+            input_rect,
+            style.accent_copper,
+            sizing.border_width,
+        );
+        let input_text = model
+            .confirm_prompt
+            .input_value
+            .as_deref()
+            .unwrap_or_default();
+        let (text, color) = if input_text.is_empty() {
+            (
+                model
+                    .confirm_prompt
+                    .input_placeholder
+                    .as_deref()
+                    .unwrap_or("Type here…"),
+                style.text_muted,
+            )
+        } else {
+            (input_text, style.text_primary)
+        };
+        text_runs.push(TextRun {
+            text: text.to_string(),
+            position: Point::new(
+                input_rect.min.x + sizing.text_inset_x,
+                input_rect.min.y + sizing.text_inset_y,
+            ),
+            font_size: sizing.font_meta,
+            color,
+            max_width: Some((input_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+            align: TextAlign::Left,
+        });
+        if let Some(error) = model.confirm_prompt.input_error.as_ref() {
+            text_runs.push(TextRun {
+                text: error.clone(),
+                position: Point::new(
+                    input_rect.min.x + sizing.text_inset_x,
+                    input_rect.max.y + sizing.text_row_gap,
+                ),
+                font_size: sizing.font_meta,
+                color: style.accent_warning,
+                max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+                align: TextAlign::Left,
+            });
+        }
     }
     let (confirm_button, cancel_button) = prompt_buttons(layout, style);
     for (index, (rect, label, color)) in [

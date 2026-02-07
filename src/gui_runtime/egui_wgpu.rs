@@ -77,20 +77,22 @@ struct VelloScratch {
 
 impl VelloScratch {
     fn new(render_state: &egui_wgpu::RenderState) -> Option<Self> {
-        let texture = render_state.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("vello_runtime_scratch"),
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
+        let texture = render_state
+            .device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("vello_runtime_scratch"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            });
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let renderer = Renderer::new(&render_state.device, VelloRendererOptions::default()).ok()?;
         Some(Self {
@@ -191,7 +193,8 @@ impl<A: EguiAppRuntime> EguiWgpuRunner<A> {
             false,
             RendererOptions::default(),
         ));
-        if let Err(err) = pollster::block_on(painter.set_window(ViewportId::ROOT, Some(window.clone())))
+        if let Err(err) =
+            pollster::block_on(painter.set_window(ViewportId::ROOT, Some(window.clone())))
         {
             eprintln!("Failed to initialize wgpu surface: {err}");
             event_loop.exit();
@@ -273,7 +276,8 @@ impl<A: EguiAppRuntime> EguiWgpuRunner<A> {
         let full_output = egui_ctx.run(raw_input, |ctx| self.app.update(ctx, window));
         egui_state.handle_platform_output(window, full_output.platform_output.clone());
 
-        let clipped_primitives = egui_ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+        let clipped_primitives =
+            egui_ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
         {
             let Some(painter) = self.painter.as_mut() else {
                 return;
@@ -378,5 +382,7 @@ pub fn run_egui_wgpu_app<A: EguiAppRuntime + 'static>(
 ) -> Result<(), String> {
     let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
     let mut runner = EguiWgpuRunner::new(options, app);
-    event_loop.run_app(&mut runner).map_err(|err| err.to_string())
+    event_loop
+        .run_app(&mut runner)
+        .map_err(|err| err.to_string())
 }

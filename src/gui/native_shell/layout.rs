@@ -14,7 +14,9 @@ pub(crate) enum ShellNodeKind {
     Sidebar,
     Content,
     WaveformCard,
-    TriageColumn(usize),
+    BrowserPanel,
+    BrowserTabs,
+    BrowserTable,
     StatusBar,
 }
 
@@ -56,6 +58,12 @@ pub(crate) struct ShellLayout {
     pub waveform_card: Rect,
     pub waveform_header: Rect,
     pub waveform_plot: Rect,
+    pub browser_panel: Rect,
+    pub browser_tabs: Rect,
+    pub browser_toolbar: Rect,
+    pub browser_table_header: Rect,
+    pub browser_rows: Rect,
+    pub browser_footer: Rect,
     pub columns: [Rect; 3],
     pub column_headers: [Rect; 3],
     pub column_rows: [Rect; 3],
@@ -170,22 +178,80 @@ impl ShellLayout {
             ),
         );
 
-        let triage_top = (waveform_card.max.y + sizing.panel_gap).min(content.max.y - 1.0);
-        let triage_rect = Rect::from_min_max(Point::new(content.min.x, triage_top), content.max);
-        let base_column_width =
-            ((triage_rect.width() - (sizing.column_gap * 2.0)) / 3.0).max(sizing.column_min_width);
+        let browser_top = (waveform_card.max.y + sizing.panel_gap).min(content.max.y - 1.0);
+        let browser_panel = Rect::from_min_max(Point::new(content.min.x, browser_top), content.max);
+        let browser_tabs_height = sizing
+            .column_header_block_height
+            .max(18.0)
+            .min(browser_panel.height());
+        let browser_tabs = inset_horizontal(
+            band_header(browser_panel, browser_tabs_height),
+            sizing.panel_inset,
+        );
+        let browser_toolbar_top =
+            (browser_tabs.max.y + sizing.text_row_gap).min(browser_panel.max.y);
+        let browser_toolbar_height = (sizing.action_button_height + (sizing.text_inset_y * 2.0))
+            .max(20.0)
+            .min(30.0)
+            .min((browser_panel.max.y - browser_toolbar_top).max(0.0));
+        let browser_toolbar = inset_horizontal(
+            Rect::from_min_max(
+                Point::new(browser_panel.min.x, browser_toolbar_top),
+                Point::new(
+                    browser_panel.max.x,
+                    browser_toolbar_top + browser_toolbar_height,
+                ),
+            ),
+            sizing.panel_inset,
+        );
+        let browser_header_top =
+            (browser_toolbar.max.y + sizing.text_row_gap).min(browser_panel.max.y);
+        let browser_header_height = sizing
+            .browser_row_height
+            .max(18.0)
+            .min(26.0)
+            .min((browser_panel.max.y - browser_header_top).max(0.0));
+        let browser_table_header = inset_horizontal(
+            Rect::from_min_max(
+                Point::new(browser_panel.min.x, browser_header_top),
+                Point::new(
+                    browser_panel.max.x,
+                    browser_header_top + browser_header_height,
+                ),
+            ),
+            sizing.panel_inset,
+        );
+        let browser_footer = band_footer(
+            browser_panel,
+            (sizing.font_meta + (sizing.text_inset_y * 2.0) + 2.0).clamp(16.0, 24.0),
+            browser_table_header.max.y,
+        );
+        let browser_rows_top = (browser_table_header.max.y + sizing.text_row_gap)
+            .min(browser_footer.min.y)
+            .max(browser_panel.min.y);
+        let browser_rows = inset_horizontal(
+            Rect::from_min_max(
+                Point::new(browser_panel.min.x, browser_rows_top),
+                Point::new(browser_panel.max.x, browser_footer.min.y),
+            ),
+            sizing.panel_inset,
+        );
 
+        // Keep legacy triage partitions as invisible compatibility geometry for
+        // routing actions that still speak in triage-column terms.
+        let base_column_width =
+            ((browser_rows.width() - (sizing.column_gap * 2.0)) / 3.0).max(sizing.column_min_width);
         let mut columns = [Rect::default(), Rect::default(), Rect::default()];
         for (index, column) in columns.iter_mut().enumerate() {
-            let x0 = triage_rect.min.x + (base_column_width + sizing.column_gap) * index as f32;
+            let x0 = browser_rows.min.x + (base_column_width + sizing.column_gap) * index as f32;
             let x1 = if index == 2 {
-                triage_rect.max.x
+                browser_rows.max.x
             } else {
                 x0 + base_column_width
             };
             *column = Rect::from_min_max(
-                Point::new(x0, triage_rect.min.y),
-                Point::new(x1, triage_rect.max.y),
+                Point::new(x0, browser_rows.min.y),
+                Point::new(x1, browser_rows.max.y),
             );
         }
 
@@ -253,20 +319,33 @@ impl ShellLayout {
                     kind: ShellNodeKind::Content,
                     rect: content,
                     children: {
-                        let mut children = vec![ShellNode {
-                            id: 5,
-                            kind: ShellNodeKind::WaveformCard,
-                            rect: waveform_card,
-                            children: Vec::new(),
-                        }];
-                        for (index, rect) in columns.iter().copied().enumerate() {
-                            children.push(ShellNode {
-                                id: 100 + index as u64,
-                                kind: ShellNodeKind::TriageColumn(index),
-                                rect,
+                        let children = vec![
+                            ShellNode {
+                                id: 5,
+                                kind: ShellNodeKind::WaveformCard,
+                                rect: waveform_card,
                                 children: Vec::new(),
-                            });
-                        }
+                            },
+                            ShellNode {
+                                id: 100,
+                                kind: ShellNodeKind::BrowserPanel,
+                                rect: browser_panel,
+                                children: vec![
+                                    ShellNode {
+                                        id: 101,
+                                        kind: ShellNodeKind::BrowserTabs,
+                                        rect: browser_tabs,
+                                        children: Vec::new(),
+                                    },
+                                    ShellNode {
+                                        id: 102,
+                                        kind: ShellNodeKind::BrowserTable,
+                                        rect: browser_rows,
+                                        children: Vec::new(),
+                                    },
+                                ],
+                            },
+                        ];
                         children
                     },
                 },
@@ -292,6 +371,12 @@ impl ShellLayout {
             waveform_card,
             waveform_header,
             waveform_plot,
+            browser_panel,
+            browser_tabs,
+            browser_toolbar,
+            browser_table_header,
+            browser_rows,
+            browser_footer,
             columns,
             column_headers,
             column_rows,
@@ -309,10 +394,12 @@ impl ShellLayout {
 
     /// Resolve triage column index for a point, if any.
     pub(crate) fn column_at_point(&self, point: Point) -> Option<usize> {
-        match self.hit_test(point) {
-            Some(ShellNodeKind::TriageColumn(index)) => Some(index),
-            _ => None,
+        if !self.browser_rows.contains(point) {
+            return None;
         }
+        let ratio = ((point.x - self.browser_rows.min.x) / self.browser_rows.width().max(1.0))
+            .clamp(0.0, 0.999_9);
+        Some((ratio * 3.0).floor() as usize)
     }
 }
 

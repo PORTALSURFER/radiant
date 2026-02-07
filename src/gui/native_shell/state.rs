@@ -368,6 +368,26 @@ impl NativeShellState {
             rect: layout.status_bar,
             color: style.surface_raised,
         }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.browser_panel,
+            color: style.surface_raised,
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.browser_tabs,
+            color: style.surface_overlay,
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.browser_toolbar,
+            color: style.surface_base,
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.browser_table_header,
+            color: style.surface_overlay,
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.browser_footer,
+            color: style.surface_overlay,
+        }));
 
         let waveform_inner = layout.waveform_plot;
         let scan_step = sizing.waveform_scan_step;
@@ -446,75 +466,6 @@ impl NativeShellState {
             }));
         }
 
-        for (index, column_rect) in layout.columns.iter().copied().enumerate() {
-            let hovered = self.hovered == Some(ShellNodeKind::TriageColumn(index));
-            let selected = self.selected_column == index;
-            let mut fill = if selected {
-                blend_color(
-                    style.bg_tertiary,
-                    style.grid_soft,
-                    style.state_selected_blend,
-                )
-            } else {
-                style.surface_raised
-            };
-            if hovered {
-                fill = blend_color(fill, style.bg_tertiary, style.state_hover_strong);
-            }
-            primitives.push(Primitive::Rect(FillRect {
-                rect: column_rect,
-                color: fill,
-            }));
-            push_border(
-                &mut primitives,
-                column_rect,
-                if hovered {
-                    blend_color(
-                        style.accent_warning,
-                        style.text_primary,
-                        motion_wave * style.state_focus_pulse_blend,
-                    )
-                } else if selected {
-                    blend_color(
-                        style.accent_mint,
-                        style.text_primary,
-                        motion_wave * style.state_selected_blend,
-                    )
-                } else {
-                    style.border
-                },
-                if hovered || selected {
-                    sizing.focus_stroke_width
-                } else {
-                    sizing.border_width
-                },
-            );
-
-            let has_rendered_rows = model
-                .browser
-                .rows
-                .iter()
-                .any(|row| row.column.min(2) == index);
-            if !has_rendered_rows {
-                let row_count = model.columns[index].item_count.clamp(1, 10);
-                for row_rect in build_stacked_rows(
-                    layout.column_rows[index],
-                    row_count,
-                    sizing.browser_row_gap,
-                    sizing.browser_row_height,
-                ) {
-                    primitives.push(Primitive::Rect(FillRect {
-                        rect: row_rect,
-                        color: if selected {
-                            style.grid_strong
-                        } else {
-                            style.grid_soft
-                        },
-                    }));
-                }
-            }
-        }
-
         for row in rendered_browser_rows(layout, model, style) {
             let row_fill = if row.focused {
                 blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
@@ -567,6 +518,33 @@ impl NativeShellState {
                     sizing.border_width
                 },
             );
+            let chip_width = 52.0_f32.min((row.rect.width() * 0.24).max(20.0));
+            let chip_rect = Rect::from_min_max(
+                Point::new(
+                    (row.rect.max.x - chip_width - sizing.text_inset_x).max(row.rect.min.x + 8.0),
+                    row.rect.min.y + sizing.text_inset_y,
+                ),
+                Point::new(
+                    row.rect.max.x - sizing.text_inset_x,
+                    row.rect.max.y - sizing.text_inset_y,
+                ),
+            );
+            let chip_color = match row.column {
+                0 => blend_color(style.accent_warning, style.bg_secondary, 0.62),
+                2 => blend_color(style.accent_mint, style.bg_secondary, 0.62),
+                _ => blend_color(style.text_muted, style.bg_secondary, 0.62),
+            };
+            primitives.push(Primitive::Rect(FillRect {
+                rect: chip_rect,
+                color: chip_color,
+            }));
+            push_border(
+                &mut primitives,
+                chip_rect,
+                style.border,
+                sizing.border_width,
+            );
+            let label_max_width = row_label_width(row.rect, &sizing, 0.0, 20.0) - chip_width - 6.0;
             text_runs.push(TextRun {
                 text: row.label,
                 position: Point::new(
@@ -575,8 +553,23 @@ impl NativeShellState {
                 ),
                 font_size: sizing.font_body,
                 color: row_text_color,
-                max_width: Some(row_label_width(row.rect, &sizing, 0.0, 20.0)),
+                max_width: Some(label_max_width.max(20.0)),
                 align: TextAlign::Left,
+            });
+            text_runs.push(TextRun {
+                text: match row.column {
+                    0 => String::from("TRASH"),
+                    2 => String::from("KEEP"),
+                    _ => String::from("SAMPLE"),
+                },
+                position: Point::new(
+                    chip_rect.min.x + sizing.text_inset_x,
+                    text_top_in_rect(chip_rect, sizing.font_meta, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some((chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0)),
+                align: TextAlign::Center,
             });
         }
 
@@ -595,6 +588,18 @@ impl NativeShellState {
         push_border(
             &mut primitives,
             layout.waveform_card,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            &mut primitives,
+            layout.browser_panel,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            &mut primitives,
+            layout.browser_table_header,
             style.border,
             sizing.border_width,
         );
@@ -642,7 +647,40 @@ impl NativeShellState {
             font_size: sizing.font_meta,
             color: style.text_muted,
             max_width: Some(top_title_width),
-            align: TextAlign::Right,
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from("Options"),
+            position: Point::new(
+                layout.top_bar.min.x + sizing.text_inset_x,
+                text_top_in_rect(layout.top_bar, sizing.font_meta, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_primary,
+            max_width: Some(80.0),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from("Vol"),
+            position: Point::new(
+                layout.top_bar.min.x + 182.0,
+                text_top_in_rect(layout.top_bar, sizing.font_meta, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some(48.0),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from("Donate   Report issues"),
+            position: Point::new(
+                layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
+                layout.top_bar.min.y + sizing.text_inset_y,
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some((layout.top_bar_action_cluster.width() - 72.0).max(24.0)),
+            align: TextAlign::Left,
         });
         for button in browser_action_buttons(layout, style, model) {
             primitives.push(Primitive::Rect(FillRect {
@@ -930,11 +968,7 @@ impl NativeShellState {
                 let glyph = if row.is_root {
                     "•"
                 } else if row.has_children {
-                    if row.expanded {
-                        "▼"
-                    } else {
-                        "▶"
-                    }
+                    if row.expanded { "▼" } else { "▶" }
                 } else {
                     "·"
                 };
@@ -1116,35 +1150,98 @@ impl NativeShellState {
             ),
             align: TextAlign::Left,
         });
-        for (index, column) in layout.column_headers.iter().enumerate() {
-            let label = format!(
-                "{} ({})",
-                model.columns[index].title, model.columns[index].item_count
-            );
-            text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &label,
-                    (column.width() - (sizing.text_inset_x * 2.0)).max(56.0),
-                    sizing.font_header,
+        let tab_width =
+            ((layout.browser_tabs.width() - sizing.action_button_gap).max(0.0) * 0.5).max(80.0);
+        let samples_tab = Rect::from_min_max(
+            layout.browser_tabs.min,
+            Point::new(
+                layout.browser_tabs.min.x + tab_width,
+                layout.browser_tabs.max.y,
+            ),
+        );
+        let map_tab = Rect::from_min_max(
+            Point::new(
+                samples_tab.max.x + sizing.action_button_gap,
+                layout.browser_tabs.min.y,
+            ),
+            layout.browser_tabs.max,
+        );
+        let samples_text = format!(
+            "Samples ({})",
+            model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
+        );
+        text_runs.push(TextRun {
+            text: truncate_to_width(
+                &samples_text,
+                (samples_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0),
+                sizing.font_header,
+            ),
+            position: Point::new(
+                samples_tab.min.x + sizing.text_inset_x,
+                text_top_in_rect(samples_tab, sizing.font_header, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_header,
+            color: blend_color(
+                style.accent_mint,
+                style.text_primary,
+                motion_wave * style.state_selected_blend,
+            ),
+            max_width: Some((samples_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from("Similarity map"),
+            position: Point::new(
+                map_tab.min.x + sizing.text_inset_x,
+                text_top_in_rect(map_tab, sizing.font_header, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_header,
+            color: style.text_muted,
+            max_width: Some((map_tab.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            align: TextAlign::Left,
+        });
+        let toolbar_text =
+            format!("Search samples (Ctrl+F)    Find similar    Similarity sort    List order");
+        text_runs.push(TextRun {
+            text: truncate_to_width(
+                &toolbar_text,
+                (layout.browser_toolbar.width() - (sizing.text_inset_x * 2.0)).max(48.0),
+                sizing.font_meta,
+            ),
+            position: Point::new(
+                layout.browser_toolbar.min.x + sizing.text_inset_x,
+                text_top_in_rect(
+                    layout.browser_toolbar,
+                    sizing.font_meta,
+                    sizing.text_inset_y,
                 ),
-                position: Point::new(
-                    column.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                    text_top_in_rect(*column, sizing.font_header, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some(
+                (layout.browser_toolbar.width() - (sizing.text_inset_x * 2.0)).max(48.0),
+            ),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from(
+                "#   Sample name                                           BPM   Tag",
+            ),
+            position: Point::new(
+                layout.browser_table_header.min.x + sizing.text_inset_x,
+                text_top_in_rect(
+                    layout.browser_table_header,
+                    sizing.font_meta,
+                    sizing.text_inset_y,
                 ),
-                font_size: sizing.font_header,
-                color: if self.selected_column == index {
-                    blend_color(
-                        style.accent_mint,
-                        style.text_primary,
-                        motion_wave * style.state_selected_blend,
-                    )
-                } else {
-                    style.text_muted
-                },
-                max_width: Some((column.width() - (sizing.text_inset_x * 2.0)).max(56.0)),
-                align: TextAlign::Left,
-            });
-        }
+            ),
+            font_size: sizing.font_meta,
+            color: style.text_primary,
+            max_width: Some(
+                (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(48.0),
+            ),
+            align: TextAlign::Left,
+        });
 
         let status_text = if model.status_text.is_empty() {
             if self.transport_running {
@@ -1285,6 +1382,7 @@ impl NativeShellState {
 struct RenderedBrowserRow {
     visible_row: usize,
     label: String,
+    column: usize,
     selected: bool,
     focused: bool,
     rect: Rect,
@@ -1406,50 +1504,44 @@ fn rendered_browser_rows(
     style: &StyleTokens,
 ) -> Vec<RenderedBrowserRow> {
     let sizing = style.sizing;
-    let mut rows_by_column: [Vec<&BrowserRowModel>; 3] = [Vec::new(), Vec::new(), Vec::new()];
-    for row in &model.browser.rows {
-        let column = row.column.min(2);
-        rows_by_column[column].push(row);
+    if model.browser.rows.is_empty() {
+        return Vec::new();
     }
 
-    let mut rendered = Vec::new();
-    for (column, rows) in rows_by_column.iter().enumerate() {
-        if rows.is_empty() {
-            continue;
-        }
-        let max_rows_per_column =
-            browser_rows_per_column_capacity(layout.column_rows[column], sizing);
-        let window_start = browser_window_start_for_column(
-            rows,
-            max_rows_per_column,
-            model.browser.selected_visible_row,
-            model.browser.anchor_visible_row,
-        );
-        let window_end = (window_start + max_rows_per_column).min(rows.len());
-        let window = &rows[window_start..window_end];
-        for (row, rect) in window.iter().zip(build_stacked_rows(
-            layout.column_rows[column],
-            window.len(),
-            sizing.browser_row_gap,
-            sizing.browser_row_height,
-        )) {
-            let label_width = row_label_width(rect, &sizing, 0.0, 20.0);
-            rendered.push(RenderedBrowserRow {
-                visible_row: row.visible_row,
-                label: truncate_to_width(&row.label, label_width, sizing.font_body),
-                selected: row.selected,
-                focused: row.focused,
-                rect,
-            });
-        }
+    let window_len = browser_rows_capacity(layout.browser_rows, sizing);
+    let window_start = browser_window_start(
+        &model.browser.rows,
+        window_len,
+        model.browser.selected_visible_row,
+        model.browser.anchor_visible_row,
+    );
+    let window_end = (window_start + window_len).min(model.browser.rows.len());
+    let window = &model.browser.rows[window_start..window_end];
+
+    let mut rendered = Vec::with_capacity(window.len());
+    for (row, rect) in window.iter().zip(build_stacked_rows(
+        layout.browser_rows,
+        window.len(),
+        sizing.browser_row_gap,
+        sizing.browser_row_height,
+    )) {
+        let label_width = row_label_width(rect, &sizing, 0.0, 20.0);
+        rendered.push(RenderedBrowserRow {
+            visible_row: row.visible_row,
+            label: truncate_to_width(&row.label, label_width, sizing.font_body),
+            column: row.column.min(2),
+            selected: row.selected,
+            focused: row.focused,
+            rect,
+        });
     }
     rendered
 }
 
-fn browser_rows_per_column_capacity(column_rect: Rect, sizing: SizingTokens) -> usize {
+fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens) -> usize {
     let row_height = sizing.browser_row_height.max(1.0);
     let row_gap = sizing.browser_row_gap.max(0.0);
-    let geometric_capacity = ((column_rect.height() + row_gap) / (row_height + row_gap))
+    let geometric_capacity = ((table_rows_rect.height() + row_gap) / (row_height + row_gap))
         .floor()
         .max(1.0) as usize;
     geometric_capacity
@@ -1457,8 +1549,8 @@ fn browser_rows_per_column_capacity(column_rect: Rect, sizing: SizingTokens) -> 
         .min(sizing.browser_rows_max_per_column.max(1))
 }
 
-fn browser_window_start_for_column(
-    rows: &[&BrowserRowModel],
+fn browser_window_start(
+    rows: &[BrowserRowModel],
     window_len: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
@@ -1694,14 +1786,14 @@ fn browser_action_buttons(
         ),
     ];
 
-    let button_width = sizing.action_button_width;
+    let button_width = (sizing.action_button_width - 4.0).max(40.0);
     let button_height = sizing
         .action_button_height
-        .min((layout.top_bar_action_cluster.height() - 1.0).max(1.0));
+        .min((layout.browser_toolbar.height() - 1.0).max(1.0));
     let gap = sizing.action_button_gap;
     let total_width = (button_width * definitions.len() as f32)
         + (gap * (definitions.len().saturating_sub(1)) as f32);
-    let cluster = layout.top_bar_action_cluster;
+    let cluster = layout.browser_toolbar;
     let start_x = (cluster.max.x - sizing.text_inset_x - total_width)
         .max(cluster.min.x + sizing.text_inset_x);
     let y_min = cluster.min.y + 1.0;

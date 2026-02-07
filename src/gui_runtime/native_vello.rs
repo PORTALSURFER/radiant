@@ -666,7 +666,10 @@ fn action_from_pointer(
             }
         }
         ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
-        ShellNodeKind::Content => Some(UiAction::FocusBrowserPanel),
+        ShellNodeKind::Content
+        | ShellNodeKind::BrowserPanel
+        | ShellNodeKind::BrowserTabs
+        | ShellNodeKind::BrowserTable => Some(UiAction::FocusBrowserPanel),
         ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedSampleInBrowser),
         _ => None,
     }

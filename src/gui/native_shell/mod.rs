@@ -97,12 +97,12 @@ mod tests {
     fn hit_test_prefers_column_node_inside_content() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let center = Point::new(
-            (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
-            (layout.columns[0].min.y + layout.columns[0].max.y) * 0.5,
+            (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
+            (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
         );
         assert_eq!(
             layout.hit_test(center),
-            Some(layout::ShellNodeKind::TriageColumn(0))
+            Some(layout::ShellNodeKind::BrowserTable)
         );
     }
 
@@ -139,9 +139,9 @@ mod tests {
             .rows
             .push(crate::app::BrowserRowModel::new(7, "kick", 0, false, true));
         let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
-        let row_center_y = layout.column_rows[0].min.y + (style.sizing.browser_row_height * 0.5);
+        let row_center_y = layout.browser_rows.min.y + (style.sizing.browser_row_height * 0.5);
         let point = Point::new(
-            (layout.columns[0].min.x + layout.columns[0].max.x) * 0.5,
+            (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
             row_center_y,
         );
         assert_eq!(state.browser_row_at_point(&layout, &model, point), Some(7));
@@ -471,12 +471,12 @@ mod tests {
 
     #[test]
     fn long_browser_labels_are_truncated_with_ellipsis() {
-        let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
+        let layout = ShellLayout::build(Vector2::new(620.0, 420.0));
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.browser.rows.push(crate::app::BrowserRowModel::new(
             0,
-            "this_is_a_very_long_browser_row_label_that_should_truncate_in_native_shell_rendering.wav",
+            "this_is_a_very_long_browser_row_label_that_should_truncate_in_native_shell_rendering_and_is_intentionally_longer_than_any_practical_row_width_even_on_narrow_compact_views.wav",
             1,
             false,
             false,
@@ -549,21 +549,29 @@ mod tests {
         state.sync_from_model(&model);
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let frame = state.build_frame(&layout, &model);
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Folders (")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("entries")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("rows: 48")));
-        assert!(frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("col: 2/3")));
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Folders ("))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("entries"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("rows: 48"))
+        );
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("col: 2/3"))
+        );
     }
 }

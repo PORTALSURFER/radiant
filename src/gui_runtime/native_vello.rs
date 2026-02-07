@@ -517,8 +517,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
 
 fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) -> Option<UiAction> {
     if model.confirm_prompt.visible {
+        let confirm_enabled = model
+            .confirm_prompt
+            .input_error
+            .as_ref()
+            .is_none_or(|error| error.trim().is_empty());
         return match key {
-            KeyCode::Enter => Some(UiAction::ConfirmPrompt),
+            KeyCode::Enter if confirm_enabled => Some(UiAction::ConfirmPrompt),
             KeyCode::C => Some(UiAction::CancelPrompt),
             _ => None,
         };
@@ -1009,6 +1014,12 @@ mod tests {
         );
         assert_eq!(
             action_from_key(KeyCode::W, ModifiersState::default(), &model),
+            None
+        );
+
+        model.confirm_prompt.input_error = Some(String::from("Folder already exists"));
+        assert_eq!(
+            action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
             None
         );
     }

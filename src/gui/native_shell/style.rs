@@ -53,6 +53,14 @@ pub(crate) struct StyleTokens {
     pub border: Rgba8,
     /// Emphasized border color for clustered chrome boundaries.
     pub border_emphasis: Rgba8,
+    /// Divider color used between source-management sidebar sections.
+    pub source_section_divider: Rgba8,
+    /// Recovery badge fill color when entries are present but idle.
+    pub source_recovery_badge_idle: Rgba8,
+    /// Recovery badge fill color while recovery is actively running.
+    pub source_recovery_badge_active: Rgba8,
+    /// Disabled control fill color for action buttons.
+    pub control_disabled_fill: Rgba8,
     /// Primary grid line color.
     pub grid_strong: Rgba8,
     /// Secondary grid line color.
@@ -140,6 +148,8 @@ pub(crate) struct SizingTokens {
     pub folder_rows_min: usize,
     /// Gap between source/folder sections in the sidebar.
     pub sidebar_section_gap: f32,
+    /// Stroke width for source/folder section dividers.
+    pub source_section_divider_width: f32,
     /// Shared vertical spacing between section headers and their row stacks.
     pub header_to_rows_gap: f32,
     /// Top padding inside row-stack regions.
@@ -148,6 +158,12 @@ pub(crate) struct SizingTokens {
     pub panel_section_padding_bottom: f32,
     /// Top block height reserved for folder section header + metadata.
     pub folder_header_block_height: f32,
+    /// Recovery badge height in the folder section header.
+    pub recovery_badge_height: f32,
+    /// Minimum width reserved for folder recovery badges.
+    pub recovery_badge_min_width: f32,
+    /// Horizontal padding inside the recovery badge.
+    pub recovery_badge_padding_x: f32,
     /// Horizontal indent step for nested folder rows.
     pub folder_indent_step: f32,
     /// Space between compact metadata text rows.
@@ -253,6 +269,10 @@ impl StyleTokens {
             surface_overlay: rgba(36, 32, 29, 255),
             border: rgba(52, 47, 43, 255),
             border_emphasis: rgba(74, 67, 60, 255),
+            source_section_divider: rgba(67, 60, 55, 255),
+            source_recovery_badge_idle: rgba(58, 52, 46, 255),
+            source_recovery_badge_active: rgba(128, 100, 69, 255),
+            control_disabled_fill: rgba(39, 35, 32, 255),
             grid_strong: rgba(65, 58, 52, 255),
             grid_soft: rgba(45, 40, 36, 255),
             accent_mint: rgba(154, 186, 170, 255),
@@ -294,10 +314,14 @@ impl StyleTokens {
                 folder_rows_max: 18,
                 folder_rows_min: 4,
                 sidebar_section_gap: 8.0,
+                source_section_divider_width: 1.0,
                 header_to_rows_gap: 4.0,
                 panel_section_padding_top: 2.0,
                 panel_section_padding_bottom: 2.0,
                 folder_header_block_height: 32.0,
+                recovery_badge_height: 15.0,
+                recovery_badge_min_width: 62.0,
+                recovery_badge_padding_x: 6.0,
                 folder_indent_step: 12.0,
                 text_row_gap: 2.0,
                 title_meta_gap: 3.0,
@@ -367,10 +391,14 @@ impl StyleTokens {
             tokens.sizing.folder_rows_max = 14;
             tokens.sizing.folder_rows_min = 3;
             tokens.sizing.sidebar_section_gap = 6.0;
+            tokens.sizing.source_section_divider_width = 1.0;
             tokens.sizing.header_to_rows_gap = 3.0;
             tokens.sizing.panel_section_padding_top = 1.0;
             tokens.sizing.panel_section_padding_bottom = 1.0;
             tokens.sizing.folder_header_block_height = 28.0;
+            tokens.sizing.recovery_badge_height = 13.0;
+            tokens.sizing.recovery_badge_min_width = 54.0;
+            tokens.sizing.recovery_badge_padding_x = 5.0;
             tokens.sizing.folder_indent_step = 10.0;
             tokens.sizing.title_meta_gap = 2.0;
             tokens.sizing.row_corner_inset = 1.0;
@@ -412,6 +440,10 @@ impl StyleTokens {
             tokens.sizing.font_status = 10.5;
             tokens.surface_overlay = rgba(32, 29, 26, 255);
             tokens.border_emphasis = rgba(66, 60, 54, 255);
+            tokens.source_section_divider = rgba(59, 53, 48, 255);
+            tokens.source_recovery_badge_idle = rgba(52, 46, 42, 255);
+            tokens.source_recovery_badge_active = rgba(117, 92, 64, 255);
+            tokens.control_disabled_fill = rgba(35, 31, 28, 255);
             return tokens;
         }
 
@@ -442,10 +474,14 @@ impl StyleTokens {
             tokens.sizing.folder_rows_max = 22;
             tokens.sizing.folder_rows_min = 5;
             tokens.sizing.sidebar_section_gap = 10.0;
+            tokens.sizing.source_section_divider_width = 1.2;
             tokens.sizing.header_to_rows_gap = 5.0;
             tokens.sizing.panel_section_padding_top = 3.0;
             tokens.sizing.panel_section_padding_bottom = 3.0;
             tokens.sizing.folder_header_block_height = 34.0;
+            tokens.sizing.recovery_badge_height = 17.0;
+            tokens.sizing.recovery_badge_min_width = 70.0;
+            tokens.sizing.recovery_badge_padding_x = 7.0;
             tokens.sizing.folder_indent_step = 14.0;
             tokens.sizing.title_meta_gap = 4.0;
             tokens.sizing.row_corner_inset = 2.5;
@@ -487,6 +523,10 @@ impl StyleTokens {
             tokens.sizing.font_status = 11.5;
             tokens.surface_overlay = rgba(42, 37, 33, 255);
             tokens.border_emphasis = rgba(86, 78, 70, 255);
+            tokens.source_section_divider = rgba(77, 69, 62, 255);
+            tokens.source_recovery_badge_idle = rgba(64, 57, 50, 255);
+            tokens.source_recovery_badge_active = rgba(137, 108, 74, 255);
+            tokens.control_disabled_fill = rgba(46, 41, 36, 255);
         }
         tokens
     }
@@ -573,6 +613,8 @@ mod tests {
         assert!(narrow.sizing.row_corner_inset < wide.sizing.row_corner_inset);
         assert!(narrow.sizing.header_label_gutter < wide.sizing.header_label_gutter);
         assert!(narrow.sizing.status_segment_gap < wide.sizing.status_segment_gap);
+        assert!(narrow.sizing.recovery_badge_height < wide.sizing.recovery_badge_height);
+        assert!(narrow.sizing.recovery_badge_min_width < wide.sizing.recovery_badge_min_width);
         assert!(narrow.state_hover_strong < wide.state_hover_strong);
     }
 }

@@ -279,6 +279,60 @@ mod tests {
     }
 
     #[test]
+    fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.confirm_prompt.visible = true;
+        model.confirm_prompt.input_value = Some(String::from("bad/name"));
+        model.confirm_prompt.input_error =
+            Some(String::from("Folder name cannot contain path separators"));
+        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
+        let sizing = style.sizing;
+        let dialog = {
+            let width = sizing
+                .prompt_width
+                .min(layout.content.width() - (sizing.overlay_padding * 2.0))
+                .max(260.0);
+            let height = sizing
+                .prompt_min_height
+                .min(layout.content.height() - (sizing.overlay_padding * 2.0))
+                .max(108.0);
+            let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
+            let y = layout.content.min.y + (layout.content.height() - height).max(0.0) * 0.35;
+            crate::gui::types::Rect::from_min_max(
+                Point::new(x, y),
+                Point::new(x + width, y + height),
+            )
+        };
+        let cancel = crate::gui::types::Rect::from_min_max(
+            Point::new(
+                dialog.max.x - sizing.overlay_button_width - sizing.text_inset_x,
+                dialog.max.y - sizing.overlay_button_height - sizing.text_inset_y,
+            ),
+            Point::new(
+                dialog.max.x - sizing.text_inset_x,
+                dialog.max.y - sizing.text_inset_y,
+            ),
+        );
+        let confirm = crate::gui::types::Rect::from_min_max(
+            Point::new(
+                cancel.min.x - sizing.overlay_button_width - sizing.action_button_gap,
+                cancel.min.y,
+            ),
+            Point::new(cancel.min.x - sizing.action_button_gap, cancel.max.y),
+        );
+        let confirm_point = Point::new(
+            (confirm.min.x + confirm.max.x) * 0.5,
+            (confirm.min.y + confirm.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.prompt_action_at_point(&layout, &model, confirm_point),
+            None
+        );
+    }
+
+    #[test]
     fn source_action_hit_test_emits_folder_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let state = NativeShellState::new();
@@ -295,6 +349,22 @@ mod tests {
             state.source_action_at_point(&layout, &model, point),
             Some(crate::app::UiAction::DeleteFocusedFolder)
         );
+    }
+
+    #[test]
+    fn source_action_hit_test_ignores_disabled_button() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.sources.folder_actions.can_delete_folder = false;
+        let button = state
+            .source_action_button_rect(&layout, &model, crate::app::UiAction::DeleteFocusedFolder)
+            .expect("delete action button should be present");
+        let point = Point::new(
+            (button.min.x + button.max.x) * 0.5,
+            (button.min.y + button.max.y) * 0.5,
+        );
+        assert_eq!(state.source_action_at_point(&layout, &model, point), None);
     }
 
     #[test]

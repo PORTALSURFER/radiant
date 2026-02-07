@@ -262,6 +262,9 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (confirm_button, cancel_button) = prompt_buttons(layout, &style);
         if confirm_button.contains(point) {
+            if prompt_has_validation_error(model) {
+                return None;
+            }
             return Some(UiAction::ConfirmPrompt);
         }
         if cancel_button.contains(point) {
@@ -645,7 +648,7 @@ impl NativeShellState {
                 color: if button.enabled {
                     style.surface_overlay
                 } else {
-                    style.grid_soft
+                    style.control_disabled_fill
                 },
             }));
             push_border(
@@ -658,7 +661,7 @@ impl NativeShellState {
                         style.state_hover_soft,
                     )
                 } else {
-                    style.grid_soft
+                    style.border
                 },
                 sizing.border_width,
             );
@@ -785,6 +788,57 @@ impl NativeShellState {
         let folder_row_rects = rendered_folder_row_rects(layout, style, model);
         let rendered_folders = folder_row_rects.len();
         if rendered_folders > 0 {
+            if let Some(divider_rect) = source_section_divider_rect(&sidebar_sections, sizing) {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: divider_rect,
+                    color: style.source_section_divider,
+                }));
+            }
+            let recovery_badge = folder_recovery_badge_rect(
+                sidebar_sections.folder_header,
+                style,
+                model.sources.folder_recovery.in_progress,
+                model.sources.folder_recovery.entry_count,
+            );
+            if let Some((badge_rect, badge_text, badge_fill)) = recovery_badge.as_ref() {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: *badge_rect,
+                    color: *badge_fill,
+                }));
+                push_border(
+                    &mut primitives,
+                    *badge_rect,
+                    blend_color(
+                        style.border_emphasis,
+                        style.text_primary,
+                        style.state_hover_soft,
+                    ),
+                    sizing.border_width,
+                );
+                text_runs.push(TextRun {
+                    text: badge_text.clone(),
+                    position: Point::new(
+                        badge_rect.min.x + sizing.text_inset_x,
+                        text_top_in_rect(*badge_rect, sizing.font_meta, sizing.text_inset_y),
+                    ),
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some((badge_rect.width() - (sizing.text_inset_x * 2.0)).max(18.0)),
+                    align: TextAlign::Center,
+                });
+            }
+            let header_text_max_width = recovery_badge
+                .as_ref()
+                .map(|(badge_rect, _, _)| {
+                    (badge_rect.min.x
+                        - sidebar_sections.folder_header.min.x
+                        - (sizing.text_inset_x * 2.0)
+                        - sizing.header_label_gutter)
+                        .max(56.0)
+                })
+                .unwrap_or_else(|| {
+                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0)).max(56.0)
+                });
             text_runs.push(TextRun {
                 text: format!("Folders ({})", model.sources.folder_rows.len()),
                 position: Point::new(
@@ -795,24 +849,16 @@ impl NativeShellState {
                 ),
                 font_size: sizing.font_header,
                 color: style.text_primary,
-                max_width: Some(
-                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0))
-                        .max(64.0),
-                ),
+                max_width: Some(header_text_max_width),
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
                 text: format!(
-                    "query: {}{}",
+                    "query: {}",
                     if model.sources.folder_search_query.is_empty() {
                         "—"
                     } else {
                         model.sources.folder_search_query.as_str()
-                    },
-                    if model.sources.folder_recovery.in_progress {
-                        " | recovery running"
-                    } else {
-                        ""
                     }
                 ),
                 position: Point::new(
@@ -826,10 +872,7 @@ impl NativeShellState {
                 ),
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (sidebar_sections.folder_header.width() - (sizing.text_inset_x * 2.0))
-                        .max(64.0),
-                ),
+                max_width: Some(header_text_max_width),
                 align: TextAlign::Left,
             });
             for (row_index, row_rect) in folder_row_rects.into_iter().enumerate() {
@@ -883,11 +926,7 @@ impl NativeShellState {
                 let glyph = if row.is_root {
                     "•"
                 } else if row.has_children {
-                    if row.expanded {
-                        "▼"
-                    } else {
-                        "▶"
-                    }
+                    if row.expanded { "▼" } else { "▶" }
                 } else {
                     "·"
                 };
@@ -921,7 +960,7 @@ impl NativeShellState {
                 color: if button.enabled {
                     style.surface_overlay
                 } else {
-                    style.grid_soft
+                    style.control_disabled_fill
                 },
             }));
             push_border(
@@ -934,7 +973,7 @@ impl NativeShellState {
                         style.state_hover_soft,
                     )
                 } else {
-                    style.grid_soft
+                    style.border
                 },
                 sizing.border_width,
             );
@@ -1978,6 +2017,7 @@ fn render_confirm_prompt(
         return;
     }
     let sizing = style.sizing;
+    let confirm_enabled = !prompt_has_validation_error(model);
     primitives.push(Primitive::Rect(FillRect {
         rect: layout.root.rect,
         color: Rgba8 {
@@ -2046,7 +2086,11 @@ fn render_confirm_prompt(
         push_border(
             primitives,
             input_rect,
-            style.accent_copper,
+            if model.confirm_prompt.input_error.is_some() {
+                style.accent_warning
+            } else {
+                style.accent_copper
+            },
             sizing.border_width,
         );
         let input_text = model
@@ -2115,11 +2159,21 @@ fn render_confirm_prompt(
     .into_iter()
     .enumerate()
     {
+        let enabled = if index == 0 { confirm_enabled } else { true };
         primitives.push(Primitive::Rect(FillRect {
             rect,
-            color: style.surface_overlay,
+            color: if enabled {
+                style.surface_overlay
+            } else {
+                style.control_disabled_fill
+            },
         }));
-        push_border(primitives, rect, color, sizing.border_width);
+        push_border(
+            primitives,
+            rect,
+            if enabled { color } else { style.border },
+            sizing.border_width,
+        );
         text_runs.push(TextRun {
             text: label.to_string(),
             position: Point::new(
@@ -2127,7 +2181,9 @@ fn render_confirm_prompt(
                 text_top_in_rect(rect, sizing.font_meta, sizing.text_inset_y),
             ),
             font_size: sizing.font_meta,
-            color: if index == 0 {
+            color: if !enabled {
+                style.text_muted
+            } else if index == 0 {
                 style.text_primary
             } else {
                 style.text_muted
@@ -2197,6 +2253,14 @@ fn text_top_in_rect(rect: Rect, font_size: f32, minimum_inset_y: f32) -> f32 {
     centered_y.max(rect.min.y + minimum_inset_y)
 }
 
+fn prompt_has_validation_error(model: &AppModel) -> bool {
+    model
+        .confirm_prompt
+        .input_error
+        .as_ref()
+        .is_some_and(|error| !error.trim().is_empty())
+}
+
 fn row_label_x(rect: Rect, sizing: &SizingTokens, extra_indent: f32) -> f32 {
     rect.min.x + sizing.text_inset_x + sizing.row_corner_inset + extra_indent.max(0.0)
 }
@@ -2204,6 +2268,57 @@ fn row_label_x(rect: Rect, sizing: &SizingTokens, extra_indent: f32) -> f32 {
 fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_width: f32) -> f32 {
     (rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0) - extra_indent.max(0.0))
         .max(min_width.max(0.0))
+}
+
+fn source_section_divider_rect(sections: &SidebarSections, sizing: SizingTokens) -> Option<Rect> {
+    let divider_height = sizing.source_section_divider_width.max(0.5);
+    let divider_y =
+        sections.folder_header.min.y.max(sections.source_rows.max.y) - (divider_height * 0.5);
+    let min_y = divider_y.max(sections.source_rows.min.y);
+    let max_y = (min_y + divider_height).min(sections.folder_rows.max.y);
+    (max_y > min_y).then_some(Rect::from_min_max(
+        Point::new(sections.source_rows.min.x, min_y),
+        Point::new(sections.source_rows.max.x, max_y),
+    ))
+}
+
+fn folder_recovery_badge_rect(
+    header_rect: Rect,
+    style: &StyleTokens,
+    recovery_in_progress: bool,
+    recovery_entry_count: usize,
+) -> Option<(Rect, String, Rgba8)> {
+    if !recovery_in_progress && recovery_entry_count == 0 {
+        return None;
+    }
+    let sizing = style.sizing;
+    let label = if recovery_in_progress {
+        String::from("Recovery")
+    } else {
+        format!("{} entries", recovery_entry_count)
+    };
+    let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
+    let label_width = label.chars().count() as f32 * approx_char_width;
+    let badge_width = (label_width + (sizing.recovery_badge_padding_x * 2.0))
+        .max(sizing.recovery_badge_min_width);
+    let badge_height = sizing
+        .recovery_badge_height
+        .min((header_rect.height() - 2.0).max(10.0));
+    let min_x = (header_rect.max.x - sizing.text_inset_x - badge_width).max(header_rect.min.x);
+    let min_y = header_rect.min.y + ((header_rect.height() - badge_height).max(0.0) * 0.5);
+    let rect = Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(
+            (min_x + badge_width).min(header_rect.max.x),
+            min_y + badge_height,
+        ),
+    );
+    let fill = if recovery_in_progress {
+        style.source_recovery_badge_active
+    } else {
+        style.source_recovery_badge_idle
+    };
+    Some((rect, label, fill))
 }
 
 fn push_border(

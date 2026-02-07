@@ -176,14 +176,22 @@ mod tests {
         let viewport = Vector2::new(1440.0, 810.0);
         let style = style::StyleTokens::for_viewport_width(viewport.x);
         let layout = ShellLayout::build(viewport);
-        let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
-        let row_capacity = (layout.browser_rows.height() / row_stride).floor() as usize;
+        let snapshot = layout.contract_snapshot(&style);
 
-        assert!((155.0..=220.0).contains(&layout.sidebar.width()));
-        assert!((150.0..=280.0).contains(&layout.waveform_card.height()));
-        assert!(row_capacity >= 22);
-        assert!(layout.top_bar.height() <= 34.0);
-        assert!(layout.status_bar.height() <= 20.0);
+        assert!((155.0..=220.0).contains(&snapshot.sidebar_width));
+        assert!((150.0..=280.0).contains(&snapshot.waveform_height));
+        assert!(snapshot.browser_row_capacity >= 22);
+        assert!(snapshot.top_bar_height <= 34.0);
+        assert!(snapshot.status_bar_height <= 20.0);
+    }
+
+    #[test]
+    fn layout_snapshot_clamps_to_tokenized_min_viewport() {
+        let style = style::StyleTokens::for_viewport_width(0.0);
+        let layout = ShellLayout::build_with_style(Vector2::new(1.0, 1.0), &style);
+        let snapshot = layout.contract_snapshot(&style);
+        assert_eq!(snapshot.viewport_width, style.sizing.min_viewport_width);
+        assert_eq!(snapshot.viewport_height, style.sizing.min_viewport_height);
     }
 
     #[test]

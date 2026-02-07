@@ -102,6 +102,10 @@ pub(crate) struct StyleTokens {
 /// Compact sizing tokens used by the native shell.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SizingTokens {
+    /// Minimum logical viewport width used by shell layout clamping.
+    pub min_viewport_width: f32,
+    /// Minimum logical viewport height used by shell layout clamping.
+    pub min_viewport_height: f32,
     /// Root frame inset around the full shell viewport.
     pub frame_inset: f32,
     /// Shared gap between major shell panels.
@@ -110,6 +114,10 @@ pub(crate) struct SizingTokens {
     pub top_bar_height: f32,
     /// Height of the top title/menu row inside the top bar.
     pub top_bar_title_row_height: f32,
+    /// Minimum title-row height when vertical space is constrained.
+    pub top_bar_title_row_min_height: f32,
+    /// Minimum reserved gap between title row and controls row.
+    pub top_bar_title_row_bottom_gap: f32,
     /// Fixed status-bar band height.
     pub status_bar_height: f32,
     /// Sidebar width ratio against body width.
@@ -134,12 +142,22 @@ pub(crate) struct SizingTokens {
     pub column_min_width: f32,
     /// Height of the browser tab band.
     pub browser_tabs_height: f32,
+    /// Minimum tabs-band height when browser panel space is constrained.
+    pub browser_tabs_min_height: f32,
     /// Height of the browser toolbar band.
     pub browser_toolbar_height: f32,
+    /// Minimum toolbar height when browser panel space is constrained.
+    pub browser_toolbar_min_height: f32,
     /// Height of the browser table-header band.
     pub browser_table_header_height: f32,
+    /// Minimum table-header height when browser panel space is constrained.
+    pub browser_table_header_min_height: f32,
     /// Height of the browser footer band.
     pub browser_footer_height: f32,
+    /// Minimum browser footer height to keep summary labels visible.
+    pub browser_footer_min_height: f32,
+    /// Maximum browser footer height to preserve row density.
+    pub browser_footer_max_height: f32,
     /// Minimum width reserved for browser search controls.
     pub browser_search_field_min_width: f32,
     /// Preferred browser search width as a ratio of toolbar width.
@@ -212,6 +230,12 @@ pub(crate) struct SizingTokens {
     pub source_bottom_padding: f32,
     /// Bottom padding reserved for triage columns.
     pub column_bottom_padding: f32,
+    /// Minimum content width reserved while clamping sidebar width.
+    pub content_tail_min_width: f32,
+    /// Minimum content height reserved for the browser panel.
+    pub content_browser_min_height: f32,
+    /// Minimum waveform card height when content is constrained.
+    pub waveform_card_floor_height: f32,
     /// Browser action button width.
     pub action_button_width: f32,
     /// Browser action button height.
@@ -228,6 +252,8 @@ pub(crate) struct SizingTokens {
     pub top_bar_action_cluster_min_width: f32,
     /// Maximum width reserved for top-bar actions cluster.
     pub top_bar_action_cluster_max_width: f32,
+    /// Minimum width reserved for the title cluster beside actions.
+    pub top_bar_action_cluster_title_reserve_width: f32,
     /// Horizontal gap between status-bar text segments.
     pub status_segment_gap: f32,
     /// Outer padding for modal overlays.
@@ -321,10 +347,14 @@ impl StyleTokens {
             scrim_soft_alpha: 172,
             scrim_modal_alpha: 188,
             sizing: SizingTokens {
+                min_viewport_width: 620.0,
+                min_viewport_height: 400.0,
                 frame_inset: 5.0,
                 panel_gap: 3.0,
                 top_bar_height: 32.0,
                 top_bar_title_row_height: 13.0,
+                top_bar_title_row_min_height: 12.0,
+                top_bar_title_row_bottom_gap: 4.0,
                 status_bar_height: 17.0,
                 sidebar_ratio: 0.16,
                 sidebar_min_width: 158.0,
@@ -337,9 +367,14 @@ impl StyleTokens {
                 browser_rows_max_per_column: 40,
                 column_min_width: 40.0,
                 browser_tabs_height: 18.0,
+                browser_tabs_min_height: 16.0,
                 browser_toolbar_height: 19.0,
+                browser_toolbar_min_height: 18.0,
                 browser_table_header_height: 18.0,
+                browser_table_header_min_height: 16.0,
                 browser_footer_height: 15.0,
+                browser_footer_min_height: 14.0,
+                browser_footer_max_height: 28.0,
                 browser_search_field_min_width: 124.0,
                 browser_search_field_ratio: 0.46,
                 browser_index_col_width: 32.0,
@@ -376,6 +411,9 @@ impl StyleTokens {
                 waveform_header_block_height: 27.0,
                 source_bottom_padding: 6.0,
                 column_bottom_padding: 4.0,
+                content_tail_min_width: 64.0,
+                content_browser_min_height: 64.0,
+                waveform_card_floor_height: 70.0,
                 action_button_width: 48.0,
                 action_button_height: 15.0,
                 action_button_gap: 3.0,
@@ -384,6 +422,7 @@ impl StyleTokens {
                 top_volume_meter_height: 6.0,
                 top_bar_action_cluster_min_width: 250.0,
                 top_bar_action_cluster_max_width: 480.0,
+                top_bar_action_cluster_title_reserve_width: 72.0,
                 status_segment_gap: 8.0,
                 overlay_padding: 14.0,
                 prompt_width: 420.0,

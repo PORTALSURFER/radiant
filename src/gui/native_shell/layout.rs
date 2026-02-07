@@ -75,18 +75,37 @@ pub(crate) struct ShellLayout {
     pub status_right_segment: Rect,
 }
 
+/// Derived metrics used to validate layout parity contracts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) struct LayoutContractSnapshot {
+    /// Effective viewport width after layout clamping.
+    pub viewport_width: f32,
+    /// Effective viewport height after layout clamping.
+    pub viewport_height: f32,
+    /// Sidebar width in logical pixels.
+    pub sidebar_width: f32,
+    /// Waveform card height in logical pixels.
+    pub waveform_height: f32,
+    /// Browser table row capacity using active row-height tokens.
+    pub browser_row_capacity: usize,
+    /// Top-bar height in logical pixels.
+    pub top_bar_height: f32,
+    /// Status-bar height in logical pixels.
+    pub status_bar_height: f32,
+}
+
 impl ShellLayout {
     /// Build shell layout for the provided logical viewport dimensions.
     pub(crate) fn build(viewport: Vector2) -> Self {
-        let viewport_width = viewport.x.max(620.0);
-        let style = StyleTokens::for_viewport_width(viewport_width);
+        let style = StyleTokens::for_viewport_width(viewport.x);
         Self::build_with_style(viewport, &style)
     }
 
     /// Build shell layout for the provided viewport and style token set.
     pub(crate) fn build_with_style(viewport: Vector2, style: &StyleTokens) -> Self {
-        let viewport_width = viewport.x.max(620.0);
-        let viewport_height = viewport.y.max(400.0);
+        let viewport_width = viewport.x.max(style.sizing.min_viewport_width);
+        let viewport_height = viewport.y.max(style.sizing.min_viewport_height);
         let sizing = style.sizing;
 
         let root_rect = Rect::from_min_size(
@@ -100,8 +119,11 @@ impl ShellLayout {
         );
         let title_row_height = sizing
             .top_bar_title_row_height
-            .max(12.0)
-            .min((top_bar.height() - 4.0).max(12.0));
+            .max(sizing.top_bar_title_row_min_height)
+            .min(
+                (top_bar.height() - sizing.top_bar_title_row_bottom_gap)
+                    .max(sizing.top_bar_title_row_min_height),
+            );
         let top_bar_title_row = Rect::from_min_max(
             top_bar.min,
             Point::new(
@@ -122,7 +144,8 @@ impl ShellLayout {
                 sizing.top_bar_action_cluster_min_width,
                 sizing.top_bar_action_cluster_max_width,
             );
-        let max_action_cluster_width = (top_bar_inner.width() - 72.0).max(0.0);
+        let max_action_cluster_width =
+            (top_bar_inner.width() - sizing.top_bar_action_cluster_title_reserve_width).max(0.0);
         let action_cluster_width = desired_action_cluster_width.min(max_action_cluster_width);
         let top_bar_action_cluster = if action_cluster_width > 0.0 {
             Rect::from_min_max(
@@ -182,12 +205,16 @@ impl ShellLayout {
         );
         let sidebar =
             Rect::from_min_max(body.min, Point::new(body.min.x + sidebar_width, body.max.y));
-        let content_min_x = (sidebar.max.x + sizing.panel_gap).min(body.max.x - 64.0);
+        let content_min_x =
+            (sidebar.max.x + sizing.panel_gap).min(body.max.x - sizing.content_tail_min_width);
         let content = Rect::from_min_max(Point::new(content_min_x, body.min.y), body.max);
 
         let waveform_height = (content.height() * sizing.waveform_ratio)
             .clamp(sizing.waveform_min_height, sizing.waveform_max_height)
-            .min((content.height() - 64.0).max(70.0));
+            .min(
+                (content.height() - sizing.content_browser_min_height)
+                    .max(sizing.waveform_card_floor_height),
+            );
         let waveform_card = Rect::from_min_max(
             content.min,
             Point::new(
@@ -200,7 +227,7 @@ impl ShellLayout {
         let browser_panel = Rect::from_min_max(Point::new(content.min.x, browser_top), content.max);
         let browser_tabs_height = sizing
             .browser_tabs_height
-            .max(16.0)
+            .max(sizing.browser_tabs_min_height)
             .min(browser_panel.height());
         let browser_tabs = inset_horizontal(
             band_header(browser_panel, browser_tabs_height),
@@ -210,7 +237,7 @@ impl ShellLayout {
             (browser_tabs.max.y + sizing.text_row_gap).min(browser_panel.max.y);
         let browser_toolbar_height = sizing
             .browser_toolbar_height
-            .max(18.0)
+            .max(sizing.browser_toolbar_min_height)
             .min((browser_panel.max.y - browser_toolbar_top).max(0.0));
         let browser_toolbar = inset_horizontal(
             Rect::from_min_max(
@@ -226,7 +253,7 @@ impl ShellLayout {
             (browser_toolbar.max.y + sizing.text_row_gap).min(browser_panel.max.y);
         let browser_header_height = sizing
             .browser_table_header_height
-            .max(16.0)
+            .max(sizing.browser_table_header_min_height)
             .min((browser_panel.max.y - browser_header_top).max(0.0));
         let browser_table_header = inset_horizontal(
             Rect::from_min_max(
@@ -240,7 +267,10 @@ impl ShellLayout {
         );
         let browser_footer = band_footer(
             browser_panel,
-            sizing.browser_footer_height.clamp(14.0, 28.0),
+            sizing.browser_footer_height.clamp(
+                sizing.browser_footer_min_height,
+                sizing.browser_footer_max_height,
+            ),
             browser_table_header.max.y,
         );
         let browser_rows_top = (browser_table_header.max.y + sizing.text_row_gap)
@@ -419,6 +449,21 @@ impl ShellLayout {
         let ratio = ((point.x - self.browser_rows.min.x) / self.browser_rows.width().max(1.0))
             .clamp(0.0, 0.999_9);
         Some((ratio * 3.0).floor() as usize)
+    }
+
+    /// Build a compact metric snapshot used by parity/layout contract tests.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn contract_snapshot(&self, style: &StyleTokens) -> LayoutContractSnapshot {
+        let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
+        LayoutContractSnapshot {
+            viewport_width: self.root.rect.width(),
+            viewport_height: self.root.rect.height(),
+            sidebar_width: self.sidebar.width(),
+            waveform_height: self.waveform_card.height(),
+            browser_row_capacity: (self.browser_rows.height() / row_stride).floor() as usize,
+            top_bar_height: self.top_bar.height(),
+            status_bar_height: self.status_bar.height(),
+        }
     }
 }
 

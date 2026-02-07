@@ -125,6 +125,28 @@ mod tests {
     }
 
     #[test]
+    fn top_bar_clusters_stay_ordered_and_inside_bar() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert!(layout.top_bar_title_cluster.min.x >= layout.top_bar.min.x);
+        assert!(layout.top_bar_title_cluster.max.y <= layout.top_bar.max.y);
+        assert!(layout.top_bar_action_cluster.min.x >= layout.top_bar.min.x);
+        assert!(layout.top_bar_action_cluster.max.y <= layout.top_bar.max.y);
+        assert!(layout.top_bar_title_cluster.max.x <= layout.top_bar_action_cluster.min.x);
+    }
+
+    #[test]
+    fn status_segments_remain_non_overlapping_and_bounded() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert!(layout.status_left_segment.min.x >= layout.status_bar.min.x);
+        assert!(layout.status_right_segment.max.x <= layout.status_bar.max.x);
+        assert!(layout.status_left_segment.max.x <= layout.status_center_segment.min.x);
+        assert!(layout.status_center_segment.max.x <= layout.status_right_segment.min.x);
+        assert!(layout.status_left_segment.max.y <= layout.status_bar.max.y);
+        assert!(layout.status_center_segment.max.y <= layout.status_bar.max.y);
+        assert!(layout.status_right_segment.max.y <= layout.status_bar.max.y);
+    }
+
+    #[test]
     fn layout_uses_tokenized_shell_heights() {
         let width = 1280.0;
         let height = 720.0;
@@ -140,20 +162,16 @@ mod tests {
         let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.browser_actions.can_delete = true;
-        let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
-        let sizing = style.sizing;
-        let button_count = 5.0;
-        let total_width =
-            (sizing.action_button_width * button_count) + (sizing.action_button_gap * 4.0);
-        let start_x = (layout.top_bar.max.x - (sizing.text_inset_x + 32.0) - total_width)
-            .max(layout.top_bar.min.x + 180.0);
-        let y = (layout.top_bar.max.y - sizing.action_button_height - sizing.text_inset_y)
-            .max(layout.top_bar.min.y + 1.0);
+        let button = state
+            .browser_action_button_rect(
+                &layout,
+                &model,
+                crate::app::UiAction::DeleteBrowserSelection,
+            )
+            .expect("delete action button should be present");
         let point = Point::new(
-            start_x
-                + ((sizing.action_button_width + sizing.action_button_gap) * 4.0)
-                + (sizing.action_button_width * 0.5),
-            y + (sizing.action_button_height * 0.5),
+            (button.min.x + button.max.x) * 0.5,
+            (button.min.y + button.max.y) * 0.5,
         );
         assert_eq!(
             state.browser_action_at_point(&layout, &model, point),

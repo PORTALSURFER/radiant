@@ -43,8 +43,16 @@ pub(crate) struct StyleTokens {
     pub bg_secondary: Rgba8,
     /// Tertiary/raised surface fill.
     pub bg_tertiary: Rgba8,
+    /// Base shell surface for content-heavy regions.
+    pub surface_base: Rgba8,
+    /// Raised shell surface for cards/chrome regions.
+    pub surface_raised: Rgba8,
+    /// Overlay/dialog surface fill.
+    pub surface_overlay: Rgba8,
     /// Standard border color.
     pub border: Rgba8,
+    /// Emphasized border color for clustered chrome boundaries.
+    pub border_emphasis: Rgba8,
     /// Primary grid line color.
     pub grid_strong: Rgba8,
     /// Secondary grid line color.
@@ -59,6 +67,18 @@ pub(crate) struct StyleTokens {
     pub text_primary: Rgba8,
     /// Secondary muted text color.
     pub text_muted: Rgba8,
+    /// Blend amount for subtle hover states.
+    pub state_hover_soft: f32,
+    /// Blend amount for stronger hover states.
+    pub state_hover_strong: f32,
+    /// Blend amount for selected-state fills.
+    pub state_selected_blend: f32,
+    /// Blend amount for pulsing focused-state fills/borders.
+    pub state_focus_pulse_blend: f32,
+    /// Alpha used by non-modal background scrims.
+    pub scrim_soft_alpha: u8,
+    /// Alpha used by modal-blocking background scrims.
+    pub scrim_modal_alpha: u8,
     /// Compact sizing tokens for layout rhythm and element scale.
     pub sizing: SizingTokens,
 }
@@ -96,6 +116,8 @@ pub(crate) struct SizingTokens {
     pub column_min_width: f32,
     /// Shared panel inset for nested regions.
     pub panel_inset: f32,
+    /// Small horizontal gutter applied to header/status text anchors.
+    pub header_label_gutter: f32,
     /// Gap between browser rows.
     pub browser_row_gap: f32,
     /// Browser row card height.
@@ -130,6 +152,8 @@ pub(crate) struct SizingTokens {
     pub folder_indent_step: f32,
     /// Space between compact metadata text rows.
     pub text_row_gap: f32,
+    /// Gap between title and metadata lines in stacked header labels.
+    pub title_meta_gap: f32,
     /// Horizontal text inset inside row cards.
     pub text_inset_x: f32,
     /// Vertical text inset inside row cards.
@@ -152,6 +176,14 @@ pub(crate) struct SizingTokens {
     pub action_button_height: f32,
     /// Gap between browser action buttons.
     pub action_button_gap: f32,
+    /// Gap between top-bar title and action clusters.
+    pub top_bar_cluster_gap: f32,
+    /// Minimum width reserved for top-bar actions cluster.
+    pub top_bar_action_cluster_min_width: f32,
+    /// Maximum width reserved for top-bar actions cluster.
+    pub top_bar_action_cluster_max_width: f32,
+    /// Horizontal gap between status-bar text segments.
+    pub status_segment_gap: f32,
     /// Outer padding for modal overlays.
     pub overlay_padding: f32,
     /// Prompt dialog width.
@@ -216,7 +248,11 @@ impl StyleTokens {
             bg_primary: rgba(13, 12, 11, 255),
             bg_secondary: rgba(22, 20, 18, 255),
             bg_tertiary: rgba(31, 28, 25, 255),
+            surface_base: rgba(13, 12, 11, 255),
+            surface_raised: rgba(22, 20, 18, 255),
+            surface_overlay: rgba(36, 32, 29, 255),
             border: rgba(52, 47, 43, 255),
+            border_emphasis: rgba(74, 67, 60, 255),
             grid_strong: rgba(65, 58, 52, 255),
             grid_soft: rgba(45, 40, 36, 255),
             accent_mint: rgba(154, 186, 170, 255),
@@ -224,6 +260,12 @@ impl StyleTokens {
             accent_warning: rgba(209, 172, 114, 255),
             text_primary: rgba(230, 233, 239, 255),
             text_muted: rgba(167, 175, 186, 255),
+            state_hover_soft: 0.12,
+            state_hover_strong: 0.20,
+            state_selected_blend: 0.12,
+            state_focus_pulse_blend: 0.24,
+            scrim_soft_alpha: 172,
+            scrim_modal_alpha: 188,
             sizing: SizingTokens {
                 frame_inset: 7.0,
                 panel_gap: 6.0,
@@ -240,6 +282,7 @@ impl StyleTokens {
                 browser_rows_max_per_column: 20,
                 column_min_width: 40.0,
                 panel_inset: 6.0,
+                header_label_gutter: 4.0,
                 browser_row_gap: 3.0,
                 browser_row_height: 22.0,
                 source_row_gap: 3.0,
@@ -257,6 +300,7 @@ impl StyleTokens {
                 folder_header_block_height: 32.0,
                 folder_indent_step: 12.0,
                 text_row_gap: 2.0,
+                title_meta_gap: 3.0,
                 text_inset_x: 6.0,
                 text_inset_y: 3.0,
                 row_corner_inset: 1.5,
@@ -268,6 +312,10 @@ impl StyleTokens {
                 action_button_width: 54.0,
                 action_button_height: 18.0,
                 action_button_gap: 4.0,
+                top_bar_cluster_gap: 10.0,
+                top_bar_action_cluster_min_width: 300.0,
+                top_bar_action_cluster_max_width: 560.0,
+                status_segment_gap: 10.0,
                 overlay_padding: 14.0,
                 prompt_width: 420.0,
                 prompt_min_height: 128.0,
@@ -307,6 +355,7 @@ impl StyleTokens {
             tokens.sizing.column_gap = 5.0;
             tokens.sizing.browser_rows_max_per_column = 16;
             tokens.sizing.panel_inset = 5.0;
+            tokens.sizing.header_label_gutter = 3.0;
             tokens.sizing.browser_row_gap = 2.0;
             tokens.sizing.browser_row_height = 19.0;
             tokens.sizing.source_row_gap = 2.0;
@@ -323,6 +372,7 @@ impl StyleTokens {
             tokens.sizing.panel_section_padding_bottom = 1.0;
             tokens.sizing.folder_header_block_height = 28.0;
             tokens.sizing.folder_indent_step = 10.0;
+            tokens.sizing.title_meta_gap = 2.0;
             tokens.sizing.row_corner_inset = 1.0;
             tokens.sizing.source_header_block_height = 32.0;
             tokens.sizing.column_header_block_height = 19.0;
@@ -332,6 +382,10 @@ impl StyleTokens {
             tokens.sizing.action_button_width = 48.0;
             tokens.sizing.action_button_height = 16.0;
             tokens.sizing.action_button_gap = 3.0;
+            tokens.sizing.top_bar_cluster_gap = 8.0;
+            tokens.sizing.top_bar_action_cluster_min_width = 240.0;
+            tokens.sizing.top_bar_action_cluster_max_width = 420.0;
+            tokens.sizing.status_segment_gap = 8.0;
             tokens.sizing.overlay_padding = 12.0;
             tokens.sizing.prompt_width = 360.0;
             tokens.sizing.prompt_min_height = 118.0;
@@ -344,12 +398,20 @@ impl StyleTokens {
             tokens.sizing.sidebar_action_button_gap = 3.0;
             tokens.sizing.focus_stroke_width = 1.2;
             tokens.sizing.hover_fill_alpha = 0.14;
+            tokens.state_hover_soft = 0.10;
+            tokens.state_hover_strong = 0.16;
+            tokens.state_selected_blend = 0.10;
+            tokens.state_focus_pulse_blend = 0.20;
+            tokens.scrim_soft_alpha = 164;
+            tokens.scrim_modal_alpha = 180;
             tokens.sizing.waveform_scan_step = 11.0;
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
             tokens.sizing.font_body = 9.5;
             tokens.sizing.font_meta = 9.5;
             tokens.sizing.font_status = 10.5;
+            tokens.surface_overlay = rgba(32, 29, 26, 255);
+            tokens.border_emphasis = rgba(66, 60, 54, 255);
             return tokens;
         }
 
@@ -368,6 +430,7 @@ impl StyleTokens {
             tokens.sizing.column_gap = 8.0;
             tokens.sizing.browser_rows_max_per_column = 24;
             tokens.sizing.panel_inset = 8.0;
+            tokens.sizing.header_label_gutter = 5.0;
             tokens.sizing.browser_row_gap = 4.0;
             tokens.sizing.browser_row_height = 24.0;
             tokens.sizing.source_row_gap = 4.0;
@@ -384,6 +447,7 @@ impl StyleTokens {
             tokens.sizing.panel_section_padding_bottom = 3.0;
             tokens.sizing.folder_header_block_height = 34.0;
             tokens.sizing.folder_indent_step = 14.0;
+            tokens.sizing.title_meta_gap = 4.0;
             tokens.sizing.row_corner_inset = 2.5;
             tokens.sizing.source_header_block_height = 38.0;
             tokens.sizing.column_header_block_height = 24.0;
@@ -393,6 +457,10 @@ impl StyleTokens {
             tokens.sizing.action_button_width = 60.0;
             tokens.sizing.action_button_height = 20.0;
             tokens.sizing.action_button_gap = 5.0;
+            tokens.sizing.top_bar_cluster_gap = 12.0;
+            tokens.sizing.top_bar_action_cluster_min_width = 360.0;
+            tokens.sizing.top_bar_action_cluster_max_width = 680.0;
+            tokens.sizing.status_segment_gap = 12.0;
             tokens.sizing.overlay_padding = 16.0;
             tokens.sizing.prompt_width = 480.0;
             tokens.sizing.prompt_min_height = 138.0;
@@ -405,12 +473,20 @@ impl StyleTokens {
             tokens.sizing.sidebar_action_button_gap = 5.0;
             tokens.sizing.focus_stroke_width = 1.6;
             tokens.sizing.hover_fill_alpha = 0.20;
+            tokens.state_hover_soft = 0.14;
+            tokens.state_hover_strong = 0.22;
+            tokens.state_selected_blend = 0.14;
+            tokens.state_focus_pulse_blend = 0.28;
+            tokens.scrim_soft_alpha = 180;
+            tokens.scrim_modal_alpha = 196;
             tokens.sizing.waveform_scan_step = 14.0;
             tokens.sizing.font_title = 15.0;
             tokens.sizing.font_header = 13.0;
             tokens.sizing.font_body = 11.0;
             tokens.sizing.font_meta = 10.5;
             tokens.sizing.font_status = 11.5;
+            tokens.surface_overlay = rgba(42, 37, 33, 255);
+            tokens.border_emphasis = rgba(86, 78, 70, 255);
         }
         tokens
     }
@@ -495,5 +571,8 @@ mod tests {
         assert!(narrow.sizing.focus_stroke_width < wide.sizing.focus_stroke_width);
         assert!(narrow.sizing.header_to_rows_gap < wide.sizing.header_to_rows_gap);
         assert!(narrow.sizing.row_corner_inset < wide.sizing.row_corner_inset);
+        assert!(narrow.sizing.header_label_gutter < wide.sizing.header_label_gutter);
+        assert!(narrow.sizing.status_segment_gap < wide.sizing.status_segment_gap);
+        assert!(narrow.state_hover_strong < wide.state_hover_strong);
     }
 }

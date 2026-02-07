@@ -3,7 +3,7 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
-    style::StyleTokens,
+    style::{SizingTokens, StyleTokens},
 };
 use crate::app::{AppModel, BrowserRowModel, BrowserTagTarget, UiAction};
 use crate::gui::{
@@ -193,6 +193,21 @@ impl NativeShellState {
             .map(|button| button.rect)
     }
 
+    /// Return a browser-action button rect for the provided action in tests.
+    #[cfg(test)]
+    pub(crate) fn browser_action_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        browser_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.action == action)
+            .map(|button| button.rect)
+    }
+
     /// Resolve a source-management action button click into a native UI action.
     pub(crate) fn source_action_at_point(
         &self,
@@ -304,45 +319,45 @@ impl NativeShellState {
             rect: layout.top_bar,
             color: if self.hovered == Some(ShellNodeKind::TopBar) {
                 blend_color(
-                    style.bg_secondary,
+                    style.surface_raised,
                     style.bg_tertiary,
-                    sizing.hover_fill_alpha,
+                    style.state_hover_soft,
                 )
             } else {
-                style.bg_secondary
+                style.surface_raised
             },
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.sidebar,
             color: if self.hovered == Some(ShellNodeKind::Sidebar) {
                 blend_color(
-                    style.bg_secondary,
+                    style.surface_raised,
                     style.bg_tertiary,
-                    sizing.hover_fill_alpha,
+                    style.state_hover_soft,
                 )
             } else {
-                style.bg_secondary
+                style.surface_raised
             },
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.content,
-            color: style.bg_primary,
+            color: style.surface_base,
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.waveform_card,
             color: if self.hovered == Some(ShellNodeKind::WaveformCard) {
                 blend_color(
-                    style.bg_secondary,
+                    style.surface_raised,
                     style.bg_tertiary,
-                    sizing.hover_fill_alpha,
+                    style.state_hover_strong,
                 )
             } else {
-                style.bg_secondary
+                style.surface_raised
             },
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.status_bar,
-            color: style.bg_secondary,
+            color: style.surface_raised,
         }));
 
         let waveform_inner = layout.waveform_plot;
@@ -426,12 +441,16 @@ impl NativeShellState {
             let hovered = self.hovered == Some(ShellNodeKind::TriageColumn(index));
             let selected = self.selected_column == index;
             let mut fill = if selected {
-                blend_color(style.bg_tertiary, style.grid_soft, 0.08)
+                blend_color(
+                    style.bg_tertiary,
+                    style.grid_soft,
+                    style.state_selected_blend,
+                )
             } else {
-                style.bg_secondary
+                style.surface_raised
             };
             if hovered {
-                fill = blend_color(fill, style.bg_tertiary, sizing.hover_fill_alpha);
+                fill = blend_color(fill, style.bg_tertiary, style.state_hover_strong);
             }
             primitives.push(Primitive::Rect(FillRect {
                 rect: column_rect,
@@ -441,9 +460,17 @@ impl NativeShellState {
                 &mut primitives,
                 column_rect,
                 if hovered {
-                    blend_color(style.accent_warning, style.text_primary, motion_wave * 0.2)
+                    blend_color(
+                        style.accent_warning,
+                        style.text_primary,
+                        motion_wave * style.state_focus_pulse_blend,
+                    )
                 } else if selected {
-                    blend_color(style.accent_mint, style.text_primary, motion_wave * 0.1)
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    )
                 } else {
                     style.border
                 },
@@ -484,22 +511,38 @@ impl NativeShellState {
                 blend_color(
                     style.bg_tertiary,
                     style.grid_strong,
-                    0.18 + (motion_wave * 0.08),
+                    style.state_focus_pulse_blend + (motion_wave * 0.08),
                 )
             } else if row.selected {
-                blend_color(style.bg_tertiary, style.grid_soft, 0.12)
+                blend_color(
+                    style.bg_tertiary,
+                    style.grid_soft,
+                    style.state_selected_blend,
+                )
             } else {
-                style.bg_primary
+                style.surface_base
             };
             let row_border = if row.focused {
-                blend_color(style.accent_warning, style.text_primary, motion_wave * 0.25)
+                blend_color(
+                    style.accent_warning,
+                    style.text_primary,
+                    motion_wave * style.state_focus_pulse_blend,
+                )
             } else if row.selected {
-                blend_color(style.accent_mint, style.text_primary, motion_wave * 0.08)
+                blend_color(
+                    style.accent_mint,
+                    style.text_primary,
+                    motion_wave * style.state_selected_blend,
+                )
             } else {
                 style.border
             };
             let row_text_color = if row.focused {
-                blend_color(style.accent_warning, style.text_primary, motion_wave * 0.3)
+                blend_color(
+                    style.accent_warning,
+                    style.text_primary,
+                    motion_wave * (style.state_focus_pulse_blend + 0.04),
+                )
             } else if row.selected {
                 style.accent_mint
             } else {
@@ -522,15 +565,12 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: row.label,
                 position: Point::new(
-                    row.rect.min.x + sizing.text_inset_x + sizing.row_corner_inset,
+                    row_label_x(row.rect, &sizing, 0.0),
                     text_top_in_rect(row.rect, sizing.font_body, sizing.text_inset_y),
                 ),
                 font_size: sizing.font_body,
                 color: row_text_color,
-                max_width: Some(
-                    (row.rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0))
-                        .max(20.0),
-                ),
+                max_width: Some(row_label_width(row.rect, &sizing, 0.0, 20.0)),
                 align: TextAlign::Left,
             });
         }
@@ -576,38 +616,34 @@ impl NativeShellState {
             color: lamp_color,
         }));
 
-        let top_text_x = layout.top_bar.min.x + sizing.text_inset_x + 4.0;
-        let top_title_y = layout.top_bar.min.y + sizing.text_inset_y;
-        let top_meta_y = top_title_y + sizing.font_title + sizing.text_row_gap;
+        let top_text_x =
+            layout.top_bar_title_cluster.min.x + sizing.text_inset_x + sizing.header_label_gutter;
+        let top_title_y = layout.top_bar_title_cluster.min.y + sizing.text_inset_y;
+        let top_meta_y = top_title_y + sizing.font_title + sizing.title_meta_gap;
+        let top_title_width = (layout.top_bar_title_cluster.width()
+            - ((sizing.text_inset_x + sizing.header_label_gutter) * 2.0))
+            .max(72.0);
         text_runs.push(TextRun {
-            text: truncate_to_width(
-                &model.title,
-                (layout.top_bar.width() - 112.0).max(90.0),
-                sizing.font_title,
-            ),
+            text: truncate_to_width(&model.title, top_title_width, sizing.font_title),
             position: Point::new(top_text_x, top_title_y),
             font_size: sizing.font_title,
             color: style.text_primary,
-            max_width: Some((layout.top_bar.width() - 112.0).max(90.0)),
+            max_width: Some(top_title_width),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
-            text: truncate_to_width(
-                &model.backend_label,
-                (layout.top_bar.width() - (sizing.text_inset_x * 2.0)).max(90.0),
-                sizing.font_meta,
-            ),
+            text: truncate_to_width(&model.backend_label, top_title_width, sizing.font_meta),
             position: Point::new(top_text_x, top_meta_y),
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((layout.top_bar.width() - (sizing.text_inset_x * 2.0)).max(90.0)),
+            max_width: Some(top_title_width),
             align: TextAlign::Right,
         });
         for button in browser_action_buttons(layout, style, model) {
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
-                    style.bg_tertiary
+                    style.surface_overlay
                 } else {
                     style.grid_soft
                 },
@@ -616,7 +652,11 @@ impl NativeShellState {
                 &mut primitives,
                 button.rect,
                 if button.enabled {
-                    blend_color(style.border, style.text_primary, 0.15)
+                    blend_color(
+                        style.border_emphasis,
+                        style.text_primary,
+                        style.state_hover_soft,
+                    )
                 } else {
                     style.grid_soft
                 },
@@ -651,7 +691,7 @@ impl NativeShellState {
                 sizing.font_header,
             ),
             position: Point::new(
-                layout.sidebar_header.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                 layout.sidebar_header.min.y + sizing.text_inset_y,
             ),
             font_size: sizing.font_header,
@@ -671,7 +711,7 @@ impl NativeShellState {
                 }
             ),
             position: Point::new(
-                layout.sidebar_header.min.x + sizing.text_inset_x + 4.0,
+                layout.sidebar_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                 layout.sidebar_header.min.y
                     + sizing.text_inset_y
                     + sizing.font_header
@@ -694,9 +734,13 @@ impl NativeShellState {
                     .selected_row
                     .is_some_and(|selected| selected == row_index);
             let row_fill = if row_selected {
-                blend_color(style.bg_tertiary, style.grid_soft, 0.1)
+                blend_color(
+                    style.bg_tertiary,
+                    style.grid_soft,
+                    style.state_selected_blend,
+                )
             } else {
-                style.bg_primary
+                style.surface_base
             };
             primitives.push(Primitive::Rect(FillRect {
                 rect: row_rect,
@@ -706,7 +750,11 @@ impl NativeShellState {
                 &mut primitives,
                 row_rect,
                 if row_selected {
-                    blend_color(style.accent_mint, style.text_primary, motion_wave * 0.08)
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    )
                 } else if row.missing {
                     style.accent_warning
                 } else {
@@ -717,12 +765,11 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: truncate_to_width(
                     &row.label,
-                    (row_rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0))
-                        .max(24.0),
+                    row_label_width(row_rect, &sizing, 0.0, 24.0),
                     sizing.font_body,
                 ),
                 position: Point::new(
-                    row_rect.min.x + sizing.text_inset_x + sizing.row_corner_inset,
+                    row_label_x(row_rect, &sizing, 0.0),
                     text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
                 ),
                 font_size: sizing.font_body,
@@ -731,10 +778,7 @@ impl NativeShellState {
                 } else {
                     style.text_primary
                 },
-                max_width: Some(
-                    (row_rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0))
-                        .max(24.0),
-                ),
+                max_width: Some(row_label_width(row_rect, &sizing, 0.0, 24.0)),
                 align: TextAlign::Left,
             });
         }
@@ -744,7 +788,9 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: format!("Folders ({})", model.sources.folder_rows.len()),
                 position: Point::new(
-                    sidebar_sections.folder_header.min.x + sizing.text_inset_x + 4.0,
+                    sidebar_sections.folder_header.min.x
+                        + sizing.text_inset_x
+                        + sizing.header_label_gutter,
                     sidebar_sections.folder_header.min.y + sizing.text_inset_y,
                 ),
                 font_size: sizing.font_header,
@@ -770,7 +816,9 @@ impl NativeShellState {
                     }
                 ),
                 position: Point::new(
-                    sidebar_sections.folder_header.min.x + sizing.text_inset_x + 4.0,
+                    sidebar_sections.folder_header.min.x
+                        + sizing.text_inset_x
+                        + sizing.header_label_gutter,
                     sidebar_sections.folder_header.min.y
                         + sizing.text_inset_y
                         + sizing.font_header
@@ -791,12 +839,16 @@ impl NativeShellState {
                     blend_color(
                         style.bg_tertiary,
                         style.grid_strong,
-                        0.14 + (motion_wave * 0.08),
+                        style.state_hover_soft + (motion_wave * 0.08),
                     )
                 } else if row_selected {
-                    blend_color(style.bg_tertiary, style.grid_soft, 0.1)
+                    blend_color(
+                        style.bg_tertiary,
+                        style.grid_soft,
+                        style.state_selected_blend,
+                    )
                 } else {
-                    style.bg_primary
+                    style.surface_base
                 };
                 primitives.push(Primitive::Rect(FillRect {
                     rect: row_rect,
@@ -806,9 +858,17 @@ impl NativeShellState {
                     &mut primitives,
                     row_rect,
                     if row.focused {
-                        blend_color(style.accent_warning, style.text_primary, motion_wave * 0.25)
+                        blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            motion_wave * style.state_focus_pulse_blend,
+                        )
                     } else if row.selected {
-                        blend_color(style.accent_mint, style.text_primary, motion_wave * 0.08)
+                        blend_color(
+                            style.accent_mint,
+                            style.text_primary,
+                            motion_wave * style.state_selected_blend,
+                        )
                     } else {
                         style.border
                     },
@@ -823,7 +883,11 @@ impl NativeShellState {
                 let glyph = if row.is_root {
                     "•"
                 } else if row.has_children {
-                    if row.expanded { "▼" } else { "▶" }
+                    if row.expanded {
+                        "▼"
+                    } else {
+                        "▶"
+                    }
                 } else {
                     "·"
                 };
@@ -835,10 +899,7 @@ impl NativeShellState {
                 text_runs.push(TextRun {
                     text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
                     position: Point::new(
-                        row_rect.min.x
-                            + sizing.text_inset_x
-                            + sizing.row_corner_inset
-                            + depth_indent,
+                        row_label_x(row_rect, &sizing, depth_indent),
                         text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
                     ),
                     font_size: sizing.font_body,
@@ -858,7 +919,7 @@ impl NativeShellState {
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
-                    style.bg_tertiary
+                    style.surface_overlay
                 } else {
                     style.grid_soft
                 },
@@ -867,7 +928,11 @@ impl NativeShellState {
                 &mut primitives,
                 button.rect,
                 if button.enabled {
-                    blend_color(style.border, style.text_primary, 0.12)
+                    blend_color(
+                        style.border_emphasis,
+                        style.text_primary,
+                        style.state_hover_soft,
+                    )
                 } else {
                     style.grid_soft
                 },
@@ -893,7 +958,7 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
                 position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                     layout.sidebar_footer.min.y + sizing.text_inset_y,
                 ),
                 font_size: sizing.font_meta,
@@ -911,7 +976,7 @@ impl NativeShellState {
                     model.sources.folder_rows.len() - rendered_folders
                 ),
                 position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                     layout.sidebar_footer.min.y
                         + sizing.text_inset_y
                         + sizing.font_meta
@@ -931,7 +996,7 @@ impl NativeShellState {
                     model.sources.folder_recovery.entry_count
                 ),
                 position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + 4.0,
+                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                     layout.sidebar_footer.min.y
                         + sizing.text_inset_y
                         + sizing.font_meta
@@ -953,7 +1018,7 @@ impl NativeShellState {
                 sizing.font_header,
             ),
             position: Point::new(
-                layout.waveform_header.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                 layout.waveform_header.min.y + sizing.text_inset_y,
             ),
             font_size: sizing.font_header,
@@ -991,7 +1056,7 @@ impl NativeShellState {
                 view_text,
             ),
             position: Point::new(
-                layout.waveform_header.min.x + sizing.text_inset_x + 4.0,
+                layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
                 layout.waveform_header.min.y
                     + sizing.text_inset_y
                     + sizing.font_header
@@ -1016,12 +1081,16 @@ impl NativeShellState {
                     sizing.font_header,
                 ),
                 position: Point::new(
-                    column.min.x + sizing.text_inset_x + 3.0,
-                    column.min.y + sizing.text_inset_y + 2.0,
+                    column.min.x + sizing.text_inset_x + sizing.header_label_gutter,
+                    text_top_in_rect(*column, sizing.font_header, sizing.text_inset_y),
                 ),
                 font_size: sizing.font_header,
                 color: if self.selected_column == index {
-                    blend_color(style.accent_mint, style.text_primary, motion_wave * 0.1)
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    )
                 } else {
                     style.text_muted
                 },
@@ -1083,46 +1152,68 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_left,
-                (layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+                (layout.status_left_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
                 sizing.font_status,
             ),
             position: Point::new(
-                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
-                layout.status_bar.min.y + sizing.text_inset_y,
+                layout.status_left_segment.min.x + sizing.text_inset_x + sizing.header_label_gutter,
+                text_top_in_rect(
+                    layout.status_left_segment,
+                    sizing.font_status,
+                    sizing.text_inset_y,
+                ),
             ),
             font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.status_left_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+            ),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_center,
-                (layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+                (layout.status_center_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
                 sizing.font_status,
             ),
             position: Point::new(
-                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
-                layout.status_bar.min.y + sizing.text_inset_y,
+                layout.status_center_segment.min.x
+                    + sizing.text_inset_x
+                    + sizing.header_label_gutter,
+                text_top_in_rect(
+                    layout.status_center_segment,
+                    sizing.font_status,
+                    sizing.text_inset_y,
+                ),
             ),
             font_size: sizing.font_status,
             color: style.text_primary,
-            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.status_center_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+            ),
             align: TextAlign::Center,
         });
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_right,
-                (layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
                 sizing.font_status,
             ),
             position: Point::new(
-                layout.status_bar.min.x + sizing.text_inset_x + 4.0,
-                layout.status_bar.min.y + sizing.text_inset_y,
+                layout.status_right_segment.min.x
+                    + sizing.text_inset_x
+                    + sizing.header_label_gutter,
+                text_top_in_rect(
+                    layout.status_right_segment,
+                    sizing.font_status,
+                    sizing.text_inset_y,
+                ),
             ),
             font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some((layout.status_bar.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+            max_width: Some(
+                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+            ),
             align: TextAlign::Right,
         });
 
@@ -1279,8 +1370,7 @@ fn rendered_browser_rows(
             sizing.browser_row_gap,
             sizing.browser_row_height,
         )) {
-            let label_width =
-                (rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)).max(20.0);
+            let label_width = row_label_width(rect, &sizing, 0.0, 20.0);
             rendered.push(RenderedBrowserRow {
                 visible_row: row.visible_row,
                 label: truncate_to_width(&row.label, label_width, sizing.font_body),
@@ -1510,16 +1600,16 @@ fn browser_action_buttons(
     let button_width = sizing.action_button_width;
     let button_height = sizing
         .action_button_height
-        .min((layout.top_bar.height() - 1.0).max(1.0));
+        .min((layout.top_bar_action_cluster.height() - 1.0).max(1.0));
     let gap = sizing.action_button_gap;
     let total_width = (button_width * definitions.len() as f32)
         + (gap * (definitions.len().saturating_sub(1)) as f32);
-    let right_padding = sizing.text_inset_x + 32.0;
-    let start_x =
-        (layout.top_bar.max.x - right_padding - total_width).max(layout.top_bar.min.x + 180.0);
-    let y_min = layout.top_bar.min.y + 1.0;
-    let y_max = (layout.top_bar.max.y - button_height).max(y_min);
-    let y = (layout.top_bar.max.y - button_height - sizing.text_inset_y)
+    let cluster = layout.top_bar_action_cluster;
+    let start_x = (cluster.max.x - sizing.text_inset_x - total_width)
+        .max(cluster.min.x + sizing.text_inset_x);
+    let y_min = cluster.min.y + 1.0;
+    let y_max = (cluster.max.y - button_height).max(y_min);
+    let y = (cluster.max.y - button_height - sizing.text_inset_y)
         .max(y_min)
         .min(y_max);
 
@@ -1529,8 +1619,8 @@ fn browser_action_buttons(
         let rect = Rect::from_min_max(
             Point::new(x, y),
             Point::new(
-                (x + button_width).min(layout.top_bar.max.x - 1.0),
-                (y + button_height).min(layout.top_bar.max.y),
+                (x + button_width).min(cluster.max.x - 1.0),
+                (y + button_height).min(cluster.max.y),
             ),
         );
         buttons.push(ActionButton {
@@ -1746,14 +1836,14 @@ fn render_progress_overlay(
                 r: style.bg_primary.r,
                 g: style.bg_primary.g,
                 b: style.bg_primary.b,
-                a: 176,
+                a: style.scrim_soft_alpha,
             },
         }));
     }
     let rect = progress_overlay_rect(layout, style, model.progress_overlay.modal);
     primitives.push(Primitive::Rect(FillRect {
         rect,
-        color: style.bg_secondary,
+        color: style.surface_overlay,
     }));
     push_border(primitives, rect, style.border, sizing.border_width);
 
@@ -1863,7 +1953,7 @@ fn render_progress_overlay(
             },
             position: Point::new(
                 button.min.x + sizing.text_inset_x,
-                button.min.y + sizing.text_inset_y,
+                text_top_in_rect(button, sizing.font_meta, sizing.text_inset_y),
             ),
             font_size: sizing.font_meta,
             color: if model.progress_overlay.cancel_requested {
@@ -1894,13 +1984,13 @@ fn render_confirm_prompt(
             r: style.bg_primary.r,
             g: style.bg_primary.g,
             b: style.bg_primary.b,
-            a: 190,
+            a: style.scrim_modal_alpha,
         },
     }));
     let dialog = prompt_dialog_rect(layout, style);
     primitives.push(Primitive::Rect(FillRect {
         rect: dialog,
-        color: style.bg_secondary,
+        color: style.surface_overlay,
     }));
     push_border(
         primitives,
@@ -1951,7 +2041,7 @@ fn render_confirm_prompt(
     if let Some(input_rect) = prompt_input_rect(layout, style, model) {
         primitives.push(Primitive::Rect(FillRect {
             rect: input_rect,
-            color: style.bg_primary,
+            color: style.surface_base,
         }));
         push_border(
             primitives,
@@ -2027,14 +2117,14 @@ fn render_confirm_prompt(
     {
         primitives.push(Primitive::Rect(FillRect {
             rect,
-            color: style.bg_tertiary,
+            color: style.surface_overlay,
         }));
         push_border(primitives, rect, color, sizing.border_width);
         text_runs.push(TextRun {
             text: label.to_string(),
             position: Point::new(
                 rect.min.x + sizing.text_inset_x,
-                rect.min.y + sizing.text_inset_y,
+                text_top_in_rect(rect, sizing.font_meta, sizing.text_inset_y),
             ),
             font_size: sizing.font_meta,
             color: if index == 0 {
@@ -2062,7 +2152,7 @@ fn render_drag_overlay(
     let rect = drag_overlay_rect(layout, style);
     primitives.push(Primitive::Rect(FillRect {
         rect,
-        color: style.bg_secondary,
+        color: style.surface_overlay,
     }));
     push_border(
         primitives,
@@ -2105,6 +2195,15 @@ fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
 fn text_top_in_rect(rect: Rect, font_size: f32, minimum_inset_y: f32) -> f32 {
     let centered_y = rect.min.y + ((rect.height() - font_size).max(0.0) * 0.5);
     centered_y.max(rect.min.y + minimum_inset_y)
+}
+
+fn row_label_x(rect: Rect, sizing: &SizingTokens, extra_indent: f32) -> f32 {
+    rect.min.x + sizing.text_inset_x + sizing.row_corner_inset + extra_indent.max(0.0)
+}
+
+fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_width: f32) -> f32 {
+    (rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0) - extra_indent.max(0.0))
+        .max(min_width.max(0.0))
 }
 
 fn push_border(

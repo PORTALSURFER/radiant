@@ -46,6 +46,8 @@ impl ShellNode {
 pub(crate) struct ShellLayout {
     pub root: ShellNode,
     pub top_bar: Rect,
+    pub top_bar_title_cluster: Rect,
+    pub top_bar_action_cluster: Rect,
     pub sidebar: Rect,
     pub sidebar_header: Rect,
     pub sidebar_rows: Rect,
@@ -58,6 +60,9 @@ pub(crate) struct ShellLayout {
     pub column_headers: [Rect; 3],
     pub column_rows: [Rect; 3],
     pub status_bar: Rect,
+    pub status_left_segment: Rect,
+    pub status_center_segment: Rect,
+    pub status_right_segment: Rect,
 }
 
 impl ShellLayout {
@@ -83,9 +88,61 @@ impl ShellLayout {
             frame.min,
             Point::new(frame.max.x, frame.min.y + sizing.top_bar_height),
         );
+        let top_bar_inner = inset_horizontal(top_bar, sizing.panel_inset);
+        let desired_action_cluster_width = ((sizing.action_button_width * 5.0)
+            + (sizing.action_button_gap * 4.0)
+            + (sizing.text_inset_x * 2.0))
+            .clamp(
+                sizing.top_bar_action_cluster_min_width,
+                sizing.top_bar_action_cluster_max_width,
+            );
+        let max_action_cluster_width = (top_bar_inner.width() - 72.0).max(0.0);
+        let action_cluster_width = desired_action_cluster_width.min(max_action_cluster_width);
+        let top_bar_action_cluster = if action_cluster_width > 0.0 {
+            Rect::from_min_max(
+                Point::new(
+                    (top_bar_inner.max.x - action_cluster_width).max(top_bar_inner.min.x),
+                    top_bar_inner.min.y,
+                ),
+                top_bar_inner.max,
+            )
+        } else {
+            Rect::from_min_max(top_bar_inner.max, top_bar_inner.max)
+        };
+        let title_cluster_max_x =
+            (top_bar_action_cluster.min.x - sizing.top_bar_cluster_gap).max(top_bar_inner.min.x);
+        let top_bar_title_cluster = Rect::from_min_max(
+            top_bar_inner.min,
+            Point::new(title_cluster_max_x, top_bar_inner.max.y),
+        );
+
         let status_bar = Rect::from_min_max(
             Point::new(frame.min.x, frame.max.y - sizing.status_bar_height),
             frame.max,
+        );
+        let status_inner = inset_horizontal(status_bar, sizing.panel_inset);
+        let status_total_gap = sizing.status_segment_gap * 2.0;
+        let status_available = (status_inner.width() - status_total_gap).max(0.0);
+        let status_left_width = status_available * 0.30;
+        let status_right_width = status_available * 0.22;
+        let status_center_width =
+            (status_available - status_left_width - status_right_width).max(0.0);
+        let status_left_segment = Rect::from_min_max(
+            status_inner.min,
+            Point::new(status_inner.min.x + status_left_width, status_inner.max.y),
+        );
+        let status_center_min_x = status_left_segment.max.x + sizing.status_segment_gap;
+        let status_center_segment = Rect::from_min_max(
+            Point::new(status_center_min_x, status_inner.min.y),
+            Point::new(
+                status_center_min_x + status_center_width,
+                status_inner.max.y,
+            ),
+        );
+        let status_right_min_x = status_center_segment.max.x + sizing.status_segment_gap;
+        let status_right_segment = Rect::from_min_max(
+            Point::new(status_right_min_x, status_inner.min.y),
+            status_inner.max,
         );
         let body = Rect::from_min_max(
             Point::new(frame.min.x, top_bar.max.y + sizing.panel_gap),
@@ -225,6 +282,8 @@ impl ShellLayout {
         Self {
             root,
             top_bar,
+            top_bar_title_cluster,
+            top_bar_action_cluster,
             sidebar,
             sidebar_header,
             sidebar_rows,
@@ -237,6 +296,9 @@ impl ShellLayout {
             column_headers,
             column_rows,
             status_bar,
+            status_left_segment,
+            status_center_segment,
+            status_right_segment,
         }
     }
 

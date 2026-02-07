@@ -321,70 +321,70 @@ impl StyleTokens {
             scrim_soft_alpha: 172,
             scrim_modal_alpha: 188,
             sizing: SizingTokens {
-                frame_inset: 6.0,
-                panel_gap: 4.0,
-                top_bar_height: 34.0,
-                top_bar_title_row_height: 14.0,
-                status_bar_height: 18.0,
-                sidebar_ratio: 0.20,
-                sidebar_min_width: 170.0,
-                sidebar_max_width: 260.0,
-                content_min_width: 232.0,
-                waveform_ratio: 0.40,
-                waveform_min_height: 136.0,
-                waveform_max_height: 282.0,
+                frame_inset: 5.0,
+                panel_gap: 3.0,
+                top_bar_height: 32.0,
+                top_bar_title_row_height: 13.0,
+                status_bar_height: 17.0,
+                sidebar_ratio: 0.16,
+                sidebar_min_width: 158.0,
+                sidebar_max_width: 214.0,
+                content_min_width: 248.0,
+                waveform_ratio: 0.35,
+                waveform_min_height: 124.0,
+                waveform_max_height: 248.0,
                 column_gap: 5.0,
                 browser_rows_max_per_column: 40,
                 column_min_width: 40.0,
-                browser_tabs_height: 19.0,
-                browser_toolbar_height: 20.0,
-                browser_table_header_height: 19.0,
-                browser_footer_height: 16.0,
-                browser_search_field_min_width: 132.0,
-                browser_search_field_ratio: 0.44,
-                browser_index_col_width: 40.0,
-                browser_bucket_col_width: 84.0,
-                panel_inset: 5.0,
+                browser_tabs_height: 18.0,
+                browser_toolbar_height: 19.0,
+                browser_table_header_height: 18.0,
+                browser_footer_height: 15.0,
+                browser_search_field_min_width: 124.0,
+                browser_search_field_ratio: 0.46,
+                browser_index_col_width: 32.0,
+                browser_bucket_col_width: 78.0,
+                panel_inset: 4.0,
                 header_label_gutter: 3.0,
-                browser_row_gap: 2.0,
-                browser_row_height: 19.0,
-                source_row_gap: 2.0,
-                source_row_height: 18.2,
+                browser_row_gap: 1.0,
+                browser_row_height: 16.5,
+                source_row_gap: 1.0,
+                source_row_height: 16.4,
                 source_rows_max: 12,
                 source_rows_min_when_split: 3,
-                folder_row_gap: 2.0,
-                folder_row_height: 17.0,
+                folder_row_gap: 1.0,
+                folder_row_height: 15.4,
                 folder_rows_max: 20,
                 folder_rows_min: 4,
-                sidebar_section_gap: 7.0,
+                sidebar_section_gap: 5.5,
                 source_section_divider_width: 1.0,
-                header_to_rows_gap: 4.0,
+                header_to_rows_gap: 3.0,
                 panel_section_padding_top: 1.0,
                 panel_section_padding_bottom: 1.0,
-                folder_header_block_height: 31.0,
+                folder_header_block_height: 29.0,
                 recovery_badge_height: 14.0,
                 recovery_badge_min_width: 56.0,
                 recovery_badge_padding_x: 6.0,
                 folder_indent_step: 11.0,
-                text_row_gap: 2.0,
-                title_meta_gap: 2.0,
-                text_inset_x: 6.0,
-                text_inset_y: 3.0,
+                text_row_gap: 1.5,
+                title_meta_gap: 1.5,
+                text_inset_x: 5.0,
+                text_inset_y: 2.5,
                 row_corner_inset: 1.2,
-                source_header_block_height: 33.0,
-                column_header_block_height: 20.0,
-                waveform_header_block_height: 29.0,
-                source_bottom_padding: 7.0,
-                column_bottom_padding: 5.0,
-                action_button_width: 50.0,
-                action_button_height: 16.0,
-                action_button_gap: 4.0,
-                top_bar_cluster_gap: 9.0,
-                top_volume_meter_width: 86.0,
-                top_volume_meter_height: 7.0,
-                top_bar_action_cluster_min_width: 270.0,
-                top_bar_action_cluster_max_width: 520.0,
-                status_segment_gap: 9.0,
+                source_header_block_height: 30.0,
+                column_header_block_height: 18.0,
+                waveform_header_block_height: 27.0,
+                source_bottom_padding: 6.0,
+                column_bottom_padding: 4.0,
+                action_button_width: 48.0,
+                action_button_height: 15.0,
+                action_button_gap: 3.0,
+                top_bar_cluster_gap: 8.0,
+                top_volume_meter_width: 78.0,
+                top_volume_meter_height: 6.0,
+                top_bar_action_cluster_min_width: 250.0,
+                top_bar_action_cluster_max_width: 480.0,
+                status_segment_gap: 8.0,
                 overlay_padding: 14.0,
                 prompt_width: 420.0,
                 prompt_min_height: 128.0,
@@ -392,20 +392,20 @@ impl StyleTokens {
                 overlay_button_height: 24.0,
                 progress_bar_height: 12.0,
                 drag_overlay_height: 24.0,
-                sidebar_action_button_width: 52.0,
-                sidebar_action_button_height: 16.0,
-                sidebar_action_button_gap: 4.0,
+                sidebar_action_button_width: 50.0,
+                sidebar_action_button_height: 15.0,
+                sidebar_action_button_gap: 3.0,
                 border_width: 1.0,
-                focus_stroke_width: 1.3,
+                focus_stroke_width: 1.2,
                 hover_fill_alpha: 0.16,
-                waveform_scan_step: 11.5,
-                font_title: 13.0,
-                font_header: 11.0,
-                font_body: 9.5,
-                font_meta: 9.0,
-                font_status: 10.0,
-                lamp_radius_base: 4.0,
-                lamp_radius_amp: 2.0,
+                waveform_scan_step: 11.0,
+                font_title: 12.5,
+                font_header: 10.5,
+                font_body: 9.0,
+                font_meta: 8.6,
+                font_status: 9.3,
+                lamp_radius_base: 3.8,
+                lamp_radius_amp: 1.8,
             },
         };
 
@@ -435,13 +435,13 @@ impl StyleTokens {
             tokens.sizing.browser_index_col_width = 38.0;
             tokens.sizing.browser_bucket_col_width = 76.0;
             tokens.sizing.browser_row_gap = 2.0;
-            tokens.sizing.browser_row_height = 18.5;
+            tokens.sizing.browser_row_height = 15.8;
             tokens.sizing.source_row_gap = 2.0;
-            tokens.sizing.source_row_height = 18.0;
+            tokens.sizing.source_row_height = 15.8;
             tokens.sizing.source_rows_max = 9;
             tokens.sizing.source_rows_min_when_split = 2;
             tokens.sizing.folder_row_gap = 2.0;
-            tokens.sizing.folder_row_height = 16.0;
+            tokens.sizing.folder_row_height = 14.8;
             tokens.sizing.folder_rows_max = 14;
             tokens.sizing.folder_rows_min = 3;
             tokens.sizing.sidebar_section_gap = 6.0;
@@ -495,9 +495,9 @@ impl StyleTokens {
             tokens.sizing.waveform_scan_step = 11.0;
             tokens.sizing.font_title = 13.0;
             tokens.sizing.font_header = 11.0;
-            tokens.sizing.font_body = 9.5;
-            tokens.sizing.font_meta = 9.0;
-            tokens.sizing.font_status = 10.0;
+            tokens.sizing.font_body = 8.8;
+            tokens.sizing.font_meta = 8.4;
+            tokens.sizing.font_status = 9.2;
             tokens.surface_overlay = rgba(32, 29, 26, 255);
             tokens.border_emphasis = rgba(66, 60, 54, 255);
             tokens.source_section_divider = rgba(59, 53, 48, 255);
@@ -682,13 +682,15 @@ mod tests {
     #[test]
     fn standard_tier_matches_classic_dense_shell_targets() {
         let standard = StyleTokens::for_viewport_width(1280.0);
-        assert!(standard.sizing.sidebar_ratio <= 0.20);
-        assert!(standard.sizing.browser_row_height <= 19.5);
+        assert!((0.14..=0.18).contains(&standard.sizing.sidebar_ratio));
+        assert!((15.5..=17.0).contains(&standard.sizing.browser_row_height));
         assert!(standard.sizing.browser_tabs_height <= 20.0);
         assert!(standard.sizing.browser_toolbar_height <= 21.0);
         assert!(standard.sizing.browser_table_header_height <= 20.0);
-        assert!(standard.sizing.font_body <= 10.0);
-        assert!(standard.sizing.font_meta <= 9.5);
+        assert!(standard.sizing.waveform_ratio <= 0.36);
+        assert!(standard.sizing.sidebar_max_width <= 220.0);
+        assert!(standard.sizing.font_body <= 9.1);
+        assert!(standard.sizing.font_meta <= 8.8);
     }
 
     #[test]

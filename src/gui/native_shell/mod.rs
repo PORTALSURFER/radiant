@@ -167,6 +167,21 @@ mod tests {
     }
 
     #[test]
+    fn classic_reference_viewport_matches_dense_geometry_contract() {
+        let viewport = Vector2::new(1440.0, 810.0);
+        let style = style::StyleTokens::for_viewport_width(viewport.x);
+        let layout = ShellLayout::build(viewport);
+        let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
+        let row_capacity = (layout.browser_rows.height() / row_stride).floor() as usize;
+
+        assert!((155.0..=220.0).contains(&layout.sidebar.width()));
+        assert!((150.0..=280.0).contains(&layout.waveform_card.height()));
+        assert!(row_capacity >= 22);
+        assert!(layout.top_bar.height() <= 34.0);
+        assert!(layout.status_bar.height() <= 20.0);
+    }
+
+    #[test]
     fn viewport_tier_sizing_changes_row_density() {
         let narrow = style::StyleTokens::for_viewport_width(820.0);
         let wide = style::StyleTokens::for_viewport_width(1900.0);

@@ -1,6 +1,6 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
-use super::egui_wgpu::{EguiRunOptions, WindowIconRgba};
+use super::egui_wgpu::{NativeRunOptions, WindowIconRgba};
 use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
@@ -45,7 +45,7 @@ enum TextInputTarget {
 }
 
 struct NativeVelloRunner<B: NativeAppBridge> {
-    options: EguiRunOptions,
+    options: NativeRunOptions,
     bridge: B,
     model: AppModel,
     window_id: Option<WindowId>,
@@ -65,7 +65,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
-    fn new(options: EguiRunOptions, bridge: B) -> Self {
+    fn new(options: NativeRunOptions, bridge: B) -> Self {
         Self {
             options,
             bridge,
@@ -916,7 +916,7 @@ impl NativeAppBridge for PreviewBridge {
 
 /// Run the native Vello backend window with a host-provided app bridge.
 pub fn run_native_vello_app<B: NativeAppBridge>(
-    options: EguiRunOptions,
+    options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
     let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
@@ -932,7 +932,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 ///
 /// This preview path now renders an interactive backend-neutral shell model with
 /// Vello primitives and exercises native input hit-testing without `egui`.
-pub fn run_native_vello_preview(options: EguiRunOptions) -> Result<(), String> {
+pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     run_native_vello_app(options, PreviewBridge)
 }
 

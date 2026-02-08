@@ -51,6 +51,9 @@ impl Default for EguiRunOptions {
     }
 }
 
+/// Native runtime window options alias used by `winit + vello` hosts.
+pub type NativeRunOptions = EguiRunOptions;
+
 /// Runtime callbacks required by the shared `egui + wgpu` host.
 pub trait EguiAppRuntime {
     /// Configure visuals or one-time state once `egui` context exists.

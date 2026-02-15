@@ -29,7 +29,7 @@ use vello::{
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
-    event::{ElementState, MouseButton, WindowEvent},
+    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
@@ -461,6 +461,18 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     }
                 }
             }
+            WindowEvent::MouseWheel { delta, .. } => {
+                if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
+                {
+                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, delta) {
+                        self.bridge.on_action(UiAction::MoveBrowserFocus { delta });
+                        self.rebuild_scene();
+                        if let Some(window) = self.window.as_ref() {
+                            window.request_redraw();
+                        }
+                    }
+                }
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.modifiers = modifiers.state();
             }
@@ -719,6 +731,32 @@ fn waveform_anchor_milli(model: &AppModel) -> u16 {
         .unwrap_or(0)
 }
 
+fn browser_wheel_row_delta(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    delta: MouseScrollDelta,
+) -> Option<i8> {
+    if model.map.active || !layout.browser_rows.contains(point) {
+        return None;
+    }
+    let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+    let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
+    let raw = match delta {
+        MouseScrollDelta::LineDelta(_, y) => y,
+        MouseScrollDelta::PixelDelta(position) => (position.y as f32) / row_stride,
+    };
+    let mut steps = raw.round();
+    if steps.abs() < 1.0 {
+        steps = raw.signum();
+    }
+    if steps == 0.0 {
+        return None;
+    }
+    let clamped = if steps > 1.0 { steps.min(i8::MAX as f32) } else { steps.max(i8::MIN as f32) };
+    Some(clamped as i8)
+}
+
 #[derive(Clone, Debug)]
 struct GlyphLayout {
     id: u32,
@@ -965,6 +1003,7 @@ mod tests {
         UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
     };
     use crate::gui::types::Vector2;
+    use winit::event::MouseScrollDelta;
 
     #[test]
     fn key_bindings_emit_waveform_zoom_actions() {
@@ -1251,6 +1290,31 @@ mod tests {
                 ModifiersState::default(),
             ),
             Some(UiAction::CheckForUpdates)
+        );
+    }
+
+    #[test]
+    fn browser_wheel_delta_is_bounded_and_directional() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut model = AppModel::default();
+        model.map.active = false;
+        let point = Point::new(
+            layout.browser_rows.min.x + 10.0,
+            layout.browser_rows.min.y + 10.0,
+        );
+
+        assert_eq!(
+            browser_wheel_row_delta(&layout, &model, point, MouseScrollDelta::LineDelta(0.0, 3.0)),
+            Some(3)
+        );
+        assert_eq!(
+            browser_wheel_row_delta(
+                &layout,
+                &model,
+                point,
+                MouseScrollDelta::LineDelta(0.0, 0.0)
+            ),
+            None
         );
     }
 }

@@ -743,8 +743,8 @@ fn browser_wheel_row_delta(
     let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
     let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
     let raw = match delta {
-        MouseScrollDelta::LineDelta(_, y) => y,
-        MouseScrollDelta::PixelDelta(position) => (position.y as f32) / row_stride,
+        MouseScrollDelta::LineDelta(_, y) => -y,
+        MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
     };
     let mut steps = raw.round();
     if steps.abs() < 1.0 {
@@ -1305,7 +1305,7 @@ mod tests {
 
         assert_eq!(
             browser_wheel_row_delta(&layout, &model, point, MouseScrollDelta::LineDelta(0.0, 3.0)),
-            Some(3)
+            Some(-3)
         );
         assert_eq!(
             browser_wheel_row_delta(

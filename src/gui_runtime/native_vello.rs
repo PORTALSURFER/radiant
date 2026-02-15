@@ -44,6 +44,33 @@ enum TextInputTarget {
     PromptInput,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct NativeVelloFrameState {
+    layout_dirty: bool,
+    scene_dirty: bool,
+}
+
+impl NativeVelloFrameState {
+    fn mark_layout_dirty(&mut self) {
+        self.layout_dirty = true;
+        self.scene_dirty = true;
+    }
+
+    fn mark_scene_dirty(&mut self) {
+        self.scene_dirty = true;
+    }
+
+    fn clear_layout_dirty(&mut self) {
+        self.layout_dirty = false;
+    }
+
+    fn take_scene(&mut self) -> bool {
+        let dirty = self.scene_dirty;
+        self.scene_dirty = false;
+        dirty
+    }
+}
+
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: NativeRunOptions,
     bridge: B,
@@ -55,6 +82,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     renderer: Option<Renderer>,
     scene: Scene,
     text_renderer: NativeTextRenderer,
+    style_cache: Option<StyleTokens>,
+    frame_state: NativeVelloFrameState,
     shell_layout: Option<ShellLayout>,
     shell_state: NativeShellState,
     clear_color: Rgba8,
@@ -77,6 +106,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             renderer: None,
             scene: Scene::new(),
             text_renderer: NativeTextRenderer::new(),
+            style_cache: None,
+            frame_state: NativeVelloFrameState::default(),
             shell_layout: None,
             shell_state: NativeShellState::new(),
             clear_color: Rgba8 {
@@ -164,8 +195,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.render_ctx = Some(render_ctx);
         self.render_surface = Some(render_surface);
         self.renderer = Some(renderer);
-        self.rebuild_layout();
-        self.rebuild_scene();
+        self.frame_state.mark_layout_dirty();
+        self.rebuild_scene_if_needed();
         self.last_redraw = Instant::now();
     }
 
@@ -176,11 +207,41 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
         let viewport = Vector2::new(surface.config.width as f32, surface.config.height as f32);
         let style = StyleTokens::for_viewport_with_scale(viewport.x, self.ui_scale_factor());
+        self.style_cache = Some(style);
         self.shell_layout = Some(ShellLayout::build_with_style(viewport, &style));
+        self.frame_state.clear_layout_dirty();
     }
 
     fn build_style_for_layout(layout: &ShellLayout) -> StyleTokens {
         StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
+    }
+
+    fn cached_style_for_layout(&self, layout: &ShellLayout) -> StyleTokens {
+        self.style_cache
+            .unwrap_or_else(|| Self::build_style_for_layout(layout))
+    }
+
+    fn rebuild_scene_if_needed(&mut self) {
+        if self.shell_layout.is_none() || self.frame_state.layout_dirty {
+            self.rebuild_layout();
+        }
+        if !self.frame_state.take_scene() {
+            return;
+        }
+        self.rebuild_scene();
+    }
+
+    fn rebuild_scene_and_request_redraw(&mut self) {
+        self.frame_state.mark_scene_dirty();
+        self.rebuild_scene_if_needed();
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+    }
+
+    fn rebuild_scene_for_tick(&mut self) {
+        self.frame_state.mark_scene_dirty();
+        self.rebuild_scene_if_needed();
     }
 
     fn rebuild_scene(&mut self) {
@@ -191,7 +252,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let style = Self::build_style_for_layout(layout);
+        let style = self.cached_style_for_layout(layout);
         let frame = self.shell_state.build_frame_with_style(layout, &style, &self.model);
         self.clear_color = frame.clear_color;
         let frame_result = FrameBuildResult {
@@ -236,9 +297,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let style = Self::build_style_for_layout(layout);
+        let style = self.cached_style_for_layout(layout);
         self.shell_state.tick_with_style(delta, &style);
-        self.rebuild_scene();
+        self.rebuild_scene_for_tick();
 
         let window = self.window.as_ref().cloned();
         let (Some(window), Some(render_ctx), Some(surface), Some(renderer)) = (
@@ -257,8 +318,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
                         let size = window.inner_size();
                         render_ctx.resize_surface(surface, size.width.max(1), size.height.max(1));
-                        self.rebuild_layout();
-                        self.rebuild_scene();
+                        self.frame_state.mark_layout_dirty();
+                        self.rebuild_scene_if_needed();
                         window.request_redraw();
                     }
                     wgpu::SurfaceError::OutOfMemory => event_loop.exit(),
@@ -387,11 +448,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::ScaleFactorChanged { .. } => {
-                self.rebuild_layout();
-                self.rebuild_scene();
-                if let Some(window) = self.window.as_ref() {
-                    window.request_redraw();
-                }
+                self.frame_state.mark_layout_dirty();
+                self.rebuild_scene_and_request_redraw();
             }
             WindowEvent::Resized(size) => {
                 let window = self.window.as_ref().cloned();
@@ -404,8 +462,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     )
                 {
                     render_ctx.resize_surface(surface, size.width, size.height);
-                    self.rebuild_layout();
-                    self.rebuild_scene();
+                    self.frame_state.mark_layout_dirty();
+                    self.rebuild_scene_if_needed();
                     window.request_redraw();
                 }
             }
@@ -417,8 +475,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && self.shell_state.handle_cursor_move(layout, point)
                     && let Some(window) = window
                 {
-                    self.rebuild_scene();
-                    window.request_redraw();
+                    self.rebuild_scene_and_request_redraw();
                 }
             }
             WindowEvent::MouseInput {
@@ -456,8 +513,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         handled = true;
                     }
                     if handled {
-                        self.rebuild_scene();
-                        window.request_redraw();
+                        self.rebuild_scene_and_request_redraw();
                     }
                 }
             }
@@ -466,10 +522,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 {
                     if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, delta) {
                         self.bridge.on_action(UiAction::MoveBrowserFocus { delta });
-                        self.rebuild_scene();
-                        if let Some(window) = self.window.as_ref() {
-                            window.request_redraw();
-                        }
+                        self.rebuild_scene_and_request_redraw();
                     }
                 }
             }
@@ -477,7 +530,6 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 self.modifiers = modifiers.state();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                let window = self.window.as_ref().cloned();
                 if event.state == ElementState::Pressed && !event.repeat {
                     let mut handled = false;
                     if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
@@ -530,9 +582,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                             handled = true;
                         }
                     }
-                    if handled && let Some(window) = window {
-                        self.rebuild_scene();
-                        window.request_redraw();
+                    if handled {
+                        self.rebuild_scene_and_request_redraw();
                     }
                 }
             }

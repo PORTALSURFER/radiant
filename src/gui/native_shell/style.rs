@@ -330,7 +330,7 @@ impl StyleTokens {
     pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
         let mut tokens = Self {
             layout_tier,
-            clear_color: rgba(12, 11, 10, 255),
+            clear_color: rgba(52, 47, 43, 255),
             bg_primary: rgba(13, 12, 11, 255),
             bg_secondary: rgba(22, 20, 18, 255),
             bg_tertiary: rgba(31, 28, 25, 255),
@@ -363,8 +363,8 @@ impl StyleTokens {
             sizing: SizingTokens {
                 min_viewport_width: 620.0,
                 min_viewport_height: 400.0,
-                frame_inset: 5.0,
-                panel_gap: 2.5,
+                frame_inset: 0.0,
+                panel_gap: 1.0,
                 top_bar_height: 30.0,
                 top_bar_title_row_height: 12.0,
                 top_bar_title_row_min_height: 12.0,
@@ -463,8 +463,8 @@ impl StyleTokens {
         };
 
         if layout_tier == LayoutScaleTier::Compact {
-            tokens.sizing.frame_inset = 6.0;
-            tokens.sizing.panel_gap = 5.0;
+            tokens.sizing.frame_inset = 0.0;
+            tokens.sizing.panel_gap = 1.0;
             tokens.sizing.top_bar_height = 34.0;
             tokens.sizing.top_bar_title_row_height = 14.0;
             tokens.sizing.status_bar_height = 19.0;
@@ -562,8 +562,8 @@ impl StyleTokens {
 
         if layout_tier == LayoutScaleTier::Wide {
             // Keep wide tier dense to preserve the classic Sempal table-first feel.
-            tokens.sizing.frame_inset = 6.0;
-            tokens.sizing.panel_gap = 4.0;
+            tokens.sizing.frame_inset = 0.0;
+            tokens.sizing.panel_gap = 1.0;
             tokens.sizing.top_bar_height = 32.0;
             tokens.sizing.top_bar_title_row_height = 13.0;
             tokens.sizing.status_bar_height = 17.0;
@@ -759,6 +759,8 @@ impl SizingTokens {
         self.font_status *= scale;
         self.lamp_radius_base *= scale;
         self.lamp_radius_amp *= scale;
+        self.frame_inset = 0.0;
+        self.panel_gap = 1.0;
         self
     }
 }

@@ -3302,7 +3302,7 @@ fn render_drag_overlay(
 }
 
 fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
-    StyleTokens::for_viewport_width(layout.root.rect.width())
+    StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
 }
 
 fn text_top_in_rect(rect: Rect, font_size: f32, minimum_inset_y: f32) -> f32 {

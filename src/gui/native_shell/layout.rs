@@ -73,6 +73,8 @@ pub(crate) struct ShellLayout {
     pub status_left_segment: Rect,
     pub status_center_segment: Rect,
     pub status_right_segment: Rect,
+    /// UI scale factor used to derive the layout’s active token set.
+    pub ui_scale: f32,
 }
 
 /// Derived metrics used to validate layout parity contracts.
@@ -107,6 +109,12 @@ impl ShellLayout {
         let viewport_width = viewport.x.max(style.sizing.min_viewport_width);
         let viewport_height = viewport.y.max(style.sizing.min_viewport_height);
         let sizing = style.sizing;
+        let base_style = StyleTokens::for_viewport_width(viewport_width);
+        let ui_scale = if base_style.sizing.font_title > 0.0 {
+            (sizing.font_title / base_style.sizing.font_title).clamp(1.0, 3.0)
+        } else {
+            1.0
+        };
 
         let root_rect = Rect::from_min_size(
             Point::new(0.0, 0.0),
@@ -433,6 +441,7 @@ impl ShellLayout {
             status_left_segment,
             status_center_segment,
             status_right_segment,
+            ui_scale,
         }
     }
 

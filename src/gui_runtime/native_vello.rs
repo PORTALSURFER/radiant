@@ -173,10 +173,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(surface) = self.render_surface.as_ref() else {
             return;
         };
-        self.shell_layout = Some(ShellLayout::build(Vector2::new(
-            surface.config.width as f32,
-            surface.config.height as f32,
-        )));
+
+        let viewport = Vector2::new(surface.config.width as f32, surface.config.height as f32);
+        let style = StyleTokens::for_viewport_with_scale(viewport.x, self.ui_scale_factor());
+        self.shell_layout = Some(ShellLayout::build_with_style(viewport, &style));
+    }
+
+    fn build_style_for_layout(layout: &ShellLayout) -> StyleTokens {
+        StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
     }
 
     fn rebuild_scene(&mut self) {
@@ -187,7 +191,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let frame = self.shell_state.build_frame(layout, &self.model);
+        let style = Self::build_style_for_layout(layout);
+        let frame = self.shell_state.build_frame_with_style(layout, &style, &self.model);
         self.clear_color = frame.clear_color;
         let frame_result = FrameBuildResult {
             primitive_count: frame.primitives.len(),
@@ -228,16 +233,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        let style = self
-            .shell_layout
-            .as_ref()
-            .map(|layout| {
-                StyleTokens::for_viewport_with_scale(
-                    layout.root.rect.width(),
-                    self.ui_scale_factor(),
-                )
-            })
-            .unwrap_or_else(StyleTokens::default);
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return;
+        };
+        let style = Self::build_style_for_layout(layout);
         self.shell_state.tick_with_style(delta, &style);
         self.rebuild_scene();
 
@@ -387,6 +386,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
         }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::ScaleFactorChanged { .. } => {
+                self.rebuild_layout();
+                self.rebuild_scene();
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::Resized(size) => {
                 let window = self.window.as_ref().cloned();
                 if size.width > 0

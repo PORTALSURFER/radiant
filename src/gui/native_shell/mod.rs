@@ -195,6 +195,23 @@ mod tests {
     }
 
     #[test]
+    fn scaled_layout_preserves_scale_ratio_for_rebuild() {
+        let viewport = Vector2::new(1280.0, 720.0);
+        let scaled_style = style::StyleTokens::for_viewport_with_scale(viewport.x, 1.6);
+        let base_style = style::StyleTokens::for_viewport_width(viewport.x);
+        let layout = ShellLayout::build_with_style(viewport, &scaled_style);
+
+        let rebuilt_style =
+            style::StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+
+        let expected_scale = (scaled_style.sizing.font_body / base_style.sizing.font_body);
+        let observed_scale = rebuilt_style.sizing.font_body / base_style.sizing.font_body;
+
+        assert!((layout.ui_scale - 1.6).abs() < 0.0001);
+        assert!((expected_scale - observed_scale).abs() < 0.0001);
+    }
+
+    #[test]
     fn viewport_tier_sizing_changes_row_density() {
         let narrow = style::StyleTokens::for_viewport_width(820.0);
         let wide = style::StyleTokens::for_viewport_width(2300.0);

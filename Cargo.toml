@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-egui = "0.33.2"
-egui-wgpu = { version = "0.33.3", features = ["winit"] }
-egui-winit = "0.33.3"
 winit = "0.30.12"
 pollster = "0.4.0"
 vello = "0.7.0"

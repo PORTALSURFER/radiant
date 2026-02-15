@@ -45,53 +45,6 @@ pub enum KeyCode {
     ArrowDown,
 }
 
-/// Convert an `egui` key into the local backend-agnostic key representation.
-pub fn key_code_from_egui(key: egui::Key) -> Option<KeyCode> {
-    Some(match key {
-        egui::Key::Num0 => KeyCode::Num0,
-        egui::Key::Num1 => KeyCode::Num1,
-        egui::Key::Num2 => KeyCode::Num2,
-        egui::Key::Num3 => KeyCode::Num3,
-        egui::Key::Num4 => KeyCode::Num4,
-        egui::Key::Num5 => KeyCode::Num5,
-        egui::Key::Num6 => KeyCode::Num6,
-        egui::Key::Num7 => KeyCode::Num7,
-        egui::Key::Num8 => KeyCode::Num8,
-        egui::Key::Num9 => KeyCode::Num9,
-        egui::Key::A => KeyCode::A,
-        egui::Key::B => KeyCode::B,
-        egui::Key::C => KeyCode::C,
-        egui::Key::D => KeyCode::D,
-        egui::Key::Enter => KeyCode::Enter,
-        egui::Key::F => KeyCode::F,
-        egui::Key::F1 => KeyCode::F1,
-        egui::Key::G => KeyCode::G,
-        egui::Key::I => KeyCode::I,
-        egui::Key::L => KeyCode::L,
-        egui::Key::M => KeyCode::M,
-        egui::Key::N => KeyCode::N,
-        egui::Key::OpenBracket => KeyCode::OpenBracket,
-        egui::Key::CloseBracket => KeyCode::CloseBracket,
-        egui::Key::P => KeyCode::P,
-        egui::Key::Quote => KeyCode::Quote,
-        egui::Key::R => KeyCode::R,
-        egui::Key::S => KeyCode::S,
-        egui::Key::Slash => KeyCode::Slash,
-        egui::Key::Backslash => KeyCode::Backslash,
-        egui::Key::T => KeyCode::T,
-        egui::Key::U => KeyCode::U,
-        egui::Key::W => KeyCode::W,
-        egui::Key::X => KeyCode::X,
-        egui::Key::Y => KeyCode::Y,
-        egui::Key::Z => KeyCode::Z,
-        egui::Key::ArrowLeft => KeyCode::ArrowLeft,
-        egui::Key::ArrowRight => KeyCode::ArrowRight,
-        egui::Key::ArrowUp => KeyCode::ArrowUp,
-        egui::Key::ArrowDown => KeyCode::ArrowDown,
-        _ => return None,
-    })
-}
-
 /// Convert a `winit` physical key code into the local backend-agnostic key representation.
 pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
     use winit::keyboard::KeyCode as WinitKeyCode;
@@ -138,50 +91,4 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::ArrowDown => KeyCode::ArrowDown,
         _ => return None,
     })
-}
-
-/// Convert a backend-agnostic key code back to `egui` for transitional input handling.
-pub fn egui_key_from_code(key: KeyCode) -> egui::Key {
-    match key {
-        KeyCode::Num0 => egui::Key::Num0,
-        KeyCode::Num1 => egui::Key::Num1,
-        KeyCode::Num2 => egui::Key::Num2,
-        KeyCode::Num3 => egui::Key::Num3,
-        KeyCode::Num4 => egui::Key::Num4,
-        KeyCode::Num5 => egui::Key::Num5,
-        KeyCode::Num6 => egui::Key::Num6,
-        KeyCode::Num7 => egui::Key::Num7,
-        KeyCode::Num8 => egui::Key::Num8,
-        KeyCode::Num9 => egui::Key::Num9,
-        KeyCode::A => egui::Key::A,
-        KeyCode::B => egui::Key::B,
-        KeyCode::C => egui::Key::C,
-        KeyCode::D => egui::Key::D,
-        KeyCode::Enter => egui::Key::Enter,
-        KeyCode::F => egui::Key::F,
-        KeyCode::F1 => egui::Key::F1,
-        KeyCode::G => egui::Key::G,
-        KeyCode::I => egui::Key::I,
-        KeyCode::L => egui::Key::L,
-        KeyCode::M => egui::Key::M,
-        KeyCode::N => egui::Key::N,
-        KeyCode::OpenBracket => egui::Key::OpenBracket,
-        KeyCode::CloseBracket => egui::Key::CloseBracket,
-        KeyCode::P => egui::Key::P,
-        KeyCode::Quote => egui::Key::Quote,
-        KeyCode::R => egui::Key::R,
-        KeyCode::S => egui::Key::S,
-        KeyCode::Slash => egui::Key::Slash,
-        KeyCode::Backslash => egui::Key::Backslash,
-        KeyCode::T => egui::Key::T,
-        KeyCode::U => egui::Key::U,
-        KeyCode::W => egui::Key::W,
-        KeyCode::X => egui::Key::X,
-        KeyCode::Y => egui::Key::Y,
-        KeyCode::Z => egui::Key::Z,
-        KeyCode::ArrowLeft => egui::Key::ArrowLeft,
-        KeyCode::ArrowRight => egui::Key::ArrowRight,
-        KeyCode::ArrowUp => egui::Key::ArrowUp,
-        KeyCode::ArrowDown => egui::Key::ArrowDown,
-    }
 }

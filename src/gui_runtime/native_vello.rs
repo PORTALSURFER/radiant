@@ -1,6 +1,6 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
-use super::egui_wgpu::{NativeRunOptions, WindowIconRgba};
+use super::{NativeRunOptions, WindowIconRgba};
 use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},

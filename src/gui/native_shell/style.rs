@@ -6,6 +6,10 @@ const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
     Rgba8 { r, g, b, a }
 }
 
+const fn clamp_ui_scale(scale: f32) -> f32 {
+    scale.clamp(1.0, 3.0)
+}
+
 /// Viewport density tier used to select a sizing token pack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LayoutScaleTier {
@@ -307,9 +311,19 @@ impl Default for StyleTokens {
 }
 
 impl StyleTokens {
+    /// Build style tokens tuned for a viewport width and DPI scale factor.
+    ///
+    /// The scale factor is clamped to a safe range so accidental outlier scale
+    /// values cannot collapse or overinflate layout geometry.
+    pub(crate) fn for_viewport_with_scale(viewport_width: f32, ui_scale: f32) -> Self {
+        let mut tokens = Self::for_tier(LayoutScaleTier::from_viewport_width(viewport_width));
+        tokens.sizing = tokens.sizing.with_ui_scale(clamp_ui_scale(ui_scale));
+        tokens
+    }
+
     /// Build style tokens tuned for a viewport width tier.
     pub(crate) fn for_viewport_width(viewport_width: f32) -> Self {
-        Self::for_tier(LayoutScaleTier::from_viewport_width(viewport_width))
+        Self::for_viewport_with_scale(viewport_width, 1.0)
     }
 
     /// Build style tokens for an explicit scale tier.
@@ -647,6 +661,108 @@ impl StyleTokens {
     }
 }
 
+impl SizingTokens {
+    /// Scale geometry and font tokens for a logical UI scale factor.
+    ///
+    /// This keeps tier selection stable while preserving density ratios and
+    /// interaction values that should remain independent from geometry.
+    fn with_ui_scale(mut self, ui_scale: f32) -> Self {
+        let scale = clamp_ui_scale(ui_scale);
+        if (scale - 1.0).abs() < f32::EPSILON {
+            return self;
+        }
+
+        self.frame_inset *= scale;
+        self.panel_gap *= scale;
+        self.top_bar_height *= scale;
+        self.top_bar_title_row_height *= scale;
+        self.top_bar_title_row_min_height *= scale;
+        self.top_bar_title_row_bottom_gap *= scale;
+        self.status_bar_height *= scale;
+        self.sidebar_min_width *= scale;
+        self.sidebar_max_width *= scale;
+        self.content_min_width *= scale;
+        self.waveform_min_height *= scale;
+        self.waveform_max_height *= scale;
+        self.column_gap *= scale;
+        self.column_min_width *= scale;
+        self.browser_tabs_height *= scale;
+        self.browser_tabs_min_height *= scale;
+        self.browser_toolbar_height *= scale;
+        self.browser_toolbar_min_height *= scale;
+        self.browser_table_header_height *= scale;
+        self.browser_table_header_min_height *= scale;
+        self.browser_footer_height *= scale;
+        self.browser_footer_min_height *= scale;
+        self.browser_footer_max_height *= scale;
+        self.browser_search_field_min_width *= scale;
+        self.browser_index_col_width *= scale;
+        self.browser_bucket_col_width *= scale;
+        self.panel_inset *= scale;
+        self.header_label_gutter *= scale;
+        self.browser_row_gap *= scale;
+        self.browser_row_height *= scale;
+        self.source_row_gap *= scale;
+        self.source_row_height *= scale;
+        self.folder_row_gap *= scale;
+        self.folder_row_height *= scale;
+        self.sidebar_section_gap *= scale;
+        self.source_section_divider_width *= scale;
+        self.header_to_rows_gap *= scale;
+        self.panel_section_padding_top *= scale;
+        self.panel_section_padding_bottom *= scale;
+        self.folder_header_block_height *= scale;
+        self.recovery_badge_height *= scale;
+        self.recovery_badge_min_width *= scale;
+        self.recovery_badge_padding_x *= scale;
+        self.folder_indent_step *= scale;
+        self.text_row_gap *= scale;
+        self.title_meta_gap *= scale;
+        self.text_inset_x *= scale;
+        self.text_inset_y *= scale;
+        self.row_corner_inset *= scale;
+        self.source_header_block_height *= scale;
+        self.column_header_block_height *= scale;
+        self.waveform_header_block_height *= scale;
+        self.source_bottom_padding *= scale;
+        self.column_bottom_padding *= scale;
+        self.content_tail_min_width *= scale;
+        self.content_browser_min_height *= scale;
+        self.waveform_card_floor_height *= scale;
+        self.action_button_width *= scale;
+        self.action_button_height *= scale;
+        self.action_button_gap *= scale;
+        self.top_bar_cluster_gap *= scale;
+        self.top_volume_meter_width *= scale;
+        self.top_volume_meter_height *= scale;
+        self.top_bar_action_cluster_min_width *= scale;
+        self.top_bar_action_cluster_max_width *= scale;
+        self.top_bar_action_cluster_title_reserve_width *= scale;
+        self.status_segment_gap *= scale;
+        self.overlay_padding *= scale;
+        self.prompt_width *= scale;
+        self.prompt_min_height *= scale;
+        self.overlay_button_width *= scale;
+        self.overlay_button_height *= scale;
+        self.progress_bar_height *= scale;
+        self.drag_overlay_height *= scale;
+        self.sidebar_action_button_width *= scale;
+        self.sidebar_action_button_height *= scale;
+        self.sidebar_action_button_gap *= scale;
+        self.border_width *= scale;
+        self.focus_stroke_width *= scale;
+        self.waveform_scan_step *= scale;
+        self.font_title *= scale;
+        self.font_header *= scale;
+        self.font_body *= scale;
+        self.font_meta *= scale;
+        self.font_status *= scale;
+        self.lamp_radius_base *= scale;
+        self.lamp_radius_amp *= scale;
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{LayoutScaleTier, StyleTokens};
@@ -733,6 +849,30 @@ mod tests {
         assert!(standard.sizing.sidebar_max_width <= 220.0);
         assert!(standard.sizing.font_body <= 9.1);
         assert!(standard.sizing.font_meta <= 8.8);
+    }
+
+    #[test]
+    fn viewport_scale_preserves_tiers_and_inflates_geometry() {
+        let scaled = StyleTokens::for_viewport_with_scale(1280.0, 1.5);
+        let base = StyleTokens::for_viewport_width(1280.0);
+        assert_eq!(scaled.layout_tier, base.layout_tier);
+        assert_eq!(scaled.sizing.sidebar_ratio, base.sizing.sidebar_ratio);
+        assert!((scaled.sizing.font_body - (base.sizing.font_body * 1.5)).abs() < 0.0001);
+        assert!((scaled.sizing.top_bar_height - (base.sizing.top_bar_height * 1.5)).abs() < 0.0001);
+        assert!((scaled.sizing.action_button_width - (base.sizing.action_button_width * 1.5)).abs() < 0.0001);
+        assert!(
+            (scaled.sizing.sidebar_max_width - (base.sizing.sidebar_max_width * 1.5)).abs() < 0.0001
+        );
+    }
+
+    #[test]
+    fn viewport_scale_is_clamped() {
+        let below = StyleTokens::for_viewport_with_scale(1280.0, 0.5);
+        let identity = StyleTokens::for_viewport_with_scale(1280.0, 1.0);
+        let above = StyleTokens::for_viewport_with_scale(1280.0, 4.0);
+        let max_scale = 3.0;
+        assert_eq!(below, identity);
+        assert!((above.sizing.font_body - (identity.sizing.font_body * max_scale)).abs() < 0.0001);
     }
 
     #[test]

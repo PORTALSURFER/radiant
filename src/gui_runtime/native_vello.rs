@@ -92,6 +92,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
+    fn ui_scale_factor(&self) -> f32 {
+        self.window
+            .as_ref()
+            .map(|window| {
+                let scale = window.scale_factor() as f32;
+                scale.clamp(1.0, 3.0)
+            })
+            .unwrap_or(1.0)
+    }
+
     fn build_window_attributes(&self) -> WindowAttributes {
         let mut attrs = Window::default_attributes()
             .with_title(self.options.title.clone())
@@ -221,8 +231,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let style = self
             .shell_layout
             .as_ref()
-            .map(|layout| StyleTokens::for_viewport_width(layout.root.rect.width()))
-            .unwrap_or_default();
+            .map(|layout| {
+                StyleTokens::for_viewport_with_scale(
+                    layout.root.rect.width(),
+                    self.ui_scale_factor(),
+                )
+            })
+            .unwrap_or_else(StyleTokens::default);
         self.shell_state.tick_with_style(delta, &style);
         self.rebuild_scene();
 

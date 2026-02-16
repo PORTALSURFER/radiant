@@ -91,6 +91,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     render_ctx: Option<RenderContext>,
     render_surface: Option<RenderSurface<'static>>,
     renderer: Option<Renderer>,
+    frame_cache: NativeViewFrame,
     scene: Scene,
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
@@ -115,6 +116,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             render_ctx: None,
             render_surface: None,
             renderer: None,
+            frame_cache: NativeViewFrame {
+                clear_color: Rgba8 {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                primitives: Vec::new(),
+                text_runs: Vec::new(),
+            },
             scene: Scene::new(),
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
@@ -270,15 +281,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         };
         let style = self.cached_style_for_layout(layout);
-        let frame = self.shell_state.build_frame_with_style(layout, &style, &self.model);
-        self.clear_color = frame.clear_color;
+        self.shell_state.build_frame_with_style_into(
+            layout,
+            &style,
+            &self.model,
+            &mut self.frame_cache,
+        );
+        self.clear_color = self.frame_cache.clear_color;
         let frame_result = FrameBuildResult {
-            primitive_count: frame.primitives.len(),
-            text_run_count: frame.text_runs.len(),
+            primitive_count: self.frame_cache.primitives.len(),
+            text_run_count: self.frame_cache.text_runs.len(),
             needs_animation: self.shell_state.needs_animation(),
         };
         self.bridge.on_frame_result(frame_result);
-        for primitive in frame.primitives {
+        for primitive in self.frame_cache.primitives.iter() {
             match primitive {
                 Primitive::Rect(fill) => {
                     self.scene.fill(
@@ -304,7 +320,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
         }
         self.text_renderer
-            .draw_text_runs(&mut self.scene, &frame.text_runs);
+            .draw_text_runs(&mut self.scene, &self.frame_cache.text_runs);
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -851,6 +867,8 @@ struct TextLayoutKey {
     font_size_bits: u32,
 }
 
+const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
+
 #[derive(Clone)]
 struct LoadedFont {
     font: FontData,
@@ -871,7 +889,7 @@ impl NativeTextRenderer {
         }
         Self {
             loaded_font,
-            layout_cache: HashMap::new(),
+            layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
         }
     }
 
@@ -924,6 +942,9 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
+        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+            self.layout_cache.clear();
+        }
         if !self.layout_cache.contains_key(&key) {
             let layout = Self::compute_layout(font, text, font_size)?;
             self.layout_cache.insert(key.clone(), layout);

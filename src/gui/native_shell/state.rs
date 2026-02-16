@@ -159,9 +159,13 @@ impl NativeShellState {
         point: Point,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        self.cached_source_row_rects(layout, &style, model)
-            .iter()
-            .position(|rect| rect.contains(point))
+        let source_rows = self.cached_source_row_rects(layout, &style, model);
+        row_index_from_stacked_rows(
+            source_rows,
+            point,
+            style.sizing.source_row_height,
+            style.sizing.source_row_gap,
+        )
     }
 
     /// Resolve a rendered folder-row index for a point within the sidebar.
@@ -172,9 +176,13 @@ impl NativeShellState {
         point: Point,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        self.cached_folder_row_rects(layout, &style, model)
-            .iter()
-            .position(|rect| rect.contains(point))
+        let folder_rows = self.cached_folder_row_rects(layout, &style, model);
+        row_index_from_stacked_rows(
+            folder_rows,
+            point,
+            style.sizing.folder_row_height,
+            style.sizing.folder_row_gap,
+        )
     }
 
     /// Return rendered source-row rectangles for geometry tests.
@@ -254,10 +262,10 @@ impl NativeShellState {
             return None;
         }
         let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model)
-            .into_iter()
-            .find(|row| row.rect.contains(point))
-            .map(|row| row.visible_row)
+        let rows = self.cached_browser_rows(layout, &style, model);
+        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing).map(|index| {
+            rows[index].visible_row
+        })
     }
 
     /// Resolve a browser action-strip click into a native UI action.
@@ -382,12 +390,31 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> NativeViewFrame {
+        let mut frame = NativeViewFrame {
+            clear_color: style.clear_color,
+            primitives: Vec::new(),
+            text_runs: Vec::new(),
+        };
+        self.build_frame_with_style_into(layout, style, model, &mut frame);
+        frame
+    }
+
+    /// Build a native frame from state + layout + style tokens into reusable buffers.
+    pub(crate) fn build_frame_with_style_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
         let sizing = style.sizing;
         let motion_wave = interaction_wave(self.pulse_phase);
         let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
         let focus_text_emphasis = focus_text_blend(style, motion_wave);
-        let mut primitives = Vec::new();
-        let mut text_runs = Vec::new();
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        let text_runs = &mut frame.text_runs;
 
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.top_bar,
@@ -532,8 +559,8 @@ impl NativeShellState {
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
-        let source_row_rects = self.cached_source_row_rects(layout, style, model).to_vec();
-        let folder_row_rects = self.cached_folder_row_rects(layout, style, model).to_vec();
+        let source_row_rects = self.cached_source_row_rects(layout, style, model);
+        let folder_row_rects = self.cached_folder_row_rects(layout, style, model);
         if model.map.active {
             let canvas = map_canvas_rect(layout.browser_rows, sizing);
             primitives.push(Primitive::Rect(FillRect {
@@ -1924,11 +1951,7 @@ impl NativeShellState {
         render_confirm_prompt(&mut primitives, &mut text_runs, layout, style, model);
         render_drag_overlay(&mut primitives, &mut text_runs, layout, style, model);
 
-        NativeViewFrame {
-            clear_color: style.clear_color,
-            primitives,
-            text_runs,
-        }
+        frame.clear_color = style.clear_color;
     }
 
     /// Build a native frame using default style tokens.
@@ -2212,6 +2235,40 @@ fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> String {
     }
     output.push_str("...");
     output
+}
+
+fn row_index_from_stacked_rows(
+    rows: &[Rect],
+    point: Point,
+    row_height: f32,
+    row_gap: f32,
+) -> Option<usize> {
+    if rows.is_empty() || row_height <= 0.0 {
+        return None;
+    }
+    let stride = (row_height + row_gap.max(0.0)).max(1.0);
+    if point.x < rows[0].min.x || point.x > rows[0].max.x {
+        return None;
+    }
+    if point.y < rows[0].min.y {
+        return None;
+    }
+    let index = ((point.y - rows[0].min.y) / stride).floor() as usize;
+    rows.get(index).filter(|rect| rect.contains(point)).map(|_| index)
+}
+
+fn row_index_for_visible_rows(
+    rows: &[CachedBrowserRow],
+    point: Point,
+    browser_rows: Rect,
+    sizing: SizingTokens,
+) -> Option<usize> {
+    if rows.is_empty() || sizing.browser_row_height <= 0.0 || !browser_rows.contains(point) {
+        return None;
+    }
+    let stride = (sizing.browser_row_height + sizing.browser_row_gap.max(0.0)).max(1.0);
+    let index = ((point.y - rows[0].rect.min.y) / stride).floor() as usize;
+    rows.get(index).filter(|row| row.rect.contains(point)).map(|_| index)
 }
 
 fn browser_rows_cache_key(

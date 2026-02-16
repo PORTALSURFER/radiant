@@ -45,37 +45,64 @@ enum TextInputTarget {
     PromptInput,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeVelloFrameState {
+    /// Layout-only changes invalidate both static frame and cached overlays.
     layout_dirty: bool,
+    /// Full static scene cache needs a rebuild.
     scene_dirty: bool,
+    /// Motion overlays need a rebuild.
+    overlay_dirty: bool,
+    /// Input/model changes need at least static scene refresh.
     model_dirty: bool,
 }
 
 impl NativeVelloFrameState {
+    /// Mark layout as stale, requiring full scene and overlay refresh.
     fn mark_layout_dirty(&mut self) {
         self.layout_dirty = true;
         self.scene_dirty = true;
+        self.overlay_dirty = true;
     }
 
+    /// Mark the visible scene dirty, including retained animation overlays.
     fn mark_scene_dirty(&mut self) {
         self.scene_dirty = true;
+        self.overlay_dirty = true;
     }
 
+    /// Mark only the overlay cache dirty.
+    fn mark_overlay_dirty(&mut self) {
+        self.overlay_dirty = true;
+    }
+
+    /// Clear one-off layout flags after layout rebuild.
     fn clear_layout_dirty(&mut self) {
         self.layout_dirty = false;
     }
 
+    /// Mark model-backed state as dirty.
     fn mark_model_dirty(&mut self) {
         self.model_dirty = true;
+        self.scene_dirty = true;
+        self.overlay_dirty = true;
     }
 
+    /// Take and clear the static scene dirty bit.
     fn take_scene(&mut self) -> bool {
         let dirty = self.scene_dirty;
         self.scene_dirty = false;
         dirty
     }
 
+    /// Take and clear the animation overlay dirty bit.
+    fn take_overlay(&mut self) -> bool {
+        let dirty = self.overlay_dirty;
+        self.overlay_dirty = false;
+        dirty
+    }
+
+    /// Take and clear model pull flag.
     fn take_model(&mut self) -> bool {
         let dirty = self.model_dirty;
         self.model_dirty = false;
@@ -92,8 +119,16 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     render_ctx: Option<RenderContext>,
     render_surface: Option<RenderSurface<'static>>,
     renderer: Option<Renderer>,
+    /// Retained static scene primitives (layout and stable content).
     frame_cache: NativeViewFrame,
+    /// Retained dynamic overlay primitives (pulses, overlays, moving accents).
+    overlay_frame_cache: NativeViewFrame,
+    /// Full scene sent to Vello after combining static + overlay scenes.
     scene: Scene,
+    /// Cached encoded static scene.
+    static_scene: Scene,
+    /// Cached encoded overlay scene.
+    overlay_scene: Scene,
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
@@ -127,7 +162,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
+            overlay_frame_cache: NativeViewFrame {
+                clear_color: Rgba8 {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                primitives: Vec::new(),
+                text_runs: Vec::new(),
+            },
             scene: Scene::new(),
+            static_scene: Scene::new(),
+            overlay_scene: Scene::new(),
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
             frame_state: NativeVelloFrameState {
@@ -251,10 +298,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.shell_layout.is_none() || self.frame_state.layout_dirty {
             self.rebuild_layout();
         }
-        if !self.frame_state.take_scene() {
+        let rebuild_static = self.frame_state.take_scene();
+        let rebuild_overlay = self.frame_state.take_overlay() || rebuild_static;
+        if !rebuild_static && !rebuild_overlay {
             return;
         }
-        self.rebuild_scene();
+        self.rebuild_scene(rebuild_static, rebuild_overlay);
     }
 
     fn rebuild_scene_and_request_redraw(&mut self) {
@@ -264,41 +313,28 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
+    fn rebuild_overlay_and_request_redraw(&mut self) {
+        self.frame_state.mark_overlay_dirty();
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+    }
+
     fn rebuild_scene_for_tick(&mut self) {
-        self.frame_state.mark_scene_dirty();
+        self.frame_state.mark_overlay_dirty();
         self.rebuild_scene_if_needed();
     }
 
-    fn rebuild_scene(&mut self) {
-        self.scene.reset();
-        let should_refresh_model = self.frame_state.take_model()
-            || self.shell_state.is_transport_running();
-        if should_refresh_model {
-            self.model = self.bridge.pull_model();
-            self.shell_state.sync_from_model(&self.model);
-            self.sync_text_input_target();
-        }
-        let Some(layout) = self.shell_layout.as_ref() else {
-            return;
-        };
-        let style = self.cached_style_for_layout(layout);
-        self.shell_state.build_frame_with_style_into(
-            layout,
-            &style,
-            &self.model,
-            &mut self.frame_cache,
-        );
-        self.clear_color = self.frame_cache.clear_color;
-        let frame_result = FrameBuildResult {
-            primitive_count: self.frame_cache.primitives.len(),
-            text_run_count: self.frame_cache.text_runs.len(),
-            needs_animation: self.shell_state.needs_animation(),
-        };
-        self.bridge.on_frame_result(frame_result);
-        for primitive in self.frame_cache.primitives.iter() {
+    fn encode_frame_to_scene(
+        frame: &NativeViewFrame,
+        scene: &mut Scene,
+        text_renderer: &mut NativeTextRenderer,
+    ) {
+        scene.reset();
+        for primitive in frame.primitives.iter() {
             match primitive {
                 Primitive::Rect(fill) => {
-                    self.scene.fill(
+                    scene.fill(
                         Fill::NonZero,
                         Affine::IDENTITY,
                         color_from_rgba(fill.color),
@@ -307,7 +343,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     );
                 }
                 Primitive::Circle(fill) => {
-                    self.scene.fill(
+                    scene.fill(
                         Fill::NonZero,
                         Affine::IDENTITY,
                         color_from_rgba(fill.color),
@@ -320,8 +356,62 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
             }
         }
-        self.text_renderer
-            .draw_text_runs(&mut self.scene, &self.frame_cache.text_runs);
+        text_renderer.draw_text_runs(scene, &frame.text_runs);
+    }
+
+    fn rebuild_scene(&mut self, rebuild_static: bool, rebuild_overlay: bool) {
+        let should_refresh_model = self.frame_state.take_model()
+            || self.shell_state.is_transport_running();
+        if should_refresh_model {
+            self.model = self.bridge.pull_model();
+            self.shell_state.sync_from_model(&self.model);
+            self.sync_text_input_target();
+        }
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return;
+        };
+        let layout = layout.clone();
+        let style = self.cached_style_for_layout(&layout);
+        if rebuild_static {
+            self.shell_state
+                .build_frame_with_style_into_static(
+                    &layout,
+                    &style,
+                    &self.model,
+                    &mut self.frame_cache,
+                );
+            self.clear_color = self.frame_cache.clear_color;
+            Self::encode_frame_to_scene(
+                &self.frame_cache,
+                &mut self.static_scene,
+                &mut self.text_renderer,
+            );
+        }
+        if rebuild_overlay {
+            self.shell_state
+                .build_animation_overlay_into(
+                    &layout,
+                    &style,
+                    &self.model,
+                    &mut self.overlay_frame_cache,
+                );
+            Self::encode_frame_to_scene(
+                &self.overlay_frame_cache,
+                &mut self.overlay_scene,
+                &mut self.text_renderer,
+            );
+        }
+        if rebuild_static || rebuild_overlay {
+            self.scene.reset();
+            self.scene.append(&self.static_scene, None);
+            self.scene.append(&self.overlay_scene, None);
+        }
+        let frame_result = FrameBuildResult {
+            primitive_count: self.frame_cache.primitives.len() + self.overlay_frame_cache.primitives.len(),
+            text_run_count: self.frame_cache.text_runs.len() + self.overlay_frame_cache.text_runs.len(),
+            needs_animation: self.shell_state.needs_animation(),
+        };
+        self.bridge.on_frame_result(frame_result);
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -515,7 +605,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && self.shell_state.handle_cursor_move(layout, point)
                     && let Some(_window) = _window
                 {
-                    self.rebuild_scene_and_request_redraw();
+                    self.rebuild_overlay_and_request_redraw();
                 }
             }
             WindowEvent::MouseInput {

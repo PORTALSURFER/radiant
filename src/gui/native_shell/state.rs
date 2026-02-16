@@ -407,8 +407,46 @@ impl NativeShellState {
         model: &AppModel,
         frame: &mut NativeViewFrame,
     ) {
+        self.build_frame_with_style_into_with_motion(
+            layout,
+            style,
+            model,
+            frame,
+            self.pulse_phase,
+            true,
+        );
+    }
+
+    /// Build a frame without animated values into reusable buffers.
+    pub(crate) fn build_frame_with_style_into_static(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        self.build_frame_with_style_into_with_motion(
+            layout,
+            style,
+            model,
+            frame,
+            0.0,
+            false,
+        );
+    }
+
+    /// Build a frame with a caller-supplied motion phase.
+    fn build_frame_with_style_into_with_motion(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+        pulse_phase: f32,
+        include_overlays: bool,
+    ) {
         let sizing = style.sizing;
-        let motion_wave = interaction_wave(self.pulse_phase);
+        let motion_wave = interaction_wave(pulse_phase);
         let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
         let focus_text_emphasis = focus_text_blend(style, motion_wave);
         frame.primitives.clear();
@@ -418,27 +456,11 @@ impl NativeShellState {
 
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.top_bar,
-            color: if self.hovered == Some(ShellNodeKind::TopBar) {
-                blend_color(
-                    style.surface_raised,
-                    style.bg_tertiary,
-                    style.state_hover_soft,
-                )
-            } else {
-                style.surface_raised
-            },
+            color: style.surface_raised,
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.sidebar,
-            color: if self.hovered == Some(ShellNodeKind::Sidebar) {
-                blend_color(
-                    style.surface_raised,
-                    style.bg_tertiary,
-                    style.state_hover_soft,
-                )
-            } else {
-                style.surface_raised
-            },
+            color: style.surface_raised,
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.content,
@@ -446,15 +468,7 @@ impl NativeShellState {
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.waveform_card,
-            color: if self.hovered == Some(ShellNodeKind::WaveformCard) {
-                blend_color(
-                    style.surface_raised,
-                    style.bg_tertiary,
-                    style.state_hover_strong,
-                )
-            } else {
-                style.surface_raised
-            },
+            color: style.surface_raised,
         }));
         primitives.push(Primitive::Rect(FillRect {
             rect: layout.status_bar,
@@ -1916,6 +1930,334 @@ impl NativeShellState {
                 (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
             ),
             align: TextAlign::Right,
+        });
+
+        if include_overlays {
+            render_progress_overlay(primitives, text_runs, layout, style, model);
+            render_confirm_prompt(primitives, text_runs, layout, style, model);
+            render_drag_overlay(primitives, text_runs, layout, style, model);
+        }
+
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build only motion-sensitive overlays into reusable buffers.
+    pub(crate) fn build_animation_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        let sizing = style.sizing;
+        let motion_wave = interaction_wave(self.pulse_phase);
+        let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
+        let focus_text_emphasis = focus_text_blend(style, motion_wave);
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        let text_runs = &mut frame.text_runs;
+
+        let lamp_radius = sizing.lamp_radius_base
+            + (((self.pulse_phase.sin() + 1.0) * 0.5) * sizing.lamp_radius_amp);
+        let lamp_color = if self.transport_running {
+            style.accent_mint
+        } else {
+            style.accent_copper
+        };
+        primitives.push(Primitive::Circle(FillCircle {
+            center: Point::new(
+                layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
+                layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
+            ),
+            radius: lamp_radius,
+            color: lamp_color,
+        }));
+
+        if self.hovered == Some(ShellNodeKind::TopBar) {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: layout.top_bar,
+                color: blend_color(
+                    style.surface_raised,
+                    style.bg_tertiary,
+                    style.state_hover_soft,
+                ),
+            }));
+        }
+
+        if self.hovered == Some(ShellNodeKind::Sidebar) {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: layout.sidebar,
+                color: blend_color(
+                    style.surface_raised,
+                    style.bg_tertiary,
+                    style.state_hover_soft,
+                ),
+            }));
+        }
+
+        if self.hovered == Some(ShellNodeKind::WaveformCard) {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: layout.waveform_card,
+                color: blend_color(
+                    style.surface_raised,
+                    style.bg_tertiary,
+                    style.state_hover_strong,
+                ),
+            }));
+        }
+
+        if self.has_focus_emphasis {
+            let source_row_rects = self.cached_source_row_rects(layout, style, model);
+            for (row_index, row_rect) in source_row_rects.iter().enumerate() {
+                let Some(row) = model.sources.rows.get(row_index) else {
+                    continue;
+                };
+                let row_selected = row.selected
+                    || model
+                        .sources
+                        .selected_row
+                        .is_some_and(|selected| selected == row_index);
+                if !row_selected {
+                    continue;
+                }
+                push_border(
+                    primitives,
+                    *row_rect,
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    ),
+                    sizing.border_width,
+                );
+            }
+
+            let folder_row_rects = self.cached_folder_row_rects(layout, style, model);
+            for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
+                let Some(row) = model.sources.folder_rows.get(row_index) else {
+                    continue;
+                };
+                if !(row.selected || row.focused) {
+                    continue;
+                }
+                if row.focused {
+                    primitives.push(Primitive::Rect(FillRect {
+                        rect: *row_rect,
+                        color: blend_color(
+                            style.bg_tertiary,
+                            style.grid_strong,
+                            focus_fill_emphasis,
+                        ),
+                    }));
+                }
+                if row.focused || row.selected {
+                    push_border(
+                        primitives,
+                        *row_rect,
+                        if row.focused {
+                            blend_color(
+                                style.accent_warning,
+                                style.text_primary,
+                                motion_wave * style.state_focus_pulse_blend,
+                            )
+                        } else {
+                            blend_color(
+                                style.accent_mint,
+                                style.text_primary,
+                                motion_wave * style.state_selected_blend,
+                            )
+                        },
+                        if row.focused {
+                            sizing.focus_stroke_width
+                        } else {
+                            sizing.border_width
+                        },
+                    );
+                }
+                if row.focused {
+                    let glyph = if row.is_root {
+                        "•"
+                    } else if row.has_children {
+                        if row.expanded { "▼" } else { "▶" }
+                    } else {
+                        "·"
+                    };
+                    let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
+                        .min((row_rect.width() * 0.45).max(0.0));
+                    let row_text_width = (row_rect.width()
+                        - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
+                        - depth_indent)
+                        .max(24.0);
+                    let row_label = format!("{glyph} {}", row.label);
+                    text_runs.push(TextRun {
+                        text: truncate_to_width(&row_label, row_text_width, sizing.font_body),
+                        position: Point::new(
+                            row_label_x(*row_rect, &sizing, depth_indent),
+                            text_top_in_rect(*row_rect, sizing.font_body, sizing.text_inset_y),
+                        ),
+                        font_size: sizing.font_body,
+                        color: blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            focus_text_emphasis,
+                        ),
+                        max_width: Some(row_text_width),
+                        align: TextAlign::Left,
+                    });
+                }
+            }
+
+            let browser_rows = self.cached_browser_rows(layout, style, model);
+            for row in browser_rows.iter() {
+                if !(row.selected || row.focused) {
+                    continue;
+                }
+                let columns = browser_table_columns(row.rect, sizing);
+                if row.focused {
+                    primitives.push(Primitive::Rect(FillRect {
+                        rect: row.rect,
+                        color: blend_color(
+                            style.bg_tertiary,
+                            style.grid_strong,
+                            focus_fill_emphasis,
+                        ),
+                    }));
+                }
+                push_border(
+                    primitives,
+                    row.rect,
+                    if row.focused {
+                        blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            motion_wave * style.state_focus_pulse_blend,
+                        )
+                    } else {
+                        blend_color(
+                            style.accent_mint,
+                            style.text_primary,
+                            motion_wave * style.state_selected_blend,
+                        )
+                    },
+                    if row.focused {
+                        sizing.focus_stroke_width
+                    } else {
+                        sizing.border_width
+                    },
+                );
+                if row.focused {
+                    text_runs.push(TextRun {
+                        text: row.visible_row.to_string(),
+                        position: Point::new(
+                            columns.index.min.x + sizing.text_inset_x,
+                            text_top_in_rect(columns.index, sizing.font_meta, sizing.text_inset_y),
+                        ),
+                        font_size: sizing.font_meta,
+                        color: blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            motion_wave * focus_text_emphasis,
+                        ),
+                        max_width: Some((columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                        align: TextAlign::Right,
+                    });
+                    text_runs.push(TextRun {
+                        text: row.label.clone(),
+                        position: Point::new(
+                            columns.sample.min.x + sizing.text_inset_x,
+                            text_top_in_rect(columns.sample, sizing.font_body, sizing.text_inset_y),
+                        ),
+                        font_size: sizing.font_body,
+                        color: blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            motion_wave * focus_text_emphasis,
+                        ),
+                        max_width: Some((columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
+                        align: TextAlign::Left,
+                    });
+                }
+            };
+        }
+
+        let tabs = browser_tabs_layout(layout, sizing);
+        let (samples_fill, map_fill, samples_border, map_border, samples_text_color, map_text_color) =
+            if !model.map.active {
+                (
+                    blend_color(
+                        style.surface_overlay,
+                        style.bg_tertiary,
+                        style.state_selected_blend + (motion_wave * 0.1),
+                    ),
+                    style.surface_base,
+                    blend_color(style.accent_mint, style.text_primary, 0.42),
+                    style.border,
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    ),
+                    style.text_muted,
+                )
+            } else {
+                (
+                    style.surface_base,
+                    blend_color(
+                        style.surface_overlay,
+                        style.bg_tertiary,
+                        style.state_selected_blend + (motion_wave * 0.1),
+                    ),
+                    style.border,
+                    blend_color(style.accent_mint, style.text_primary, 0.42),
+                    style.text_muted,
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    ),
+                )
+            };
+        primitives.push(Primitive::Rect(FillRect {
+            rect: tabs.samples,
+            color: samples_fill,
+        }));
+        primitives.push(Primitive::Rect(FillRect {
+            rect: tabs.map,
+            color: map_fill,
+        }));
+        push_border(primitives, tabs.samples, samples_border, sizing.border_width);
+        push_border(primitives, tabs.map, map_border, sizing.border_width);
+        let samples_text = format!(
+            "{} ({})",
+            model.browser_chrome.samples_tab_label,
+            model.columns.get(1).map(|column| column.item_count).unwrap_or(0)
+        );
+        text_runs.push(TextRun {
+            text: truncate_to_width(
+                &samples_text,
+                (tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0),
+                sizing.font_header,
+            ),
+            position: Point::new(
+                tabs.samples.min.x + sizing.text_inset_x,
+                text_top_in_rect(tabs.samples, sizing.font_header, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_header,
+            color: samples_text_color,
+            max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            align: TextAlign::Left,
+        });
+        text_runs.push(TextRun {
+            text: String::from(model.browser_chrome.map_tab_label.as_str()),
+            position: Point::new(
+                tabs.map.min.x + sizing.text_inset_x,
+                text_top_in_rect(tabs.map, sizing.font_header, sizing.text_inset_y),
+            ),
+            font_size: sizing.font_header,
+            color: map_text_color,
+            max_width: Some((tabs.map.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            align: TextAlign::Left,
         });
 
         render_progress_overlay(primitives, text_runs, layout, style, model);

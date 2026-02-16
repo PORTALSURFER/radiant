@@ -518,12 +518,7 @@ impl NativeShellState {
                 rect,
                 color: style.grid_strong,
             }));
-            push_border(
-                &mut primitives,
-                rect,
-                style.accent_mint,
-                sizing.border_width,
-            );
+            push_border(primitives, rect, style.accent_mint, sizing.border_width);
         }
 
         if let Some(cursor_milli) = model.waveform.cursor_milli {
@@ -559,20 +554,16 @@ impl NativeShellState {
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
-        let source_row_rects = self.cached_source_row_rects(layout, style, model);
-        let folder_row_rects = self.cached_folder_row_rects(layout, style, model);
+        let source_row_rects = rendered_source_row_rects(layout, style, model);
+        let folder_row_rects = rendered_folder_row_rects(layout, style, model);
+        let browser_rows = rendered_browser_rows(layout, model, style);
         if model.map.active {
             let canvas = map_canvas_rect(layout.browser_rows, sizing);
             primitives.push(Primitive::Rect(FillRect {
                 rect: canvas,
                 color: blend_color(style.surface_base, style.bg_secondary, 0.24),
             }));
-            push_border(
-                &mut primitives,
-                canvas,
-                style.border_emphasis,
-                sizing.border_width,
-            );
+            push_border(primitives, canvas, style.border_emphasis, sizing.border_width);
             for point in &model.map.points {
                 let center = map_point_center(canvas, point);
                 let color = map_point_color(style, point);
@@ -590,7 +581,7 @@ impl NativeShellState {
                 }));
             }
         } else {
-            for row in self.cached_browser_rows(layout, style, model).iter() {
+            for row in browser_rows.iter() {
                 let row_columns = browser_table_columns(row.rect, sizing);
                 let row_fill = if row.focused {
                     blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
@@ -648,7 +639,7 @@ impl NativeShellState {
                     }));
                 }
                 push_border(
-                    &mut primitives,
+                    primitives,
                     row.rect,
                     row_border,
                     if row.focused {
@@ -669,12 +660,7 @@ impl NativeShellState {
                     rect: chip_rect,
                     color: chip_color,
                 }));
-                push_border(
-                    &mut primitives,
-                    chip_rect,
-                    style.border,
-                    sizing.border_width,
-                );
+                push_border(primitives, chip_rect, style.border, sizing.border_width);
                 text_runs.push(TextRun {
                     text: row.visible_row.to_string(),
                     position: Point::new(
@@ -691,7 +677,7 @@ impl NativeShellState {
                 let label_max_width =
                     (row_columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0);
                 text_runs.push(TextRun {
-                    text: row.label,
+                    text: row.label.clone(),
                     position: Point::new(
                         row_columns.sample.min.x + sizing.text_inset_x,
                         text_top_in_rect(row_columns.sample, sizing.font_body, sizing.text_inset_y),
@@ -719,38 +705,28 @@ impl NativeShellState {
             }
         }
 
+        push_border(primitives, layout.top_bar, style.border, sizing.border_width);
+        push_border(primitives, layout.sidebar, style.border, sizing.border_width);
         push_border(
-            &mut primitives,
-            layout.top_bar,
-            style.border,
-            sizing.border_width,
-        );
-        push_border(
-            &mut primitives,
-            layout.sidebar,
-            style.border,
-            sizing.border_width,
-        );
-        push_border(
-            &mut primitives,
+            primitives,
             layout.waveform_card,
             style.border,
             sizing.border_width,
         );
         push_border(
-            &mut primitives,
+            primitives,
             layout.browser_panel,
             style.border,
             sizing.border_width,
         );
         push_border(
-            &mut primitives,
+            primitives,
             layout.browser_table_header,
             style.border,
             sizing.border_width,
         );
         push_border(
-            &mut primitives,
+            primitives,
             layout.status_bar,
             style.border,
             sizing.border_width,
@@ -808,7 +784,7 @@ impl NativeShellState {
                 color: style.surface_overlay,
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 top_controls.volume_meter,
                 style.border_emphasis,
                 sizing.border_width,
@@ -948,7 +924,7 @@ impl NativeShellState {
                 },
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 button.rect,
                 if button.enabled {
                     blend_color(
@@ -987,7 +963,7 @@ impl NativeShellState {
                 },
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 button.rect,
                 if button.enabled {
                     blend_color(
@@ -1085,7 +1061,7 @@ impl NativeShellState {
                 color: row_fill,
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 row_rect,
                 if row_selected {
                     blend_color(
@@ -1140,7 +1116,7 @@ impl NativeShellState {
                     color: *badge_fill,
                 }));
                 push_border(
-                    &mut primitives,
+                    primitives,
                     *badge_rect,
                     blend_color(
                         style.border_emphasis,
@@ -1234,61 +1210,61 @@ impl NativeShellState {
                     rect: row_rect,
                     color: row_fill,
                 }));
-                push_border(
-                    &mut primitives,
-                    row_rect,
-                    if row.focused {
-                        blend_color(
-                            style.accent_warning,
-                            style.text_primary,
-                            motion_wave * style.state_focus_pulse_blend,
-                        )
-                    } else if row.selected {
-                        blend_color(
-                            style.accent_mint,
-                            style.text_primary,
-                            motion_wave * style.state_selected_blend,
-                        )
-                    } else {
-                        style.border
-                    },
-                    if row.focused {
-                        sizing.focus_stroke_width
-                    } else {
-                        sizing.border_width
-                    },
-                );
-                let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
-                    .min((row_rect.width() * 0.45).max(0.0));
-                let glyph = if row.is_root {
-                    "•"
-                } else if row.has_children {
-                    if row.expanded { "▼" } else { "▶" }
+            push_border(
+                primitives,
+                row_rect,
+                if row.focused {
+                    blend_color(
+                        style.accent_warning,
+                        style.text_primary,
+                        motion_wave * style.state_focus_pulse_blend,
+                    )
+                } else if row.selected {
+                    blend_color(
+                        style.accent_mint,
+                        style.text_primary,
+                        motion_wave * style.state_selected_blend,
+                    )
                 } else {
-                    "·"
-                };
-                let label_text = format!("{glyph} {}", row.label);
-                let folder_text_width = (row_rect.width()
-                    - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
-                    - depth_indent)
-                    .max(24.0);
-                text_runs.push(TextRun {
-                    text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
-                    position: Point::new(
-                        row_label_x(row_rect, &sizing, depth_indent),
-                        text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
-                    ),
-                    font_size: sizing.font_body,
-                    color: if row.focused {
-                        style.accent_warning
-                    } else if row.selected {
-                        style.accent_mint
-                    } else {
-                        style.text_primary
-                    },
-                    max_width: Some(folder_text_width),
-                    align: TextAlign::Left,
-                });
+                    style.border
+                },
+                if row.focused {
+                    sizing.focus_stroke_width
+                } else {
+                    sizing.border_width
+                },
+            );
+            let glyph = if row.is_root {
+                "•"
+            } else if row.has_children {
+                if row.expanded { "▼" } else { "▶" }
+            } else {
+                "·"
+            };
+            let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
+                .min((row_rect.width() * 0.45).max(0.0));
+            let label_text = format!("{glyph} {}", row.label);
+            let folder_text_width = (row_rect.width()
+                - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
+                - depth_indent)
+                .max(24.0);
+            text_runs.push(TextRun {
+                text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
+                position: Point::new(
+                    row_label_x(row_rect, &sizing, depth_indent),
+                    text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
+                ),
+                font_size: sizing.font_body,
+                color: if row.focused {
+                    style.accent_warning
+                } else if row.selected {
+                    style.accent_mint
+                } else {
+                    style.text_primary
+                },
+                max_width: Some(folder_text_width),
+                align: TextAlign::Left,
+            });
             }
         }
         for button in source_action_buttons(layout, style, model) {
@@ -1301,7 +1277,7 @@ impl NativeShellState {
                 },
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 button.rect,
                 if button.enabled {
                     blend_color(
@@ -1498,13 +1474,8 @@ impl NativeShellState {
             rect: tabs.map,
             color: map_fill,
         }));
-        push_border(
-            &mut primitives,
-            tabs.samples,
-            samples_border,
-            sizing.border_width,
-        );
-        push_border(&mut primitives, tabs.map, map_border, sizing.border_width);
+        push_border(primitives, tabs.samples, samples_border, sizing.border_width);
+        push_border(primitives, tabs.map, map_border, sizing.border_width);
         let samples_text = format!(
             "{} ({})",
             model.browser_chrome.samples_tab_label,
@@ -1544,7 +1515,7 @@ impl NativeShellState {
                 color: style.surface_overlay,
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 toolbar.search_field,
                 blend_color(style.border_emphasis, style.text_primary, 0.35),
                 sizing.border_width,
@@ -1560,7 +1531,7 @@ impl NativeShellState {
                 },
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 toolbar.activity_chip,
                 style.border,
                 sizing.border_width,
@@ -1572,7 +1543,7 @@ impl NativeShellState {
                 color: style.surface_overlay,
             }));
             push_border(
-                &mut primitives,
+                primitives,
                 toolbar.sort_chip,
                 style.border,
                 sizing.border_width,
@@ -1947,9 +1918,9 @@ impl NativeShellState {
             align: TextAlign::Right,
         });
 
-        render_progress_overlay(&mut primitives, &mut text_runs, layout, style, model);
-        render_confirm_prompt(&mut primitives, &mut text_runs, layout, style, model);
-        render_drag_overlay(&mut primitives, &mut text_runs, layout, style, model);
+        render_progress_overlay(primitives, text_runs, layout, style, model);
+        render_confirm_prompt(primitives, text_runs, layout, style, model);
+        render_drag_overlay(primitives, text_runs, layout, style, model);
 
         frame.clear_color = style.clear_color;
     }
@@ -2004,7 +1975,7 @@ impl NativeShellState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct CachedBrowserRow {
     visible_row: usize,
     label: String,
@@ -2028,7 +1999,7 @@ struct SidebarRowsCacheKey {
     sidebar_section_gap: u32,
     panel_section_padding_top: u32,
     panel_section_padding_bottom: u32,
-    source_rows_max_when_split: u32,
+    source_rows_min_when_split: u32,
     folder_rows_min: u32,
     source_rows: u32,
     folder_rows: u32,
@@ -2036,7 +2007,6 @@ struct SidebarRowsCacheKey {
     source_row_gap: u32,
     folder_row_height: u32,
     folder_row_gap: u32,
-    source_row_min_when_split: u32,
     folder_header_block_height: u32,
     ui_scale: u32,
 }
@@ -2137,15 +2107,14 @@ fn sidebar_rows_cache_key(
         sidebar_section_gap: f32_to_bits(sizing.sidebar_section_gap),
         panel_section_padding_top: f32_to_bits(sizing.panel_section_padding_top),
         panel_section_padding_bottom: f32_to_bits(sizing.panel_section_padding_bottom),
-        source_rows_max_when_split: sizing.source_rows_max_when_split,
-        folder_rows_min: sizing.folder_rows_min,
+        source_rows_min_when_split: usize_to_u32(sizing.source_rows_min_when_split),
+        folder_rows_min: usize_to_u32(sizing.folder_rows_min),
         source_rows: rendered_source_rows(style, model) as u32,
         folder_rows: rendered_folder_rows(style, model) as u32,
         source_row_height: f32_to_bits(sizing.source_row_height),
         source_row_gap: f32_to_bits(sizing.source_row_gap),
         folder_row_height: f32_to_bits(sizing.folder_row_height),
         folder_row_gap: f32_to_bits(sizing.folder_row_gap),
-        source_row_min_when_split: sizing.source_rows_min_when_split,
         folder_header_block_height: f32_to_bits(sizing.folder_header_block_height),
         ui_scale: f32_to_bits(layout.ui_scale),
     }
@@ -2279,9 +2248,8 @@ fn browser_rows_cache_key(
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
     let row_capacity = browser_rows_capacity(layout.browser_rows, sizing) as u32;
-    let window_len = row_capacity.max(1);
-    let selected_visible_row = model.browser.selected_visible_row.unwrap_or(u32::MAX);
-    let anchor_visible_row = model.browser.anchor_visible_row.unwrap_or(u32::MAX);
+    let selected_visible_row = model.browser.selected_visible_row.unwrap_or(usize::MAX);
+    let anchor_visible_row = model.browser.anchor_visible_row.unwrap_or(usize::MAX);
     let focused_visible_row = rows
         .iter()
         .find(|row| row.focused)
@@ -2313,11 +2281,11 @@ fn browser_rows_cache_key(
         browser_rows_max_y: f32_to_bits(layout.browser_rows.max.y),
         browser_row_height: f32_to_bits(sizing.browser_row_height),
         browser_row_gap: f32_to_bits(sizing.browser_row_gap),
-        browser_rows_max_per_column: sizing.browser_rows_max_per_column,
+        browser_rows_max_per_column: usize_to_u32(sizing.browser_rows_max_per_column),
         row_capacity,
         browser_row_count: rows.len() as u32,
-        selected_visible_row,
-        anchor_visible_row,
+        selected_visible_row: usize_to_u32(selected_visible_row),
+        anchor_visible_row: usize_to_u32(anchor_visible_row),
         focused_visible_row,
         selected_visible_hint,
         map_active: model.map.active as u32,
@@ -2325,6 +2293,10 @@ fn browser_rows_cache_key(
         window_start: row_start,
         ui_scale: f32_to_bits(layout.ui_scale),
     }
+}
+
+fn usize_to_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
 }
 
 fn f32_to_bits(value: f32) -> u32 {

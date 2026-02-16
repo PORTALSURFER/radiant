@@ -5,7 +5,8 @@ use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
-        NativeShellState, Primitive, ShellLayout, ShellNodeKind, StyleTokens, TextAlign, TextRun,
+        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellNodeKind, StyleTokens,
+        TextAlign, TextRun,
     },
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
@@ -494,7 +495,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 let window = self.window.as_ref().cloned();
                 if size.width > 0
                     && size.height > 0
-                    && let (Some(render_ctx), Some(surface), Some(window)) = (
+                    && let (Some(render_ctx), Some(surface), Some(_window)) = (
                         self.render_ctx.as_ref(),
                         self.render_surface.as_mut(),
                         window,
@@ -509,10 +510,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             WindowEvent::CursorMoved { position, .. } => {
                 let point = Point::new(position.x as f32, position.y as f32);
                 self.last_cursor = Some(point);
-                let window = self.window.as_ref().cloned();
+                let _window = self.window.as_ref().cloned();
                 if let Some(layout) = self.shell_layout.as_ref()
                     && self.shell_state.handle_cursor_move(layout, point)
-                    && let Some(window) = window
+                    && let Some(_window) = _window
                 {
                     self.rebuild_scene_and_request_redraw();
                 }
@@ -522,9 +523,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 state: ElementState::Pressed,
                 ..
             } => {
-                let window = self.window.as_ref().cloned();
-                if let (Some(point), Some(layout), Some(window)) =
-                    (self.last_cursor, self.shell_layout.as_ref(), window)
+                let _window = self.window.as_ref().cloned();
+                if let (Some(point), Some(layout), Some(_window)) =
+                    (self.last_cursor, self.shell_layout.as_ref(), _window)
                 {
                     self.text_input_target = TextInputTarget::None;
                     let mut handled = false;

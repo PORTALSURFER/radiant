@@ -11,7 +11,7 @@ mod style;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
-pub(crate) use paint::{Primitive, TextAlign, TextRun};
+pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::NativeShellState;
 pub(crate) use style::StyleTokens;
 

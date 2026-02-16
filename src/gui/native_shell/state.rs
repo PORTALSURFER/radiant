@@ -19,6 +19,12 @@ pub(crate) struct NativeShellState {
     transport_running: bool,
     has_focus_emphasis: bool,
     pulse_phase: f32,
+    source_row_rects: Vec<Rect>,
+    source_row_cache_key: Option<SidebarRowsCacheKey>,
+    folder_row_rects: Vec<Rect>,
+    folder_row_cache_key: Option<SidebarRowsCacheKey>,
+    browser_rows: Vec<CachedBrowserRow>,
+    browser_rows_cache_key: Option<BrowserRowsCacheKey>,
 }
 
 impl NativeShellState {
@@ -30,12 +36,23 @@ impl NativeShellState {
             transport_running: true,
             has_focus_emphasis: false,
             pulse_phase: 0.0,
+            source_row_rects: Vec::new(),
+            source_row_cache_key: None,
+            folder_row_rects: Vec::new(),
+            folder_row_cache_key: None,
+            browser_rows: Vec::new(),
+            browser_rows_cache_key: None,
         }
     }
 
     /// Return whether the shell currently needs continuous animation.
     pub(crate) fn needs_animation(&self) -> bool {
         self.transport_running || self.hovered.is_some() || self.has_focus_emphasis
+    }
+
+    /// Return whether playback transport is currently reported as running.
+    pub(crate) fn is_transport_running(&self) -> bool {
+        self.transport_running
     }
 
     /// Synchronize local interaction state from the latest app model.
@@ -136,26 +153,26 @@ impl NativeShellState {
 
     /// Resolve a rendered source-row index for a point within the sidebar.
     pub(crate) fn source_row_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        rendered_source_row_rects(layout, &style, model)
+        self.cached_source_row_rects(layout, &style, model)
             .iter()
             .position(|rect| rect.contains(point))
     }
 
     /// Resolve a rendered folder-row index for a point within the sidebar.
     pub(crate) fn folder_row_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        rendered_folder_row_rects(layout, &style, model)
+        self.cached_folder_row_rects(layout, &style, model)
             .iter()
             .position(|rect| rect.contains(point))
     }
@@ -163,23 +180,23 @@ impl NativeShellState {
     /// Return rendered source-row rectangles for geometry tests.
     #[cfg(test)]
     pub(crate) fn rendered_source_row_rects(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
-        rendered_source_row_rects(layout, &style, model)
+        self.cached_source_row_rects(layout, &style, model).to_vec()
     }
 
     /// Return rendered folder-row rectangles for geometry tests.
     #[cfg(test)]
     pub(crate) fn rendered_folder_row_rects(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
-        rendered_folder_row_rects(layout, &style, model)
+        self.cached_folder_row_rects(layout, &style, model).to_vec()
     }
 
     /// Return a source-action button rect for the provided action in tests.
@@ -228,7 +245,7 @@ impl NativeShellState {
 
     /// Resolve a rendered browser visible-row index for a point in the triage pane.
     pub(crate) fn browser_row_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
@@ -236,7 +253,8 @@ impl NativeShellState {
         if model.map.active {
             return None;
         }
-        rendered_browser_rows(layout, model, &style_for_layout(layout))
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
             .into_iter()
             .find(|row| row.rect.contains(point))
             .map(|row| row.visible_row)
@@ -359,7 +377,7 @@ impl NativeShellState {
 
     /// Build a native frame from state + layout + style tokens.
     pub(crate) fn build_frame_with_style(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
@@ -514,6 +532,8 @@ impl NativeShellState {
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
+        let source_row_rects = self.cached_source_row_rects(layout, style, model).to_vec();
+        let folder_row_rects = self.cached_folder_row_rects(layout, style, model).to_vec();
         if model.map.active {
             let canvas = map_canvas_rect(layout.browser_rows, sizing);
             primitives.push(Primitive::Rect(FillRect {
@@ -543,7 +563,7 @@ impl NativeShellState {
                 }));
             }
         } else {
-            for row in rendered_browser_rows(layout, model, style) {
+            for row in self.cached_browser_rows(layout, style, model).iter() {
                 let row_columns = browser_table_columns(row.rect, sizing);
                 let row_fill = if row.focused {
                     blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
@@ -1015,9 +1035,9 @@ impl NativeShellState {
             ),
             align: TextAlign::Left,
         });
-        let source_row_rects = rendered_source_row_rects(layout, style, model);
         let rendered_sources = source_row_rects.len();
-        for (row_index, row_rect) in source_row_rects.into_iter().enumerate() {
+        for (row_index, row_rect) in source_row_rects.iter().enumerate() {
+            let row_rect = *row_rect;
             let row = &model.sources.rows[row_index];
             let row_selected = row.selected
                 || model
@@ -1073,7 +1093,6 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
         }
-        let folder_row_rects = rendered_folder_row_rects(layout, style, model);
         let rendered_folders = folder_row_rects.len();
         if rendered_folders > 0 {
             if let Some(divider_rect) = source_section_divider_rect(&sidebar_sections, sizing) {
@@ -1164,7 +1183,8 @@ impl NativeShellState {
                     });
                 }
             }
-            for (row_index, row_rect) in folder_row_rects.into_iter().enumerate() {
+            for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
+                let row_rect = *row_rect;
                 let row = &model.sources.folder_rows[row_index];
                 let row_selected = row.selected || row.focused;
                 let row_fill = if row.focused {
@@ -1912,13 +1932,57 @@ impl NativeShellState {
     }
 
     /// Build a native frame using default style tokens.
-    pub(crate) fn build_frame(&self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
+    pub(crate) fn build_frame(&mut self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
         self.build_frame_with_style(layout, &style_for_layout(layout), model)
+    }
+
+    fn cached_source_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[Rect] {
+        let cache_key = sidebar_rows_cache_key(layout, style, model);
+        if self.source_row_cache_key != Some(cache_key) {
+            self.source_row_rects = rendered_source_row_rects(layout, style, model);
+            self.source_row_cache_key = Some(cache_key);
+            self.folder_row_cache_key = Some(cache_key);
+        }
+        &self.source_row_rects
+    }
+
+    fn cached_folder_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[Rect] {
+        let cache_key = sidebar_rows_cache_key(layout, style, model);
+        if self.folder_row_cache_key != Some(cache_key) {
+            self.folder_row_rects = rendered_folder_row_rects(layout, style, model);
+            self.folder_row_cache_key = Some(cache_key);
+            self.source_row_cache_key = Some(cache_key);
+        }
+        &self.folder_row_rects
+    }
+
+    fn cached_browser_rows(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[CachedBrowserRow] {
+        let cache_key = browser_rows_cache_key(layout, style, model);
+        if self.browser_rows_cache_key != Some(cache_key) {
+            self.browser_rows = rendered_browser_rows(layout, model, style);
+            self.browser_rows_cache_key = Some(cache_key);
+        }
+        &self.browser_rows
     }
 }
 
 #[derive(Clone, Debug)]
-struct RenderedBrowserRow {
+struct CachedBrowserRow {
     visible_row: usize,
     label: String,
     bucket_label: String,
@@ -1926,6 +1990,57 @@ struct RenderedBrowserRow {
     selected: bool,
     focused: bool,
     rect: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct SidebarRowsCacheKey {
+    root_min_x: u32,
+    root_min_y: u32,
+    root_max_x: u32,
+    root_max_y: u32,
+    sidebar_rows_min_x: u32,
+    sidebar_rows_min_y: u32,
+    sidebar_rows_max_x: u32,
+    sidebar_rows_max_y: u32,
+    sidebar_section_gap: u32,
+    panel_section_padding_top: u32,
+    panel_section_padding_bottom: u32,
+    source_rows_max_when_split: u32,
+    folder_rows_min: u32,
+    source_rows: u32,
+    folder_rows: u32,
+    source_row_height: u32,
+    source_row_gap: u32,
+    folder_row_height: u32,
+    folder_row_gap: u32,
+    source_row_min_when_split: u32,
+    folder_header_block_height: u32,
+    ui_scale: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct BrowserRowsCacheKey {
+    root_min_x: u32,
+    root_min_y: u32,
+    root_max_x: u32,
+    root_max_y: u32,
+    browser_rows_min_x: u32,
+    browser_rows_min_y: u32,
+    browser_rows_max_x: u32,
+    browser_rows_max_y: u32,
+    browser_row_height: u32,
+    browser_row_gap: u32,
+    browser_rows_max_per_column: u32,
+    row_capacity: u32,
+    browser_row_count: u32,
+    selected_visible_row: u32,
+    anchor_visible_row: u32,
+    focused_visible_row: u32,
+    selected_visible_hint: u32,
+    map_active: u32,
+    visible_count: u32,
+    window_start: u32,
+    ui_scale: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -1979,6 +2094,38 @@ fn format_milli_value(value: u16) -> String {
 
 fn rendered_source_rows(style: &StyleTokens, model: &AppModel) -> usize {
     model.sources.rows.len().min(style.sizing.source_rows_max)
+}
+
+fn sidebar_rows_cache_key(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> SidebarRowsCacheKey {
+    let sizing = style.sizing;
+    SidebarRowsCacheKey {
+        root_min_x: f32_to_bits(layout.root.rect.min.x),
+        root_min_y: f32_to_bits(layout.root.rect.min.y),
+        root_max_x: f32_to_bits(layout.root.rect.max.x),
+        root_max_y: f32_to_bits(layout.root.rect.max.y),
+        sidebar_rows_min_x: f32_to_bits(layout.sidebar_rows.min.x),
+        sidebar_rows_min_y: f32_to_bits(layout.sidebar_rows.min.y),
+        sidebar_rows_max_x: f32_to_bits(layout.sidebar_rows.max.x),
+        sidebar_rows_max_y: f32_to_bits(layout.sidebar_rows.max.y),
+        sidebar_section_gap: f32_to_bits(sizing.sidebar_section_gap),
+        panel_section_padding_top: f32_to_bits(sizing.panel_section_padding_top),
+        panel_section_padding_bottom: f32_to_bits(sizing.panel_section_padding_bottom),
+        source_rows_max_when_split: sizing.source_rows_max_when_split,
+        folder_rows_min: sizing.folder_rows_min,
+        source_rows: rendered_source_rows(style, model) as u32,
+        folder_rows: rendered_folder_rows(style, model) as u32,
+        source_row_height: f32_to_bits(sizing.source_row_height),
+        source_row_gap: f32_to_bits(sizing.source_row_gap),
+        folder_row_height: f32_to_bits(sizing.folder_row_height),
+        folder_row_gap: f32_to_bits(sizing.folder_row_gap),
+        source_row_min_when_split: sizing.source_rows_min_when_split,
+        folder_header_block_height: f32_to_bits(sizing.folder_header_block_height),
+        ui_scale: f32_to_bits(layout.ui_scale),
+    }
 }
 
 fn rendered_folder_rows(style: &StyleTokens, model: &AppModel) -> usize {
@@ -2067,11 +2214,71 @@ fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> String {
     output
 }
 
+fn browser_rows_cache_key(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> BrowserRowsCacheKey {
+    let sizing = style.sizing;
+    let rows = model.browser.rows.as_slice();
+    let row_capacity = browser_rows_capacity(layout.browser_rows, sizing) as u32;
+    let window_len = row_capacity.max(1);
+    let selected_visible_row = model.browser.selected_visible_row.unwrap_or(u32::MAX);
+    let anchor_visible_row = model.browser.anchor_visible_row.unwrap_or(u32::MAX);
+    let focused_visible_row = rows
+        .iter()
+        .find(|row| row.focused)
+        .map(|row| row.visible_row as u32)
+        .unwrap_or(u32::MAX);
+    let selected_visible_hint = rows
+        .iter()
+        .find(|row| row.selected)
+        .map(|row| row.visible_row as u32)
+        .unwrap_or(u32::MAX);
+    let row_start = if model.map.active || rows.is_empty() {
+        0
+    } else {
+        browser_window_start(
+            rows,
+            browser_rows_capacity(layout.browser_rows, sizing),
+            model.browser.selected_visible_row,
+            model.browser.anchor_visible_row,
+        ) as u32
+    };
+    BrowserRowsCacheKey {
+        root_min_x: f32_to_bits(layout.root.rect.min.x),
+        root_min_y: f32_to_bits(layout.root.rect.min.y),
+        root_max_x: f32_to_bits(layout.root.rect.max.x),
+        root_max_y: f32_to_bits(layout.root.rect.max.y),
+        browser_rows_min_x: f32_to_bits(layout.browser_rows.min.x),
+        browser_rows_min_y: f32_to_bits(layout.browser_rows.min.y),
+        browser_rows_max_x: f32_to_bits(layout.browser_rows.max.x),
+        browser_rows_max_y: f32_to_bits(layout.browser_rows.max.y),
+        browser_row_height: f32_to_bits(sizing.browser_row_height),
+        browser_row_gap: f32_to_bits(sizing.browser_row_gap),
+        browser_rows_max_per_column: sizing.browser_rows_max_per_column,
+        row_capacity,
+        browser_row_count: rows.len() as u32,
+        selected_visible_row,
+        anchor_visible_row,
+        focused_visible_row,
+        selected_visible_hint,
+        map_active: model.map.active as u32,
+        visible_count: model.browser.visible_count as u32,
+        window_start: row_start,
+        ui_scale: f32_to_bits(layout.ui_scale),
+    }
+}
+
+fn f32_to_bits(value: f32) -> u32 {
+    value.to_bits()
+}
+
 fn rendered_browser_rows(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-) -> Vec<RenderedBrowserRow> {
+) -> Vec<CachedBrowserRow> {
     let sizing = style.sizing;
     if model.map.active || model.browser.rows.is_empty() {
         return Vec::new();
@@ -2095,7 +2302,7 @@ fn rendered_browser_rows(
         sizing.browser_row_height,
     )) {
         let label_width = row_label_width(rect, &sizing, 0.0, 20.0);
-        rendered.push(RenderedBrowserRow {
+        rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
             label: truncate_to_width(&row.label, label_width, sizing.font_body),
             bucket_label: row
@@ -3561,7 +3768,7 @@ mod tests {
             Vector2::new(1280.0, 720.0),
             Vector2::new(2300.0, 1080.0),
         ];
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let model = populated_sidebar_model();
         for viewport in sizes {
             let layout = ShellLayout::build(viewport);
@@ -3754,7 +3961,7 @@ mod tests {
     fn browser_virtualization_hit_test_maps_first_middle_last_rendered_rows() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         for visible_row in 0..200 {
             model.browser.rows.push(BrowserRowModel::new(
@@ -3802,7 +4009,7 @@ mod tests {
 
     #[test]
     fn browser_virtualization_hit_test_is_stable_across_viewport_tiers() {
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         for viewport in [
             Vector2::new(820.0, 520.0),
             Vector2::new(1280.0, 720.0),
@@ -3879,14 +4086,14 @@ mod tests {
             (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
             (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
         );
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         assert_eq!(state.browser_row_at_point(&layout, &model, point), None);
     }
 
     #[test]
     fn browser_bucket_label_prefers_explicit_row_metadata() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model
             .browser
@@ -3905,7 +4112,7 @@ mod tests {
     fn browser_rows_use_alternating_fill_stripes_for_readability() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model
             .browser
@@ -3945,7 +4152,7 @@ mod tests {
     fn waveform_title_uses_primary_text_hierarchy_color() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model.waveform.loaded_label = Some(String::from("WaveTitle"));
         let frame = state.build_frame(&layout, &model);
@@ -3960,7 +4167,7 @@ mod tests {
     #[test]
     fn map_header_prefers_projected_legend_selection_and_viewport_copy() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model.map.active = true;
         model.map.legend_label = String::from("Render: points");
@@ -4006,7 +4213,7 @@ mod tests {
     #[test]
     fn map_header_metadata_stays_within_header_band() {
         let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model.map.active = true;
         model.map.legend_label = String::from("Render: points");
@@ -4028,7 +4235,7 @@ mod tests {
     #[test]
     fn top_bar_update_prefers_projected_status_and_hint_copy() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model.update.status = crate::app::UpdateStatusModel::Available;
         model.update.status_label = String::from("Update available: v20.1.0");

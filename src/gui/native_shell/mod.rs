@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn action_strip_hit_test_emits_browser_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.browser_actions.can_delete = true;
         let button = state
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn prompt_hit_test_emits_confirm_and_cancel() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn prompt_input_hit_test_resolves_text_entry_rect() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         model.confirm_prompt.input_value = Some(String::from("kicks"));
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         model.confirm_prompt.input_value = Some(String::from("bad/name"));
@@ -503,7 +503,7 @@ mod tests {
     #[test]
     fn source_action_hit_test_emits_folder_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.sources.folder_actions.can_delete_folder = true;
         let button = state
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn source_action_hit_test_ignores_disabled_button() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.sources.folder_actions.can_delete_folder = false;
         let button = state
@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn folder_row_hit_test_resolves_rendered_folder_row() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model
             .sources

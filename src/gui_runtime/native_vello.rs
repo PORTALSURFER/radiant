@@ -48,6 +48,7 @@ enum TextInputTarget {
 struct NativeVelloFrameState {
     layout_dirty: bool,
     scene_dirty: bool,
+    model_dirty: bool,
 }
 
 impl NativeVelloFrameState {
@@ -64,9 +65,19 @@ impl NativeVelloFrameState {
         self.layout_dirty = false;
     }
 
+    fn mark_model_dirty(&mut self) {
+        self.model_dirty = true;
+    }
+
     fn take_scene(&mut self) -> bool {
         let dirty = self.scene_dirty;
         self.scene_dirty = false;
+        dirty
+    }
+
+    fn take_model(&mut self) -> bool {
+        let dirty = self.model_dirty;
+        self.model_dirty = false;
         dirty
     }
 }
@@ -107,7 +118,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             scene: Scene::new(),
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
-            frame_state: NativeVelloFrameState::default(),
+            frame_state: NativeVelloFrameState {
+                model_dirty: true,
+                ..NativeVelloFrameState::default()
+            },
             shell_layout: None,
             shell_state: NativeShellState::new(),
             clear_color: Rgba8 {
@@ -233,7 +247,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene_and_request_redraw(&mut self) {
         self.frame_state.mark_scene_dirty();
-        self.rebuild_scene_if_needed();
         if let Some(window) = self.window.as_ref() {
             window.request_redraw();
         }
@@ -246,9 +259,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene(&mut self) {
         self.scene.reset();
-        self.model = self.bridge.pull_model();
-        self.shell_state.sync_from_model(&self.model);
-        self.sync_text_input_target();
+        let should_refresh_model = self.frame_state.take_model()
+            || self.shell_state.is_transport_running();
+        if should_refresh_model {
+            self.model = self.bridge.pull_model();
+            self.shell_state.sync_from_model(&self.model);
+            self.sync_text_input_target();
+        }
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
@@ -389,7 +406,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::FolderSearch => UiAction::SetFolderSearch { query: value },
             TextInputTarget::PromptInput => UiAction::SetPromptInput { value },
         };
-        self.bridge.on_action(action);
+        self.emit_model_action(action);
         true
     }
 
@@ -402,6 +419,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         value.push_str(appended);
         self.set_text_value(value)
+    }
+
+    fn emit_model_action(&mut self, action: UiAction) {
+        self.frame_state.mark_model_dirty();
+        self.bridge.on_action(action);
     }
 
     fn backspace_text(&mut self) -> bool {
@@ -449,6 +471,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::ScaleFactorChanged { .. } => {
                 self.frame_state.mark_layout_dirty();
+                self.frame_state.mark_model_dirty();
                 self.rebuild_scene_and_request_redraw();
             }
             WindowEvent::Resized(size) => {
@@ -463,8 +486,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 {
                     render_ctx.resize_surface(surface, size.width, size.height);
                     self.frame_state.mark_layout_dirty();
-                    self.rebuild_scene_if_needed();
-                    window.request_redraw();
+                    self.frame_state.mark_model_dirty();
+                    self.rebuild_scene_and_request_redraw();
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -498,18 +521,17 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     } else if let Some(action) = action_from_pointer(
                         layout,
                         &self.model,
-                        &self.shell_state,
+                        &mut self.shell_state,
                         point,
                         self.modifiers,
                     ) {
                         self.update_text_target_after_action(&action);
-                        self.bridge.on_action(action);
+                        self.emit_model_action(action);
                         handled = true;
                     } else if self.shell_state.handle_primary_click(layout, point)
                         && let Some(column) = layout.column_at_point(point)
                     {
-                        self.bridge
-                            .on_action(UiAction::SelectColumn { index: column });
+                        self.emit_model_action(UiAction::SelectColumn { index: column });
                         handled = true;
                     }
                     if handled {
@@ -520,8 +542,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             WindowEvent::MouseWheel { delta, .. } => {
                 if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
                 {
-                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, delta) {
-                        self.bridge.on_action(UiAction::MoveBrowserFocus { delta });
+                    let style = self.cached_style_for_layout(layout);
+                    if let Some(delta) =
+                        browser_wheel_row_delta(layout, &self.model, point, &style, delta)
+                    {
+                        self.emit_model_action(UiAction::MoveBrowserFocus { delta });
                         self.rebuild_scene_and_request_redraw();
                     }
                 }
@@ -534,7 +559,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     let mut handled = false;
                     if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
                         if self.model.confirm_prompt.visible {
-                            self.bridge.on_action(UiAction::CancelPrompt);
+                            self.emit_model_action(UiAction::CancelPrompt);
                             self.text_input_target = TextInputTarget::None;
                             handled = true;
                         } else if self.text_input_target != TextInputTarget::None {
@@ -578,7 +603,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         };
                         if let Some(action) = action_from_key(key, self.modifiers, &self.model) {
                             self.update_text_target_after_action(&action);
-                            self.bridge.on_action(action);
+                            self.emit_model_action(action);
                             handled = true;
                         }
                     }
@@ -691,7 +716,7 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
 fn action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
-    shell_state: &NativeShellState,
+    shell_state: &mut NativeShellState,
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
@@ -786,16 +811,16 @@ fn browser_wheel_row_delta(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
+    style: &StyleTokens,
     delta: MouseScrollDelta,
 ) -> Option<i8> {
     if model.map.active || !layout.browser_rows.contains(point) {
         return None;
     }
-    let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
     let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
     let raw = match delta {
-        MouseScrollDelta::LineDelta(_, y) => -y,
-        MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
+        MouseScrollDelta::LineDelta(_, y) => y,
+        MouseScrollDelta::PixelDelta(position) => (position.y as f32) / row_stride,
     };
     let mut steps = raw.round();
     if steps.abs() < 1.0 {
@@ -1160,7 +1185,7 @@ mod tests {
     #[test]
     fn waveform_click_modifiers_route_expected_actions() {
         let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
-        let shell_state = NativeShellState::new();
+        let mut shell_state = NativeShellState::new();
         let point = Point::new(
             layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
             layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
@@ -1186,7 +1211,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 point,
                 ModifiersState::default(),
             ),
@@ -1199,7 +1224,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 point,
                 ModifiersState::CONTROL,
             ),
@@ -1209,7 +1234,13 @@ mod tests {
         );
 
         assert_eq!(
-            action_from_pointer(&layout, &model, &shell_state, point, ModifiersState::SHIFT,),
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
+                ModifiersState::SHIFT,
+            ),
             Some(UiAction::SetWaveformSelectionRange {
                 start_milli: 120,
                 end_milli: 500,
@@ -1235,7 +1266,7 @@ mod tests {
     #[test]
     fn browser_tab_clicks_route_to_tab_actions() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let shell_state = NativeShellState::new();
+        let mut shell_state = NativeShellState::new();
         let model = AppModel::default();
         let map_tab_point = Point::new(
             layout.browser_tabs.min.x + (layout.browser_tabs.width() * 0.75),
@@ -1245,7 +1276,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 map_tab_point,
                 ModifiersState::default(),
             ),
@@ -1260,7 +1291,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 list_tab_point,
                 ModifiersState::default(),
             ),
@@ -1271,7 +1302,7 @@ mod tests {
     #[test]
     fn map_point_click_routes_to_focus_map_sample() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let shell_state = NativeShellState::new();
+        let mut shell_state = NativeShellState::new();
         let point = Point::new(
             layout.browser_rows.min.x + (layout.browser_rows.width() * 0.5),
             layout.browser_rows.min.y + (layout.browser_rows.height() * 0.5),
@@ -1302,7 +1333,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 point,
                 ModifiersState::default(),
             ),
@@ -1315,7 +1346,7 @@ mod tests {
     #[test]
     fn update_button_click_routes_update_check_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let shell_state = NativeShellState::new();
+        let mut shell_state = NativeShellState::new();
         let model = AppModel {
             update: UpdatePanelModel {
                 status: UpdateStatusModel::Idle,
@@ -1336,7 +1367,7 @@ mod tests {
             action_from_pointer(
                 &layout,
                 &model,
-                &shell_state,
+                &mut shell_state,
                 button_point,
                 ModifiersState::default(),
             ),
@@ -1347,6 +1378,7 @@ mod tests {
     #[test]
     fn browser_wheel_delta_is_bounded_and_directional() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = StyleTokens::for_viewport_width(layout.root.rect.width());
         let mut model = AppModel::default();
         model.map.active = false;
         let point = Point::new(
@@ -1355,14 +1387,21 @@ mod tests {
         );
 
         assert_eq!(
-            browser_wheel_row_delta(&layout, &model, point, MouseScrollDelta::LineDelta(0.0, 3.0)),
-            Some(-3)
+            browser_wheel_row_delta(
+                &layout,
+                &model,
+                point,
+                &style,
+                MouseScrollDelta::LineDelta(0.0, 3.0),
+            ),
+            Some(3)
         );
         assert_eq!(
             browser_wheel_row_delta(
                 &layout,
                 &model,
                 point,
+                &style,
                 MouseScrollDelta::LineDelta(0.0, 0.0)
             ),
             None

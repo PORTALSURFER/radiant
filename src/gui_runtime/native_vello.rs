@@ -1,7 +1,7 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
 use super::{NativeRunOptions, WindowIconRgba};
-use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, UiAction};
+use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, NativeMotionModel, UiAction};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
@@ -150,6 +150,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     state_overlay_scene: Scene,
     /// Cached encoded motion-driven overlay scene.
     motion_overlay_scene: Scene,
+    /// Cached latest motion-only model for lightweight overlay rebuilds.
+    motion_model: Option<NativeMotionModel>,
+    /// Whether the active bridge supports `pull_motion_model`.
+    motion_model_supported: bool,
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
@@ -207,6 +211,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             static_scene: Scene::new(),
             state_overlay_scene: Scene::new(),
             motion_overlay_scene: Scene::new(),
+            motion_model: None,
+            motion_model_supported: true,
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
             frame_state: NativeVelloFrameState {
@@ -399,11 +405,26 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         rebuild_motion_overlay: bool,
     ) {
         let should_refresh_model = self.frame_state.take_model()
-            || self.shell_state.is_transport_running();
+            || rebuild_static
+            || rebuild_state_overlay
+            || (!self.motion_model_supported && rebuild_motion_overlay);
         if should_refresh_model {
             self.model = self.bridge.pull_model();
             self.shell_state.sync_from_model(&self.model);
+            self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+            self.motion_model_supported = true;
             self.sync_text_input_target();
+        } else if rebuild_motion_overlay && self.motion_model_supported {
+            if let Some(motion_model) = self.bridge.pull_motion_model() {
+                self.shell_state.sync_from_motion_model(&motion_model);
+                self.motion_model = Some(motion_model);
+            } else {
+                self.motion_model_supported = false;
+                self.model = self.bridge.pull_model();
+                self.shell_state.sync_from_model(&self.model);
+                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+                self.sync_text_input_target();
+            }
         }
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
@@ -440,11 +461,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             );
         }
         if rebuild_motion_overlay {
+            let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
+                motion_model
+            } else {
+                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+                self.motion_model.as_ref().unwrap()
+            };
             self.shell_state
                 .build_motion_overlay_into(
                     &layout,
                     &style,
-                    &self.model,
+                    motion_model,
                     &mut self.motion_overlay_frame_cache,
                 );
             Self::encode_frame_to_scene(

@@ -5,7 +5,9 @@ use super::{
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
-use crate::app::{AppModel, BrowserRowModel, BrowserTagTarget, UiAction};
+use crate::app::{
+    AppModel, BrowserRowModel, BrowserTagTarget, NativeMotionModel, UiAction,
+};
 use crate::gui::{
     input::KeyCode,
     types::{Point, Rect, Rgba8},
@@ -70,7 +72,12 @@ impl NativeShellState {
                 .folder_rows
                 .iter()
                 .any(|row| row.focused || row.selected)
-            || model.confirm_prompt.visible;
+                || model.confirm_prompt.visible;
+    }
+
+    /// Synchronize motion-sensitive state from a dedicated motion model projection.
+    pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
+        self.transport_running = model.transport_running;
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.
@@ -2141,7 +2148,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
-        model: &AppModel,
+        model: &NativeMotionModel,
         frame: &mut NativeViewFrame,
     ) {
         let sizing = style.sizing;
@@ -2171,7 +2178,7 @@ impl NativeShellState {
         push_waveform_header_overlay(primitives, text_runs, layout, style, model);
 
         let tabs = browser_tabs_layout(layout, sizing);
-        let (samples_fill, map_fill) = if !model.map.active {
+        let (samples_fill, map_fill) = if !model.map_active {
             (
                 blend_color(
                     style.surface_overlay,
@@ -2263,7 +2270,7 @@ fn push_waveform_playhead_overlay(
     primitives: &mut Vec<Primitive>,
     layout: &ShellLayout,
     style: &StyleTokens,
-    model: &AppModel,
+    model: &NativeMotionModel,
 ) {
     let sizing = style.sizing;
     let waveform_inner = layout.waveform_plot;
@@ -2280,7 +2287,7 @@ fn push_waveform_playhead_overlay(
         )
     };
 
-    if let Some(selection) = model.waveform.selection_milli {
+    if let Some(selection) = model.waveform_selection_milli {
         let start_ratio = f32::from(selection.start_milli.min(1000)) / 1000.0;
         let end_ratio = f32::from(selection.end_milli.min(1000)) / 1000.0;
         let start_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.min(end_ratio);
@@ -2296,18 +2303,18 @@ fn push_waveform_playhead_overlay(
         push_border(primitives, rect, style.accent_mint, sizing.border_width);
     }
 
-    if let Some(cursor_milli) = model.waveform.cursor_milli {
+    if let Some(cursor_milli) = model.waveform_cursor_milli {
         primitives.push(Primitive::Rect(FillRect {
             rect: to_rect(to_x(cursor_milli)),
             color: style.accent_warning,
         }));
     }
-        if let Some(playhead_milli) = model.waveform.playhead_milli {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: to_rect(to_x(playhead_milli)),
-                color: style.accent_copper,
-            }));
-        }
+    if let Some(playhead_milli) = model.waveform_playhead_milli {
+        primitives.push(Primitive::Rect(FillRect {
+            rect: to_rect(to_x(playhead_milli)),
+            color: style.accent_copper,
+        }));
+    }
 }
 
 fn push_waveform_header_overlay(
@@ -2315,7 +2322,7 @@ fn push_waveform_header_overlay(
     text_runs: &mut Vec<TextRun>,
     layout: &ShellLayout,
     style: &StyleTokens,
-    model: &AppModel,
+    model: &NativeMotionModel,
 ) {
     let sizing = style.sizing;
     primitives.push(Primitive::Rect(FillRect {
@@ -2324,7 +2331,7 @@ fn push_waveform_header_overlay(
     }));
     text_runs.push(TextRun {
         text: truncate_to_width(
-            model.waveform.loaded_label.as_deref().unwrap_or("Waveform"),
+            model.waveform_loaded_label.as_deref().unwrap_or("Waveform"),
             (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
             sizing.font_header,
         ),
@@ -2340,26 +2347,24 @@ fn push_waveform_header_overlay(
         align: TextAlign::Left,
     });
     let playhead_text = model
-        .waveform
-        .playhead_milli
+        .waveform_playhead_milli
         .map(format_milli_value)
         .unwrap_or_else(|| String::from("—"));
     let cursor_text = model
-        .waveform
-        .cursor_milli
+        .waveform_cursor_milli
         .map(format_milli_value)
         .unwrap_or_else(|| String::from("—"));
     let view_text = format!(
         "{}..{}",
-        format_milli_value(model.waveform.view_start_milli),
-        format_milli_value(model.waveform.view_end_milli)
+        format_milli_value(model.waveform_view_start_milli),
+        format_milli_value(model.waveform_view_end_milli)
     );
-    let tempo_text = model.waveform.tempo_label.as_deref().unwrap_or("— BPM");
-    let zoom_text = model.waveform.zoom_label.as_deref().unwrap_or("100%");
+    let tempo_text = model.waveform_tempo_label.as_deref().unwrap_or("— BPM");
+    let zoom_text = model.waveform_zoom_label.as_deref().unwrap_or("100%");
     text_runs.push(TextRun {
         text: format!(
             "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
-            model.waveform_chrome.transport_hint,
+            model.waveform_transport_hint,
             tempo_text,
             zoom_text,
             playhead_text,

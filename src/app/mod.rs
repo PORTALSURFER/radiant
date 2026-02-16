@@ -749,10 +749,62 @@ pub struct FrameBuildResult {
     pub needs_animation: bool,
 }
 
+/// Motion-sensitive slice of the app model used for incremental overlay rendering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeMotionModel {
+    /// Transport animation state used by motion overlays.
+    pub transport_running: bool,
+    /// Whether map mode is active for tab overlay tinting.
+    pub map_active: bool,
+    /// Waveform selected playback window in normalized milliseconds.
+    pub waveform_selection_milli: Option<NormalizedRangeModel>,
+    /// Waveform cursor position in normalized milliseconds.
+    pub waveform_cursor_milli: Option<u16>,
+    /// Waveform playhead position in normalized milliseconds.
+    pub waveform_playhead_milli: Option<u16>,
+    /// Current waveform view start in normalized milliseconds.
+    pub waveform_view_start_milli: u16,
+    /// Current waveform view end in normalized milliseconds.
+    pub waveform_view_end_milli: u16,
+    /// Human-readable tempo metadata.
+    pub waveform_tempo_label: Option<String>,
+    /// Human-readable zoom metadata.
+    pub waveform_zoom_label: Option<String>,
+    /// Loaded waveform label shown in the waveform overlay header.
+    pub waveform_loaded_label: Option<String>,
+    /// Transport hint rendered with waveform metadata.
+    pub waveform_transport_hint: String,
+}
+
+impl NativeMotionModel {
+    /// Build a motion model from a full application model snapshot.
+    pub fn from_app_model(model: &AppModel) -> Self {
+        Self {
+            transport_running: model.transport_running,
+            map_active: model.map.active,
+            waveform_selection_milli: model.waveform.selection_milli,
+            waveform_cursor_milli: model.waveform.cursor_milli,
+            waveform_playhead_milli: model.waveform.playhead_milli,
+            waveform_view_start_milli: model.waveform.view_start_milli,
+            waveform_view_end_milli: model.waveform.view_end_milli,
+            waveform_tempo_label: model.waveform.tempo_label.clone(),
+            waveform_zoom_label: model.waveform.zoom_label.clone(),
+            waveform_loaded_label: model.waveform.loaded_label.clone(),
+            waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
+        }
+    }
+}
+
 /// Host bridge consumed by the native runtime.
 pub trait NativeAppBridge {
     /// Pull the latest app model snapshot before frame build.
     fn pull_model(&mut self) -> AppModel;
+
+    /// Pull motion-sensitive fields only; this allows renderers to avoid
+    /// full-model work on animation-only ticks.
+    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+        None
+    }
 
     /// Handle a user action emitted by runtime input processing.
     fn on_action(&mut self, _action: UiAction) {}

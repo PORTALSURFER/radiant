@@ -518,55 +518,6 @@ impl NativeShellState {
             x += scan_step;
         }
 
-        if let Some(selection) = model.waveform.selection_milli {
-            let start_ratio = f32::from(selection.start_milli.min(1000)) / 1000.0;
-            let end_ratio = f32::from(selection.end_milli.min(1000)) / 1000.0;
-            let start_x =
-                waveform_inner.min.x + waveform_inner.width() * start_ratio.min(end_ratio);
-            let end_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.max(end_ratio);
-            let rect = Rect::from_min_max(
-                Point::new(start_x, waveform_inner.min.y),
-                Point::new(end_x.max(start_x + 1.0), waveform_inner.max.y),
-            );
-            primitives.push(Primitive::Rect(FillRect {
-                rect,
-                color: style.grid_strong,
-            }));
-            push_border(primitives, rect, style.accent_mint, sizing.border_width);
-        }
-
-        if let Some(cursor_milli) = model.waveform.cursor_milli {
-            let ratio = f32::from(cursor_milli.min(1000)) / 1000.0;
-            let cursor_x = waveform_inner.min.x + waveform_inner.width() * ratio;
-            let cursor_rect = Rect::from_min_max(
-                Point::new(cursor_x, waveform_inner.min.y),
-                Point::new(
-                    (cursor_x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
-                    waveform_inner.max.y,
-                ),
-            );
-            primitives.push(Primitive::Rect(FillRect {
-                rect: cursor_rect,
-                color: style.accent_warning,
-            }));
-        }
-
-        if let Some(playhead_milli) = model.waveform.playhead_milli {
-            let ratio = f32::from(playhead_milli.min(1000)) / 1000.0;
-            let playhead_x = waveform_inner.min.x + waveform_inner.width() * ratio;
-            let playhead_rect = Rect::from_min_max(
-                Point::new(playhead_x, waveform_inner.min.y),
-                Point::new(
-                    (playhead_x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
-                    waveform_inner.max.y,
-                ),
-            );
-            primitives.push(Primitive::Rect(FillRect {
-                rect: playhead_rect,
-                color: style.accent_copper,
-            }));
-        }
-
         let browser_buttons = browser_action_buttons(layout, style, model);
         let source_row_rects = rendered_source_row_rects(layout, style, model);
         let folder_row_rects = rendered_folder_row_rects(layout, style, model);
@@ -1376,65 +1327,8 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
         }
-        let waveform_title = model.waveform.loaded_label.as_deref().unwrap_or("Waveform");
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                waveform_title,
-                (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-                sizing.font_header,
-            ),
-            position: Point::new(
-                layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                layout.waveform_header.min.y + sizing.text_inset_y,
-            ),
-            font_size: sizing.font_header,
-            color: style.text_primary,
-            max_width: Some(
-                (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-            ),
-            align: TextAlign::Left,
-        });
-        let playhead_text = model
-            .waveform
-            .playhead_milli
-            .map(format_milli_value)
-            .unwrap_or_else(|| String::from("—"));
-        let cursor_text = model
-            .waveform
-            .cursor_milli
-            .map(format_milli_value)
-            .unwrap_or_else(|| String::from("—"));
-        let view_text = format!(
-            "{}..{}",
-            format_milli_value(model.waveform.view_start_milli),
-            format_milli_value(model.waveform.view_end_milli)
-        );
-        let tempo_text = model.waveform.tempo_label.as_deref().unwrap_or("— BPM");
-        let zoom_text = model.waveform.zoom_label.as_deref().unwrap_or("100%");
-        text_runs.push(TextRun {
-            text: format!(
-                "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
-                model.waveform_chrome.transport_hint,
-                tempo_text,
-                zoom_text,
-                playhead_text,
-                cursor_text,
-                view_text,
-            ),
-            position: Point::new(
-                layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                layout.waveform_header.min.y
-                    + sizing.text_inset_y
-                    + sizing.font_header
-                    + sizing.text_row_gap,
-            ),
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(
-                (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-            ),
-            align: TextAlign::Left,
-        });
+        // Waveform summary text is produced during overlay rendering so it can
+        // update while transport advances without invalidating the static scene.
         let tabs = browser_tabs_layout(layout, sizing);
         let map_active = model.map.active;
         let list_active = !map_active;
@@ -2007,6 +1901,9 @@ impl NativeShellState {
             }));
         }
 
+        push_waveform_playhead_overlay(primitives, layout, style, model);
+        push_waveform_header_overlay(primitives, text_runs, layout, style, model);
+
         if self.has_focus_emphasis {
             let source_row_rects = self.cached_source_row_rects(layout, style, model);
             for (row_index, row_rect) in source_row_rects.iter().enumerate() {
@@ -2315,6 +2212,129 @@ impl NativeShellState {
         }
         &self.browser_rows
     }
+}
+
+fn push_waveform_playhead_overlay(
+    primitives: &mut Vec<Primitive>,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) {
+    let sizing = style.sizing;
+    let waveform_inner = layout.waveform_plot;
+    let to_x = |milli: u16| {
+        waveform_inner.min.x + waveform_inner.width() * (f32::from(milli.min(1000)) / 1000.0)
+    };
+    let to_rect = |x: f32| {
+        Rect::from_min_max(
+            Point::new(x, waveform_inner.min.y),
+            Point::new(
+                (x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
+                waveform_inner.max.y,
+            ),
+        )
+    };
+
+    if let Some(selection) = model.waveform.selection_milli {
+        let start_ratio = f32::from(selection.start_milli.min(1000)) / 1000.0;
+        let end_ratio = f32::from(selection.end_milli.min(1000)) / 1000.0;
+        let start_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.min(end_ratio);
+        let end_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.max(end_ratio);
+        let rect = Rect::from_min_max(
+            Point::new(start_x, waveform_inner.min.y),
+            Point::new(end_x.max(start_x + 1.0), waveform_inner.max.y),
+        );
+        primitives.push(Primitive::Rect(FillRect {
+            rect,
+            color: style.grid_strong,
+        }));
+        push_border(primitives, rect, style.accent_mint, sizing.border_width);
+    }
+
+    if let Some(cursor_milli) = model.waveform.cursor_milli {
+        primitives.push(Primitive::Rect(FillRect {
+            rect: to_rect(to_x(cursor_milli)),
+            color: style.accent_warning,
+        }));
+    }
+        if let Some(playhead_milli) = model.waveform.playhead_milli {
+            primitives.push(Primitive::Rect(FillRect {
+                rect: to_rect(to_x(playhead_milli)),
+                color: style.accent_copper,
+            }));
+        }
+}
+
+fn push_waveform_header_overlay(
+    primitives: &mut Vec<Primitive>,
+    text_runs: &mut Vec<TextRun>,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) {
+    let sizing = style.sizing;
+    primitives.push(Primitive::Rect(FillRect {
+        rect: layout.waveform_header,
+        color: style.surface_raised,
+    }));
+    text_runs.push(TextRun {
+        text: truncate_to_width(
+            model.waveform.loaded_label.as_deref().unwrap_or("Waveform"),
+            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            sizing.font_header,
+        ),
+        position: Point::new(
+            layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
+            layout.waveform_header.min.y + sizing.text_inset_y,
+        ),
+        font_size: sizing.font_header,
+        color: style.text_primary,
+        max_width: Some(
+            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+        ),
+        align: TextAlign::Left,
+    });
+    let playhead_text = model
+        .waveform
+        .playhead_milli
+        .map(format_milli_value)
+        .unwrap_or_else(|| String::from("—"));
+    let cursor_text = model
+        .waveform
+        .cursor_milli
+        .map(format_milli_value)
+        .unwrap_or_else(|| String::from("—"));
+    let view_text = format!(
+        "{}..{}",
+        format_milli_value(model.waveform.view_start_milli),
+        format_milli_value(model.waveform.view_end_milli)
+    );
+    let tempo_text = model.waveform.tempo_label.as_deref().unwrap_or("— BPM");
+    let zoom_text = model.waveform.zoom_label.as_deref().unwrap_or("100%");
+    text_runs.push(TextRun {
+        text: format!(
+            "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
+            model.waveform_chrome.transport_hint,
+            tempo_text,
+            zoom_text,
+            playhead_text,
+            cursor_text,
+            view_text,
+        ),
+        position: Point::new(
+            layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
+            layout.waveform_header.min.y
+                + sizing.text_inset_y
+                + sizing.font_header
+                + sizing.text_row_gap,
+        ),
+        font_size: sizing.font_meta,
+        color: style.text_muted,
+        max_width: Some(
+            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+        ),
+        align: TextAlign::Left,
+    });
 }
 
 #[derive(Clone, Debug, PartialEq)]

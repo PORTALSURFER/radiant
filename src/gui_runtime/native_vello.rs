@@ -51,8 +51,10 @@ struct NativeVelloFrameState {
     layout_dirty: bool,
     /// Full static scene cache needs a rebuild.
     scene_dirty: bool,
-    /// Motion overlays need a rebuild.
-    overlay_dirty: bool,
+    /// State-driven overlay cache needs a rebuild.
+    state_overlay_dirty: bool,
+    /// Motion/timer-driven overlay cache needs a rebuild.
+    motion_overlay_dirty: bool,
     /// Input/model changes need at least static scene refresh.
     model_dirty: bool,
 }
@@ -62,18 +64,25 @@ impl NativeVelloFrameState {
     fn mark_layout_dirty(&mut self) {
         self.layout_dirty = true;
         self.scene_dirty = true;
-        self.overlay_dirty = true;
+        self.state_overlay_dirty = true;
+        self.motion_overlay_dirty = true;
     }
 
-    /// Mark the visible scene dirty, including retained animation overlays.
+    /// Mark static content and all overlays dirty.
     fn mark_scene_dirty(&mut self) {
         self.scene_dirty = true;
-        self.overlay_dirty = true;
+        self.state_overlay_dirty = true;
+        self.motion_overlay_dirty = true;
     }
 
-    /// Mark only the overlay cache dirty.
-    fn mark_overlay_dirty(&mut self) {
-        self.overlay_dirty = true;
+    /// Mark only the state overlay cache dirty.
+    fn mark_state_overlay_dirty(&mut self) {
+        self.state_overlay_dirty = true;
+    }
+
+    /// Mark only the motion overlay cache dirty.
+    fn mark_motion_overlay_dirty(&mut self) {
+        self.motion_overlay_dirty = true;
     }
 
     /// Clear one-off layout flags after layout rebuild.
@@ -85,7 +94,8 @@ impl NativeVelloFrameState {
     fn mark_model_dirty(&mut self) {
         self.model_dirty = true;
         self.scene_dirty = true;
-        self.overlay_dirty = true;
+        self.state_overlay_dirty = true;
+        self.motion_overlay_dirty = true;
     }
 
     /// Take and clear the static scene dirty bit.
@@ -95,10 +105,17 @@ impl NativeVelloFrameState {
         dirty
     }
 
-    /// Take and clear the animation overlay dirty bit.
-    fn take_overlay(&mut self) -> bool {
-        let dirty = self.overlay_dirty;
-        self.overlay_dirty = false;
+    /// Take and clear the state overlay dirty bit.
+    fn take_state_overlay(&mut self) -> bool {
+        let dirty = self.state_overlay_dirty;
+        self.state_overlay_dirty = false;
+        dirty
+    }
+
+    /// Take and clear the motion overlay dirty bit.
+    fn take_motion_overlay(&mut self) -> bool {
+        let dirty = self.motion_overlay_dirty;
+        self.motion_overlay_dirty = false;
         dirty
     }
 
@@ -121,14 +138,18 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     renderer: Option<Renderer>,
     /// Retained static scene primitives (layout and stable content).
     frame_cache: NativeViewFrame,
-    /// Retained dynamic overlay primitives (pulses, overlays, moving accents).
-    overlay_frame_cache: NativeViewFrame,
+    /// Retained state-driven overlay primitives (focus/hover and dialog state).
+    state_overlay_frame_cache: NativeViewFrame,
+    /// Retained motion-driven overlay primitives (lamp pulse/playhead/update).
+    motion_overlay_frame_cache: NativeViewFrame,
     /// Full scene sent to Vello after combining static + overlay scenes.
     scene: Scene,
     /// Cached encoded static scene.
     static_scene: Scene,
-    /// Cached encoded overlay scene.
-    overlay_scene: Scene,
+    /// Cached encoded state-driven overlay scene.
+    state_overlay_scene: Scene,
+    /// Cached encoded motion-driven overlay scene.
+    motion_overlay_scene: Scene,
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
@@ -162,7 +183,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
-            overlay_frame_cache: NativeViewFrame {
+            state_overlay_frame_cache: NativeViewFrame {
+                clear_color: Rgba8 {
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    a: 255,
+                },
+                primitives: Vec::new(),
+                text_runs: Vec::new(),
+            },
+            motion_overlay_frame_cache: NativeViewFrame {
                 clear_color: Rgba8 {
                     r: 0,
                     g: 0,
@@ -174,7 +205,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             },
             scene: Scene::new(),
             static_scene: Scene::new(),
-            overlay_scene: Scene::new(),
+            state_overlay_scene: Scene::new(),
+            motion_overlay_scene: Scene::new(),
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
             frame_state: NativeVelloFrameState {
@@ -299,11 +331,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.rebuild_layout();
         }
         let rebuild_static = self.frame_state.take_scene();
-        let rebuild_overlay = self.frame_state.take_overlay() || rebuild_static;
-        if !rebuild_static && !rebuild_overlay {
+        let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
+        let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
+        if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
             return;
         }
-        self.rebuild_scene(rebuild_static, rebuild_overlay);
+        self.rebuild_scene(rebuild_static, rebuild_state_overlay, rebuild_motion_overlay);
     }
 
     fn rebuild_scene_and_request_redraw(&mut self) {
@@ -314,14 +347,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn rebuild_overlay_and_request_redraw(&mut self) {
-        self.frame_state.mark_overlay_dirty();
+        self.frame_state.mark_state_overlay_dirty();
         if let Some(window) = self.window.as_ref() {
             window.request_redraw();
         }
     }
 
     fn rebuild_scene_for_tick(&mut self) {
-        self.frame_state.mark_overlay_dirty();
+        self.frame_state.mark_motion_overlay_dirty();
         self.rebuild_scene_if_needed();
     }
 
@@ -359,7 +392,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         text_renderer.draw_text_runs(scene, &frame.text_runs);
     }
 
-    fn rebuild_scene(&mut self, rebuild_static: bool, rebuild_overlay: bool) {
+    fn rebuild_scene(
+        &mut self,
+        rebuild_static: bool,
+        rebuild_state_overlay: bool,
+        rebuild_motion_overlay: bool,
+    ) {
         let should_refresh_model = self.frame_state.take_model()
             || self.shell_state.is_transport_running();
         if should_refresh_model {
@@ -387,28 +425,53 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 &mut self.text_renderer,
             );
         }
-        if rebuild_overlay {
+        if rebuild_state_overlay {
             self.shell_state
-                .build_animation_overlay_into(
+                .build_state_overlay_into(
                     &layout,
                     &style,
                     &self.model,
-                    &mut self.overlay_frame_cache,
+                    &mut self.state_overlay_frame_cache,
                 );
             Self::encode_frame_to_scene(
-                &self.overlay_frame_cache,
-                &mut self.overlay_scene,
+                &self.state_overlay_frame_cache,
+                &mut self.state_overlay_scene,
                 &mut self.text_renderer,
             );
         }
-        if rebuild_static || rebuild_overlay {
+        if rebuild_motion_overlay {
+            self.shell_state
+                .build_motion_overlay_into(
+                    &layout,
+                    &style,
+                    &self.model,
+                    &mut self.motion_overlay_frame_cache,
+                );
+            Self::encode_frame_to_scene(
+                &self.motion_overlay_frame_cache,
+                &mut self.motion_overlay_scene,
+                &mut self.text_renderer,
+            );
+        }
+        if rebuild_static || rebuild_state_overlay || rebuild_motion_overlay {
             self.scene.reset();
             self.scene.append(&self.static_scene, None);
-            self.scene.append(&self.overlay_scene, None);
+            self.scene.append(&self.state_overlay_scene, None);
+            self.scene.append(&self.motion_overlay_scene, None);
         }
         let frame_result = FrameBuildResult {
-            primitive_count: self.frame_cache.primitives.len() + self.overlay_frame_cache.primitives.len(),
-            text_run_count: self.frame_cache.text_runs.len() + self.overlay_frame_cache.text_runs.len(),
+            primitive_count: self
+                .frame_cache
+                .primitives
+                .len()
+                .saturating_add(self.state_overlay_frame_cache.primitives.len())
+                .saturating_add(self.motion_overlay_frame_cache.primitives.len()),
+            text_run_count: self
+                .frame_cache
+                .text_runs
+                .len()
+                .saturating_add(self.state_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.motion_overlay_frame_cache.text_runs.len()),
             needs_animation: self.shell_state.needs_animation(),
         };
         self.bridge.on_frame_result(frame_result);

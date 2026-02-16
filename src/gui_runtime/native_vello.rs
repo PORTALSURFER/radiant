@@ -647,8 +647,15 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
-                {
+                if let Some(layout) = self.shell_layout.as_ref() {
+                    let fallback_point = Point::new(
+                        (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
+                        (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
+                    );
+                    let point = self
+                        .last_cursor
+                        .filter(|point| layout.browser_panel.contains(*point))
+                        .unwrap_or(fallback_point);
                     let style = self.cached_style_for_layout(layout);
                     if let Some(delta) =
                         browser_wheel_row_delta(layout, &self.model, point, &style, delta)
@@ -921,17 +928,23 @@ fn browser_wheel_row_delta(
     style: &StyleTokens,
     delta: MouseScrollDelta,
 ) -> Option<i8> {
-    if model.map.active || !layout.browser_rows.contains(point) {
+    if model.map.active || !layout.browser_panel.contains(point) {
         return None;
     }
     let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
     let raw = match delta {
-        MouseScrollDelta::LineDelta(_, y) => y,
-        MouseScrollDelta::PixelDelta(position) => (position.y as f32) / row_stride,
+        MouseScrollDelta::LineDelta(_, y) => -y,
+        MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
     };
+    if raw == 0.0 {
+        return None;
+    }
     let mut steps = raw.round();
     if steps.abs() < 1.0 {
         steps = raw.signum();
+        if steps == 0.0 {
+            return None;
+        }
     }
     if steps == 0.0 {
         return None;
@@ -1506,7 +1519,7 @@ mod tests {
                 &style,
                 MouseScrollDelta::LineDelta(0.0, 3.0),
             ),
-            Some(3)
+            Some(-3)
         );
         assert_eq!(
             browser_wheel_row_delta(
@@ -1517,6 +1530,20 @@ mod tests {
                 MouseScrollDelta::LineDelta(0.0, 0.0)
             ),
             None
+        );
+        let header_point = Point::new(
+            layout.browser_table_header.min.x + 5.0,
+            layout.browser_table_header.min.y + 5.0,
+        );
+        assert_eq!(
+            browser_wheel_row_delta(
+                &layout,
+                &model,
+                header_point,
+                &style,
+                MouseScrollDelta::LineDelta(0.0, 2.0),
+            ),
+            Some(-2)
         );
     }
 }

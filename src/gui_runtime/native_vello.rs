@@ -342,7 +342,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else {
             wgpu::PresentMode::AutoVsync
         };
-        let create_surface_with_mode = |present_mode| {
+        let mut create_surface_with_mode = |present_mode| {
             std::panic::catch_unwind(AssertUnwindSafe(|| {
                 pollster::block_on(render_ctx.create_surface(
                     window.clone(),

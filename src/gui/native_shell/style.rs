@@ -395,7 +395,7 @@ impl StyleTokens {
                 browser_bucket_col_width: 78.0,
                 panel_inset: 4.0,
                 header_label_gutter: 3.0,
-                browser_row_gap: 0.8,
+                browser_row_gap: 0.0,
                 browser_row_height: 16.5,
                 source_row_gap: 1.0,
                 source_row_height: 16.0,
@@ -487,7 +487,7 @@ impl StyleTokens {
             tokens.sizing.browser_search_field_ratio = 0.44;
             tokens.sizing.browser_index_col_width = 38.0;
             tokens.sizing.browser_bucket_col_width = 76.0;
-            tokens.sizing.browser_row_gap = 2.0;
+            tokens.sizing.browser_row_gap = 0.0;
             tokens.sizing.browser_row_height = 15.8;
             tokens.sizing.source_row_gap = 2.0;
             tokens.sizing.source_row_height = 15.8;
@@ -586,7 +586,7 @@ impl StyleTokens {
             tokens.sizing.browser_search_field_ratio = 0.47;
             tokens.sizing.browser_index_col_width = 36.0;
             tokens.sizing.browser_bucket_col_width = 84.0;
-            tokens.sizing.browser_row_gap = 1.3;
+            tokens.sizing.browser_row_gap = 0.0;
             tokens.sizing.browser_row_height = 17.4;
             tokens.sizing.source_row_gap = 1.5;
             tokens.sizing.source_row_height = 16.9;

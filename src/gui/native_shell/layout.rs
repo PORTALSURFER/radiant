@@ -311,8 +311,12 @@ impl ShellLayout {
         }
 
         let sidebar_header = band_header(sidebar, sizing.source_header_block_height);
+        let sidebar_footer_height = (sizing.source_bottom_padding
+            + sizing.sidebar_action_button_height
+            + (sizing.text_inset_y * 2.0))
+            .max(sizing.sidebar_action_button_height + 1.0);
         let sidebar_footer =
-            band_footer(sidebar, sizing.source_bottom_padding, sidebar_header.max.y);
+            band_footer(sidebar, sidebar_footer_height, sidebar_header.max.y);
         let sidebar_rows_top = (sidebar_header.max.y + sizing.header_to_rows_gap)
             .min(sidebar_footer.min.y)
             .max(sidebar.min.y);

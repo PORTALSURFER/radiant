@@ -15,7 +15,7 @@ use skrifa::{
     instance::{LocationRef, Size as FontSize},
 };
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -1800,7 +1800,7 @@ impl NativeTextRenderer {
         let Some(loaded_font) = self.loaded_font.as_ref() else {
             return;
         };
-        let font_data = &loaded_font.font;
+        let font_data = loaded_font.font.clone();
         for run in text_runs {
             if run.text.is_empty() || run.font_size <= 0.0 {
                 continue;
@@ -1847,33 +1847,27 @@ impl NativeTextRenderer {
             font_size_bits: font_size.to_bits(),
         };
 
-        match self.layout_cache.entry(key) {
-            Entry::Occupied(entry) => {
-                self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-                return Some(entry.get());
-            }
-            Entry::Vacant(vacant) => {
-                self.text_layout_misses = self.text_layout_misses.saturating_add(1);
+        if let Some(layout) = self.layout_cache.get(&key).map(|layout| layout as *const TextLayout) {
+            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+            return Some(unsafe { &*layout });
+        }
 
-                if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
-                    if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                        if self.layout_cache.remove(&evicted_key).is_some() {
-                            self.text_layout_evictions =
-                                self.text_layout_evictions.saturating_add(1);
-                        }
-                    }
+        self.text_layout_misses = self.text_layout_misses.saturating_add(1);
+
+        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
+                if self.layout_cache.remove(&evicted_key).is_some() {
+                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
                 }
-
-                let Some(layout) = Self::compute_layout(font, text, font_size) else {
-                    return None;
-                }
-
-                let cache_key = vacant.key().clone();
-                let cached_layout = vacant.insert(layout);
-                self.layout_cache_order.push_back(cache_key);
-                return Some(cached_layout);
             }
         }
+
+        let Some(layout) = Self::compute_layout(font, text, font_size) else {
+            return None;
+        };
+        self.layout_cache_order.push_back(key.clone());
+        let cached_layout = self.layout_cache.entry(key).or_insert(layout);
+        return Some(cached_layout);
     }
 
     fn take_layout_profile_counters(&mut self) -> (u64, u64, u64) {

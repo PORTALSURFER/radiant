@@ -635,6 +635,8 @@ pub enum UiAction {
     MoveColumn { delta: i8 },
     /// Toggle transport playback state.
     ToggleTransport,
+    /// Handle Escape key behavior for playback, selection, and cursor cleanup.
+    HandleEscape,
     /// Focus the browser/list panel.
     FocusBrowserPanel,
     /// Focus the sources panel.

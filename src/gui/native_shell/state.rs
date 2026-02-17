@@ -2847,17 +2847,26 @@ fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> String {
     if max_chars == 0 {
         return String::new();
     }
-    let char_count = text.chars().count();
-    if char_count <= max_chars {
-        return text.to_string();
+    let mut chars = text.chars();
+    let mut output = String::with_capacity(max_chars);
+    for _ in 0..max_chars {
+        match chars.next() {
+            Some(ch) => output.push(ch),
+            None => return output,
+        }
+    }
+    if chars.next().is_none() {
+        return output;
     }
     if max_chars <= 3 {
         return ".".repeat(max_chars);
     }
-    let mut output = String::with_capacity(max_chars);
-    for ch in text.chars().take(max_chars - 3) {
-        output.push(ch);
-    }
+    let truncated_chars = max_chars.saturating_sub(3);
+    let new_len = output
+        .char_indices()
+        .nth(truncated_chars)
+        .map_or(output.len(), |(idx, _)| idx);
+    output.truncate(new_len);
     output.push_str("...");
     output
 }

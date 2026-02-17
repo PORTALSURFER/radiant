@@ -19,6 +19,9 @@ pub struct SharedRepaintSignal {
 
 impl SharedRepaintSignal {
     /// Replace the active repaint callback.
+    ///
+    /// Passing `Some` installs a new callback for subsequent repaint requests.
+    /// Passing `None` disables repaint signaling until a new callback is set.
     pub fn set_signal(&self, signal: Option<Arc<dyn RepaintSignal>>) {
         if let Ok(mut lock) = self.signal.write() {
             *lock = signal;
@@ -69,5 +72,23 @@ mod tests {
         signal.request_repaint();
 
         assert!(called.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn shared_repaint_signal_replaces_existing_callback() {
+        let first_called = Arc::new(AtomicBool::new(false));
+        let second_called = Arc::new(AtomicBool::new(false));
+
+        let signal = SharedRepaintSignal::default();
+        signal.set_signal(Some(Arc::new(CountingSignal {
+            called: Arc::clone(&first_called),
+        })));
+        signal.set_signal(Some(Arc::new(CountingSignal {
+            called: Arc::clone(&second_called),
+        })));
+        signal.request_repaint();
+
+        assert!(!first_called.load(Ordering::Acquire));
+        assert!(second_called.load(Ordering::Acquire));
     }
 }

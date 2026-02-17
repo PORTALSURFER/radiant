@@ -727,7 +727,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             || (!self.motion_model_supported && rebuild_motion_overlay);
         let should_refresh_motion = rebuild_motion_overlay
             && self.motion_model_supported
-            && self.shell_state.is_transport_running();
+            && (self.shell_state.is_transport_running() || self.shell_state.needs_animation());
         if rebuild_static {
             self.profile_redraw_scene_rebuilds = self
                 .profile_redraw_scene_rebuilds

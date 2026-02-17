@@ -34,3 +34,40 @@ impl SharedRepaintSignal {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
+    #[derive(Default)]
+    struct CountingSignal {
+        called: Arc<AtomicBool>,
+    }
+
+    impl RepaintSignal for CountingSignal {
+        fn request_repaint(&self) {
+            self.called.store(true, Ordering::Release);
+        }
+    }
+
+    #[test]
+    fn shared_repaint_signal_noop_when_unset() {
+        let signal = SharedRepaintSignal::default();
+        signal.request_repaint();
+    }
+
+    #[test]
+    fn shared_repaint_signal_forwards_request_to_active_callback() {
+        let called = Arc::new(AtomicBool::new(false));
+        let callback = Arc::new(CountingSignal {
+            called: Arc::clone(&called),
+        });
+
+        let signal = SharedRepaintSignal::default();
+        signal.set_signal(Some(callback));
+        signal.request_repaint();
+
+        assert!(called.load(Ordering::Acquire));
+    }
+}

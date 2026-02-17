@@ -46,6 +46,12 @@ const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 
 #[cfg(feature = "gui-performance")]
+/// Optional frame-time and overlay rebuild profiler.
+///
+/// Enabled only when `cfg(feature = "gui-performance")` is active and the
+/// `SEMPAL_NATIVE_RENDER_PROFILE` environment variable is set to a truthy value.
+/// All instrumentation values are accumulated and periodically emitted on stderr
+/// to avoid per-frame logging overhead on hot paths.
 #[derive(Debug, Default)]
 struct NativeVelloProfiler {
     enabled: bool,
@@ -2113,6 +2119,10 @@ impl NativeAppBridge for PreviewBridge {
 }
 
 /// Run the native Vello backend window with a host-provided app bridge.
+///
+/// The runtime loop is owned by winit and blocks until the native window closes.
+/// The host receives user input each frame through the bridge-driven action path,
+/// and this function returns the host result from the event loop invocation.
 pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,

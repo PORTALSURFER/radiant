@@ -2365,6 +2365,16 @@ mod tests {
                 &model,
                 &mut shell_state,
                 point,
+                ModifiersState::SUPER,
+            ),
+            Some(UiAction::ToggleBrowserRowSelection { visible_row: 17 })
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
                 ModifiersState::SHIFT | ModifiersState::SUPER,
             ),
             Some(UiAction::AddRangeBrowserSelection { visible_row: 17 })

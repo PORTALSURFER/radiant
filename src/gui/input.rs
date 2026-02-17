@@ -135,3 +135,26 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         _ => return None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use winit::keyboard::KeyCode as WinitKeyCode;
+
+    #[test]
+    fn key_code_from_winit_maps_supported_codes() {
+        assert_eq!(key_code_from_winit(WinitKeyCode::Digit1), Some(KeyCode::Num1));
+        assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
+        assert_eq!(key_code_from_winit(WinitKeyCode::ArrowLeft), Some(KeyCode::ArrowLeft));
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::NumpadEnter),
+            Some(KeyCode::Enter)
+        );
+    }
+
+    #[test]
+    fn key_code_from_winit_returns_none_for_unsupported_code() {
+        assert_eq!(key_code_from_winit(WinitKeyCode::Escape), None);
+        assert_eq!(key_code_from_winit(WinitKeyCode::Tab), None);
+    }
+}

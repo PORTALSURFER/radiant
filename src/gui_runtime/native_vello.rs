@@ -1035,7 +1035,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         }
 
-        let Some(window) = self.window.as_ref().cloned() else {
+        let Some(window) = self.window.as_ref() else {
             if let Some(frame_start) = frame_start {
                 self.maybe_record_redraw_profile(
                     rebuild_duration,

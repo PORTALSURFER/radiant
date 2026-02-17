@@ -15,7 +15,7 @@ use skrifa::{
     instance::{LocationRef, Size as FontSize},
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -41,6 +41,7 @@ use tracing::{error, info, warn};
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
+const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
@@ -209,7 +210,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let target_frame_interval = Duration::from_nanos(frame_interval_ns);
         let focus_animation_interval =
             Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
-        let idle_status_refresh_interval = target_frame_interval;
+        let idle_status_refresh_interval =
+            Duration::from_nanos(1_000_000_000u64 / IDLE_STATUS_REFRESH_HZ.max(1));
         info!(
             "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
             options.title,
@@ -1622,6 +1624,7 @@ struct LoadedFont {
 struct NativeTextRenderer {
     loaded_font: Option<LoadedFont>,
     layout_cache: HashMap<TextLayoutKey, TextLayout>,
+    layout_cache_order: VecDeque<TextLayoutKey>,
 }
 
 impl NativeTextRenderer {
@@ -1635,6 +1638,7 @@ impl NativeTextRenderer {
         Self {
             loaded_font,
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
+            layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
         }
     }
 
@@ -1690,12 +1694,23 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
-        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
-            self.layout_cache.clear();
+        if let Some(layout) = self.layout_cache.get(&key) {
+            return Some(layout);
         }
-        if !self.layout_cache.contains_key(&key) {
-            let layout = Self::compute_layout(font, text, font_size)?;
-            self.layout_cache.insert(key.clone(), layout);
+        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
+                self.layout_cache.remove(&evicted_key);
+            }
+        }
+        let Some(layout) = Self::compute_layout(font, text, font_size) else {
+            return None;
+        };
+        self.layout_cache.insert(key.clone(), layout);
+        self.layout_cache_order.push_back(key);
+        if self.layout_cache.len() > TEXT_LAYOUT_CACHE_CAPACITY {
+            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
+                self.layout_cache.remove(&evicted_key);
+            }
         }
         self.layout_cache.get(&key)
     }

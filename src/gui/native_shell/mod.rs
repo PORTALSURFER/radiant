@@ -559,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_rows_enable_idle_animation_when_transport_is_stopped() {
+    fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.transport_running = false;
@@ -568,10 +568,15 @@ mod tests {
             .rows
             .push(crate::app::BrowserRowModel::new(0, "kick", 1, false, true));
         state.sync_from_model(&model);
-        assert!(state.needs_animation());
+        state.sync_from_model(&model);
+        assert!(!state.needs_animation());
 
         let mut idle_model = crate::app::AppModel::default();
         idle_model.transport_running = false;
+        let mut playing_model = crate::app::AppModel::default();
+        playing_model.transport_running = true;
+        state.sync_from_model(&playing_model);
+        assert!(state.needs_animation());
         state.sync_from_model(&idle_model);
         assert!(!state.needs_animation());
     }

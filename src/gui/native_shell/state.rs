@@ -28,6 +28,18 @@ pub(crate) struct NativeShellState {
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct NativeAnimationReasons {
+    transport_running: bool,
+    startup_frame_tick: bool,
+}
+
+impl NativeAnimationReasons {
+    fn needs_animation(self) -> bool {
+        self.transport_running || self.startup_frame_tick
+    }
+}
+
 impl NativeShellState {
     /// Create a default shell state.
     pub(crate) fn new() -> Self {
@@ -48,10 +60,17 @@ impl NativeShellState {
     }
 
     /// Return whether the shell currently needs continuous animation.
+    /// Focus emphasis is intentionally not included so selection and focus rendering
+    /// remains static without forcing redraws when transport is idle.
     pub(crate) fn needs_animation(&self) -> bool {
-        self.transport_running
-            || self.has_focus_emphasis
-            || self.startup_frame_ticks > 0
+        self.animation_reasons().needs_animation()
+    }
+
+    fn animation_reasons(&self) -> NativeAnimationReasons {
+        NativeAnimationReasons {
+            transport_running: self.transport_running,
+            startup_frame_tick: self.startup_frame_ticks > 0,
+        }
     }
 
     /// Return whether playback transport is currently reported as running.

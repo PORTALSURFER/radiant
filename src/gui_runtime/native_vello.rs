@@ -2305,6 +2305,73 @@ mod tests {
     }
 
     #[test]
+    fn browser_row_click_modifiers_route_expected_actions() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut shell_state = NativeShellState::new();
+        let model = AppModel {
+            browser: crate::app::BrowserPanelModel {
+                rows: vec![crate::app::BrowserRowModel::new(
+                    17,
+                    "kick-row",
+                    0,
+                    false,
+                    false,
+                )],
+                visible_count: 1,
+                ..crate::app::BrowserPanelModel::default()
+            },
+            ..AppModel::default()
+        };
+        let row_center_y =
+            layout.browser_rows.min.y + (StyleTokens::for_viewport_width(layout.root.rect.width()).sizing.browser_row_height * 0.5);
+        let point = Point::new(
+            (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
+            row_center_y,
+        );
+
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
+                ModifiersState::default(),
+            ),
+            Some(UiAction::FocusBrowserRow { visible_row: 17 })
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
+                ModifiersState::SHIFT,
+            ),
+            Some(UiAction::ExtendBrowserSelectionToRow { visible_row: 17 })
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
+                ModifiersState::CONTROL,
+            ),
+            Some(UiAction::ToggleBrowserRowSelection { visible_row: 17 })
+        );
+        assert_eq!(
+            action_from_pointer(
+                &layout,
+                &model,
+                &mut shell_state,
+                point,
+                ModifiersState::SHIFT | ModifiersState::SUPER,
+            ),
+            Some(UiAction::AddRangeBrowserSelection { visible_row: 17 })
+        );
+    }
+
+    #[test]
     fn confirm_prompt_keys_ignore_other_shortcuts_when_visible() {
         let mut model = AppModel::default();
         model.confirm_prompt.visible = true;

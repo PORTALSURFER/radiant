@@ -1,8 +1,27 @@
-//! App-facing model/action contracts for native runtime integrations.
+//! App-facing contracts between the `radiant` runtime and a host application.
 //!
-//! The native runtime pulls an [`AppModel`] each frame and emits [`UiAction`] events
-//! back to the host bridge. This keeps `radiant` rendering/runtime logic decoupled
-//! from application-specific controller implementations.
+//! The host provides one immutable [`AppModel`] snapshot per frame.
+//! `radiant` consumes that snapshot to:
+//! 1. derive a frame from the retained shell model,
+//! 2. run input hit-testing and command handling,
+//! 3. emit [`UiAction`] values describing intent.
+//!
+//! Each action is routed back through the host bridge so state updates remain
+//! in application code. This keeps GUI-specific input handling and event propagation
+//! in `radiant` while preserving a one-way data flow for business logic.
+//!
+//! ## Diff/update model
+//! The update model is explicit and incremental:
+//! - `AppModel`: snapshot of current application state for rendering.
+//! - action batch: a minimal set of mutations (`UiAction`) produced from input.
+//! - host consumes actions and publishes the next model snapshot.
+//! - UI repeatedly re-renders from the latest snapshot.
+//!
+//! ## Event propagation model
+//! All backend input is normalized at the runtime boundary into
+//! [`KeyCode`](crate::gui::input::KeyCode) and layout-space pointer events.
+//! `radiant` resolves these to deterministic shell targets (hit test → state
+//! transition → action emission) and does not mutate the host domain state directly.
 use crate::gui::types::ImageRgba;
 
 /// Render data for one triage/browser column.

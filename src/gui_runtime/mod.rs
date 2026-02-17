@@ -1,4 +1,14 @@
 //! Shared GUI runtime host implementations.
+//!
+//! The runtime is responsible for the host integration lifecycle:
+//! 1. open/create a window and event loop,
+//! 2. pull app snapshots and submit them to `radiant` for frame build,
+//! 3. schedule redraws when input, timers, or host events require updates,
+//! 4. emit platform input into normalized runtime events.
+//!
+//! Render work is intentionally performed through feature-gated hooks in the
+//! underlying backend (for example `gui-performance`) so release builds that do
+//! not request profiling have no measurable instrumentation overhead.
 
 mod native_vello;
 

@@ -458,13 +458,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.sync_text_input_target();
             }
         }
-        let layout = self.shell_layout.as_ref() else {
+        let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
         let style = self.cached_style_for_layout(layout);
         if rebuild_static {
             self.shell_state.build_frame_with_style_into_static(
-                &layout,
+                layout,
                 &style,
                 &self.model,
                 &mut self.frame_cache,
@@ -478,7 +478,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if rebuild_state_overlay {
             self.shell_state.build_state_overlay_into(
-                &layout,
+                layout,
                 &style,
                 &self.model,
                 &mut self.state_overlay_frame_cache,
@@ -497,7 +497,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.motion_model.as_ref().unwrap()
             };
             self.shell_state.build_motion_overlay_into(
-                &layout,
+                layout,
                 &style,
                 motion_model,
                 &mut self.motion_overlay_frame_cache,
@@ -536,10 +536,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        let Some(layout) = self.shell_layout.as_ref() else {
+        let Some(layout) = self.shell_layout.clone() else {
             return;
         };
-        self.rebuild_scene_for_redraw(layout, delta);
+        self.rebuild_scene_for_redraw(&layout, delta);
 
         let window = self.window.as_ref().cloned();
         let (Some(window), Some(render_ctx), Some(surface), Some(renderer)) = (

@@ -747,6 +747,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.motion_model
                 .as_ref()
                 .and_then(|model| model.waveform_image_signature);
+        let mut motion_changed = false;
         if should_refresh_model {
             self.profile_model_refreshes = self.profile_model_refreshes.saturating_add(1);
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
@@ -767,6 +768,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if should_refresh_motion {
             if let Some(motion_model) = self.bridge.pull_motion_model() {
                 if self.motion_model.as_ref() != Some(&motion_model) {
+                    motion_changed = true;
                     if previous_waveform_signature != motion_model.waveform_image_signature {
                         rebuild_static = true;
                         rebuild_state_overlay = true;
@@ -782,6 +784,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.sync_text_input_target();
             }
+        }
+        if should_refresh_motion && !motion_changed {
+            rebuild_motion_overlay = false;
         }
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
@@ -1694,8 +1699,8 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
-        if self.layout_cache.contains_key(&key) {
-            return self.layout_cache.get(&key);
+        if let Some(layout) = self.layout_cache.get(&key) {
+            return Some(layout);
         }
 
         if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {

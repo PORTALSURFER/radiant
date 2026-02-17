@@ -314,17 +314,40 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
+        let preferred_present_mode = if self.options.target_fps >= 120 {
+            wgpu::PresentMode::Mailbox
+        } else {
+            wgpu::PresentMode::AutoVsync
+        };
         let render_surface = match pollster::block_on(render_ctx.create_surface(
             window.clone(),
             width,
             height,
-            wgpu::PresentMode::AutoVsync,
+            preferred_present_mode,
         )) {
             Ok(surface) => surface,
-            Err(err) => {
-                eprintln!("Failed to create native vello surface: {err}");
-                event_loop.exit();
-                return;
+            Err(preferred_err) => {
+                if preferred_present_mode == wgpu::PresentMode::AutoVsync {
+                    eprintln!("Failed to create native vello surface: {preferred_err}");
+                    event_loop.exit();
+                    return;
+                }
+                eprintln!(
+                    "Mailbox present mode unsupported ({preferred_err:?}); retrying AutoVsync"
+                );
+                match pollster::block_on(render_ctx.create_surface(
+                    window.clone(),
+                    width,
+                    height,
+                    wgpu::PresentMode::AutoVsync,
+                )) {
+                    Ok(surface) => surface,
+                    Err(fallback_err) => {
+                        eprintln!("Failed to create native vello surface: {fallback_err}");
+                        event_loop.exit();
+                        return;
+                    }
+                }
             }
         };
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
@@ -404,19 +427,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.rebuild_scene_if_needed();
     }
 
-    fn rebuild_scene_for_redraw(&mut self, delta_seconds: f32) {
-        if !self.shell_state.needs_animation() {
+    fn rebuild_scene_for_redraw(&mut self, needs_animation: bool, delta_seconds: f32) -> bool {
+        if !needs_animation {
             if self.frame_state.has_pending_rebuild() {
                 self.rebuild_scene_if_needed();
+                return true;
             }
-            return;
+            return false;
         }
         let Some(layout) = self.shell_layout.as_ref() else {
-            return;
+            return false;
         };
         let style = self.cached_style_for_layout(layout);
         self.shell_state.tick_with_style(delta_seconds, &style);
         self.rebuild_scene_for_tick();
+        true
     }
 
     fn maybe_record_redraw_profile(
@@ -644,8 +669,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let profiling = self.profile_redraw_enabled;
         let frame_start = profiling.then(Instant::now);
         let rebuild_start = profiling.then(Instant::now);
-        self.rebuild_scene_for_redraw(delta);
+        let needs_animation = self.shell_state.needs_animation();
+        let has_rebuild = self.rebuild_scene_for_redraw(needs_animation, delta);
         let rebuild_duration = rebuild_start.map_or(Duration::ZERO, |start| start.elapsed());
+        if !needs_animation && !has_rebuild {
+            return;
+        }
 
         let Some(window) = self.window.as_ref().cloned() else {
             if let Some(frame_start) = frame_start {

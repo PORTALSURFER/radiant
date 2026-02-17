@@ -553,9 +553,9 @@ impl NativeShellState {
             for row in browser_rows.iter() {
                 let row_columns = browser_table_columns(row.rect, sizing);
                 let row_fill = if row.focused {
-                    blend_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
+                    translucent_overlay_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
                 } else if row.selected {
-                    blend_color(
+                    translucent_overlay_color(
                         style.bg_tertiary,
                         style.grid_soft,
                         style.state_selected_blend,
@@ -1027,7 +1027,7 @@ impl NativeShellState {
                     .selected_row
                     .is_some_and(|selected| selected == row_index);
             let row_fill = if row_selected {
-                blend_color(
+                translucent_overlay_color(
                     style.bg_tertiary,
                     style.grid_soft,
                     style.state_selected_blend,
@@ -1170,14 +1170,14 @@ impl NativeShellState {
                 let row = &model.sources.folder_rows[row_index];
                 let row_selected = row.selected || row.focused;
                 let row_fill = if row.focused {
-                    blend_color(
+                    translucent_overlay_color(
                         style.bg_tertiary,
                         style.grid_strong,
                         (style.state_hover_soft + (motion_wave * style.motion_focus_wave_amp))
                             .clamp(0.0, 1.0),
                     )
                 } else if row_selected {
-                    blend_color(
+                    translucent_overlay_color(
                         style.bg_tertiary,
                         style.grid_soft,
                         style.state_selected_blend,
@@ -1931,7 +1931,7 @@ impl NativeShellState {
                     if row.focused {
                         primitives.push(Primitive::Rect(FillRect {
                             rect: *row_rect,
-                            color: blend_color(
+                            color: translucent_overlay_color(
                                 style.bg_tertiary,
                                 style.grid_strong,
                                 style.state_focus_pulse_blend,
@@ -2006,7 +2006,7 @@ impl NativeShellState {
                     if row.focused {
                         primitives.push(Primitive::Rect(FillRect {
                             rect: row.rect,
-                            color: blend_color(
+                            color: translucent_overlay_color(
                                 style.bg_tertiary,
                                 style.grid_strong,
                                 style.state_focus_pulse_blend,
@@ -2692,6 +2692,15 @@ fn tinted_overlay_color(color: Rgba8, alpha: f32) -> Rgba8 {
         b: color.b,
         a: alpha as u8,
     }
+}
+
+fn translucent_overlay_color(base: Rgba8, tint: Rgba8, amount: f32) -> Rgba8 {
+    let amount = amount.clamp(0.0, 1.0);
+    let mut color = blend_color(base, tint, amount);
+    color.a = (amount * (base.a as f32 / 255.0) * (tint.a as f32 / 255.0) * 255.0)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    color
 }
 
 fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
@@ -4863,6 +4872,43 @@ mod tests {
         assert_eq!(overlay_color.g, style.bg_tertiary.g);
         assert_eq!(overlay_color.b, style.bg_tertiary.b);
         assert!(overlay_color.a < 255);
+    }
+
+    #[test]
+    fn source_row_selected_fill_is_translucent_overlay() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model
+            .sources
+            .rows
+            .push(SourceRowModel::new("selected source", "detail", true, false));
+
+        let selected_row = *state
+            .rendered_source_row_rects(&layout, &style, &model)
+            .first()
+            .expect("source row should be rendered");
+        let frame = state.build_frame(&layout, &model);
+
+        let row_color = frame
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                Primitive::Rect(rect) if rect.rect == selected_row => Some(rect.color),
+                _ => None,
+            })
+            .expect("selected source row should emit a fill rectangle");
+
+        assert_eq!(
+            row_color,
+            translucent_overlay_color(
+                style.bg_tertiary,
+                style.grid_soft,
+                style.state_selected_blend
+            )
+        );
+        assert!(row_color.a < 255);
     }
 
     #[test]

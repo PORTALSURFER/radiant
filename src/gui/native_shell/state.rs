@@ -520,7 +520,11 @@ impl NativeShellState {
             x += scan_step;
         }
 
-        push_waveform_image(primitives, waveform_inner, model.waveform.waveform_image.as_ref());
+        push_waveform_image(
+            primitives,
+            waveform_inner,
+            model.waveform.waveform_image.as_deref(),
+        );
 
         let browser_buttons = browser_action_buttons(layout, style, model);
         let source_row_rects = rendered_source_row_rects(layout, style, model);
@@ -4788,7 +4792,8 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
-        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap());
+        model.waveform.waveform_image =
+            Some(std::sync::Arc::new(ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap()));
         let frame = state.build_frame(&layout, &model);
         let expected_color = Rgba8 {
             r: 11,
@@ -4810,7 +4815,8 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
-        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap());
+        model.waveform.waveform_image =
+            Some(std::sync::Arc::new(ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap()));
         let frame = state.build_frame(&layout, &model);
         let has_expected_waveform_color = frame.primitives.iter().any(|primitive| {
             matches!(

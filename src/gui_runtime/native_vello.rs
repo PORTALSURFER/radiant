@@ -40,6 +40,7 @@ use tracing::{error, info, warn};
 
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
+const FOCUS_PULSE_HZ: u64 = 60;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
@@ -183,6 +184,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     window_event_count: u32,
     redraw_count: u32,
     target_frame_interval: Duration,
+    focus_animation_interval: Duration,
     model_refresh_count: u32,
     profile_redraw_enabled: bool,
     profile_redraw_frames: u64,
@@ -203,6 +205,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let target_fps = options.target_fps.max(1);
         let frame_interval_ns = (1_000_000_000u64 / target_fps as u64).max(1);
         let target_frame_interval = Duration::from_nanos(frame_interval_ns);
+        let focus_animation_interval =
+            Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
         info!(
             "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
             options.title,
@@ -279,6 +283,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window_event_count: 0,
             redraw_count: 0,
             target_frame_interval,
+            focus_animation_interval,
             model_refresh_count: 0,
             profile_redraw_enabled: std::env::var(REDRAW_PROFILE_ENV)
                 .ok()
@@ -672,7 +677,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut pending_action = false;
         if let Some(point) = self.pending_cursor.take() {
             if let Some(layout) = self.shell_layout.as_ref() {
-                let layout = layout.clone();
                 if self.shell_state.handle_cursor_move(&layout, point) {
                     self.rebuild_overlay_and_request_redraw();
                     pending_action = true;
@@ -703,6 +707,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             || rebuild_static
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
+        let should_refresh_motion = rebuild_motion_overlay
+            && self.motion_model_supported
+            && self.shell_state.is_transport_running();
         if rebuild_static {
             self.profile_redraw_scene_rebuilds = self
                 .profile_redraw_scene_rebuilds
@@ -739,7 +746,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
-        } else if rebuild_motion_overlay && self.motion_model_supported {
+        } else if should_refresh_motion {
             if let Some(motion_model) = self.bridge.pull_motion_model() {
                 if self.motion_model.as_ref() != Some(&motion_model) {
                     if previous_waveform_signature != motion_model.waveform_image_signature {
@@ -1333,7 +1340,12 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 window.request_redraw();
             }
             let now = Instant::now();
-            let mut next_redraw_at = self.last_redraw + self.target_frame_interval;
+            let frame_interval = if self.shell_state.is_transport_running() {
+                self.target_frame_interval
+            } else {
+                self.focus_animation_interval
+            };
+            let mut next_redraw_at = self.last_redraw + frame_interval;
             if next_redraw_at < now {
                 next_redraw_at = now;
             }

@@ -711,7 +711,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             next_refresh += self.idle_status_refresh_interval;
         }
         self.next_idle_status_refresh = next_refresh;
-        self.frame_state.mark_model_dirty();
+        self.frame_state.mark_motion_overlay_dirty();
         true
     }
 
@@ -725,9 +725,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             || rebuild_static
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
-        let should_refresh_motion = rebuild_motion_overlay
-            && self.motion_model_supported
-            && (self.shell_state.is_transport_running() || self.shell_state.needs_animation());
+        let should_refresh_motion = rebuild_motion_overlay && self.motion_model_supported;
         if rebuild_static {
             self.profile_redraw_scene_rebuilds = self
                 .profile_redraw_scene_rebuilds

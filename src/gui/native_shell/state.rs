@@ -18,7 +18,6 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     transport_running: bool,
     has_focus_emphasis: bool,
-    fps_status_visible: bool,
     startup_frame_ticks: u8,
     pulse_phase: f32,
     source_row_rects: Vec<Rect>,
@@ -37,7 +36,6 @@ impl NativeShellState {
             hovered: None,
             transport_running: true,
             has_focus_emphasis: false,
-            fps_status_visible: false,
             startup_frame_ticks: 2,
             pulse_phase: 0.0,
             source_row_rects: Vec::new(),
@@ -53,7 +51,6 @@ impl NativeShellState {
     pub(crate) fn needs_animation(&self) -> bool {
         self.transport_running
             || self.has_focus_emphasis
-            || self.fps_status_visible
             || self.startup_frame_ticks > 0
     }
 
@@ -66,7 +63,6 @@ impl NativeShellState {
     pub(crate) fn sync_from_model(&mut self, model: &AppModel) {
         self.selected_column = model.selected_column.min(2);
         self.transport_running = model.transport_running;
-        self.fps_status_visible = model.status.right.starts_with("fps:");
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         self.has_focus_emphasis = model
             .browser
@@ -85,7 +81,6 @@ impl NativeShellState {
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
     pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
         self.transport_running = model.transport_running;
-        self.fps_status_visible = model.status_right.starts_with("fps:");
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.

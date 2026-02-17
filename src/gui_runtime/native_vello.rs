@@ -373,6 +373,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.rebuild_scene_if_needed();
     }
 
+    fn rebuild_scene_for_redraw(&mut self, layout: &ShellLayout, delta_seconds: f32) {
+        if self.shell_state.needs_animation() {
+            let style = self.cached_style_for_layout(layout);
+            self.shell_state.tick_with_style(delta_seconds, &style);
+            self.rebuild_scene_for_tick();
+            return;
+        }
+        self.rebuild_scene_if_needed();
+    }
+
     fn encode_frame_to_scene(
         frame: &NativeViewFrame,
         scene: &mut Scene,
@@ -429,13 +439,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.sync_text_input_target();
         } else if rebuild_motion_overlay && self.motion_model_supported {
             if let Some(motion_model) = self.bridge.pull_motion_model() {
-                if previous_waveform_signature != motion_model.waveform_image_signature {
-                    rebuild_static = true;
-                    rebuild_state_overlay = true;
-                    rebuild_motion_overlay = true;
+                if self.motion_model.as_ref() != Some(&motion_model) {
+                    if previous_waveform_signature != motion_model.waveform_image_signature {
+                        rebuild_static = true;
+                        rebuild_state_overlay = true;
+                        rebuild_motion_overlay = true;
+                    }
+                    self.shell_state.sync_from_motion_model(&motion_model);
+                    self.motion_model = Some(motion_model);
+                } else {
+                    rebuild_motion_overlay = false;
                 }
-                self.shell_state.sync_from_motion_model(&motion_model);
-                self.motion_model = Some(motion_model);
             } else {
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
@@ -444,11 +458,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.sync_text_input_target();
             }
         }
-        let Some(layout) = self.shell_layout.as_ref() else {
+        let layout = self.shell_layout.as_ref() else {
             return;
         };
-        let layout = layout.clone();
-        let style = self.cached_style_for_layout(&layout);
+        let style = self.cached_style_for_layout(layout);
         if rebuild_static {
             self.shell_state.build_frame_with_style_into_static(
                 &layout,
@@ -526,9 +539,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let style = self.cached_style_for_layout(layout);
-        self.shell_state.tick_with_style(delta, &style);
-        self.rebuild_scene_for_tick();
+        self.rebuild_scene_for_redraw(layout, delta);
 
         let window = self.window.as_ref().cloned();
         let (Some(window), Some(render_ctx), Some(surface), Some(renderer)) = (

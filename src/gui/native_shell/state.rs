@@ -2251,7 +2251,7 @@ impl NativeShellState {
             blend_color(style.accent_mint, style.text_primary, 0.42),
             sizing.border_width,
         );
-        push_status_right_motion_overlay(
+        Self::push_status_right_motion_overlay(
             primitives,
             text_runs,
             layout,

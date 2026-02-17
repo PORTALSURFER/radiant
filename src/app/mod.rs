@@ -4,7 +4,6 @@
 //! back to the host bridge. This keeps `radiant` rendering/runtime logic decoupled
 //! from application-specific controller implementations.
 use crate::gui::types::ImageRgba;
-use std::sync::Arc;
 
 /// Render data for one triage/browser column.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -388,7 +387,7 @@ pub struct WaveformPanelModel {
     /// Optional rasterized waveform payload for rendering the waveform preview.
     ///
     /// Hosts render this image inside the waveform plot area and keep overlays on top.
-    pub waveform_image: Option<Arc<ImageRgba>>,
+    pub waveform_image: Option<ImageRgba>,
 }
 
 impl Default for WaveformPanelModel {

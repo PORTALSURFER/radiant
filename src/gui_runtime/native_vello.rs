@@ -756,8 +756,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     }
                     self.shell_state.sync_from_motion_model(&motion_model);
                     self.motion_model = Some(motion_model);
-                } else {
-                    rebuild_motion_overlay = false;
                 }
             } else {
                 self.motion_model_supported = false;
@@ -1204,9 +1202,6 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 let point = Point::new(position.x as f32, position.y as f32);
                 self.last_cursor = Some(point);
                 self.queue_cursor(point);
-                if let Some(window) = self.window.as_ref() {
-                    window.request_redraw();
-                }
             }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
@@ -1615,7 +1610,7 @@ impl NativeTextRenderer {
     }
 
     fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
-        let Some(font) = self.loaded_font.clone() else {
+        let Some(font) = self.loaded_font.as_ref() else {
             return;
         };
         for run in text_runs {

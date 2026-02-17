@@ -1610,14 +1610,17 @@ impl NativeTextRenderer {
     }
 
     fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
-        let Some(font) = self.loaded_font.as_ref() else {
+        let Some(font_data) = self
+            .loaded_font
+            .as_ref()
+            .map(|font| font.font.clone()) else {
             return;
         };
         for run in text_runs {
             if run.text.is_empty() || run.font_size <= 0.0 {
                 continue;
             }
-            let Some(layout) = self.layout_for(&font, &run.text, run.font_size) else {
+            let Some(layout) = self.layout_for(&font_data, &run.text, run.font_size) else {
                 continue;
             };
             let mut origin_x = run.position.x;
@@ -1641,7 +1644,7 @@ impl NativeTextRenderer {
                     y: baseline,
                 });
             scene
-                .draw_glyphs(&font.font)
+                .draw_glyphs(&font_data)
                 .font_size(run.font_size)
                 .brush(color_from_rgba(run.color))
                 .draw(Fill::NonZero, glyph_iter);
@@ -1650,7 +1653,7 @@ impl NativeTextRenderer {
 
     fn layout_for<'a>(
         &'a mut self,
-        font: &LoadedFont,
+        font: &FontData,
         text: &str,
         font_size: f32,
     ) -> Option<&'a TextLayout> {
@@ -1668,9 +1671,8 @@ impl NativeTextRenderer {
         self.layout_cache.get(&key)
     }
 
-    fn compute_layout(font: &LoadedFont, text: &str, font_size: f32) -> Option<TextLayout> {
-        let font_ref =
-            skrifa::FontRef::from_index(font.font.data.as_ref(), font.font.index).ok()?;
+    fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Option<TextLayout> {
+        let font_ref = skrifa::FontRef::from_index(font.data.as_ref(), font.index).ok()?;
         let charmap = font_ref.charmap();
         let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
         let fallback_glyph = charmap.map('?');

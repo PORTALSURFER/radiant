@@ -197,11 +197,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let frame_interval_ns = (1_000_000_000u64 / target_fps as u64).max(1);
         let target_frame_interval = Duration::from_nanos(frame_interval_ns);
         info!(
-            "radiant native vello runner created",
-            title = %options.title,
-            target_fps = %options.target_fps,
-            maximized = %options.maximized,
-            has_icon = %options.icon.is_some()
+            "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
+            options.title,
+            options.target_fps,
+            options.maximized,
+            options.icon.is_some()
         );
         Self {
             options,
@@ -322,7 +322,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let window = match event_loop.create_window(self.build_window_attributes()) {
             Ok(window) => Arc::new(window),
             Err(err) => {
-                error!(error = ?err, "radiant native vello: failed to create window");
+                error!("radiant native vello: failed to create window: {:?}", err);
                 event_loop.exit();
                 return;
             }
@@ -350,11 +350,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             Ok(surface) => surface,
             Err(preferred_err) => {
                 if preferred_present_mode == wgpu::PresentMode::AutoVsync {
-                    error!(error = ?preferred_err, "radiant native vello: failed to create primary surface");
+                    error!(
+                        "radiant native vello: failed to create primary surface: {:?}",
+                        preferred_err
+                    );
                     event_loop.exit();
                     return;
                 }
-                info!(error = ?preferred_err, "radiant native vello: mailbox surface mode unsupported; retrying AutoVsync");
+                info!(
+                    "radiant native vello: mailbox surface mode unsupported; retrying AutoVsync: {:?}",
+                    preferred_err
+                );
                 match pollster::block_on(render_ctx.create_surface(
                     window.clone(),
                     width,
@@ -363,7 +369,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 )) {
                     Ok(surface) => surface,
                     Err(fallback_err) => {
-                        error!(error = ?fallback_err, "radiant native vello: failed to create fallback surface");
+                        error!(
+                            "radiant native vello: failed to create fallback surface: {:?}",
+                            fallback_err
+                        );
                         event_loop.exit();
                         return;
                     }
@@ -376,7 +385,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let renderer = match Renderer::new(&dev_handle.device, RendererOptions::default()) {
             Ok(renderer) => renderer,
             Err(err) => {
-                error!(error = ?err, "radiant native vello: failed to create renderer");
+                error!("radiant native vello: failed to create renderer: {:?}", err);
                 event_loop.exit();
                 return;
             }
@@ -588,11 +597,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
             if self.model_refresh_count <= 24 {
                 info!(
-                    model_refresh_count = %self.model_refresh_count,
-                    rebuild_static = %rebuild_static,
-                    rebuild_state_overlay = %rebuild_state_overlay,
-                    rebuild_motion_overlay = %rebuild_motion_overlay,
-                    "native vello refreshing model"
+                    "native vello refreshing model: refresh_count={} rebuild_static={} rebuild_state_overlay={} rebuild_motion_overlay={}",
+                    self.model_refresh_count,
+                    rebuild_static,
+                    rebuild_state_overlay,
+                    rebuild_motion_overlay
                 );
             }
             self.model = self.bridge.pull_model();
@@ -708,11 +717,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let rebuild_duration = rebuild_start.map_or(Duration::ZERO, |start| start.elapsed());
         if self.redraw_count <= 8 {
             info!(
-                redraw_count = %self.redraw_count,
-                needs_animation = %needs_animation,
-                has_rebuild = %has_rebuild,
-                delta_ms = %((delta * 1000.0) as u32),
-                "native vello redraw start"
+                "native vello redraw start: redraw_count={} needs_animation={} has_rebuild={} delta_ms={}",
+                self.redraw_count,
+                needs_animation,
+                has_rebuild,
+                ((delta * 1000.0) as u32)
             );
         }
         if !needs_animation && !has_rebuild {
@@ -769,7 +778,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 Err(err) => {
                     surface_error = Some(err.clone());
                     if self.redraw_count <= 8 {
-                        warn!(error = ?err, "native vello surface acquire error");
+                        warn!("native vello surface acquire error: {:?}", err);
                     }
                     match err {
                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
@@ -790,9 +799,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let acquire_duration = acquire_start.map_or(Duration::ZERO, |start| start.elapsed());
         if let Some(err) = surface_error {
             if out_of_memory {
-                error!(error = ?err, "native vello out-of-memory in surface acquire");
+                error!("native vello out-of-memory in surface acquire: {:?}", err);
             } else if self.redraw_count <= 8 {
-                info!(error = ?err, "native vello non-fatal surface error");
+                info!("native vello non-fatal surface error: {:?}", err);
             }
             if let Some(frame_start) = frame_start {
                 self.maybe_record_redraw_profile(
@@ -876,7 +885,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             },
         );
         if let Err(err) = render_result {
-            error!(error = ?err, "native vello render_to_texture failed");
+            error!("native vello render_to_texture failed: {:?}", err);
             event_loop.exit();
             let render = render_start.map_or(Duration::ZERO, |start| start.elapsed());
             if let Some(frame_start) = frame_start {
@@ -992,7 +1001,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.resumed_count = self.resumed_count.saturating_add(1);
         if self.resumed_count <= 2 {
-            info!(resumed_count = %self.resumed_count, "radiant native vello resumed event");
+            info!(
+                "radiant native vello resumed event: resumed_count={}",
+                self.resumed_count
+            );
         }
         if self.window.is_none() {
             self.initialize_runtime(event_loop);
@@ -1019,7 +1031,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             }
             WindowEvent::ScaleFactorChanged { .. } => {
                 if self.window_event_count <= 30 {
-                    info!(window_event_count = %self.window_event_count, "scale factor changed");
+                    info!(
+                        "scale factor changed: window_event_count={}",
+                        self.window_event_count
+                    );
                 }
                 self.frame_state.mark_layout_dirty();
                 self.frame_state.mark_model_dirty();
@@ -1641,23 +1656,27 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 ) -> Result<(), String> {
     info!("radiant native vello: creating event loop");
     let run_started = Instant::now();
-    let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
-    info!(
-        window_size = ?options.inner_size,
-        min_window_size = ?options.min_inner_size,
-        target_fps = options.target_fps,
-        "radiant native vello: event loop created"
-    );
+        let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
+        info!(
+            "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
+            options.inner_size,
+            options.min_inner_size,
+            options.target_fps
+        );
     let mut runner = NativeVelloRunner::new(options, bridge);
     info!("radiant native vello: runner initialized");
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| err.to_string());
     let elapsed = run_started.elapsed();
-    match &run_result {
-        Ok(_) => info!(ms = elapsed.as_millis(), "radiant native vello: event loop ended"),
-        Err(err) => warn!(ms = elapsed.as_millis(), err = %err, "radiant native vello: event loop returned error"),
-    }
+        match &run_result {
+            Ok(_) => info!("radiant native vello: event loop ended in {} ms", elapsed.as_millis()),
+            Err(err) => warn!(
+                "radiant native vello: event loop returned error in {} ms: {}",
+                elapsed.as_millis(),
+                err
+            ),
+        }
     info!("radiant native vello: event loop finished");
     runner.bridge.on_exit();
     run_result

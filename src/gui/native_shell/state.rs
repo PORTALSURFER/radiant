@@ -16,6 +16,7 @@ use crate::gui::{
 pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
+    hovered_browser_visible_row: Option<usize>,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -46,6 +47,7 @@ impl NativeShellState {
         Self {
             selected_column: 1,
             hovered: None,
+            hovered_browser_visible_row: None,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -83,6 +85,9 @@ impl NativeShellState {
         self.selected_column = model.selected_column.min(2);
         self.transport_running = model.transport_running;
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
+        if model.map.active {
+            self.hovered_browser_visible_row = None;
+        }
         self.has_focus_emphasis = model
             .browser
             .rows
@@ -116,13 +121,39 @@ impl NativeShellState {
     }
 
     /// Handle pointer movement and update hovered view target.
-    pub(crate) fn handle_cursor_move(&mut self, layout: &ShellLayout, point: Point) -> bool {
+    pub(crate) fn handle_cursor_move(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
         let next_hover = layout.hit_test(point);
-        if next_hover == self.hovered {
+        let next_hovered_browser_row =
+            self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let changed =
+            next_hover != self.hovered || next_hovered_browser_row != self.hovered_browser_visible_row;
+        if !changed {
             return false;
         }
         self.hovered = next_hover;
+        self.hovered_browser_visible_row = next_hovered_browser_row;
         true
+    }
+
+    fn resolve_hovered_browser_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing)
+            .map(|index| rows[index].visible_row)
     }
 
     /// Handle a primary button click at the pointer position.
@@ -1918,6 +1949,22 @@ impl NativeShellState {
                 color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
             }));
         }
+        if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
+            let browser_rows = self.cached_browser_rows(layout, style, model);
+            if let Some(row) = browser_rows
+                .iter()
+                .find(|row| row.visible_row == hovered_visible_row)
+            {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: row.rect,
+                    color: translucent_overlay_color(
+                        style.bg_tertiary,
+                        style.grid_soft,
+                        style.state_hover_soft,
+                    ),
+                }));
+            }
+        }
 
         if self.has_focus_emphasis {
             {
@@ -3617,11 +3664,19 @@ fn source_action_buttons(
             style.accent_mint,
         ),
     ];
-    let button_width = sizing.sidebar_action_button_width;
+    let button_count = definitions.len() as f32;
+    let gap = sizing.sidebar_action_button_gap;
+    let available_width =
+        (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(0.0);
+    let button_width = if button_count > 0.0 {
+        (((available_width - (gap * (button_count - 1.0)).max(0.0)).max(0.0) / button_count))
+            .min(sizing.sidebar_action_button_width)
+    } else {
+        sizing.sidebar_action_button_width
+    };
     let button_height = sizing
         .sidebar_action_button_height
         .min((layout.sidebar_footer.height() - 1.0).max(1.0));
-    let gap = sizing.sidebar_action_button_gap;
     let total_width = (button_width * definitions.len() as f32)
         + (gap * (definitions.len().saturating_sub(1)) as f32);
     let start_x = (layout.sidebar_footer.max.x - sizing.text_inset_x - total_width)
@@ -4227,34 +4282,29 @@ fn folder_recovery_badge_rect(
         return None;
     }
     let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
-    let mut labels = if recovery_in_progress {
-        vec![
-            String::from("Recovery"),
-            String::from("Active"),
-            String::from("R"),
-        ]
-    } else {
-        vec![
-            format!("{recovery_entry_count} entries"),
-            recovery_entry_count.to_string(),
-        ]
+    let wide_label_fits = |label: &str| {
+        (label.chars().count() as f32 * approx_char_width) + (sizing.recovery_badge_padding_x * 2.0)
+            <= available_width
     };
-    labels.dedup();
-    let mut label = labels
-        .iter()
-        .find(|label| {
-            let required_width = (label.chars().count() as f32 * approx_char_width)
-                + (sizing.recovery_badge_padding_x * 2.0);
-            required_width <= available_width
-        })
-        .cloned()
-        .unwrap_or_else(|| {
-            if recovery_in_progress {
-                String::from("R")
+    let mut label = if recovery_in_progress {
+        ["Recovery", "Active", "R"]
+            .iter()
+            .find(|label| wide_label_fits(label))
+            .map(|label| label.to_string())
+            .unwrap_or_else(|| String::from("R"))
+    } else {
+        let long_label = format!("{recovery_entry_count} entries");
+        if wide_label_fits(&long_label) {
+            long_label
+        } else {
+            let short_label = recovery_entry_count.to_string();
+            if wide_label_fits(&short_label) {
+                short_label
             } else {
-                recovery_entry_count.to_string()
+                short_label
             }
-        });
+        }
+    };
     if label.is_empty() {
         label = String::from("R");
     }
@@ -4949,6 +4999,50 @@ mod tests {
         assert_eq!(overlay_color.g, style.bg_tertiary.g);
         assert_eq!(overlay_color.b, style.bg_tertiary.b);
         assert!(overlay_color.a < 255);
+    }
+
+    #[test]
+    fn browser_row_hovered_overlay_uses_hover_fill() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let mut model = AppModel::default();
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(0, "hover", 1, false, false));
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(1, "hover-2", 1, false, false));
+        model.browser.visible_count = model.browser.rows.len();
+
+        let rendered_rows = rendered_browser_rows(&layout, &model, &style);
+        let hover_row = rendered_rows[0].rect;
+        let cursor = Point::new(
+            hover_row.min.x + 4.0,
+            (hover_row.min.y + hover_row.max.y) * 0.5,
+        );
+        state.handle_cursor_move(&layout, &model, cursor);
+
+        let mut frame = NativeViewFrame::default();
+        state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+        let expected_hover = translucent_overlay_color(
+            style.bg_tertiary,
+            style.grid_soft,
+            style.state_hover_soft,
+        );
+        let overlay_color = frame
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                Primitive::Rect(rect) if rect.rect == hover_row => Some(rect.color),
+                _ => None,
+            })
+            .expect("hovered browser row should emit a fill rectangle");
+
+        assert_eq!(overlay_color, expected_hover);
     }
 
     #[test]

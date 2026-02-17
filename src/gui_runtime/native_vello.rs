@@ -174,6 +174,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     shell_state: NativeShellState,
     clear_color: Rgba8,
     last_cursor: Option<Point>,
+    pending_cursor: Option<Point>,
+    pending_wheel_rows_delta: i32,
     modifiers: ModifiersState,
     text_input_target: TextInputTarget,
     last_redraw: Instant,
@@ -268,6 +270,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 a: 255,
             },
             last_cursor: None,
+            pending_cursor: None,
+            pending_wheel_rows_delta: 0,
             modifiers: ModifiersState::default(),
             text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
@@ -649,6 +653,44 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
         }
         text_renderer.draw_text_runs(scene, &frame.text_runs);
+    }
+
+    fn queue_cursor(&mut self, point: Point) {
+        self.pending_cursor = Some(point);
+    }
+
+    fn queue_wheel_rows(&mut self, steps: i8) {
+        if steps == 0 {
+            return;
+        }
+        self.pending_wheel_rows_delta =
+            self.pending_wheel_rows_delta
+                .saturating_add(steps as i32);
+    }
+
+    fn flush_pending_input(&mut self) -> bool {
+        let mut pending_action = false;
+        if let Some(point) = self.pending_cursor.take() {
+            if let Some(layout) = self.shell_layout.as_ref() {
+                let layout = layout.clone();
+                if self.shell_state.handle_cursor_move(&layout, point) {
+                    self.rebuild_overlay_and_request_redraw();
+                    pending_action = true;
+                }
+            }
+        }
+
+        if self.pending_wheel_rows_delta != 0 {
+            let steps = self
+                .pending_wheel_rows_delta
+                .clamp(i8::MIN as i32, i8::MAX as i32) as i8;
+            self.pending_wheel_rows_delta = 0;
+            self.emit_model_action(UiAction::MoveBrowserFocus { delta: steps });
+            self.rebuild_scene_and_request_redraw();
+            pending_action = true;
+        }
+
+        pending_action
     }
 
     fn rebuild_scene(
@@ -1154,12 +1196,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             WindowEvent::CursorMoved { position, .. } => {
                 let point = Point::new(position.x as f32, position.y as f32);
                 self.last_cursor = Some(point);
-                let _window = self.window.as_ref().cloned();
-                if let Some(layout) = self.shell_layout.as_ref()
-                    && self.shell_state.handle_cursor_move(layout, point)
-                    && let Some(_window) = _window
-                {
-                    self.rebuild_overlay_and_request_redraw();
+                self.queue_cursor(point);
+                if let Some(window) = self.window.as_ref() {
+                    window.request_redraw();
                 }
             }
             WindowEvent::MouseInput {
@@ -1214,8 +1253,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     if let Some(delta) =
                         browser_wheel_row_delta(layout, &self.model, point, &style, delta)
                     {
-                        self.emit_model_action(UiAction::MoveBrowserFocus { delta });
-                        self.rebuild_scene_and_request_redraw();
+                        self.queue_wheel_rows(delta);
+                        if let Some(window) = self.window.as_ref() {
+                            window.request_redraw();
+                        }
                     }
                 }
             }
@@ -1286,7 +1327,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.shell_state.needs_animation() {
+        let has_pending_input = self.flush_pending_input();
+        if self.shell_state.needs_animation() || has_pending_input {
             if let Some(window) = self.window.as_ref() {
                 window.request_redraw();
             }

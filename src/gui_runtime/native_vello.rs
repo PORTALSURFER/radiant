@@ -15,7 +15,7 @@ use skrifa::{
     instance::{LocationRef, Size as FontSize},
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -747,14 +747,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn flush_pending_input(&mut self) -> bool {
         let mut pending_action = false;
-        if let Some(point) = self.pending_cursor.take() {
-            if let Some(layout) = self.shell_layout.as_ref() {
-                if self.shell_state.handle_cursor_move(&layout, point) {
-                    self.rebuild_overlay_and_request_redraw();
-                    pending_action = true;
+                if let Some(point) = self.pending_cursor.take() {
+                    if let Some(layout) = self.shell_layout.as_ref() {
+                        if self
+                            .shell_state
+                            .handle_cursor_move(&layout, &self.model, point)
+                        {
+                            self.rebuild_overlay_and_request_redraw();
+                            pending_action = true;
+                        }
+                    }
                 }
-            }
-        }
 
         if self.pending_wheel_rows_delta != 0 {
             let steps = self
@@ -1436,6 +1439,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         } else if self.text_input_target != TextInputTarget::None {
                             self.text_input_target = TextInputTarget::None;
                             handled = true;
+                        } else {
+                            let action = UiAction::HandleEscape;
+                            self.update_text_target_after_action(&action);
+                            self.emit_model_action(action);
+                            handled = true;
                         }
                     }
                     if !handled && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
@@ -1791,12 +1799,10 @@ impl NativeTextRenderer {
     }
 
     fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
-        let Some(font_data) = self
-            .loaded_font
-            .as_ref()
-            .map(|font| font.font.clone()) else {
+        let Some(loaded_font) = self.loaded_font.as_ref() else {
             return;
         };
+        let font_data = &loaded_font.font;
         for run in text_runs {
             if run.text.is_empty() || run.font_size <= 0.0 {
                 continue;
@@ -1842,32 +1848,34 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
-        if self.layout_cache.contains_key(&key) {
-            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return self.layout_cache.get(&key);
-        }
-        self.text_layout_misses = self.text_layout_misses.saturating_add(1);
 
-        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
-            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                if self.layout_cache.remove(&evicted_key).is_some() {
-                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
+        match self.layout_cache.entry(key) {
+            Entry::Occupied(entry) => {
+                self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+                return Some(entry.get());
+            }
+            Entry::Vacant(vacant) => {
+                self.text_layout_misses = self.text_layout_misses.saturating_add(1);
+
+                if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+                    if let Some(evicted_key) = self.layout_cache_order.pop_front() {
+                        if self.layout_cache.remove(&evicted_key).is_some() {
+                            self.text_layout_evictions =
+                                self.text_layout_evictions.saturating_add(1);
+                        }
+                    }
                 }
+
+                let Some(layout) = Self::compute_layout(font, text, font_size) else {
+                    return None;
+                }
+
+                let cache_key = vacant.key().clone();
+                let cached_layout = vacant.insert(layout);
+                self.layout_cache_order.push_back(cache_key);
+                return Some(cached_layout);
             }
         }
-        let Some(layout) = Self::compute_layout(font, text, font_size) else {
-            return None;
-        };
-        self.layout_cache.insert(key.clone(), layout);
-        self.layout_cache_order.push_back(key.clone());
-        if self.layout_cache.len() > TEXT_LAYOUT_CACHE_CAPACITY {
-            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                if self.layout_cache.remove(&evicted_key).is_some() {
-                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
-                }
-            }
-        }
-        self.layout_cache.get(&key)
     }
 
     fn take_layout_profile_counters(&mut self) -> (u64, u64, u64) {

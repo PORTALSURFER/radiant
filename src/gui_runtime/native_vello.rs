@@ -190,6 +190,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     profile_redraw_blit_ns: u128,
     profile_redraw_present_ns: u128,
     profile_redraw_total_ns: u128,
+    profile_redraw_scene_rebuilds: u64,
+    profile_redraw_state_overlay_rebuilds: u64,
+    profile_redraw_motion_overlay_rebuilds: u64,
+    profile_model_refreshes: u64,
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
@@ -284,6 +288,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             profile_redraw_blit_ns: 0,
             profile_redraw_present_ns: 0,
             profile_redraw_total_ns: 0,
+            profile_redraw_scene_rebuilds: 0,
+            profile_redraw_state_overlay_rebuilds: 0,
+            profile_redraw_motion_overlay_rebuilds: 0,
+            profile_model_refreshes: 0,
         }
     }
 
@@ -583,11 +591,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let render_pct = (self.profile_redraw_render_ns as f64) * 100.0 / total_ns;
         let blit_pct = (self.profile_redraw_blit_ns as f64) * 100.0 / total_ns;
         let present_pct = (self.profile_redraw_present_ns as f64) * 100.0 / total_ns;
+        let model_refresh_avg = self.profile_model_refreshes as f64 / frames;
+        let scene_rebuild_avg = self.profile_redraw_scene_rebuilds as f64 / frames;
+        let state_overlay_rebuild_avg = self.profile_redraw_state_overlay_rebuilds as f64 / frames;
+        let motion_overlay_rebuild_avg = self.profile_redraw_motion_overlay_rebuilds as f64 / frames;
         eprintln!(
             "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
              total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
              acquire={avg_acquire_ms:.2}ms ({acquire_pct:.1}%) render={avg_render_ms:.2}ms ({render_pct:.1}%) \
-             blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%)"
+             blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%) \
+             model_refresh_avg={model_refresh_avg:.2} scene_rebuild_avg={scene_rebuild_avg:.2} \
+             state_overlay_rebuild_avg={state_overlay_rebuild_avg:.2} \
+             motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2}"
         );
         self.profile_redraw_frames = 0;
         self.profile_redraw_rebuild_ns = 0;
@@ -596,6 +611,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.profile_redraw_blit_ns = 0;
         self.profile_redraw_present_ns = 0;
         self.profile_redraw_total_ns = 0;
+        self.profile_redraw_scene_rebuilds = 0;
+        self.profile_redraw_state_overlay_rebuilds = 0;
+        self.profile_redraw_motion_overlay_rebuilds = 0;
+        self.profile_model_refreshes = 0;
     }
 
     fn encode_frame_to_scene(
@@ -642,11 +661,27 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             || rebuild_static
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
+        if rebuild_static {
+            self.profile_redraw_scene_rebuilds = self
+                .profile_redraw_scene_rebuilds
+                .saturating_add(1);
+        }
+        if rebuild_state_overlay {
+            self.profile_redraw_state_overlay_rebuilds = self
+                .profile_redraw_state_overlay_rebuilds
+                .saturating_add(1);
+        }
+        if rebuild_motion_overlay {
+            self.profile_redraw_motion_overlay_rebuilds = self
+                .profile_redraw_motion_overlay_rebuilds
+                .saturating_add(1);
+        }
         let previous_waveform_signature =
             self.motion_model
                 .as_ref()
                 .and_then(|model| model.waveform_image_signature);
         if should_refresh_model {
+            self.profile_model_refreshes = self.profile_model_refreshes.saturating_add(1);
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
             if self.model_refresh_count <= 24 {
                 info!(

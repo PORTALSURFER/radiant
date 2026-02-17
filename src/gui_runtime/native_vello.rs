@@ -36,6 +36,9 @@ use winit::{
     window::{Icon, Window, WindowAttributes, WindowId},
 };
 
+const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
+const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
     #[default]
@@ -125,6 +128,14 @@ impl NativeVelloFrameState {
         self.model_dirty = false;
         dirty
     }
+
+    fn has_pending_rebuild(&self) -> bool {
+        self.layout_dirty
+            || self.scene_dirty
+            || self.state_overlay_dirty
+            || self.motion_overlay_dirty
+            || self.model_dirty
+    }
 }
 
 struct NativeVelloRunner<B: NativeAppBridge> {
@@ -165,6 +176,14 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     text_input_target: TextInputTarget,
     last_redraw: Instant,
     target_frame_interval: Duration,
+    profile_redraw_enabled: bool,
+    profile_redraw_frames: u64,
+    profile_redraw_rebuild_ns: u128,
+    profile_redraw_acquire_ns: u128,
+    profile_redraw_render_ns: u128,
+    profile_redraw_blit_ns: u128,
+    profile_redraw_present_ns: u128,
+    profile_redraw_total_ns: u128,
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
@@ -236,6 +255,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
             target_frame_interval,
+            profile_redraw_enabled: std::env::var(REDRAW_PROFILE_ENV)
+                .ok()
+                .is_some_and(|value| {
+                    matches!(value.as_str(), "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes")
+                }),
+            profile_redraw_frames: 0,
+            profile_redraw_rebuild_ns: 0,
+            profile_redraw_acquire_ns: 0,
+            profile_redraw_render_ns: 0,
+            profile_redraw_blit_ns: 0,
+            profile_redraw_present_ns: 0,
+            profile_redraw_total_ns: 0,
         }
     }
 
@@ -373,14 +404,88 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.rebuild_scene_if_needed();
     }
 
-    fn rebuild_scene_for_redraw(&mut self, layout: &ShellLayout, delta_seconds: f32) {
-        if self.shell_state.needs_animation() {
-            let style = self.cached_style_for_layout(layout);
-            self.shell_state.tick_with_style(delta_seconds, &style);
-            self.rebuild_scene_for_tick();
+    fn rebuild_scene_for_redraw(&mut self, delta_seconds: f32) {
+        if !self.shell_state.needs_animation() {
+            if self.frame_state.has_pending_rebuild() {
+                self.rebuild_scene_if_needed();
+            }
             return;
         }
-        self.rebuild_scene_if_needed();
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return;
+        };
+        let style = self.cached_style_for_layout(layout);
+        self.shell_state.tick_with_style(delta_seconds, &style);
+        self.rebuild_scene_for_tick();
+    }
+
+    fn maybe_record_redraw_profile(
+        &mut self,
+        rebuild: Duration,
+        acquire: Duration,
+        render: Duration,
+        blit: Duration,
+        present: Duration,
+        total: Duration,
+    ) {
+        if !self.profile_redraw_enabled {
+            return;
+        }
+        self.profile_redraw_frames = self.profile_redraw_frames.saturating_add(1);
+        self.profile_redraw_rebuild_ns = self
+            .profile_redraw_rebuild_ns
+            .saturating_add(rebuild.as_nanos());
+        self.profile_redraw_acquire_ns = self
+            .profile_redraw_acquire_ns
+            .saturating_add(acquire.as_nanos());
+        self.profile_redraw_render_ns = self
+            .profile_redraw_render_ns
+            .saturating_add(render.as_nanos());
+        self.profile_redraw_blit_ns = self
+            .profile_redraw_blit_ns
+            .saturating_add(blit.as_nanos());
+        self.profile_redraw_present_ns = self
+            .profile_redraw_present_ns
+            .saturating_add(present.as_nanos());
+        self.profile_redraw_total_ns = self
+            .profile_redraw_total_ns
+            .saturating_add(total.as_nanos());
+        if self.profile_redraw_frames < REDRAW_PROFILE_INTERVAL_FRAMES {
+            return;
+        }
+
+        let frames = self.profile_redraw_frames as f64;
+        let total_ns = self.profile_redraw_total_ns as f64;
+        if total_ns <= 0.0 {
+            return;
+        }
+
+        let ms = |value_ns: u128| value_ns as f64 / 1_000_000.0;
+        let avg_total_ms = ms(self.profile_redraw_total_ns) / frames;
+        let avg_rebuild_ms = ms(self.profile_redraw_rebuild_ns) / frames;
+        let avg_acquire_ms = ms(self.profile_redraw_acquire_ns) / frames;
+        let avg_render_ms = ms(self.profile_redraw_render_ns) / frames;
+        let avg_blit_ms = ms(self.profile_redraw_blit_ns) / frames;
+        let avg_present_ms = ms(self.profile_redraw_present_ns) / frames;
+        let fps = 1000.0 / avg_total_ms.max(0.001);
+        let rebuild_pct = (self.profile_redraw_rebuild_ns as f64) * 100.0 / total_ns;
+        let acquire_pct = (self.profile_redraw_acquire_ns as f64) * 100.0 / total_ns;
+        let render_pct = (self.profile_redraw_render_ns as f64) * 100.0 / total_ns;
+        let blit_pct = (self.profile_redraw_blit_ns as f64) * 100.0 / total_ns;
+        let present_pct = (self.profile_redraw_present_ns as f64) * 100.0 / total_ns;
+        eprintln!(
+            "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
+             total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
+             acquire={avg_acquire_ms:.2}ms ({acquire_pct:.1}%) render={avg_render_ms:.2}ms ({render_pct:.1}%) \
+             blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%)"
+        );
+        self.profile_redraw_frames = 0;
+        self.profile_redraw_rebuild_ns = 0;
+        self.profile_redraw_acquire_ns = 0;
+        self.profile_redraw_render_ns = 0;
+        self.profile_redraw_blit_ns = 0;
+        self.profile_redraw_present_ns = 0;
+        self.profile_redraw_total_ns = 0;
     }
 
     fn encode_frame_to_scene(
@@ -536,42 +641,148 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        let Some(layout) = self.shell_layout.clone() else {
-            return;
-        };
-        self.rebuild_scene_for_redraw(&layout, delta);
+        let profiling = self.profile_redraw_enabled;
+        let frame_start = profiling.then(Instant::now);
+        let rebuild_start = profiling.then(Instant::now);
+        self.rebuild_scene_for_redraw(delta);
+        let rebuild_duration = rebuild_start.map_or(Duration::ZERO, |start| start.elapsed());
 
-        let window = self.window.as_ref().cloned();
-        let (Some(window), Some(render_ctx), Some(surface), Some(renderer)) = (
-            window,
-            self.render_ctx.as_mut(),
-            self.render_surface.as_mut(),
-            self.renderer.as_mut(),
-        ) else {
+        let Some(window) = self.window.as_ref().cloned() else {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
             return;
         };
-        let dev_handle = &render_ctx.devices[surface.dev_id];
-        let surface_texture = match surface.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(err) => {
-                match err {
-                    wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
-                        let size = window.inner_size();
-                        render_ctx.resize_surface(surface, size.width.max(1), size.height.max(1));
-                        self.frame_state.mark_layout_dirty();
-                        self.rebuild_scene_if_needed();
-                        window.request_redraw();
-                    }
-                    wgpu::SurfaceError::OutOfMemory => event_loop.exit(),
-                    wgpu::SurfaceError::Timeout => {}
-                    wgpu::SurfaceError::Other => {}
+        let Some(dev_id) = self.render_surface.as_ref().map(|surface| surface.dev_id) else {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
+            return;
+        };
+
+        let mut surface_error = None;
+        let mut needs_resize = false;
+        let mut out_of_memory = false;
+        let acquire_start = profiling.then(Instant::now);
+        let surface_texture = {
+            let Some(surface) = self.render_surface.as_mut() else {
+                if let Some(frame_start) = frame_start {
+                    self.maybe_record_redraw_profile(
+                        rebuild_duration,
+                        Duration::ZERO,
+                        Duration::ZERO,
+                        Duration::ZERO,
+                        Duration::ZERO,
+                        frame_start.elapsed(),
+                    );
                 }
                 return;
+            };
+            match surface.surface.get_current_texture() {
+                Ok(frame) => Some(frame),
+                Err(err) => {
+                    surface_error = Some(err.clone());
+                    match err {
+                        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
+                            let size = window.inner_size();
+                            let Some(render_ctx) = self.render_ctx.as_mut() else {
+                                return;
+                            };
+                            render_ctx.resize_surface(surface, size.width.max(1), size.height.max(1));
+                            needs_resize = true;
+                        }
+                        wgpu::SurfaceError::OutOfMemory => out_of_memory = true,
+                        wgpu::SurfaceError::Timeout | wgpu::SurfaceError::Other => {}
+                    }
+                    None
+                }
             }
         };
+        let acquire_duration = acquire_start.map_or(Duration::ZERO, |start| start.elapsed());
+        if let Some(err) = surface_error {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    acquire_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
+            if matches!(err, wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) && needs_resize {
+                self.frame_state.mark_layout_dirty();
+                self.frame_state.mark_model_dirty();
+                self.rebuild_scene_if_needed();
+                window.request_redraw();
+            }
+            if out_of_memory {
+                event_loop.exit();
+            }
+            return;
+        }
+        let Some(surface_texture) = surface_texture else {
+            return;
+        };
+
+        let Some(surface) = self.render_surface.as_mut() else {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
+            return;
+        };
+        let Some(render_ctx) = self.render_ctx.as_ref() else {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
+            return;
+        };
+        let Some(renderer) = self.renderer.as_mut() else {
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
+            return;
+        };
+        let dev_handle = &render_ctx.devices[dev_id];
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        let render_start = profiling.then(Instant::now);
         let render_result = renderer.render_to_texture(
             &dev_handle.device,
             &dev_handle.queue,
@@ -587,8 +798,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if let Err(err) = render_result {
             eprintln!("Native vello render failed: {err}");
             event_loop.exit();
+            let render = render_start.map_or(Duration::ZERO, |start| start.elapsed());
+            if let Some(frame_start) = frame_start {
+                self.maybe_record_redraw_profile(
+                    rebuild_duration,
+                    acquire_duration,
+                    render,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    frame_start.elapsed(),
+                );
+            }
             return;
         }
+        let render_duration = render_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let blit_start = profiling.then(Instant::now);
         let mut encoder =
             dev_handle
                 .device
@@ -602,7 +826,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             &surface_view,
         );
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
+        let blit_duration = blit_start.map_or(Duration::ZERO, |start| start.elapsed());
+        let present_start = profiling.then(Instant::now);
         surface_texture.present();
+        let present_duration = present_start.map_or(Duration::ZERO, |start| start.elapsed());
+        if let Some(frame_start) = frame_start {
+            self.maybe_record_redraw_profile(
+                rebuild_duration,
+                acquire_duration,
+                render_duration,
+                blit_duration,
+                present_duration,
+                frame_start.elapsed(),
+            );
+        }
     }
 
     fn sync_text_input_target(&mut self) {

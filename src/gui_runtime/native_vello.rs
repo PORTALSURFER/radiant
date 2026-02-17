@@ -41,6 +41,7 @@ use tracing::{error, info, warn};
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
+const IDLE_STATUS_REFRESH_INTERVAL_MS: u64 = 1000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
@@ -185,6 +186,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     redraw_count: u32,
     target_frame_interval: Duration,
     focus_animation_interval: Duration,
+    idle_status_refresh_interval: Duration,
+    next_idle_status_refresh: Instant,
     model_refresh_count: u32,
     profile_redraw_enabled: bool,
     profile_redraw_frames: u64,
@@ -284,6 +287,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             redraw_count: 0,
             target_frame_interval,
             focus_animation_interval,
+            idle_status_refresh_interval: Duration::from_millis(IDLE_STATUS_REFRESH_INTERVAL_MS),
+            next_idle_status_refresh: Instant::now()
+                + Duration::from_millis(IDLE_STATUS_REFRESH_INTERVAL_MS),
             model_refresh_count: 0,
             profile_redraw_enabled: std::env::var(REDRAW_PROFILE_ENV)
                 .ok()
@@ -695,6 +701,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
 
         pending_action
+    }
+
+    fn mark_idle_status_refresh_if_due(&mut self, now: Instant) -> bool {
+        if now < self.next_idle_status_refresh {
+            return false;
+        }
+        let mut next_refresh = self.next_idle_status_refresh;
+        while next_refresh <= now {
+            next_refresh += self.idle_status_refresh_interval;
+        }
+        self.next_idle_status_refresh = next_refresh;
+        self.frame_state.mark_model_dirty();
+        true
     }
 
     fn rebuild_scene(
@@ -1330,11 +1349,15 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let has_pending_input = self.flush_pending_input();
-        if self.shell_state.needs_animation() || has_pending_input {
+        let needs_animation = self.shell_state.needs_animation();
+        let now = Instant::now();
+        let should_refresh_idle_status = !needs_animation && !has_pending_input && {
+            self.mark_idle_status_refresh_if_due(now)
+        };
+        if needs_animation || has_pending_input {
             if let Some(window) = self.window.as_ref() {
                 window.request_redraw();
             }
-            let now = Instant::now();
             let frame_interval = if self.shell_state.is_transport_running() {
                 self.target_frame_interval
             } else {
@@ -1347,9 +1370,18 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             event_loop.set_control_flow(ControlFlow::WaitUntil(
                 next_redraw_at,
             ));
-        } else {
-            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
         }
+        if should_refresh_idle_status {
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
+            event_loop.set_control_flow(ControlFlow::WaitUntil(
+                self.next_idle_status_refresh,
+            ));
+            return;
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_idle_status_refresh));
     }
 }
 

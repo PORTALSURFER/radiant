@@ -1422,10 +1422,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         .filter(|point| layout.browser_panel.contains(*point))
                         .unwrap_or(fallback_point);
                     let style = self.cached_style_for_layout(layout);
-                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, &style, delta)
-                    {
+                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, &style, delta) {
                         self.queue_wheel_rows(delta);
-                        self.request_redraw_if_needed();
                     }
                 }
             }

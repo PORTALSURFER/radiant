@@ -1370,6 +1370,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let point = Point::new(position.x as f32, position.y as f32);
+                if self.last_cursor == Some(point) {
+                    return;
+                }
                 self.last_cursor = Some(point);
                 self.queue_cursor(point);
             }

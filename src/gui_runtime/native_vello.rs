@@ -201,6 +201,16 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     profile_redraw_state_overlay_rebuilds: u64,
     profile_redraw_motion_overlay_rebuilds: u64,
     profile_model_refreshes: u64,
+    profile_redraw_model_pull_ns: u128,
+    profile_redraw_motion_pull_ns: u128,
+    profile_redraw_tick_ns: u128,
+    profile_redraw_build_static_ns: u128,
+    profile_redraw_build_state_overlay_ns: u128,
+    profile_redraw_build_motion_overlay_ns: u128,
+    profile_redraw_encode_static_ns: u128,
+    profile_redraw_encode_state_overlay_ns: u128,
+    profile_redraw_encode_motion_overlay_ns: u128,
+    profile_redraw_motion_overlay_skips: u64,
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
@@ -308,6 +318,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             profile_redraw_state_overlay_rebuilds: 0,
             profile_redraw_motion_overlay_rebuilds: 0,
             profile_model_refreshes: 0,
+            profile_redraw_model_pull_ns: 0,
+            profile_redraw_motion_pull_ns: 0,
+            profile_redraw_tick_ns: 0,
+            profile_redraw_build_static_ns: 0,
+            profile_redraw_build_state_overlay_ns: 0,
+            profile_redraw_build_motion_overlay_ns: 0,
+            profile_redraw_encode_static_ns: 0,
+            profile_redraw_encode_state_overlay_ns: 0,
+            profile_redraw_encode_motion_overlay_ns: 0,
+            profile_redraw_motion_overlay_skips: 0,
         }
     }
 
@@ -537,6 +557,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn rebuild_scene_for_redraw(&mut self, needs_animation: bool, delta_seconds: f32) -> bool {
+        let profiling = self.profile_redraw_enabled;
         if !needs_animation {
             if self.frame_state.has_pending_rebuild() {
                 self.rebuild_scene_if_needed();
@@ -547,9 +568,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
+        let tick_start = profiling.then(Instant::now);
         let style = self.cached_style_for_layout(layout);
         self.shell_state.tick_with_style(delta_seconds, &style);
         self.rebuild_scene_for_tick();
+        if profiling {
+            let tick_duration = tick_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profile_redraw_tick_ns =
+                self.profile_redraw_tick_ns.saturating_add(tick_duration.as_nanos());
+        }
         true
     }
 
@@ -601,6 +628,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let avg_render_ms = ms(self.profile_redraw_render_ns) / frames;
         let avg_blit_ms = ms(self.profile_redraw_blit_ns) / frames;
         let avg_present_ms = ms(self.profile_redraw_present_ns) / frames;
+        let avg_model_pull_ms = ms(self.profile_redraw_model_pull_ns) / frames;
+        let avg_motion_pull_ms = ms(self.profile_redraw_motion_pull_ns) / frames;
+        let avg_tick_ms = ms(self.profile_redraw_tick_ns) / frames;
+        let avg_build_static_ms = ms(self.profile_redraw_build_static_ns) / frames;
+        let avg_build_state_overlay_ms = ms(self.profile_redraw_build_state_overlay_ns) / frames;
+        let avg_build_motion_overlay_ms = ms(self.profile_redraw_build_motion_overlay_ns) / frames;
+        let avg_encode_static_ms = ms(self.profile_redraw_encode_static_ns) / frames;
+        let avg_encode_state_overlay_ms = ms(self.profile_redraw_encode_state_overlay_ns) / frames;
+        let avg_encode_motion_overlay_ms = ms(self.profile_redraw_encode_motion_overlay_ns) / frames;
         let fps = 1000.0 / avg_total_ms.max(0.001);
         let rebuild_pct = (self.profile_redraw_rebuild_ns as f64) * 100.0 / total_ns;
         let acquire_pct = (self.profile_redraw_acquire_ns as f64) * 100.0 / total_ns;
@@ -611,6 +647,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let scene_rebuild_avg = self.profile_redraw_scene_rebuilds as f64 / frames;
         let state_overlay_rebuild_avg = self.profile_redraw_state_overlay_rebuilds as f64 / frames;
         let motion_overlay_rebuild_avg = self.profile_redraw_motion_overlay_rebuilds as f64 / frames;
+        let motion_overlay_skip_avg = self.profile_redraw_motion_overlay_skips as f64 / frames;
+        let (text_hits, text_misses, text_evictions) = self.text_renderer.take_layout_profile_counters();
+        let text_cache_hit_rate = if text_hits + text_misses == 0 {
+            0.0
+        } else {
+            100.0 * (text_hits as f64) / (text_hits + text_misses) as f64
+        };
+        let text_cache_miss_rate = if text_hits + text_misses == 0 {
+            0.0
+        } else {
+            100.0 * (text_misses as f64) / (text_hits + text_misses) as f64
+        };
         eprintln!(
             "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
              total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
@@ -618,7 +666,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
              blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%) \
              model_refresh_avg={model_refresh_avg:.2} scene_rebuild_avg={scene_rebuild_avg:.2} \
              state_overlay_rebuild_avg={state_overlay_rebuild_avg:.2} \
-             motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2}"
+             motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2} motion_overlay_skip_avg={motion_overlay_skip_avg:.2} \
+             model_pull_ms={avg_model_pull_ms:.3} motion_pull_ms={avg_motion_pull_ms:.3} \
+             tick_ms={avg_tick_ms:.3} build_static_ms={avg_build_static_ms:.3} \
+             build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
+             encode_static_ms={avg_encode_static_ms:.3} encode_state_overlay_ms={avg_encode_state_overlay_ms:.3} \
+             encode_motion_overlay_ms={avg_encode_motion_overlay_ms:.3} \
+             text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
+             text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
         );
         self.profile_redraw_frames = 0;
         self.profile_redraw_rebuild_ns = 0;
@@ -631,6 +686,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.profile_redraw_state_overlay_rebuilds = 0;
         self.profile_redraw_motion_overlay_rebuilds = 0;
         self.profile_model_refreshes = 0;
+        self.profile_redraw_model_pull_ns = 0;
+        self.profile_redraw_motion_pull_ns = 0;
+        self.profile_redraw_tick_ns = 0;
+        self.profile_redraw_build_static_ns = 0;
+        self.profile_redraw_build_state_overlay_ns = 0;
+        self.profile_redraw_build_motion_overlay_ns = 0;
+        self.profile_redraw_encode_static_ns = 0;
+        self.profile_redraw_encode_state_overlay_ns = 0;
+        self.profile_redraw_encode_motion_overlay_ns = 0;
+        self.profile_redraw_motion_overlay_skips = 0;
     }
 
     fn encode_frame_to_scene(
@@ -723,6 +788,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         mut rebuild_state_overlay: bool,
         mut rebuild_motion_overlay: bool,
     ) {
+        let profiling = self.profile_redraw_enabled;
         let should_refresh_model = self.frame_state.take_model()
             || rebuild_static
             || rebuild_state_overlay
@@ -749,6 +815,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .and_then(|model| model.waveform_image_signature);
         let mut motion_changed = false;
         if should_refresh_model {
+            let pull_start = profiling.then(Instant::now);
             self.profile_model_refreshes = self.profile_model_refreshes.saturating_add(1);
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
             if self.model_refresh_count <= 24 {
@@ -761,12 +828,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 );
             }
             self.model = self.bridge.pull_model();
+            if profiling {
+                let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_model_pull_ns =
+                    self.profile_redraw_model_pull_ns.saturating_add(pull_duration.as_nanos());
+            }
             self.shell_state.sync_from_model(&self.model);
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
         } else if should_refresh_motion {
+            let pull_start = profiling.then(Instant::now);
             if let Some(motion_model) = self.bridge.pull_motion_model() {
+                if profiling {
+                    let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                    self.profile_redraw_motion_pull_ns =
+                        self.profile_redraw_motion_pull_ns
+                            .saturating_add(pull_duration.as_nanos());
+                }
                 if self.motion_model.as_ref() != Some(&motion_model) {
                     motion_changed = true;
                     if previous_waveform_signature != motion_model.waveform_image_signature {
@@ -778,14 +857,32 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     self.motion_model = Some(motion_model);
                 }
             } else {
+                if profiling {
+                    let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                    self.profile_redraw_motion_pull_ns =
+                        self.profile_redraw_motion_pull_ns
+                            .saturating_add(pull_duration.as_nanos());
+                }
+                let model_pull_start = profiling.then(Instant::now);
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
+                if profiling {
+                    let model_pull_duration =
+                        model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                    self.profile_redraw_model_pull_ns =
+                        self.profile_redraw_model_pull_ns
+                            .saturating_add(model_pull_duration.as_nanos());
+                }
                 self.shell_state.sync_from_model(&self.model);
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.sync_text_input_target();
             }
         }
         if should_refresh_motion && !motion_changed {
+            if profiling {
+                self.profile_redraw_motion_overlay_skips =
+                    self.profile_redraw_motion_overlay_skips.saturating_add(1);
+            }
             rebuild_motion_overlay = false;
         }
         let Some(layout) = self.shell_layout.as_ref() else {
@@ -793,33 +890,60 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         let style = self.cached_style_for_layout(layout);
         if rebuild_static {
+            let build_start = profiling.then(Instant::now);
             self.shell_state.build_frame_with_style_into_static(
                 layout,
                 &style,
                 &self.model,
                 &mut self.frame_cache,
             );
+            if profiling {
+                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_build_static_ns =
+                    self.profile_redraw_build_static_ns.saturating_add(build_duration.as_nanos());
+            }
             self.clear_color = self.frame_cache.clear_color;
+            let encode_start = profiling.then(Instant::now);
             Self::encode_frame_to_scene(
                 &self.frame_cache,
                 &mut self.static_scene,
                 &mut self.text_renderer,
             );
+            if profiling {
+                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_encode_static_ns =
+                    self.profile_redraw_encode_static_ns.saturating_add(encode_duration.as_nanos());
+            }
         }
         if rebuild_state_overlay {
+            let build_start = profiling.then(Instant::now);
             self.shell_state.build_state_overlay_into(
                 layout,
                 &style,
                 &self.model,
                 &mut self.state_overlay_frame_cache,
             );
+            if profiling {
+                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_build_state_overlay_ns = self
+                    .profile_redraw_build_state_overlay_ns
+                    .saturating_add(build_duration.as_nanos());
+            }
+            let encode_start = profiling.then(Instant::now);
             Self::encode_frame_to_scene(
                 &self.state_overlay_frame_cache,
                 &mut self.state_overlay_scene,
                 &mut self.text_renderer,
             );
+            if profiling {
+                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_encode_state_overlay_ns = self
+                    .profile_redraw_encode_state_overlay_ns
+                    .saturating_add(encode_duration.as_nanos());
+            }
         }
         if rebuild_motion_overlay {
+            let build_start = profiling.then(Instant::now);
             let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
                 motion_model
             } else {
@@ -832,11 +956,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 motion_model,
                 &mut self.motion_overlay_frame_cache,
             );
+            if profiling {
+                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_build_motion_overlay_ns = self
+                    .profile_redraw_build_motion_overlay_ns
+                    .saturating_add(build_duration.as_nanos());
+            }
+            let encode_start = profiling.then(Instant::now);
             Self::encode_frame_to_scene(
                 &self.motion_overlay_frame_cache,
                 &mut self.motion_overlay_scene,
                 &mut self.text_renderer,
             );
+            if profiling {
+                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profile_redraw_encode_motion_overlay_ns = self
+                    .profile_redraw_encode_motion_overlay_ns
+                    .saturating_add(encode_duration.as_nanos());
+            }
         }
         if rebuild_static || rebuild_state_overlay || rebuild_motion_overlay {
             self.scene.reset();
@@ -1630,6 +1767,9 @@ struct NativeTextRenderer {
     loaded_font: Option<LoadedFont>,
     layout_cache: HashMap<TextLayoutKey, TextLayout>,
     layout_cache_order: VecDeque<TextLayoutKey>,
+    text_layout_hits: u64,
+    text_layout_misses: u64,
+    text_layout_evictions: u64,
 }
 
 impl NativeTextRenderer {
@@ -1644,6 +1784,9 @@ impl NativeTextRenderer {
             loaded_font,
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
+            text_layout_hits: 0,
+            text_layout_misses: 0,
+            text_layout_evictions: 0,
         }
     }
 
@@ -1699,13 +1842,17 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
-        if let Some(layout) = self.layout_cache.get(&key) {
-            return Some(layout);
+        if self.layout_cache.contains_key(&key) {
+            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
+            return self.layout_cache.get(&key);
         }
+        self.text_layout_misses = self.text_layout_misses.saturating_add(1);
 
         if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
             if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                self.layout_cache.remove(&evicted_key);
+                if self.layout_cache.remove(&evicted_key).is_some() {
+                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
+                }
             }
         }
         let Some(layout) = Self::compute_layout(font, text, font_size) else {
@@ -1715,10 +1862,24 @@ impl NativeTextRenderer {
         self.layout_cache_order.push_back(key.clone());
         if self.layout_cache.len() > TEXT_LAYOUT_CACHE_CAPACITY {
             if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                self.layout_cache.remove(&evicted_key);
+                if self.layout_cache.remove(&evicted_key).is_some() {
+                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
+                }
             }
         }
         self.layout_cache.get(&key)
+    }
+
+    fn take_layout_profile_counters(&mut self) -> (u64, u64, u64) {
+        let counters = (
+            self.text_layout_hits,
+            self.text_layout_misses,
+            self.text_layout_evictions,
+        );
+        self.text_layout_hits = 0;
+        self.text_layout_misses = 0;
+        self.text_layout_evictions = 0;
+        counters
     }
 
     fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Option<TextLayout> {

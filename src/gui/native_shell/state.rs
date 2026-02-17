@@ -52,7 +52,6 @@ impl NativeShellState {
     /// Return whether the shell currently needs continuous animation.
     pub(crate) fn needs_animation(&self) -> bool {
         self.transport_running
-            || self.hovered.is_some()
             || self.has_focus_emphasis
             || self.fps_status_visible
             || self.startup_frame_ticks > 0
@@ -86,6 +85,7 @@ impl NativeShellState {
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
     pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
         self.transport_running = model.transport_running;
+        self.fps_status_visible = model.status_right.starts_with("fps:");
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.

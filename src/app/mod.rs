@@ -382,6 +382,8 @@ pub struct WaveformPanelModel {
     pub tempo_label: Option<String>,
     /// Optional zoom label rendered in waveform metadata.
     pub zoom_label: Option<String>,
+    /// Cached signature for waveform image updates.
+    pub waveform_image_signature: Option<u64>,
     /// Optional rasterized waveform payload for rendering the waveform preview.
     ///
     /// Hosts render this image inside the waveform plot area and keep overlays on top.
@@ -400,6 +402,7 @@ impl Default for WaveformPanelModel {
             loop_enabled: false,
             tempo_label: None,
             zoom_label: None,
+            waveform_image_signature: None,
             waveform_image: None,
         }
     }
@@ -802,31 +805,11 @@ impl NativeMotionModel {
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
             waveform_loaded_label: model.waveform.loaded_label.clone(),
-            waveform_image_signature: model.waveform.waveform_image.as_ref().and_then(image_signature),
+            waveform_image_signature: model.waveform.waveform_image_signature,
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
             status_right: model.status.right.clone(),
         }
     }
-}
-
-fn image_signature(image: &ImageRgba) -> Option<u64> {
-    if image.width == 0 || image.height == 0 {
-        return None;
-    }
-    let mut signature = 0xcbf2_9ce4_8422_325u64;
-    for byte in image.width.to_le_bytes() {
-        signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
-    }
-    for byte in image.height.to_le_bytes() {
-        signature ^= u64::from(byte);
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
-    }
-    for byte in image.pixels.iter() {
-        signature ^= u64::from(*byte);
-        signature = signature.wrapping_mul(0x1_0000_0001_b3);
-    }
-    Some(signature)
 }
 
 /// Host bridge consumed by the native runtime.

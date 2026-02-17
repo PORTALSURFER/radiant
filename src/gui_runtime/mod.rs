@@ -26,6 +26,8 @@ pub struct NativeRunOptions {
     pub maximized: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
+    /// Target frame rate for animation-driven redraws.
+    pub target_fps: u32,
 }
 
 impl Default for NativeRunOptions {
@@ -36,6 +38,7 @@ impl Default for NativeRunOptions {
             min_inner_size: None,
             maximized: false,
             icon: None,
+            target_fps: 120,
         }
     }
 }

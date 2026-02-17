@@ -164,10 +164,14 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     modifiers: ModifiersState,
     text_input_target: TextInputTarget,
     last_redraw: Instant,
+    target_frame_interval: Duration,
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn new(options: NativeRunOptions, bridge: B) -> Self {
+        let target_fps = options.target_fps.max(1);
+        let frame_interval_ns = (1_000_000_000u64 / target_fps as u64).max(1);
+        let target_frame_interval = Duration::from_nanos(frame_interval_ns);
         Self {
             options,
             bridge,
@@ -231,6 +235,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             modifiers: ModifiersState::default(),
             text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
+            target_frame_interval,
         }
     }
 
@@ -836,8 +841,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             if let Some(window) = self.window.as_ref() {
                 window.request_redraw();
             }
+            let now = Instant::now();
+            let mut next_redraw_at = self.last_redraw + self.target_frame_interval;
+            if next_redraw_at < now {
+                next_redraw_at = now;
+            }
             event_loop.set_control_flow(ControlFlow::WaitUntil(
-                Instant::now() + Duration::from_millis(16),
+                next_redraw_at,
             ));
         } else {
             event_loop.set_control_flow(ControlFlow::Wait);

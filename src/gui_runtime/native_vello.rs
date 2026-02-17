@@ -1694,9 +1694,10 @@ impl NativeTextRenderer {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
         };
-        if let Some(layout) = self.layout_cache.get(&key) {
-            return Some(layout);
+        if self.layout_cache.contains_key(&key) {
+            return self.layout_cache.get(&key);
         }
+
         if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
             if let Some(evicted_key) = self.layout_cache_order.pop_front() {
                 self.layout_cache.remove(&evicted_key);
@@ -1706,7 +1707,7 @@ impl NativeTextRenderer {
             return None;
         };
         self.layout_cache.insert(key.clone(), layout);
-        self.layout_cache_order.push_back(key);
+        self.layout_cache_order.push_back(key.clone());
         if self.layout_cache.len() > TEXT_LAYOUT_CACHE_CAPACITY {
             if let Some(evicted_key) = self.layout_cache_order.pop_front() {
                 self.layout_cache.remove(&evicted_key);

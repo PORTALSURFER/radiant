@@ -503,7 +503,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.shell_layout.is_none() || self.frame_state.layout_dirty {
             self.rebuild_layout();
         }
-        let rebuild_static = self.frame_state.take_scene();
+        let rebuild_static = self.frame_state.take_scene() || self.frame_state.take_model();
         let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
         let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {

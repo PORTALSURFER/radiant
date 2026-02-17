@@ -41,7 +41,6 @@ use tracing::{error, info, warn};
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
-const IDLE_STATUS_REFRESH_INTERVAL_MS: u64 = 1000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
@@ -210,6 +209,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let target_frame_interval = Duration::from_nanos(frame_interval_ns);
         let focus_animation_interval =
             Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
+        let idle_status_refresh_interval = target_frame_interval;
         info!(
             "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
             options.title,
@@ -287,9 +287,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             redraw_count: 0,
             target_frame_interval,
             focus_animation_interval,
-            idle_status_refresh_interval: Duration::from_millis(IDLE_STATUS_REFRESH_INTERVAL_MS),
-            next_idle_status_refresh: Instant::now()
-                + Duration::from_millis(IDLE_STATUS_REFRESH_INTERVAL_MS),
+            idle_status_refresh_interval,
+            next_idle_status_refresh: Instant::now() + idle_status_refresh_interval,
             model_refresh_count: 0,
             profile_redraw_enabled: std::env::var(REDRAW_PROFILE_ENV)
                 .ok()

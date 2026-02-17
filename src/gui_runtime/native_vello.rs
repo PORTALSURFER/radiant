@@ -2320,6 +2320,18 @@ mod tests {
     }
 
     #[test]
+    fn key_bindings_respect_progress_cancelability() {
+        let mut model = AppModel::default();
+        assert_eq!(action_from_key(KeyCode::P, ModifiersState::default(), &model), None);
+
+        model.progress_overlay.cancelable = true;
+        assert_eq!(
+            action_from_key(KeyCode::P, ModifiersState::default(), &model),
+            Some(UiAction::CancelProgress)
+        );
+    }
+
+    #[test]
     fn waveform_click_modifiers_route_expected_actions() {
         let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
         let mut shell_state = NativeShellState::new();

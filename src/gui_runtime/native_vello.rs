@@ -1353,19 +1353,15 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         "radiant native vello received zero-size resize"
                     );
                 }
-                let window = self.window.as_ref().cloned();
-                if size.width > 0
-                    && size.height > 0
-                    && let (Some(render_ctx), Some(surface), Some(_window)) = (
-                        self.render_ctx.as_ref(),
-                        self.render_surface.as_mut(),
-                        window,
-                    )
-                {
-                    render_ctx.resize_surface(surface, size.width, size.height);
-                    self.frame_state.mark_layout_dirty();
-                    self.frame_state.mark_model_dirty();
-                    self.rebuild_scene_and_request_redraw();
+                if size.width > 0 && size.height > 0 && self.window.is_some() {
+                    if let (Some(render_ctx), Some(surface)) =
+                        (self.render_ctx.as_ref(), self.render_surface.as_mut())
+                    {
+                        render_ctx.resize_surface(surface, size.width, size.height);
+                        self.frame_state.mark_layout_dirty();
+                        self.frame_state.mark_model_dirty();
+                        self.rebuild_scene_and_request_redraw();
+                    }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -1381,9 +1377,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 state: ElementState::Pressed,
                 ..
             } => {
-                let _window = self.window.as_ref().cloned();
-                if let (Some(point), Some(layout), Some(_window)) =
-                    (self.last_cursor, self.shell_layout.as_ref(), _window)
+                if self.window.is_none() {
+                    return;
+                }
+                if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
                 {
                     self.text_input_target = TextInputTarget::None;
                     let mut handled = false;

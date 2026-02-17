@@ -2387,7 +2387,7 @@ fn push_waveform_image(
         let mut y = 0usize;
         while y < image.height {
             let first_idx = y * stride + x * 4;
-            let mut y0 = y;
+            let y0 = y;
             if image.pixels[first_idx + 3] == 0 {
                 y += 1;
                 continue;

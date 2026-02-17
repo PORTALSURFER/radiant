@@ -151,6 +151,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     render_ctx: Option<RenderContext>,
     render_surface: Option<RenderSurface<'static>>,
     renderer: Option<Renderer>,
+    redraw_requested: bool,
     /// Retained static scene primitives (layout and stable content).
     frame_cache: NativeViewFrame,
     /// Retained state-driven overlay primitives (focus/hover and dialog state).
@@ -238,6 +239,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             render_ctx: None,
             render_surface: None,
             renderer: None,
+            redraw_requested: false,
             frame_cache: NativeViewFrame {
                 clear_color: Rgba8 {
                     r: 0,
@@ -511,6 +513,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.frame_state.clear_layout_dirty();
     }
 
+    fn request_redraw_if_needed(&mut self) {
+        if self.redraw_requested {
+            return;
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+            self.redraw_requested = true;
+        }
+    }
+
     fn build_style_for_layout(layout: &ShellLayout) -> StyleTokens {
         StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
     }
@@ -539,16 +551,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene_and_request_redraw(&mut self) {
         self.frame_state.mark_scene_dirty();
-        if let Some(window) = self.window.as_ref() {
-            window.request_redraw();
-        }
+        self.request_redraw_if_needed();
     }
 
     fn rebuild_overlay_and_request_redraw(&mut self) {
         self.frame_state.mark_state_overlay_dirty();
-        if let Some(window) = self.window.as_ref() {
-            window.request_redraw();
-        }
+        self.request_redraw_if_needed();
     }
 
     fn rebuild_scene_for_tick(&mut self) {
@@ -1004,6 +1012,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.redraw_count = self.redraw_count.saturating_add(1);
+        self.redraw_requested = false;
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
@@ -1115,7 +1124,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.frame_state.mark_layout_dirty();
                 self.frame_state.mark_model_dirty();
                 self.rebuild_scene_if_needed();
-                window.request_redraw();
+                self.request_redraw_if_needed();
             }
             if out_of_memory {
                 event_loop.exit();
@@ -1306,9 +1315,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
         }
         if self.window.is_none() {
             self.initialize_runtime(event_loop);
-            if let Some(window) = self.window.as_ref() {
-                window.request_redraw();
-            }
+            self.request_redraw_if_needed();
         }
     }
 
@@ -1415,13 +1422,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         .filter(|point| layout.browser_panel.contains(*point))
                         .unwrap_or(fallback_point);
                     let style = self.cached_style_for_layout(layout);
-                    if let Some(delta) =
-                        browser_wheel_row_delta(layout, &self.model, point, &style, delta)
+                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, &style, delta)
                     {
                         self.queue_wheel_rows(delta);
-                        if let Some(window) = self.window.as_ref() {
-                            window.request_redraw();
-                        }
+                        self.request_redraw_if_needed();
                     }
                 }
             }
@@ -1504,9 +1508,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             self.mark_idle_status_refresh_if_due(now)
         };
         if needs_animation || has_pending_input {
-            if let Some(window) = self.window.as_ref() {
-                window.request_redraw();
-            }
+            self.request_redraw_if_needed();
             let frame_interval = if self.shell_state.is_transport_running() {
                 self.target_frame_interval
             } else {
@@ -1522,9 +1524,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             return;
         }
         if should_refresh_idle_status {
-            if let Some(window) = self.window.as_ref() {
-                window.request_redraw();
-            }
+            self.request_redraw_if_needed();
             event_loop.set_control_flow(ControlFlow::WaitUntil(
                 self.next_idle_status_refresh,
             ));

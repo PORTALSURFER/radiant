@@ -50,7 +50,7 @@ pub(crate) enum Primitive {
 }
 
 /// Full frame emitted by the retained shell render pipeline.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct NativeViewFrame {
     /// Root clear color.
     pub clear_color: Rgba8,

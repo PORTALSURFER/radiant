@@ -8,6 +8,8 @@ mod layout;
 mod paint;
 mod state;
 mod style;
+#[cfg(test)]
+mod shots;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;

@@ -4944,7 +4944,7 @@ mod tests {
             .push(SourceRowModel::new("selected source", "detail", true, false));
 
         let selected_row = *state
-            .rendered_source_row_rects(&layout, &style, &model)
+            .rendered_source_row_rects(&layout, &model)
             .first()
             .expect("source row should be rendered");
         let frame = state.build_frame(&layout, &model);

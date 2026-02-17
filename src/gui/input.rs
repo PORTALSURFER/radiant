@@ -3,49 +3,92 @@
 /// Backend-agnostic key code values used by sempal hotkeys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum KeyCode {
+    /// Number row 0.
     Num0,
+    /// Number row 1.
     Num1,
+    /// Number row 2.
     Num2,
+    /// Number row 3.
     Num3,
+    /// Number row 4.
     Num4,
+    /// Number row 5.
     Num5,
+    /// Number row 6.
     Num6,
+    /// Number row 7.
     Num7,
+    /// Number row 8.
     Num8,
+    /// Number row 9.
     Num9,
+    /// Latin letter A.
     A,
+    /// Latin letter B.
     B,
+    /// Latin letter C.
     C,
+    /// Latin letter D.
     D,
+    /// Enter/Return key.
     Enter,
+    /// Latin letter F.
     F,
+    /// F1 function key.
     F1,
+    /// Latin letter G.
     G,
+    /// Latin letter I.
     I,
+    /// Latin letter L.
     L,
+    /// Latin letter M.
     M,
+    /// Latin letter N.
     N,
+    /// Open bracket (`[`).
     OpenBracket,
+    /// Close bracket (`]`).
     CloseBracket,
+    /// Latin letter P.
     P,
+    /// Quote key (`'`).
     Quote,
+    /// Latin letter R.
     R,
+    /// Latin letter S.
     S,
+    /// Slash key (`/`).
     Slash,
+    /// Backslash key (`\\`).
     Backslash,
+    /// Latin letter T.
     T,
+    /// Latin letter U.
     U,
+    /// Latin letter W.
     W,
+    /// Latin letter X.
     X,
+    /// Latin letter Y.
     Y,
+    /// Latin letter Z.
     Z,
+    /// Left arrow key.
     ArrowLeft,
+    /// Right arrow key.
     ArrowRight,
+    /// Up arrow key.
     ArrowUp,
+    /// Down arrow key.
     ArrowDown,
 }
 
 /// Convert a `winit` physical key code into the local backend-agnostic key representation.
+///
+/// Returns `None` when a key is not currently used by app shortcuts or shell
+/// controls.
 pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
     use winit::keyboard::KeyCode as WinitKeyCode;
     Some(match key {

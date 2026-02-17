@@ -38,10 +38,322 @@ use winit::{
 use std::panic::AssertUnwindSafe;
 use tracing::{error, info, warn};
 
+#[cfg(feature = "gui-performance")]
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
+#[cfg(feature = "gui-performance")]
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
+
+#[cfg(feature = "gui-performance")]
+#[derive(Debug, Default)]
+struct NativeVelloProfiler {
+    enabled: bool,
+    frames: u64,
+    rebuild_ns: u128,
+    acquire_ns: u128,
+    render_ns: u128,
+    blit_ns: u128,
+    present_ns: u128,
+    total_ns: u128,
+    scene_rebuilds: u64,
+    state_overlay_rebuilds: u64,
+    motion_overlay_rebuilds: u64,
+    model_refreshes: u64,
+    model_pull_ns: u128,
+    motion_pull_ns: u128,
+    tick_ns: u128,
+    build_static_ns: u128,
+    build_state_overlay_ns: u128,
+    build_motion_overlay_ns: u128,
+    encode_static_ns: u128,
+    encode_state_overlay_ns: u128,
+    encode_motion_overlay_ns: u128,
+    motion_overlay_skips: u64,
+}
+
+#[cfg(feature = "gui-performance")]
+impl NativeVelloProfiler {
+    fn new() -> Self {
+        let enabled = std::env::var(REDRAW_PROFILE_ENV)
+            .ok()
+            .is_some_and(|value| {
+                matches!(value.as_str(), "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes")
+            });
+        Self {
+            enabled,
+            ..Self::default()
+        }
+    }
+
+    #[inline]
+    fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[inline]
+    fn now_if_enabled(&self) -> Option<Instant> {
+        self.enabled.then(Instant::now)
+    }
+
+    #[inline]
+    fn add_tick(&mut self, duration: Duration) {
+        self.tick_ns = self.tick_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn record_scene_rebuilds(
+        &mut self,
+        scene: bool,
+        state_overlay: bool,
+        motion_overlay: bool,
+    ) {
+        if scene {
+            self.scene_rebuilds = self.scene_rebuilds.saturating_add(1);
+        }
+        if state_overlay {
+            self.state_overlay_rebuilds = self.state_overlay_rebuilds.saturating_add(1);
+        }
+        if motion_overlay {
+            self.motion_overlay_rebuilds = self.motion_overlay_rebuilds.saturating_add(1);
+        }
+    }
+
+    #[inline]
+    fn add_model_refresh(&mut self) {
+        self.model_refreshes = self.model_refreshes.saturating_add(1);
+    }
+
+    #[inline]
+    fn add_model_pull(&mut self, duration: Duration) {
+        self.model_pull_ns = self.model_pull_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_motion_pull(&mut self, duration: Duration) {
+        self.motion_pull_ns = self.motion_pull_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_motion_overlay_skip(&mut self) {
+        self.motion_overlay_skips = self.motion_overlay_skips.saturating_add(1);
+    }
+
+    #[inline]
+    fn add_build_static(&mut self, duration: Duration) {
+        self.build_static_ns = self.build_static_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_build_state_overlay(&mut self, duration: Duration) {
+        self.build_state_overlay_ns = self
+            .build_state_overlay_ns
+            .saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_build_motion_overlay(&mut self, duration: Duration) {
+        self.build_motion_overlay_ns = self
+            .build_motion_overlay_ns
+            .saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_encode_static(&mut self, duration: Duration) {
+        self.encode_static_ns = self.encode_static_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_encode_state_overlay(&mut self, duration: Duration) {
+        self.encode_state_overlay_ns = self
+            .encode_state_overlay_ns
+            .saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_encode_motion_overlay(&mut self, duration: Duration) {
+        self.encode_motion_overlay_ns = self
+            .encode_motion_overlay_ns
+            .saturating_add(duration.as_nanos());
+    }
+
+    fn record_redraw(
+        &mut self,
+        rebuild: Duration,
+        acquire: Duration,
+        render: Duration,
+        blit: Duration,
+        present: Duration,
+        total: Duration,
+        text_profile: (u64, u64, u64),
+    ) {
+        if !self.enabled {
+            return;
+        }
+        self.frames = self.frames.saturating_add(1);
+        self.rebuild_ns = self.rebuild_ns.saturating_add(rebuild.as_nanos());
+        self.acquire_ns = self.acquire_ns.saturating_add(acquire.as_nanos());
+        self.render_ns = self.render_ns.saturating_add(render.as_nanos());
+        self.blit_ns = self.blit_ns.saturating_add(blit.as_nanos());
+        self.present_ns = self.present_ns.saturating_add(present.as_nanos());
+        self.total_ns = self.total_ns.saturating_add(total.as_nanos());
+
+        if self.frames < REDRAW_PROFILE_INTERVAL_FRAMES {
+            return;
+        }
+
+        let frames = self.frames as f64;
+        let total_ns = self.total_ns as f64;
+        if total_ns <= 0.0 {
+            self.reset();
+            return;
+        }
+
+        let ms = |value_ns: u128| value_ns as f64 / 1_000_000.0;
+        let avg_total_ms = ms(self.total_ns) / frames;
+        let avg_rebuild_ms = ms(self.rebuild_ns) / frames;
+        let avg_acquire_ms = ms(self.acquire_ns) / frames;
+        let avg_render_ms = ms(self.render_ns) / frames;
+        let avg_blit_ms = ms(self.blit_ns) / frames;
+        let avg_present_ms = ms(self.present_ns) / frames;
+        let avg_model_pull_ms = ms(self.model_pull_ns) / frames;
+        let avg_motion_pull_ms = ms(self.motion_pull_ns) / frames;
+        let avg_tick_ms = ms(self.tick_ns) / frames;
+        let avg_build_static_ms = ms(self.build_static_ns) / frames;
+        let avg_build_state_overlay_ms = ms(self.build_state_overlay_ns) / frames;
+        let avg_build_motion_overlay_ms = ms(self.build_motion_overlay_ns) / frames;
+        let avg_encode_static_ms = ms(self.encode_static_ns) / frames;
+        let avg_encode_state_overlay_ms = ms(self.encode_state_overlay_ns) / frames;
+        let avg_encode_motion_overlay_ms = ms(self.encode_motion_overlay_ns) / frames;
+        let fps = 1000.0 / avg_total_ms.max(0.001);
+        let rebuild_pct = (self.rebuild_ns as f64) * 100.0 / total_ns;
+        let acquire_pct = (self.acquire_ns as f64) * 100.0 / total_ns;
+        let render_pct = (self.render_ns as f64) * 100.0 / total_ns;
+        let blit_pct = (self.blit_ns as f64) * 100.0 / total_ns;
+        let present_pct = (self.present_ns as f64) * 100.0 / total_ns;
+        let model_refresh_avg = self.model_refreshes as f64 / frames;
+        let scene_rebuild_avg = self.scene_rebuilds as f64 / frames;
+        let state_overlay_rebuild_avg = self.state_overlay_rebuilds as f64 / frames;
+        let motion_overlay_rebuild_avg = self.motion_overlay_rebuilds as f64 / frames;
+        let motion_overlay_skip_avg = self.motion_overlay_skips as f64 / frames;
+        let (text_hits, text_misses, text_evictions) = text_profile;
+        let text_cache_hit_rate = if text_hits + text_misses == 0 {
+            0.0
+        } else {
+            100.0 * (text_hits as f64) / (text_hits + text_misses) as f64
+        };
+        let text_cache_miss_rate = if text_hits + text_misses == 0 {
+            0.0
+        } else {
+            100.0 * (text_misses as f64) / (text_hits + text_misses) as f64
+        };
+        eprintln!(
+            "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
+             total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
+             acquire={avg_acquire_ms:.2}ms ({acquire_pct:.1}%) render={avg_render_ms:.2}ms ({render_pct:.1}%) \
+             blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%) \
+             model_refresh_avg={model_refresh_avg:.2} scene_rebuild_avg={scene_rebuild_avg:.2} \
+             state_overlay_rebuild_avg={state_overlay_rebuild_avg:.2} \
+             motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2} motion_overlay_skip_avg={motion_overlay_skip_avg:.2} \
+             model_pull_ms={avg_model_pull_ms:.3} motion_pull_ms={avg_motion_pull_ms:.3} \
+             tick_ms={avg_tick_ms:.3} build_static_ms={avg_build_static_ms:.3} \
+             build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
+             encode_static_ms={avg_encode_static_ms:.3} encode_state_overlay_ms={avg_encode_state_overlay_ms:.3} \
+             encode_motion_overlay_ms={avg_encode_motion_overlay_ms:.3} \
+             text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
+             text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
+        );
+        self.reset();
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.frames = 0;
+        self.rebuild_ns = 0;
+        self.acquire_ns = 0;
+        self.render_ns = 0;
+        self.blit_ns = 0;
+        self.present_ns = 0;
+        self.total_ns = 0;
+        self.scene_rebuilds = 0;
+        self.state_overlay_rebuilds = 0;
+        self.motion_overlay_rebuilds = 0;
+        self.model_refreshes = 0;
+        self.model_pull_ns = 0;
+        self.motion_pull_ns = 0;
+        self.tick_ns = 0;
+        self.build_static_ns = 0;
+        self.build_state_overlay_ns = 0;
+        self.build_motion_overlay_ns = 0;
+        self.encode_static_ns = 0;
+        self.encode_state_overlay_ns = 0;
+        self.encode_motion_overlay_ns = 0;
+        self.motion_overlay_skips = 0;
+    }
+}
+
+#[cfg(not(feature = "gui-performance"))]
+#[derive(Debug, Default)]
+struct NativeVelloProfiler;
+
+#[cfg(not(feature = "gui-performance"))]
+impl NativeVelloProfiler {
+    fn new() -> Self {
+        Self
+    }
+
+    #[inline]
+    fn is_enabled(&self) -> bool {
+        false
+    }
+
+    #[inline]
+    fn now_if_enabled(&self) -> Option<Instant> {
+        None
+    }
+
+    #[inline]
+    fn add_tick(&mut self, _duration: Duration) {}
+    #[inline]
+    fn record_scene_rebuilds(
+        &mut self,
+        _scene: bool,
+        _state_overlay: bool,
+        _motion_overlay: bool,
+    ) {
+    }
+    #[inline]
+    fn add_model_refresh(&mut self) {}
+    #[inline]
+    fn add_model_pull(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_motion_pull(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_motion_overlay_skip(&mut self) {}
+    #[inline]
+    fn add_build_static(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_build_state_overlay(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_build_motion_overlay(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_encode_static(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_encode_state_overlay(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_encode_motion_overlay(&mut self, _duration: Duration) {}
+    fn record_redraw(
+        &mut self,
+        _rebuild: Duration,
+        _acquire: Duration,
+        _render: Duration,
+        _blit: Duration,
+        _present: Duration,
+        _total: Duration,
+        _text_profile: (u64, u64, u64),
+    ) {
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextInputTarget {
@@ -190,28 +502,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     idle_status_refresh_interval: Duration,
     next_idle_status_refresh: Instant,
     model_refresh_count: u32,
-    profile_redraw_enabled: bool,
-    profile_redraw_frames: u64,
-    profile_redraw_rebuild_ns: u128,
-    profile_redraw_acquire_ns: u128,
-    profile_redraw_render_ns: u128,
-    profile_redraw_blit_ns: u128,
-    profile_redraw_present_ns: u128,
-    profile_redraw_total_ns: u128,
-    profile_redraw_scene_rebuilds: u64,
-    profile_redraw_state_overlay_rebuilds: u64,
-    profile_redraw_motion_overlay_rebuilds: u64,
-    profile_model_refreshes: u64,
-    profile_redraw_model_pull_ns: u128,
-    profile_redraw_motion_pull_ns: u128,
-    profile_redraw_tick_ns: u128,
-    profile_redraw_build_static_ns: u128,
-    profile_redraw_build_state_overlay_ns: u128,
-    profile_redraw_build_motion_overlay_ns: u128,
-    profile_redraw_encode_static_ns: u128,
-    profile_redraw_encode_state_overlay_ns: u128,
-    profile_redraw_encode_motion_overlay_ns: u128,
-    profile_redraw_motion_overlay_skips: u64,
+    profiler: NativeVelloProfiler,
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
@@ -304,32 +595,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             idle_status_refresh_interval,
             next_idle_status_refresh: Instant::now() + idle_status_refresh_interval,
             model_refresh_count: 0,
-            profile_redraw_enabled: std::env::var(REDRAW_PROFILE_ENV)
-                .ok()
-                .is_some_and(|value| {
-                    matches!(value.as_str(), "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes")
-                }),
-            profile_redraw_frames: 0,
-            profile_redraw_rebuild_ns: 0,
-            profile_redraw_acquire_ns: 0,
-            profile_redraw_render_ns: 0,
-            profile_redraw_blit_ns: 0,
-            profile_redraw_present_ns: 0,
-            profile_redraw_total_ns: 0,
-            profile_redraw_scene_rebuilds: 0,
-            profile_redraw_state_overlay_rebuilds: 0,
-            profile_redraw_motion_overlay_rebuilds: 0,
-            profile_model_refreshes: 0,
-            profile_redraw_model_pull_ns: 0,
-            profile_redraw_motion_pull_ns: 0,
-            profile_redraw_tick_ns: 0,
-            profile_redraw_build_static_ns: 0,
-            profile_redraw_build_state_overlay_ns: 0,
-            profile_redraw_build_motion_overlay_ns: 0,
-            profile_redraw_encode_static_ns: 0,
-            profile_redraw_encode_state_overlay_ns: 0,
-            profile_redraw_encode_motion_overlay_ns: 0,
-            profile_redraw_motion_overlay_skips: 0,
+            profiler: NativeVelloProfiler::new(),
         }
     }
 
@@ -565,7 +831,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn rebuild_scene_for_redraw(&mut self, needs_animation: bool, delta_seconds: f32) -> bool {
-        let profiling = self.profile_redraw_enabled;
         if !needs_animation {
             if self.frame_state.has_pending_rebuild() {
                 self.rebuild_scene_if_needed();
@@ -576,15 +841,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
-        let tick_start = profiling.then(Instant::now);
+        let tick_start = self.profiler.now_if_enabled();
         let style = self.cached_style_for_layout(layout);
         self.shell_state.tick_with_style(delta_seconds, &style);
         self.rebuild_scene_for_tick();
-        if profiling {
-            let tick_duration = tick_start.map_or(Duration::ZERO, |start| start.elapsed());
-            self.profile_redraw_tick_ns =
-                self.profile_redraw_tick_ns.saturating_add(tick_duration.as_nanos());
-        }
+        let tick_duration = tick_start.map_or(Duration::ZERO, |start| start.elapsed());
+        self.profiler.add_tick(tick_duration);
         true
     }
 
@@ -597,113 +859,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         present: Duration,
         total: Duration,
     ) {
-        if !self.profile_redraw_enabled {
-            return;
-        }
-        self.profile_redraw_frames = self.profile_redraw_frames.saturating_add(1);
-        self.profile_redraw_rebuild_ns = self
-            .profile_redraw_rebuild_ns
-            .saturating_add(rebuild.as_nanos());
-        self.profile_redraw_acquire_ns = self
-            .profile_redraw_acquire_ns
-            .saturating_add(acquire.as_nanos());
-        self.profile_redraw_render_ns = self
-            .profile_redraw_render_ns
-            .saturating_add(render.as_nanos());
-        self.profile_redraw_blit_ns = self
-            .profile_redraw_blit_ns
-            .saturating_add(blit.as_nanos());
-        self.profile_redraw_present_ns = self
-            .profile_redraw_present_ns
-            .saturating_add(present.as_nanos());
-        self.profile_redraw_total_ns = self
-            .profile_redraw_total_ns
-            .saturating_add(total.as_nanos());
-        if self.profile_redraw_frames < REDRAW_PROFILE_INTERVAL_FRAMES {
-            return;
-        }
-
-        let frames = self.profile_redraw_frames as f64;
-        let total_ns = self.profile_redraw_total_ns as f64;
-        if total_ns <= 0.0 {
-            return;
-        }
-
-        let ms = |value_ns: u128| value_ns as f64 / 1_000_000.0;
-        let avg_total_ms = ms(self.profile_redraw_total_ns) / frames;
-        let avg_rebuild_ms = ms(self.profile_redraw_rebuild_ns) / frames;
-        let avg_acquire_ms = ms(self.profile_redraw_acquire_ns) / frames;
-        let avg_render_ms = ms(self.profile_redraw_render_ns) / frames;
-        let avg_blit_ms = ms(self.profile_redraw_blit_ns) / frames;
-        let avg_present_ms = ms(self.profile_redraw_present_ns) / frames;
-        let avg_model_pull_ms = ms(self.profile_redraw_model_pull_ns) / frames;
-        let avg_motion_pull_ms = ms(self.profile_redraw_motion_pull_ns) / frames;
-        let avg_tick_ms = ms(self.profile_redraw_tick_ns) / frames;
-        let avg_build_static_ms = ms(self.profile_redraw_build_static_ns) / frames;
-        let avg_build_state_overlay_ms = ms(self.profile_redraw_build_state_overlay_ns) / frames;
-        let avg_build_motion_overlay_ms = ms(self.profile_redraw_build_motion_overlay_ns) / frames;
-        let avg_encode_static_ms = ms(self.profile_redraw_encode_static_ns) / frames;
-        let avg_encode_state_overlay_ms = ms(self.profile_redraw_encode_state_overlay_ns) / frames;
-        let avg_encode_motion_overlay_ms = ms(self.profile_redraw_encode_motion_overlay_ns) / frames;
-        let fps = 1000.0 / avg_total_ms.max(0.001);
-        let rebuild_pct = (self.profile_redraw_rebuild_ns as f64) * 100.0 / total_ns;
-        let acquire_pct = (self.profile_redraw_acquire_ns as f64) * 100.0 / total_ns;
-        let render_pct = (self.profile_redraw_render_ns as f64) * 100.0 / total_ns;
-        let blit_pct = (self.profile_redraw_blit_ns as f64) * 100.0 / total_ns;
-        let present_pct = (self.profile_redraw_present_ns as f64) * 100.0 / total_ns;
-        let model_refresh_avg = self.profile_model_refreshes as f64 / frames;
-        let scene_rebuild_avg = self.profile_redraw_scene_rebuilds as f64 / frames;
-        let state_overlay_rebuild_avg = self.profile_redraw_state_overlay_rebuilds as f64 / frames;
-        let motion_overlay_rebuild_avg = self.profile_redraw_motion_overlay_rebuilds as f64 / frames;
-        let motion_overlay_skip_avg = self.profile_redraw_motion_overlay_skips as f64 / frames;
-        let (text_hits, text_misses, text_evictions) = self.text_renderer.take_layout_profile_counters();
-        let text_cache_hit_rate = if text_hits + text_misses == 0 {
-            0.0
+        let text_profile = if self.profiler.is_enabled() {
+            self.text_renderer.take_layout_profile_counters()
         } else {
-            100.0 * (text_hits as f64) / (text_hits + text_misses) as f64
+            (0, 0, 0)
         };
-        let text_cache_miss_rate = if text_hits + text_misses == 0 {
-            0.0
-        } else {
-            100.0 * (text_misses as f64) / (text_hits + text_misses) as f64
-        };
-        eprintln!(
-            "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
-             total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
-             acquire={avg_acquire_ms:.2}ms ({acquire_pct:.1}%) render={avg_render_ms:.2}ms ({render_pct:.1}%) \
-             blit={avg_blit_ms:.2}ms ({blit_pct:.1}%) present={avg_present_ms:.2}ms ({present_pct:.1}%) \
-             model_refresh_avg={model_refresh_avg:.2} scene_rebuild_avg={scene_rebuild_avg:.2} \
-             state_overlay_rebuild_avg={state_overlay_rebuild_avg:.2} \
-             motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2} motion_overlay_skip_avg={motion_overlay_skip_avg:.2} \
-             model_pull_ms={avg_model_pull_ms:.3} motion_pull_ms={avg_motion_pull_ms:.3} \
-             tick_ms={avg_tick_ms:.3} build_static_ms={avg_build_static_ms:.3} \
-             build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
-             encode_static_ms={avg_encode_static_ms:.3} encode_state_overlay_ms={avg_encode_state_overlay_ms:.3} \
-             encode_motion_overlay_ms={avg_encode_motion_overlay_ms:.3} \
-             text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
-             text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
+        self.profiler.record_redraw(
+            rebuild,
+            acquire,
+            render,
+            blit,
+            present,
+            total,
+            text_profile,
         );
-        self.profile_redraw_frames = 0;
-        self.profile_redraw_rebuild_ns = 0;
-        self.profile_redraw_acquire_ns = 0;
-        self.profile_redraw_render_ns = 0;
-        self.profile_redraw_blit_ns = 0;
-        self.profile_redraw_present_ns = 0;
-        self.profile_redraw_total_ns = 0;
-        self.profile_redraw_scene_rebuilds = 0;
-        self.profile_redraw_state_overlay_rebuilds = 0;
-        self.profile_redraw_motion_overlay_rebuilds = 0;
-        self.profile_model_refreshes = 0;
-        self.profile_redraw_model_pull_ns = 0;
-        self.profile_redraw_motion_pull_ns = 0;
-        self.profile_redraw_tick_ns = 0;
-        self.profile_redraw_build_static_ns = 0;
-        self.profile_redraw_build_state_overlay_ns = 0;
-        self.profile_redraw_build_motion_overlay_ns = 0;
-        self.profile_redraw_encode_static_ns = 0;
-        self.profile_redraw_encode_state_overlay_ns = 0;
-        self.profile_redraw_encode_motion_overlay_ns = 0;
-        self.profile_redraw_motion_overlay_skips = 0;
     }
 
     fn encode_frame_to_scene(
@@ -799,35 +968,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         mut rebuild_state_overlay: bool,
         mut rebuild_motion_overlay: bool,
     ) {
-        let profiling = self.profile_redraw_enabled;
         let should_refresh_model = self.frame_state.take_model()
             || rebuild_static
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
         let should_refresh_motion = rebuild_motion_overlay && self.motion_model_supported;
-        if rebuild_static {
-            self.profile_redraw_scene_rebuilds = self
-                .profile_redraw_scene_rebuilds
-                .saturating_add(1);
-        }
-        if rebuild_state_overlay {
-            self.profile_redraw_state_overlay_rebuilds = self
-                .profile_redraw_state_overlay_rebuilds
-                .saturating_add(1);
-        }
-        if rebuild_motion_overlay {
-            self.profile_redraw_motion_overlay_rebuilds = self
-                .profile_redraw_motion_overlay_rebuilds
-                .saturating_add(1);
-        }
+        self.profiler
+            .record_scene_rebuilds(rebuild_static, rebuild_state_overlay, rebuild_motion_overlay);
         let previous_waveform_signature =
             self.motion_model
                 .as_ref()
                 .and_then(|model| model.waveform_image_signature);
         let mut motion_changed = false;
         if should_refresh_model {
-            let pull_start = profiling.then(Instant::now);
-            self.profile_model_refreshes = self.profile_model_refreshes.saturating_add(1);
+            let pull_start = self.profiler.now_if_enabled();
+            self.profiler.add_model_refresh();
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
             if self.model_refresh_count <= 24 {
                 info!(
@@ -839,24 +994,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 );
             }
             self.model = self.bridge.pull_model();
-            if profiling {
-                let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_model_pull_ns =
-                    self.profile_redraw_model_pull_ns.saturating_add(pull_duration.as_nanos());
-            }
+            let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_model_pull(pull_duration);
             self.shell_state.sync_from_model(&self.model);
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
         } else if should_refresh_motion {
-            let pull_start = profiling.then(Instant::now);
+            let pull_start = self.profiler.now_if_enabled();
             if let Some(motion_model) = self.bridge.pull_motion_model() {
-                if profiling {
-                    let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
-                    self.profile_redraw_motion_pull_ns =
-                        self.profile_redraw_motion_pull_ns
-                            .saturating_add(pull_duration.as_nanos());
-                }
+                let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profiler.add_motion_pull(pull_duration);
                 if self.motion_model.as_ref() != Some(&motion_model) {
                     motion_changed = true;
                     if previous_waveform_signature != motion_model.waveform_image_signature {
@@ -868,32 +1016,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     self.motion_model = Some(motion_model);
                 }
             } else {
-                if profiling {
-                    let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
-                    self.profile_redraw_motion_pull_ns =
-                        self.profile_redraw_motion_pull_ns
-                            .saturating_add(pull_duration.as_nanos());
-                }
-                let model_pull_start = profiling.then(Instant::now);
+                let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profiler.add_motion_pull(pull_duration);
+                let model_pull_start = self.profiler.now_if_enabled();
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
-                if profiling {
-                    let model_pull_duration =
-                        model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
-                    self.profile_redraw_model_pull_ns =
-                        self.profile_redraw_model_pull_ns
-                            .saturating_add(model_pull_duration.as_nanos());
-                }
+                let model_pull_duration = model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profiler.add_model_pull(model_pull_duration);
                 self.shell_state.sync_from_model(&self.model);
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.sync_text_input_target();
             }
         }
         if should_refresh_motion && !motion_changed {
-            if profiling {
-                self.profile_redraw_motion_overlay_skips =
-                    self.profile_redraw_motion_overlay_skips.saturating_add(1);
-            }
+            self.profiler.add_motion_overlay_skip();
             rebuild_motion_overlay = false;
         }
         let Some(layout) = self.shell_layout.as_ref() else {
@@ -901,60 +1037,46 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         let style = self.cached_style_for_layout(layout);
         if rebuild_static {
-            let build_start = profiling.then(Instant::now);
+            let build_start = self.profiler.now_if_enabled();
             self.shell_state.build_frame_with_style_into_static(
                 layout,
                 &style,
                 &self.model,
                 &mut self.frame_cache,
             );
-            if profiling {
-                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_build_static_ns =
-                    self.profile_redraw_build_static_ns.saturating_add(build_duration.as_nanos());
-            }
+            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_build_static(build_duration);
             self.clear_color = self.frame_cache.clear_color;
-            let encode_start = profiling.then(Instant::now);
+            let encode_start = self.profiler.now_if_enabled();
             Self::encode_frame_to_scene(
                 &self.frame_cache,
                 &mut self.static_scene,
                 &mut self.text_renderer,
             );
-            if profiling {
-                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_encode_static_ns =
-                    self.profile_redraw_encode_static_ns.saturating_add(encode_duration.as_nanos());
-            }
+            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_encode_static(encode_duration);
         }
         if rebuild_state_overlay {
-            let build_start = profiling.then(Instant::now);
+            let build_start = self.profiler.now_if_enabled();
             self.shell_state.build_state_overlay_into(
                 layout,
                 &style,
                 &self.model,
                 &mut self.state_overlay_frame_cache,
             );
-            if profiling {
-                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_build_state_overlay_ns = self
-                    .profile_redraw_build_state_overlay_ns
-                    .saturating_add(build_duration.as_nanos());
-            }
-            let encode_start = profiling.then(Instant::now);
+            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_build_state_overlay(build_duration);
+            let encode_start = self.profiler.now_if_enabled();
             Self::encode_frame_to_scene(
                 &self.state_overlay_frame_cache,
                 &mut self.state_overlay_scene,
                 &mut self.text_renderer,
             );
-            if profiling {
-                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_encode_state_overlay_ns = self
-                    .profile_redraw_encode_state_overlay_ns
-                    .saturating_add(encode_duration.as_nanos());
-            }
+            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_encode_state_overlay(encode_duration);
         }
         if rebuild_motion_overlay {
-            let build_start = profiling.then(Instant::now);
+            let build_start = self.profiler.now_if_enabled();
             let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
                 motion_model
             } else {
@@ -967,24 +1089,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 motion_model,
                 &mut self.motion_overlay_frame_cache,
             );
-            if profiling {
-                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_build_motion_overlay_ns = self
-                    .profile_redraw_build_motion_overlay_ns
-                    .saturating_add(build_duration.as_nanos());
-            }
-            let encode_start = profiling.then(Instant::now);
+            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_build_motion_overlay(build_duration);
+            let encode_start = self.profiler.now_if_enabled();
             Self::encode_frame_to_scene(
                 &self.motion_overlay_frame_cache,
                 &mut self.motion_overlay_scene,
                 &mut self.text_renderer,
             );
-            if profiling {
-                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
-                self.profile_redraw_encode_motion_overlay_ns = self
-                    .profile_redraw_encode_motion_overlay_ns
-                    .saturating_add(encode_duration.as_nanos());
-            }
+            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+            self.profiler.add_encode_motion_overlay(encode_duration);
         }
         if rebuild_static || rebuild_state_overlay || rebuild_motion_overlay {
             self.scene.reset();
@@ -1016,9 +1130,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        let profiling = self.profile_redraw_enabled;
-        let frame_start = profiling.then(Instant::now);
-        let rebuild_start = profiling.then(Instant::now);
+        let frame_start = self.profiler.now_if_enabled();
+        let rebuild_start = self.profiler.now_if_enabled();
         let needs_animation = self.shell_state.needs_animation();
         let has_rebuild = self.rebuild_scene_for_redraw(needs_animation, delta);
         let rebuild_duration = rebuild_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1065,7 +1178,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut surface_error = None;
         let mut needs_resize = false;
         let mut out_of_memory = false;
-        let acquire_start = profiling.then(Instant::now);
+        let acquire_start = self.profiler.now_if_enabled();
         let surface_texture = {
             let Some(surface) = self.render_surface.as_mut() else {
                 if let Some(frame_start) = frame_start {
@@ -1178,7 +1291,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let surface_view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let render_start = profiling.then(Instant::now);
+        let render_start = self.profiler.now_if_enabled();
         let render_result = renderer.render_to_texture(
             &dev_handle.device,
             &dev_handle.queue,
@@ -1208,7 +1321,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         }
         let render_duration = render_start.map_or(Duration::ZERO, |start| start.elapsed());
-        let blit_start = profiling.then(Instant::now);
+        let blit_start = self.profiler.now_if_enabled();
         let mut encoder =
             dev_handle
                 .device
@@ -1223,7 +1336,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         );
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         let blit_duration = blit_start.map_or(Duration::ZERO, |start| start.elapsed());
-        let present_start = profiling.then(Instant::now);
+        let present_start = self.profiler.now_if_enabled();
         surface_texture.present();
         let present_duration = present_start.map_or(Duration::ZERO, |start| start.elapsed());
         if let Some(frame_start) = frame_start {

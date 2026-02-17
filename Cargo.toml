@@ -10,6 +10,10 @@ vello = "0.7.0"
 skrifa = "0.40.0"
 tracing = "0.1.41"
 
+[features]
+default = []
+gui-performance = []
+
 [dev-dependencies]
 image = "0.25.9"
 serde = { version = "1.0.228", features = ["derive"] }

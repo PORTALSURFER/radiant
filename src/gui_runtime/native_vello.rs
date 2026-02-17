@@ -35,6 +35,7 @@ use winit::{
     keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
+use std::panic::AssertUnwindSafe;
 use tracing::{error, info, warn};
 
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
@@ -341,14 +342,25 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else {
             wgpu::PresentMode::AutoVsync
         };
-        let render_surface = match pollster::block_on(render_ctx.create_surface(
-            window.clone(),
-            width,
-            height,
-            preferred_present_mode,
-        )) {
-            Ok(surface) => surface,
-            Err(preferred_err) => {
+        let create_surface_with_mode = |present_mode| {
+            std::panic::catch_unwind(AssertUnwindSafe(|| {
+                pollster::block_on(render_ctx.create_surface(
+                    window.clone(),
+                    width,
+                    height,
+                    present_mode,
+                ))
+            }))
+        };
+        let render_surface = match create_surface_with_mode(preferred_present_mode) {
+            Ok(Ok(surface)) => {
+                info!(
+                    "radiant native vello: render surface created using {:?}",
+                    preferred_present_mode
+                );
+                surface
+            }
+            Ok(Err(preferred_err)) => {
                 if preferred_present_mode == wgpu::PresentMode::AutoVsync {
                     error!(
                         "radiant native vello: failed to create primary surface: {:?}",
@@ -357,21 +369,62 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     event_loop.exit();
                     return;
                 }
-                info!(
-                    "radiant native vello: mailbox surface mode unsupported; retrying AutoVsync: {:?}",
+                warn!(
+                    "radiant native vello: mailbox surface creation failed (error): {:?}",
                     preferred_err
                 );
-                match pollster::block_on(render_ctx.create_surface(
-                    window.clone(),
-                    width,
-                    height,
-                    wgpu::PresentMode::AutoVsync,
-                )) {
-                    Ok(surface) => surface,
-                    Err(fallback_err) => {
+                warn!("radiant native vello: retrying AutoVsync render surface");
+                match create_surface_with_mode(wgpu::PresentMode::AutoVsync) {
+                    Ok(Ok(surface)) => {
+                        info!(
+                            "radiant native vello: render surface created using AutoVsync fallback"
+                        );
+                        surface
+                    }
+                    Ok(Err(fallback_err)) => {
                         error!(
-                            "radiant native vello: failed to create fallback surface: {:?}",
+                            "radiant native vello: failed to create AutoVsync fallback surface: {:?}",
                             fallback_err
+                        );
+                        event_loop.exit();
+                        return;
+                    }
+                    Err(_) => {
+                        error!(
+                            "radiant native vello: AutoVsync surface creation panicked during startup"
+                        );
+                        event_loop.exit();
+                        return;
+                    }
+                }
+            }
+            Err(_) => {
+                if preferred_present_mode == wgpu::PresentMode::AutoVsync {
+                    error!(
+                        "radiant native vello: panicked during AutoVsync surface creation"
+                    );
+                    event_loop.exit();
+                    return;
+                }
+                warn!("radiant native vello: mailbox surface creation panicked; retrying AutoVsync");
+                match create_surface_with_mode(wgpu::PresentMode::AutoVsync) {
+                    Ok(Ok(surface)) => {
+                        info!(
+                            "radiant native vello: render surface created using AutoVsync fallback"
+                        );
+                        surface
+                    }
+                    Ok(Err(fallback_err)) => {
+                        error!(
+                            "radiant native vello: failed to create AutoVsync fallback surface: {:?}",
+                            fallback_err
+                        );
+                        event_loop.exit();
+                        return;
+                    }
+                    Err(_) => {
+                        error!(
+                            "radiant native vello: AutoVsync fallback panicked during startup"
                         );
                         event_loop.exit();
                         return;

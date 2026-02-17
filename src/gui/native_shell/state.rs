@@ -5,9 +5,7 @@ use super::{
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
-use crate::app::{
-    AppModel, BrowserRowModel, BrowserTagTarget, NativeMotionModel, UiAction,
-};
+use crate::app::{AppModel, BrowserRowModel, BrowserTagTarget, NativeMotionModel, UiAction};
 use crate::gui::{
     input::KeyCode,
     types::{Point, Rect, Rgba8},
@@ -72,7 +70,7 @@ impl NativeShellState {
                 .folder_rows
                 .iter()
                 .any(|row| row.focused || row.selected)
-                || model.confirm_prompt.visible;
+            || model.confirm_prompt.visible;
     }
 
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
@@ -270,9 +268,8 @@ impl NativeShellState {
         }
         let style = style_for_layout(layout);
         let rows = self.cached_browser_rows(layout, &style, model);
-        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing).map(|index| {
-            rows[index].visible_row
-        })
+        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing)
+            .map(|index| rows[index].visible_row)
     }
 
     /// Resolve a browser action-strip click into a native UI action.
@@ -432,14 +429,7 @@ impl NativeShellState {
         model: &AppModel,
         frame: &mut NativeViewFrame,
     ) {
-        self.build_frame_with_style_into_with_motion(
-            layout,
-            style,
-            model,
-            frame,
-            0.0,
-            false,
-        );
+        self.build_frame_with_style_into_with_motion(layout, style, model, frame, 0.0, false);
     }
 
     /// Build a frame with a caller-supplied motion phase.
@@ -535,7 +525,12 @@ impl NativeShellState {
                 rect: canvas,
                 color: blend_color(style.surface_base, style.bg_secondary, 0.24),
             }));
-            push_border(primitives, canvas, style.border_emphasis, sizing.border_width);
+            push_border(
+                primitives,
+                canvas,
+                style.border_emphasis,
+                sizing.border_width,
+            );
             for point in &model.map.points {
                 let center = map_point_center(canvas, point);
                 let color = map_point_color(style, point);
@@ -677,8 +672,18 @@ impl NativeShellState {
             }
         }
 
-        push_border(primitives, layout.top_bar, style.border, sizing.border_width);
-        push_border(primitives, layout.sidebar, style.border, sizing.border_width);
+        push_border(
+            primitives,
+            layout.top_bar,
+            style.border,
+            sizing.border_width,
+        );
+        push_border(
+            primitives,
+            layout.sidebar,
+            style.border,
+            sizing.border_width,
+        );
         push_border(
             primitives,
             layout.waveform_card,
@@ -1182,61 +1187,61 @@ impl NativeShellState {
                     rect: row_rect,
                     color: row_fill,
                 }));
-            push_border(
-                primitives,
-                row_rect,
-                if row.focused {
-                    blend_color(
-                        style.accent_warning,
-                        style.text_primary,
-                        motion_wave * style.state_focus_pulse_blend,
-                    )
-                } else if row.selected {
-                    blend_color(
-                        style.accent_mint,
-                        style.text_primary,
-                        motion_wave * style.state_selected_blend,
-                    )
+                push_border(
+                    primitives,
+                    row_rect,
+                    if row.focused {
+                        blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            motion_wave * style.state_focus_pulse_blend,
+                        )
+                    } else if row.selected {
+                        blend_color(
+                            style.accent_mint,
+                            style.text_primary,
+                            motion_wave * style.state_selected_blend,
+                        )
+                    } else {
+                        style.border
+                    },
+                    if row.focused {
+                        sizing.focus_stroke_width
+                    } else {
+                        sizing.border_width
+                    },
+                );
+                let glyph = if row.is_root {
+                    "•"
+                } else if row.has_children {
+                    if row.expanded { "▼" } else { "▶" }
                 } else {
-                    style.border
-                },
-                if row.focused {
-                    sizing.focus_stroke_width
-                } else {
-                    sizing.border_width
-                },
-            );
-            let glyph = if row.is_root {
-                "•"
-            } else if row.has_children {
-                if row.expanded { "▼" } else { "▶" }
-            } else {
-                "·"
-            };
-            let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
-                .min((row_rect.width() * 0.45).max(0.0));
-            let label_text = format!("{glyph} {}", row.label);
-            let folder_text_width = (row_rect.width()
-                - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
-                - depth_indent)
-                .max(24.0);
-            text_runs.push(TextRun {
-                text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
-                position: Point::new(
-                    row_label_x(row_rect, &sizing, depth_indent),
-                    text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
-                ),
-                font_size: sizing.font_body,
-                color: if row.focused {
-                    style.accent_warning
-                } else if row.selected {
-                    style.accent_mint
-                } else {
-                    style.text_primary
-                },
-                max_width: Some(folder_text_width),
-                align: TextAlign::Left,
-            });
+                    "·"
+                };
+                let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
+                    .min((row_rect.width() * 0.45).max(0.0));
+                let label_text = format!("{glyph} {}", row.label);
+                let folder_text_width = (row_rect.width()
+                    - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
+                    - depth_indent)
+                    .max(24.0);
+                text_runs.push(TextRun {
+                    text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
+                    position: Point::new(
+                        row_label_x(row_rect, &sizing, depth_indent),
+                        text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
+                    ),
+                    font_size: sizing.font_body,
+                    color: if row.focused {
+                        style.accent_warning
+                    } else if row.selected {
+                        style.accent_mint
+                    } else {
+                        style.text_primary
+                    },
+                    max_width: Some(folder_text_width),
+                    align: TextAlign::Left,
+                });
             }
         }
         for button in source_action_buttons(layout, style, model) {
@@ -1389,7 +1394,12 @@ impl NativeShellState {
             rect: tabs.map,
             color: map_fill,
         }));
-        push_border(primitives, tabs.samples, samples_border, sizing.border_width);
+        push_border(
+            primitives,
+            tabs.samples,
+            samples_border,
+            sizing.border_width,
+        );
         push_border(primitives, tabs.map, map_border, sizing.border_width);
         let samples_text = format!(
             "{} ({})",
@@ -1907,7 +1917,11 @@ impl NativeShellState {
                     push_border(
                         primitives,
                         *row_rect,
-                        blend_color(style.accent_mint, style.text_primary, style.state_selected_blend),
+                        blend_color(
+                            style.accent_mint,
+                            style.text_primary,
+                            style.state_selected_blend,
+                        ),
                         sizing.border_width,
                     );
                 }
@@ -2034,7 +2048,11 @@ impl NativeShellState {
                             text: row.visible_row.to_string(),
                             position: Point::new(
                                 columns.index.min.x + sizing.text_inset_x,
-                                text_top_in_rect(columns.index, sizing.font_meta, sizing.text_inset_y),
+                                text_top_in_rect(
+                                    columns.index,
+                                    sizing.font_meta,
+                                    sizing.text_inset_y,
+                                ),
                             ),
                             font_size: sizing.font_meta,
                             color: blend_color(
@@ -2042,14 +2060,20 @@ impl NativeShellState {
                                 style.text_primary,
                                 style.state_focus_pulse_blend,
                             ),
-                            max_width: Some((columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                            max_width: Some(
+                                (columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
+                            ),
                             align: TextAlign::Right,
                         });
                         text_runs.push(TextRun {
                             text: row.label.clone(),
                             position: Point::new(
                                 columns.sample.min.x + sizing.text_inset_x,
-                                text_top_in_rect(columns.sample, sizing.font_body, sizing.text_inset_y),
+                                text_top_in_rect(
+                                    columns.sample,
+                                    sizing.font_body,
+                                    sizing.text_inset_y,
+                                ),
                             ),
                             font_size: sizing.font_body,
                             color: blend_color(
@@ -2057,11 +2081,13 @@ impl NativeShellState {
                                 style.text_primary,
                                 style.state_focus_pulse_blend,
                             ),
-                            max_width: Some((columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
+                            max_width: Some(
+                                (columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0),
+                            ),
                             align: TextAlign::Left,
                         });
                     }
-                };
+                }
             }
         }
 
@@ -2074,7 +2100,11 @@ impl NativeShellState {
                     style.state_selected_blend + 0.1,
                 ),
                 style.surface_base,
-                blend_color(style.accent_mint, style.text_primary, style.state_selected_blend),
+                blend_color(
+                    style.accent_mint,
+                    style.text_primary,
+                    style.state_selected_blend,
+                ),
                 style.text_muted,
             )
         } else {
@@ -2086,7 +2116,11 @@ impl NativeShellState {
                     style.state_selected_blend + 0.1,
                 ),
                 style.text_muted,
-                blend_color(style.accent_mint, style.text_primary, style.state_selected_blend),
+                blend_color(
+                    style.accent_mint,
+                    style.text_primary,
+                    style.state_selected_blend,
+                ),
             )
         };
         primitives.push(Primitive::Rect(FillRect {
@@ -2107,7 +2141,11 @@ impl NativeShellState {
         let samples_text = format!(
             "{} ({})",
             model.browser_chrome.samples_tab_label,
-            model.columns.get(1).map(|column| column.item_count).unwrap_or(0)
+            model
+                .columns
+                .get(1)
+                .map(|column| column.item_count)
+                .unwrap_or(0)
         );
         text_runs.push(TextRun {
             text: truncate_to_width(
@@ -2158,8 +2196,7 @@ impl NativeShellState {
         let primitives = &mut frame.primitives;
         let text_runs = &mut frame.text_runs;
 
-        let lamp_radius = sizing.lamp_radius_base
-            + (motion_wave * sizing.lamp_radius_amp);
+        let lamp_radius = sizing.lamp_radius_base + (motion_wave * sizing.lamp_radius_amp);
         let lamp_color = if self.transport_running {
             style.accent_mint
         } else {
@@ -2217,7 +2254,11 @@ impl NativeShellState {
     }
 
     /// Build a native frame using default style tokens.
-    pub(crate) fn build_frame(&mut self, layout: &ShellLayout, model: &AppModel) -> NativeViewFrame {
+    pub(crate) fn build_frame(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> NativeViewFrame {
         self.build_frame_with_style(layout, &style_for_layout(layout), model)
     }
 
@@ -2341,9 +2382,7 @@ fn push_waveform_header_overlay(
         ),
         font_size: sizing.font_header,
         color: style.text_primary,
-        max_width: Some(
-            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-        ),
+        max_width: Some((layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
         align: TextAlign::Left,
     });
     let playhead_text = model
@@ -2380,9 +2419,7 @@ fn push_waveform_header_overlay(
         ),
         font_size: sizing.font_meta,
         color: style.text_muted,
-        max_width: Some(
-            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-        ),
+        max_width: Some((layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
         align: TextAlign::Left,
     });
 }
@@ -2635,7 +2672,9 @@ fn row_index_from_stacked_rows(
         return None;
     }
     let index = ((point.y - rows[0].min.y) / stride).floor() as usize;
-    rows.get(index).filter(|rect| rect.contains(point)).map(|_| index)
+    rows.get(index)
+        .filter(|rect| rect.contains(point))
+        .map(|_| index)
 }
 
 fn row_index_for_visible_rows(
@@ -2649,7 +2688,9 @@ fn row_index_for_visible_rows(
     }
     let stride = (sizing.browser_row_height + sizing.browser_row_gap.max(0.0)).max(1.0);
     let index = ((point.y - rows[0].rect.min.y) / stride).floor() as usize;
-    rows.get(index).filter(|row| row.rect.contains(point)).map(|_| index)
+    rows.get(index)
+        .filter(|row| row.rect.contains(point))
+        .map(|_| index)
 }
 
 fn browser_rows_cache_key(

@@ -342,7 +342,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
             return;
         }
-        self.rebuild_scene(rebuild_static, rebuild_state_overlay, rebuild_motion_overlay);
+        self.rebuild_scene(
+            rebuild_static,
+            rebuild_state_overlay,
+            rebuild_motion_overlay,
+        );
     }
 
     fn rebuild_scene_and_request_redraw(&mut self) {
@@ -432,13 +436,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let layout = layout.clone();
         let style = self.cached_style_for_layout(&layout);
         if rebuild_static {
-            self.shell_state
-                .build_frame_with_style_into_static(
-                    &layout,
-                    &style,
-                    &self.model,
-                    &mut self.frame_cache,
-                );
+            self.shell_state.build_frame_with_style_into_static(
+                &layout,
+                &style,
+                &self.model,
+                &mut self.frame_cache,
+            );
             self.clear_color = self.frame_cache.clear_color;
             Self::encode_frame_to_scene(
                 &self.frame_cache,
@@ -447,13 +450,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             );
         }
         if rebuild_state_overlay {
-            self.shell_state
-                .build_state_overlay_into(
-                    &layout,
-                    &style,
-                    &self.model,
-                    &mut self.state_overlay_frame_cache,
-                );
+            self.shell_state.build_state_overlay_into(
+                &layout,
+                &style,
+                &self.model,
+                &mut self.state_overlay_frame_cache,
+            );
             Self::encode_frame_to_scene(
                 &self.state_overlay_frame_cache,
                 &mut self.state_overlay_scene,
@@ -467,13 +469,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.motion_model.as_ref().unwrap()
             };
-            self.shell_state
-                .build_motion_overlay_into(
-                    &layout,
-                    &style,
-                    motion_model,
-                    &mut self.motion_overlay_frame_cache,
-                );
+            self.shell_state.build_motion_overlay_into(
+                &layout,
+                &style,
+                motion_model,
+                &mut self.motion_overlay_frame_cache,
+            );
             Self::encode_frame_to_scene(
                 &self.motion_overlay_frame_cache,
                 &mut self.motion_overlay_scene,
@@ -1039,7 +1040,11 @@ fn browser_wheel_row_delta(
     if steps == 0.0 {
         return None;
     }
-    let clamped = if steps > 1.0 { steps.min(i8::MAX as f32) } else { steps.max(i8::MIN as f32) };
+    let clamped = if steps > 1.0 {
+        steps.min(i8::MAX as f32)
+    } else {
+        steps.max(i8::MIN as f32)
+    };
     Some(clamped as i8)
 }
 

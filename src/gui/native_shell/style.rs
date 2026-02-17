@@ -861,9 +861,13 @@ mod tests {
         assert_eq!(scaled.sizing.sidebar_ratio, base.sizing.sidebar_ratio);
         assert!((scaled.sizing.font_body - (base.sizing.font_body * 1.5)).abs() < 0.0001);
         assert!((scaled.sizing.top_bar_height - (base.sizing.top_bar_height * 1.5)).abs() < 0.0001);
-        assert!((scaled.sizing.action_button_width - (base.sizing.action_button_width * 1.5)).abs() < 0.0001);
         assert!(
-            (scaled.sizing.sidebar_max_width - (base.sizing.sidebar_max_width * 1.5)).abs() < 0.0001
+            (scaled.sizing.action_button_width - (base.sizing.action_button_width * 1.5)).abs()
+                < 0.0001
+        );
+        assert!(
+            (scaled.sizing.sidebar_max_width - (base.sizing.sidebar_max_width * 1.5)).abs()
+                < 0.0001
         );
     }
 

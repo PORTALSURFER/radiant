@@ -2275,6 +2275,51 @@ mod tests {
     }
 
     #[test]
+    fn key_bindings_handle_selection_modifiers() {
+        let model = AppModel::default();
+
+        assert_eq!(
+            action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &model),
+            Some(UiAction::MoveBrowserFocus { delta: -1 })
+        );
+        assert_eq!(
+            action_from_key(KeyCode::ArrowUp, ModifiersState::SHIFT, &model),
+            Some(UiAction::ExtendBrowserSelectionFromFocus { delta: -1 })
+        );
+        assert_eq!(
+            action_from_key(
+                KeyCode::ArrowUp,
+                ModifiersState::SHIFT | ModifiersState::CONTROL,
+                &model
+            ),
+            Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: -1 })
+        );
+        assert_eq!(
+            action_from_key(
+                KeyCode::ArrowDown,
+                ModifiersState::SHIFT | ModifiersState::SUPER,
+                &model
+            ),
+            Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
+        );
+    }
+
+    #[test]
+    fn confirm_prompt_keys_ignore_other_shortcuts_when_visible() {
+        let mut model = AppModel::default();
+        model.confirm_prompt.visible = true;
+
+        assert_eq!(
+            action_from_key(KeyCode::Enter, ModifiersState::SHIFT, &model),
+            Some(UiAction::ConfirmPrompt)
+        );
+        assert_eq!(
+            action_from_key(KeyCode::C, ModifiersState::SUPER, &model),
+            Some(UiAction::CancelPrompt)
+        );
+    }
+
+    #[test]
     fn waveform_click_modifiers_route_expected_actions() {
         let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
         let mut shell_state = NativeShellState::new();

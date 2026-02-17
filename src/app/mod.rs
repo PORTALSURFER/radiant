@@ -784,6 +784,8 @@ pub struct NativeMotionModel {
     pub waveform_image_signature: Option<u64>,
     /// Transport hint rendered with waveform metadata.
     pub waveform_transport_hint: String,
+    /// Right-aligned status-bar text rendered in the motion overlay.
+    pub status_right: String,
 }
 
 impl NativeMotionModel {
@@ -802,6 +804,7 @@ impl NativeMotionModel {
             waveform_loaded_label: model.waveform.loaded_label.clone(),
             waveform_image_signature: model.waveform.waveform_image.as_ref().and_then(image_signature),
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
+            status_right: model.status.right.clone(),
         }
     }
 }

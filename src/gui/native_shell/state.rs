@@ -18,6 +18,8 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     transport_running: bool,
     has_focus_emphasis: bool,
+    fps_status_visible: bool,
+    startup_frame_ticks: u8,
     pulse_phase: f32,
     source_row_rects: Vec<Rect>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
@@ -35,6 +37,8 @@ impl NativeShellState {
             hovered: None,
             transport_running: true,
             has_focus_emphasis: false,
+            fps_status_visible: false,
+            startup_frame_ticks: 2,
             pulse_phase: 0.0,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
@@ -47,7 +51,11 @@ impl NativeShellState {
 
     /// Return whether the shell currently needs continuous animation.
     pub(crate) fn needs_animation(&self) -> bool {
-        self.transport_running || self.hovered.is_some() || self.has_focus_emphasis
+        self.transport_running
+            || self.hovered.is_some()
+            || self.has_focus_emphasis
+            || self.fps_status_visible
+            || self.startup_frame_ticks > 0
     }
 
     /// Return whether playback transport is currently reported as running.
@@ -59,6 +67,8 @@ impl NativeShellState {
     pub(crate) fn sync_from_model(&mut self, model: &AppModel) {
         self.selected_column = model.selected_column.min(2);
         self.transport_running = model.transport_running;
+        self.fps_status_visible = model.status.right.starts_with("fps:");
+        self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         self.has_focus_emphasis = model
             .browser
             .rows
@@ -2241,6 +2251,13 @@ impl NativeShellState {
             blend_color(style.accent_mint, style.text_primary, 0.42),
             sizing.border_width,
         );
+        push_status_right_motion_overlay(
+            primitives,
+            text_runs,
+            layout,
+            style,
+            &model.status_right,
+        );
 
         frame.clear_color = style.clear_color;
     }
@@ -2253,6 +2270,46 @@ impl NativeShellState {
     ) -> NativeViewFrame {
         self.build_frame_with_style(layout, &style_for_layout(layout), model)
     }
+
+fn push_status_right_motion_overlay(
+    primitives: &mut Vec<Primitive>,
+    text_runs: &mut Vec<TextRun>,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    status_right: &str,
+) {
+    if status_right.is_empty() {
+        return;
+    }
+    primitives.push(Primitive::Rect(FillRect {
+        rect: layout.status_right_segment,
+        color: style.surface_raised,
+    }));
+    let sizing = style.sizing;
+    text_runs.push(TextRun {
+        text: truncate_to_width(
+            status_right,
+            (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+            sizing.font_status,
+        ),
+        position: Point::new(
+            layout.status_right_segment.min.x
+                + sizing.text_inset_x
+                + sizing.header_label_gutter,
+            text_top_in_rect(
+                layout.status_right_segment,
+                sizing.font_status,
+                sizing.text_inset_y,
+            ),
+        ),
+        font_size: sizing.font_status,
+        color: style.text_muted,
+        max_width: Some(
+            (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+        ),
+        align: TextAlign::Right,
+    });
+}
 
     fn cached_source_row_rects(
         &mut self,

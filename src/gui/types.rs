@@ -88,7 +88,7 @@ pub(crate) struct Rgba8 {
 
 /// Owned RGBA image buffer used by the GUI layer.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ImageRgba {
+pub struct ImageRgba {
     pub width: usize,
     pub height: usize,
     pub pixels: Vec<u8>,
@@ -96,7 +96,7 @@ pub(crate) struct ImageRgba {
 
 impl ImageRgba {
     /// Create an image buffer from width/height and RGBA8 bytes.
-    pub(crate) fn new(width: usize, height: usize, pixels: Vec<u8>) -> Option<Self> {
+    pub fn new(width: usize, height: usize, pixels: Vec<u8>) -> Option<Self> {
         if pixels.len() != width.saturating_mul(height).saturating_mul(4) {
             return None;
         }

@@ -8,7 +8,7 @@ use super::{
 use crate::app::{AppModel, BrowserRowModel, BrowserTagTarget, NativeMotionModel, UiAction};
 use crate::gui::{
     input::KeyCode,
-    types::{Point, Rect, Rgba8},
+    types::{ImageRgba, Point, Rect, Rgba8},
 };
 
 /// Mutable interaction + animation state for the native shell.
@@ -514,6 +514,8 @@ impl NativeShellState {
             }));
             x += scan_step;
         }
+
+        push_waveform_image(primitives, waveform_inner, model.waveform.waveform_image.as_ref());
 
         let browser_buttons = browser_action_buttons(layout, style, model);
         let source_row_rects = rendered_source_row_rects(layout, style, model);
@@ -1844,6 +1846,8 @@ impl NativeShellState {
         });
 
         if include_overlays {
+            let motion_model = NativeMotionModel::from_app_model(model);
+            push_waveform_header_overlay(primitives, text_runs, layout, style, &motion_model);
             render_progress_overlay(primitives, text_runs, layout, style, model);
             render_confirm_prompt(primitives, text_runs, layout, style, model);
             render_drag_overlay(primitives, text_runs, layout, style, model);
@@ -2355,6 +2359,78 @@ fn push_waveform_playhead_overlay(
             rect: to_rect(to_x(playhead_milli)),
             color: style.accent_copper,
         }));
+    }
+}
+
+fn push_waveform_image(
+    primitives: &mut Vec<Primitive>,
+    waveform_plot: Rect,
+    image: Option<&ImageRgba>,
+) {
+    let Some(image) = image else {
+        return;
+    };
+    if image.width == 0 || image.height == 0 || waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0
+    {
+        return;
+    }
+
+    let plot_width = waveform_plot.width();
+    let plot_height = waveform_plot.height();
+    let src_width = image.width as f32;
+    let src_height = image.height as f32;
+    let stride = image.width.saturating_mul(4);
+
+    for x in 0..image.width {
+        let x0 = waveform_plot.min.x + (x as f32 * plot_width) / src_width;
+        let x1 = waveform_plot.min.x + ((x + 1) as f32 * plot_width) / src_width;
+        let mut y = 0usize;
+        while y < image.height {
+            let first_idx = y * stride + x * 4;
+            let mut y0 = y;
+            if image.pixels[first_idx + 3] == 0 {
+                y += 1;
+                continue;
+            }
+            let mut y1 = y0;
+            let mut red = image.pixels[first_idx];
+            let mut green = image.pixels[first_idx + 1];
+            let mut blue = image.pixels[first_idx + 2];
+            let mut alpha = image.pixels[first_idx + 3];
+
+            while y1 < image.height {
+                let span_idx = y1 * stride + x * 4;
+                if image.pixels[span_idx + 3] == 0 {
+                    break;
+                }
+                let span_alpha = image.pixels[span_idx + 3];
+                if span_alpha > alpha {
+                    alpha = span_alpha;
+                    red = image.pixels[span_idx];
+                    green = image.pixels[span_idx + 1];
+                    blue = image.pixels[span_idx + 2];
+                }
+                y1 += 1;
+            }
+
+            let top = waveform_plot.min.y + (y0 as f32 / src_height) * plot_height;
+            let bottom = waveform_plot.min.y + (y1 as f32 / src_height) * plot_height;
+            if bottom > top {
+                primitives.push(Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        Point::new(x0, top),
+                        Point::new(x1.min(waveform_plot.max.x), bottom.min(waveform_plot.max.y)),
+                    ),
+                    color: Rgba8 {
+                        r: red,
+                        g: green,
+                        b: blue,
+                        a: alpha,
+                    },
+                }));
+            }
+            y = y1 + 1;
+        }
     }
 }
 
@@ -4178,7 +4254,7 @@ fn build_stacked_rows(column: Rect, rows: usize, gap: f32, row_height: f32) -> V
 mod tests {
     use super::*;
     use crate::app::{BrowserRowModel, FolderActionsModel, FolderRowModel, SourceRowModel};
-    use crate::gui::types::Vector2;
+    use crate::gui::types::{ImageRgba, Vector2};
 
     fn populated_sidebar_model() -> AppModel {
         let mut model = AppModel::default();
@@ -4644,6 +4720,49 @@ mod tests {
                 .iter()
                 .any(|run| run.text == "WaveTitle" && run.color == style.text_primary)
         );
+    }
+
+    #[test]
+    fn waveform_image_data_renders_non_transparent_span_rectangles() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap());
+        let frame = state.build_frame(&layout, &model);
+        let expected_color = Rgba8 {
+            r: 11,
+            g: 22,
+            b: 33,
+            a: 255,
+        };
+        let has_waveform_pixel = frame.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(rect) if rect.color == expected_color
+            )
+        });
+        assert!(has_waveform_pixel);
+    }
+
+    #[test]
+    fn waveform_image_transparent_pixels_do_not_emit_geometry() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap());
+        let frame = state.build_frame(&layout, &model);
+        let has_expected_waveform_color = frame.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(rect) if rect.color == Rgba8 {
+                    r: 1,
+                    g: 1,
+                    b: 1,
+                    a: 255
+                }
+            )
+        });
+        assert!(!has_expected_waveform_color);
     }
 
     #[test]

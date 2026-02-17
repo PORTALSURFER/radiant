@@ -404,14 +404,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene(
         &mut self,
-        rebuild_static: bool,
-        rebuild_state_overlay: bool,
-        rebuild_motion_overlay: bool,
+        mut rebuild_static: bool,
+        mut rebuild_state_overlay: bool,
+        mut rebuild_motion_overlay: bool,
     ) {
         let should_refresh_model = self.frame_state.take_model()
             || rebuild_static
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
+        let previous_waveform_signature =
+            self.motion_model
+                .as_ref()
+                .and_then(|model| model.waveform_image_signature);
         if should_refresh_model {
             self.model = self.bridge.pull_model();
             self.shell_state.sync_from_model(&self.model);
@@ -420,6 +424,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.sync_text_input_target();
         } else if rebuild_motion_overlay && self.motion_model_supported {
             if let Some(motion_model) = self.bridge.pull_motion_model() {
+                if previous_waveform_signature != motion_model.waveform_image_signature {
+                    rebuild_static = true;
+                    rebuild_state_overlay = true;
+                    rebuild_motion_overlay = true;
+                }
                 self.shell_state.sync_from_motion_model(&motion_model);
                 self.motion_model = Some(motion_model);
             } else {

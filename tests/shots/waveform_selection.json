@@ -11640,7 +11640,7 @@
       "text": "source_00",
       "position": {
         "x": 10.2,
-        "y": 68.5
+        "y": 68.0
       },
       "font_size": 9.0,
       "color": {
@@ -11656,7 +11656,7 @@
       "text": "source_01",
       "position": {
         "x": 10.2,
-        "y": 85.5
+        "y": 85.0
       },
       "font_size": 9.0,
       "color": {
@@ -11672,7 +11672,7 @@
       "text": "source_02",
       "position": {
         "x": 10.2,
-        "y": 102.5
+        "y": 102.0
       },
       "font_size": 9.0,
       "color": {
@@ -11688,7 +11688,7 @@
       "text": "source_03",
       "position": {
         "x": 10.2,
-        "y": 119.5
+        "y": 119.0
       },
       "font_size": 9.0,
       "color": {
@@ -11704,7 +11704,7 @@
       "text": "source_04",
       "position": {
         "x": 10.2,
-        "y": 136.5
+        "y": 136.0
       },
       "font_size": 9.0,
       "color": {
@@ -11720,7 +11720,7 @@
       "text": "source_05",
       "position": {
         "x": 10.2,
-        "y": 153.5
+        "y": 153.0
       },
       "font_size": 9.0,
       "color": {
@@ -11736,7 +11736,7 @@
       "text": "source_06",
       "position": {
         "x": 10.2,
-        "y": 170.5
+        "y": 170.0
       },
       "font_size": 9.0,
       "color": {
@@ -11752,7 +11752,7 @@
       "text": "source_07",
       "position": {
         "x": 10.2,
-        "y": 187.5
+        "y": 187.0
       },
       "font_size": 9.0,
       "color": {
@@ -11768,7 +11768,7 @@
       "text": "source_08",
       "position": {
         "x": 10.2,
-        "y": 204.5
+        "y": 204.0
       },
       "font_size": 9.0,
       "color": {
@@ -11784,7 +11784,7 @@
       "text": "source_09",
       "position": {
         "x": 10.2,
-        "y": 221.5
+        "y": 221.0
       },
       "font_size": 9.0,
       "color": {
@@ -11800,7 +11800,7 @@
       "text": "source_10",
       "position": {
         "x": 10.2,
-        "y": 238.5
+        "y": 238.0
       },
       "font_size": 9.0,
       "color": {
@@ -11816,7 +11816,7 @@
       "text": "source_11",
       "position": {
         "x": 10.2,
-        "y": 255.5
+        "y": 255.0
       },
       "font_size": 9.0,
       "color": {

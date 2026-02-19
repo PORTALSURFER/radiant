@@ -9,6 +9,7 @@ mod overlays;
 mod sidebar_bands;
 mod sidebar_header;
 mod sidebar_sections;
+mod sidebar_text;
 mod status_bar;
 mod top_controls;
 mod update_text;
@@ -45,6 +46,10 @@ pub(super) use sidebar_header::{
     compute_sidebar_folder_header_layout, compute_source_section_divider_rect,
 };
 pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
+pub(super) use sidebar_text::{
+    compute_sidebar_folder_row_text_rect, compute_sidebar_recovery_badge_text_rect,
+    compute_sidebar_source_row_text_rect,
+};
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
 pub(super) use top_controls::compute_top_bar_controls_sections;
 pub(super) use update_text::compute_top_bar_update_text_layout;

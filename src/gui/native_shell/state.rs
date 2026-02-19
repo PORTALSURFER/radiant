@@ -11,11 +11,12 @@ use super::{
         compute_drag_overlay_text_layout, compute_progress_overlay_sections,
         compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
         compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
-        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
-        compute_source_section_divider_rect, compute_status_text_line_rect,
-        compute_top_bar_controls_sections, compute_top_bar_controls_text_layout,
-        compute_top_bar_update_text_layout, compute_update_action_button_rects,
-        compute_waveform_header_text_layout,
+        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_text_rect,
+        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
+        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
+        compute_status_text_line_rect, compute_top_bar_controls_sections,
+        compute_top_bar_controls_text_layout, compute_top_bar_update_text_layout,
+        compute_update_action_button_rects, compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -1105,23 +1106,21 @@ impl NativeShellState {
                 },
                 sizing.border_width,
             );
+            let source_label_rect = compute_sidebar_source_row_text_rect(row_rect, sizing);
             text_runs.push(TextRun {
                 text: truncate_to_width(
                     &row.label,
-                    row_label_width(row_rect, &sizing, 0.0, 24.0),
+                    source_label_rect.width().max(24.0),
                     sizing.font_body,
                 ),
-                position: Point::new(
-                    row_label_x(row_rect, &sizing, 0.0),
-                    text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
-                ),
+                position: source_label_rect.min,
                 font_size: sizing.font_body,
                 color: if row_selected {
                     style.accent_mint
                 } else {
                     style.text_primary
                 },
-                max_width: Some(row_label_width(row_rect, &sizing, 0.0, 24.0)),
+                max_width: Some(source_label_rect.width().max(24.0)),
                 align: TextAlign::Left,
             });
         }
@@ -1162,15 +1161,13 @@ impl NativeShellState {
                     ),
                     sizing.border_width,
                 );
+                let badge_text_rect = compute_sidebar_recovery_badge_text_rect(badge.rect, sizing);
                 text_runs.push(TextRun {
                     text: badge.label.clone(),
-                    position: Point::new(
-                        badge.rect.min.x + sizing.text_inset_x,
-                        text_top_in_rect(badge.rect, sizing.font_meta, sizing.text_inset_y),
-                    ),
+                    position: badge_text_rect.min,
                     font_size: sizing.font_meta,
                     color: style.text_primary,
-                    max_width: Some((badge.rect.width() - (sizing.text_inset_x * 2.0)).max(18.0)),
+                    max_width: Some(badge_text_rect.width().max(18.0)),
                     align: TextAlign::Center,
                 });
             }
@@ -1265,16 +1262,12 @@ impl NativeShellState {
                 let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
                     .min((row_rect.width() * 0.45).max(0.0));
                 let label_text = format!("{glyph} {}", row.label);
-                let folder_text_width = (row_rect.width()
-                    - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
-                    - depth_indent)
-                    .max(24.0);
+                let folder_text_rect =
+                    compute_sidebar_folder_row_text_rect(row_rect, sizing, depth_indent);
+                let folder_text_width = folder_text_rect.width().max(24.0);
                 text_runs.push(TextRun {
                     text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
-                    position: Point::new(
-                        row_label_x(row_rect, &sizing, depth_indent),
-                        text_top_in_rect(row_rect, sizing.font_body, sizing.text_inset_y),
-                    ),
+                    position: folder_text_rect.min,
                     font_size: sizing.font_body,
                     color: if row.focused {
                         style.accent_warning
@@ -1944,17 +1937,13 @@ impl NativeShellState {
                         };
                         let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
                             .min((row_rect.width() * 0.45).max(0.0));
-                        let row_text_width = (row_rect.width()
-                            - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0)
-                            - depth_indent)
-                            .max(24.0);
+                        let row_text_rect =
+                            compute_sidebar_folder_row_text_rect(*row_rect, sizing, depth_indent);
+                        let row_text_width = row_text_rect.width().max(24.0);
                         let row_label = format!("{glyph} {}", row.label);
                         text_runs.push(TextRun {
                             text: truncate_to_width(&row_label, row_text_width, sizing.font_body),
-                            position: Point::new(
-                                row_label_x(*row_rect, &sizing, depth_indent),
-                                text_top_in_rect(*row_rect, sizing.font_body, sizing.text_inset_y),
-                            ),
+                            position: row_text_rect.min,
                             font_size: sizing.font_body,
                             color: blend_color(
                                 style.accent_warning,
@@ -3684,10 +3673,6 @@ fn prompt_has_validation_error(model: &AppModel) -> bool {
         .input_error
         .as_ref()
         .is_some_and(|error| !error.trim().is_empty())
-}
-
-fn row_label_x(rect: Rect, sizing: &SizingTokens, extra_indent: f32) -> f32 {
-    rect.min.x + sizing.text_inset_x + sizing.row_corner_inset + extra_indent.max(0.0)
 }
 
 fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_width: f32) -> f32 {

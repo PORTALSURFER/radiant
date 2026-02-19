@@ -5010,7 +5010,7 @@
       "text": "source_00",
       "position": {
         "x": 10.2,
-        "y": 68.5
+        "y": 68.0
       },
       "font_size": 9.0,
       "color": {
@@ -5026,7 +5026,7 @@
       "text": "source_01",
       "position": {
         "x": 10.2,
-        "y": 85.5
+        "y": 85.0
       },
       "font_size": 9.0,
       "color": {
@@ -5042,7 +5042,7 @@
       "text": "source_02",
       "position": {
         "x": 10.2,
-        "y": 102.5
+        "y": 102.0
       },
       "font_size": 9.0,
       "color": {
@@ -5058,7 +5058,7 @@
       "text": "source_03",
       "position": {
         "x": 10.2,
-        "y": 119.5
+        "y": 119.0
       },
       "font_size": 9.0,
       "color": {
@@ -5074,7 +5074,7 @@
       "text": "source_04",
       "position": {
         "x": 10.2,
-        "y": 136.5
+        "y": 136.0
       },
       "font_size": 9.0,
       "color": {
@@ -5090,7 +5090,7 @@
       "text": "source_05",
       "position": {
         "x": 10.2,
-        "y": 153.5
+        "y": 153.0
       },
       "font_size": 9.0,
       "color": {
@@ -5106,7 +5106,7 @@
       "text": "source_06",
       "position": {
         "x": 10.2,
-        "y": 170.5
+        "y": 170.0
       },
       "font_size": 9.0,
       "color": {
@@ -5122,7 +5122,7 @@
       "text": "source_07",
       "position": {
         "x": 10.2,
-        "y": 187.5
+        "y": 187.0
       },
       "font_size": 9.0,
       "color": {
@@ -5138,7 +5138,7 @@
       "text": "3 entries",
       "position": {
         "x": 145.0,
-        "y": 214.7
+        "y": 214.5
       },
       "font_size": 8.6,
       "color": {
@@ -5186,7 +5186,7 @@
       "text": "• folder_00",
       "position": {
         "x": 10.2,
-        "y": 237.2
+        "y": 237.0
       },
       "font_size": 9.0,
       "color": {
@@ -5202,7 +5202,7 @@
       "text": "· folder_01",
       "position": {
         "x": 21.2,
-        "y": 253.6
+        "y": 253.0
       },
       "font_size": 9.0,
       "color": {
@@ -5218,7 +5218,7 @@
       "text": "· folder_02",
       "position": {
         "x": 10.2,
-        "y": 270.0
+        "y": 269.3
       },
       "font_size": 9.0,
       "color": {
@@ -5234,7 +5234,7 @@
       "text": "· folder_03",
       "position": {
         "x": 21.2,
-        "y": 286.4
+        "y": 286.0
       },
       "font_size": 9.0,
       "color": {
@@ -5250,7 +5250,7 @@
       "text": "· folder_04",
       "position": {
         "x": 10.2,
-        "y": 302.8
+        "y": 302.1
       },
       "font_size": 9.0,
       "color": {
@@ -5266,7 +5266,7 @@
       "text": "· folder_05",
       "position": {
         "x": 21.2,
-        "y": 319.2
+        "y": 318.5
       },
       "font_size": 9.0,
       "color": {
@@ -5282,7 +5282,7 @@
       "text": "· folder_06",
       "position": {
         "x": 10.2,
-        "y": 335.6
+        "y": 335.0
       },
       "font_size": 9.0,
       "color": {
@@ -5298,7 +5298,7 @@
       "text": "· folder_07",
       "position": {
         "x": 21.2,
-        "y": 352.0
+        "y": 351.3
       },
       "font_size": 9.0,
       "color": {
@@ -5314,7 +5314,7 @@
       "text": "· folder_08",
       "position": {
         "x": 10.2,
-        "y": 368.4
+        "y": 368.0
       },
       "font_size": 9.0,
       "color": {
@@ -5330,7 +5330,7 @@
       "text": "· folder_09",
       "position": {
         "x": 21.2,
-        "y": 384.8
+        "y": 384.1
       },
       "font_size": 9.0,
       "color": {

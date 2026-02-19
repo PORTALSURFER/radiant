@@ -2822,7 +2822,8 @@ fn rendered_browser_rows(
         sizing.browser_row_gap,
         sizing.browser_row_height,
     )) {
-        let label_width = row_label_width(rect, &sizing, 0.0, 20.0);
+        let row_text_layout = compute_browser_row_text_layout(rect, sizing);
+        let label_width = row_text_layout.sample_label.width().max(20.0);
         rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
             label: truncate_to_width(&row.label, label_width, sizing.font_body),
@@ -3640,11 +3641,6 @@ fn prompt_has_validation_error(model: &AppModel) -> bool {
         .is_some_and(|error| !error.trim().is_empty())
 }
 
-fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_width: f32) -> f32 {
-    (rect.width() - ((sizing.text_inset_x + sizing.row_corner_inset) * 2.0) - extra_indent.max(0.0))
-        .max(min_width.max(0.0))
-}
-
 fn push_border(
     primitives: &mut Vec<Primitive>,
     rect: Rect,
@@ -4160,6 +4156,31 @@ mod tests {
         assert!(even_fill.is_some());
         assert!(odd_fill.is_some());
         assert_ne!(even_fill, odd_fill);
+    }
+
+    #[test]
+    fn browser_row_label_truncation_uses_slotized_sample_width() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        let label = String::from(
+            "ultra_long_sample_label_that_should_be_truncated_by_slotized_sample_width",
+        );
+        model
+            .browser
+            .rows
+            .push(BrowserRowModel::new(0, label.clone(), 1, false, false));
+        model.browser.visible_count = model.browser.rows.len();
+
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        assert_eq!(rendered.len(), 1);
+        let row = &rendered[0];
+        let row_text_layout = compute_browser_row_text_layout(row.rect, style.sizing);
+        let sample_width = row_text_layout.sample_label.width().max(20.0);
+        assert_eq!(
+            row.label,
+            truncate_to_width(&label, sample_width, style.sizing.font_body)
+        );
     }
 
     #[test]

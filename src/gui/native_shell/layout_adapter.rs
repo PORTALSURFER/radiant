@@ -1,11 +1,16 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
-
+mod bands;
+mod sidebar_bands;
+mod sidebar_sections;
 use super::style::{SizingTokens, StyleTokens};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
 use crate::gui::types::{Point, Rect, Vector2};
+pub(super) use bands::{compute_browser_band_sections, compute_top_bar_band_sections};
+pub(super) use sidebar_bands::compute_sidebar_band_sections;
+pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
 
 const ROOT_ID: u64 = 1;
 const TOP_BAR_ID: u64 = 2;

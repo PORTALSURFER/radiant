@@ -2,7 +2,9 @@
 
 use super::{
     layout::{ShellLayout, ShellNodeKind},
-    layout_adapter::compute_top_bar_controls_sections,
+    layout_adapter::{
+        SidebarRowCounts, compute_sidebar_row_sections, compute_top_bar_controls_sections,
+    },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
@@ -3379,168 +3381,19 @@ fn sidebar_sections(
     style: &StyleTokens,
     model: &AppModel,
 ) -> SidebarSections {
-    let sizing = style.sizing;
-    let sidebar_rows = inset_vertical(
+    let resolved = compute_sidebar_row_sections(
         layout.sidebar_rows,
-        sizing.panel_section_padding_top,
-        sizing.panel_section_padding_bottom,
-    );
-    if model.sources.folder_rows.is_empty() {
-        return SidebarSections {
-            source_rows: sidebar_rows,
-            folder_header: Rect::from_min_max(sidebar_rows.max, sidebar_rows.max),
-            folder_rows: Rect::from_min_max(sidebar_rows.max, sidebar_rows.max),
-        };
-    }
-
-    let source_row_count = rendered_source_rows(style, model);
-    let folder_row_count = rendered_folder_rows(style, model);
-    if folder_row_count == 0 {
-        return SidebarSections {
-            source_rows: sidebar_rows,
-            folder_header: Rect::from_min_max(sidebar_rows.max, sidebar_rows.max),
-            folder_rows: Rect::from_min_max(sidebar_rows.max, sidebar_rows.max),
-        };
-    }
-
-    let source_demand_height = stack_height(
-        source_row_count,
-        sizing.source_row_height,
-        sizing.source_row_gap,
-    );
-    let folder_demand_height = stack_height(
-        folder_row_count,
-        sizing.folder_row_height,
-        sizing.folder_row_gap,
-    );
-
-    let source_min_rows = if source_row_count == 0 {
-        0
-    } else {
-        source_row_count
-            .min(sizing.source_rows_min_when_split)
-            .max(1)
-    };
-    let folder_min_rows = folder_row_count.min(sizing.folder_rows_min).max(1);
-
-    let source_min_height = stack_height(
-        source_min_rows,
-        sizing.source_row_height,
-        sizing.source_row_gap,
-    );
-    let folder_min_height = stack_height(
-        folder_min_rows,
-        sizing.folder_row_height,
-        sizing.folder_row_gap,
-    );
-    let header_height = sizing.folder_header_block_height.min(sidebar_rows.height());
-    let mut section_gap = if source_row_count > 0 {
-        sizing.sidebar_section_gap
-    } else {
-        0.0
-    };
-    let available_height = sidebar_rows.height();
-    let minimum_height = source_min_height + section_gap + header_height + folder_min_height;
-    let (source_height, folder_height) = if minimum_height <= available_height {
-        let remaining = available_height - minimum_height;
-        let source_extra_cap = (source_demand_height - source_min_height).max(0.0);
-        let folder_extra_cap = (folder_demand_height - folder_min_height).max(0.0);
-        let (source_extra, folder_extra) =
-            distribute_extra_height(remaining, source_extra_cap, folder_extra_cap);
-        (
-            source_min_height + source_extra,
-            folder_min_height + folder_extra,
-        )
-    } else {
-        let compact_source_height = stack_height(
-            source_row_count.min(1),
-            sizing.source_row_height,
-            sizing.source_row_gap,
-        );
-        let compact_folder_height = stack_height(
-            folder_row_count.min(1),
-            sizing.folder_row_height,
-            sizing.folder_row_gap,
-        );
-        section_gap = if source_row_count > 0 {
-            sizing.sidebar_section_gap.min(2.0)
-        } else {
-            0.0
-        };
-        let compact_minimum =
-            compact_source_height + section_gap + header_height + compact_folder_height;
-        if compact_minimum <= available_height {
-            (
-                compact_source_height,
-                (available_height - compact_source_height - section_gap - header_height).max(0.0),
-            )
-        } else {
-            section_gap = 0.0;
-            (0.0, (available_height - header_height).max(0.0))
-        }
-    };
-
-    let source_max_y = (sidebar_rows.min.y + source_height).min(sidebar_rows.max.y);
-    let source_rows_rect = Rect::from_min_max(
-        sidebar_rows.min,
-        Point::new(sidebar_rows.max.x, source_max_y),
-    );
-
-    let folder_header_min_y = (source_rows_rect.max.y + section_gap).min(sidebar_rows.max.y);
-    let folder_header = Rect::from_min_max(
-        Point::new(sidebar_rows.min.x, folder_header_min_y),
-        Point::new(
-            sidebar_rows.max.x,
-            (folder_header_min_y + header_height).min(sidebar_rows.max.y),
-        ),
-    );
-    let folder_rows_min_y = folder_header.max.y.min(sidebar_rows.max.y);
-    let desired_folder_min_y = (sidebar_rows.max.y - folder_height)
-        .max(folder_rows_min_y)
-        .min(sidebar_rows.max.y);
-    let folder_rows_rect = Rect::from_min_max(
-        Point::new(sidebar_rows.min.x, desired_folder_min_y),
-        sidebar_rows.max,
+        style.sizing,
+        SidebarRowCounts {
+            source_rows: rendered_source_rows(style, model),
+            folder_rows: rendered_folder_rows(style, model),
+        },
     );
     SidebarSections {
-        source_rows: source_rows_rect,
-        folder_header,
-        folder_rows: folder_rows_rect,
+        source_rows: resolved.source_rows,
+        folder_header: resolved.folder_header,
+        folder_rows: resolved.folder_rows,
     }
-}
-
-fn distribute_extra_height(
-    remaining_height: f32,
-    source_extra_cap: f32,
-    folder_extra_cap: f32,
-) -> (f32, f32) {
-    let cap_sum = source_extra_cap + folder_extra_cap;
-    if cap_sum <= 0.0 || remaining_height <= 0.0 {
-        return (0.0, 0.0);
-    }
-    let source_share = (remaining_height * (source_extra_cap / cap_sum)).min(source_extra_cap);
-    let folder_share = (remaining_height - source_share).min(folder_extra_cap);
-    let source_extra = source_share + ((remaining_height - source_share - folder_share).max(0.0));
-    (source_extra.min(source_extra_cap), folder_share)
-}
-
-fn stack_height(rows: usize, row_height: f32, gap: f32) -> f32 {
-    if rows == 0 {
-        return 0.0;
-    }
-    (rows as f32 * row_height.max(0.0)) + ((rows.saturating_sub(1)) as f32 * gap.max(0.0))
-}
-
-fn inset_vertical(rect: Rect, top: f32, bottom: f32) -> Rect {
-    let top = top.max(0.0);
-    let bottom = bottom.max(0.0);
-    let max_inset = (rect.height() * 0.5).max(0.0);
-    let top = top.min(max_inset);
-    let bottom = bottom.min(max_inset);
-    Rect::from_min_max(
-        Point::new(rect.min.x, (rect.min.y + top).min(rect.max.y)),
-        Point::new(rect.max.x, (rect.max.y - bottom).max(rect.min.y)),
-    )
 }
 
 fn browser_action_buttons(

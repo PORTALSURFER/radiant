@@ -1,6 +1,12 @@
 //! Retained view-tree layout and hit-testing for the native shell.
 
-use super::{layout_adapter::compute_shell_sections, style::StyleTokens};
+use super::{
+    layout_adapter::{
+        compute_browser_band_sections, compute_shell_sections, compute_sidebar_band_sections,
+        compute_top_bar_band_sections,
+    },
+    style::StyleTokens,
+};
 use crate::gui::types::{Point, Rect, Vector2};
 
 /// Stable identifier for nodes in the retained shell tree.
@@ -118,53 +124,11 @@ impl ShellLayout {
         let sections = compute_shell_sections(Vector2::new(viewport_width, viewport_height), style);
         let root_rect = sections.root;
         let top_bar = sections.top_bar;
-        let title_row_height = sizing
-            .top_bar_title_row_height
-            .max(sizing.top_bar_title_row_min_height)
-            .min(
-                (top_bar.height() - sizing.top_bar_title_row_bottom_gap)
-                    .max(sizing.top_bar_title_row_min_height),
-            );
-        let top_bar_title_row = Rect::from_min_max(
-            top_bar.min,
-            Point::new(
-                top_bar.max.x,
-                (top_bar.min.y + title_row_height).min(top_bar.max.y),
-            ),
-        );
-        let controls_row_top = (top_bar_title_row.max.y + sizing.text_row_gap)
-            .min(top_bar.max.y)
-            .max(top_bar_title_row.max.y);
-        let top_bar_controls_row =
-            Rect::from_min_max(Point::new(top_bar.min.x, controls_row_top), top_bar.max);
-        let top_bar_inner = inset_horizontal(top_bar_title_row, sizing.panel_inset);
-        let desired_action_cluster_width = ((sizing.action_button_width * 5.0)
-            + (sizing.action_button_gap * 4.0)
-            + (sizing.text_inset_x * 2.0))
-            .clamp(
-                sizing.top_bar_action_cluster_min_width,
-                sizing.top_bar_action_cluster_max_width,
-            );
-        let max_action_cluster_width =
-            (top_bar_inner.width() - sizing.top_bar_action_cluster_title_reserve_width).max(0.0);
-        let action_cluster_width = desired_action_cluster_width.min(max_action_cluster_width);
-        let top_bar_action_cluster = if action_cluster_width > 0.0 {
-            Rect::from_min_max(
-                Point::new(
-                    (top_bar_inner.max.x - action_cluster_width).max(top_bar_inner.min.x),
-                    top_bar_inner.min.y,
-                ),
-                top_bar_inner.max,
-            )
-        } else {
-            Rect::from_min_max(top_bar_inner.max, top_bar_inner.max)
-        };
-        let title_cluster_max_x =
-            (top_bar_action_cluster.min.x - sizing.top_bar_cluster_gap).max(top_bar_inner.min.x);
-        let top_bar_title_cluster = Rect::from_min_max(
-            top_bar_inner.min,
-            Point::new(title_cluster_max_x, top_bar_inner.max.y),
-        );
+        let top_bar_bands = compute_top_bar_band_sections(top_bar, sizing);
+        let top_bar_title_row = top_bar_bands.top_bar_title_row;
+        let top_bar_controls_row = top_bar_bands.top_bar_controls_row;
+        let top_bar_title_cluster = top_bar_bands.top_bar_title_cluster;
+        let top_bar_action_cluster = top_bar_bands.top_bar_action_cluster;
         let status_bar = sections.status_bar;
         let status_inner = inset_horizontal(status_bar, sizing.panel_inset);
         let status_total_gap = sizing.status_segment_gap * 2.0;
@@ -191,67 +155,19 @@ impl ShellLayout {
             status_inner.max,
         );
         let sidebar = sections.sidebar;
+        let sidebar_bands = compute_sidebar_band_sections(sidebar, sizing);
+        let sidebar_header = sidebar_bands.sidebar_header;
+        let sidebar_rows = sidebar_bands.sidebar_rows;
+        let sidebar_footer = sidebar_bands.sidebar_footer;
         let content = sections.content;
         let waveform_card = sections.waveform_card;
         let browser_panel = sections.browser_panel;
-        let browser_tabs_height = sizing
-            .browser_tabs_height
-            .max(sizing.browser_tabs_min_height)
-            .min(browser_panel.height());
-        let browser_tabs = inset_horizontal(
-            band_header(browser_panel, browser_tabs_height),
-            sizing.panel_inset,
-        );
-        let browser_toolbar_top =
-            (browser_tabs.max.y + sizing.text_row_gap).min(browser_panel.max.y);
-        let browser_toolbar_height = sizing
-            .browser_toolbar_height
-            .max(sizing.browser_toolbar_min_height)
-            .min((browser_panel.max.y - browser_toolbar_top).max(0.0));
-        let browser_toolbar = inset_horizontal(
-            Rect::from_min_max(
-                Point::new(browser_panel.min.x, browser_toolbar_top),
-                Point::new(
-                    browser_panel.max.x,
-                    browser_toolbar_top + browser_toolbar_height,
-                ),
-            ),
-            sizing.panel_inset,
-        );
-        let browser_header_top =
-            (browser_toolbar.max.y + sizing.text_row_gap).min(browser_panel.max.y);
-        let browser_header_height = sizing
-            .browser_table_header_height
-            .max(sizing.browser_table_header_min_height)
-            .min((browser_panel.max.y - browser_header_top).max(0.0));
-        let browser_table_header = inset_horizontal(
-            Rect::from_min_max(
-                Point::new(browser_panel.min.x, browser_header_top),
-                Point::new(
-                    browser_panel.max.x,
-                    browser_header_top + browser_header_height,
-                ),
-            ),
-            sizing.panel_inset,
-        );
-        let browser_footer = band_footer(
-            browser_panel,
-            sizing.browser_footer_height.clamp(
-                sizing.browser_footer_min_height,
-                sizing.browser_footer_max_height,
-            ),
-            browser_table_header.max.y,
-        );
-        let browser_rows_top = (browser_table_header.max.y + sizing.text_row_gap)
-            .min(browser_footer.min.y)
-            .max(browser_panel.min.y);
-        let browser_rows = inset_horizontal(
-            Rect::from_min_max(
-                Point::new(browser_panel.min.x, browser_rows_top),
-                Point::new(browser_panel.max.x, browser_footer.min.y),
-            ),
-            sizing.panel_inset,
-        );
+        let browser_bands = compute_browser_band_sections(browser_panel, sizing);
+        let browser_tabs = browser_bands.browser_tabs;
+        let browser_toolbar = browser_bands.browser_toolbar;
+        let browser_table_header = browser_bands.browser_table_header;
+        let browser_rows = browser_bands.browser_rows;
+        let browser_footer = browser_bands.browser_footer;
 
         // Keep legacy triage partitions as invisible compatibility geometry for
         // routing actions that still speak in triage-column terms.
@@ -270,23 +186,6 @@ impl ShellLayout {
                 Point::new(x1, browser_rows.max.y),
             );
         }
-
-        let sidebar_header = band_header(sidebar, sizing.source_header_block_height);
-        let sidebar_footer_height = (sizing.source_bottom_padding
-            + sizing.sidebar_action_button_height
-            + (sizing.text_inset_y * 2.0))
-            .max(sizing.sidebar_action_button_height + 1.0);
-        let sidebar_footer = band_footer(sidebar, sidebar_footer_height, sidebar_header.max.y);
-        let sidebar_rows_top = (sidebar_header.max.y + sizing.header_to_rows_gap)
-            .min(sidebar_footer.min.y)
-            .max(sidebar.min.y);
-        let sidebar_rows = inset_horizontal(
-            Rect::from_min_max(
-                Point::new(sidebar.min.x, sidebar_rows_top),
-                Point::new(sidebar.max.x, sidebar_footer.min.y),
-            ),
-            sizing.panel_inset,
-        );
 
         let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
         let waveform_inset = waveform_card.inset(sizing.panel_inset);
@@ -445,11 +344,6 @@ fn band_header(panel: Rect, header_height: f32) -> Rect {
         panel.min,
         Point::new(panel.max.x, (panel.min.y + header_height).min(panel.max.y)),
     )
-}
-
-fn band_footer(panel: Rect, footer_height: f32, min_y: f32) -> Rect {
-    let footer_start = (panel.max.y - footer_height).max(min_y).min(panel.max.y);
-    Rect::from_min_max(Point::new(panel.min.x, footer_start), panel.max)
 }
 
 fn inset_horizontal(rect: Rect, inset: f32) -> Rect {

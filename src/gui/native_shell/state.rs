@@ -9,17 +9,18 @@ use super::{
         compute_browser_map_header_text_layout, compute_browser_map_point_center,
         compute_browser_row_text_layout, compute_browser_tabs_rects,
         compute_browser_tabs_text_layout, compute_browser_toolbar_sections,
-        compute_browser_toolbar_text_layout, compute_drag_overlay_rect,
-        compute_drag_overlay_text_layout, compute_progress_overlay_sections,
-        compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
-        compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
-        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_text_rect,
-        compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
-        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
-        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
-        compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_top_bar_controls_text_layout, compute_top_bar_title_text_rect,
-        compute_top_bar_update_text_layout, compute_update_action_button_rects,
+        compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
+        compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
+        compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
+        compute_prompt_overlay_visual_layout, compute_row_index_at_point,
+        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
+        compute_sidebar_folder_row_text_rect, compute_sidebar_footer_text_layout,
+        compute_sidebar_header_text_layout, compute_sidebar_recovery_badge_text_rect,
+        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
+        compute_source_section_divider_rect, compute_status_text_line_rect,
+        compute_top_bar_controls_sections, compute_top_bar_controls_text_layout,
+        compute_top_bar_title_text_rect, compute_top_bar_update_text_layout,
+        compute_update_action_button_rects, compute_waveform_annotation_rects,
         compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
@@ -172,7 +173,7 @@ impl NativeShellState {
         }
         let style = style_for_layout(layout);
         let rows = self.cached_browser_rows(layout, &style, model);
-        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing)
+        row_index_for_visible_rows(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
     }
 
@@ -240,12 +241,7 @@ impl NativeShellState {
     ) -> Option<usize> {
         let style = style_for_layout(layout);
         let source_rows = self.cached_source_row_rects(layout, &style, model);
-        row_index_from_stacked_rows(
-            source_rows,
-            point,
-            style.sizing.source_row_height,
-            style.sizing.source_row_gap,
-        )
+        compute_row_index_at_point(source_rows, point)
     }
 
     /// Resolve a rendered folder-row index for a point within the sidebar.
@@ -257,12 +253,7 @@ impl NativeShellState {
     ) -> Option<usize> {
         let style = style_for_layout(layout);
         let folder_rows = self.cached_folder_row_rects(layout, &style, model);
-        row_index_from_stacked_rows(
-            folder_rows,
-            point,
-            style.sizing.folder_row_height,
-            style.sizing.folder_row_gap,
-        )
+        compute_row_index_at_point(folder_rows, point)
     }
 
     /// Return rendered source-row rectangles for geometry tests.
@@ -343,7 +334,7 @@ impl NativeShellState {
         }
         let style = style_for_layout(layout);
         let rows = self.cached_browser_rows(layout, &style, model);
-        row_index_for_visible_rows(rows, point, layout.browser_rows, style.sizing)
+        row_index_for_visible_rows(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
     }
 
@@ -2254,46 +2245,36 @@ fn push_waveform_playhead_overlay(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
-    let sizing = style.sizing;
-    let waveform_inner = layout.waveform_plot;
-    let to_x = |milli: u16| {
-        waveform_inner.min.x + waveform_inner.width() * (f32::from(milli.min(1000)) / 1000.0)
-    };
-    let to_rect = |x: f32| {
-        Rect::from_min_max(
-            Point::new(x, waveform_inner.min.y),
-            Point::new(
-                (x + sizing.border_width.max(1.0)).min(waveform_inner.max.x),
-                waveform_inner.max.y,
-            ),
-        )
-    };
+    let annotations = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        model.waveform_selection_milli,
+        model.waveform_cursor_milli,
+        model.waveform_playhead_milli,
+    );
 
-    if let Some(selection) = model.waveform_selection_milli {
-        let start_ratio = f32::from(selection.start_milli.min(1000)) / 1000.0;
-        let end_ratio = f32::from(selection.end_milli.min(1000)) / 1000.0;
-        let start_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.min(end_ratio);
-        let end_x = waveform_inner.min.x + waveform_inner.width() * start_ratio.max(end_ratio);
-        let rect = Rect::from_min_max(
-            Point::new(start_x, waveform_inner.min.y),
-            Point::new(end_x.max(start_x + 1.0), waveform_inner.max.y),
-        );
+    if let Some(rect) = annotations.selection {
         primitives.push(Primitive::Rect(FillRect {
             rect,
             color: style.grid_strong,
         }));
-        push_border(primitives, rect, style.accent_mint, sizing.border_width);
+        push_border(
+            primitives,
+            rect,
+            style.accent_mint,
+            style.sizing.border_width,
+        );
     }
 
-    if let Some(cursor_milli) = model.waveform_cursor_milli {
+    if let Some(rect) = annotations.cursor {
         primitives.push(Primitive::Rect(FillRect {
-            rect: to_rect(to_x(cursor_milli)),
+            rect,
             color: style.accent_warning,
         }));
     }
-    if let Some(playhead_milli) = model.waveform_playhead_milli {
+    if let Some(rect) = annotations.playhead {
         primitives.push(Primitive::Rect(FillRect {
-            rect: to_rect(to_x(playhead_milli)),
+            rect,
             color: style.accent_copper,
         }));
     }
@@ -2691,42 +2672,15 @@ fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> String {
     output
 }
 
-fn row_index_from_stacked_rows(
-    rows: &[Rect],
-    point: Point,
-    row_height: f32,
-    row_gap: f32,
-) -> Option<usize> {
-    if rows.is_empty() || row_height <= 0.0 {
-        return None;
-    }
-    let stride = (row_height + row_gap.max(0.0)).max(1.0);
-    if point.x < rows[0].min.x || point.x > rows[0].max.x {
-        return None;
-    }
-    if point.y < rows[0].min.y {
-        return None;
-    }
-    let index = ((point.y - rows[0].min.y) / stride).floor() as usize;
-    rows.get(index)
-        .filter(|rect| rect.contains(point))
-        .map(|_| index)
-}
-
 fn row_index_for_visible_rows(
     rows: &[CachedBrowserRow],
     point: Point,
     browser_rows: Rect,
-    sizing: SizingTokens,
 ) -> Option<usize> {
-    if rows.is_empty() || sizing.browser_row_height <= 0.0 || !browser_rows.contains(point) {
+    if rows.is_empty() || !browser_rows.contains(point) {
         return None;
     }
-    let stride = (sizing.browser_row_height + sizing.browser_row_gap.max(0.0)).max(1.0);
-    let index = ((point.y - rows[0].rect.min.y) / stride).floor() as usize;
-    rows.get(index)
-        .filter(|row| row.rect.contains(point))
-        .map(|_| index)
+    rows.iter().position(|row| row.rect.contains(point))
 }
 
 fn browser_rows_cache_key(
@@ -3191,11 +3145,26 @@ fn source_action_buttons(
 }
 
 fn progress_cancel_button(layout: &ShellLayout, style: &StyleTokens, modal: bool) -> Rect {
-    compute_progress_overlay_sections(layout.content, style.sizing, modal).cancel_button
+    compute_progress_overlay_visual_layout(
+        layout.root.rect,
+        layout.content,
+        style.sizing,
+        modal,
+        0.0,
+    )
+    .sections
+    .cancel_button
 }
 
 fn prompt_buttons(layout: &ShellLayout, style: &StyleTokens) -> (Rect, Rect) {
-    let sections = compute_prompt_overlay_sections(layout.content, style.sizing, false, false);
+    let sections = compute_prompt_overlay_visual_layout(
+        layout.root.rect,
+        layout.content,
+        style.sizing,
+        false,
+        false,
+    )
+    .sections;
     (sections.confirm_button, sections.cancel_button)
 }
 
@@ -3203,17 +3172,19 @@ fn prompt_input_rect(layout: &ShellLayout, style: &StyleTokens, model: &AppModel
     if model.confirm_prompt.input_value.is_none() {
         return None;
     }
-    compute_prompt_overlay_sections(
+    compute_prompt_overlay_visual_layout(
+        layout.root.rect,
         layout.content,
         style.sizing,
         true,
         model.confirm_prompt.target_label.is_some(),
     )
+    .sections
     .input
 }
 
 fn drag_overlay_rect(layout: &ShellLayout, style: &StyleTokens) -> Rect {
-    compute_drag_overlay_rect(layout.content, layout.status_bar, style.sizing)
+    compute_drag_overlay_visual_layout(layout.content, layout.status_bar, style.sizing).banner
 }
 
 fn render_progress_overlay(
@@ -3227,9 +3198,22 @@ fn render_progress_overlay(
         return;
     }
     let sizing = style.sizing;
-    if model.progress_overlay.modal {
+    let fraction = if model.progress_overlay.total == 0 {
+        0.0
+    } else {
+        (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
+            .clamp(0.0, 1.0)
+    };
+    let progress_visuals = compute_progress_overlay_visual_layout(
+        layout.root.rect,
+        layout.content,
+        sizing,
+        model.progress_overlay.modal,
+        fraction,
+    );
+    if let Some(scrim_rect) = progress_visuals.scrim {
         primitives.push(Primitive::Rect(FillRect {
-            rect: layout.root.rect,
+            rect: scrim_rect,
             color: Rgba8 {
                 r: style.bg_primary.r,
                 g: style.bg_primary.g,
@@ -3238,8 +3222,7 @@ fn render_progress_overlay(
             },
         }));
     }
-    let overlay_sections =
-        compute_progress_overlay_sections(layout.content, sizing, model.progress_overlay.modal);
+    let overlay_sections = progress_visuals.sections;
     let progress_text_layout = compute_progress_overlay_text_layout(
         overlay_sections,
         sizing,
@@ -3274,24 +3257,14 @@ fn render_progress_overlay(
             align: TextAlign::Left,
         });
     }
-    let fraction = if model.progress_overlay.total == 0 {
-        0.0
-    } else {
-        (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
-            .clamp(0.0, 1.0)
-    };
     let bar_rect = overlay_sections.progress_bar;
     primitives.push(Primitive::Rect(FillRect {
         rect: bar_rect,
         color: style.grid_soft,
     }));
-    let filled_width = bar_rect.width() * fraction;
-    if filled_width > 0.0 {
+    if let Some(fill_rect) = progress_visuals.progress_fill {
         primitives.push(Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(
-                bar_rect.min,
-                Point::new(bar_rect.min.x + filled_width, bar_rect.max.y),
-            ),
+            rect: fill_rect,
             color: style.accent_mint,
         }));
     }
@@ -3362,8 +3335,14 @@ fn render_confirm_prompt(
     let confirm_enabled = !prompt_has_validation_error(model);
     let has_target_label = model.confirm_prompt.target_label.is_some();
     let has_input = model.confirm_prompt.input_value.is_some();
-    let prompt_sections =
-        compute_prompt_overlay_sections(layout.content, sizing, has_input, has_target_label);
+    let prompt_visuals = compute_prompt_overlay_visual_layout(
+        layout.root.rect,
+        layout.content,
+        sizing,
+        has_input,
+        has_target_label,
+    );
+    let prompt_sections = prompt_visuals.sections;
     let prompt_text_layout = compute_prompt_overlay_text_layout(
         prompt_sections,
         sizing,
@@ -3371,7 +3350,7 @@ fn render_confirm_prompt(
         model.confirm_prompt.input_error.is_some(),
     );
     primitives.push(Primitive::Rect(FillRect {
-        rect: layout.root.rect,
+        rect: prompt_visuals.scrim,
         color: Rgba8 {
             r: style.bg_primary.r,
             g: style.bg_primary.g,

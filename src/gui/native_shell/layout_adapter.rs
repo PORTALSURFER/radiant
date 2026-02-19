@@ -7,7 +7,9 @@ mod control_text;
 mod controls;
 mod map_canvas;
 mod map_header;
+mod overlay_visuals;
 mod overlays;
+mod row_hit_test;
 mod sidebar_bands;
 mod sidebar_chrome_text;
 mod sidebar_header;
@@ -17,6 +19,7 @@ mod status_bar;
 mod top_controls;
 mod top_title_text;
 mod update_text;
+mod waveform_annotations;
 mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
@@ -42,11 +45,15 @@ pub(super) use controls::{
 };
 pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
 pub(super) use map_header::compute_browser_map_header_text_layout;
+pub(super) use overlay_visuals::{
+    compute_drag_overlay_visual_layout, compute_progress_overlay_visual_layout,
+    compute_prompt_overlay_visual_layout,
+};
 pub(super) use overlays::{
-    compute_drag_overlay_rect, compute_drag_overlay_text_layout, compute_progress_overlay_sections,
-    compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
+    compute_drag_overlay_text_layout, compute_progress_overlay_text_layout,
     compute_prompt_overlay_text_layout,
 };
+pub(super) use row_hit_test::compute_row_index_at_point;
 pub(super) use sidebar_bands::compute_sidebar_band_sections;
 pub(super) use sidebar_chrome_text::{
     compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
@@ -63,6 +70,7 @@ pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_lin
 pub(super) use top_controls::compute_top_bar_controls_sections;
 pub(super) use top_title_text::compute_top_bar_title_text_rect;
 pub(super) use update_text::compute_top_bar_update_text_layout;
+pub(super) use waveform_annotations::compute_waveform_annotation_rects;
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 
 const ROOT_ID: u64 = 1;

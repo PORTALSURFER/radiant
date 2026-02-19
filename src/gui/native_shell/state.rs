@@ -371,6 +371,35 @@ impl NativeShellState {
             .map(|button| button.action)
     }
 
+    /// Resolve a click inside the top-bar volume meter to a volume action.
+    pub(crate) fn top_bar_volume_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
+        if !controls.active || !controls.volume_meter.contains(point) {
+            return None;
+        }
+        Some(volume_action_for_meter(controls.volume_meter, point))
+    }
+
+    /// Resolve a drag point against the top-bar volume meter.
+    ///
+    /// The x-position is clamped to the meter width so dragging beyond the
+    /// edges still emits a stable `SetVolume` action.
+    pub(crate) fn top_bar_volume_drag_action(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
+        if !controls.active {
+            return None;
+        }
+        Some(volume_action_for_meter(controls.volume_meter, point))
+    }
+
     /// Resolve a map-point click to a sample-id action when map tab is active.
     pub(crate) fn map_sample_action_at_point(
         &self,
@@ -831,7 +860,7 @@ impl NativeShellState {
                 style.border_emphasis,
                 sizing.border_width,
             );
-            let volume_level = 0.22_f32;
+            let volume_level = model.volume.clamp(0.0, 1.0);
             let fill_width = (top_controls.volume_meter.width() * volume_level)
                 .clamp(1.0, top_controls.volume_meter.width());
             primitives.push(Primitive::Rect(FillRect {
@@ -860,7 +889,7 @@ impl NativeShellState {
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
-                text: String::from("0.22"),
+                text: format!("{volume_level:.2}"),
                 position: Point::new(
                     top_controls.volume_value.min.x,
                     text_top_in_rect(
@@ -2727,6 +2756,15 @@ fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
 }
 
+fn volume_action_for_meter(volume_meter: Rect, point: Point) -> UiAction {
+    let width = volume_meter.width().max(1.0);
+    let clamped_x = point.x.clamp(volume_meter.min.x, volume_meter.max.x);
+    let ratio = ((clamped_x - volume_meter.min.x) / width).clamp(0.0, 1.0);
+    UiAction::SetVolume {
+        value_milli: (ratio * 1000.0).round() as u16,
+    }
+}
+
 fn rendered_source_rows(style: &StyleTokens, model: &AppModel) -> usize {
     model.sources.rows.len().min(style.sizing.source_rows_max)
 }
@@ -4403,7 +4441,7 @@ fn build_stacked_rows(column: Rect, rows: usize, gap: f32, row_height: f32) -> V
 mod tests {
     use super::*;
     use crate::app::{BrowserRowModel, FolderActionsModel, FolderRowModel, SourceRowModel};
-    use crate::gui::types::{ImageRgba, Vector2};
+    use crate::gui::types::{ImageRgba, Point, Vector2};
 
     fn populated_sidebar_model() -> AppModel {
         let mut model = AppModel::default();
@@ -5142,5 +5180,49 @@ mod tests {
 
         assert!(compact_state.pulse_phase > 0.0);
         assert!(wide_state.pulse_phase > compact_state.pulse_phase);
+    }
+
+    #[test]
+    fn top_bar_volume_click_maps_to_set_volume_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
+        assert!(controls.active);
+        let point = Point::new(
+            controls.volume_meter.min.x + (controls.volume_meter.width() * 0.75),
+            controls.volume_meter.min.y + (controls.volume_meter.height() * 0.5),
+        );
+        let action = state
+            .top_bar_volume_action_at_point(&layout, point)
+            .expect("volume click should produce action");
+        assert_eq!(action, UiAction::SetVolume { value_milli: 750 });
+    }
+
+    #[test]
+    fn top_bar_volume_drag_clamps_beyond_meter_bounds() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
+        assert!(controls.active);
+        let left_action = state
+            .top_bar_volume_drag_action(
+                &layout,
+                Point::new(
+                    controls.volume_meter.min.x - 40.0,
+                    controls.volume_meter.min.y,
+                ),
+            )
+            .expect("left drag action");
+        let right_action = state
+            .top_bar_volume_drag_action(
+                &layout,
+                Point::new(
+                    controls.volume_meter.max.x + 40.0,
+                    controls.volume_meter.min.y,
+                ),
+            )
+            .expect("right drag action");
+        assert_eq!(left_action, UiAction::SetVolume { value_milli: 0 });
+        assert_eq!(right_action, UiAction::SetVolume { value_milli: 1000 });
     }
 }

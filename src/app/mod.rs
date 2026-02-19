@@ -559,7 +559,7 @@ pub struct DragOverlayModel {
 }
 
 /// Snapshot of app state required by the native shell renderer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AppModel {
     /// Main title rendered in the top bar.
     pub title: String,
@@ -583,6 +583,8 @@ pub struct AppModel {
     pub columns: [ColumnModel; 3],
     /// Selected column index (0..=2).
     pub selected_column: usize,
+    /// Master output volume normalized to `0.0..=1.0`.
+    pub volume: f32,
     /// Whether transport/animation should be considered running.
     pub transport_running: bool,
     /// Source panel model consumed by the native renderer.
@@ -623,6 +625,7 @@ impl Default for AppModel {
                 ColumnModel::new("Keep", 0),
             ],
             selected_column: 1,
+            volume: 1.0,
             transport_running: true,
             sources: SourcesPanelModel {
                 header: String::from("Sources"),
@@ -730,6 +733,8 @@ pub enum UiAction {
     CancelProgress,
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
+    /// Set output volume to a normalized milli value (`0..=1000`).
+    SetVolume { value_milli: u16 },
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
     SeekWaveform { position_milli: u16 },
     /// Set waveform cursor to a normalized milli position (`0..=1000`).

@@ -488,6 +488,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     last_cursor: Option<Point>,
     pending_cursor: Option<Point>,
     pending_wheel_rows_delta: i32,
+    volume_drag_active: bool,
     modifiers: ModifiersState,
     text_input_target: TextInputTarget,
     last_redraw: Instant,
@@ -581,6 +582,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             last_cursor: None,
             pending_cursor: None,
             pending_wheel_rows_delta: 0,
+            volume_drag_active: false,
             modifiers: ModifiersState::default(),
             text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
@@ -1479,6 +1481,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     return;
                 }
                 self.last_cursor = Some(point);
+                if self.volume_drag_active
+                    && let Some(layout) = self.shell_layout.as_ref()
+                    && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
+                {
+                    self.emit_model_action(action);
+                    self.rebuild_scene_and_request_redraw();
+                }
                 self.queue_cursor(point);
             }
             WindowEvent::MouseInput {
@@ -1492,12 +1501,20 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
                 {
                     self.text_input_target = TextInputTarget::None;
+                    self.volume_drag_active = false;
                     let mut handled = false;
                     if self
                         .shell_state
                         .prompt_input_at_point(layout, &self.model, point)
                     {
                         self.text_input_target = TextInputTarget::PromptInput;
+                        handled = true;
+                    } else if let Some(action) = self
+                        .shell_state
+                        .top_bar_volume_action_at_point(layout, point)
+                    {
+                        self.emit_model_action(action);
+                        self.volume_drag_active = true;
                         handled = true;
                     } else if let Some(action) = action_from_pointer(
                         layout,
@@ -1519,6 +1536,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         self.rebuild_scene_and_request_redraw();
                     }
                 }
+            }
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state: ElementState::Released,
+                ..
+            } => {
+                self.volume_drag_active = false;
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.shell_layout.as_ref() {
@@ -1731,6 +1755,9 @@ fn action_from_pointer(
         return Some(action);
     }
     if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {
         return Some(action);
     }
     if let Some(action) = shell_state.update_action_at_point(layout, model, point) {
@@ -2593,6 +2620,46 @@ mod tests {
             ),
             Some(UiAction::CheckForUpdates)
         );
+    }
+
+    #[test]
+    fn top_bar_volume_meter_click_routes_set_volume_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut shell_state = NativeShellState::new();
+        let model = AppModel::default();
+        let mut first_hit_x = None;
+        let mut last_hit_x = None;
+        let y = layout.top_bar_controls_row.min.y + (layout.top_bar_controls_row.height() * 0.5);
+        let mut x = layout.top_bar.min.x;
+        while x <= layout.top_bar.max.x {
+            let point = Point::new(x, y);
+            if shell_state
+                .top_bar_volume_action_at_point(&layout, point)
+                .is_some()
+            {
+                if first_hit_x.is_none() {
+                    first_hit_x = Some(x);
+                }
+                last_hit_x = Some(x);
+            }
+            x += 2.0;
+        }
+        let meter_min_x = first_hit_x.expect("volume meter point should be discoverable");
+        let meter_max_x = last_hit_x.expect("volume meter span should be discoverable");
+        let meter_point = Point::new((meter_min_x + meter_max_x) * 0.5, y);
+        match action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            meter_point,
+            ModifiersState::default(),
+        ) {
+            Some(UiAction::SetVolume { value_milli }) => {
+                assert!(value_milli >= 350);
+                assert!(value_milli <= 650);
+            }
+            other => panic!("expected SetVolume action, got {other:?}"),
+        }
     }
 
     #[test]

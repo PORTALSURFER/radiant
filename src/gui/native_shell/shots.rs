@@ -178,6 +178,24 @@ fn build_snapshot(name: &str, viewport: Vector2, model: &AppModel) -> ShotSnapsh
     }
 }
 
+fn canonicalize_json(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut entries: Vec<(String, serde_json::Value)> = map.into_iter().collect();
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+            let canonical = entries
+                .into_iter()
+                .map(|(key, nested)| (key, canonicalize_json(nested)))
+                .collect::<serde_json::Map<String, serde_json::Value>>();
+            serde_json::Value::Object(canonical)
+        }
+        serde_json::Value::Array(values) => {
+            serde_json::Value::Array(values.into_iter().map(canonicalize_json).collect())
+        }
+        primitive => primitive,
+    }
+}
+
 fn blend_pixel(target: &mut Rgba<u8>, source: &ShotColor) {
     let source_alpha = source.a as f32 / 255.0;
     if source_alpha <= 0.0 {
@@ -310,9 +328,13 @@ fn write_or_compare_shot(name: &str, viewport: Vector2, model: AppModel, write_m
                 json_path.display()
             )
         });
-    let actual_json = serde_json::to_value(&snapshot).unwrap_or_else(|err| {
-        panic!("serialize actual shot snapshot for {name} for comparison: {err}")
-    });
+    let expected_json = canonicalize_json(expected_json);
+    let actual_json: serde_json::Value = serde_json::from_str(
+        &serde_json::to_string_pretty(&snapshot)
+            .unwrap_or_else(|err| panic!("serialize actual shot snapshot for {name}: {err}")),
+    )
+    .unwrap_or_else(|err| panic!("parse actual shot snapshot for {name}: {err}"));
+    let actual_json = canonicalize_json(actual_json);
     assert_eq!(
         expected_json,
         actual_json,

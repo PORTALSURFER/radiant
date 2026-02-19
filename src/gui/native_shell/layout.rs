@@ -1,6 +1,6 @@
 //! Retained view-tree layout and hit-testing for the native shell.
 
-use super::style::StyleTokens;
+use super::{layout_adapter::compute_shell_sections, style::StyleTokens};
 use crate::gui::types::{Point, Rect, Vector2};
 
 /// Stable identifier for nodes in the retained shell tree.
@@ -115,16 +115,9 @@ impl ShellLayout {
         } else {
             1.0
         };
-
-        let root_rect = Rect::from_min_size(
-            Point::new(0.0, 0.0),
-            Vector2::new(viewport_width, viewport_height),
-        );
-        let frame = root_rect.inset(sizing.frame_inset);
-        let top_bar = Rect::from_min_max(
-            frame.min,
-            Point::new(frame.max.x, frame.min.y + sizing.top_bar_height),
-        );
+        let sections = compute_shell_sections(Vector2::new(viewport_width, viewport_height), style);
+        let root_rect = sections.root;
+        let top_bar = sections.top_bar;
         let title_row_height = sizing
             .top_bar_title_row_height
             .max(sizing.top_bar_title_row_min_height)
@@ -172,11 +165,7 @@ impl ShellLayout {
             top_bar_inner.min,
             Point::new(title_cluster_max_x, top_bar_inner.max.y),
         );
-
-        let status_bar = Rect::from_min_max(
-            Point::new(frame.min.x, frame.max.y - sizing.status_bar_height),
-            frame.max,
-        );
+        let status_bar = sections.status_bar;
         let status_inner = inset_horizontal(status_bar, sizing.panel_inset);
         let status_total_gap = sizing.status_segment_gap * 2.0;
         let status_available = (status_inner.width() - status_total_gap).max(0.0);
@@ -201,38 +190,10 @@ impl ShellLayout {
             Point::new(status_right_min_x, status_inner.min.y),
             status_inner.max,
         );
-        let body = Rect::from_min_max(
-            Point::new(frame.min.x, top_bar.max.y + sizing.panel_gap),
-            Point::new(frame.max.x, status_bar.min.y - sizing.panel_gap),
-        );
-
-        let max_sidebar = (body.width() - sizing.content_min_width).max(sizing.sidebar_min_width);
-        let sidebar_width = (body.width() * sizing.sidebar_ratio).clamp(
-            sizing.sidebar_min_width,
-            sizing.sidebar_max_width.min(max_sidebar),
-        );
-        let sidebar =
-            Rect::from_min_max(body.min, Point::new(body.min.x + sidebar_width, body.max.y));
-        let content_min_x =
-            (sidebar.max.x + sizing.panel_gap).min(body.max.x - sizing.content_tail_min_width);
-        let content = Rect::from_min_max(Point::new(content_min_x, body.min.y), body.max);
-
-        let waveform_height = (content.height() * sizing.waveform_ratio)
-            .clamp(sizing.waveform_min_height, sizing.waveform_max_height)
-            .min(
-                (content.height() - sizing.content_browser_min_height)
-                    .max(sizing.waveform_card_floor_height),
-            );
-        let waveform_card = Rect::from_min_max(
-            content.min,
-            Point::new(
-                content.max.x,
-                (content.min.y + waveform_height).min(content.max.y),
-            ),
-        );
-
-        let browser_top = (waveform_card.max.y + sizing.panel_gap).min(content.max.y - 1.0);
-        let browser_panel = Rect::from_min_max(Point::new(content.min.x, browser_top), content.max);
+        let sidebar = sections.sidebar;
+        let content = sections.content;
+        let waveform_card = sections.waveform_card;
+        let browser_panel = sections.browser_panel;
         let browser_tabs_height = sizing
             .browser_tabs_height
             .max(sizing.browser_tabs_min_height)

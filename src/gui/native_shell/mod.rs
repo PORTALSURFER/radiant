@@ -5,6 +5,7 @@
 //! backend-neutral paint primitives (shapes + text runs).
 
 mod layout;
+mod layout_adapter;
 mod paint;
 #[cfg(test)]
 mod shots;

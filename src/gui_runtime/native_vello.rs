@@ -14,12 +14,14 @@ use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},
 };
+use std::panic::AssertUnwindSafe;
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
+use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene,
@@ -35,8 +37,6 @@ use winit::{
     keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
-use std::panic::AssertUnwindSafe;
-use tracing::{error, info, warn};
 
 #[cfg(feature = "gui-performance")]
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
@@ -81,11 +81,12 @@ struct NativeVelloProfiler {
 #[cfg(feature = "gui-performance")]
 impl NativeVelloProfiler {
     fn new() -> Self {
-        let enabled = std::env::var(REDRAW_PROFILE_ENV)
-            .ok()
-            .is_some_and(|value| {
-                matches!(value.as_str(), "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes")
-            });
+        let enabled = std::env::var(REDRAW_PROFILE_ENV).ok().is_some_and(|value| {
+            matches!(
+                value.as_str(),
+                "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes"
+            )
+        });
         Self {
             enabled,
             ..Self::default()
@@ -108,12 +109,7 @@ impl NativeVelloProfiler {
     }
 
     #[inline]
-    fn record_scene_rebuilds(
-        &mut self,
-        scene: bool,
-        state_overlay: bool,
-        motion_overlay: bool,
-    ) {
+    fn record_scene_rebuilds(&mut self, scene: bool, state_overlay: bool, motion_overlay: bool) {
         if scene {
             self.scene_rebuilds = self.scene_rebuilds.saturating_add(1);
         }
@@ -321,12 +317,7 @@ impl NativeVelloProfiler {
     #[inline]
     fn add_tick(&mut self, _duration: Duration) {}
     #[inline]
-    fn record_scene_rebuilds(
-        &mut self,
-        _scene: bool,
-        _state_overlay: bool,
-        _motion_overlay: bool,
-    ) {
+    fn record_scene_rebuilds(&mut self, _scene: bool, _state_overlay: bool, _motion_overlay: bool) {
     }
     #[inline]
     fn add_model_refresh(&mut self) {}
@@ -718,13 +709,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             Err(_) => {
                 if preferred_present_mode == wgpu::PresentMode::AutoVsync {
-                    error!(
-                        "radiant native vello: panicked during AutoVsync surface creation"
-                    );
+                    error!("radiant native vello: panicked during AutoVsync surface creation");
                     event_loop.exit();
                     return;
                 }
-                warn!("radiant native vello: mailbox surface creation panicked; retrying AutoVsync");
+                warn!(
+                    "radiant native vello: mailbox surface creation panicked; retrying AutoVsync"
+                );
                 match create_surface_with_mode(wgpu::PresentMode::AutoVsync) {
                     Ok(Ok(surface)) => {
                         info!(
@@ -741,9 +732,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         return;
                     }
                     Err(_) => {
-                        error!(
-                            "radiant native vello: AutoVsync fallback panicked during startup"
-                        );
+                        error!("radiant native vello: AutoVsync fallback panicked during startup");
                         event_loop.exit();
                         return;
                     }
@@ -870,15 +859,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else {
             (0, 0, 0)
         };
-        self.profiler.record_redraw(
-            rebuild,
-            acquire,
-            render,
-            blit,
-            present,
-            total,
-            text_profile,
-        );
+        self.profiler
+            .record_redraw(rebuild, acquire, render, blit, present, total, text_profile);
     }
 
     fn encode_frame_to_scene(
@@ -923,24 +905,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if steps == 0 {
             return;
         }
-        self.pending_wheel_rows_delta =
-            self.pending_wheel_rows_delta
-                .saturating_add(steps as i32);
+        self.pending_wheel_rows_delta = self.pending_wheel_rows_delta.saturating_add(steps as i32);
     }
 
     fn flush_pending_input(&mut self) -> bool {
         let mut pending_action = false;
-                if let Some(point) = self.pending_cursor.take() {
-                    if let Some(layout) = self.shell_layout.as_ref() {
-                        if self
-                            .shell_state
-                            .handle_cursor_move(&layout, &self.model, point)
-                        {
-                            self.rebuild_overlay_and_request_redraw();
-                            pending_action = true;
-                        }
-                    }
+        if let Some(point) = self.pending_cursor.take() {
+            if let Some(layout) = self.shell_layout.as_ref() {
+                if self
+                    .shell_state
+                    .handle_cursor_move(&layout, &self.model, point)
+                {
+                    self.rebuild_overlay_and_request_redraw();
+                    pending_action = true;
                 }
+            }
+        }
 
         if self.pending_wheel_rows_delta != 0 {
             let steps = self
@@ -979,12 +959,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             || rebuild_state_overlay
             || (!self.motion_model_supported && rebuild_motion_overlay);
         let should_refresh_motion = rebuild_motion_overlay && self.motion_model_supported;
-        self.profiler
-            .record_scene_rebuilds(rebuild_static, rebuild_state_overlay, rebuild_motion_overlay);
-        let previous_waveform_signature =
-            self.motion_model
-                .as_ref()
-                .and_then(|model| model.waveform_image_signature);
+        self.profiler.record_scene_rebuilds(
+            rebuild_static,
+            rebuild_state_overlay,
+            rebuild_motion_overlay,
+        );
+        let previous_waveform_signature = self
+            .motion_model
+            .as_ref()
+            .and_then(|model| model.waveform_image_signature);
         let mut motion_changed = false;
         if should_refresh_model {
             let pull_start = self.profiler.now_if_enabled();
@@ -1027,7 +1010,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let model_pull_start = self.profiler.now_if_enabled();
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
-                let model_pull_duration = model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
+                let model_pull_duration =
+                    model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_model_pull(model_pull_duration);
                 self.shell_state.sync_from_model(&self.model);
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
@@ -1212,7 +1196,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                             let Some(render_ctx) = self.render_ctx.as_mut() else {
                                 return;
                             };
-                            render_ctx.resize_surface(surface, size.width.max(1), size.height.max(1));
+                            render_ctx.resize_surface(
+                                surface,
+                                size.width.max(1),
+                                size.height.max(1),
+                            );
                             needs_resize = true;
                         }
                         wgpu::SurfaceError::OutOfMemory => out_of_memory = true,
@@ -1239,7 +1227,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     frame_start.elapsed(),
                 );
             }
-            if matches!(err, wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) && needs_resize {
+            if matches!(err, wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)
+                && needs_resize
+            {
                 self.frame_state.mark_layout_dirty();
                 self.frame_state.mark_model_dirty();
                 self.rebuild_scene_if_needed();
@@ -1541,7 +1531,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         .filter(|point| layout.browser_panel.contains(*point))
                         .unwrap_or(fallback_point);
                     let style = self.cached_style_for_layout(layout);
-                    if let Some(delta) = browser_wheel_row_delta(layout, &self.model, point, &style, delta) {
+                    if let Some(delta) =
+                        browser_wheel_row_delta(layout, &self.model, point, &style, delta)
+                    {
                         self.queue_wheel_rows(delta);
                     }
                 }
@@ -1621,9 +1613,8 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
         let has_pending_input = self.flush_pending_input();
         let needs_animation = self.shell_state.needs_animation();
         let now = Instant::now();
-        let should_refresh_idle_status = !needs_animation && !has_pending_input && {
-            self.mark_idle_status_refresh_if_due(now)
-        };
+        let should_refresh_idle_status =
+            !needs_animation && !has_pending_input && { self.mark_idle_status_refresh_if_due(now) };
         if needs_animation || has_pending_input {
             self.request_redraw_if_needed();
             let frame_interval = if self.shell_state.is_transport_running() {
@@ -1635,16 +1626,12 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             if next_redraw_at < now {
                 next_redraw_at = now;
             }
-            event_loop.set_control_flow(ControlFlow::WaitUntil(
-                next_redraw_at,
-            ));
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next_redraw_at));
             return;
         }
         if should_refresh_idle_status {
             self.request_redraw_if_needed();
-            event_loop.set_control_flow(ControlFlow::WaitUntil(
-                self.next_idle_status_refresh,
-            ));
+            event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_idle_status_refresh));
             return;
         }
         event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_idle_status_refresh));
@@ -1966,7 +1953,11 @@ impl NativeTextRenderer {
             font_size_bits: font_size.to_bits(),
         };
 
-        if let Some(layout) = self.layout_cache.get(&key).map(|layout| layout as *const TextLayout) {
+        if let Some(layout) = self
+            .layout_cache
+            .get(&key)
+            .map(|layout| layout as *const TextLayout)
+        {
             self.text_layout_hits = self.text_layout_hits.saturating_add(1);
             return Some(unsafe { &*layout });
         }
@@ -2129,27 +2120,28 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 ) -> Result<(), String> {
     info!("radiant native vello: creating event loop");
     let run_started = Instant::now();
-        let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
-        info!(
-            "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
-            options.inner_size,
-            options.min_inner_size,
-            options.target_fps
-        );
+    let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
+    info!(
+        "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
+        options.inner_size, options.min_inner_size, options.target_fps
+    );
     let mut runner = NativeVelloRunner::new(options, bridge);
     info!("radiant native vello: runner initialized");
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| err.to_string());
     let elapsed = run_started.elapsed();
-        match &run_result {
-            Ok(_) => info!("radiant native vello: event loop ended in {} ms", elapsed.as_millis()),
-            Err(err) => warn!(
-                "radiant native vello: event loop returned error in {} ms: {}",
-                elapsed.as_millis(),
-                err
-            ),
-        }
+    match &run_result {
+        Ok(_) => info!(
+            "radiant native vello: event loop ended in {} ms",
+            elapsed.as_millis()
+        ),
+        Err(err) => warn!(
+            "radiant native vello: event loop returned error in {} ms: {}",
+            elapsed.as_millis(),
+            err
+        ),
+    }
     info!("radiant native vello: event loop finished");
     runner.bridge.on_exit();
     run_result
@@ -2311,19 +2303,18 @@ mod tests {
         let model = AppModel {
             browser: crate::app::BrowserPanelModel {
                 rows: vec![crate::app::BrowserRowModel::new(
-                    17,
-                    "kick-row",
-                    0,
-                    false,
-                    false,
+                    17, "kick-row", 0, false, false,
                 )],
                 visible_count: 1,
                 ..crate::app::BrowserPanelModel::default()
             },
             ..AppModel::default()
         };
-        let row_center_y =
-            layout.browser_rows.min.y + (StyleTokens::for_viewport_width(layout.root.rect.width()).sizing.browser_row_height * 0.5);
+        let row_center_y = layout.browser_rows.min.y
+            + (StyleTokens::for_viewport_width(layout.root.rect.width())
+                .sizing
+                .browser_row_height
+                * 0.5);
         let point = Point::new(
             (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
             row_center_y,
@@ -2399,7 +2390,10 @@ mod tests {
     #[test]
     fn key_bindings_respect_progress_cancelability() {
         let mut model = AppModel::default();
-        assert_eq!(action_from_key(KeyCode::P, ModifiersState::default(), &model), None);
+        assert_eq!(
+            action_from_key(KeyCode::P, ModifiersState::default(), &model),
+            None
+        );
 
         model.progress_overlay.cancelable = true;
         assert_eq!(

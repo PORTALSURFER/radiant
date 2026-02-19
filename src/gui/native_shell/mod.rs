@@ -6,10 +6,10 @@
 
 mod layout;
 mod paint;
-mod state;
-mod style;
 #[cfg(test)]
 mod shots;
+mod state;
+mod style;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;

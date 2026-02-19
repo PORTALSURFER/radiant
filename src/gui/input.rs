@@ -143,9 +143,15 @@ mod tests {
 
     #[test]
     fn key_code_from_winit_maps_supported_codes() {
-        assert_eq!(key_code_from_winit(WinitKeyCode::Digit1), Some(KeyCode::Num1));
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Digit1),
+            Some(KeyCode::Num1)
+        );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
-        assert_eq!(key_code_from_winit(WinitKeyCode::ArrowLeft), Some(KeyCode::ArrowLeft));
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::ArrowLeft),
+            Some(KeyCode::ArrowLeft)
+        );
         assert_eq!(
             key_code_from_winit(WinitKeyCode::NumpadEnter),
             Some(KeyCode::Enter)

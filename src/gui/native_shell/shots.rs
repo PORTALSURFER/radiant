@@ -80,12 +80,17 @@ fn quantize(value: f32) -> f32 {
 }
 
 fn shot_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("shots")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("shots")
 }
 
 fn fixture_paths(name: &str) -> (PathBuf, PathBuf) {
     let root = shot_root();
-    (root.join(format!("{name}.json")), root.join(format!("{name}.png")))
+    (
+        root.join(format!("{name}.json")),
+        root.join(format!("{name}.png")),
+    )
 }
 
 fn snap_color(color: Rgba8) -> ShotColor {
@@ -127,8 +132,10 @@ fn build_snapshot(name: &str, viewport: Vector2, model: &AppModel) -> ShotSnapsh
     state.sync_from_model(model);
     let frame = state.build_frame(&layout, model);
 
-    let viewport_width = u32::try_from(layout.root.rect.width().round().max(1.0) as i64).unwrap_or(1);
-    let viewport_height = u32::try_from(layout.root.rect.height().round().max(1.0) as i64).unwrap_or(1);
+    let viewport_width =
+        u32::try_from(layout.root.rect.width().round().max(1.0) as i64).unwrap_or(1);
+    let viewport_height =
+        u32::try_from(layout.root.rect.height().round().max(1.0) as i64).unwrap_or(1);
 
     let primitives: Vec<ShotPrimitive> = frame
         .primitives
@@ -216,13 +223,9 @@ fn rasterize_shot(snapshot: &ShotSnapshot) -> RgbaImage {
         match primitive {
             ShotPrimitive::Rect { rect, color } => {
                 let left = rect.x.floor().clamp(0.0, width as f32) as i64;
-                let right = (rect.x + rect.width)
-                    .ceil()
-                    .clamp(0.0, width as f32) as i64;
+                let right = (rect.x + rect.width).ceil().clamp(0.0, width as f32) as i64;
                 let top = rect.y.floor().clamp(0.0, height as f32) as i64;
-                let bottom = (rect.y + rect.height)
-                    .ceil()
-                    .clamp(0.0, height as f32) as i64;
+                let bottom = (rect.y + rect.height).ceil().clamp(0.0, height as f32) as i64;
 
                 for y in top.max(0)..bottom.min(height) {
                     for x in left.max(0)..right.min(width) {
@@ -269,29 +272,43 @@ fn write_or_compare_shot(name: &str, viewport: Vector2, model: AppModel, write_m
     let (json_path, png_path) = fixture_paths(name);
 
     if write_mode {
-        fs::create_dir_all(shot_root())
-            .unwrap_or_else(|err| panic!("create fixture directory {}: {err}", shot_root().display()));
+        fs::create_dir_all(shot_root()).unwrap_or_else(|err| {
+            panic!("create fixture directory {}: {err}", shot_root().display())
+        });
         fs::write(
             &json_path,
             serde_json::to_string_pretty(&snapshot)
                 .unwrap_or_else(|err| panic!("serialize shot snapshot for {name}: {err}")),
         )
         .unwrap_or_else(|err| {
-            panic!("write shot JSON fixture for {name} to {}: {err}", json_path.display())
+            panic!(
+                "write shot JSON fixture for {name} to {}: {err}",
+                json_path.display()
+            )
         });
         rasterize_shot(&snapshot)
             .save(&png_path)
             .unwrap_or_else(|err| {
-                panic!("write shot PNG fixture for {name} to {}: {err}", png_path.display())
+                panic!(
+                    "write shot PNG fixture for {name} to {}: {err}",
+                    png_path.display()
+                )
             });
         return;
     }
 
-    let expected_json = fs::read_to_string(&json_path)
-        .unwrap_or_else(|err| panic!("read expected JSON shot {name} from {}: {err}", json_path.display()));
+    let expected_json = fs::read_to_string(&json_path).unwrap_or_else(|err| {
+        panic!(
+            "read expected JSON shot {name} from {}: {err}",
+            json_path.display()
+        )
+    });
     let expected_json: serde_json::Value =
         serde_json::from_str(&expected_json).unwrap_or_else(|err| {
-            panic!("parse expected JSON shot {name} from {}: {err}", json_path.display())
+            panic!(
+                "parse expected JSON shot {name} from {}: {err}",
+                json_path.display()
+            )
         });
     let actual_json = serde_json::to_value(&snapshot).unwrap_or_else(|err| {
         panic!("serialize actual shot snapshot for {name} for comparison: {err}")
@@ -311,9 +328,21 @@ fn write_or_compare_shot(name: &str, viewport: Vector2, model: AppModel, write_m
     });
     let expected = expected_png.to_rgba8();
     let actual = rasterize_shot(&snapshot);
-    assert_eq!(expected.width(), actual.width(), "PNG width mismatch for shot {name}");
-    assert_eq!(expected.height(), actual.height(), "PNG height mismatch for shot {name}");
-    assert_eq!(expected.into_raw(), actual.into_raw(), "PNG bytes mismatch for shot {name}");
+    assert_eq!(
+        expected.width(),
+        actual.width(),
+        "PNG width mismatch for shot {name}"
+    );
+    assert_eq!(
+        expected.height(),
+        actual.height(),
+        "PNG height mismatch for shot {name}"
+    );
+    assert_eq!(
+        expected.into_raw(),
+        actual.into_raw(),
+        "PNG bytes mismatch for shot {name}"
+    );
 }
 
 fn startup_scene_model() -> AppModel {
@@ -523,7 +552,12 @@ fn waveform_selection_model() -> AppModel {
 
 #[test]
 fn startup_shot_matches_fixture() {
-    write_or_compare_shot("startup", Vector2::new(1280.0, 720.0), startup_scene_model(), false);
+    write_or_compare_shot(
+        "startup",
+        Vector2::new(1280.0, 720.0),
+        startup_scene_model(),
+        false,
+    );
 }
 
 #[test]

@@ -130,8 +130,8 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
-        let changed =
-            next_hover != self.hovered || next_hovered_browser_row != self.hovered_browser_visible_row;
+        let changed = next_hover != self.hovered
+            || next_hovered_browser_row != self.hovered_browser_visible_row;
         if !changed {
             return false;
         }
@@ -612,7 +612,11 @@ impl NativeShellState {
             for row in browser_rows.iter() {
                 let row_columns = browser_table_columns(row.rect, sizing);
                 let row_fill = if row.focused {
-                    translucent_overlay_color(style.bg_tertiary, style.grid_strong, focus_fill_emphasis)
+                    translucent_overlay_color(
+                        style.bg_tertiary,
+                        style.grid_strong,
+                        focus_fill_emphasis,
+                    )
                 } else if row.selected {
                     translucent_overlay_color(
                         style.bg_tertiary,
@@ -2336,45 +2340,45 @@ impl NativeShellState {
         self.build_frame_with_style(layout, &style_for_layout(layout), model)
     }
 
-fn push_status_right_motion_overlay(
-    primitives: &mut Vec<Primitive>,
-    text_runs: &mut Vec<TextRun>,
-    layout: &ShellLayout,
-    style: &StyleTokens,
-    status_right: &str,
-) {
-    if status_right.is_empty() {
-        return;
-    }
-    primitives.push(Primitive::Rect(FillRect {
-        rect: layout.status_right_segment,
-        color: style.surface_raised,
-    }));
-    let sizing = style.sizing;
-    text_runs.push(TextRun {
-        text: truncate_to_width(
-            status_right,
-            (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            sizing.font_status,
-        ),
-        position: Point::new(
-            layout.status_right_segment.min.x
-                + sizing.text_inset_x
-                + sizing.header_label_gutter,
-            text_top_in_rect(
-                layout.status_right_segment,
+    fn push_status_right_motion_overlay(
+        primitives: &mut Vec<Primitive>,
+        text_runs: &mut Vec<TextRun>,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        status_right: &str,
+    ) {
+        if status_right.is_empty() {
+            return;
+        }
+        primitives.push(Primitive::Rect(FillRect {
+            rect: layout.status_right_segment,
+            color: style.surface_raised,
+        }));
+        let sizing = style.sizing;
+        text_runs.push(TextRun {
+            text: truncate_to_width(
+                status_right,
+                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
                 sizing.font_status,
-                sizing.text_inset_y,
             ),
-        ),
-        font_size: sizing.font_status,
-        color: style.text_muted,
-        max_width: Some(
-            (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-        ),
-        align: TextAlign::Right,
-    });
-}
+            position: Point::new(
+                layout.status_right_segment.min.x
+                    + sizing.text_inset_x
+                    + sizing.header_label_gutter,
+                text_top_in_rect(
+                    layout.status_right_segment,
+                    sizing.font_status,
+                    sizing.text_inset_y,
+                ),
+            ),
+            font_size: sizing.font_status,
+            color: style.text_muted,
+            max_width: Some(
+                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+            ),
+            align: TextAlign::Right,
+        });
+    }
 
     fn cached_source_row_rects(
         &mut self,
@@ -2480,7 +2484,10 @@ fn push_waveform_image(
     let Some(image) = image else {
         return;
     };
-    if image.width == 0 || image.height == 0 || waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0
+    if image.width == 0
+        || image.height == 0
+        || waveform_plot.width() <= 0.0
+        || waveform_plot.height() <= 0.0
     {
         return;
     }
@@ -3675,10 +3682,9 @@ fn source_action_buttons(
     ];
     let button_count = definitions.len() as f32;
     let gap = sizing.sidebar_action_button_gap;
-    let available_width =
-        (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(0.0);
+    let available_width = (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(0.0);
     let button_width = if button_count > 0.0 {
-        (((available_width - (gap * (button_count - 1.0)).max(0.0)).max(0.0) / button_count))
+        ((available_width - (gap * (button_count - 1.0)).max(0.0)).max(0.0) / button_count)
             .min(sizing.sidebar_action_button_width)
     } else {
         sizing.sidebar_action_button_width
@@ -4870,8 +4876,7 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
-        model.waveform.waveform_image =
-            Some(ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap());
+        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap());
         let frame = state.build_frame(&layout, &model);
         let expected_color = Rgba8 {
             r: 11,
@@ -4893,8 +4898,7 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
-        model.waveform.waveform_image =
-            Some(ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap());
+        model.waveform.waveform_image = Some(ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap());
         let frame = state.build_frame(&layout, &model);
         let has_expected_waveform_color = frame.primitives.iter().any(|primitive| {
             matches!(
@@ -4998,11 +5002,10 @@ mod tests {
             })
             .expect("hovered top bar should emit a fill rectangle");
 
-        let expected_alpha = (style.sizing.hover_fill_alpha
-            * (style.bg_tertiary.a as f32 / 255.0)
-            * 255.0)
-            .round()
-            .clamp(0.0, 255.0) as u8;
+        let expected_alpha =
+            (style.sizing.hover_fill_alpha * (style.bg_tertiary.a as f32 / 255.0) * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8;
         assert_eq!(overlay_color.a, expected_alpha);
         assert_eq!(overlay_color.r, style.bg_tertiary.r);
         assert_eq!(overlay_color.g, style.bg_tertiary.g);
@@ -5037,11 +5040,8 @@ mod tests {
         let mut frame = NativeViewFrame::default();
         state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
-        let expected_hover = translucent_overlay_color(
-            style.bg_tertiary,
-            style.grid_soft,
-            style.state_hover_soft,
-        );
+        let expected_hover =
+            translucent_overlay_color(style.bg_tertiary, style.grid_soft, style.state_hover_soft);
         let overlay_color = frame
             .primitives
             .iter()
@@ -5060,10 +5060,12 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
-        model
-            .sources
-            .rows
-            .push(SourceRowModel::new("selected source", "detail", true, false));
+        model.sources.rows.push(SourceRowModel::new(
+            "selected source",
+            "detail",
+            true,
+            false,
+        ));
 
         let selected_row = *state
             .rendered_source_row_rects(&layout, &model)

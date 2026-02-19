@@ -3,7 +3,11 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        SidebarRowCounts, compute_sidebar_row_sections, compute_top_bar_controls_sections,
+        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_toolbar_sections,
+        compute_drag_overlay_rect, compute_progress_overlay_sections,
+        compute_prompt_overlay_sections, compute_sidebar_action_button_rects,
+        compute_sidebar_row_sections, compute_top_bar_controls_sections,
+        compute_update_action_button_rects,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -3257,35 +3261,25 @@ fn update_action_buttons(
     if specs.is_empty() {
         return Vec::new();
     }
-    let sizing = style.sizing;
-    let gap = sizing.action_button_gap.max(1.0);
-    let row = layout.top_bar_title_row;
-    let button_height = (row.height() - (sizing.text_inset_y * 0.4)).max(12.0);
-    let y = row.min.y + ((row.height() - button_height) * 0.5);
-    let mut right = layout.top_bar_action_cluster.max.x - sizing.text_inset_x;
-    let mut buttons = Vec::with_capacity(specs.len());
-    for (label, enabled, action) in specs.iter().rev() {
-        let width = ((*label).chars().count() as f32 * (sizing.font_meta * 0.62)
-            + (sizing.text_inset_x * 2.0))
-            .clamp(42.0, 84.0);
-        let left = (right - width).max(layout.top_bar_action_cluster.min.x);
-        if left <= layout.top_bar_action_cluster.min.x {
-            break;
-        }
-        buttons.push(ActionButton {
-            rect: Rect::from_min_max(
-                Point::new(left, y),
-                Point::new(right, (y + button_height).min(row.max.y)),
-            ),
+    let labels: Vec<&str> = specs.iter().map(|(label, _, _)| *label).collect();
+    let rects = compute_update_action_button_rects(
+        layout.top_bar_title_row,
+        layout.top_bar_action_cluster,
+        style.sizing,
+        &labels,
+    );
+    let start_index = specs.len().saturating_sub(rects.len());
+    rects
+        .into_iter()
+        .zip(specs.into_iter().skip(start_index))
+        .map(|(rect, (label, enabled, action))| ActionButton {
+            rect,
             label,
-            enabled: *enabled,
-            action: action.clone(),
+            enabled,
+            action,
             text_color: style.text_primary,
-        });
-        right = left - gap;
-    }
-    buttons.reverse();
-    buttons
+        })
+        .collect()
 }
 
 fn browser_toolbar_layout(
@@ -3293,57 +3287,19 @@ fn browser_toolbar_layout(
     style: &StyleTokens,
     browser_buttons: &[ActionButton],
 ) -> BrowserToolbarLayout {
-    let sizing = style.sizing;
-    let rect = layout.browser_toolbar;
-    let empty_rect = Rect::from_min_max(rect.min, rect.min);
     let action_left = browser_buttons
         .iter()
         .map(|button| button.rect.min.x)
         .min_by(f32::total_cmp)
-        .unwrap_or(rect.max.x - sizing.text_inset_x);
-    let left_min = rect.min.x + sizing.text_inset_x;
-    let left_max = (action_left - sizing.action_button_gap.max(1.0)).max(left_min);
-    let available = (left_max - left_min).max(0.0);
-    if available <= 1.0 {
-        return BrowserToolbarLayout {
-            search_field: empty_rect,
-            activity_chip: empty_rect,
-            sort_chip: empty_rect,
-        };
-    }
-
-    let min_search = sizing.browser_search_field_min_width.min(available);
-    let search_width =
-        (rect.width() * sizing.browser_search_field_ratio).clamp(min_search, available);
-    let search_field = Rect::from_min_max(
-        Point::new(left_min, rect.min.y),
-        Point::new(left_min + search_width, rect.max.y),
-    );
-    let remainder = (available - search_width).max(0.0);
-    let chip_gap = sizing.action_button_gap.max(1.0);
-    let chip_width = ((remainder - chip_gap).max(0.0) * 0.5).max(0.0);
-    if chip_width < 1.0 {
-        return BrowserToolbarLayout {
-            search_field,
-            activity_chip: empty_rect,
-            sort_chip: empty_rect,
-        };
-    }
-
-    let activity_x = search_field.max.x + chip_gap;
-    let activity_chip = Rect::from_min_max(
-        Point::new(activity_x, rect.min.y),
-        Point::new((activity_x + chip_width).min(left_max), rect.max.y),
-    );
-    let sort_x = activity_chip.max.x + chip_gap;
-    let sort_chip = Rect::from_min_max(
-        Point::new(sort_x, rect.min.y),
-        Point::new((sort_x + chip_width).min(left_max), rect.max.y),
-    );
+        .or(Some(
+            layout.browser_toolbar.max.x - style.sizing.text_inset_x,
+        ));
+    let sections =
+        compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing, action_left);
     BrowserToolbarLayout {
-        search_field,
-        activity_chip,
-        sort_chip,
+        search_field: sections.search_field,
+        activity_chip: sections.activity_chip,
+        sort_chip: sections.sort_chip,
     }
 }
 
@@ -3401,7 +3357,6 @@ fn browser_action_buttons(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<ActionButton> {
-    let sizing = style.sizing;
     let definitions = [
         (
             "Rename",
@@ -3440,42 +3395,25 @@ fn browser_action_buttons(
             style.accent_copper,
         ),
     ];
-
-    let button_width = (sizing.action_button_width - 4.0).max(40.0);
-    let button_height = sizing
-        .action_button_height
-        .min((layout.browser_toolbar.height() - 1.0).max(1.0));
-    let gap = sizing.action_button_gap;
-    let total_width = (button_width * definitions.len() as f32)
-        + (gap * (definitions.len().saturating_sub(1)) as f32);
-    let cluster = layout.browser_toolbar;
-    let start_x = (cluster.max.x - sizing.text_inset_x - total_width)
-        .max(cluster.min.x + sizing.text_inset_x);
-    let y_min = cluster.min.y + 1.0;
-    let y_max = (cluster.max.y - button_height).max(y_min);
-    let y = (cluster.max.y - button_height - sizing.text_inset_y)
-        .max(y_min)
-        .min(y_max);
-
-    let mut buttons = Vec::with_capacity(definitions.len());
-    for (index, (label, enabled, action, text_color)) in definitions.into_iter().enumerate() {
-        let x = start_x + (index as f32 * (button_width + gap));
-        let rect = Rect::from_min_max(
-            Point::new(x, y),
-            Point::new(
-                (x + button_width).min(cluster.max.x - 1.0),
-                (y + button_height).min(cluster.max.y),
-            ),
-        );
-        buttons.push(ActionButton {
-            rect,
-            label,
-            enabled,
-            action,
-            text_color,
-        });
-    }
-    buttons
+    let rects = compute_browser_action_button_rects(
+        layout.browser_toolbar,
+        style.sizing,
+        definitions.len(),
+    );
+    let start_index = definitions.len().saturating_sub(rects.len());
+    rects
+        .into_iter()
+        .zip(definitions.into_iter().skip(start_index))
+        .map(
+            |(rect, (label, enabled, action, text_color))| ActionButton {
+                rect,
+                label,
+                enabled,
+                action,
+                text_color,
+            },
+        )
+        .collect()
 }
 
 fn source_action_buttons(
@@ -3483,7 +3421,6 @@ fn source_action_buttons(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<ActionButton> {
-    let sizing = style.sizing;
     let definitions = [
         (
             "New",
@@ -3516,157 +3453,48 @@ fn source_action_buttons(
             style.accent_mint,
         ),
     ];
-    let button_count = definitions.len() as f32;
-    let gap = sizing.sidebar_action_button_gap;
-    let available_width = (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(0.0);
-    let button_width = if button_count > 0.0 {
-        ((available_width - (gap * (button_count - 1.0)).max(0.0)).max(0.0) / button_count)
-            .min(sizing.sidebar_action_button_width)
-    } else {
-        sizing.sidebar_action_button_width
-    };
-    let button_height = sizing
-        .sidebar_action_button_height
-        .min((layout.sidebar_footer.height() - 1.0).max(1.0));
-    let total_width = (button_width * definitions.len() as f32)
-        + (gap * (definitions.len().saturating_sub(1)) as f32);
-    let start_x = (layout.sidebar_footer.max.x - sizing.text_inset_x - total_width)
-        .max(layout.sidebar_footer.min.x + sizing.text_inset_x);
-    let y_min = layout.sidebar_footer.min.y + 1.0;
-    let y_max = (layout.sidebar_footer.max.y - button_height).max(y_min);
-    let y = (layout.sidebar_footer.max.y - button_height - sizing.text_inset_y)
-        .max(y_min)
-        .min(y_max);
-
-    let mut buttons = Vec::with_capacity(definitions.len());
-    for (index, (label, enabled, action, text_color)) in definitions.into_iter().enumerate() {
-        let x = start_x + (index as f32 * (button_width + gap));
-        let rect = Rect::from_min_max(
-            Point::new(x, y),
-            Point::new(
-                (x + button_width).min(layout.sidebar_footer.max.x - 1.0),
-                (y + button_height).min(layout.sidebar_footer.max.y),
-            ),
-        );
-        buttons.push(ActionButton {
-            rect,
-            label,
-            enabled,
-            action,
-            text_color,
-        });
-    }
-    buttons
-}
-
-fn progress_overlay_rect(layout: &ShellLayout, style: &StyleTokens, modal: bool) -> Rect {
-    let sizing = style.sizing;
-    if modal {
-        let width = (sizing.prompt_width * 0.85)
-            .min(layout.content.width() - (sizing.overlay_padding * 2.0));
-        let height = 96.0_f32.max(sizing.prompt_min_height * 0.72);
-        let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
-        let y = layout.content.min.y + (layout.content.height() - height).max(0.0) * 0.28;
-        return Rect::from_min_max(Point::new(x, y), Point::new(x + width, y + height));
-    }
-    let width =
-        (sizing.prompt_width * 0.7).min(layout.content.width() - (sizing.overlay_padding * 2.0));
-    let height = 84.0;
-    let x = layout.content.max.x - width - sizing.overlay_padding;
-    let y = layout.content.min.y + sizing.overlay_padding;
-    Rect::from_min_max(Point::new(x, y), Point::new(x + width, y + height))
+    let rects =
+        compute_sidebar_action_button_rects(layout.sidebar_footer, style.sizing, definitions.len());
+    let start_index = definitions.len().saturating_sub(rects.len());
+    rects
+        .into_iter()
+        .zip(definitions.into_iter().skip(start_index))
+        .map(
+            |(rect, (label, enabled, action, text_color))| ActionButton {
+                rect,
+                label,
+                enabled,
+                action,
+                text_color,
+            },
+        )
+        .collect()
 }
 
 fn progress_cancel_button(layout: &ShellLayout, style: &StyleTokens, modal: bool) -> Rect {
-    let rect = progress_overlay_rect(layout, style, modal);
-    let sizing = style.sizing;
-    Rect::from_min_max(
-        Point::new(
-            rect.max.x - sizing.overlay_button_width - sizing.text_inset_x,
-            rect.max.y - sizing.overlay_button_height - sizing.text_inset_y,
-        ),
-        Point::new(
-            rect.max.x - sizing.text_inset_x,
-            rect.max.y - sizing.text_inset_y,
-        ),
-    )
-}
-
-fn prompt_dialog_rect(layout: &ShellLayout, style: &StyleTokens) -> Rect {
-    let sizing = style.sizing;
-    let width = sizing
-        .prompt_width
-        .min(layout.content.width() - (sizing.overlay_padding * 2.0))
-        .max(260.0);
-    let height = sizing
-        .prompt_min_height
-        .min(layout.content.height() - (sizing.overlay_padding * 2.0))
-        .max(108.0);
-    let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
-    let y = layout.content.min.y + (layout.content.height() - height).max(0.0) * 0.35;
-    Rect::from_min_max(Point::new(x, y), Point::new(x + width, y + height))
+    compute_progress_overlay_sections(layout.content, style.sizing, modal).cancel_button
 }
 
 fn prompt_buttons(layout: &ShellLayout, style: &StyleTokens) -> (Rect, Rect) {
-    let sizing = style.sizing;
-    let dialog = prompt_dialog_rect(layout, style);
-    let cancel = Rect::from_min_max(
-        Point::new(
-            dialog.max.x - sizing.overlay_button_width - sizing.text_inset_x,
-            dialog.max.y - sizing.overlay_button_height - sizing.text_inset_y,
-        ),
-        Point::new(
-            dialog.max.x - sizing.text_inset_x,
-            dialog.max.y - sizing.text_inset_y,
-        ),
-    );
-    let confirm = Rect::from_min_max(
-        Point::new(
-            cancel.min.x - sizing.overlay_button_width - sizing.action_button_gap,
-            cancel.min.y,
-        ),
-        Point::new(cancel.min.x - sizing.action_button_gap, cancel.max.y),
-    );
-    (confirm, cancel)
+    let sections = compute_prompt_overlay_sections(layout.content, style.sizing, false, false);
+    (sections.confirm_button, sections.cancel_button)
 }
 
 fn prompt_input_rect(layout: &ShellLayout, style: &StyleTokens, model: &AppModel) -> Option<Rect> {
     if model.confirm_prompt.input_value.is_none() {
         return None;
     }
-    let sizing = style.sizing;
-    let dialog = prompt_dialog_rect(layout, style);
-    let input_y = dialog.min.y
-        + sizing.text_inset_y
-        + sizing.font_title
-        + sizing.font_meta
-        + (sizing.text_row_gap * 4.0)
-        + if model.confirm_prompt.target_label.is_some() {
-            sizing.font_meta + sizing.text_row_gap
-        } else {
-            0.0
-        };
-    let height = (sizing.overlay_button_height - 2.0).max(18.0);
-    let min_y =
-        input_y.min(dialog.max.y - sizing.overlay_button_height - sizing.text_inset_y - 6.0);
-    Some(Rect::from_min_max(
-        Point::new(dialog.min.x + sizing.text_inset_x, min_y),
-        Point::new(dialog.max.x - sizing.text_inset_x, min_y + height),
-    ))
+    compute_prompt_overlay_sections(
+        layout.content,
+        style.sizing,
+        true,
+        model.confirm_prompt.target_label.is_some(),
+    )
+    .input
 }
 
 fn drag_overlay_rect(layout: &ShellLayout, style: &StyleTokens) -> Rect {
-    let sizing = style.sizing;
-    let width = (layout.content.width() * 0.72).clamp(260.0, 520.0);
-    let x = layout.content.min.x + (layout.content.width() - width).max(0.0) * 0.5;
-    let y = layout.status_bar.min.y - sizing.drag_overlay_height - sizing.panel_gap;
-    Rect::from_min_max(
-        Point::new(x, y.max(layout.content.min.y + sizing.overlay_padding)),
-        Point::new(
-            x + width,
-            (y + sizing.drag_overlay_height).min(layout.status_bar.min.y - 1.0),
-        ),
-    )
+    compute_drag_overlay_rect(layout.content, layout.status_bar, style.sizing)
 }
 
 fn render_progress_overlay(
@@ -3691,7 +3519,9 @@ fn render_progress_overlay(
             },
         }));
     }
-    let rect = progress_overlay_rect(layout, style, model.progress_overlay.modal);
+    let overlay_sections =
+        compute_progress_overlay_sections(layout.content, sizing, model.progress_overlay.modal);
+    let rect = overlay_sections.dialog;
     primitives.push(Primitive::Rect(FillRect {
         rect,
         color: style.surface_overlay,
@@ -3722,32 +3552,13 @@ fn render_progress_overlay(
             align: TextAlign::Left,
         });
     }
-
     let fraction = if model.progress_overlay.total == 0 {
         0.0
     } else {
         (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
             .clamp(0.0, 1.0)
     };
-    let bar_rect = Rect::from_min_max(
-        Point::new(
-            rect.min.x + sizing.text_inset_x,
-            rect.min.y
-                + sizing.text_inset_y
-                + sizing.font_header
-                + sizing.font_meta
-                + (sizing.text_row_gap * 2.0),
-        ),
-        Point::new(
-            rect.max.x - sizing.text_inset_x,
-            rect.min.y
-                + sizing.text_inset_y
-                + sizing.font_header
-                + sizing.font_meta
-                + (sizing.text_row_gap * 2.0)
-                + sizing.progress_bar_height,
-        ),
-    );
+    let bar_rect = overlay_sections.progress_bar;
     primitives.push(Primitive::Rect(FillRect {
         rect: bar_rect,
         color: style.grid_soft,
@@ -3777,7 +3588,7 @@ fn render_progress_overlay(
     });
 
     if model.progress_overlay.cancelable {
-        let button = progress_cancel_button(layout, style, model.progress_overlay.modal);
+        let button = overlay_sections.cancel_button;
         primitives.push(Primitive::Rect(FillRect {
             rect: button,
             color: if model.progress_overlay.cancel_requested {
@@ -3830,6 +3641,12 @@ fn render_confirm_prompt(
     }
     let sizing = style.sizing;
     let confirm_enabled = !prompt_has_validation_error(model);
+    let prompt_sections = compute_prompt_overlay_sections(
+        layout.content,
+        sizing,
+        model.confirm_prompt.input_value.is_some(),
+        model.confirm_prompt.target_label.is_some(),
+    );
     primitives.push(Primitive::Rect(FillRect {
         rect: layout.root.rect,
         color: Rgba8 {
@@ -3839,7 +3656,7 @@ fn render_confirm_prompt(
             a: style.scrim_modal_alpha,
         },
     }));
-    let dialog = prompt_dialog_rect(layout, style);
+    let dialog = prompt_sections.dialog;
     primitives.push(Primitive::Rect(FillRect {
         rect: dialog,
         color: style.surface_overlay,
@@ -3890,7 +3707,7 @@ fn render_confirm_prompt(
             align: TextAlign::Left,
         });
     }
-    if let Some(input_rect) = prompt_input_rect(layout, style, model) {
+    if let Some(input_rect) = prompt_sections.input {
         primitives.push(Primitive::Rect(FillRect {
             rect: input_rect,
             color: style.surface_base,
@@ -3947,7 +3764,8 @@ fn render_confirm_prompt(
             });
         }
     }
-    let (confirm_button, cancel_button) = prompt_buttons(layout, style);
+    let confirm_button = prompt_sections.confirm_button;
+    let cancel_button = prompt_sections.cancel_button;
     for (index, (rect, label, color)) in [
         (
             confirm_button,

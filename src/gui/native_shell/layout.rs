@@ -1,10 +1,8 @@
 //! Retained view-tree layout and hit-testing for the native shell.
 
 use super::{
-    layout_adapter::{
-        compute_browser_band_sections, compute_shell_sections, compute_sidebar_band_sections,
-        compute_status_bar_segments, compute_top_bar_band_sections,
-    },
+    ShellLayoutRuntime,
+    layout_adapter::{compute_status_bar_segments, compute_top_bar_band_sections},
     style::StyleTokens,
 };
 use crate::gui::types::{Point, Rect, Vector2};
@@ -112,6 +110,16 @@ impl ShellLayout {
 
     /// Build shell layout for the provided viewport and style token set.
     pub(crate) fn build_with_style(viewport: Vector2, style: &StyleTokens) -> Self {
+        let mut runtime = ShellLayoutRuntime::default();
+        Self::build_with_style_and_runtime(viewport, style, &mut runtime)
+    }
+
+    /// Build shell layout for the provided viewport/style using a persistent runtime cache.
+    pub(crate) fn build_with_style_and_runtime(
+        viewport: Vector2,
+        style: &StyleTokens,
+        runtime: &mut ShellLayoutRuntime,
+    ) -> Self {
         let viewport_width = viewport.x.max(style.sizing.min_viewport_width);
         let viewport_height = viewport.y.max(style.sizing.min_viewport_height);
         let sizing = style.sizing;
@@ -121,7 +129,8 @@ impl ShellLayout {
         } else {
             1.0
         };
-        let sections = compute_shell_sections(Vector2::new(viewport_width, viewport_height), style);
+        let sections =
+            runtime.compute_shell_sections(Vector2::new(viewport_width, viewport_height), style);
         let root_rect = sections.root;
         let top_bar = sections.top_bar;
         let top_bar_bands = compute_top_bar_band_sections(top_bar, sizing);
@@ -135,14 +144,14 @@ impl ShellLayout {
         let status_center_segment = status_segments.center;
         let status_right_segment = status_segments.right;
         let sidebar = sections.sidebar;
-        let sidebar_bands = compute_sidebar_band_sections(sidebar, sizing);
+        let sidebar_bands = runtime.compute_sidebar_band_sections(sidebar, sizing);
         let sidebar_header = sidebar_bands.sidebar_header;
         let sidebar_rows = sidebar_bands.sidebar_rows;
         let sidebar_footer = sidebar_bands.sidebar_footer;
         let content = sections.content;
         let waveform_card = sections.waveform_card;
         let browser_panel = sections.browser_panel;
-        let browser_bands = compute_browser_band_sections(browser_panel, sizing);
+        let browser_bands = runtime.compute_browser_band_sections(browser_panel, sizing);
         let browser_tabs = browser_bands.browser_tabs;
         let browser_toolbar = browser_bands.browser_toolbar;
         let browser_table_header = browser_bands.browser_table_header;

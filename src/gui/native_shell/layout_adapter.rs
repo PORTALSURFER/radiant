@@ -23,11 +23,16 @@ mod waveform_annotations;
 mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,
+    LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
+    SlotChild, SlotParams,
 };
 use crate::gui::types::{Point, Rect, Vector2};
-pub(super) use bands::{compute_browser_band_sections, compute_top_bar_band_sections};
+pub(super) use bands::compute_top_bar_band_sections;
+pub(crate) use bands::{
+    BROWSER_BANDS_ROOT_ID, BrowserBandSections, build_browser_bands_tree,
+    compute_browser_band_sections_with_layout_engine,
+};
 pub(super) use browser_chrome_text::{
     compute_browser_footer_text_rect, compute_browser_tabs_text_layout,
     compute_browser_toolbar_text_layout,
@@ -54,7 +59,10 @@ pub(super) use overlays::{
     compute_prompt_overlay_text_layout,
 };
 pub(super) use row_hit_test::compute_row_index_at_point;
-pub(super) use sidebar_bands::compute_sidebar_band_sections;
+pub(crate) use sidebar_bands::{
+    SIDEBAR_BANDS_ROOT_ID, SidebarBandSections, build_sidebar_bands_tree,
+    compute_sidebar_band_sections_with_layout_engine,
+};
 pub(super) use sidebar_chrome_text::{
     compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
 };
@@ -73,7 +81,7 @@ pub(super) use update_text::compute_top_bar_update_text_layout;
 pub(super) use waveform_annotations::compute_waveform_annotation_rects;
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 
-const ROOT_ID: u64 = 1;
+pub(crate) const SHELL_ROOT_ID: u64 = 1;
 const TOP_BAR_ID: u64 = 2;
 const SIDEBAR_ID: u64 = 3;
 const CONTENT_ID: u64 = 4;
@@ -84,7 +92,7 @@ const BROWSER_ID: u64 = 100;
 
 /// Top-level section rectangles used by `ShellLayout`.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct ShellSectionRects {
+pub(crate) struct ShellSectionRects {
     pub root: Rect,
     pub top_bar: Rect,
     pub sidebar: Rect,
@@ -96,6 +104,17 @@ pub(super) struct ShellSectionRects {
 
 /// Compute top-level shell sections using the strict slot-based layout engine.
 pub(super) fn compute_shell_sections(viewport: Vector2, style: &StyleTokens) -> ShellSectionRects {
+    let mut engine = LayoutEngine::default();
+    compute_shell_sections_with_layout_engine(viewport, style, &mut engine, &LayoutState::default())
+}
+
+/// Compute top-level shell sections with a caller-provided persistent layout engine.
+pub(crate) fn compute_shell_sections_with_layout_engine(
+    viewport: Vector2,
+    style: &StyleTokens,
+    engine: &mut LayoutEngine,
+    state: &LayoutState,
+) -> ShellSectionRects {
     let sizing = style.sizing;
     let viewport_width = viewport.x.max(sizing.min_viewport_width);
     let viewport_height = viewport.y.max(sizing.min_viewport_height);
@@ -104,11 +123,11 @@ pub(super) fn compute_shell_sections(viewport: Vector2, style: &StyleTokens) -> 
         Vector2::new(viewport_width, viewport_height),
     );
 
-    let root = build_root_tree(style, viewport_width);
-    let output = layout_tree(&root, root_rect);
+    let root = build_shell_sections_tree(style, viewport_width);
+    let output = engine.layout_with_state(&root, root_rect, state, LayoutDebugOptions::default());
 
     ShellSectionRects {
-        root: rect_for(&output.rects, ROOT_ID, root_rect),
+        root: rect_for(&output.rects, SHELL_ROOT_ID, root_rect),
         top_bar: rect_for(&output.rects, TOP_BAR_ID, root_rect),
         sidebar: rect_for(&output.rects, SIDEBAR_ID, root_rect),
         content: rect_for(&output.rects, CONTENT_ID, root_rect),
@@ -118,7 +137,8 @@ pub(super) fn compute_shell_sections(viewport: Vector2, style: &StyleTokens) -> 
     }
 }
 
-fn build_root_tree(style: &StyleTokens, viewport_width: f32) -> LayoutNode {
+/// Build the shell section tree used by top-level shell layout partitioning.
+pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32) -> LayoutNode {
     let sizing = style.sizing;
     let body = LayoutNode::container(
         BODY_ID,
@@ -168,7 +188,7 @@ fn build_root_tree(style: &StyleTokens, viewport_width: f32) -> LayoutNode {
     );
 
     LayoutNode::container(
-        ROOT_ID,
+        SHELL_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::Column,
             spacing: sizing.panel_gap,

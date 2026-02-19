@@ -5,8 +5,8 @@ use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, NativeMotionModel,
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
-        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellNodeKind, StyleTokens,
-        TextAlign, TextRun,
+        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellLayoutDirtyKind,
+        ShellLayoutRuntime, ShellNodeKind, StyleTokens, TextAlign, TextRun,
     },
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
@@ -361,6 +361,14 @@ enum TextInputTarget {
     PromptInput,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeInvalidationScope {
+    OverlayStateOnly,
+    OverlayMotionOnly,
+    StaticAndOverlays,
+    LayoutAndAll,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeVelloFrameState {
     /// Layout-only changes invalidate both static frame and cached overlays.
@@ -379,13 +387,6 @@ impl NativeVelloFrameState {
     /// Mark layout as stale, requiring full scene and overlay refresh.
     fn mark_layout_dirty(&mut self) {
         self.layout_dirty = true;
-        self.scene_dirty = true;
-        self.state_overlay_dirty = true;
-        self.motion_overlay_dirty = true;
-    }
-
-    /// Mark static content and all overlays dirty.
-    fn mark_scene_dirty(&mut self) {
         self.scene_dirty = true;
         self.state_overlay_dirty = true;
         self.motion_overlay_dirty = true;
@@ -482,6 +483,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
+    layout_runtime: ShellLayoutRuntime,
     shell_layout: Option<ShellLayout>,
     shell_state: NativeShellState,
     clear_color: Rgba8,
@@ -571,6 +573,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 model_dirty: true,
                 ..NativeVelloFrameState::default()
             },
+            layout_runtime: ShellLayoutRuntime::default(),
             shell_layout: None,
             shell_state: NativeShellState::new(),
             clear_color: Rgba8 {
@@ -773,7 +776,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let viewport = Vector2::new(surface.config.width as f32, surface.config.height as f32);
         let style = StyleTokens::for_viewport_with_scale(viewport.x, self.ui_scale_factor());
         self.style_cache = Some(style);
-        self.shell_layout = Some(ShellLayout::build_with_style(viewport, &style));
+        self.shell_layout = Some(ShellLayout::build_with_style_and_runtime(
+            viewport,
+            &style,
+            &mut self.layout_runtime,
+        ));
         self.frame_state.clear_layout_dirty();
     }
 
@@ -815,8 +822,27 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         );
     }
 
-    fn rebuild_scene_and_request_redraw(&mut self) {
-        self.frame_state.mark_scene_dirty();
+    fn apply_invalidation_scope(&mut self, scope: RuntimeInvalidationScope) {
+        match scope {
+            RuntimeInvalidationScope::OverlayStateOnly => {
+                self.frame_state.mark_state_overlay_dirty();
+            }
+            RuntimeInvalidationScope::OverlayMotionOnly => {
+                self.frame_state.mark_motion_overlay_dirty();
+            }
+            RuntimeInvalidationScope::StaticAndOverlays => {
+                self.frame_state.mark_model_dirty();
+                self.layout_runtime
+                    .mark_all_dirty(ShellLayoutDirtyKind::Layout);
+            }
+            RuntimeInvalidationScope::LayoutAndAll => {
+                self.frame_state.mark_layout_dirty();
+                self.frame_state.mark_model_dirty();
+                self.layout_runtime.reset();
+                self.layout_runtime
+                    .mark_all_dirty(ShellLayoutDirtyKind::Measure);
+            }
+        }
         self.request_redraw_if_needed();
     }
 
@@ -933,7 +959,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .clamp(i8::MIN as i32, i8::MAX as i32) as i8;
             self.pending_wheel_rows_delta = 0;
             self.emit_model_action(UiAction::MoveBrowserFocus { delta: steps });
-            self.rebuild_scene_and_request_redraw();
             pending_action = true;
         }
 
@@ -1234,10 +1259,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             if matches!(err, wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)
                 && needs_resize
             {
-                self.frame_state.mark_layout_dirty();
-                self.frame_state.mark_model_dirty();
+                self.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
                 self.rebuild_scene_if_needed();
-                self.request_redraw_if_needed();
             }
             if out_of_memory {
                 event_loop.exit();
@@ -1390,8 +1413,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.set_text_value(value)
     }
 
+    fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
+        match action {
+            UiAction::SeekWaveform { .. }
+            | UiAction::SetWaveformCursor { .. }
+            | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::ClearWaveformSelection
+            | UiAction::ZoomWaveform { .. }
+            | UiAction::ZoomWaveformToSelection
+            | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::OverlayMotionOnly,
+            _ => RuntimeInvalidationScope::StaticAndOverlays,
+        }
+    }
+
     fn emit_model_action(&mut self, action: UiAction) {
-        self.frame_state.mark_model_dirty();
+        self.apply_invalidation_scope(Self::classify_action_scope(&action));
         self.bridge.on_action(action);
     }
 
@@ -1454,9 +1490,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         self.window_event_count
                     );
                 }
-                self.frame_state.mark_layout_dirty();
-                self.frame_state.mark_model_dirty();
-                self.rebuild_scene_and_request_redraw();
+                self.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
             }
             WindowEvent::Resized(size) => {
                 if self.window_event_count <= 30 && (size.width == 0 || size.height == 0) {
@@ -1471,9 +1505,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         (self.render_ctx.as_ref(), self.render_surface.as_mut())
                     {
                         render_ctx.resize_surface(surface, size.width, size.height);
-                        self.frame_state.mark_layout_dirty();
-                        self.frame_state.mark_model_dirty();
-                        self.rebuild_scene_and_request_redraw();
+                        self.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
                     }
                 }
             }
@@ -1488,7 +1520,6 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
                 {
                     self.emit_model_action(action);
-                    self.rebuild_scene_and_request_redraw();
                 }
                 self.queue_cursor(point);
             }
@@ -1535,7 +1566,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         handled = true;
                     }
                     if handled {
-                        self.rebuild_scene_and_request_redraw();
+                        if !self.frame_state.has_pending_rebuild() {
+                            self.apply_invalidation_scope(
+                                RuntimeInvalidationScope::OverlayStateOnly,
+                            );
+                        }
                     }
                 }
             }
@@ -1626,7 +1661,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         }
                     }
                     if handled {
-                        self.rebuild_scene_and_request_redraw();
+                        if !self.frame_state.has_pending_rebuild() {
+                            self.apply_invalidation_scope(
+                                RuntimeInvalidationScope::OverlayStateOnly,
+                            );
+                        }
                     }
                 }
             }
@@ -2193,6 +2232,41 @@ mod tests {
     };
     use crate::gui::types::Vector2;
     use winit::event::MouseScrollDelta;
+
+    #[test]
+    fn action_scope_classification_routes_waveform_actions_to_motion_overlay() {
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SeekWaveform {
+                position_milli: 420,
+            }),
+            RuntimeInvalidationScope::OverlayMotionOnly
+        );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 1,
+            }),
+            RuntimeInvalidationScope::OverlayMotionOnly
+        );
+    }
+
+    #[test]
+    fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_actions() {
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+                &UiAction::SetBrowserSearch {
+                    query: String::from("kick"),
+                }
+            ),
+            RuntimeInvalidationScope::StaticAndOverlays
+        );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
+                value_milli: 250
+            }),
+            RuntimeInvalidationScope::StaticAndOverlays
+        );
+    }
 
     #[test]
     fn key_bindings_emit_waveform_zoom_actions() {

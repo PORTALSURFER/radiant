@@ -2,14 +2,15 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,
+    LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
+    SlotChild, SlotParams,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
-const SIDEBAR_BANDS_ROOT_ID: u64 = 630;
+pub(crate) const SIDEBAR_BANDS_ROOT_ID: u64 = 630;
 const SIDEBAR_HEADER_ID: u64 = 632;
-const SIDEBAR_ROWS_ID: u64 = 633;
+pub(crate) const SIDEBAR_ROWS_ID: u64 = 633;
 const SIDEBAR_FOOTER_ID: u64 = 634;
 
 /// Slot-resolved sidebar band rectangles.
@@ -25,6 +26,22 @@ pub(crate) fn compute_sidebar_band_sections(
     sidebar: Rect,
     sizing: SizingTokens,
 ) -> SidebarBandSections {
+    let mut engine = LayoutEngine::default();
+    compute_sidebar_band_sections_with_layout_engine(
+        sidebar,
+        sizing,
+        &mut engine,
+        &LayoutState::default(),
+    )
+}
+
+/// Compute sidebar band sections with a caller-provided persistent layout engine.
+pub(crate) fn compute_sidebar_band_sections_with_layout_engine(
+    sidebar: Rect,
+    sizing: SizingTokens,
+    engine: &mut LayoutEngine,
+    state: &LayoutState,
+) -> SidebarBandSections {
     let empty = empty_rect(sidebar);
     if sidebar.width() <= 0.0 || sidebar.height() <= 0.0 {
         return SidebarBandSections {
@@ -33,6 +50,28 @@ pub(crate) fn compute_sidebar_band_sections(
             sidebar_footer: empty,
         };
     }
+    let section_tree = build_sidebar_bands_tree(sidebar, sizing);
+    let output =
+        engine.layout_with_state(&section_tree, sidebar, state, LayoutDebugOptions::default());
+    let sidebar_rows = inset_horizontal(
+        rect_for(&output.rects, SIDEBAR_ROWS_ID, empty),
+        sizing.panel_inset,
+    );
+    SidebarBandSections {
+        sidebar_header: clamp_rect_to_bounds(
+            rect_for(&output.rects, SIDEBAR_HEADER_ID, empty),
+            sidebar,
+        ),
+        sidebar_rows: clamp_rect_to_bounds(sidebar_rows, sidebar),
+        sidebar_footer: clamp_rect_to_bounds(
+            rect_for(&output.rects, SIDEBAR_FOOTER_ID, empty),
+            sidebar,
+        ),
+    }
+}
+
+/// Build sidebar header/rows/footer tree for persistent runtime caching.
+pub(crate) fn build_sidebar_bands_tree(sidebar: Rect, sizing: SizingTokens) -> LayoutNode {
     let header_height = sizing
         .source_header_block_height
         .min(sidebar.height().max(0.0));
@@ -41,7 +80,7 @@ pub(crate) fn compute_sidebar_band_sections(
         + (sizing.text_inset_y * 2.0))
         .max(sizing.sidebar_action_button_height + 1.0)
         .min(sidebar.height().max(0.0));
-    let section_tree = LayoutNode::container(
+    LayoutNode::container(
         SIDEBAR_BANDS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::Column,
@@ -62,23 +101,7 @@ pub(crate) fn compute_sidebar_band_sections(
             },
             fixed_height_child(SIDEBAR_FOOTER_ID, footer_height, 0.0),
         ],
-    );
-    let output = layout_tree(&section_tree, sidebar);
-    let sidebar_rows = inset_horizontal(
-        rect_for(&output.rects, SIDEBAR_ROWS_ID, empty),
-        sizing.panel_inset,
-    );
-    SidebarBandSections {
-        sidebar_header: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_HEADER_ID, empty),
-            sidebar,
-        ),
-        sidebar_rows: clamp_rect_to_bounds(sidebar_rows, sidebar),
-        sidebar_footer: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_FOOTER_ID, empty),
-            sidebar,
-        ),
-    }
+    )
 }
 
 fn fixed_height_child(node_id: u64, height: f32, bottom_margin: f32) -> SlotChild {

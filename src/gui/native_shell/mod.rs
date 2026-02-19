@@ -6,6 +6,7 @@
 
 mod layout;
 mod layout_adapter;
+mod layout_runtime;
 mod paint;
 #[cfg(test)]
 mod shots;
@@ -14,6 +15,7 @@ mod style;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
+pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::NativeShellState;
 pub(crate) use style::StyleTokens;

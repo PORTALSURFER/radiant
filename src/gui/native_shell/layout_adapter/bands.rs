@@ -2,8 +2,9 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,
+    LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
+    SlotChild, SlotParams, layout_tree,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
@@ -15,12 +16,12 @@ const TOP_TITLE_CLUSTERS_ROW_ID: u64 = 611;
 const TOP_TITLE_CLUSTER_ID: u64 = 612;
 const TOP_ACTION_CLUSTER_ID: u64 = 613;
 
-const BROWSER_BANDS_ROOT_ID: u64 = 620;
+pub(crate) const BROWSER_BANDS_ROOT_ID: u64 = 620;
 const BROWSER_BANDS_COLUMN_ID: u64 = 621;
 const BROWSER_TABS_ID: u64 = 622;
 const BROWSER_TOOLBAR_ID: u64 = 623;
 const BROWSER_HEADER_ID: u64 = 624;
-const BROWSER_ROWS_ID: u64 = 625;
+pub(crate) const BROWSER_ROWS_ID: u64 = 625;
 const BROWSER_FOOTER_ID: u64 = 626;
 
 /// Slot-resolved top-bar band rectangles.
@@ -198,6 +199,22 @@ pub(crate) fn compute_browser_band_sections(
     browser_panel: Rect,
     sizing: SizingTokens,
 ) -> BrowserBandSections {
+    let mut engine = LayoutEngine::default();
+    compute_browser_band_sections_with_layout_engine(
+        browser_panel,
+        sizing,
+        &mut engine,
+        &LayoutState::default(),
+    )
+}
+
+/// Compute browser band sections with a caller-provided persistent layout engine.
+pub(crate) fn compute_browser_band_sections_with_layout_engine(
+    browser_panel: Rect,
+    sizing: SizingTokens,
+    engine: &mut LayoutEngine,
+    state: &LayoutState,
+) -> BrowserBandSections {
     let empty = empty_rect(browser_panel);
     if browser_panel.width() <= 0.0 || browser_panel.height() <= 0.0 {
         return BrowserBandSections {
@@ -208,6 +225,39 @@ pub(crate) fn compute_browser_band_sections(
             browser_footer: empty,
         };
     }
+    let band_tree = build_browser_bands_tree(browser_panel, sizing);
+    let output = engine.layout_with_state(
+        &band_tree,
+        browser_panel,
+        state,
+        LayoutDebugOptions::default(),
+    );
+    BrowserBandSections {
+        browser_tabs: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_TABS_ID, empty),
+            browser_panel,
+        ),
+        browser_toolbar: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_TOOLBAR_ID, empty),
+            browser_panel,
+        ),
+        browser_table_header: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_HEADER_ID, empty),
+            browser_panel,
+        ),
+        browser_rows: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_ROWS_ID, empty),
+            browser_panel,
+        ),
+        browser_footer: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_FOOTER_ID, empty),
+            browser_panel,
+        ),
+    }
+}
+
+/// Build browser tabs/toolbar/header/rows/footer tree for persistent runtime caching.
+pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens) -> LayoutNode {
     let panel_height = browser_panel.height();
     let gap = sizing.text_row_gap.max(0.0);
     let tabs_height = sizing
@@ -231,7 +281,7 @@ pub(crate) fn compute_browser_band_sections(
             sizing.browser_footer_max_height,
         )
         .min(panel_height);
-    let band_tree = LayoutNode::container(
+    LayoutNode::container(
         BROWSER_BANDS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::PaddingBox,
@@ -267,30 +317,7 @@ pub(crate) fn compute_browser_band_sections(
                 ],
             ),
         }],
-    );
-    let output = layout_tree(&band_tree, browser_panel);
-    BrowserBandSections {
-        browser_tabs: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TABS_ID, empty),
-            browser_panel,
-        ),
-        browser_toolbar: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TOOLBAR_ID, empty),
-            browser_panel,
-        ),
-        browser_table_header: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_HEADER_ID, empty),
-            browser_panel,
-        ),
-        browser_rows: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_ROWS_ID, empty),
-            browser_panel,
-        ),
-        browser_footer: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_FOOTER_ID, empty),
-            browser_panel,
-        ),
-    }
+    )
 }
 
 fn fixed_height_child(node_id: u64, height: f32, bottom_margin: f32) -> SlotChild {

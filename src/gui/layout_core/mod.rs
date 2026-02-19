@@ -9,7 +9,7 @@ pub(crate) mod model;
 pub(crate) mod tree;
 
 pub(crate) use constraints::Constraints;
-pub(crate) use engine::layout_tree;
+pub(crate) use engine::{LayoutDebugOptions, LayoutEngine, LayoutState, layout_tree};
 pub(crate) use model::{
     ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy, SizeModeCross,
     SizeModeMain, SlotParams,

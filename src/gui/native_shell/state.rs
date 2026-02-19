@@ -10,7 +10,8 @@ use super::{
         compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
         compute_sidebar_row_sections, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_update_action_button_rects, compute_waveform_header_text_layout,
+        compute_top_bar_update_text_layout, compute_update_action_button_rects,
+        compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -928,58 +929,32 @@ impl NativeShellState {
         } else {
             format!("{update_hint_text} | {update_notes_text}")
         };
-        let reserved_button_width = update_buttons
-            .iter()
-            .map(|button| button.rect.width())
-            .sum::<f32>()
-            + (update_buttons.len().saturating_sub(1) as f32 * sizing.action_button_gap.max(1.0));
+        let update_button_rects: Vec<Rect> =
+            update_buttons.iter().map(|button| button.rect).collect();
+        let update_text_layout = compute_top_bar_update_text_layout(
+            layout.top_bar_action_cluster,
+            layout.top_bar_title_row,
+            layout.top_bar_controls_row,
+            sizing,
+            &update_button_rects,
+        );
+        let update_status_width = update_text_layout.status_line.width().max(20.0);
         text_runs.push(TextRun {
-            text: truncate_to_width(
-                &update_status_text,
-                (layout.top_bar_action_cluster.width()
-                    - reserved_button_width
-                    - (sizing.text_inset_x * 2.0))
-                    .max(20.0),
-                sizing.font_meta,
-            ),
-            position: Point::new(
-                layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
-                text_top_in_rect(
-                    layout.top_bar_title_row,
-                    sizing.font_meta,
-                    sizing.text_inset_y,
-                ),
-            ),
+            text: truncate_to_width(&update_status_text, update_status_width, sizing.font_meta),
+            position: update_text_layout.status_line.min,
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some(
-                (layout.top_bar_action_cluster.width()
-                    - reserved_button_width
-                    - (sizing.text_inset_x * 2.0))
-                    .max(20.0),
-            ),
+            max_width: Some(update_status_width),
             align: TextAlign::Left,
         });
-        if !update_controls_text.is_empty() {
+        if !update_controls_text.is_empty() && update_text_layout.controls_line.width() > 0.0 {
+            let controls_width = update_text_layout.controls_line.width().max(20.0);
             text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &update_controls_text,
-                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                    sizing.font_meta,
-                ),
-                position: Point::new(
-                    layout.top_bar_action_cluster.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.top_bar_controls_row,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                text: truncate_to_width(&update_controls_text, controls_width, sizing.font_meta),
+                position: update_text_layout.controls_line.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (layout.top_bar_action_cluster.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                ),
+                max_width: Some(controls_width),
                 align: TextAlign::Left,
             });
         }

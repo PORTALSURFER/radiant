@@ -9,6 +9,7 @@ mod sidebar_header;
 mod sidebar_sections;
 mod status_bar;
 mod top_controls;
+mod update_text;
 mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
@@ -35,6 +36,7 @@ pub(super) use sidebar_header::{
 pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
 pub(super) use top_controls::compute_top_bar_controls_sections;
+pub(super) use update_text::compute_top_bar_update_text_layout;
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 
 const ROOT_ID: u64 = 1;

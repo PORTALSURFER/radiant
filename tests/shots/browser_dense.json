@@ -13256,7 +13256,7 @@
       "text": "Updates: idle",
       "position": {
         "x": 1339.0,
-        "y": 2.5
+        "y": 1.0
       },
       "font_size": 8.6,
       "color": {
@@ -13265,14 +13265,14 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 210.0,
+      "max_width": 205.0,
       "align": "left"
     },
     {
       "text": "Action: check",
       "position": {
         "x": 1339.0,
-        "y": 17.2
+        "y": 16.0
       },
       "font_size": 8.6,
       "color": {

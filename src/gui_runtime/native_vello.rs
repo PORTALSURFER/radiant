@@ -760,6 +760,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.render_surface = Some(render_surface);
         self.renderer = Some(renderer);
         self.frame_state.mark_layout_dirty();
+        self.frame_state.mark_model_dirty();
         self.rebuild_scene_if_needed();
         self.last_redraw = Instant::now();
     }
@@ -799,13 +800,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.shell_layout.is_none() || self.frame_state.layout_dirty {
             self.rebuild_layout();
         }
-        let rebuild_static = self.frame_state.take_scene() || self.frame_state.take_model();
+        let model_refresh_requested = self.frame_state.take_model();
+        let rebuild_static = self.frame_state.take_scene() || model_refresh_requested;
         let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
         let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
             return;
         }
         self.rebuild_scene(
+            model_refresh_requested,
             rebuild_static,
             rebuild_state_overlay,
             rebuild_motion_overlay,
@@ -952,14 +955,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene(
         &mut self,
+        model_refresh_requested: bool,
         mut rebuild_static: bool,
         mut rebuild_state_overlay: bool,
         mut rebuild_motion_overlay: bool,
     ) {
-        let should_refresh_model = self.frame_state.take_model()
-            || rebuild_static
-            || rebuild_state_overlay
-            || (!self.motion_model_supported && rebuild_motion_overlay);
+        let should_refresh_model =
+            model_refresh_requested || (!self.motion_model_supported && rebuild_motion_overlay);
         let should_refresh_motion = rebuild_motion_overlay && self.motion_model_supported;
         self.profiler.record_scene_rebuilds(
             rebuild_static,

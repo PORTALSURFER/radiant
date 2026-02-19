@@ -4,13 +4,13 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         SidebarRowCounts, compute_browser_action_button_rects, compute_browser_header_text_layout,
-        compute_browser_row_text_layout, compute_browser_toolbar_sections,
-        compute_drag_overlay_rect, compute_progress_overlay_sections,
-        compute_prompt_overlay_sections, compute_sidebar_action_button_rects,
-        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
-        compute_source_section_divider_rect, compute_status_text_line_rect,
-        compute_top_bar_controls_sections, compute_update_action_button_rects,
-        compute_waveform_header_text_layout,
+        compute_browser_map_header_text_layout, compute_browser_row_text_layout,
+        compute_browser_toolbar_sections, compute_drag_overlay_rect,
+        compute_progress_overlay_sections, compute_prompt_overlay_sections,
+        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
+        compute_sidebar_row_sections, compute_source_section_divider_rect,
+        compute_status_text_line_rect, compute_top_bar_controls_sections,
+        compute_update_action_button_rects, compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -1657,46 +1657,24 @@ impl NativeShellState {
             } else {
                 (String::from("Selection: —"), style.text_muted)
             };
+            let map_header_text_layout =
+                compute_browser_map_header_text_layout(layout.browser_table_header, sizing);
+            let left_max_width = map_header_text_layout.left_label.width().max(24.0);
+            let right_max_width = map_header_text_layout.right_label.width().max(36.0);
             text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &header_left_text,
-                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
-                    sizing.font_meta,
-                ),
-                position: Point::new(
-                    layout.browser_table_header.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                text: truncate_to_width(&header_left_text, left_max_width, sizing.font_meta),
+                position: map_header_text_layout.left_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_primary,
-                max_width: Some(
-                    (layout.browser_table_header.width() - (sizing.text_inset_x * 2.0)).max(24.0),
-                ),
+                max_width: Some(left_max_width),
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &selection_or_error.0,
-                    (layout.browser_table_header.width() * 0.42).max(36.0),
-                    sizing.font_meta,
-                ),
-                position: Point::new(
-                    layout.browser_table_header.max.x
-                        - ((layout.browser_table_header.width() * 0.42).max(36.0))
-                        - sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                text: truncate_to_width(&selection_or_error.0, right_max_width, sizing.font_meta),
+                position: map_header_text_layout.right_label.min,
                 font_size: sizing.font_meta,
                 color: selection_or_error.1,
-                max_width: Some((layout.browser_table_header.width() * 0.42).max(36.0)),
+                max_width: Some(right_max_width),
                 align: TextAlign::Right,
             });
         } else {

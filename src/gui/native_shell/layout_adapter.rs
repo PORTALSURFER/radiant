@@ -2,6 +2,7 @@
 mod bands;
 mod browser_text;
 mod controls;
+mod map_header;
 mod overlays;
 mod sidebar_bands;
 mod sidebar_header;
@@ -23,6 +24,7 @@ pub(super) use controls::{
     compute_browser_action_button_rects, compute_browser_toolbar_sections,
     compute_sidebar_action_button_rects, compute_update_action_button_rects,
 };
+pub(super) use map_header::compute_browser_map_header_text_layout;
 pub(super) use overlays::{
     compute_drag_overlay_rect, compute_progress_overlay_sections, compute_prompt_overlay_sections,
 };

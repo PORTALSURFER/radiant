@@ -4978,7 +4978,7 @@
       "text": "Sources",
       "position": {
         "x": 8.0,
-        "y": 33.5
+        "y": 33.0
       },
       "font_size": 10.2,
       "color": {
@@ -4994,7 +4994,7 @@
       "text": "search: kick",
       "position": {
         "x": 8.0,
-        "y": 45.2
+        "y": 44.0
       },
       "font_size": 8.6,
       "color": {
@@ -5426,7 +5426,7 @@
       "text": "recovery entries: 3",
       "position": {
         "x": 8.0,
-        "y": 689.6
+        "y": 689.0
       },
       "font_size": 8.6,
       "color": {

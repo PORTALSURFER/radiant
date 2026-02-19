@@ -12,6 +12,7 @@ use super::{
         compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
         compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
         compute_sidebar_folder_header_layout, compute_sidebar_folder_row_text_rect,
+        compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
         compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
         compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_top_bar_controls_sections,
@@ -1025,21 +1026,19 @@ impl NativeShellState {
             model.sources.header.as_str()
         };
         let sidebar_sections = sidebar_sections(layout, style, model);
+        let sidebar_header_text = compute_sidebar_header_text_layout(layout.sidebar_header, sizing);
+        let sidebar_header_title_width = sidebar_header_text.title_row.width().max(72.0);
+        let sidebar_header_query_width = sidebar_header_text.query_row.width().max(72.0);
         text_runs.push(TextRun {
             text: truncate_to_width(
                 sources_header,
-                (layout.sidebar_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+                sidebar_header_title_width,
                 sizing.font_header,
             ),
-            position: Point::new(
-                layout.sidebar_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                layout.sidebar_header.min.y + sizing.text_inset_y,
-            ),
+            position: sidebar_header_text.title_row.min,
             font_size: sizing.font_header,
             color: style.text_primary,
-            max_width: Some(
-                (layout.sidebar_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-            ),
+            max_width: Some(sidebar_header_title_width),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
@@ -1051,18 +1050,10 @@ impl NativeShellState {
                     model.sources.search_query.as_str()
                 }
             ),
-            position: Point::new(
-                layout.sidebar_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                layout.sidebar_header.min.y
-                    + sizing.text_inset_y
-                    + sizing.font_header
-                    + sizing.text_row_gap,
-            ),
+            position: sidebar_header_text.query_row.min,
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some(
-                (layout.sidebar_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
-            ),
+            max_width: Some(sidebar_header_query_width),
             align: TextAlign::Left,
         });
         let rendered_sources = source_row_rects.len();
@@ -1315,18 +1306,16 @@ impl NativeShellState {
                 align: TextAlign::Center,
             });
         }
+        let sidebar_footer_text = compute_sidebar_footer_text_layout(layout.sidebar_footer, sizing);
+        let sidebar_footer_primary_width = sidebar_footer_text.primary_row.width().max(56.0);
+        let sidebar_footer_secondary_width = sidebar_footer_text.secondary_row.width().max(56.0);
         if model.sources.rows.len() > rendered_sources {
             text_runs.push(TextRun {
                 text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
-                position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                    layout.sidebar_footer.min.y + sizing.text_inset_y,
-                ),
+                position: sidebar_footer_text.primary_row.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
-                ),
+                max_width: Some(sidebar_footer_primary_width),
                 align: TextAlign::Left,
             });
         }
@@ -1336,18 +1325,10 @@ impl NativeShellState {
                     "folders: +{} more…",
                     model.sources.folder_rows.len() - rendered_folders
                 ),
-                position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                    layout.sidebar_footer.min.y
-                        + sizing.text_inset_y
-                        + sizing.font_meta
-                        + sizing.text_row_gap,
-                ),
+                position: sidebar_footer_text.secondary_row.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
-                ),
+                max_width: Some(sidebar_footer_secondary_width),
                 align: TextAlign::Left,
             });
         } else if model.sources.folder_recovery.entry_count > 0 {
@@ -1356,18 +1337,10 @@ impl NativeShellState {
                     "recovery entries: {}",
                     model.sources.folder_recovery.entry_count
                 ),
-                position: Point::new(
-                    layout.sidebar_footer.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                    layout.sidebar_footer.min.y
-                        + sizing.text_inset_y
-                        + sizing.font_meta
-                        + sizing.text_row_gap,
-                ),
+                position: sidebar_footer_text.secondary_row.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (layout.sidebar_footer.width() - (sizing.text_inset_x * 2.0)).max(56.0),
-                ),
+                max_width: Some(sidebar_footer_secondary_width),
                 align: TextAlign::Left,
             });
         }

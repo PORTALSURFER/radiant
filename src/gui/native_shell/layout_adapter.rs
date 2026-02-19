@@ -7,6 +7,7 @@ mod controls;
 mod map_header;
 mod overlays;
 mod sidebar_bands;
+mod sidebar_chrome_text;
 mod sidebar_header;
 mod sidebar_sections;
 mod sidebar_text;
@@ -43,6 +44,9 @@ pub(super) use overlays::{
     compute_prompt_overlay_text_layout,
 };
 pub(super) use sidebar_bands::compute_sidebar_band_sections;
+pub(super) use sidebar_chrome_text::{
+    compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
+};
 pub(super) use sidebar_header::{
     compute_sidebar_folder_header_layout, compute_source_section_divider_rect,
 };

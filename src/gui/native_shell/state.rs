@@ -3,7 +3,8 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_toolbar_sections,
+        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_header_text_layout,
+        compute_browser_row_text_layout, compute_browser_toolbar_sections,
         compute_drag_overlay_rect, compute_progress_overlay_sections,
         compute_prompt_overlay_sections, compute_sidebar_action_button_rects,
         compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
@@ -648,7 +649,8 @@ impl NativeShellState {
             }
         } else {
             for row in browser_rows.iter() {
-                let row_columns = browser_table_columns(row.rect, sizing);
+                let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
+                let row_columns = row_text_layout.columns;
                 let row_fill = if row.focused {
                     translucent_overlay_color(
                         style.bg_tertiary,
@@ -718,9 +720,7 @@ impl NativeShellState {
                         sizing.border_width
                     },
                 );
-                let chip_rect = row_columns
-                    .bucket
-                    .inset(sizing.text_inset_y.min(sizing.text_inset_x).max(1.0));
+                let chip_rect = row_text_layout.bucket_chip;
                 let chip_color = match row.column {
                     0 => blend_color(style.accent_warning, style.bg_secondary, 0.54),
                     2 => blend_color(style.accent_mint, style.bg_secondary, 0.54),
@@ -733,43 +733,32 @@ impl NativeShellState {
                 push_border(primitives, chip_rect, style.border, sizing.border_width);
                 text_runs.push(TextRun {
                     text: row.visible_row.to_string(),
-                    position: Point::new(
-                        row_columns.index.min.x + sizing.text_inset_x,
-                        text_top_in_rect(row_columns.index, sizing.font_meta, sizing.text_inset_y),
-                    ),
+                    position: row_text_layout.index_label.min,
                     font_size: sizing.font_meta,
                     color: style.text_muted,
-                    max_width: Some(
-                        (row_columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
-                    ),
+                    max_width: Some(row_text_layout.index_label.width().max(12.0)),
                     align: TextAlign::Right,
                 });
-                let label_max_width =
-                    (row_columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0);
+                let label_max_width = row_text_layout.sample_label.width().max(20.0);
                 text_runs.push(TextRun {
                     text: row.label.clone(),
-                    position: Point::new(
-                        row_columns.sample.min.x + sizing.text_inset_x,
-                        text_top_in_rect(row_columns.sample, sizing.font_body, sizing.text_inset_y),
-                    ),
+                    position: row_text_layout.sample_label.min,
                     font_size: sizing.font_body,
                     color: row_text_color,
                     max_width: Some(label_max_width.max(20.0)),
                     align: TextAlign::Left,
                 });
+                let bucket_label_max_width = row_text_layout.bucket_label.width().max(10.0);
                 text_runs.push(TextRun {
                     text: truncate_to_width(
                         &row.bucket_label,
-                        (chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0),
+                        bucket_label_max_width,
                         sizing.font_meta,
                     ),
-                    position: Point::new(
-                        chip_rect.min.x + sizing.text_inset_x,
-                        text_top_in_rect(chip_rect, sizing.font_meta, sizing.text_inset_y),
-                    ),
+                    position: row_text_layout.bucket_label.min,
                     font_size: sizing.font_meta,
                     color: style.text_primary,
-                    max_width: Some((chip_rect.width() - (sizing.text_inset_x * 2.0)).max(10.0)),
+                    max_width: Some(bucket_label_max_width),
                     align: TextAlign::Center,
                 });
             }
@@ -1711,7 +1700,9 @@ impl NativeShellState {
                 align: TextAlign::Right,
             });
         } else {
-            let header = browser_table_columns(layout.browser_table_header, sizing);
+            let header_text_layout =
+                compute_browser_header_text_layout(layout.browser_table_header, sizing);
+            let header = header_text_layout.columns;
             for separator_x in [header.index.max.x, header.sample.max.x] {
                 primitives.push(Primitive::Rect(FillRect {
                     rect: Rect::from_min_max(
@@ -1727,47 +1718,26 @@ impl NativeShellState {
             }
             text_runs.push(TextRun {
                 text: String::from("#"),
-                position: Point::new(
-                    header.index.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: header_text_layout.index_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some((header.index.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                max_width: Some(header_text_layout.index_label.width().max(12.0)),
                 align: TextAlign::Right,
             });
             text_runs.push(TextRun {
                 text: String::from("Sample"),
-                position: Point::new(
-                    header.sample.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: header_text_layout.sample_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_primary,
-                max_width: Some((header.sample.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+                max_width: Some(header_text_layout.sample_label.width().max(24.0)),
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
                 text: String::from("Bucket"),
-                position: Point::new(
-                    header.bucket.min.x + sizing.text_inset_x,
-                    text_top_in_rect(
-                        layout.browser_table_header,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: header_text_layout.bucket_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_primary,
-                max_width: Some((header.bucket.width() - (sizing.text_inset_x * 2.0)).max(20.0)),
+                max_width: Some(header_text_layout.bucket_label.width().max(20.0)),
                 align: TextAlign::Center,
             });
         }
@@ -2086,7 +2056,7 @@ impl NativeShellState {
                     if !(row.selected || row.focused) {
                         continue;
                     }
-                    let columns = browser_table_columns(row.rect, sizing);
+                    let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
                     if row.focused {
                         primitives.push(Primitive::Rect(FillRect {
                             rect: row.rect,
@@ -2122,44 +2092,26 @@ impl NativeShellState {
                     if row.focused {
                         text_runs.push(TextRun {
                             text: row.visible_row.to_string(),
-                            position: Point::new(
-                                columns.index.min.x + sizing.text_inset_x,
-                                text_top_in_rect(
-                                    columns.index,
-                                    sizing.font_meta,
-                                    sizing.text_inset_y,
-                                ),
-                            ),
+                            position: row_text_layout.index_label.min,
                             font_size: sizing.font_meta,
                             color: blend_color(
                                 style.accent_warning,
                                 style.text_primary,
                                 style.state_focus_pulse_blend,
                             ),
-                            max_width: Some(
-                                (columns.index.width() - (sizing.text_inset_x * 2.0)).max(12.0),
-                            ),
+                            max_width: Some(row_text_layout.index_label.width().max(12.0)),
                             align: TextAlign::Right,
                         });
                         text_runs.push(TextRun {
                             text: row.label.clone(),
-                            position: Point::new(
-                                columns.sample.min.x + sizing.text_inset_x,
-                                text_top_in_rect(
-                                    columns.sample,
-                                    sizing.font_body,
-                                    sizing.text_inset_y,
-                                ),
-                            ),
+                            position: row_text_layout.sample_label.min,
                             font_size: sizing.font_body,
                             color: blend_color(
                                 style.accent_warning,
                                 style.text_primary,
                                 style.state_focus_pulse_blend,
                             ),
-                            max_width: Some(
-                                (columns.sample.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                            ),
+                            max_width: Some(row_text_layout.sample_label.width().max(20.0)),
                             align: TextAlign::Left,
                         });
                     }
@@ -2704,13 +2656,6 @@ struct TopBarControlsLayout {
     volume_meter: Rect,
     volume_value: Rect,
     volume_label: Rect,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct BrowserTableColumns {
-    index: Rect,
-    sample: Rect,
-    bucket: Rect,
 }
 
 fn format_milli_value(value: u16) -> String {
@@ -3265,24 +3210,6 @@ fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBar
         volume_meter: resolved.volume_meter,
         volume_value: resolved.volume_value,
         volume_label: resolved.volume_label,
-    }
-}
-
-fn browser_table_columns(rect: Rect, sizing: SizingTokens) -> BrowserTableColumns {
-    let index_width = sizing.browser_index_col_width.max(20.0).min(rect.width());
-    let bucket_width = sizing
-        .browser_bucket_col_width
-        .max(32.0)
-        .min((rect.width() - index_width).max(0.0));
-    let index_max_x = (rect.min.x + index_width).min(rect.max.x);
-    let bucket_min_x = (rect.max.x - bucket_width).max(index_max_x);
-    BrowserTableColumns {
-        index: Rect::from_min_max(rect.min, Point::new(index_max_x, rect.max.y)),
-        sample: Rect::from_min_max(
-            Point::new(index_max_x, rect.min.y),
-            Point::new(bucket_min_x, rect.max.y),
-        ),
-        bucket: Rect::from_min_max(Point::new(bucket_min_x, rect.min.y), rect.max),
     }
 }
 

@@ -1,0 +1,292 @@
+//! Slotized browser table column, header-label, and row-label geometry helpers.
+
+use super::super::style::SizingTokens;
+use crate::gui::layout_core::{
+    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
+    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+};
+use crate::gui::types::{Point, Rect, Vector2};
+
+const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
+const BROWSER_COL_INDEX_ID: u64 = 1201;
+const BROWSER_COL_SAMPLE_ID: u64 = 1202;
+const BROWSER_COL_BUCKET_ID: u64 = 1203;
+const BROWSER_TEXT_ROOT_ID: u64 = 1210;
+const BROWSER_TEXT_ALIGN_ID: u64 = 1211;
+const BROWSER_TEXT_LINE_ID: u64 = 1212;
+const BROWSER_BUCKET_CHIP_ROOT_ID: u64 = 1220;
+const BROWSER_BUCKET_CHIP_FILL_ID: u64 = 1221;
+
+/// Slot-resolved browser table columns.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BrowserTableColumns {
+    pub index: Rect,
+    pub sample: Rect,
+    pub bucket: Rect,
+}
+
+/// Slot-resolved browser table-header labels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BrowserHeaderTextLayout {
+    pub columns: BrowserTableColumns,
+    pub index_label: Rect,
+    pub sample_label: Rect,
+    pub bucket_label: Rect,
+}
+
+/// Slot-resolved browser row text and bucket-chip geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BrowserRowTextLayout {
+    pub columns: BrowserTableColumns,
+    pub index_label: Rect,
+    pub sample_label: Rect,
+    pub bucket_chip: Rect,
+    pub bucket_label: Rect,
+}
+
+/// Compute browser index/sample/bucket columns via strict slot layout.
+pub(crate) fn compute_browser_table_columns(
+    rect: Rect,
+    sizing: SizingTokens,
+) -> BrowserTableColumns {
+    let empty = empty_rect(rect);
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return BrowserTableColumns {
+            index: empty,
+            sample: empty,
+            bucket: empty,
+        };
+    }
+    let tree = LayoutNode::container(
+        BROWSER_COLUMNS_ROOT_ID,
+        ContainerPolicy {
+            kind: ContainerKind::Row,
+            align_main: MainAlign::Start,
+            align_cross: CrossAlign::Stretch,
+            overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
+        },
+        vec![
+            fixed_width_child(BROWSER_COL_INDEX_ID, index_width(rect, sizing)),
+            SlotChild {
+                slot: SlotParams::fill(),
+                child: LayoutNode::widget(BROWSER_COL_SAMPLE_ID, Vector2::new(1.0, 1.0)),
+            },
+            fixed_width_child(BROWSER_COL_BUCKET_ID, bucket_width(rect, sizing)),
+        ],
+    );
+    let output = layout_tree(&tree, rect);
+    BrowserTableColumns {
+        index: clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty), rect),
+        sample: clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_SAMPLE_ID, empty), rect),
+        bucket: clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_BUCKET_ID, empty), rect),
+    }
+}
+
+/// Compute browser table-header label bounds for `#`, `Sample`, and `Bucket`.
+pub(crate) fn compute_browser_header_text_layout(
+    header_rect: Rect,
+    sizing: SizingTokens,
+) -> BrowserHeaderTextLayout {
+    let columns = compute_browser_table_columns(header_rect, sizing);
+    BrowserHeaderTextLayout {
+        columns,
+        index_label: compute_text_line_rect(columns.index, sizing, sizing.font_meta),
+        sample_label: compute_text_line_rect(columns.sample, sizing, sizing.font_meta),
+        bucket_label: compute_text_line_rect(columns.bucket, sizing, sizing.font_meta),
+    }
+}
+
+/// Compute browser-row index/sample label bounds plus bucket chip/label bounds.
+pub(crate) fn compute_browser_row_text_layout(
+    row_rect: Rect,
+    sizing: SizingTokens,
+) -> BrowserRowTextLayout {
+    let columns = compute_browser_table_columns(row_rect, sizing);
+    let chip_inset = sizing.text_inset_y.min(sizing.text_inset_x).max(1.0);
+    let bucket_chip = inset_rect(columns.bucket, chip_inset);
+    BrowserRowTextLayout {
+        columns,
+        index_label: compute_text_line_rect(columns.index, sizing, sizing.font_meta),
+        sample_label: compute_text_line_rect(columns.sample, sizing, sizing.font_body),
+        bucket_chip,
+        bucket_label: compute_text_line_rect(bucket_chip, sizing, sizing.font_meta),
+    }
+}
+
+fn index_width(rect: Rect, sizing: SizingTokens) -> f32 {
+    sizing.browser_index_col_width.max(20.0).min(rect.width())
+}
+
+fn bucket_width(rect: Rect, sizing: SizingTokens) -> f32 {
+    let available = (rect.width() - index_width(rect, sizing)).max(0.0);
+    sizing.browser_bucket_col_width.max(32.0).min(available)
+}
+
+fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
+    let width = width.max(0.0);
+    SlotChild {
+        slot: SlotParams {
+            size_main: SizeModeMain::Fixed(width),
+            size_cross: SizeModeCross::Fill,
+            constraints: Constraints::new(width, width, 0.0, f32::INFINITY),
+            margin: Insets::default(),
+            align_cross_override: Some(CrossAlign::Stretch),
+            allow_fixed_compress: false,
+        },
+        child: LayoutNode::widget(node_id, Vector2::new(width.max(1.0), 1.0)),
+    }
+}
+
+fn inset_rect(rect: Rect, inset: f32) -> Rect {
+    let empty = empty_rect(rect);
+    if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        return empty;
+    }
+    let tree = LayoutNode::container(
+        BROWSER_BUCKET_CHIP_ROOT_ID,
+        ContainerPolicy {
+            kind: ContainerKind::PaddingBox,
+            padding: Insets {
+                left: inset.max(0.0),
+                right: inset.max(0.0),
+                top: inset.max(0.0),
+                bottom: inset.max(0.0),
+            },
+            align_cross: CrossAlign::Stretch,
+            overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::widget(BROWSER_BUCKET_CHIP_FILL_ID, Vector2::new(1.0, 1.0)),
+        }],
+    );
+    let output = layout_tree(&tree, rect);
+    clamp_rect_to_bounds(
+        rect_for(&output.rects, BROWSER_BUCKET_CHIP_FILL_ID, empty),
+        rect,
+    )
+}
+
+fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
+    let empty = empty_rect(rect);
+    if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
+        return empty;
+    }
+    let tree = LayoutNode::container(
+        BROWSER_TEXT_ROOT_ID,
+        ContainerPolicy {
+            kind: ContainerKind::PaddingBox,
+            padding: Insets {
+                left: sizing.text_inset_x.max(0.0),
+                right: sizing.text_inset_x.max(0.0),
+                top: sizing.text_inset_y.max(0.0),
+                bottom: sizing.text_inset_y.max(0.0),
+            },
+            align_cross: CrossAlign::Stretch,
+            overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::container(
+                BROWSER_TEXT_ALIGN_ID,
+                ContainerPolicy {
+                    kind: ContainerKind::AlignBox,
+                    align_main: MainAlign::Center,
+                    align_cross: CrossAlign::Stretch,
+                    overflow: OverflowPolicy::Clip,
+                    ..ContainerPolicy::default()
+                },
+                vec![SlotChild {
+                    slot: SlotParams {
+                        size_main: SizeModeMain::Fixed(font_size.max(1.0)),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: Constraints::new(
+                            0.0,
+                            f32::INFINITY,
+                            font_size.max(1.0),
+                            font_size.max(1.0),
+                        ),
+                        margin: Insets::default(),
+                        align_cross_override: Some(CrossAlign::Stretch),
+                        allow_fixed_compress: false,
+                    },
+                    child: LayoutNode::widget(
+                        BROWSER_TEXT_LINE_ID,
+                        Vector2::new(1.0, font_size.max(1.0)),
+                    ),
+                }],
+            ),
+        }],
+    );
+    let output = layout_tree(&tree, rect);
+    clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_TEXT_LINE_ID, empty), rect)
+}
+
+fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
+    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
+    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
+    if max.x < min.x || max.y < min.y {
+        return Rect::from_min_max(bounds.min, bounds.min);
+    }
+    Rect::from_min_max(min, max)
+}
+
+fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
+    rects.get(&id).copied().unwrap_or(fallback)
+}
+
+fn empty_rect(bounds: Rect) -> Rect {
+    Rect::from_min_max(bounds.min, bounds.min)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::native_shell::style::StyleTokens;
+
+    fn assert_inside(outer: Rect, inner: Rect) {
+        assert!(inner.min.x >= outer.min.x);
+        assert!(inner.min.y >= outer.min.y);
+        assert!(inner.max.x <= outer.max.x);
+        assert!(inner.max.y <= outer.max.y);
+    }
+
+    #[test]
+    fn browser_columns_preserve_left_to_right_order() {
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let rect = Rect::from_min_max(Point::new(100.0, 50.0), Point::new(1120.0, 78.0));
+        let columns = compute_browser_table_columns(rect, style.sizing);
+        assert_inside(rect, columns.index);
+        assert_inside(rect, columns.sample);
+        assert_inside(rect, columns.bucket);
+        assert!(columns.index.max.x <= columns.sample.min.x);
+        assert!(columns.sample.max.x <= columns.bucket.min.x);
+    }
+
+    #[test]
+    fn browser_header_labels_stay_inside_columns() {
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let header = Rect::from_min_max(Point::new(80.0, 16.0), Point::new(1240.0, 42.0));
+        let layout = compute_browser_header_text_layout(header, style.sizing);
+        assert_inside(layout.columns.index, layout.index_label);
+        assert_inside(layout.columns.sample, layout.sample_label);
+        assert_inside(layout.columns.bucket, layout.bucket_label);
+    }
+
+    #[test]
+    fn browser_row_chip_and_labels_stay_inside_row() {
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let row = Rect::from_min_max(Point::new(200.0, 90.0), Point::new(1200.0, 118.0));
+        let layout = compute_browser_row_text_layout(row, style.sizing);
+        assert_inside(row, layout.columns.index);
+        assert_inside(row, layout.columns.sample);
+        assert_inside(row, layout.columns.bucket);
+        assert_inside(layout.columns.bucket, layout.bucket_chip);
+        assert_inside(layout.columns.index, layout.index_label);
+        assert_inside(layout.columns.sample, layout.sample_label);
+        assert_inside(layout.bucket_chip, layout.bucket_label);
+    }
+}

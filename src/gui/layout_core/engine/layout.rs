@@ -3,6 +3,7 @@
 mod boxes;
 mod scroll;
 mod scroll_helpers;
+mod scroll_linear;
 
 use super::helpers::{
     align_main_offsets, allocate_fill_sizes, compress_if_needed, content_rect, main_margin_total,
@@ -71,19 +72,28 @@ fn layout_linear(
             window.first,
             window.last_exclusive,
         );
-        let sizes: Vec<f32> = states.iter().map(|(_, _, main, _)| *main).collect();
-        place_linear_children(
-            container,
-            content,
-            horizontal,
-            available_cross,
-            &states,
-            &sizes,
-            window.cursor_main_start,
-            spacing,
-            context,
+        let cursor_main_start = window.cursor_main_start;
+        let distributed_spacing = window.distributed_spacing;
+        let sizes = window.main_sizes;
+        if sizes.len() == states.len() {
+            place_linear_children(
+                container,
+                content,
+                horizontal,
+                available_cross,
+                &states,
+                &sizes,
+                cursor_main_start,
+                distributed_spacing,
+                context,
+            );
+            return;
+        }
+        context.push_diagnostic(
+            container.id,
+            LayoutDiagnosticCode::VirtualizationSpanResolutionFallback,
+            "virtualization window sizes did not match materialized children",
         );
-        return;
     }
 
     let mut states = collect_layout_states(

@@ -1,9 +1,9 @@
 //! Shared mutable context for one measure/layout evaluation.
 
 use super::{
-    DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
-    LayoutDiagnosticCode, LayoutOutput, LayoutState, LinearVirtualMetrics, LinearVirtualWindow,
-    MeasureCacheKey, OverflowInfo, VirtualWindowInfo, VirtualizationCacheKey,
+    CachedVirtualMetrics, DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive,
+    LayoutDiagnostic, LayoutDiagnosticCode, LayoutOutput, LayoutState, LinearVirtualMetrics,
+    MeasureCacheKey, OverflowInfo, ResolvedLinearWindow, VirtualWindowInfo, VirtualizationCacheKey,
 };
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{Insets, OverflowPolicy};
@@ -14,8 +14,8 @@ use std::collections::{BTreeSet, HashMap};
 pub(super) struct LayoutContext<'a> {
     measured: HashMap<MeasureCacheKey, Vector2>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
-    virtual_cache: &'a mut HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
-    linear_windows: HashMap<NodeId, LinearVirtualWindow>,
+    virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
+    linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
     measure_dirty: &'a BTreeSet<NodeId>,
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
@@ -26,7 +26,7 @@ pub(super) struct LayoutContext<'a> {
 impl<'a> LayoutContext<'a> {
     pub(super) fn new(
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
-        virtual_cache: &'a mut HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
+        virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
         measure_dirty: &'a BTreeSet<NodeId>,
         state: &'a LayoutState,
         debug_options: LayoutDebugOptions,
@@ -64,22 +64,31 @@ impl<'a> LayoutContext<'a> {
         &self,
         key: VirtualizationCacheKey,
     ) -> Option<LinearVirtualMetrics> {
-        self.virtual_cache.get(&key).cloned()
+        self.virtual_cache
+            .get(&key)
+            .map(|entry| entry.metrics.clone())
     }
 
     pub(super) fn remember_virtual_metrics(
         &mut self,
         key: VirtualizationCacheKey,
         metrics: LinearVirtualMetrics,
+        dependencies: BTreeSet<NodeId>,
     ) {
-        self.virtual_cache.insert(key, metrics);
+        self.virtual_cache.insert(
+            key,
+            CachedVirtualMetrics {
+                metrics,
+                dependencies,
+            },
+        );
     }
 
     pub(super) fn is_measure_dirty(&self, node_id: NodeId) -> bool {
         self.measure_dirty.contains(&node_id)
     }
 
-    pub(super) fn set_linear_window(&mut self, node_id: NodeId, window: LinearVirtualWindow) {
+    pub(super) fn set_linear_window(&mut self, node_id: NodeId, window: ResolvedLinearWindow) {
         self.linear_windows.insert(node_id, window);
     }
 
@@ -87,8 +96,8 @@ impl<'a> LayoutContext<'a> {
         self.linear_windows.remove(&node_id);
     }
 
-    pub(super) fn linear_window(&self, node_id: NodeId) -> Option<LinearVirtualWindow> {
-        self.linear_windows.get(&node_id).copied()
+    pub(super) fn linear_window(&self, node_id: NodeId) -> Option<ResolvedLinearWindow> {
+        self.linear_windows.get(&node_id).cloned()
     }
 
     pub(super) fn normalize_constraints(

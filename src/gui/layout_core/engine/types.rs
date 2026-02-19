@@ -1,6 +1,6 @@
 //! Shared data types for layout output, diagnostics, and debug rendering.
 
-use super::super::model::OverflowPolicy;
+use super::super::model::{MainAlign, OverflowPolicy};
 use super::super::tree::NodeId;
 use crate::gui::types::{Rect, Vector2};
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,6 +22,10 @@ pub enum LayoutDiagnosticCode {
     VirtualizationPolicyIgnored,
     /// A computed virtualization window was clamped to legal bounds.
     VirtualizationWindowClamped,
+    /// Virtualization fell back because alignment-resolved windows were invalid.
+    VirtualizationAlignmentFallback,
+    /// Virtualization fell back because span resolution could not be trusted.
+    VirtualizationSpanResolutionFallback,
 }
 
 /// Layout diagnostic emitted when invalid states are normalized.
@@ -163,7 +167,7 @@ pub struct LayoutOutput {
 }
 
 /// Virtualized window metadata for a scroll container.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VirtualWindowInfo {
     /// Total children available in the virtualized content list.
     pub total_children: usize,
@@ -179,6 +183,32 @@ pub struct VirtualWindowInfo {
     pub viewport_main_start: f32,
     /// Viewport end on the virtualization axis.
     pub viewport_main_end: f32,
+    /// Window start on the virtualization axis.
+    pub window_main_start: f32,
+    /// Window end on the virtualization axis.
+    pub window_main_end: f32,
+    /// Total resolved main-axis extent for the content container.
+    pub resolved_total_main: f32,
+    /// Resolved main-axis alignment mode.
+    pub alignment_mode: MainAlign,
+}
+
+impl Default for VirtualWindowInfo {
+    fn default() -> Self {
+        Self {
+            total_children: 0,
+            first_index: 0,
+            last_index_exclusive: 0,
+            culled_before: 0,
+            culled_after: 0,
+            viewport_main_start: 0.0,
+            viewport_main_end: 0.0,
+            window_main_start: 0.0,
+            window_main_end: 0.0,
+            resolved_total_main: 0.0,
+            alignment_mode: MainAlign::Start,
+        }
+    }
 }
 
 /// Collected traversal counters for one layout evaluation.

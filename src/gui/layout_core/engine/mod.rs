@@ -7,8 +7,10 @@ mod measure;
 mod types;
 
 use super::constraints::Constraints;
-use super::model::VirtualizationAxis;
-use super::tree::{LayoutNode, NodeId, SlotChild};
+use super::model::{
+    CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, VirtualizationAxis,
+};
+use super::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeSet, HashMap};
 
@@ -82,6 +84,7 @@ pub(super) struct VirtualizationCacheKey {
     constraints: ConstraintKey,
     axis: VirtualizationAxis,
     child_count: usize,
+    policy_fingerprint: u64,
 }
 
 impl VirtualizationCacheKey {
@@ -90,12 +93,14 @@ impl VirtualizationCacheKey {
         constraints: Constraints,
         axis: VirtualizationAxis,
         child_count: usize,
+        policy_fingerprint: u64,
     ) -> Self {
         Self {
             node_id,
             constraints: ConstraintKey::from_constraints(constraints),
             axis,
             child_count,
+            policy_fingerprint,
         }
     }
 }
@@ -109,20 +114,33 @@ pub(super) struct VirtualSpan {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct LinearVirtualMetrics {
     pub(super) spans: Vec<VirtualSpan>,
+    pub(super) main_sizes: Vec<f32>,
     pub(super) total_main: f32,
+    pub(super) leading_offset: f32,
+    pub(super) distributed_spacing: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct LinearVirtualWindow {
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ResolvedLinearWindow {
     pub(super) first: usize,
     pub(super) last_exclusive: usize,
     pub(super) cursor_main_start: f32,
+    pub(super) distributed_spacing: f32,
+    pub(super) main_sizes: Vec<f32>,
+    pub(super) leading_offset: f32,
+    pub(super) total_main: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct CachedVirtualMetrics {
+    pub(super) metrics: LinearVirtualMetrics,
+    pub(super) dependencies: BTreeSet<NodeId>,
 }
 
 #[derive(Default)]
 pub struct LayoutEngine {
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
-    virtual_cache: HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
+    virtual_cache: HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     layout_dirty: BTreeSet<NodeId>,
     measure_dirty: BTreeSet<NodeId>,
 }
@@ -131,19 +149,24 @@ impl LayoutEngine {
     /// Mark a node as geometry-dirty.
     pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
         self.layout_dirty.insert(node_id);
-        self.virtual_cache.clear();
+        self.invalidate_virtual_cache_for(node_id);
     }
 
     /// Mark a node as intrinsic-measure dirty.
     pub fn mark_measure_dirty(&mut self, node_id: NodeId) {
         self.measure_dirty.insert(node_id);
-        self.virtual_cache.clear();
+        self.invalidate_virtual_cache_for(node_id);
     }
 
     /// Clear all dirty markers.
     pub fn clear_dirty(&mut self) {
         self.layout_dirty.clear();
         self.measure_dirty.clear();
+    }
+
+    fn invalidate_virtual_cache_for(&mut self, node_id: NodeId) {
+        self.virtual_cache
+            .retain(|_, entry| !entry.dependencies.contains(&node_id));
     }
 
     /// Compute layout output for `root` in `root_rect` using default state/options.
@@ -194,6 +217,95 @@ impl LayoutEngine {
         self.clear_dirty();
         output
     }
+}
+
+pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u64 {
+    fn push_f32(hasher: &mut std::collections::hash_map::DefaultHasher, value: f32) {
+        std::hash::Hash::hash(&value.to_bits(), hasher);
+    }
+
+    fn main_mode_tag(mode: SizeModeMain) -> u8 {
+        match mode {
+            SizeModeMain::Fixed(_) => 0,
+            SizeModeMain::Fill(_) => 1,
+            SizeModeMain::Percent(_) => 2,
+            SizeModeMain::Intrinsic => 3,
+        }
+    }
+
+    fn cross_mode_tag(mode: SizeModeCross) -> u8 {
+        match mode {
+            SizeModeCross::Fixed(_) => 0,
+            SizeModeCross::Fill => 1,
+            SizeModeCross::Intrinsic => 2,
+        }
+    }
+
+    fn align_main_tag(value: MainAlign) -> u8 {
+        match value {
+            MainAlign::Start => 0,
+            MainAlign::Center => 1,
+            MainAlign::End => 2,
+            MainAlign::SpaceBetween => 3,
+            MainAlign::SpaceAround => 4,
+            MainAlign::SpaceEvenly => 5,
+        }
+    }
+
+    fn align_cross_tag(value: CrossAlign) -> u8 {
+        match value {
+            CrossAlign::Start => 0,
+            CrossAlign::Center => 1,
+            CrossAlign::End => 2,
+            CrossAlign::Stretch => 3,
+        }
+    }
+
+    fn overflow_tag(value: OverflowPolicy) -> u8 {
+        match value {
+            OverflowPolicy::Clip => 0,
+            OverflowPolicy::Scroll => 1,
+            OverflowPolicy::Wrap => 2,
+            OverflowPolicy::Shrink => 3,
+        }
+    }
+
+    use std::hash::Hasher;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    hasher.write_u8(align_main_tag(container.policy.align_main));
+    hasher.write_u8(align_cross_tag(container.policy.align_cross));
+    hasher.write_u8(overflow_tag(container.policy.overflow));
+    push_f32(&mut hasher, container.policy.spacing);
+    for child in &container.children {
+        hasher.write_u64(child.child.id());
+        hasher.write_u64(child.child.state_version());
+        hasher.write_u8(main_mode_tag(child.slot.size_main));
+        match child.slot.size_main {
+            SizeModeMain::Fixed(value)
+            | SizeModeMain::Fill(value)
+            | SizeModeMain::Percent(value) => push_f32(&mut hasher, value),
+            SizeModeMain::Intrinsic => {}
+        }
+        hasher.write_u8(cross_mode_tag(child.slot.size_cross));
+        if let SizeModeCross::Fixed(value) = child.slot.size_cross {
+            push_f32(&mut hasher, value);
+        }
+        push_f32(&mut hasher, child.slot.constraints.min_w);
+        push_f32(&mut hasher, child.slot.constraints.max_w);
+        push_f32(&mut hasher, child.slot.constraints.min_h);
+        push_f32(&mut hasher, child.slot.constraints.max_h);
+        push_f32(&mut hasher, child.slot.margin.left);
+        push_f32(&mut hasher, child.slot.margin.right);
+        push_f32(&mut hasher, child.slot.margin.top);
+        push_f32(&mut hasher, child.slot.margin.bottom);
+        hasher.write_u8(match child.slot.align_cross_override {
+            None => 0,
+            Some(value) => 1 + align_cross_tag(value),
+        });
+        hasher.write_u8(u8::from(child.slot.allow_fixed_compress));
+    }
+    hasher.finish()
 }
 
 /// Measure and layout a strict slot tree into rounded rectangles.

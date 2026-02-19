@@ -1,19 +1,22 @@
 //! ScrollView layout including optional linear virtualization.
 
-use super::super::measure::measure_node;
 use super::super::{
-    LayoutContext, LayoutDiagnosticCode, LinearVirtualMetrics, LinearVirtualWindow,
-    VirtualWindowInfo, VirtualizationCacheKey,
+    LayoutContext, LayoutDiagnosticCode, ResolvedLinearWindow, VirtualWindowInfo,
+    VirtualizationCacheKey, virtualization_policy_fingerprint,
 };
 use super::layout_node;
 use super::scroll_helpers::{
     clamp_scroll_offset, compute_virtual_window, cursor_before_first, record_window_debug,
     sanitize_overscan,
 };
+use super::scroll_linear::{
+    build_linear_metrics, collect_subtree_ids_from_container, metrics_is_valid,
+};
 use crate::gui::layout_core::constraints::Constraints;
-use crate::gui::layout_core::model::{ContainerKind, SizeModeMain, VirtualizationAxis};
+use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
+use std::collections::BTreeSet;
 
 /// Layout a scroll container and optionally virtualize large linear child lists.
 pub(super) fn layout_scroll_view(
@@ -25,7 +28,7 @@ pub(super) fn layout_scroll_view(
         return;
     };
     let slot = child.slot;
-    let measured = measure_node(&child.child, slot.constraints, context);
+    let measured = super::super::measure::measure_node(&child.child, slot.constraints, context);
     let viewport_w = (content.width() - slot.margin.left - slot.margin.right).max(0.0);
     let viewport_h = (content.height() - slot.margin.top - slot.margin.bottom).max(0.0);
     let width = measured.x.max(viewport_w);
@@ -116,41 +119,42 @@ fn layout_virtualized_child(
             return false;
         }
     };
-    if !matches!(
-        content_container.policy.align_main,
-        crate::gui::layout_core::model::MainAlign::Start
-    ) {
-        context.push_diagnostic(
-            container.id,
-            LayoutDiagnosticCode::VirtualizationPolicyIgnored,
-            "virtualization requires Start main-axis alignment",
-        );
-        return false;
-    }
 
-    if !virtualization_slots_supported(content_container.children.as_slice()) {
-        context.push_diagnostic(
-            container.id,
-            LayoutDiagnosticCode::VirtualizationPolicyIgnored,
-            "virtualization supports only Fixed/Intrinsic main-axis slots",
-        );
-        return false;
+    let available_main = if horizontal {
+        child_rect.width()
+    } else {
+        child_rect.height()
     }
+    .max(0.0);
+    let available_cross = if horizontal {
+        child_rect.height()
+    } else {
+        child_rect.width()
+    }
+    .max(0.0);
 
     let viewport_main_size = if horizontal {
         viewport_rect.width()
     } else {
         viewport_rect.height()
     };
-    let viewport_cross_size = if horizontal {
-        viewport_rect.height()
-    } else {
-        viewport_rect.width()
-    };
     let viewport_main_start = if horizontal { offset.x } else { offset.y };
-    let list_constraints = Constraints::new(0.0, viewport_main_size, 0.0, viewport_cross_size);
-    let metrics =
-        cached_or_build_metrics(content_container, list_constraints, policy.axis, context);
+
+    let constraints = if horizontal {
+        Constraints::new(0.0, available_main, 0.0, available_cross)
+    } else {
+        Constraints::new(0.0, available_cross, 0.0, available_main)
+    };
+    let metrics = cached_or_build_metrics(content_container, constraints, policy.axis, context);
+    if !metrics_is_valid(&metrics, content_container.children.len()) {
+        context.push_diagnostic(
+            container.id,
+            LayoutDiagnosticCode::VirtualizationSpanResolutionFallback,
+            "virtualization spans were invalid and full layout fallback was used",
+        );
+        return false;
+    }
+
     let (overscan_px, overscan_clamped) = sanitize_overscan(policy.overscan_px);
     if overscan_clamped {
         context.push_diagnostic(
@@ -173,15 +177,29 @@ fn layout_virtualized_child(
         );
     }
 
+    if first >= last_exclusive {
+        context.push_diagnostic(
+            container.id,
+            LayoutDiagnosticCode::VirtualizationAlignmentFallback,
+            "virtualization window was empty after alignment resolution",
+        );
+        return false;
+    }
+
     let first_before_margin =
         first_before_margin(content_container.children.as_slice(), first, horizontal);
     let cursor_main_start = cursor_before_first(first_before_margin, first, &metrics);
+    let selected_sizes = metrics.main_sizes[first..last_exclusive].to_vec();
     context.set_linear_window(
         child.child.id(),
-        LinearVirtualWindow {
+        ResolvedLinearWindow {
             first,
             last_exclusive,
             cursor_main_start,
+            distributed_spacing: metrics.distributed_spacing,
+            main_sizes: selected_sizes,
+            leading_offset: metrics.leading_offset,
+            total_main: metrics.total_main,
         },
     );
     layout_node(&child.child, child_rect, context);
@@ -208,6 +226,10 @@ fn layout_virtualized_child(
                 .saturating_sub(last_exclusive),
             viewport_main_start,
             viewport_main_end: viewport_main_start + viewport_main_size,
+            window_main_start: window_start,
+            window_main_end: window_end,
+            resolved_total_main: metrics.total_main,
+            alignment_mode: content_container.policy.align_main,
         },
     );
     true
@@ -218,106 +240,23 @@ fn cached_or_build_metrics(
     constraints: Constraints,
     axis: VirtualizationAxis,
     context: &mut LayoutContext,
-) -> LinearVirtualMetrics {
-    let key = VirtualizationCacheKey::new(content.id, constraints, axis, content.children.len());
-    if !content
-        .children
-        .iter()
-        .any(|entry| context.is_measure_dirty(entry.child.id()))
-    {
-        if let Some(metrics) = context.cached_virtual_metrics(key) {
-            return metrics;
-        }
-    }
-    let metrics = build_linear_metrics(
-        content,
+) -> super::super::LinearVirtualMetrics {
+    let key = VirtualizationCacheKey::new(
+        content.id,
         constraints,
-        matches!(axis, VirtualizationAxis::Horizontal),
-        context,
+        axis,
+        content.children.len(),
+        virtualization_policy_fingerprint(content),
     );
-    context.remember_virtual_metrics(key, metrics.clone());
+    if let Some(metrics) = context.cached_virtual_metrics(key) {
+        return metrics;
+    }
+
+    let metrics = build_linear_metrics(content, constraints, axis, context);
+    let mut dependencies = BTreeSet::new();
+    collect_subtree_ids_from_container(content, &mut dependencies);
+    context.remember_virtual_metrics(key, metrics.clone(), dependencies);
     metrics
-}
-
-fn build_linear_metrics(
-    content: &ContainerNode,
-    constraints: Constraints,
-    horizontal: bool,
-    context: &mut LayoutContext,
-) -> LinearVirtualMetrics {
-    let mut spans = Vec::with_capacity(content.children.len());
-    let mut cursor = 0.0;
-    let spacing = content.policy.spacing.max(0.0);
-    let main_available = if horizontal {
-        constraints.max_w
-    } else {
-        constraints.max_h
-    };
-
-    for (index, child) in content.children.iter().enumerate() {
-        let measured = measure_node(&child.child, child.slot.constraints, context);
-        let main =
-            resolve_main_for_virtual(horizontal, child, measured, main_available, context).max(0.0);
-        let before = if horizontal {
-            child.slot.margin.left
-        } else {
-            child.slot.margin.top
-        };
-        let after = if horizontal {
-            child.slot.margin.right
-        } else {
-            child.slot.margin.bottom
-        };
-        cursor += before;
-        let start = cursor;
-        let end = start + main;
-        spans.push(super::super::VirtualSpan { start, end });
-        cursor = end + after;
-        if index + 1 < content.children.len() {
-            cursor += spacing;
-        }
-    }
-
-    LinearVirtualMetrics {
-        spans,
-        total_main: cursor.max(0.0),
-    }
-}
-
-fn resolve_main_for_virtual(
-    horizontal: bool,
-    slot_child: &SlotChild,
-    measured: Vector2,
-    available_main: f32,
-    context: &mut LayoutContext,
-) -> f32 {
-    let raw = match slot_child.slot.size_main {
-        SizeModeMain::Fixed(value) => value,
-        SizeModeMain::Intrinsic => {
-            if horizontal {
-                measured.x
-            } else {
-                measured.y
-            }
-        }
-        SizeModeMain::Percent(percent) => available_main * percent.clamp(0.0, 1.0),
-        SizeModeMain::Fill(_) => 0.0,
-    };
-    context.clamp_main(
-        slot_child.child.id(),
-        horizontal,
-        slot_child.slot.constraints,
-        raw,
-    )
-}
-
-fn virtualization_slots_supported(children: &[SlotChild]) -> bool {
-    children.iter().all(|child| {
-        matches!(
-            child.slot.size_main,
-            SizeModeMain::Fixed(_) | SizeModeMain::Intrinsic
-        )
-    })
 }
 
 fn first_before_margin(children: &[SlotChild], first: usize, horizontal: bool) -> f32 {

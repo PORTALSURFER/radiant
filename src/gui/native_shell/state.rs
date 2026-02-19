@@ -5,7 +5,8 @@ use super::{
     layout_adapter::{
         SidebarRowCounts, compute_action_button_text_rect, compute_browser_action_button_rects,
         compute_browser_footer_text_rect, compute_browser_header_text_layout,
-        compute_browser_map_header_text_layout, compute_browser_row_text_layout,
+        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
+        compute_browser_map_point_center, compute_browser_row_text_layout,
         compute_browser_tabs_text_layout, compute_browser_toolbar_sections,
         compute_browser_toolbar_text_layout, compute_drag_overlay_rect,
         compute_drag_overlay_text_layout, compute_progress_overlay_sections,
@@ -628,7 +629,7 @@ impl NativeShellState {
         let folder_row_rects = rendered_folder_row_rects(layout, style, model);
         let browser_rows = rendered_browser_rows(layout, model, style);
         if model.map.active {
-            let canvas = map_canvas_rect(layout.browser_rows, sizing);
+            let canvas = compute_browser_map_canvas_rect(layout.browser_rows, sizing);
             primitives.push(Primitive::Rect(FillRect {
                 rect: canvas,
                 color: blend_color(style.surface_base, style.bg_secondary, 0.24),
@@ -640,7 +641,7 @@ impl NativeShellState {
                 sizing.border_width,
             );
             for point in &model.map.points {
-                let center = map_point_center(canvas, point);
+                let center = compute_browser_map_point_center(canvas, point.x_milli, point.y_milli);
                 let color = map_point_color(style, point);
                 let radius = if point.focused {
                     4.5
@@ -2898,19 +2899,6 @@ fn browser_tabs_layout(layout: &ShellLayout, sizing: SizingTokens) -> BrowserTab
     BrowserTabsLayout { samples, map }
 }
 
-fn map_canvas_rect(browser_rows: Rect, sizing: SizingTokens) -> Rect {
-    browser_rows.inset((sizing.text_inset_x * 0.5).max(2.0))
-}
-
-fn map_point_center(canvas: Rect, point: &crate::app::MapPointModel) -> Point {
-    let x_ratio = f32::from(point.x_milli.min(1000)) / 1000.0;
-    let y_ratio = f32::from(point.y_milli.min(1000)) / 1000.0;
-    Point::new(
-        canvas.min.x + (canvas.width() * x_ratio),
-        canvas.min.y + (canvas.height() * y_ratio),
-    )
-}
-
 fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {
     if point.focused {
         return style.accent_warning;
@@ -2932,14 +2920,15 @@ fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) 
     if !model.map.active || model.map.points.is_empty() {
         return None;
     }
-    let canvas = map_canvas_rect(layout.browser_rows, style_for_layout(layout).sizing);
+    let canvas =
+        compute_browser_map_canvas_rect(layout.browser_rows, style_for_layout(layout).sizing);
     if !canvas.contains(point) {
         return None;
     }
 
     let mut best: Option<(f32, &str)> = None;
     for map_point in &model.map.points {
-        let center = map_point_center(canvas, map_point);
+        let center = compute_browser_map_point_center(canvas, map_point.x_milli, map_point.y_milli);
         let radius = if map_point.focused {
             7.0
         } else if map_point.selected {

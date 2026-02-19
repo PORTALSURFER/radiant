@@ -4,6 +4,7 @@ mod browser_chrome_text;
 mod browser_text;
 mod control_text;
 mod controls;
+mod map_canvas;
 mod map_header;
 mod overlays;
 mod sidebar_bands;
@@ -37,6 +38,7 @@ pub(super) use controls::{
     compute_browser_action_button_rects, compute_browser_toolbar_sections,
     compute_sidebar_action_button_rects, compute_update_action_button_rects,
 };
+pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
 pub(super) use map_header::compute_browser_map_header_text_layout;
 pub(super) use overlays::{
     compute_drag_overlay_rect, compute_drag_overlay_text_layout, compute_progress_overlay_sections,

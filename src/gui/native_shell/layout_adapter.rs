@@ -3,6 +3,7 @@ mod bands;
 mod controls;
 mod overlays;
 mod sidebar_bands;
+mod sidebar_header;
 mod sidebar_sections;
 mod top_controls;
 use super::style::StyleTokens;
@@ -20,6 +21,9 @@ pub(super) use overlays::{
     compute_drag_overlay_rect, compute_progress_overlay_sections, compute_prompt_overlay_sections,
 };
 pub(super) use sidebar_bands::compute_sidebar_band_sections;
+pub(super) use sidebar_header::{
+    compute_sidebar_folder_header_layout, compute_source_section_divider_rect,
+};
 pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
 pub(super) use top_controls::compute_top_bar_controls_sections;
 

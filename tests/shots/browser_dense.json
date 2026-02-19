@@ -13608,7 +13608,7 @@
       "text": "Folders (16)",
       "position": {
         "x": 12.0,
-        "y": 275.5
+        "y": 275.0
       },
       "font_size": 10.2,
       "color": {
@@ -13624,7 +13624,7 @@
       "text": "query: —",
       "position": {
         "x": 12.0,
-        "y": 287.2
+        "y": 286.0
       },
       "font_size": 8.6,
       "color": {

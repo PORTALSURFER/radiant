@@ -6,7 +6,8 @@ use super::{
         SidebarRowCounts, compute_browser_action_button_rects, compute_browser_toolbar_sections,
         compute_drag_overlay_rect, compute_progress_overlay_sections,
         compute_prompt_overlay_sections, compute_sidebar_action_button_rects,
-        compute_sidebar_row_sections, compute_top_bar_controls_sections,
+        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
+        compute_source_section_divider_rect, compute_top_bar_controls_sections,
         compute_update_action_button_rects,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
@@ -1176,26 +1177,34 @@ impl NativeShellState {
         }
         let rendered_folders = folder_row_rects.len();
         if rendered_folders > 0 {
-            if let Some(divider_rect) = source_section_divider_rect(&sidebar_sections, sizing) {
+            if let Some(divider_rect) = compute_source_section_divider_rect(
+                sidebar_sections.source_rows,
+                sidebar_sections.folder_header,
+                sizing,
+            ) {
                 primitives.push(Primitive::Rect(FillRect {
                     rect: divider_rect,
                     color: style.source_section_divider,
                 }));
             }
-            let recovery_badge = folder_recovery_badge_rect(
+            let folder_header_layout = compute_sidebar_folder_header_layout(
                 sidebar_sections.folder_header,
-                style,
+                sizing,
                 model.sources.folder_recovery.in_progress,
                 model.sources.folder_recovery.entry_count,
             );
-            if let Some((badge_rect, badge_text, badge_fill)) = recovery_badge.as_ref() {
+            if let Some(badge) = folder_header_layout.badge.as_ref() {
                 primitives.push(Primitive::Rect(FillRect {
-                    rect: *badge_rect,
-                    color: *badge_fill,
+                    rect: badge.rect,
+                    color: if badge.active {
+                        style.source_recovery_badge_active
+                    } else {
+                        style.source_recovery_badge_idle
+                    },
                 }));
                 push_border(
                     primitives,
-                    *badge_rect,
+                    badge.rect,
                     blend_color(
                         style.border_emphasis,
                         style.text_primary,
@@ -1204,40 +1213,32 @@ impl NativeShellState {
                     sizing.border_width,
                 );
                 text_runs.push(TextRun {
-                    text: badge_text.clone(),
+                    text: badge.label.clone(),
                     position: Point::new(
-                        badge_rect.min.x + sizing.text_inset_x,
-                        text_top_in_rect(*badge_rect, sizing.font_meta, sizing.text_inset_y),
+                        badge.rect.min.x + sizing.text_inset_x,
+                        text_top_in_rect(badge.rect, sizing.font_meta, sizing.text_inset_y),
                     ),
                     font_size: sizing.font_meta,
                     color: style.text_primary,
-                    max_width: Some((badge_rect.width() - (sizing.text_inset_x * 2.0)).max(18.0)),
+                    max_width: Some((badge.rect.width() - (sizing.text_inset_x * 2.0)).max(18.0)),
                     align: TextAlign::Center,
                 });
             }
-            let header_text_max_width = folder_header_text_max_width(
-                sidebar_sections.folder_header,
-                sizing,
-                recovery_badge
-                    .as_ref()
-                    .map(|(badge_rect, _, _)| *badge_rect),
-            );
-            if header_text_max_width > 8.0 {
+            if folder_header_layout.title_row.width() > 8.0 {
                 text_runs.push(TextRun {
                     text: format!("Folders ({})", model.sources.folder_rows.len()),
                     position: Point::new(
-                        sidebar_sections.folder_header.min.x
-                            + sizing.text_inset_x
-                            + sizing.header_label_gutter,
-                        sidebar_sections.folder_header.min.y + sizing.text_inset_y,
+                        folder_header_layout.title_row.min.x,
+                        folder_header_layout.title_row.min.y,
                     ),
                     font_size: sizing.font_header,
                     color: style.text_primary,
-                    max_width: Some(header_text_max_width),
+                    max_width: Some(folder_header_layout.title_row.width()),
                     align: TextAlign::Left,
                 });
-                if folder_header_has_metadata_row(sidebar_sections.folder_header, sizing)
-                    && header_text_max_width > 24.0
+                if let Some(metadata_row) = folder_header_layout
+                    .metadata_row
+                    .filter(|row| row.width() > 24.0)
                 {
                     text_runs.push(TextRun {
                         text: format!(
@@ -1248,18 +1249,10 @@ impl NativeShellState {
                                 model.sources.folder_search_query.as_str()
                             }
                         ),
-                        position: Point::new(
-                            sidebar_sections.folder_header.min.x
-                                + sizing.text_inset_x
-                                + sizing.header_label_gutter,
-                            sidebar_sections.folder_header.min.y
-                                + sizing.text_inset_y
-                                + sizing.font_header
-                                + sizing.text_row_gap,
-                        ),
+                        position: metadata_row.min,
                         font_size: sizing.font_meta,
                         color: style.text_muted,
-                        max_width: Some(header_text_max_width),
+                        max_width: Some(metadata_row.width()),
                         align: TextAlign::Left,
                     });
                 }
@@ -3900,107 +3893,6 @@ fn row_label_width(rect: Rect, sizing: &SizingTokens, extra_indent: f32, min_wid
         .max(min_width.max(0.0))
 }
 
-fn source_section_divider_rect(sections: &SidebarSections, sizing: SizingTokens) -> Option<Rect> {
-    if sections.folder_header.height() <= 0.0 {
-        return None;
-    }
-    let divider_height = sizing.source_section_divider_width.max(0.5);
-    let gap_above_header = (sections.folder_header.min.y - sections.source_rows.max.y).max(0.0);
-    let min_y = if gap_above_header >= divider_height {
-        sections.source_rows.max.y + ((gap_above_header - divider_height) * 0.5)
-    } else {
-        sections.folder_header.min.y
-    };
-    let max_y = (min_y + divider_height).min(sections.folder_header.max.y);
-    (max_y > min_y).then_some(Rect::from_min_max(
-        Point::new(sections.source_rows.min.x, min_y),
-        Point::new(sections.source_rows.max.x, max_y),
-    ))
-}
-
-fn folder_header_has_metadata_row(header_rect: Rect, sizing: SizingTokens) -> bool {
-    let required_height =
-        (sizing.text_inset_y * 2.0) + sizing.font_header + sizing.text_row_gap + sizing.font_meta;
-    header_rect.height() >= required_height
-}
-
-fn folder_header_text_max_width(
-    header_rect: Rect,
-    sizing: SizingTokens,
-    badge_rect: Option<Rect>,
-) -> f32 {
-    let text_start_x = header_rect.min.x + sizing.text_inset_x + sizing.header_label_gutter;
-    let text_end_x = badge_rect
-        .map(|badge_rect| badge_rect.min.x - sizing.text_inset_x)
-        .unwrap_or_else(|| header_rect.max.x - sizing.text_inset_x);
-    (text_end_x - text_start_x).max(0.0)
-}
-
-fn folder_recovery_badge_rect(
-    header_rect: Rect,
-    style: &StyleTokens,
-    recovery_in_progress: bool,
-    recovery_entry_count: usize,
-) -> Option<(Rect, String, Rgba8)> {
-    if !recovery_in_progress && recovery_entry_count == 0 {
-        return None;
-    }
-    let sizing = style.sizing;
-    let available_width = (header_rect.width() - (style.sizing.text_inset_x * 2.0)).max(0.0);
-    if available_width < 12.0 {
-        return None;
-    }
-    let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
-    let wide_label_fits = |label: &str| {
-        (label.chars().count() as f32 * approx_char_width) + (sizing.recovery_badge_padding_x * 2.0)
-            <= available_width
-    };
-    let mut label = if recovery_in_progress {
-        ["Recovery", "Active", "R"]
-            .iter()
-            .find(|label| wide_label_fits(label))
-            .map(|label| label.to_string())
-            .unwrap_or_else(|| String::from("R"))
-    } else {
-        let long_label = format!("{recovery_entry_count} entries");
-        if wide_label_fits(&long_label) {
-            long_label
-        } else {
-            let short_label = recovery_entry_count.to_string();
-            if wide_label_fits(&short_label) {
-                short_label
-            } else {
-                short_label
-            }
-        }
-    };
-    if label.is_empty() {
-        label = String::from("R");
-    }
-    let label_width = label.chars().count() as f32 * approx_char_width;
-    let badge_width = (label_width + (sizing.recovery_badge_padding_x * 2.0))
-        .max(sizing.recovery_badge_min_width.min(available_width))
-        .min(available_width);
-    let badge_height = sizing
-        .recovery_badge_height
-        .min((header_rect.height() - 2.0).max(10.0));
-    let min_x = (header_rect.max.x - sizing.text_inset_x - badge_width).max(header_rect.min.x);
-    let min_y = header_rect.min.y + ((header_rect.height() - badge_height).max(0.0) * 0.5);
-    let rect = Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(
-            (min_x + badge_width).min(header_rect.max.x),
-            min_y + badge_height,
-        ),
-    );
-    let fill = if recovery_in_progress {
-        style.source_recovery_badge_active
-    } else {
-        style.source_recovery_badge_idle
-    };
-    Some((rect, label, fill))
-}
-
 fn push_border(
     primitives: &mut Vec<Primitive>,
     rect: Rect,
@@ -4164,8 +4056,12 @@ mod tests {
         let style = style_for_layout(&layout);
         let model = populated_sidebar_model();
         let sections = sidebar_sections(&layout, &style, &model);
-        let divider =
-            source_section_divider_rect(&sections, style.sizing).expect("divider should exist");
+        let divider = compute_source_section_divider_rect(
+            sections.source_rows,
+            sections.folder_header,
+            style.sizing,
+        )
+        .expect("divider should exist");
         assert_rect_inside(layout.sidebar_rows, divider);
         assert!(divider.max.y <= sections.folder_rows.min.y);
         assert!(divider.min.y >= sections.source_rows.min.y);
@@ -4179,11 +4075,12 @@ mod tests {
             Point::new(0.0, 0.0),
             Point::new(58.0, style.sizing.folder_header_block_height),
         );
-        let (badge_rect, badge_label, _) =
-            folder_recovery_badge_rect(header_rect, &style, false, 153)
-                .expect("badge should still render");
-        assert_rect_inside(header_rect, badge_rect);
-        assert!(badge_label.chars().count() <= 3);
+        let header_layout =
+            compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 153);
+        let badge = header_layout.badge.expect("badge should still render");
+        assert_rect_inside(header_rect, badge.rect);
+        assert!(badge.label.chars().count() <= 3);
+        assert!(!badge.active);
     }
 
     #[test]
@@ -4194,11 +4091,15 @@ mod tests {
             Point::new(24.0, 40.0),
             Point::new(120.0, 40.0 + style.sizing.folder_header_block_height),
         );
-        let (badge_rect, _, _) = folder_recovery_badge_rect(header_rect, &style, true, 0)
+        let header_layout =
+            compute_sidebar_folder_header_layout(header_rect, style.sizing, true, 0);
+        let badge = header_layout
+            .badge
             .expect("badge should render for active recovery");
-        let max_width = folder_header_text_max_width(header_rect, style.sizing, Some(badge_rect));
-        assert!(max_width >= 0.0);
-        assert!(max_width <= (badge_rect.min.x - header_rect.min.x));
+        assert!(header_layout.title_row.max.x <= badge.rect.min.x);
+        if let Some(metadata_row) = header_layout.metadata_row {
+            assert!(metadata_row.max.x <= badge.rect.min.x);
+        }
     }
 
     #[test]

@@ -9,6 +9,7 @@ use super::{
         compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
         compute_source_section_divider_rect, compute_status_text_line_rect,
         compute_top_bar_controls_sections, compute_update_action_button_rects,
+        compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -2554,23 +2555,22 @@ fn push_waveform_header_overlay(
     model: &NativeMotionModel,
 ) {
     let sizing = style.sizing;
+    let text_layout = compute_waveform_header_text_layout(layout.waveform_header, sizing);
     primitives.push(Primitive::Rect(FillRect {
         rect: layout.waveform_header,
         color: style.surface_raised,
     }));
+    let title_max_width = text_layout.title_row.width().max(72.0);
     text_runs.push(TextRun {
         text: truncate_to_width(
             model.waveform_loaded_label.as_deref().unwrap_or("Waveform"),
-            (layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0),
+            title_max_width,
             sizing.font_header,
         ),
-        position: Point::new(
-            layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-            layout.waveform_header.min.y + sizing.text_inset_y,
-        ),
+        position: text_layout.title_row.min,
         font_size: sizing.font_header,
         color: style.text_primary,
-        max_width: Some((layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+        max_width: Some(title_max_width),
         align: TextAlign::Left,
     });
     let playhead_text = model
@@ -2588,6 +2588,7 @@ fn push_waveform_header_overlay(
     );
     let tempo_text = model.waveform_tempo_label.as_deref().unwrap_or("— BPM");
     let zoom_text = model.waveform_zoom_label.as_deref().unwrap_or("100%");
+    let metadata_max_width = text_layout.metadata_row.width().max(72.0);
     text_runs.push(TextRun {
         text: format!(
             "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
@@ -2598,16 +2599,10 @@ fn push_waveform_header_overlay(
             cursor_text,
             view_text,
         ),
-        position: Point::new(
-            layout.waveform_header.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-            layout.waveform_header.min.y
-                + sizing.text_inset_y
-                + sizing.font_header
-                + sizing.text_row_gap,
-        ),
+        position: text_layout.metadata_row.min,
         font_size: sizing.font_meta,
         color: style.text_muted,
-        max_width: Some((layout.waveform_header.width() - (sizing.text_inset_x * 2.0)).max(72.0)),
+        max_width: Some(metadata_max_width),
         align: TextAlign::Left,
     });
 }

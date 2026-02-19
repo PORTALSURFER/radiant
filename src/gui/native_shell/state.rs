@@ -3,16 +3,17 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_footer_text_rect,
-        compute_browser_header_text_layout, compute_browser_map_header_text_layout,
-        compute_browser_row_text_layout, compute_browser_tabs_text_layout,
-        compute_browser_toolbar_sections, compute_browser_toolbar_text_layout,
-        compute_drag_overlay_rect, compute_drag_overlay_text_layout,
-        compute_progress_overlay_sections, compute_progress_overlay_text_layout,
-        compute_prompt_overlay_sections, compute_prompt_overlay_text_layout,
-        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
-        compute_sidebar_row_sections, compute_source_section_divider_rect,
-        compute_status_text_line_rect, compute_top_bar_controls_sections,
+        SidebarRowCounts, compute_action_button_text_rect, compute_browser_action_button_rects,
+        compute_browser_footer_text_rect, compute_browser_header_text_layout,
+        compute_browser_map_header_text_layout, compute_browser_row_text_layout,
+        compute_browser_tabs_text_layout, compute_browser_toolbar_sections,
+        compute_browser_toolbar_text_layout, compute_drag_overlay_rect,
+        compute_drag_overlay_text_layout, compute_progress_overlay_sections,
+        compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
+        compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
+        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
+        compute_source_section_divider_rect, compute_status_text_line_rect,
+        compute_top_bar_controls_sections, compute_top_bar_controls_text_layout,
         compute_top_bar_update_text_layout, compute_update_action_button_rects,
         compute_waveform_header_text_layout,
     },
@@ -841,6 +842,12 @@ impl NativeShellState {
         });
         let top_controls = top_bar_controls_layout(layout, sizing);
         if top_controls.active {
+            let top_controls_text = compute_top_bar_controls_text_layout(
+                top_controls.options_label,
+                top_controls.volume_value,
+                top_controls.volume_label,
+                sizing,
+            );
             let divider_y = layout.top_bar_controls_row.min.y;
             primitives.push(Primitive::Rect(FillRect {
                 rect: Rect::from_min_max(
@@ -877,47 +884,26 @@ impl NativeShellState {
             }));
             text_runs.push(TextRun {
                 text: String::from("Options"),
-                position: Point::new(
-                    top_controls.options_label.min.x,
-                    text_top_in_rect(
-                        top_controls.options_label,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: top_controls_text.options_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_primary,
-                max_width: Some(top_controls.options_label.width().max(24.0)),
+                max_width: Some(top_controls_text.options_label.width().max(24.0)),
                 align: TextAlign::Left,
             });
             text_runs.push(TextRun {
                 text: format!("{volume_level:.2}"),
-                position: Point::new(
-                    top_controls.volume_value.min.x,
-                    text_top_in_rect(
-                        top_controls.volume_value,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: top_controls_text.volume_value.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(top_controls.volume_value.width().max(20.0)),
+                max_width: Some(top_controls_text.volume_value.width().max(20.0)),
                 align: TextAlign::Right,
             });
             text_runs.push(TextRun {
                 text: String::from("Vol"),
-                position: Point::new(
-                    top_controls.volume_label.min.x,
-                    text_top_in_rect(
-                        top_controls.volume_label,
-                        sizing.font_meta,
-                        sizing.text_inset_y,
-                    ),
-                ),
+                position: top_controls_text.volume_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(top_controls.volume_label.width().max(18.0)),
+                max_width: Some(top_controls_text.volume_label.width().max(18.0)),
                 align: TextAlign::Left,
             });
         }
@@ -962,6 +948,7 @@ impl NativeShellState {
             });
         }
         for button in &update_buttons {
+            let label_rect = compute_action_button_text_rect(button.rect, sizing);
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
@@ -986,21 +973,19 @@ impl NativeShellState {
             );
             text_runs.push(TextRun {
                 text: button.label.to_string(),
-                position: Point::new(
-                    button.rect.min.x + sizing.text_inset_x,
-                    text_top_in_rect(button.rect, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: label_rect.min,
                 font_size: sizing.font_meta,
                 color: if button.enabled {
                     button.text_color
                 } else {
                     style.text_muted
                 },
-                max_width: Some((button.rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                max_width: Some(label_rect.width().max(12.0)),
                 align: TextAlign::Center,
             });
         }
         for button in &browser_buttons {
+            let label_rect = compute_action_button_text_rect(button.rect, sizing);
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
@@ -1025,17 +1010,14 @@ impl NativeShellState {
             );
             text_runs.push(TextRun {
                 text: button.label.to_string(),
-                position: Point::new(
-                    button.rect.min.x + sizing.text_inset_x,
-                    text_top_in_rect(button.rect, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: label_rect.min,
                 font_size: sizing.font_meta,
                 color: if button.enabled {
                     button.text_color
                 } else {
                     style.text_muted
                 },
-                max_width: Some((button.rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                max_width: Some(label_rect.width().max(12.0)),
                 align: TextAlign::Center,
             });
         }
@@ -1307,6 +1289,7 @@ impl NativeShellState {
             }
         }
         for button in source_action_buttons(layout, style, model) {
+            let label_rect = compute_action_button_text_rect(button.rect, sizing);
             primitives.push(Primitive::Rect(FillRect {
                 rect: button.rect,
                 color: if button.enabled {
@@ -1331,17 +1314,14 @@ impl NativeShellState {
             );
             text_runs.push(TextRun {
                 text: button.label.to_string(),
-                position: Point::new(
-                    button.rect.min.x + sizing.text_inset_x,
-                    text_top_in_rect(button.rect, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: label_rect.min,
                 font_size: sizing.font_meta,
                 color: if button.enabled {
                     button.text_color
                 } else {
                     style.text_muted
                 },
-                max_width: Some((button.rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+                max_width: Some(label_rect.width().max(12.0)),
                 align: TextAlign::Center,
             });
         }

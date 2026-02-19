@@ -11432,7 +11432,7 @@
       "text": "Options",
       "position": {
         "x": 8.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -11448,7 +11448,7 @@
       "text": "1.00",
       "position": {
         "x": 156.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -11464,7 +11464,7 @@
       "text": "Vol",
       "position": {
         "x": 203.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -11528,7 +11528,7 @@
       "text": "Rename",
       "position": {
         "x": 1204.0,
-        "y": 302.2
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11544,7 +11544,7 @@
       "text": "Trash",
       "position": {
         "x": 1251.0,
-        "y": 302.2
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11560,7 +11560,7 @@
       "text": "Neutral",
       "position": {
         "x": 1298.0,
-        "y": 302.2
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11576,7 +11576,7 @@
       "text": "Keep",
       "position": {
         "x": 1345.0,
-        "y": 302.2
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11592,7 +11592,7 @@
       "text": "Delete",
       "position": {
         "x": 1392.0,
-        "y": 302.2
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11832,7 +11832,7 @@
       "text": "New",
       "position": {
         "x": 10.0,
-        "y": 778.45
+        "y": 778.0
       },
       "font_size": 8.6,
       "color": {
@@ -11848,7 +11848,7 @@
       "text": "Root",
       "position": {
         "x": 51.0,
-        "y": 778.45
+        "y": 778.0
       },
       "font_size": 8.6,
       "color": {
@@ -11864,7 +11864,7 @@
       "text": "Rename",
       "position": {
         "x": 92.0,
-        "y": 778.45
+        "y": 778.0
       },
       "font_size": 8.6,
       "color": {
@@ -11880,7 +11880,7 @@
       "text": "Delete",
       "position": {
         "x": 134.0,
-        "y": 778.45
+        "y": 778.0
       },
       "font_size": 8.6,
       "color": {
@@ -11896,7 +11896,7 @@
       "text": "Recovery",
       "position": {
         "x": 175.0,
-        "y": 778.45
+        "y": 778.0
       },
       "font_size": 8.6,
       "color": {

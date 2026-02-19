@@ -4802,7 +4802,7 @@
       "text": "Options",
       "position": {
         "x": 8.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -4818,7 +4818,7 @@
       "text": "1.00",
       "position": {
         "x": 156.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -4834,7 +4834,7 @@
       "text": "Vol",
       "position": {
         "x": 203.0,
-        "y": 17.2
+        "y": 17.0
       },
       "font_size": 8.6,
       "color": {
@@ -4898,7 +4898,7 @@
       "text": "Rename",
       "position": {
         "x": 1043.0,
-        "y": 282.2
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -4914,7 +4914,7 @@
       "text": "Trash",
       "position": {
         "x": 1090.0,
-        "y": 282.2
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -4930,7 +4930,7 @@
       "text": "Neutral",
       "position": {
         "x": 1137.0,
-        "y": 282.2
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -4946,7 +4946,7 @@
       "text": "Keep",
       "position": {
         "x": 1184.0,
-        "y": 282.2
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -4962,7 +4962,7 @@
       "text": "Delete",
       "position": {
         "x": 1231.0,
-        "y": 282.2
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -5346,7 +5346,7 @@
       "text": "New",
       "position": {
         "x": 10.0,
-        "y": 688.45
+        "y": 688.0
       },
       "font_size": 8.6,
       "color": {
@@ -5362,7 +5362,7 @@
       "text": "Root",
       "position": {
         "x": 49.0,
-        "y": 688.45
+        "y": 688.0
       },
       "font_size": 8.6,
       "color": {
@@ -5378,7 +5378,7 @@
       "text": "Rename",
       "position": {
         "x": 89.0,
-        "y": 688.45
+        "y": 688.0
       },
       "font_size": 8.6,
       "color": {
@@ -5394,7 +5394,7 @@
       "text": "Delete",
       "position": {
         "x": 128.0,
-        "y": 688.45
+        "y": 688.0
       },
       "font_size": 8.6,
       "color": {
@@ -5410,7 +5410,7 @@
       "text": "Recovery",
       "position": {
         "x": 168.0,
-        "y": 688.45
+        "y": 688.0
       },
       "font_size": 8.6,
       "color": {

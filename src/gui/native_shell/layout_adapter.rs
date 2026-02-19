@@ -2,6 +2,7 @@
 mod bands;
 mod browser_chrome_text;
 mod browser_text;
+mod control_text;
 mod controls;
 mod map_header;
 mod overlays;
@@ -25,6 +26,9 @@ pub(super) use browser_chrome_text::{
 };
 pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
+};
+pub(super) use control_text::{
+    compute_action_button_text_rect, compute_top_bar_controls_text_layout,
 };
 pub(super) use controls::{
     compute_browser_action_button_rects, compute_browser_toolbar_sections,

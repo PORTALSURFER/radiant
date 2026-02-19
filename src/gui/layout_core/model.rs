@@ -4,7 +4,7 @@ use super::constraints::Constraints;
 
 /// Main-axis sizing mode for a slot.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SizeModeMain {
+pub enum SizeModeMain {
     /// Fixed logical pixels.
     Fixed(f32),
     /// Fill remaining space by weight.
@@ -17,7 +17,7 @@ pub(crate) enum SizeModeMain {
 
 /// Cross-axis sizing mode for a slot.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SizeModeCross {
+pub enum SizeModeCross {
     /// Fixed logical pixels.
     Fixed(f32),
     /// Fill available cross-axis space.
@@ -28,7 +28,7 @@ pub(crate) enum SizeModeCross {
 
 /// Main-axis alignment within a container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MainAlign {
+pub enum MainAlign {
     Start,
     Center,
     End,
@@ -39,7 +39,7 @@ pub(crate) enum MainAlign {
 
 /// Cross-axis alignment for children within a container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CrossAlign {
+pub enum CrossAlign {
     Start,
     Center,
     End,
@@ -48,7 +48,7 @@ pub(crate) enum CrossAlign {
 
 /// Explicit overflow policy for containers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OverflowPolicy {
+pub enum OverflowPolicy {
     Clip,
     Scroll,
     Wrap,
@@ -57,7 +57,7 @@ pub(crate) enum OverflowPolicy {
 
 /// Axis-agnostic insets.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Insets {
+pub struct Insets {
     pub left: f32,
     pub right: f32,
     pub top: f32,
@@ -66,7 +66,7 @@ pub(crate) struct Insets {
 
 impl Insets {
     /// Build symmetrical insets for every edge.
-    pub(crate) fn all(value: f32) -> Self {
+    pub fn all(value: f32) -> Self {
         Self {
             left: value,
             right: value,
@@ -76,19 +76,19 @@ impl Insets {
     }
 
     /// Return total horizontal inset.
-    pub(crate) fn horizontal(self) -> f32 {
+    pub fn horizontal(self) -> f32 {
         self.left + self.right
     }
 
     /// Return total vertical inset.
-    pub(crate) fn vertical(self) -> f32 {
+    pub fn vertical(self) -> f32 {
         self.top + self.bottom
     }
 }
 
 /// Parent-owned slot configuration for a single child.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct SlotParams {
+pub struct SlotParams {
     /// Main-axis sizing mode.
     pub size_main: SizeModeMain,
     /// Cross-axis sizing mode.
@@ -105,7 +105,7 @@ pub(crate) struct SlotParams {
 
 impl SlotParams {
     /// Create a fill/fill slot with unconstrained limits and zero margin.
-    pub(crate) fn fill() -> Self {
+    pub fn fill() -> Self {
         Self {
             size_main: SizeModeMain::Fill(1.0),
             size_cross: SizeModeCross::Fill,
@@ -117,17 +117,89 @@ impl SlotParams {
     }
 }
 
+/// Grid-specific policy values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridPolicy {
+    /// Number of columns used by the grid.
+    pub columns: usize,
+    /// Gap between columns.
+    pub column_gap: f32,
+    /// Gap between rows.
+    pub row_gap: f32,
+}
+
+impl Default for GridPolicy {
+    fn default() -> Self {
+        Self {
+            columns: 1,
+            column_gap: 0.0,
+            row_gap: 0.0,
+        }
+    }
+}
+
+/// Wrap/flow policy values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WrapPolicy {
+    /// Horizontal gap between items.
+    pub item_gap: f32,
+    /// Vertical gap between wrapped rows.
+    pub line_gap: f32,
+}
+
+impl Default for WrapPolicy {
+    fn default() -> Self {
+        Self {
+            item_gap: 0.0,
+            line_gap: 0.0,
+        }
+    }
+}
+
+/// One switch-layout branch width range.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SwitchBreakpoint {
+    /// Inclusive minimum viewport/content width.
+    pub min_width: f32,
+    /// Inclusive maximum viewport/content width.
+    pub max_width: f32,
+}
+
+impl SwitchBreakpoint {
+    /// Create a normalized width range.
+    pub fn new(min_width: f32, max_width: f32) -> Self {
+        let min = min_width.max(0.0);
+        let max = max_width.max(min);
+        Self {
+            min_width: min,
+            max_width: max,
+        }
+    }
+
+    /// Return true when `width` is covered by this range.
+    pub fn contains(self, width: f32) -> bool {
+        width >= self.min_width && width <= self.max_width
+    }
+}
+
 /// Container kind used to select a deterministic layout algorithm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ContainerKind {
+pub enum ContainerKind {
     Row,
     Column,
     Stack,
+    PaddingBox,
+    AlignBox,
+    AspectBox,
+    Grid,
+    ScrollView,
+    Wrap,
+    SwitchLayout,
 }
 
 /// Shared policy configuration for container nodes.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ContainerPolicy {
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContainerPolicy {
     /// Layout algorithm kind.
     pub kind: ContainerKind,
     /// Child spacing on the main axis.
@@ -140,6 +212,14 @@ pub(crate) struct ContainerPolicy {
     pub align_cross: CrossAlign,
     /// Explicit overflow policy.
     pub overflow: OverflowPolicy,
+    /// Grid-specific options.
+    pub grid: GridPolicy,
+    /// Wrap-specific options.
+    pub wrap: WrapPolicy,
+    /// Aspect ratio used by `AspectBox` (width / height).
+    pub aspect_ratio: Option<f32>,
+    /// Branch selection ranges for `SwitchLayout`.
+    pub switch_breakpoints: Vec<SwitchBreakpoint>,
 }
 
 impl Default for ContainerPolicy {
@@ -151,6 +231,10 @@ impl Default for ContainerPolicy {
             align_main: MainAlign::Start,
             align_cross: CrossAlign::Stretch,
             overflow: OverflowPolicy::Clip,
+            grid: GridPolicy::default(),
+            wrap: WrapPolicy::default(),
+            aspect_ratio: None,
+            switch_breakpoints: Vec::new(),
         }
     }
 }

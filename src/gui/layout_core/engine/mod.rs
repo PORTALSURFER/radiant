@@ -5,32 +5,78 @@ mod layout;
 mod measure;
 
 use super::constraints::Constraints;
-use super::tree::{LayoutNode, NodeId};
+use super::model::OverflowPolicy;
+use super::tree::{LayoutNode, NodeId, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+/// Paint context consumed by widget paint implementations.
+#[derive(Default)]
+pub struct PaintContext;
+
+/// Public widget layout contract.
+pub trait Widget {
+    /// Return the preferred size for the provided constraints.
+    fn measure(&self, constraints: Constraints) -> Vector2;
+
+    /// Paint the widget in the assigned rectangle.
+    fn paint(&self, rect: Rect, ctx: &mut PaintContext);
+}
+
+/// Public container layout contract.
+pub trait Container {
+    /// Measure this container from its children and incoming constraints.
+    fn measure(&self, children: &[SlotChild], constraints: Constraints) -> Vector2;
+
+    /// Layout this container's children into `rect`.
+    fn layout(&self, children: &[SlotChild], rect: Rect) -> Vec<(NodeId, Rect)>;
+}
+
 /// Layout diagnostic emitted when invalid states are normalized.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LayoutDiagnostic {
+pub struct LayoutDiagnostic {
     /// Node that triggered the diagnostic.
     pub node_id: NodeId,
     /// Human-readable diagnostic message.
     pub message: String,
 }
 
+/// Overflow metadata recorded for one node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverflowInfo {
+    /// True when width overflowed.
+    pub x: bool,
+    /// True when height overflowed.
+    pub y: bool,
+    /// Policy used when handling overflow.
+    pub policy: OverflowPolicy,
+}
+
+impl Default for OverflowInfo {
+    fn default() -> Self {
+        Self {
+            x: false,
+            y: false,
+            policy: OverflowPolicy::Clip,
+        }
+    }
+}
+
 /// Final layout output from `layout_tree`.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct LayoutOutput {
+pub struct LayoutOutput {
     /// Final rounded rectangles by node id.
     pub rects: BTreeMap<NodeId, Rect>,
     /// Node ids that overflowed available space.
     pub overflowed: BTreeSet<NodeId>,
+    /// Per-node overflow metadata.
+    pub overflow_flags: BTreeMap<NodeId, OverflowInfo>,
     /// Diagnostics collected during measure/layout normalization.
     pub diagnostics: Vec<LayoutDiagnostic>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct ConstraintKey {
+pub(super) struct ConstraintKey {
     min_w: u32,
     max_w: u32,
     min_h: u32,
@@ -48,22 +94,129 @@ impl ConstraintKey {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct MeasureCacheKey {
+    node_id: NodeId,
+    constraints: ConstraintKey,
+    state_version: u64,
+}
+
+impl MeasureCacheKey {
+    fn new(node: &LayoutNode, constraints: Constraints) -> Self {
+        Self {
+            node_id: node.id(),
+            constraints: ConstraintKey::from_constraints(constraints),
+            state_version: node.state_version(),
+        }
+    }
+}
+
 #[derive(Default)]
-struct LayoutContext {
-    measured: HashMap<(NodeId, ConstraintKey), Vector2>,
+pub struct LayoutEngine {
+    measure_cache: HashMap<MeasureCacheKey, Vector2>,
+    layout_dirty: BTreeSet<NodeId>,
+    measure_dirty: BTreeSet<NodeId>,
+}
+
+impl LayoutEngine {
+    /// Mark a node as geometry-dirty.
+    pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
+        self.layout_dirty.insert(node_id);
+    }
+
+    /// Mark a node as intrinsic-measure dirty.
+    pub fn mark_measure_dirty(&mut self, node_id: NodeId) {
+        self.measure_dirty.insert(node_id);
+    }
+
+    /// Clear all dirty markers.
+    pub fn clear_dirty(&mut self) {
+        self.layout_dirty.clear();
+        self.measure_dirty.clear();
+    }
+
+    /// Compute layout output for `root` in `root_rect`.
+    pub fn layout(&mut self, root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
+        let constraints = Constraints::new(
+            0.0,
+            root_rect.width().max(0.0),
+            0.0,
+            root_rect.height().max(0.0),
+        );
+        let output = {
+            let mut context = LayoutContext::new(&mut self.measure_cache, &self.measure_dirty);
+            measure::measure_node(root, constraints, &mut context);
+            layout::layout_node(root, round_rect(root_rect), &mut context);
+            context.output
+        };
+        self.clear_dirty();
+        output
+    }
+}
+
+pub(super) struct LayoutContext<'a> {
+    measured: HashMap<MeasureCacheKey, Vector2>,
+    cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    measure_dirty: &'a BTreeSet<NodeId>,
     output: LayoutOutput,
 }
 
-/// Measure and layout a strict slot tree into rounded rectangles.
-pub(crate) fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
-    let constraints = Constraints::new(0.0, root_rect.width().max(0.0), 0.0, root_rect.height());
-    let mut context = LayoutContext::default();
-    measure::measure_node(root, constraints, &mut context);
-    layout::layout_node(root, round_rect(root_rect), &mut context);
-    context.output
+impl<'a> LayoutContext<'a> {
+    fn new(
+        cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+        measure_dirty: &'a BTreeSet<NodeId>,
+    ) -> Self {
+        Self {
+            measured: HashMap::new(),
+            cache,
+            measure_dirty,
+            output: LayoutOutput::default(),
+        }
+    }
+
+    pub(super) fn cached_measure(&self, key: MeasureCacheKey, node_id: NodeId) -> Option<Vector2> {
+        if self.measure_dirty.contains(&node_id) {
+            return None;
+        }
+        self.measured
+            .get(&key)
+            .copied()
+            .or_else(|| self.cache.get(&key).copied())
+    }
+
+    pub(super) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
+        self.measured.insert(key, value);
+        self.cache.insert(key, value);
+    }
+
+    pub(super) fn record_overflow(
+        &mut self,
+        node_id: NodeId,
+        policy: OverflowPolicy,
+        x: bool,
+        y: bool,
+    ) {
+        self.output.overflowed.insert(node_id);
+        self.output
+            .overflow_flags
+            .insert(node_id, OverflowInfo { x, y, policy });
+    }
+
+    pub(super) fn push_diagnostic(&mut self, node_id: NodeId, message: impl Into<String>) {
+        self.output.diagnostics.push(LayoutDiagnostic {
+            node_id,
+            message: message.into(),
+        });
+    }
 }
 
-fn round_rect(rect: Rect) -> Rect {
+/// Measure and layout a strict slot tree into rounded rectangles.
+pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
+    let mut engine = LayoutEngine::default();
+    engine.layout(root, root_rect)
+}
+
+pub(super) fn round_rect(rect: Rect) -> Rect {
     let min_x = rect.min.x.floor();
     let min_y = rect.min.y.floor();
     let width = rect.width().round().max(0.0);
@@ -72,75 +225,4 @@ fn round_rect(rect: Rect) -> Rect {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::layout_tree;
-    use crate::gui::layout_core::constraints::Constraints;
-    use crate::gui::layout_core::model::{
-        ContainerKind, ContainerPolicy, SizeModeCross, SizeModeMain, SlotParams,
-    };
-    use crate::gui::layout_core::tree::{LayoutNode, SlotChild};
-    use crate::gui::types::{Point, Rect, Vector2};
-
-    #[test]
-    fn layout_tree_is_deterministic_for_same_input() {
-        let child_a = LayoutNode::widget(2, Vector2::new(32.0, 20.0));
-        let child_b = LayoutNode::widget(3, Vector2::new(64.0, 20.0));
-        let root = LayoutNode::container(
-            1,
-            ContainerPolicy {
-                kind: ContainerKind::Row,
-                spacing: 8.0,
-                ..ContainerPolicy::default()
-            },
-            vec![
-                SlotChild {
-                    slot: SlotParams::fill(),
-                    child: child_a,
-                },
-                SlotChild {
-                    slot: SlotParams::fill(),
-                    child: child_b,
-                },
-            ],
-        );
-        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0));
-        let first = layout_tree(&root, rect);
-        let second = layout_tree(&root, rect);
-        assert_eq!(first.rects, second.rects);
-        assert_eq!(first.overflowed, second.overflowed);
-    }
-
-    #[test]
-    fn fill_children_compress_before_fixed_children() {
-        let fill_a = LayoutNode::widget(2, Vector2::new(200.0, 20.0));
-        let fixed = LayoutNode::widget(3, Vector2::new(80.0, 20.0));
-        let root = LayoutNode::container(
-            1,
-            ContainerPolicy {
-                kind: ContainerKind::Row,
-                ..ContainerPolicy::default()
-            },
-            vec![
-                SlotChild {
-                    slot: SlotParams::fill(),
-                    child: fill_a,
-                },
-                SlotChild {
-                    slot: SlotParams {
-                        size_main: SizeModeMain::Fixed(80.0),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: Constraints::new(80.0, 80.0, 0.0, f32::INFINITY),
-                        margin: Default::default(),
-                        align_cross_override: None,
-                        allow_fixed_compress: false,
-                    },
-                    child: fixed,
-                },
-            ],
-        );
-        let rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0));
-        let output = layout_tree(&root, rect);
-        let fixed_rect = output.rects.get(&3).expect("fixed rect");
-        assert!((fixed_rect.width() - 80.0).abs() < 0.5);
-    }
-}
+mod tests;

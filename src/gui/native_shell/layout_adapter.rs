@@ -63,6 +63,7 @@ fn build_root_tree(style: &StyleTokens, viewport_width: f32) -> LayoutNode {
             align_main: MainAlign::Start,
             align_cross: CrossAlign::Stretch,
             overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
         },
         vec![
             SlotChild {
@@ -109,6 +110,7 @@ fn build_root_tree(style: &StyleTokens, viewport_width: f32) -> LayoutNode {
             align_main: MainAlign::Start,
             align_cross: CrossAlign::Stretch,
             overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
         },
         vec![
             SlotChild {
@@ -175,6 +177,7 @@ fn build_content_tree(style: &StyleTokens) -> LayoutNode {
             align_main: MainAlign::Start,
             align_cross: CrossAlign::Stretch,
             overflow: OverflowPolicy::Clip,
+            ..ContainerPolicy::default()
         },
         vec![
             SlotChild {

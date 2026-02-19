@@ -67,26 +67,21 @@ pub(super) fn allocate_fill_sizes(
 }
 
 pub(super) fn compress_if_needed(
+    horizontal: bool,
     available_main: f32,
     states: &[(&SlotChild, Vector2, f32, f32)],
     sizes: &mut [f32],
+    spacing_total: f32,
 ) {
-    let mut overflow = sizes.iter().sum::<f32>()
-        + states
-            .iter()
-            .map(|(slot_child, _, _, _)| {
-                slot_child.slot.margin.left
-                    + slot_child.slot.margin.right
-                    + slot_child.slot.margin.top
-                    + slot_child.slot.margin.bottom
-            })
-            .sum::<f32>()
-        - available_main;
+    let mut overflow =
+        sizes.iter().sum::<f32>() + spacing_total + main_margin_total(horizontal, states)
+            - available_main;
     if overflow <= 0.0 {
         return;
     }
 
     reduce_group(
+        horizontal,
         |mode, _| matches!(mode, SizeModeMain::Fill(_)),
         states,
         &mut overflow,
@@ -94,6 +89,7 @@ pub(super) fn compress_if_needed(
     );
     if overflow > f32::EPSILON {
         reduce_group(
+            horizontal,
             |mode, _| matches!(mode, SizeModeMain::Intrinsic),
             states,
             &mut overflow,
@@ -102,6 +98,7 @@ pub(super) fn compress_if_needed(
     }
     if overflow > f32::EPSILON {
         reduce_group(
+            horizontal,
             |mode, allow_fixed| matches!(mode, SizeModeMain::Fixed(_)) && allow_fixed,
             states,
             &mut overflow,
@@ -110,7 +107,25 @@ pub(super) fn compress_if_needed(
     }
 }
 
+pub(super) fn scale_sizes_to_fit(
+    available_main: f32,
+    sizes: &mut [f32],
+    main_margin_total: f32,
+    spacing_total: f32,
+) {
+    let main_budget = (available_main - main_margin_total - spacing_total).max(0.0);
+    let total = sizes.iter().sum::<f32>();
+    if total <= f32::EPSILON || total <= main_budget {
+        return;
+    }
+    let scale = (main_budget / total).clamp(0.0, 1.0);
+    for size in sizes.iter_mut() {
+        *size *= scale;
+    }
+}
+
 fn reduce_group(
+    horizontal: bool,
     predicate: fn(SizeModeMain, bool) -> bool,
     states: &[(&SlotChild, Vector2, f32, f32)],
     overflow: &mut f32,
@@ -121,7 +136,11 @@ fn reduce_group(
         if !predicate(mode, slot_child.slot.allow_fixed_compress) {
             continue;
         }
-        let min_main = slot_child.slot.constraints.min_w;
+        let min_main = if horizontal {
+            slot_child.slot.constraints.min_w
+        } else {
+            slot_child.slot.constraints.min_h
+        };
         let reducible = (sizes[index] - min_main).max(0.0);
         if reducible <= 0.0 {
             continue;
@@ -133,6 +152,22 @@ fn reduce_group(
             break;
         }
     }
+}
+
+pub(super) fn main_margin_total(
+    horizontal: bool,
+    states: &[(&SlotChild, Vector2, f32, f32)],
+) -> f32 {
+    states
+        .iter()
+        .map(|(slot_child, _, _, _)| {
+            if horizontal {
+                slot_child.slot.margin.left + slot_child.slot.margin.right
+            } else {
+                slot_child.slot.margin.top + slot_child.slot.margin.bottom
+            }
+        })
+        .sum::<f32>()
 }
 
 pub(super) fn align_main_offsets(

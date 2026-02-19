@@ -1,11 +1,13 @@
 //! Layout pass implementation for strict slot-based layout trees.
 
+mod boxes;
+
 use super::helpers::{
     align_main_offsets, allocate_fill_sizes, clamp_cross, clamp_main, compress_if_needed,
-    content_rect, place_child_rect,
+    content_rect, main_margin_total, place_child_rect, scale_sizes_to_fit,
 };
 use super::{LayoutContext, round_rect};
-use crate::gui::layout_core::model::{ContainerKind, SizeModeCross, SizeModeMain};
+use crate::gui::layout_core::model::{ContainerKind, OverflowPolicy, SizeModeCross, SizeModeMain};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Rect, Vector2};
 
@@ -14,12 +16,19 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
     let LayoutNode::Container(container) = node else {
         return;
     };
-    let policy = container.policy;
+    let policy = &container.policy;
     let content = content_rect(rect, policy.padding);
     match policy.kind {
         ContainerKind::Row => layout_linear(container, content, true, context),
         ContainerKind::Column => layout_linear(container, content, false, context),
-        ContainerKind::Stack => layout_stack(container, content, context),
+        ContainerKind::Stack => boxes::layout_stack(container, content, context),
+        ContainerKind::PaddingBox => boxes::layout_single_fill(container, content, context),
+        ContainerKind::AlignBox => boxes::layout_align_box(container, content, context),
+        ContainerKind::AspectBox => boxes::layout_aspect_box(container, content, context),
+        ContainerKind::Grid => boxes::layout_grid(container, content, context),
+        ContainerKind::ScrollView => boxes::layout_scroll_view(container, content, context),
+        ContainerKind::Wrap => boxes::layout_wrap(container, content, context),
+        ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),
     }
 }
 
@@ -32,7 +41,7 @@ fn layout_linear(
     if container.children.is_empty() {
         return;
     }
-    let policy = container.policy;
+    let policy = &container.policy;
     let spacing = policy.spacing.max(0.0);
     let available_main = if horizontal {
         content.width()
@@ -60,16 +69,7 @@ fn layout_linear(
             _ => None,
         })
         .sum::<f32>();
-    let margin_total = states
-        .iter()
-        .map(|(slot_child, _, _, _)| {
-            if horizontal {
-                slot_child.slot.margin.left + slot_child.slot.margin.right
-            } else {
-                slot_child.slot.margin.top + slot_child.slot.margin.bottom
-            }
-        })
-        .sum::<f32>();
+    let margin_total = main_margin_total(horizontal, &states);
 
     let spacing_total = spacing * (states.len().saturating_sub(1) as f32);
     let remaining = (available_main - fixed_main - margin_total - spacing_total).max(0.0);
@@ -81,11 +81,19 @@ fn layout_linear(
         .iter()
         .map(|(_, _, main, fill)| if *fill > 0.0 { *fill } else { *main })
         .collect();
-    compress_if_needed(available_main, &states, &mut sizes);
 
-    let total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
+    let mut total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
     if total_main > available_main {
-        context.output.overflowed.insert(container.id);
+        apply_linear_overflow_policy(
+            container,
+            horizontal,
+            available_main,
+            spacing_total,
+            &states,
+            &mut sizes,
+            context,
+        );
+        total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
     }
 
     let (leading, distributed_spacing) = align_main_offsets(
@@ -106,6 +114,52 @@ fn layout_linear(
         distributed_spacing,
         context,
     );
+
+    if total_main > available_main {
+        let (x, y) = if horizontal {
+            (true, false)
+        } else {
+            (false, true)
+        };
+        context.record_overflow(container.id, policy.overflow, x, y);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_linear_overflow_policy(
+    container: &ContainerNode,
+    horizontal: bool,
+    available_main: f32,
+    spacing_total: f32,
+    states: &[(&SlotChild, Vector2, f32, f32)],
+    sizes: &mut [f32],
+    context: &mut LayoutContext,
+) {
+    let policy = container.policy.overflow;
+    let margin_total = main_margin_total(horizontal, states);
+
+    match policy {
+        OverflowPolicy::Clip => {
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+        }
+        OverflowPolicy::Scroll => {
+            context.push_diagnostic(
+                container.id,
+                "linear container overflowed and delegated to scroll policy",
+            );
+        }
+        OverflowPolicy::Wrap => {
+            context.push_diagnostic(
+                container.id,
+                "overflow wrap policy is unsupported for Row/Column; use ContainerKind::Wrap",
+            );
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+        }
+        OverflowPolicy::Shrink => {
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+            scale_sizes_to_fit(available_main, sizes, margin_total, spacing_total);
+        }
+    }
 }
 
 fn collect_layout_states<'a>(
@@ -174,32 +228,6 @@ fn place_linear_children(
     }
 }
 
-fn layout_stack(container: &ContainerNode, content: Rect, context: &mut LayoutContext) {
-    for child in &container.children {
-        let measured = super::measure::measure_node(&child.child, child.slot.constraints, context);
-        let width = resolve_cross_layout(
-            false,
-            child.slot.size_cross,
-            measured,
-            content.width(),
-            child.slot,
-        );
-        let height = resolve_cross_layout(
-            true,
-            child.slot.size_cross,
-            measured,
-            content.height(),
-            child.slot,
-        );
-        let align = child
-            .slot
-            .align_cross_override
-            .unwrap_or(container.policy.align_cross);
-        let rect = place_child_rect(content, false, 0.0, height, width, child.slot, align);
-        layout_node(&child.child, rect, context);
-    }
-}
-
 fn resolve_nonfill_main(
     horizontal: bool,
     slot_child: &SlotChild,
@@ -217,7 +245,7 @@ fn resolve_nonfill_main(
                 measured.y
             }
         }
-        SizeModeMain::Fill(_) => 0.0,
+        SizeModeMain::Fill(_) => available_main,
     };
     clamp_main(horizontal, raw, slot.constraints)
 }

@@ -2,7 +2,7 @@
 
 /// Axis-aligned min/max bounds used during measurement and layout.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Constraints {
+pub struct Constraints {
     /// Minimum allowed width in logical pixels.
     pub min_w: f32,
     /// Maximum allowed width in logical pixels.
@@ -15,7 +15,7 @@ pub(crate) struct Constraints {
 
 impl Constraints {
     /// Build unconstrained bounds.
-    pub(crate) fn unconstrained() -> Self {
+    pub fn unconstrained() -> Self {
         Self {
             min_w: 0.0,
             max_w: f32::INFINITY,
@@ -25,7 +25,7 @@ impl Constraints {
     }
 
     /// Build normalized constraints from raw values.
-    pub(crate) fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self {
+    pub fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self {
         Self {
             min_w,
             max_w,
@@ -36,7 +36,7 @@ impl Constraints {
     }
 
     /// Return a copy with normalized and clamped ranges.
-    pub(crate) fn normalized(self) -> Self {
+    pub fn normalized(self) -> Self {
         let min_w = self.min_w.max(0.0);
         let min_h = self.min_h.max(0.0);
         let max_w = self.max_w.max(min_w);
@@ -50,17 +50,17 @@ impl Constraints {
     }
 
     /// Clamp a width to this range.
-    pub(crate) fn clamp_w(self, width: f32) -> f32 {
+    pub fn clamp_w(self, width: f32) -> f32 {
         width.clamp(self.min_w, self.max_w)
     }
 
     /// Clamp a height to this range.
-    pub(crate) fn clamp_h(self, height: f32) -> f32 {
+    pub fn clamp_h(self, height: f32) -> f32 {
         height.clamp(self.min_h, self.max_h)
     }
 
     /// Shrink available space by insets while preserving min <= max.
-    pub(crate) fn inset(self, inset_x: f32, inset_y: f32) -> Self {
+    pub fn inset(self, inset_x: f32, inset_y: f32) -> Self {
         let reduced_w = (self.max_w - (inset_x * 2.0)).max(0.0);
         let reduced_h = (self.max_h - (inset_y * 2.0)).max(0.0);
         Self::new(0.0, reduced_w, 0.0, reduced_h)

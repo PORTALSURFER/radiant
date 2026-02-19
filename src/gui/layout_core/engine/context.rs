@@ -2,7 +2,8 @@
 
 use super::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
-    LayoutDiagnosticCode, LayoutOutput, LayoutState, MeasureCacheKey, OverflowInfo,
+    LayoutDiagnosticCode, LayoutOutput, LayoutState, LinearVirtualMetrics, LinearVirtualWindow,
+    MeasureCacheKey, OverflowInfo, VirtualWindowInfo, VirtualizationCacheKey,
 };
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{Insets, OverflowPolicy};
@@ -13,6 +14,8 @@ use std::collections::{BTreeSet, HashMap};
 pub(super) struct LayoutContext<'a> {
     measured: HashMap<MeasureCacheKey, Vector2>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+    virtual_cache: &'a mut HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
+    linear_windows: HashMap<NodeId, LinearVirtualWindow>,
     measure_dirty: &'a BTreeSet<NodeId>,
     state: &'a LayoutState,
     debug_options: LayoutDebugOptions,
@@ -23,6 +26,7 @@ pub(super) struct LayoutContext<'a> {
 impl<'a> LayoutContext<'a> {
     pub(super) fn new(
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
+        virtual_cache: &'a mut HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
         measure_dirty: &'a BTreeSet<NodeId>,
         state: &'a LayoutState,
         debug_options: LayoutDebugOptions,
@@ -31,6 +35,8 @@ impl<'a> LayoutContext<'a> {
         Self {
             measured: HashMap::new(),
             cache,
+            virtual_cache,
+            linear_windows: HashMap::new(),
             measure_dirty,
             state,
             debug_options,
@@ -52,6 +58,37 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
         self.measured.insert(key, value);
         self.cache.insert(key, value);
+    }
+
+    pub(super) fn cached_virtual_metrics(
+        &self,
+        key: VirtualizationCacheKey,
+    ) -> Option<LinearVirtualMetrics> {
+        self.virtual_cache.get(&key).cloned()
+    }
+
+    pub(super) fn remember_virtual_metrics(
+        &mut self,
+        key: VirtualizationCacheKey,
+        metrics: LinearVirtualMetrics,
+    ) {
+        self.virtual_cache.insert(key, metrics);
+    }
+
+    pub(super) fn is_measure_dirty(&self, node_id: NodeId) -> bool {
+        self.measure_dirty.contains(&node_id)
+    }
+
+    pub(super) fn set_linear_window(&mut self, node_id: NodeId, window: LinearVirtualWindow) {
+        self.linear_windows.insert(node_id, window);
+    }
+
+    pub(super) fn clear_linear_window(&mut self, node_id: NodeId) {
+        self.linear_windows.remove(&node_id);
+    }
+
+    pub(super) fn linear_window(&self, node_id: NodeId) -> Option<LinearVirtualWindow> {
+        self.linear_windows.get(&node_id).copied()
     }
 
     pub(super) fn normalize_constraints(
@@ -238,6 +275,31 @@ impl<'a> LayoutContext<'a> {
             ),
         );
         self.record_debug(node_id, DebugPrimitiveKind::SlotMargin, margin_rect);
+    }
+
+    pub(super) fn record_viewport_bounds(&mut self, node_id: NodeId, rect: Rect) {
+        self.record_debug(node_id, DebugPrimitiveKind::ViewportBounds, rect);
+    }
+
+    pub(super) fn record_virtual_window_bounds(&mut self, node_id: NodeId, rect: Rect) {
+        self.record_debug(node_id, DebugPrimitiveKind::VirtualWindowBounds, rect);
+    }
+
+    pub(super) fn record_culled_region(&mut self, node_id: NodeId, rect: Rect) {
+        self.record_debug(node_id, DebugPrimitiveKind::CulledRegion, rect);
+    }
+
+    pub(super) fn record_virtual_window_info(&mut self, node_id: NodeId, info: VirtualWindowInfo) {
+        self.output.virtual_windows.insert(node_id, info);
+    }
+
+    pub(super) fn record_layout_visit(&mut self) {
+        self.output.stats.laid_out_nodes += 1;
+        self.output.stats.materialized_nodes += 1;
+    }
+
+    pub(super) fn record_measure_miss(&mut self) {
+        self.output.stats.measured_nodes += 1;
     }
 
     pub(super) fn push_diagnostic(

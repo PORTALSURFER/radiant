@@ -1,7 +1,11 @@
 //! Stress tests for deep and wide layout trees.
 
-use super::layout_tree;
-use crate::gui::layout_core::model::{ContainerKind, ContainerPolicy, SlotParams};
+use super::{LayoutDebugOptions, LayoutState, layout_tree, layout_tree_with_state};
+use crate::gui::layout_core::constraints::Constraints;
+use crate::gui::layout_core::model::{
+    ContainerKind, ContainerPolicy, OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams,
+    VirtualizationAxis, VirtualizationPolicy,
+};
 use crate::gui::layout_core::tree::{LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
 
@@ -67,4 +71,64 @@ fn large_wrap_list_layout_produces_valid_rects() {
         assert!(rect.width() >= 0.0);
         assert!(rect.height() >= 0.0);
     }
+}
+
+#[test]
+fn virtualized_scroll_10k_items_keeps_materialized_count_bounded() {
+    let mut items = Vec::with_capacity(10_000);
+    for index in 0..10_000_u64 {
+        items.push(SlotChild {
+            slot: SlotParams {
+                size_main: SizeModeMain::Intrinsic,
+                size_cross: SizeModeCross::Fill,
+                constraints: Constraints::unconstrained(),
+                margin: Default::default(),
+                align_cross_override: None,
+                allow_fixed_compress: false,
+            },
+            child: LayoutNode::widget(index + 10, Vector2::new(120.0, 10.0)),
+        });
+    }
+
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            virtualization: Some(VirtualizationPolicy {
+                enabled: true,
+                axis: VirtualizationAxis::Vertical,
+                overscan_px: 16.0,
+            }),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    spacing: 1.0,
+                    ..ContainerPolicy::default()
+                },
+                items,
+            ),
+        }],
+    );
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(0.0, 20_000.0));
+    let output = layout_tree_with_state(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(300.0, 140.0)),
+        &state,
+        LayoutDebugOptions::default(),
+    );
+
+    let window = output
+        .virtual_windows
+        .get(&1)
+        .expect("virtual window metadata");
+    assert_eq!(window.total_children, 10_000);
+    assert!(window.last_index_exclusive - window.first_index < 128);
+    assert!(output.stats.materialized_nodes < 256);
 }

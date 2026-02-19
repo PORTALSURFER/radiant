@@ -1,6 +1,8 @@
 //! Layout pass implementation for strict slot-based layout trees.
 
 mod boxes;
+mod scroll;
+mod scroll_helpers;
 
 use super::helpers::{
     align_main_offsets, allocate_fill_sizes, compress_if_needed, content_rect, main_margin_total,
@@ -12,6 +14,7 @@ use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild
 use crate::gui::types::{Rect, Vector2};
 
 pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutContext) {
+    context.record_layout_visit();
     let rounded = round_rect(rect);
     context.output.rects.insert(node.id(), rounded);
     context.record_node_bounds(node.id(), rounded);
@@ -29,7 +32,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::AlignBox => boxes::layout_align_box(container, content, context),
         ContainerKind::AspectBox => boxes::layout_aspect_box(container, content, context),
         ContainerKind::Grid => boxes::layout_grid(container, content, context),
-        ContainerKind::ScrollView => boxes::layout_scroll_view(container, content, context),
+        ContainerKind::ScrollView => scroll::layout_scroll_view(container, content, context),
         ContainerKind::Wrap => boxes::layout_wrap(container, content, context),
         ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),
     }
@@ -59,7 +62,38 @@ fn layout_linear(
     }
     .max(0.0);
 
-    let mut states = collect_layout_states(container, context, horizontal, available_main);
+    if let Some(window) = context.linear_window(container.id) {
+        let states = collect_layout_states(
+            container,
+            context,
+            horizontal,
+            available_main,
+            window.first,
+            window.last_exclusive,
+        );
+        let sizes: Vec<f32> = states.iter().map(|(_, _, main, _)| *main).collect();
+        place_linear_children(
+            container,
+            content,
+            horizontal,
+            available_cross,
+            &states,
+            &sizes,
+            window.cursor_main_start,
+            spacing,
+            context,
+        );
+        return;
+    }
+
+    let mut states = collect_layout_states(
+        container,
+        context,
+        horizontal,
+        available_main,
+        0,
+        container.children.len(),
+    );
     let fixed_main = states
         .iter()
         .filter(|(slot_child, _, _, _)| !matches!(slot_child.slot.size_main, SizeModeMain::Fill(_)))
@@ -172,9 +206,14 @@ fn collect_layout_states<'a>(
     context: &mut LayoutContext,
     horizontal: bool,
     available_main: f32,
+    start_index: usize,
+    end_index_exclusive: usize,
 ) -> Vec<(&'a SlotChild, Vector2, f32, f32)> {
-    let mut states = Vec::with_capacity(container.children.len());
-    for child in &container.children {
+    let clamped_start = start_index.min(container.children.len());
+    let clamped_end = end_index_exclusive.min(container.children.len());
+    let selected = &container.children[clamped_start..clamped_end];
+    let mut states = Vec::with_capacity(selected.len());
+    for child in selected {
         let measured = super::measure::measure_node(&child.child, child.slot.constraints, context);
         let main = resolve_nonfill_main(
             horizontal,

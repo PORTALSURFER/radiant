@@ -16,6 +16,7 @@ pub(super) fn measure_node(
     if let Some(size) = context.cached_measure(key, node.id()) {
         return size;
     }
+    context.record_measure_miss();
 
     let measured = match node {
         LayoutNode::Widget(widget) => Vector2::new(

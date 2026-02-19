@@ -7,6 +7,7 @@ mod measure;
 mod types;
 
 use super::constraints::Constraints;
+use super::model::VirtualizationAxis;
 use super::tree::{LayoutNode, NodeId, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeSet, HashMap};
@@ -14,7 +15,7 @@ use std::collections::{BTreeSet, HashMap};
 use context::LayoutContext;
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
-    LayoutDiagnosticCode, LayoutOutput, LayoutState, OverflowInfo,
+    LayoutDiagnosticCode, LayoutOutput, LayoutState, OverflowInfo, VirtualWindowInfo,
 };
 
 /// Paint context consumed by widget paint implementations.
@@ -75,9 +76,53 @@ impl MeasureCacheKey {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct VirtualizationCacheKey {
+    node_id: NodeId,
+    constraints: ConstraintKey,
+    axis: VirtualizationAxis,
+    child_count: usize,
+}
+
+impl VirtualizationCacheKey {
+    fn new(
+        node_id: NodeId,
+        constraints: Constraints,
+        axis: VirtualizationAxis,
+        child_count: usize,
+    ) -> Self {
+        Self {
+            node_id,
+            constraints: ConstraintKey::from_constraints(constraints),
+            axis,
+            child_count,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct VirtualSpan {
+    pub(super) start: f32,
+    pub(super) end: f32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct LinearVirtualMetrics {
+    pub(super) spans: Vec<VirtualSpan>,
+    pub(super) total_main: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct LinearVirtualWindow {
+    pub(super) first: usize,
+    pub(super) last_exclusive: usize,
+    pub(super) cursor_main_start: f32,
+}
+
 #[derive(Default)]
 pub struct LayoutEngine {
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
+    virtual_cache: HashMap<VirtualizationCacheKey, LinearVirtualMetrics>,
     layout_dirty: BTreeSet<NodeId>,
     measure_dirty: BTreeSet<NodeId>,
 }
@@ -86,11 +131,13 @@ impl LayoutEngine {
     /// Mark a node as geometry-dirty.
     pub fn mark_layout_dirty(&mut self, node_id: NodeId) {
         self.layout_dirty.insert(node_id);
+        self.virtual_cache.clear();
     }
 
     /// Mark a node as intrinsic-measure dirty.
     pub fn mark_measure_dirty(&mut self, node_id: NodeId) {
         self.measure_dirty.insert(node_id);
+        self.virtual_cache.clear();
     }
 
     /// Clear all dirty markers.
@@ -132,6 +179,7 @@ impl LayoutEngine {
             };
             let mut context = LayoutContext::new(
                 &mut self.measure_cache,
+                &mut self.virtual_cache,
                 &self.measure_dirty,
                 state,
                 debug,
@@ -181,3 +229,6 @@ mod property_tests;
 
 #[cfg(test)]
 mod stress_tests;
+
+#[cfg(test)]
+mod virtualization_tests;

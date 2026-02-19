@@ -18,6 +18,10 @@ pub enum LayoutDiagnosticCode {
     OverflowOccurred,
     /// A provided scroll offset was outside legal bounds and clamped.
     InvalidScrollOffsetClamped,
+    /// A virtualization policy was ignored because it could not be applied.
+    VirtualizationPolicyIgnored,
+    /// A computed virtualization window was clamped to legal bounds.
+    VirtualizationWindowClamped,
 }
 
 /// Layout diagnostic emitted when invalid states are normalized.
@@ -63,6 +67,12 @@ pub enum DebugPrimitiveKind {
     SlotMargin,
     /// Node overflow marker.
     OverflowMarker,
+    /// Scroll viewport bounds.
+    ViewportBounds,
+    /// Active virtualization window bounds.
+    VirtualWindowBounds,
+    /// Culled area outside the active window.
+    CulledRegion,
 }
 
 /// One debug primitive emitted during layout traversal.
@@ -146,4 +156,38 @@ pub struct LayoutOutput {
     pub diagnostics: Vec<LayoutDiagnostic>,
     /// Optional debug primitives emitted by the traversal.
     pub debug_primitives: Vec<LayoutDebugPrimitive>,
+    /// Virtualization window metadata keyed by scroll container id.
+    pub virtual_windows: BTreeMap<NodeId, VirtualWindowInfo>,
+    /// Traversal counters collected during this layout pass.
+    pub stats: LayoutStats,
+}
+
+/// Virtualized window metadata for a scroll container.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct VirtualWindowInfo {
+    /// Total children available in the virtualized content list.
+    pub total_children: usize,
+    /// First materialized child index.
+    pub first_index: usize,
+    /// Exclusive end index of materialized children.
+    pub last_index_exclusive: usize,
+    /// Number of children culled before the window.
+    pub culled_before: usize,
+    /// Number of children culled after the window.
+    pub culled_after: usize,
+    /// Viewport start on the virtualization axis.
+    pub viewport_main_start: f32,
+    /// Viewport end on the virtualization axis.
+    pub viewport_main_end: f32,
+}
+
+/// Collected traversal counters for one layout evaluation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LayoutStats {
+    /// Number of nodes measured with a cache miss.
+    pub measured_nodes: usize,
+    /// Number of nodes visited by the layout traversal.
+    pub laid_out_nodes: usize,
+    /// Number of nodes materialized into `LayoutOutput::rects`.
+    pub materialized_nodes: usize,
 }

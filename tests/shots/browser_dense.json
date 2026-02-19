@@ -13992,7 +13992,7 @@
       "text": "Samples (460)",
       "position": {
         "x": 224.0,
-        "y": 283.4
+        "y": 282.0
       },
       "font_size": 10.2,
       "color": {
@@ -14008,7 +14008,7 @@
       "text": "Similarity map",
       "position": {
         "x": 914.0,
-        "y": 283.4
+        "y": 282.0
       },
       "font_size": 10.2,
       "color": {
@@ -14024,7 +14024,7 @@
       "text": "Search: kick",
       "position": {
         "x": 229.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -14040,7 +14040,7 @@
       "text": "Ready",
       "position": {
         "x": 865.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -14056,7 +14056,7 @@
       "text": "Sort: List order",
       "position": {
         "x": 1116.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -14120,7 +14120,7 @@
       "text": "500 items | 7 selected",
       "position": {
         "x": 224.0,
-        "y": 871.2
+        "y": 870.0
       },
       "font_size": 8.6,
       "color": {

@@ -11928,7 +11928,7 @@
       "text": "Samples (0)",
       "position": {
         "x": 224.0,
-        "y": 283.4
+        "y": 282.0
       },
       "font_size": 10.2,
       "color": {
@@ -11944,7 +11944,7 @@
       "text": "Similarity map",
       "position": {
         "x": 834.0,
-        "y": 283.4
+        "y": 282.0
       },
       "font_size": 10.2,
       "color": {
@@ -11960,7 +11960,7 @@
       "text": "Search: track",
       "position": {
         "x": 229.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11976,7 +11976,7 @@
       "text": "Ready",
       "position": {
         "x": 791.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -11992,7 +11992,7 @@
       "text": "Sort: List order",
       "position": {
         "x": 999.0,
-        "y": 302.7
+        "y": 302.0
       },
       "font_size": 8.6,
       "color": {
@@ -12056,7 +12056,7 @@
       "text": "20 items | 2 selected",
       "position": {
         "x": 224.0,
-        "y": 781.2
+        "y": 780.0
       },
       "font_size": 8.6,
       "color": {

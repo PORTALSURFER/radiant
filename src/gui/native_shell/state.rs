@@ -3,16 +3,18 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_header_text_layout,
-        compute_browser_map_header_text_layout, compute_browser_row_text_layout,
-        compute_browser_toolbar_sections, compute_drag_overlay_rect,
-        compute_drag_overlay_text_layout, compute_progress_overlay_sections,
-        compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
-        compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
-        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
-        compute_source_section_divider_rect, compute_status_text_line_rect,
-        compute_top_bar_controls_sections, compute_top_bar_update_text_layout,
-        compute_update_action_button_rects, compute_waveform_header_text_layout,
+        SidebarRowCounts, compute_browser_action_button_rects, compute_browser_footer_text_rect,
+        compute_browser_header_text_layout, compute_browser_map_header_text_layout,
+        compute_browser_row_text_layout, compute_browser_tabs_text_layout,
+        compute_browser_toolbar_sections, compute_browser_toolbar_text_layout,
+        compute_drag_overlay_rect, compute_drag_overlay_text_layout,
+        compute_progress_overlay_sections, compute_progress_overlay_text_layout,
+        compute_prompt_overlay_sections, compute_prompt_overlay_text_layout,
+        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
+        compute_sidebar_row_sections, compute_source_section_divider_rect,
+        compute_status_text_line_rect, compute_top_bar_controls_sections,
+        compute_top_bar_update_text_layout, compute_update_action_button_rects,
+        compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -1461,6 +1463,7 @@ impl NativeShellState {
             sizing.border_width,
         );
         push_border(primitives, tabs.map, map_border, sizing.border_width);
+        let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, sizing);
         let samples_text = format!(
             "{} ({})",
             model.browser_chrome.samples_tab_label,
@@ -1469,28 +1472,22 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &samples_text,
-                (tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0),
+                tabs_text_layout.samples_label.width().max(40.0),
                 sizing.font_header,
             ),
-            position: Point::new(
-                tabs.samples.min.x + sizing.text_inset_x,
-                text_top_in_rect(tabs.samples, sizing.font_header, sizing.text_inset_y),
-            ),
+            position: tabs_text_layout.samples_label.min,
             font_size: sizing.font_header,
             color: samples_text_color,
-            max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
             align: TextAlign::Left,
         });
         let map_text = model.browser_chrome.map_tab_label.as_str();
         text_runs.push(TextRun {
             text: String::from(map_text),
-            position: Point::new(
-                tabs.map.min.x + sizing.text_inset_x,
-                text_top_in_rect(tabs.map, sizing.font_header, sizing.text_inset_y),
-            ),
+            position: tabs_text_layout.map_label.min,
             font_size: sizing.font_header,
             color: map_text_color,
-            max_width: Some((tabs.map.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
             align: TextAlign::Left,
         });
         let toolbar = browser_toolbar_layout(layout, style, &browser_buttons);
@@ -1534,6 +1531,12 @@ impl NativeShellState {
                 sizing.border_width,
             );
         }
+        let toolbar_text_layout = compute_browser_toolbar_text_layout(
+            toolbar.search_field,
+            toolbar.activity_chip,
+            toolbar.sort_chip,
+            sizing,
+        );
         let search_text = if model.browser.search_query.is_empty() {
             model.browser_chrome.search_placeholder.clone()
         } else {
@@ -1546,22 +1549,17 @@ impl NativeShellState {
             text_runs.push(TextRun {
                 text: truncate_to_width(
                     &search_text,
-                    (toolbar.search_field.width() - (sizing.text_inset_x * 2.0)).max(24.0),
+                    toolbar_text_layout.search_label.width().max(24.0),
                     sizing.font_meta,
                 ),
-                position: Point::new(
-                    toolbar.search_field.min.x + sizing.text_inset_x,
-                    text_top_in_rect(toolbar.search_field, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: toolbar_text_layout.search_label.min,
                 font_size: sizing.font_meta,
                 color: if model.browser.search_query.is_empty() {
                     style.text_muted
                 } else {
                     style.text_primary
                 },
-                max_width: Some(
-                    (toolbar.search_field.width() - (sizing.text_inset_x * 2.0)).max(24.0),
-                ),
+                max_width: Some(toolbar_text_layout.search_label.width().max(24.0)),
                 align: TextAlign::Left,
             });
         }
@@ -1572,15 +1570,10 @@ impl NativeShellState {
                 } else {
                     model.browser_chrome.activity_ready_label.clone()
                 },
-                position: Point::new(
-                    toolbar.activity_chip.min.x + sizing.text_inset_x,
-                    text_top_in_rect(toolbar.activity_chip, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: toolbar_text_layout.activity_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_primary,
-                max_width: Some(
-                    (toolbar.activity_chip.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                ),
+                max_width: Some(toolbar_text_layout.activity_label.width().max(20.0)),
                 align: TextAlign::Center,
             });
         }
@@ -1597,15 +1590,10 @@ impl NativeShellState {
             };
             text_runs.push(TextRun {
                 text: sort_text,
-                position: Point::new(
-                    toolbar.sort_chip.min.x + sizing.text_inset_x,
-                    text_top_in_rect(toolbar.sort_chip, sizing.font_meta, sizing.text_inset_y),
-                ),
+                position: toolbar_text_layout.sort_label.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(
-                    (toolbar.sort_chip.width() - (sizing.text_inset_x * 2.0)).max(20.0),
-                ),
+                max_width: Some(toolbar_text_layout.sort_label.width().max(20.0)),
                 align: TextAlign::Center,
             });
         }
@@ -1726,21 +1714,17 @@ impl NativeShellState {
                 }
             )
         };
+        let browser_footer_text = compute_browser_footer_text_rect(layout.browser_footer, sizing);
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &footer_text,
-                (layout.browser_footer.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                browser_footer_text.width().max(36.0),
                 sizing.font_meta,
             ),
-            position: Point::new(
-                layout.browser_footer.min.x + sizing.text_inset_x,
-                text_top_in_rect(layout.browser_footer, sizing.font_meta, sizing.text_inset_y),
-            ),
+            position: browser_footer_text.min,
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some(
-                (layout.browser_footer.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            ),
+            max_width: Some(browser_footer_text.width().max(36.0)),
             align: TextAlign::Left,
         });
 
@@ -2120,6 +2104,7 @@ impl NativeShellState {
             blend_color(style.accent_mint, style.text_primary, 0.42),
             sizing.border_width,
         );
+        let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, sizing);
         let samples_text = format!(
             "{} ({})",
             model.browser_chrome.samples_tab_label,
@@ -2132,27 +2117,21 @@ impl NativeShellState {
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &samples_text,
-                (tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0),
+                tabs_text_layout.samples_label.width().max(40.0),
                 sizing.font_header,
             ),
-            position: Point::new(
-                tabs.samples.min.x + sizing.text_inset_x,
-                text_top_in_rect(tabs.samples, sizing.font_header, sizing.text_inset_y),
-            ),
+            position: tabs_text_layout.samples_label.min,
             font_size: sizing.font_header,
             color: samples_text_color,
-            max_width: Some((tabs.samples.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: String::from(model.browser_chrome.map_tab_label.as_str()),
-            position: Point::new(
-                tabs.map.min.x + sizing.text_inset_x,
-                text_top_in_rect(tabs.map, sizing.font_header, sizing.text_inset_y),
-            ),
+            position: tabs_text_layout.map_label.min,
             font_size: sizing.font_header,
             color: map_text_color,
-            max_width: Some((tabs.map.width() - (sizing.text_inset_x * 2.0)).max(40.0)),
+            max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
             align: TextAlign::Left,
         });
 

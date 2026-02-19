@@ -5442,7 +5442,7 @@
       "text": "Samples (12)",
       "position": {
         "x": 214.0,
-        "y": 263.4
+        "y": 262.0
       },
       "font_size": 10.2,
       "color": {
@@ -5451,14 +5451,14 @@
         "b": 174,
         "a": 255
       },
-      "max_width": 521.5,
+      "max_width": 522.0,
       "align": "left"
     },
     {
       "text": "Similarity map",
       "position": {
-        "x": 748.5,
-        "y": 263.4
+        "x": 748.0,
+        "y": 262.0
       },
       "font_size": 10.2,
       "color": {
@@ -5467,14 +5467,14 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 521.5,
+      "max_width": 522.0,
       "align": "left"
     },
     {
       "text": "Search: kick",
       "position": {
         "x": 219.0,
-        "y": 282.7
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -5490,7 +5490,7 @@
       "text": "Ready",
       "position": {
         "x": 712.0,
-        "y": 282.7
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -5506,7 +5506,7 @@
       "text": "Sort: List order",
       "position": {
         "x": 879.0,
-        "y": 282.7
+        "y": 282.0
       },
       "font_size": 8.6,
       "color": {
@@ -5570,7 +5570,7 @@
       "text": "12 items | 0 selected",
       "position": {
         "x": 214.0,
-        "y": 691.2
+        "y": 690.0
       },
       "font_size": 8.6,
       "color": {

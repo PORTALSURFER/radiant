@@ -1,5 +1,6 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
 mod bands;
+mod browser_chrome_text;
 mod browser_text;
 mod controls;
 mod map_header;
@@ -18,6 +19,10 @@ use crate::gui::layout_core::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::{compute_browser_band_sections, compute_top_bar_band_sections};
+pub(super) use browser_chrome_text::{
+    compute_browser_footer_text_rect, compute_browser_tabs_text_layout,
+    compute_browser_toolbar_text_layout,
+};
 pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
 };

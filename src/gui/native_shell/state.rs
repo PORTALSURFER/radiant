@@ -2,6 +2,7 @@
 
 use super::{
     layout::{ShellLayout, ShellNodeKind},
+    layout_adapter::compute_top_bar_controls_sections,
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
@@ -3345,69 +3346,13 @@ fn browser_toolbar_layout(
 }
 
 fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBarControlsLayout {
-    let row = layout.top_bar_controls_row;
-    if row.height() <= 1.0 || row.width() <= 1.0 {
-        let empty = Rect::from_min_max(row.min, row.min);
-        return TopBarControlsLayout {
-            active: false,
-            options_label: empty,
-            volume_meter: empty,
-            volume_value: empty,
-            volume_label: empty,
-        };
-    }
-
-    let left = row.min.x + sizing.text_inset_x + sizing.header_label_gutter;
-    let options_width = 64.0_f32.min((row.width() * 0.35).max(24.0));
-    let meter_width = sizing
-        .top_volume_meter_width
-        .min((row.width() * 0.45).max(26.0))
-        .max(26.0);
-    let value_width = 44.0_f32.min((row.width() * 0.2).max(20.0));
-    let label_width = 28.0_f32.min((row.width() * 0.12).max(16.0));
-    let gap = sizing.action_button_gap.max(2.0);
-    let total_width = options_width + gap + meter_width + gap + value_width + gap + label_width;
-    let available_width = row.width() - ((sizing.text_inset_x + sizing.header_label_gutter) * 2.0);
-    if available_width <= 12.0 || total_width > available_width {
-        let empty = Rect::from_min_max(row.min, row.min);
-        return TopBarControlsLayout {
-            active: false,
-            options_label: empty,
-            volume_meter: empty,
-            volume_value: empty,
-            volume_label: empty,
-        };
-    }
-    let center_y = row.min.y + (row.height() * 0.5);
-    let meter_height = sizing
-        .top_volume_meter_height
-        .min(row.height().max(1.0))
-        .max(3.0);
-    let options_label = Rect::from_min_max(
-        Point::new(left, row.min.y),
-        Point::new(left + options_width, row.max.y),
-    );
-    let meter_min_x = options_label.max.x + gap;
-    let volume_meter = Rect::from_min_max(
-        Point::new(meter_min_x, center_y - (meter_height * 0.5)),
-        Point::new(meter_min_x + meter_width, center_y + (meter_height * 0.5)),
-    );
-    let value_min_x = volume_meter.max.x + gap;
-    let volume_value = Rect::from_min_max(
-        Point::new(value_min_x, row.min.y),
-        Point::new(value_min_x + value_width, row.max.y),
-    );
-    let label_min_x = volume_value.max.x + gap;
-    let volume_label = Rect::from_min_max(
-        Point::new(label_min_x, row.min.y),
-        Point::new(label_min_x + label_width, row.max.y),
-    );
+    let resolved = compute_top_bar_controls_sections(layout, sizing);
     TopBarControlsLayout {
-        active: true,
-        options_label,
-        volume_meter,
-        volume_value,
-        volume_label,
+        active: resolved.active,
+        options_label: resolved.options_label,
+        volume_meter: resolved.volume_meter,
+        volume_value: resolved.volume_value,
+        volume_label: resolved.volume_label,
     }
 }
 

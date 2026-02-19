@@ -13,7 +13,9 @@ pub(super) fn measure_node(
 ) -> Vector2 {
     let normalized = context.normalize_constraints(node.id(), constraints);
     let key = MeasureCacheKey::new(node, normalized);
-    if let Some(size) = context.cached_measure(key, node.id()) {
+    let is_container = matches!(node, LayoutNode::Container(_));
+    if let Some(size) = context.cached_measure(key, node.id(), is_container) {
+        context.record_measured_size(node.id(), size);
         return size;
     }
     context.record_measure_miss();

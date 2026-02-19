@@ -65,6 +65,8 @@ impl Default for OverflowInfo {
 pub enum DebugPrimitiveKind {
     /// Full node rectangle.
     NodeBounds,
+    /// Node measured size anchored at the final layout origin.
+    MeasuredBounds,
     /// Container content rectangle after padding.
     ContentBounds,
     /// Slot margin rectangle around the child rect.
@@ -97,6 +99,8 @@ pub struct LayoutDebugOptions {
     pub enabled: bool,
     /// Emit node bounds.
     pub show_bounds: bool,
+    /// Emit measured bounds anchored at final node origins.
+    pub show_measured: bool,
     /// Emit padded content bounds.
     pub show_padding: bool,
     /// Emit slot margin bounds.
@@ -110,6 +114,7 @@ impl Default for LayoutDebugOptions {
         Self {
             enabled: false,
             show_bounds: false,
+            show_measured: false,
             show_padding: false,
             show_margins: false,
             show_overflow: false,
@@ -123,6 +128,7 @@ impl LayoutDebugOptions {
         Self {
             enabled: true,
             show_bounds: true,
+            show_measured: true,
             show_padding: true,
             show_margins: true,
             show_overflow: true,

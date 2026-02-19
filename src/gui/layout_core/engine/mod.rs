@@ -1,6 +1,7 @@
 //! Deterministic two-pass layout engine for strict slot-based trees.
 
 mod context;
+mod dirty;
 mod helpers;
 mod layout;
 mod measure;
@@ -158,6 +159,16 @@ impl LayoutEngine {
         self.invalidate_virtual_cache_for(node_id);
     }
 
+    /// Mark a node subtree as geometry-dirty, including ancestor path nodes.
+    pub fn mark_layout_dirty_subtree(&mut self, root: &LayoutNode, node_id: NodeId) {
+        self.mark_subtree_dirty(root, node_id, false);
+    }
+
+    /// Mark a node subtree as measure-dirty, including ancestor path nodes.
+    pub fn mark_measure_dirty_subtree(&mut self, root: &LayoutNode, node_id: NodeId) {
+        self.mark_subtree_dirty(root, node_id, true);
+    }
+
     /// Clear all dirty markers.
     pub fn clear_dirty(&mut self) {
         self.layout_dirty.clear();
@@ -167,6 +178,22 @@ impl LayoutEngine {
     fn invalidate_virtual_cache_for(&mut self, node_id: NodeId) {
         self.virtual_cache
             .retain(|_, entry| !entry.dependencies.contains(&node_id));
+    }
+
+    fn mark_subtree_dirty(&mut self, root: &LayoutNode, node_id: NodeId, measure: bool) {
+        let mut marked = BTreeSet::new();
+        let mut path = Vec::new();
+        if !dirty::collect_path_and_descendants(root, node_id, &mut path, &mut marked) {
+            marked.insert(node_id);
+        }
+        for id in marked {
+            if measure {
+                self.measure_dirty.insert(id);
+            } else {
+                self.layout_dirty.insert(id);
+            }
+            self.invalidate_virtual_cache_for(id);
+        }
     }
 
     /// Compute layout output for `root` in `root_rect` using default state/options.
@@ -344,3 +371,6 @@ mod stress_tests;
 
 #[cfg(test)]
 mod virtualization_tests;
+
+#[cfg(test)]
+mod contract_tests;

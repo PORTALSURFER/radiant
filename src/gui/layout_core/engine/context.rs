@@ -13,6 +13,7 @@ use std::collections::{BTreeSet, HashMap};
 
 pub(super) struct LayoutContext<'a> {
     measured: HashMap<MeasureCacheKey, Vector2>,
+    measured_by_node: HashMap<NodeId, Vector2>,
     cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
     virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
     linear_windows: HashMap<NodeId, ResolvedLinearWindow>,
@@ -34,6 +35,7 @@ impl<'a> LayoutContext<'a> {
     ) -> Self {
         Self {
             measured: HashMap::new(),
+            measured_by_node: HashMap::new(),
             cache,
             virtual_cache,
             linear_windows: HashMap::new(),
@@ -45,8 +47,16 @@ impl<'a> LayoutContext<'a> {
         }
     }
 
-    pub(super) fn cached_measure(&self, key: MeasureCacheKey, node_id: NodeId) -> Option<Vector2> {
+    pub(super) fn cached_measure(
+        &self,
+        key: MeasureCacheKey,
+        node_id: NodeId,
+        is_container: bool,
+    ) -> Option<Vector2> {
         if self.measure_dirty.contains(&node_id) {
+            return None;
+        }
+        if is_container && !self.measure_dirty.is_empty() {
             return None;
         }
         self.measured
@@ -58,6 +68,7 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
         self.measured.insert(key, value);
         self.cache.insert(key, value);
+        self.measured_by_node.insert(key.node_id, value);
     }
 
     pub(super) fn cached_virtual_metrics(
@@ -84,8 +95,8 @@ impl<'a> LayoutContext<'a> {
         );
     }
 
-    pub(super) fn is_measure_dirty(&self, node_id: NodeId) -> bool {
-        self.measure_dirty.contains(&node_id)
+    pub(super) fn record_measured_size(&mut self, node_id: NodeId, value: Vector2) {
+        self.measured_by_node.insert(node_id, value);
     }
 
     pub(super) fn set_linear_window(&mut self, node_id: NodeId, window: ResolvedLinearWindow) {
@@ -260,6 +271,18 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn record_node_bounds(&mut self, node_id: NodeId, rect: Rect) {
         if self.debug_options.show_bounds {
             self.record_debug(node_id, DebugPrimitiveKind::NodeBounds, rect);
+        }
+        if self.debug_options.show_measured {
+            if let Some(measured) = self.measured_by_node.get(&node_id).copied() {
+                let measured_rect = Rect::from_min_size(
+                    rect.min,
+                    Vector2::new(
+                        measured.x.max(0.0).min(rect.width().max(0.0)),
+                        measured.y.max(0.0).min(rect.height().max(0.0)),
+                    ),
+                );
+                self.record_debug(node_id, DebugPrimitiveKind::MeasuredBounds, measured_rect);
+            }
         }
     }
 

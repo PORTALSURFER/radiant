@@ -14136,7 +14136,7 @@
       "text": "Focus list",
       "position": {
         "x": 12.0,
-        "y": 887.35
+        "y": 886.0
       },
       "font_size": 9.3,
       "color": {
@@ -14145,14 +14145,14 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 462.8,
+      "max_width": 465.0,
       "align": "left"
     },
     {
       "text": "rows: 500 | selected: 7 | anchor: 72 | search: dense",
       "position": {
-        "x": 492.8,
-        "y": 887.35
+        "x": 497.0,
+        "y": 886.0
       },
       "font_size": 9.3,
       "color": {
@@ -14161,14 +14161,14 @@
         "b": 239,
         "a": 255
       },
-      "max_width": 746.48,
+      "max_width": 735.0,
       "align": "center"
     },
     {
       "text": "col: 2/3",
       "position": {
-        "x": 1257.28,
-        "y": 887.35
+        "x": 1253.0,
+        "y": 886.0
       },
       "font_size": 9.3,
       "color": {
@@ -14177,7 +14177,7 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 336.72,
+      "max_width": 337.0,
       "align": "right"
     },
     {

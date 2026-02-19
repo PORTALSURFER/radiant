@@ -5586,7 +5586,7 @@
       "text": "Ready",
       "position": {
         "x": 12.0,
-        "y": 707.35
+        "y": 706.0
       },
       "font_size": 9.3,
       "color": {
@@ -5595,14 +5595,14 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 366.8,
+      "max_width": 369.0,
       "align": "left"
     },
     {
       "text": "rows: 18 | selected: 1 | anchor: — | search: —",
       "position": {
-        "x": 396.8,
-        "y": 707.35
+        "x": 401.0,
+        "y": 706.0
       },
       "font_size": 9.3,
       "color": {
@@ -5611,14 +5611,14 @@
         "b": 239,
         "a": 255
       },
-      "max_width": 592.88,
+      "max_width": 582.0,
       "align": "center"
     },
     {
       "text": "col: 2/3",
       "position": {
-        "x": 1007.68,
-        "y": 707.35
+        "x": 1004.0,
+        "y": 706.0
       },
       "font_size": 9.3,
       "color": {
@@ -5627,7 +5627,7 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 266.32,
+      "max_width": 267.0,
       "align": "right"
     },
     {

@@ -12072,7 +12072,7 @@
       "text": "Waveform focus",
       "position": {
         "x": 12.0,
-        "y": 797.35
+        "y": 796.0
       },
       "font_size": 9.3,
       "color": {
@@ -12081,14 +12081,14 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 414.8,
+      "max_width": 417.0,
       "align": "left"
     },
     {
       "text": "rows: 48 | selected: 2 | anchor: 1 | search: wav",
       "position": {
-        "x": 444.8,
-        "y": 797.35
+        "x": 449.0,
+        "y": 796.0
       },
       "font_size": 9.3,
       "color": {
@@ -12097,14 +12097,14 @@
         "b": 239,
         "a": 255
       },
-      "max_width": 669.68,
+      "max_width": 658.0,
       "align": "center"
     },
     {
       "text": "col: 2/3",
       "position": {
-        "x": 1132.48,
-        "y": 797.35
+        "x": 1128.0,
+        "y": 796.0
       },
       "font_size": 9.3,
       "color": {
@@ -12113,7 +12113,7 @@
         "b": 186,
         "a": 255
       },
-      "max_width": 301.52,
+      "max_width": 302.0,
       "align": "right"
     },
     {

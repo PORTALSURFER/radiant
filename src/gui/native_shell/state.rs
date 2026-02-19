@@ -7,8 +7,8 @@ use super::{
         compute_drag_overlay_rect, compute_progress_overlay_sections,
         compute_prompt_overlay_sections, compute_sidebar_action_button_rects,
         compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
-        compute_source_section_divider_rect, compute_top_bar_controls_sections,
-        compute_update_action_button_rects,
+        compute_source_section_divider_rect, compute_status_text_line_rect,
+        compute_top_bar_controls_sections, compute_update_action_button_rects,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -1869,71 +1869,46 @@ impl NativeShellState {
         } else {
             model.status.right.clone()
         };
+        let status_left_text_rect =
+            compute_status_text_line_rect(layout.status_left_segment, sizing, sizing.font_status);
+        let status_center_text_rect =
+            compute_status_text_line_rect(layout.status_center_segment, sizing, sizing.font_status);
+        let status_right_text_rect =
+            compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_left,
-                (layout.status_left_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                status_left_text_rect.width().max(36.0),
                 sizing.font_status,
             ),
-            position: Point::new(
-                layout.status_left_segment.min.x + sizing.text_inset_x + sizing.header_label_gutter,
-                text_top_in_rect(
-                    layout.status_left_segment,
-                    sizing.font_status,
-                    sizing.text_inset_y,
-                ),
-            ),
+            position: status_left_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some(
-                (layout.status_left_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            ),
+            max_width: Some(status_left_text_rect.width().max(36.0)),
             align: TextAlign::Left,
         });
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_center,
-                (layout.status_center_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                status_center_text_rect.width().max(36.0),
                 sizing.font_status,
             ),
-            position: Point::new(
-                layout.status_center_segment.min.x
-                    + sizing.text_inset_x
-                    + sizing.header_label_gutter,
-                text_top_in_rect(
-                    layout.status_center_segment,
-                    sizing.font_status,
-                    sizing.text_inset_y,
-                ),
-            ),
+            position: status_center_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_primary,
-            max_width: Some(
-                (layout.status_center_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            ),
+            max_width: Some(status_center_text_rect.width().max(36.0)),
             align: TextAlign::Center,
         });
         text_runs.push(TextRun {
             text: truncate_to_width(
                 &status_right,
-                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                status_right_text_rect.width().max(36.0),
                 sizing.font_status,
             ),
-            position: Point::new(
-                layout.status_right_segment.min.x
-                    + sizing.text_inset_x
-                    + sizing.header_label_gutter,
-                text_top_in_rect(
-                    layout.status_right_segment,
-                    sizing.font_status,
-                    sizing.text_inset_y,
-                ),
-            ),
+            position: status_right_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some(
-                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            ),
+            max_width: Some(status_right_text_rect.width().max(36.0)),
             align: TextAlign::Right,
         });
 
@@ -2384,27 +2359,18 @@ impl NativeShellState {
             color: style.surface_raised,
         }));
         let sizing = style.sizing;
+        let status_text_rect =
+            compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
         text_runs.push(TextRun {
             text: truncate_to_width(
                 status_right,
-                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
+                status_text_rect.width().max(36.0),
                 sizing.font_status,
             ),
-            position: Point::new(
-                layout.status_right_segment.min.x
-                    + sizing.text_inset_x
-                    + sizing.header_label_gutter,
-                text_top_in_rect(
-                    layout.status_right_segment,
-                    sizing.font_status,
-                    sizing.text_inset_y,
-                ),
-            ),
+            position: status_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_muted,
-            max_width: Some(
-                (layout.status_right_segment.width() - (sizing.text_inset_x * 2.0)).max(36.0),
-            ),
+            max_width: Some(status_text_rect.width().max(36.0)),
             align: TextAlign::Right,
         });
     }

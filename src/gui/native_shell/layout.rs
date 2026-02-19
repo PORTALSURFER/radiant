@@ -3,7 +3,7 @@
 use super::{
     layout_adapter::{
         compute_browser_band_sections, compute_shell_sections, compute_sidebar_band_sections,
-        compute_top_bar_band_sections,
+        compute_status_bar_segments, compute_top_bar_band_sections,
     },
     style::StyleTokens,
 };
@@ -130,30 +130,10 @@ impl ShellLayout {
         let top_bar_title_cluster = top_bar_bands.top_bar_title_cluster;
         let top_bar_action_cluster = top_bar_bands.top_bar_action_cluster;
         let status_bar = sections.status_bar;
-        let status_inner = inset_horizontal(status_bar, sizing.panel_inset);
-        let status_total_gap = sizing.status_segment_gap * 2.0;
-        let status_available = (status_inner.width() - status_total_gap).max(0.0);
-        let status_left_width = status_available * 0.30;
-        let status_right_width = status_available * 0.22;
-        let status_center_width =
-            (status_available - status_left_width - status_right_width).max(0.0);
-        let status_left_segment = Rect::from_min_max(
-            status_inner.min,
-            Point::new(status_inner.min.x + status_left_width, status_inner.max.y),
-        );
-        let status_center_min_x = status_left_segment.max.x + sizing.status_segment_gap;
-        let status_center_segment = Rect::from_min_max(
-            Point::new(status_center_min_x, status_inner.min.y),
-            Point::new(
-                status_center_min_x + status_center_width,
-                status_inner.max.y,
-            ),
-        );
-        let status_right_min_x = status_center_segment.max.x + sizing.status_segment_gap;
-        let status_right_segment = Rect::from_min_max(
-            Point::new(status_right_min_x, status_inner.min.y),
-            status_inner.max,
-        );
+        let status_segments = compute_status_bar_segments(status_bar, sizing);
+        let status_left_segment = status_segments.left;
+        let status_center_segment = status_segments.center;
+        let status_right_segment = status_segments.right;
         let sidebar = sections.sidebar;
         let sidebar_bands = compute_sidebar_band_sections(sidebar, sizing);
         let sidebar_header = sidebar_bands.sidebar_header;

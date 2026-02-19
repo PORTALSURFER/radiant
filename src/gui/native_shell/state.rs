@@ -3,10 +3,11 @@
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        SidebarRowCounts, compute_action_button_text_rect, compute_browser_action_button_rects,
-        compute_browser_footer_text_rect, compute_browser_header_text_layout,
-        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
-        compute_browser_map_point_center, compute_browser_row_text_layout,
+        BrowserTabsRects, SidebarRowCounts, compute_action_button_text_rect,
+        compute_browser_action_button_rects, compute_browser_footer_text_rect,
+        compute_browser_header_text_layout, compute_browser_map_canvas_rect,
+        compute_browser_map_header_text_layout, compute_browser_map_point_center,
+        compute_browser_row_text_layout, compute_browser_tabs_rects,
         compute_browser_tabs_text_layout, compute_browser_toolbar_sections,
         compute_browser_toolbar_text_layout, compute_drag_overlay_rect,
         compute_drag_overlay_text_layout, compute_progress_overlay_sections,
@@ -366,7 +367,8 @@ impl NativeShellState {
         layout: &ShellLayout,
         point: Point,
     ) -> Option<UiAction> {
-        let tabs = browser_tabs_layout(layout, style_for_layout(layout).sizing);
+        let tabs: BrowserTabsRects =
+            compute_browser_tabs_rects(layout.browser_tabs, style_for_layout(layout).sizing);
         if tabs.samples.contains(point) {
             return Some(UiAction::SetBrowserTab { map: false });
         }
@@ -1347,7 +1349,7 @@ impl NativeShellState {
         }
         // Waveform summary text is produced during overlay rendering so it can
         // update while transport advances without invalidating the static scene.
-        let tabs = browser_tabs_layout(layout, sizing);
+        let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let map_active = model.map.active;
         let list_active = !map_active;
         let (
@@ -1997,7 +1999,7 @@ impl NativeShellState {
             }
         }
 
-        let tabs = browser_tabs_layout(layout, sizing);
+        let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let (samples_fill, map_fill, samples_text_color, map_text_color) = if !model.map.active {
             (
                 blend_color(
@@ -2115,7 +2117,7 @@ impl NativeShellState {
         push_waveform_playhead_overlay(primitives, layout, style, model);
         push_waveform_header_overlay(primitives, text_runs, layout, style, model);
 
-        let tabs = browser_tabs_layout(layout, sizing);
+        let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let (samples_fill, map_fill) = if !model.map_active {
             (
                 blend_color(
@@ -2510,12 +2512,6 @@ struct SidebarSections {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct BrowserTabsLayout {
-    samples: Rect,
-    map: Rect,
-}
-
-#[derive(Clone, Copy, Debug)]
 struct BrowserToolbarLayout {
     search_field: Rect,
     activity_chip: Rect,
@@ -2877,26 +2873,6 @@ fn browser_window_start(
     let half = window_len / 2;
     let max_start = rows.len() - window_len;
     focus_index.saturating_sub(half).min(max_start)
-}
-
-fn browser_tabs_layout(layout: &ShellLayout, sizing: SizingTokens) -> BrowserTabsLayout {
-    let gap = sizing.action_button_gap.max(1.0);
-    let tab_width = ((layout.browser_tabs.width() - gap).max(0.0) * 0.5).max(64.0);
-    let samples = Rect::from_min_max(
-        layout.browser_tabs.min,
-        Point::new(
-            (layout.browser_tabs.min.x + tab_width).min(layout.browser_tabs.max.x),
-            layout.browser_tabs.max.y,
-        ),
-    );
-    let map = Rect::from_min_max(
-        Point::new(
-            (samples.max.x + gap).min(layout.browser_tabs.max.x),
-            layout.browser_tabs.min.y,
-        ),
-        layout.browser_tabs.max,
-    );
-    BrowserTabsLayout { samples, map }
 }
 
 fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {

@@ -12,6 +12,7 @@ mod sidebar_sections;
 mod sidebar_text;
 mod status_bar;
 mod top_controls;
+mod top_title_text;
 mod update_text;
 mod waveform_header;
 use super::style::StyleTokens;
@@ -52,6 +53,7 @@ pub(super) use sidebar_text::{
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
 pub(super) use top_controls::compute_top_bar_controls_sections;
+pub(super) use top_title_text::compute_top_bar_title_text_rect;
 pub(super) use update_text::compute_top_bar_update_text_layout;
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 

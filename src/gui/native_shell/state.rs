@@ -15,8 +15,9 @@ use super::{
         compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
         compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_top_bar_controls_text_layout, compute_top_bar_update_text_layout,
-        compute_update_action_button_rects, compute_waveform_header_text_layout,
+        compute_top_bar_controls_text_layout, compute_top_bar_title_text_rect,
+        compute_top_bar_update_text_layout, compute_update_action_button_rects,
+        compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -823,19 +824,15 @@ impl NativeShellState {
             color: lamp_color,
         }));
 
-        let top_text_x =
-            layout.top_bar_title_cluster.min.x + sizing.text_inset_x + sizing.header_label_gutter;
-        let top_title_y = text_top_in_rect(
+        let top_title_rect = compute_top_bar_title_text_rect(
+            layout.top_bar_title_cluster,
             layout.top_bar_title_row,
-            sizing.font_title,
-            sizing.text_inset_y,
+            sizing,
         );
-        let top_title_width = (layout.top_bar_title_cluster.width()
-            - ((sizing.text_inset_x + sizing.header_label_gutter) * 2.0))
-            .max(72.0);
+        let top_title_width = top_title_rect.width().max(72.0);
         text_runs.push(TextRun {
             text: truncate_to_width(&model.title, top_title_width, sizing.font_title),
-            position: Point::new(top_text_x, top_title_y),
+            position: top_title_rect.min,
             font_size: sizing.font_title,
             color: style.text_primary,
             max_width: Some(top_title_width),
@@ -3660,11 +3657,6 @@ fn render_drag_overlay(
 
 fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
     StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
-}
-
-fn text_top_in_rect(rect: Rect, font_size: f32, minimum_inset_y: f32) -> f32 {
-    let centered_y = rect.min.y + ((rect.height() - font_size).max(0.0) * 0.5);
-    centered_y.max(rect.min.y + minimum_inset_y)
 }
 
 fn prompt_has_validation_error(model: &AppModel) -> bool {

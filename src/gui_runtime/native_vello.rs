@@ -45,6 +45,52 @@ const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 
+/// Interaction classes tracked by runtime performance profiling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InteractionProfileKind {
+    /// Pointer hover and focus-follow updates in list surfaces.
+    Hover,
+    /// Wheel-driven browser row navigation updates.
+    Wheel,
+    /// Map-pan proxy updates produced by map-mode pointer motion.
+    MapPanProxy,
+    /// Waveform interaction actions (seek/cursor/selection/zoom).
+    Waveform,
+}
+
+#[cfg(feature = "gui-performance")]
+/// Aggregate timing stats for one interaction profile class.
+#[derive(Clone, Copy, Debug, Default)]
+struct InteractionProfileStats {
+    samples: u64,
+    total_ns: u128,
+    max_ns: u128,
+}
+
+#[cfg(feature = "gui-performance")]
+impl InteractionProfileStats {
+    /// Record one interaction latency sample.
+    fn record(&mut self, duration: Duration) {
+        let nanos = duration.as_nanos();
+        self.samples = self.samples.saturating_add(1);
+        self.total_ns = self.total_ns.saturating_add(nanos);
+        self.max_ns = self.max_ns.max(nanos);
+    }
+
+    /// Return average latency in milliseconds.
+    fn avg_ms(&self) -> f64 {
+        if self.samples == 0 {
+            return 0.0;
+        }
+        (self.total_ns as f64 / self.samples as f64) / 1_000_000.0
+    }
+
+    /// Return max latency in milliseconds.
+    fn max_ms(&self) -> f64 {
+        self.max_ns as f64 / 1_000_000.0
+    }
+}
+
 #[cfg(feature = "gui-performance")]
 /// Optional frame-time and overlay rebuild profiler.
 ///
@@ -76,6 +122,10 @@ struct NativeVelloProfiler {
     encode_state_overlay_ns: u128,
     encode_motion_overlay_ns: u128,
     motion_overlay_skips: u64,
+    hover_latency: InteractionProfileStats,
+    wheel_latency: InteractionProfileStats,
+    map_pan_proxy_latency: InteractionProfileStats,
+    waveform_latency: InteractionProfileStats,
 }
 
 #[cfg(feature = "gui-performance")]
@@ -179,6 +229,17 @@ impl NativeVelloProfiler {
             .saturating_add(duration.as_nanos());
     }
 
+    /// Add one interaction latency sample for the requested interaction class.
+    #[inline]
+    fn add_interaction_latency(&mut self, kind: InteractionProfileKind, duration: Duration) {
+        match kind {
+            InteractionProfileKind::Hover => self.hover_latency.record(duration),
+            InteractionProfileKind::Wheel => self.wheel_latency.record(duration),
+            InteractionProfileKind::MapPanProxy => self.map_pan_proxy_latency.record(duration),
+            InteractionProfileKind::Waveform => self.waveform_latency.record(duration),
+        }
+    }
+
     fn record_redraw(
         &mut self,
         rebuild: Duration,
@@ -249,6 +310,18 @@ impl NativeVelloProfiler {
         } else {
             100.0 * (text_misses as f64) / (text_hits + text_misses) as f64
         };
+        let hover_samples = self.hover_latency.samples;
+        let wheel_samples = self.wheel_latency.samples;
+        let map_samples = self.map_pan_proxy_latency.samples;
+        let waveform_samples = self.waveform_latency.samples;
+        let hover_avg_ms = self.hover_latency.avg_ms();
+        let wheel_avg_ms = self.wheel_latency.avg_ms();
+        let map_avg_ms = self.map_pan_proxy_latency.avg_ms();
+        let waveform_avg_ms = self.waveform_latency.avg_ms();
+        let hover_max_ms = self.hover_latency.max_ms();
+        let wheel_max_ms = self.wheel_latency.max_ms();
+        let map_max_ms = self.map_pan_proxy_latency.max_ms();
+        let waveform_max_ms = self.waveform_latency.max_ms();
         eprintln!(
             "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
              total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
@@ -262,6 +335,10 @@ impl NativeVelloProfiler {
              build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
              encode_static_ms={avg_encode_static_ms:.3} encode_state_overlay_ms={avg_encode_state_overlay_ms:.3} \
              encode_motion_overlay_ms={avg_encode_motion_overlay_ms:.3} \
+             hover_samples={hover_samples} hover_avg_ms={hover_avg_ms:.3} hover_max_ms={hover_max_ms:.3} \
+             wheel_samples={wheel_samples} wheel_avg_ms={wheel_avg_ms:.3} wheel_max_ms={wheel_max_ms:.3} \
+             map_proxy_samples={map_samples} map_proxy_avg_ms={map_avg_ms:.3} map_proxy_max_ms={map_max_ms:.3} \
+             waveform_samples={waveform_samples} waveform_avg_ms={waveform_avg_ms:.3} waveform_max_ms={waveform_max_ms:.3} \
              text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
              text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
         );
@@ -291,6 +368,10 @@ impl NativeVelloProfiler {
         self.encode_state_overlay_ns = 0;
         self.encode_motion_overlay_ns = 0;
         self.motion_overlay_skips = 0;
+        self.hover_latency = InteractionProfileStats::default();
+        self.wheel_latency = InteractionProfileStats::default();
+        self.map_pan_proxy_latency = InteractionProfileStats::default();
+        self.waveform_latency = InteractionProfileStats::default();
     }
 }
 
@@ -339,6 +420,9 @@ impl NativeVelloProfiler {
     fn add_encode_state_overlay(&mut self, _duration: Duration) {}
     #[inline]
     fn add_encode_motion_overlay(&mut self, _duration: Duration) {}
+    /// No-op interaction latency recorder for non-profile builds.
+    #[inline]
+    fn add_interaction_latency(&mut self, _kind: InteractionProfileKind, _duration: Duration) {}
     fn record_redraw(
         &mut self,
         _rebuild: Duration,
@@ -943,10 +1027,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut pending_action = false;
         if let Some(point) = self.pending_cursor.take() {
             if let Some(layout) = self.shell_layout.as_ref() {
-                if self
+                let profile_start = self.profiler.now_if_enabled();
+                let handled = self
                     .shell_state
-                    .handle_cursor_move(&layout, &self.model, point)
-                {
+                    .handle_cursor_move(&layout, &self.model, point);
+                if handled {
+                    if let Some(start) = profile_start {
+                        let kind = if self.model.map.active {
+                            InteractionProfileKind::MapPanProxy
+                        } else {
+                            InteractionProfileKind::Hover
+                        };
+                        self.profiler.add_interaction_latency(kind, start.elapsed());
+                    }
                     self.rebuild_overlay_and_request_redraw();
                     pending_action = true;
                 }
@@ -958,7 +1051,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .pending_wheel_rows_delta
                 .clamp(i8::MIN as i32, i8::MAX as i32) as i8;
             self.pending_wheel_rows_delta = 0;
-            self.emit_model_action(UiAction::MoveBrowserFocus { delta: steps });
+            self.emit_model_action_with_profile(
+                UiAction::MoveBrowserFocus { delta: steps },
+                Some(InteractionProfileKind::Wheel),
+            );
             pending_action = true;
         }
 
@@ -1426,9 +1522,41 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
-    fn emit_model_action(&mut self, action: UiAction) {
+    /// Classify bridge actions into tracked interaction profile groups.
+    fn classify_action_interaction(action: &UiAction) -> Option<InteractionProfileKind> {
+        match action {
+            UiAction::SetBrowserTab { map: true } | UiAction::FocusMapSample { .. } => {
+                Some(InteractionProfileKind::MapPanProxy)
+            }
+            UiAction::SeekWaveform { .. }
+            | UiAction::SetWaveformCursor { .. }
+            | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::ClearWaveformSelection
+            | UiAction::ZoomWaveform { .. }
+            | UiAction::ZoomWaveformToSelection
+            | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),
+            _ => None,
+        }
+    }
+
+    /// Apply one model action and optionally record interaction latency.
+    fn emit_model_action_with_profile(
+        &mut self,
+        action: UiAction,
+        profile_kind: Option<InteractionProfileKind>,
+    ) {
         self.apply_invalidation_scope(Self::classify_action_scope(&action));
+        let profile_start = profile_kind.and_then(|_| self.profiler.now_if_enabled());
         self.bridge.on_action(action);
+        if let (Some(kind), Some(start)) = (profile_kind, profile_start) {
+            self.profiler.add_interaction_latency(kind, start.elapsed());
+        }
+    }
+
+    /// Apply one model action with default interaction profiling classification.
+    fn emit_model_action(&mut self, action: UiAction) {
+        let profile_kind = Self::classify_action_interaction(&action);
+        self.emit_model_action_with_profile(action, profile_kind);
     }
 
     fn backspace_text(&mut self) -> bool {

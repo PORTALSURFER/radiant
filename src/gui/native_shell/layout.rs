@@ -103,12 +103,14 @@ pub(crate) struct LayoutContractSnapshot {
 
 impl ShellLayout {
     /// Build shell layout for the provided logical viewport dimensions.
+    #[allow(dead_code)]
     pub(crate) fn build(viewport: Vector2) -> Self {
         let style = StyleTokens::for_viewport_width(viewport.x);
         Self::build_with_style(viewport, &style)
     }
 
     /// Build shell layout for the provided viewport and style token set.
+    #[allow(dead_code)]
     pub(crate) fn build_with_style(viewport: Vector2, style: &StyleTokens) -> Self {
         let mut runtime = ShellLayoutRuntime::default();
         Self::build_with_style_and_runtime(viewport, style, &mut runtime)

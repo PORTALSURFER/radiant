@@ -652,9 +652,15 @@ impl Default for AppModel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UiAction {
     /// Select a target triage/browser column.
-    SelectColumn { index: usize },
+    SelectColumn {
+        /// Target column index in the visible triage column set.
+        index: usize,
+    },
     /// Move column focus left/right.
-    MoveColumn { delta: i8 },
+    MoveColumn {
+        /// Signed column delta (`-1` for left, `+1` for right).
+        delta: i8,
+    },
     /// Toggle transport playback state.
     ToggleTransport,
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
@@ -672,13 +678,25 @@ pub enum UiAction {
     /// Focus the source-folder search field.
     FocusFolderSearch,
     /// Set folder search query.
-    SetFolderSearch { query: String },
+    SetFolderSearch {
+        /// Full folder-search query text.
+        query: String,
+    },
     /// Select a source row by index.
-    SelectSourceRow { index: usize },
+    SelectSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
     /// Focus a folder row by index.
-    FocusFolderRow { index: usize },
+    FocusFolderRow {
+        /// Target folder row index.
+        index: usize,
+    },
     /// Move folder focus by row delta.
-    MoveFolderFocus { delta: i8 },
+    MoveFolderFocus {
+        /// Signed row delta applied to focused folder selection.
+        delta: i8,
+    },
     /// Create a folder relative to the focused folder.
     StartNewFolder,
     /// Create a folder at the source root.
@@ -690,31 +708,64 @@ pub enum UiAction {
     /// Clear staged delete recovery log entries.
     ClearFolderDeleteRecoveryLog,
     /// Move browser focus by a row delta in the visible list.
-    MoveBrowserFocus { delta: i8 },
+    MoveBrowserFocus {
+        /// Signed visible-row delta for browser focus movement.
+        delta: i8,
+    },
     /// Focus a browser row by visible index.
-    FocusBrowserRow { visible_row: usize },
+    FocusBrowserRow {
+        /// Target visible row index in the browser list.
+        visible_row: usize,
+    },
     /// Toggle browser-row selection by visible index.
-    ToggleBrowserRowSelection { visible_row: usize },
+    ToggleBrowserRowSelection {
+        /// Target visible row index in the browser list.
+        visible_row: usize,
+    },
     /// Extend selection from the anchor to the target visible row.
-    ExtendBrowserSelectionToRow { visible_row: usize },
+    ExtendBrowserSelectionToRow {
+        /// Target visible row index used as selection endpoint.
+        visible_row: usize,
+    },
     /// Extend selection additively from the anchor to the target visible row.
-    AddRangeBrowserSelection { visible_row: usize },
+    AddRangeBrowserSelection {
+        /// Target visible row index used as additive selection endpoint.
+        visible_row: usize,
+    },
     /// Move browser focus and extend selection by a visible-row delta.
-    ExtendBrowserSelectionFromFocus { delta: i8 },
+    ExtendBrowserSelectionFromFocus {
+        /// Signed visible-row delta from current focus.
+        delta: i8,
+    },
     /// Move browser focus and extend selection additively by a visible-row delta.
-    AddRangeBrowserSelectionFromFocus { delta: i8 },
+    AddRangeBrowserSelectionFromFocus {
+        /// Signed visible-row delta from current focus.
+        delta: i8,
+    },
     /// Toggle selection state for the currently focused browser row.
     ToggleFocusedBrowserRowSelection,
     /// Select every row in the current visible browser list.
     SelectAllBrowserRows,
     /// Set browser search query.
-    SetBrowserSearch { query: String },
+    SetBrowserSearch {
+        /// Full browser-search query text.
+        query: String,
+    },
     /// Set active browser tab (`map = true` selects map; otherwise list).
-    SetBrowserTab { map: bool },
+    SetBrowserTab {
+        /// Whether to switch to map tab (`true`) or list tab (`false`).
+        map: bool,
+    },
     /// Focus a specific map sample by stable sample id.
-    FocusMapSample { sample_id: String },
+    FocusMapSample {
+        /// Stable sample identifier used by map hit-testing.
+        sample_id: String,
+    },
     /// Set editable text for the active prompt input field.
-    SetPromptInput { value: String },
+    SetPromptInput {
+        /// Prompt input text after edit.
+        value: String,
+    },
     /// Start inline rename flow for the focused browser row.
     StartBrowserRename,
     /// Confirm the currently pending browser rename prompt.
@@ -722,7 +773,10 @@ pub enum UiAction {
     /// Cancel the currently pending browser rename prompt.
     CancelBrowserRename,
     /// Apply a triage tag to focused/selected browser rows.
-    TagBrowserSelection { target: BrowserTagTarget },
+    TagBrowserSelection {
+        /// Triage bucket applied to focused/selected browser rows.
+        target: BrowserTagTarget,
+    },
     /// Delete focused/selected browser rows.
     DeleteBrowserSelection,
     /// Confirm the currently visible modal prompt.
@@ -734,11 +788,20 @@ pub enum UiAction {
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
     /// Set output volume to a normalized milli value (`0..=1000`).
-    SetVolume { value_milli: u16 },
+    SetVolume {
+        /// Normalized milli volume value (`0..=1000`).
+        value_milli: u16,
+    },
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
-    SeekWaveform { position_milli: u16 },
+    SeekWaveform {
+        /// Normalized milli target position (`0..=1000`).
+        position_milli: u16,
+    },
     /// Set waveform cursor to a normalized milli position (`0..=1000`).
-    SetWaveformCursor { position_milli: u16 },
+    SetWaveformCursor {
+        /// Normalized milli cursor position (`0..=1000`).
+        position_milli: u16,
+    },
     /// Set waveform selection bounds in normalized milli space (`0..=1000`).
     SetWaveformSelectionRange {
         /// Selection start position in normalized milli-units.

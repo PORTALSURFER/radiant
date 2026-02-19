@@ -22,10 +22,12 @@ pub use types::{
 };
 
 /// Paint context consumed by widget paint implementations.
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct PaintContext;
 
 /// Public widget layout contract.
+#[allow(dead_code)]
 pub trait Widget {
     /// Return the preferred size for the provided constraints.
     fn measure(&self, constraints: Constraints) -> Vector2;
@@ -35,6 +37,7 @@ pub trait Widget {
 }
 
 /// Public container layout contract.
+#[allow(dead_code)]
 pub trait Container {
     /// Measure this container from its children and incoming constraints.
     fn measure(&self, children: &[SlotChild], constraints: Constraints) -> Vector2;
@@ -342,6 +345,7 @@ pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
 }
 
 /// Measure and layout a strict slot tree with stateful container input.
+#[allow(dead_code)]
 pub fn layout_tree_with_state(
     root: &LayoutNode,
     root_rect: Rect,

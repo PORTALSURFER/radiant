@@ -89,8 +89,11 @@ pub(crate) struct Rgba8 {
 /// Owned RGBA image buffer used by the GUI layer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImageRgba {
+    /// Image width in pixels.
     pub width: usize,
+    /// Image height in pixels.
     pub height: usize,
+    /// Packed RGBA8 pixels in row-major order.
     pub pixels: Vec<u8>,
 }
 

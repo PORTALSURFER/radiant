@@ -103,6 +103,7 @@ pub(crate) struct ShellSectionRects {
 }
 
 /// Compute top-level shell sections using the strict slot-based layout engine.
+#[allow(dead_code)]
 pub(super) fn compute_shell_sections(viewport: Vector2, style: &StyleTokens) -> ShellSectionRects {
     let mut engine = LayoutEngine::default();
     compute_shell_sections_with_layout_engine(viewport, style, &mut engine, &LayoutState::default())

@@ -264,6 +264,7 @@ pub(super) fn clamp_main(horizontal: bool, value: f32, constraints: Constraints)
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn clamp_cross(horizontal: bool, value: f32, constraints: Constraints) -> f32 {
     if horizontal {
         constraints.clamp_h(value.max(0.0))

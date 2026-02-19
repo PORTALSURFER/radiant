@@ -195,6 +195,7 @@ pub(crate) fn compute_top_bar_band_sections(
 }
 
 /// Compute browser tabs/toolbar/header/rows/footer from a strict slot tree.
+#[allow(dead_code)]
 pub(crate) fn compute_browser_band_sections(
     browser_panel: Rect,
     sizing: SizingTokens,

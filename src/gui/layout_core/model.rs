@@ -3,6 +3,7 @@
 use super::constraints::Constraints;
 
 /// Main-axis sizing mode for a slot.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeModeMain {
     /// Fixed logical pixels.
@@ -16,6 +17,7 @@ pub enum SizeModeMain {
 }
 
 /// Cross-axis sizing mode for a slot.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeModeCross {
     /// Fixed logical pixels.
@@ -27,6 +29,7 @@ pub enum SizeModeCross {
 }
 
 /// Main-axis alignment within a container.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MainAlign {
     Start,
@@ -38,6 +41,7 @@ pub enum MainAlign {
 }
 
 /// Cross-axis alignment for children within a container.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrossAlign {
     Start,
@@ -47,6 +51,7 @@ pub enum CrossAlign {
 }
 
 /// Explicit overflow policy for containers.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverflowPolicy {
     Clip,
@@ -56,6 +61,7 @@ pub enum OverflowPolicy {
 }
 
 /// Scroll virtualization axis selection.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VirtualizationAxis {
     /// Virtualize children along the horizontal axis.
@@ -187,6 +193,7 @@ pub struct SwitchBreakpoint {
 
 impl SwitchBreakpoint {
     /// Create a normalized width range.
+    #[allow(dead_code)]
     pub fn new(min_width: f32, max_width: f32) -> Self {
         let min = min_width.max(0.0);
         let max = max_width.max(min);
@@ -203,6 +210,7 @@ impl SwitchBreakpoint {
 }
 
 /// Container kind used to select a deterministic layout algorithm.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerKind {
     Row,

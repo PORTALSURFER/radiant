@@ -3,6 +3,10 @@ name = "radiant"
 version = "0.1.0"
 edition = "2024"
 
+[lints.rust]
+warnings = "deny"
+missing_docs = "deny"
+
 [dependencies]
 winit = "0.30.12"
 pollster = "0.4.0"

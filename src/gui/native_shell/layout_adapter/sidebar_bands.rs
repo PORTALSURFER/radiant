@@ -22,6 +22,7 @@ pub(crate) struct SidebarBandSections {
 }
 
 /// Compute sidebar header/rows/footer bands from a strict slot tree.
+#[allow(dead_code)]
 pub(crate) fn compute_sidebar_band_sections(
     sidebar: Rect,
     sizing: SizingTokens,

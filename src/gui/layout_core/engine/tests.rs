@@ -1,6 +1,9 @@
 //! Unit tests for strict slot layout engine behavior.
 
-use super::layout_tree;
+use super::{
+    DebugPrimitiveKind, LayoutDebugOptions, LayoutDiagnosticCode, LayoutEngine, LayoutState,
+    layout_tree, layout_tree_with_state,
+};
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{
     ContainerKind, ContainerPolicy, GridPolicy, OverflowPolicy, SizeModeCross, SizeModeMain,
@@ -209,4 +212,126 @@ fn scroll_view_records_overflow_flags() {
     assert!(overflow.x);
     assert!(overflow.y);
     assert_eq!(overflow.policy, OverflowPolicy::Scroll);
+}
+
+#[test]
+fn negative_widget_intrinsic_emits_diagnostic() {
+    let root = LayoutNode::widget(1, Vector2::new(-32.0, 24.0));
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|item| item.code == LayoutDiagnosticCode::NegativeSizeClamped)
+    );
+}
+
+#[test]
+fn contradictory_constraints_emit_diagnostic() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams {
+                size_main: SizeModeMain::Fixed(10.0),
+                size_cross: SizeModeCross::Fill,
+                constraints: Constraints {
+                    min_w: 40.0,
+                    max_w: 20.0,
+                    min_h: 5.0,
+                    max_h: 2.0,
+                },
+                margin: Default::default(),
+                align_cross_override: None,
+                allow_fixed_compress: false,
+            },
+            child: LayoutNode::widget(2, Vector2::new(8.0, 8.0)),
+        }],
+    );
+    let output = layout_tree(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 80.0)),
+    );
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|item| item.code == LayoutDiagnosticCode::ConstraintContradiction)
+    );
+}
+
+#[test]
+fn scroll_offset_is_clamped_and_reported() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: intrinsic_slot(),
+            child: LayoutNode::widget(2, Vector2::new(300.0, 200.0)),
+        }],
+    );
+
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(1000.0, -20.0));
+    let output = layout_tree_with_state(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+        &state,
+        LayoutDebugOptions::default(),
+    );
+    let child = output.rects.get(&2).expect("scroll content rect");
+    assert_eq!(child.min.x, -200.0);
+    assert_eq!(child.min.y, 0.0);
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|item| item.code == LayoutDiagnosticCode::InvalidScrollOffsetClamped)
+    );
+}
+
+#[test]
+fn debug_primitives_are_emitted_when_enabled() {
+    let root = LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Column,
+            padding: crate::gui::layout_core::model::Insets::all(4.0),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::widget(2, Vector2::new(30.0, 20.0)),
+        }],
+    );
+
+    let mut engine = LayoutEngine::default();
+    let output = engine.layout_with_state(
+        &root,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 50.0)),
+        &LayoutState::default(),
+        LayoutDebugOptions::all_enabled(),
+    );
+    assert!(
+        output
+            .debug_primitives
+            .iter()
+            .any(|item| item.kind == DebugPrimitiveKind::NodeBounds)
+    );
+    assert!(
+        output
+            .debug_primitives
+            .iter()
+            .any(|item| item.kind == DebugPrimitiveKind::ContentBounds)
+    );
 }

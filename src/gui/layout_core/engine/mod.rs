@@ -1,14 +1,21 @@
 //! Deterministic two-pass layout engine for strict slot-based trees.
 
+mod context;
 mod helpers;
 mod layout;
 mod measure;
+mod types;
 
 use super::constraints::Constraints;
-use super::model::OverflowPolicy;
 use super::tree::{LayoutNode, NodeId, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
+
+use context::LayoutContext;
+pub use types::{
+    DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
+    LayoutDiagnosticCode, LayoutOutput, LayoutState, OverflowInfo,
+};
 
 /// Paint context consumed by widget paint implementations.
 #[derive(Default)]
@@ -30,49 +37,6 @@ pub trait Container {
 
     /// Layout this container's children into `rect`.
     fn layout(&self, children: &[SlotChild], rect: Rect) -> Vec<(NodeId, Rect)>;
-}
-
-/// Layout diagnostic emitted when invalid states are normalized.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LayoutDiagnostic {
-    /// Node that triggered the diagnostic.
-    pub node_id: NodeId,
-    /// Human-readable diagnostic message.
-    pub message: String,
-}
-
-/// Overflow metadata recorded for one node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct OverflowInfo {
-    /// True when width overflowed.
-    pub x: bool,
-    /// True when height overflowed.
-    pub y: bool,
-    /// Policy used when handling overflow.
-    pub policy: OverflowPolicy,
-}
-
-impl Default for OverflowInfo {
-    fn default() -> Self {
-        Self {
-            x: false,
-            y: false,
-            policy: OverflowPolicy::Clip,
-        }
-    }
-}
-
-/// Final layout output from `layout_tree`.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct LayoutOutput {
-    /// Final rounded rectangles by node id.
-    pub rects: BTreeMap<NodeId, Rect>,
-    /// Node ids that overflowed available space.
-    pub overflowed: BTreeSet<NodeId>,
-    /// Per-node overflow metadata.
-    pub overflow_flags: BTreeMap<NodeId, OverflowInfo>,
-    /// Diagnostics collected during measure/layout normalization.
-    pub diagnostics: Vec<LayoutDiagnostic>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -135,78 +99,52 @@ impl LayoutEngine {
         self.measure_dirty.clear();
     }
 
-    /// Compute layout output for `root` in `root_rect`.
+    /// Compute layout output for `root` in `root_rect` using default state/options.
     pub fn layout(&mut self, root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
-        let constraints = Constraints::new(
-            0.0,
-            root_rect.width().max(0.0),
-            0.0,
-            root_rect.height().max(0.0),
-        );
+        self.layout_with_state(
+            root,
+            root_rect,
+            &LayoutState::default(),
+            LayoutDebugOptions::default(),
+        )
+    }
+
+    /// Compute layout output with dynamic layout state and debug output controls.
+    pub fn layout_with_state(
+        &mut self,
+        root: &LayoutNode,
+        root_rect: Rect,
+        state: &LayoutState,
+        debug: LayoutDebugOptions,
+    ) -> LayoutOutput {
+        let constraints = Constraints {
+            min_w: 0.0,
+            max_w: root_rect.width().max(0.0),
+            min_h: 0.0,
+            max_h: root_rect.height().max(0.0),
+        };
+
         let output = {
-            let mut context = LayoutContext::new(&mut self.measure_cache, &self.measure_dirty);
-            measure::measure_node(root, constraints, &mut context);
+            let debug_node_filter = if debug.enabled && !self.layout_dirty.is_empty() {
+                Some(&self.layout_dirty)
+            } else {
+                None
+            };
+            let mut context = LayoutContext::new(
+                &mut self.measure_cache,
+                &self.measure_dirty,
+                state,
+                debug,
+                debug_node_filter,
+            );
+            let normalized = context.normalize_constraints(root.id(), constraints);
+            measure::measure_node(root, normalized, &mut context);
             layout::layout_node(root, round_rect(root_rect), &mut context);
             context.output
         };
+
         self.clear_dirty();
         output
-    }
-}
-
-pub(super) struct LayoutContext<'a> {
-    measured: HashMap<MeasureCacheKey, Vector2>,
-    cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
-    measure_dirty: &'a BTreeSet<NodeId>,
-    output: LayoutOutput,
-}
-
-impl<'a> LayoutContext<'a> {
-    fn new(
-        cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
-        measure_dirty: &'a BTreeSet<NodeId>,
-    ) -> Self {
-        Self {
-            measured: HashMap::new(),
-            cache,
-            measure_dirty,
-            output: LayoutOutput::default(),
-        }
-    }
-
-    pub(super) fn cached_measure(&self, key: MeasureCacheKey, node_id: NodeId) -> Option<Vector2> {
-        if self.measure_dirty.contains(&node_id) {
-            return None;
-        }
-        self.measured
-            .get(&key)
-            .copied()
-            .or_else(|| self.cache.get(&key).copied())
-    }
-
-    pub(super) fn remember_measure(&mut self, key: MeasureCacheKey, value: Vector2) {
-        self.measured.insert(key, value);
-        self.cache.insert(key, value);
-    }
-
-    pub(super) fn record_overflow(
-        &mut self,
-        node_id: NodeId,
-        policy: OverflowPolicy,
-        x: bool,
-        y: bool,
-    ) {
-        self.output.overflowed.insert(node_id);
-        self.output
-            .overflow_flags
-            .insert(node_id, OverflowInfo { x, y, policy });
-    }
-
-    pub(super) fn push_diagnostic(&mut self, node_id: NodeId, message: impl Into<String>) {
-        self.output.diagnostics.push(LayoutDiagnostic {
-            node_id,
-            message: message.into(),
-        });
     }
 }
 
@@ -214,6 +152,17 @@ impl<'a> LayoutContext<'a> {
 pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
     let mut engine = LayoutEngine::default();
     engine.layout(root, root_rect)
+}
+
+/// Measure and layout a strict slot tree with stateful container input.
+pub fn layout_tree_with_state(
+    root: &LayoutNode,
+    root_rect: Rect,
+    state: &LayoutState,
+    debug: LayoutDebugOptions,
+) -> LayoutOutput {
+    let mut engine = LayoutEngine::default();
+    engine.layout_with_state(root, root_rect, state, debug)
 }
 
 pub(super) fn round_rect(rect: Rect) -> Rect {
@@ -226,3 +175,9 @@ pub(super) fn round_rect(rect: Rect) -> Rect {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod property_tests;
+
+#[cfg(test)]
+mod stress_tests;

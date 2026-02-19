@@ -3,21 +3,24 @@
 mod boxes;
 
 use super::helpers::{
-    align_main_offsets, allocate_fill_sizes, clamp_cross, clamp_main, compress_if_needed,
-    content_rect, main_margin_total, place_child_rect, scale_sizes_to_fit,
+    align_main_offsets, allocate_fill_sizes, compress_if_needed, content_rect, main_margin_total,
+    place_child_rect, scale_sizes_to_fit,
 };
-use super::{LayoutContext, round_rect};
+use super::{LayoutContext, LayoutDiagnosticCode, round_rect};
 use crate::gui::layout_core::model::{ContainerKind, OverflowPolicy, SizeModeCross, SizeModeMain};
-use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
+use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};
 use crate::gui::types::{Rect, Vector2};
 
 pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutContext) {
-    context.output.rects.insert(node.id(), round_rect(rect));
+    let rounded = round_rect(rect);
+    context.output.rects.insert(node.id(), rounded);
+    context.record_node_bounds(node.id(), rounded);
     let LayoutNode::Container(container) = node else {
         return;
     };
     let policy = &container.policy;
-    let content = content_rect(rect, policy.padding);
+    let content = content_rect(rounded, policy.padding);
+    context.record_content_bounds(node.id(), content);
     match policy.kind {
         ContainerKind::Row => layout_linear(container, content, true, context),
         ContainerKind::Column => layout_linear(container, content, false, context),
@@ -145,12 +148,14 @@ fn apply_linear_overflow_policy(
         OverflowPolicy::Scroll => {
             context.push_diagnostic(
                 container.id,
+                LayoutDiagnosticCode::OverflowOccurred,
                 "linear container overflowed and delegated to scroll policy",
             );
         }
         OverflowPolicy::Wrap => {
             context.push_diagnostic(
                 container.id,
+                LayoutDiagnosticCode::OverflowPolicyDefaulted,
                 "overflow wrap policy is unsupported for Row/Column; use ContainerKind::Wrap",
             );
             compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
@@ -171,7 +176,14 @@ fn collect_layout_states<'a>(
     let mut states = Vec::with_capacity(container.children.len());
     for child in &container.children {
         let measured = super::measure::measure_node(&child.child, child.slot.constraints, context);
-        let main = resolve_nonfill_main(horizontal, child, measured, available_main);
+        let main = resolve_nonfill_main(
+            horizontal,
+            child,
+            measured,
+            available_main,
+            context,
+            child.child.id(),
+        );
         states.push((child, measured, main, 0.0));
     }
     states
@@ -210,6 +222,8 @@ fn place_linear_children(
             *measured,
             available_cross,
             slot,
+            context,
+            slot_child.child.id(),
         );
         let cross_align = slot
             .align_cross_override
@@ -223,6 +237,7 @@ fn place_linear_children(
             slot,
             cross_align,
         );
+        context.record_slot_margin(slot_child.child.id(), child_rect, slot.margin);
         layout_node(&slot_child.child, child_rect, context);
         cursor += child_main + main_margin_after + distributed_spacing;
     }
@@ -233,6 +248,8 @@ fn resolve_nonfill_main(
     slot_child: &SlotChild,
     measured: Vector2,
     available_main: f32,
+    context: &mut LayoutContext,
+    node_id: NodeId,
 ) -> f32 {
     let slot = slot_child.slot;
     let raw = match slot.size_main {
@@ -247,7 +264,7 @@ fn resolve_nonfill_main(
         }
         SizeModeMain::Fill(_) => available_main,
     };
-    clamp_main(horizontal, raw, slot.constraints)
+    context.clamp_main(node_id, horizontal, slot.constraints, raw)
 }
 
 fn resolve_cross_layout(
@@ -256,6 +273,8 @@ fn resolve_cross_layout(
     measured: Vector2,
     available_cross: f32,
     slot: crate::gui::layout_core::model::SlotParams,
+    context: &mut LayoutContext,
+    node_id: NodeId,
 ) -> f32 {
     let raw = match mode {
         SizeModeCross::Fixed(value) => value,
@@ -268,5 +287,5 @@ fn resolve_cross_layout(
             }
         }
     };
-    clamp_cross(horizontal, raw, slot.constraints)
+    context.clamp_cross(node_id, horizontal, slot.constraints, raw)
 }

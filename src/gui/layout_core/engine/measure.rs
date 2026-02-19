@@ -11,7 +11,7 @@ pub(super) fn measure_node(
     constraints: Constraints,
     context: &mut LayoutContext,
 ) -> Vector2 {
-    let normalized = constraints.normalized();
+    let normalized = context.normalize_constraints(node.id(), constraints);
     let key = MeasureCacheKey::new(node, normalized);
     if let Some(size) = context.cached_measure(key, node.id()) {
         return size;
@@ -19,8 +19,8 @@ pub(super) fn measure_node(
 
     let measured = match node {
         LayoutNode::Widget(widget) => Vector2::new(
-            normalized.clamp_w(widget.intrinsic.x.max(0.0)),
-            normalized.clamp_h(widget.intrinsic.y.max(0.0)),
+            context.clamp_width(widget.id, normalized, widget.intrinsic.x),
+            context.clamp_height(widget.id, normalized, widget.intrinsic.y),
         ),
         LayoutNode::Container(container) => measure_container(container, normalized, context),
     };
@@ -34,9 +34,12 @@ fn measure_container(
     context: &mut LayoutContext,
 ) -> Vector2 {
     let policy = &container.policy;
-    let inner = constraints.inset(
-        policy.padding.horizontal() * 0.5,
-        policy.padding.vertical() * 0.5,
+    let inner = context.normalize_constraints(
+        container.id,
+        constraints.inset(
+            policy.padding.horizontal() * 0.5,
+            policy.padding.vertical() * 0.5,
+        ),
     );
     let measured_inner = match policy.kind {
         ContainerKind::Row => {
@@ -77,8 +80,18 @@ fn measure_linear(
     for slot_child in children {
         let child_size = measure_node(&slot_child.child, slot_child.slot.constraints, context);
         let slot = slot_child.slot;
-        let child_main = resolve_mode_main(horizontal, slot.size_main, child_size, constraints);
-        let child_cross = resolve_mode_cross(horizontal, slot.size_cross, child_size, constraints);
+        let child_main = context.clamp_main(
+            slot_child.child.id(),
+            horizontal,
+            slot.constraints,
+            resolve_mode_main(horizontal, slot.size_main, child_size, constraints),
+        );
+        let child_cross = context.clamp_cross(
+            slot_child.child.id(),
+            horizontal,
+            slot.constraints,
+            resolve_mode_cross(horizontal, slot.size_cross, child_size, constraints),
+        );
         let margin_main = if horizontal {
             slot.margin.left + slot.margin.right
         } else {
@@ -278,7 +291,7 @@ fn resolve_mode_main(
     measured: Vector2,
     parent: Constraints,
 ) -> f32 {
-    let raw = match mode {
+    match mode {
         SizeModeMain::Fixed(value) => value,
         SizeModeMain::Percent(percent) => {
             let parent_main = if horizontal {
@@ -296,8 +309,7 @@ fn resolve_mode_main(
             }
         }
         SizeModeMain::Fill(_) => 0.0,
-    };
-    raw.max(0.0)
+    }
 }
 
 fn resolve_mode_cross(
@@ -307,13 +319,20 @@ fn resolve_mode_cross(
     parent: Constraints,
 ) -> f32 {
     match mode {
-        SizeModeCross::Fixed(value) => value.max(0.0),
-        SizeModeCross::Fill => if horizontal {
-            parent.max_h
-        } else {
-            parent.max_w
+        SizeModeCross::Fixed(value) => value,
+        SizeModeCross::Fill => {
+            if horizontal {
+                parent.max_h
+            } else {
+                parent.max_w
+            }
         }
-        .max(0.0),
-        SizeModeCross::Intrinsic => if horizontal { measured.y } else { measured.x }.max(0.0),
+        SizeModeCross::Intrinsic => {
+            if horizontal {
+                measured.y
+            } else {
+                measured.x
+            }
+        }
     }
 }

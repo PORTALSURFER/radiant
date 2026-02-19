@@ -1,7 +1,7 @@
 //! Container-specific layout routines for non-linear container kinds.
 
-use super::super::LayoutContext;
 use super::super::helpers::place_child_rect;
+use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::{layout_node, resolve_cross_layout, resolve_nonfill_main};
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{CrossAlign, MainAlign};
@@ -18,6 +18,8 @@ pub(super) fn layout_stack(container: &ContainerNode, content: Rect, context: &m
             measured,
             content.width(),
             child.slot,
+            context,
+            child.child.id(),
         );
         let height = resolve_cross_layout(
             true,
@@ -25,12 +27,15 @@ pub(super) fn layout_stack(container: &ContainerNode, content: Rect, context: &m
             measured,
             content.height(),
             child.slot,
+            context,
+            child.child.id(),
         );
         let align = child
             .slot
             .align_cross_override
             .unwrap_or(container.policy.align_cross);
         let rect = place_child_rect(content, false, 0.0, height, width, child.slot, align);
+        context.record_slot_margin(child.child.id(), rect, child.slot.margin);
         layout_node(&child.child, rect, context);
     }
 }
@@ -44,12 +49,16 @@ pub(super) fn layout_single_fill(
         return;
     };
     let slot = child.slot;
-    let width = slot
-        .constraints
-        .clamp_w((content.width() - slot.margin.left - slot.margin.right).max(0.0));
-    let height = slot
-        .constraints
-        .clamp_h((content.height() - slot.margin.top - slot.margin.bottom).max(0.0));
+    let width = context.clamp_width(
+        child.child.id(),
+        slot.constraints,
+        content.width() - slot.margin.left - slot.margin.right,
+    );
+    let height = context.clamp_height(
+        child.child.id(),
+        slot.constraints,
+        content.height() - slot.margin.top - slot.margin.bottom,
+    );
     let rect = Rect::from_min_size(
         Point::new(
             content.min.x + slot.margin.left,
@@ -57,6 +66,7 @@ pub(super) fn layout_single_fill(
         ),
         Vector2::new(width, height),
     );
+    context.record_slot_margin(child.child.id(), rect, slot.margin);
     layout_node(&child.child, rect, context);
 }
 
@@ -70,8 +80,22 @@ pub(super) fn layout_align_box(
     };
     let measured =
         super::super::measure::measure_node(&child.child, child.slot.constraints, context);
-    let width = resolve_nonfill_main(true, child, measured, content.width());
-    let height = resolve_nonfill_main(false, child, measured, content.height());
+    let width = resolve_nonfill_main(
+        true,
+        child,
+        measured,
+        content.width(),
+        context,
+        child.child.id(),
+    );
+    let height = resolve_nonfill_main(
+        false,
+        child,
+        measured,
+        content.height(),
+        context,
+        child.child.id(),
+    );
     let rect = place_aligned_rect(
         content,
         width,
@@ -79,6 +103,7 @@ pub(super) fn layout_align_box(
         container.policy.align_main,
         container.policy.align_cross,
     );
+    context.record_slot_margin(child.child.id(), rect, child.slot.margin);
     layout_node(&child.child, rect, context);
 }
 
@@ -99,6 +124,7 @@ pub(super) fn layout_aspect_box(
         container.policy.align_main,
         container.policy.align_cross,
     );
+    context.record_slot_margin(child.child.id(), aspect_rect, child.slot.margin);
     layout_node(&child.child, aspect_rect, context);
 }
 
@@ -134,8 +160,22 @@ pub(super) fn layout_grid(container: &ContainerNode, content: Rect, context: &mu
         let cell =
             Rect::from_min_size(Point::new(cell_x, cell_y), Vector2::new(cell_w, max_cell_h));
 
-        let width = resolve_nonfill_main(true, child, measured, cell.width());
-        let height = resolve_nonfill_main(false, child, measured, cell.height());
+        let width = resolve_nonfill_main(
+            true,
+            child,
+            measured,
+            cell.width(),
+            context,
+            child.child.id(),
+        );
+        let height = resolve_nonfill_main(
+            false,
+            child,
+            measured,
+            cell.height(),
+            context,
+            child.child.id(),
+        );
         let rect = place_aligned_rect(
             cell,
             width,
@@ -146,6 +186,7 @@ pub(super) fn layout_grid(container: &ContainerNode, content: Rect, context: &mu
                 .align_cross_override
                 .unwrap_or(container.policy.align_cross),
         );
+        context.record_slot_margin(child.child.id(), rect, child.slot.margin);
         layout_node(&child.child, rect, context);
     }
 
@@ -164,18 +205,53 @@ pub(super) fn layout_scroll_view(
     let Some(child) = container.children.first() else {
         return;
     };
-    let measured =
-        super::super::measure::measure_node(&child.child, child.slot.constraints, context);
-    let width = measured.x.max(content.width());
-    let height = measured.y.max(content.height());
-    let rect = Rect::from_min_size(content.min, Vector2::new(width, height));
+    let slot = child.slot;
+    let measured = super::super::measure::measure_node(&child.child, slot.constraints, context);
+    let viewport_w = (content.width() - slot.margin.left - slot.margin.right).max(0.0);
+    let viewport_h = (content.height() - slot.margin.top - slot.margin.bottom).max(0.0);
+    let width = measured.x.max(viewport_w);
+    let height = measured.y.max(viewport_h);
+    let max_x = (width - viewport_w).max(0.0);
+    let max_y = (height - viewport_h).max(0.0);
+
+    let requested = context.scroll_offset(container.id);
+    let mut req_x = requested.x;
+    let mut req_y = requested.y;
+    let mut invalid = false;
+    if !req_x.is_finite() {
+        req_x = 0.0;
+        invalid = true;
+    }
+    if !req_y.is_finite() {
+        req_y = 0.0;
+        invalid = true;
+    }
+    let clamped_x = req_x.clamp(0.0, max_x);
+    let clamped_y = req_y.clamp(0.0, max_y);
+    if invalid
+        || (clamped_x - req_x).abs() > f32::EPSILON
+        || (clamped_y - req_y).abs() > f32::EPSILON
+    {
+        context.push_diagnostic(
+            container.id,
+            LayoutDiagnosticCode::InvalidScrollOffsetClamped,
+            "scroll offset was out of bounds and was clamped",
+        );
+    }
+
+    let origin = Point::new(
+        content.min.x + slot.margin.left - clamped_x,
+        content.min.y + slot.margin.top - clamped_y,
+    );
+    let rect = Rect::from_min_size(origin, Vector2::new(width, height));
+    context.record_slot_margin(child.child.id(), rect, slot.margin);
     layout_node(&child.child, rect, context);
-    if rect.width() > content.width() || rect.height() > content.height() {
+    if width > viewport_w || height > viewport_h {
         context.record_overflow(
             container.id,
             container.policy.overflow,
-            rect.width() > content.width(),
-            rect.height() > content.height(),
+            width > viewport_w,
+            height > viewport_h,
         );
     }
 }
@@ -191,8 +267,22 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
     for child in &container.children {
         let measured =
             super::super::measure::measure_node(&child.child, child.slot.constraints, context);
-        let width = resolve_nonfill_main(true, child, measured, content.width());
-        let height = resolve_nonfill_main(false, child, measured, content.height());
+        let width = resolve_nonfill_main(
+            true,
+            child,
+            measured,
+            content.width(),
+            context,
+            child.child.id(),
+        );
+        let height = resolve_nonfill_main(
+            false,
+            child,
+            measured,
+            content.height(),
+            context,
+            child.child.id(),
+        );
         let span_w = width + child.slot.margin.left + child.slot.margin.right;
 
         if line_x > content.min.x && (line_x + span_w) > content.max.x {
@@ -208,6 +298,7 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
             ),
             Vector2::new(width, height),
         );
+        context.record_slot_margin(child.child.id(), item_rect, child.slot.margin);
         layout_node(&child.child, item_rect, context);
         line_x += span_w + item_gap;
         line_h = line_h.max(height + child.slot.margin.top + child.slot.margin.bottom);

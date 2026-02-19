@@ -6,12 +6,13 @@ use super::{
         SidebarRowCounts, compute_browser_action_button_rects, compute_browser_header_text_layout,
         compute_browser_map_header_text_layout, compute_browser_row_text_layout,
         compute_browser_toolbar_sections, compute_drag_overlay_rect,
-        compute_progress_overlay_sections, compute_prompt_overlay_sections,
-        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
-        compute_sidebar_row_sections, compute_source_section_divider_rect,
-        compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_top_bar_update_text_layout, compute_update_action_button_rects,
-        compute_waveform_header_text_layout,
+        compute_drag_overlay_text_layout, compute_progress_overlay_sections,
+        compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
+        compute_prompt_overlay_text_layout, compute_sidebar_action_button_rects,
+        compute_sidebar_folder_header_layout, compute_sidebar_row_sections,
+        compute_source_section_divider_rect, compute_status_text_line_rect,
+        compute_top_bar_controls_sections, compute_top_bar_update_text_layout,
+        compute_update_action_button_rects, compute_waveform_header_text_layout,
     },
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -3355,6 +3356,12 @@ fn render_progress_overlay(
     }
     let overlay_sections =
         compute_progress_overlay_sections(layout.content, sizing, model.progress_overlay.modal);
+    let progress_text_layout = compute_progress_overlay_text_layout(
+        overlay_sections,
+        sizing,
+        model.progress_overlay.detail.is_some(),
+        model.progress_overlay.cancelable,
+    );
     let rect = overlay_sections.dialog;
     primitives.push(Primitive::Rect(FillRect {
         rect,
@@ -3364,25 +3371,22 @@ fn render_progress_overlay(
 
     text_runs.push(TextRun {
         text: model.progress_overlay.title.clone(),
-        position: Point::new(
-            rect.min.x + sizing.text_inset_x,
-            rect.min.y + sizing.text_inset_y,
-        ),
+        position: progress_text_layout.title.min,
         font_size: sizing.font_header,
         color: style.text_primary,
-        max_width: Some((rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+        max_width: Some(progress_text_layout.title.width().max(24.0)),
         align: TextAlign::Left,
     });
-    if let Some(detail) = model.progress_overlay.detail.as_ref() {
+    if let (Some(detail), Some(detail_rect)) = (
+        model.progress_overlay.detail.as_deref(),
+        progress_text_layout.detail,
+    ) {
         text_runs.push(TextRun {
-            text: detail.clone(),
-            position: Point::new(
-                rect.min.x + sizing.text_inset_x,
-                rect.min.y + sizing.text_inset_y + sizing.font_header + sizing.text_row_gap,
-            ),
+            text: detail.to_string(),
+            position: detail_rect.min,
             font_size: sizing.font_meta,
             color: style.text_muted,
-            max_width: Some((rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+            max_width: Some(detail_rect.width().max(24.0)),
             align: TextAlign::Left,
         });
     }
@@ -3414,10 +3418,10 @@ fn render_progress_overlay(
             "{} / {}",
             model.progress_overlay.completed, model.progress_overlay.total
         ),
-        position: Point::new(bar_rect.min.x, bar_rect.max.y + sizing.text_row_gap),
+        position: progress_text_layout.counter.min,
         font_size: sizing.font_meta,
         color: style.text_muted,
-        max_width: Some(bar_rect.width()),
+        max_width: Some(progress_text_layout.counter.width().max(24.0)),
         align: TextAlign::Right,
     });
 
@@ -3447,17 +3451,14 @@ fn render_progress_overlay(
             } else {
                 String::from("Cancel")
             },
-            position: Point::new(
-                button.min.x + sizing.text_inset_x,
-                text_top_in_rect(button, sizing.font_meta, sizing.text_inset_y),
-            ),
+            position: progress_text_layout.cancel_label.min,
             font_size: sizing.font_meta,
             color: if model.progress_overlay.cancel_requested {
                 style.text_muted
             } else {
                 style.text_primary
             },
-            max_width: Some((button.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+            max_width: Some(progress_text_layout.cancel_label.width().max(12.0)),
             align: TextAlign::Center,
         });
     }
@@ -3475,11 +3476,15 @@ fn render_confirm_prompt(
     }
     let sizing = style.sizing;
     let confirm_enabled = !prompt_has_validation_error(model);
-    let prompt_sections = compute_prompt_overlay_sections(
-        layout.content,
+    let has_target_label = model.confirm_prompt.target_label.is_some();
+    let has_input = model.confirm_prompt.input_value.is_some();
+    let prompt_sections =
+        compute_prompt_overlay_sections(layout.content, sizing, has_input, has_target_label);
+    let prompt_text_layout = compute_prompt_overlay_text_layout(
+        prompt_sections,
         sizing,
-        model.confirm_prompt.input_value.is_some(),
-        model.confirm_prompt.target_label.is_some(),
+        has_target_label,
+        model.confirm_prompt.input_error.is_some(),
     );
     primitives.push(Primitive::Rect(FillRect {
         rect: layout.root.rect,
@@ -3504,40 +3509,30 @@ fn render_confirm_prompt(
 
     text_runs.push(TextRun {
         text: model.confirm_prompt.title.clone(),
-        position: Point::new(
-            dialog.min.x + sizing.text_inset_x,
-            dialog.min.y + sizing.text_inset_y,
-        ),
+        position: prompt_text_layout.title.min,
         font_size: sizing.font_title,
         color: style.text_primary,
-        max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+        max_width: Some(prompt_text_layout.title.width().max(24.0)),
         align: TextAlign::Left,
     });
     text_runs.push(TextRun {
         text: model.confirm_prompt.message.clone(),
-        position: Point::new(
-            dialog.min.x + sizing.text_inset_x,
-            dialog.min.y + sizing.text_inset_y + sizing.font_title + sizing.text_row_gap,
-        ),
+        position: prompt_text_layout.message.min,
         font_size: sizing.font_meta,
         color: style.text_muted,
-        max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+        max_width: Some(prompt_text_layout.message.width().max(24.0)),
         align: TextAlign::Left,
     });
-    if let Some(target) = model.confirm_prompt.target_label.as_ref() {
+    if let (Some(target), Some(target_rect)) = (
+        model.confirm_prompt.target_label.as_deref(),
+        prompt_text_layout.target,
+    ) {
         text_runs.push(TextRun {
-            text: target.clone(),
-            position: Point::new(
-                dialog.min.x + sizing.text_inset_x,
-                dialog.min.y
-                    + sizing.text_inset_y
-                    + sizing.font_title
-                    + sizing.font_meta
-                    + (sizing.text_row_gap * 2.0),
-            ),
+            text: target.to_string(),
+            position: target_rect.min,
             font_size: sizing.font_meta,
             color: style.accent_copper,
-            max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+            max_width: Some(target_rect.width().max(24.0)),
             align: TextAlign::Left,
         });
     }
@@ -3573,27 +3568,31 @@ fn render_confirm_prompt(
         } else {
             (input_text, style.text_primary)
         };
+        let input_text_rect = prompt_text_layout
+            .input_text
+            .unwrap_or(Rect::from_min_max(input_rect.min, input_rect.min));
+        let input_text_width = prompt_text_layout
+            .input_text
+            .map(|line_rect: Rect| line_rect.width().max(24.0))
+            .unwrap_or((input_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0));
         text_runs.push(TextRun {
             text: text.to_string(),
-            position: Point::new(
-                input_rect.min.x + sizing.text_inset_x,
-                input_rect.min.y + sizing.text_inset_y,
-            ),
+            position: input_text_rect.min,
             font_size: sizing.font_meta,
             color,
-            max_width: Some((input_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+            max_width: Some(input_text_width),
             align: TextAlign::Left,
         });
-        if let Some(error) = model.confirm_prompt.input_error.as_ref() {
+        if let (Some(error), Some(error_rect)) = (
+            model.confirm_prompt.input_error.as_deref(),
+            prompt_text_layout.input_error,
+        ) {
             text_runs.push(TextRun {
-                text: error.clone(),
-                position: Point::new(
-                    input_rect.min.x + sizing.text_inset_x,
-                    input_rect.max.y + sizing.text_row_gap,
-                ),
+                text: error.to_string(),
+                position: error_rect.min,
                 font_size: sizing.font_meta,
                 color: style.accent_warning,
-                max_width: Some((dialog.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+                max_width: Some(error_rect.width().max(24.0)),
                 align: TextAlign::Left,
             });
         }
@@ -3640,10 +3639,11 @@ fn render_confirm_prompt(
         );
         text_runs.push(TextRun {
             text: label.to_string(),
-            position: Point::new(
-                rect.min.x + sizing.text_inset_x,
-                text_top_in_rect(rect, sizing.font_meta, sizing.text_inset_y),
-            ),
+            position: if index == 0 {
+                prompt_text_layout.confirm_label.min
+            } else {
+                prompt_text_layout.cancel_label.min
+            },
             font_size: sizing.font_meta,
             color: if !enabled {
                 style.text_muted
@@ -3652,7 +3652,11 @@ fn render_confirm_prompt(
             } else {
                 style.text_muted
             },
-            max_width: Some((rect.width() - (sizing.text_inset_x * 2.0)).max(12.0)),
+            max_width: Some(if index == 0 {
+                prompt_text_layout.confirm_label.width().max(12.0)
+            } else {
+                prompt_text_layout.cancel_label.width().max(12.0)
+            }),
             align: TextAlign::Center,
         });
     }
@@ -3670,6 +3674,7 @@ fn render_drag_overlay(
     }
     let sizing = style.sizing;
     let rect = drag_overlay_rect(layout, style);
+    let drag_text_layout = compute_drag_overlay_text_layout(rect, sizing);
     primitives.push(Primitive::Rect(FillRect {
         rect,
         color: style.surface_overlay,
@@ -3693,17 +3698,14 @@ fn render_drag_overlay(
                 model.drag_overlay.label, model.drag_overlay.target_label
             )
         },
-        position: Point::new(
-            rect.min.x + sizing.text_inset_x,
-            rect.min.y + sizing.text_inset_y,
-        ),
+        position: drag_text_layout.label.min,
         font_size: sizing.font_meta,
         color: if model.drag_overlay.valid_target {
             style.text_primary
         } else {
             style.accent_warning
         },
-        max_width: Some((rect.width() - (sizing.text_inset_x * 2.0)).max(24.0)),
+        max_width: Some(drag_text_layout.label.width().max(24.0)),
         align: TextAlign::Center,
     });
 }

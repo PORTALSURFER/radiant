@@ -27,7 +27,9 @@ pub(super) use controls::{
 };
 pub(super) use map_header::compute_browser_map_header_text_layout;
 pub(super) use overlays::{
-    compute_drag_overlay_rect, compute_progress_overlay_sections, compute_prompt_overlay_sections,
+    compute_drag_overlay_rect, compute_drag_overlay_text_layout, compute_progress_overlay_sections,
+    compute_progress_overlay_text_layout, compute_prompt_overlay_sections,
+    compute_prompt_overlay_text_layout,
 };
 pub(super) use sidebar_bands::compute_sidebar_band_sections;
 pub(super) use sidebar_header::{

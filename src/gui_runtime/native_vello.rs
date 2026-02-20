@@ -1874,7 +1874,7 @@ fn action_from_key(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
         KeyCode::B => Some(UiAction::StartNewFolder),
         KeyCode::C => Some(UiAction::ClearWaveformSelection),
         KeyCode::D => Some(UiAction::DeleteBrowserSelection),
-        KeyCode::Enter => Some(UiAction::ToggleTransport),
+        KeyCode::Enter => Some(UiAction::CommitFocusedBrowserRow),
         KeyCode::F => Some(UiAction::FocusBrowserSearch),
         KeyCode::G => Some(UiAction::DeleteFocusedFolder),
         KeyCode::I => Some(UiAction::StartBrowserRename),
@@ -2524,6 +2524,10 @@ mod tests {
                 &model
             ),
             Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
+        );
+        assert_eq!(
+            action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
+            Some(UiAction::CommitFocusedBrowserRow)
         );
     }
 

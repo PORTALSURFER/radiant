@@ -717,6 +717,8 @@ pub enum UiAction {
         /// Target visible row index in the browser list.
         visible_row: usize,
     },
+    /// Commit the currently focused browser row as the active loaded sample.
+    CommitFocusedBrowserRow,
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection {
         /// Target visible row index in the browser list.

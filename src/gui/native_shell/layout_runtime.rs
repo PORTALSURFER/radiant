@@ -29,6 +29,7 @@ pub(crate) enum ShellLayoutTreeKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ShellLayoutDirtyKind {
     /// Geometry-only dirty marker.
+    #[allow(dead_code)]
     Layout,
     /// Intrinsic measure dirty marker.
     Measure,

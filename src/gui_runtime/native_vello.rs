@@ -5,8 +5,9 @@ use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, NativeMotionModel,
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
-        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellLayoutDirtyKind,
-        ShellLayoutRuntime, ShellNodeKind, StyleTokens, TextAlign, TextRun,
+        MotionOverlayFingerprint, NativeShellState, NativeViewFrame, Primitive, ShellLayout,
+        ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind, StateOverlayFingerprint,
+        StyleTokens, TextAlign, TextRun,
     },
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
@@ -463,6 +464,54 @@ enum RuntimeInvalidationScope {
     LayoutAndAll,
 }
 
+/// Cache key for state-overlay rebuild skipping.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StateOverlayCacheFingerprint {
+    /// Layout-width bits used for geometry-sensitive invalidation.
+    layout_width_bits: u32,
+    /// Layout-height bits used for geometry-sensitive invalidation.
+    layout_height_bits: u32,
+    /// Layout UI-scale bits used for token-sensitive invalidation.
+    layout_scale_bits: u32,
+    /// Shell interaction-state fingerprint.
+    shell: StateOverlayFingerprint,
+    /// Current selected browser column.
+    selected_column: usize,
+    /// Browser focused visible row.
+    browser_selected_visible_row: Option<usize>,
+    /// Browser selection anchor visible row.
+    browser_anchor_visible_row: Option<usize>,
+    /// Source panel selected row.
+    sources_selected_row: Option<usize>,
+    /// Folder panel focused row.
+    sources_focused_folder_row: Option<usize>,
+    /// Modal confirm prompt projection.
+    confirm_prompt: crate::app::ConfirmPromptModel,
+    /// Progress overlay projection.
+    progress_overlay: crate::app::ProgressOverlayModel,
+    /// Drag/drop overlay projection.
+    drag_overlay: crate::app::DragOverlayModel,
+    /// Top-bar update status projection.
+    update_status: crate::app::UpdateStatusModel,
+    /// Whether map mode is active.
+    map_active: bool,
+}
+
+/// Cache key for motion-overlay rebuild skipping.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MotionOverlayCacheFingerprint {
+    /// Layout-width bits used for geometry-sensitive invalidation.
+    layout_width_bits: u32,
+    /// Layout-height bits used for geometry-sensitive invalidation.
+    layout_height_bits: u32,
+    /// Layout UI-scale bits used for token-sensitive invalidation.
+    layout_scale_bits: u32,
+    /// Shell animation-state fingerprint.
+    shell: MotionOverlayFingerprint,
+    /// Motion model projection used to build overlay content.
+    motion: NativeMotionModel,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeVelloFrameState {
     /// Layout-only changes invalidate both static frame and cached overlays.
@@ -570,6 +619,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     state_overlay_scene: Scene,
     /// Cached encoded motion-driven overlay scene.
     motion_overlay_scene: Scene,
+    /// Last state-overlay fingerprint used for cache-skip checks.
+    state_overlay_fingerprint: Option<StateOverlayCacheFingerprint>,
+    /// Last motion-overlay fingerprint used for cache-skip checks.
+    motion_overlay_fingerprint: Option<MotionOverlayCacheFingerprint>,
     /// Cached latest motion-only model for lightweight overlay rebuilds.
     motion_model: Option<NativeMotionModel>,
     /// Whether the active bridge supports `pull_motion_model`.
@@ -660,6 +713,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             static_scene: Scene::new(),
             state_overlay_scene: Scene::new(),
             motion_overlay_scene: Scene::new(),
+            state_overlay_fingerprint: None,
+            motion_overlay_fingerprint: None,
             motion_model: None,
             motion_model_supported: true,
             text_renderer: NativeTextRenderer::new(),
@@ -931,8 +986,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             RuntimeInvalidationScope::StaticAndOverlays => {
                 self.frame_state.mark_model_dirty();
-                self.layout_runtime
-                    .mark_all_dirty(ShellLayoutDirtyKind::Layout);
             }
             RuntimeInvalidationScope::LayoutAndAll => {
                 self.frame_state.mark_layout_dirty();
@@ -1165,6 +1218,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
+        let (layout_width_bits, layout_height_bits, layout_scale_bits) = (
+            layout.root.rect.width().to_bits(),
+            layout.root.rect.height().to_bits(),
+            layout.ui_scale.to_bits(),
+        );
         let style = self.cached_style_for_layout(layout);
         if rebuild_static {
             let build_start = self.profiler.now_if_enabled();
@@ -1187,6 +1245,29 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.profiler.add_encode_static(encode_duration);
         }
         if rebuild_state_overlay {
+            let state_fingerprint = StateOverlayCacheFingerprint {
+                layout_width_bits,
+                layout_height_bits,
+                layout_scale_bits,
+                shell: self.shell_state.state_overlay_fingerprint(),
+                selected_column: self.model.selected_column,
+                browser_selected_visible_row: self.model.browser.selected_visible_row,
+                browser_anchor_visible_row: self.model.browser.anchor_visible_row,
+                sources_selected_row: self.model.sources.selected_row,
+                sources_focused_folder_row: self.model.sources.focused_folder_row,
+                confirm_prompt: self.model.confirm_prompt.clone(),
+                progress_overlay: self.model.progress_overlay.clone(),
+                drag_overlay: self.model.drag_overlay.clone(),
+                update_status: self.model.update.status,
+                map_active: self.model.map.active,
+            };
+            if self.state_overlay_fingerprint.as_ref() == Some(&state_fingerprint) {
+                rebuild_state_overlay = false;
+            } else {
+                self.state_overlay_fingerprint = Some(state_fingerprint);
+            }
+        }
+        if rebuild_state_overlay {
             let build_start = self.profiler.now_if_enabled();
             self.shell_state.build_state_overlay_into(
                 layout,
@@ -1204,6 +1285,29 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             );
             let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_encode_state_overlay(encode_duration);
+        }
+        if rebuild_motion_overlay {
+            let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
+                motion_model
+            } else {
+                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+                self.motion_model
+                    .as_ref()
+                    .expect("motion model just inserted")
+            };
+            let motion_fingerprint = MotionOverlayCacheFingerprint {
+                layout_width_bits,
+                layout_height_bits,
+                layout_scale_bits,
+                shell: self.shell_state.motion_overlay_fingerprint(),
+                motion: motion_model.clone(),
+            };
+            if self.motion_overlay_fingerprint.as_ref() == Some(&motion_fingerprint) {
+                self.profiler.add_motion_overlay_skip();
+                rebuild_motion_overlay = false;
+            } else {
+                self.motion_overlay_fingerprint = Some(motion_fingerprint);
+            }
         }
         if rebuild_motion_overlay {
             let build_start = self.profiler.now_if_enabled();

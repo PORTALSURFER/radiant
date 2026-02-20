@@ -56,6 +56,30 @@ struct NativeAnimationReasons {
     startup_frame_tick: bool,
 }
 
+/// Compact state-overlay fingerprint for change detection in runtime caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StateOverlayFingerprint {
+    /// Selected browser column index.
+    pub selected_column: usize,
+    /// Current hovered shell node kind.
+    pub hovered: Option<ShellNodeKind>,
+    /// Hovered browser row in visible-row space.
+    pub hovered_browser_visible_row: Option<usize>,
+    /// Whether focused selection emphasis is active.
+    pub has_focus_emphasis: bool,
+}
+
+/// Compact motion-overlay fingerprint for runtime overlay skip checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MotionOverlayFingerprint {
+    /// Whether transport-running animation is active.
+    pub transport_running: bool,
+    /// Remaining startup animation ticks.
+    pub startup_frame_ticks: u8,
+    /// Quantized pulse animation phase.
+    pub pulse_phase_bits: u32,
+}
+
 impl NativeAnimationReasons {
     fn needs_animation(self) -> bool {
         self.transport_running || self.startup_frame_tick
@@ -126,6 +150,25 @@ impl NativeShellState {
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
     pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
         self.transport_running = model.transport_running;
+    }
+
+    /// Return the current state-overlay fingerprint.
+    pub(crate) fn state_overlay_fingerprint(&self) -> StateOverlayFingerprint {
+        StateOverlayFingerprint {
+            selected_column: self.selected_column,
+            hovered: self.hovered,
+            hovered_browser_visible_row: self.hovered_browser_visible_row,
+            has_focus_emphasis: self.has_focus_emphasis,
+        }
+    }
+
+    /// Return the current motion-overlay fingerprint.
+    pub(crate) fn motion_overlay_fingerprint(&self) -> MotionOverlayFingerprint {
+        MotionOverlayFingerprint {
+            transport_running: self.transport_running,
+            startup_frame_ticks: self.startup_frame_ticks,
+            pulse_phase_bits: self.pulse_phase.to_bits(),
+        }
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.

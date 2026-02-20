@@ -851,6 +851,83 @@ pub struct FrameBuildResult {
     pub needs_animation: bool,
 }
 
+/// Bitmask describing which projection segments changed during the last model pull.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DirtySegments {
+    bits: u16,
+}
+
+impl DirtySegments {
+    /// Status-bar content segment.
+    pub const STATUS_BAR: u16 = 1 << 0;
+    /// Browser metadata/chrome segment.
+    pub const BROWSER_FRAME: u16 = 1 << 1;
+    /// Browser row-window segment.
+    pub const BROWSER_ROWS_WINDOW: u16 = 1 << 2;
+    /// Map-panel segment.
+    pub const MAP_PANEL: u16 = 1 << 3;
+    /// Waveform panel/chrome segment.
+    pub const WAVEFORM_OVERLAY: u16 = 1 << 4;
+    /// Static content that is outside explicit segment buckets.
+    pub const GLOBAL_STATIC: u16 = 1 << 5;
+    /// State-overlay model fields.
+    pub const STATE_OVERLAY: u16 = 1 << 6;
+    /// Motion-overlay model fields.
+    pub const MOTION_OVERLAY: u16 = 1 << 7;
+
+    const STATIC_MASK: u16 = Self::STATUS_BAR
+        | Self::BROWSER_FRAME
+        | Self::BROWSER_ROWS_WINDOW
+        | Self::MAP_PANEL
+        | Self::WAVEFORM_OVERLAY
+        | Self::GLOBAL_STATIC;
+    const OVERLAY_MASK: u16 = Self::STATE_OVERLAY | Self::MOTION_OVERLAY;
+
+    /// Return an empty segment mask.
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Return a full segment mask.
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::STATIC_MASK | Self::OVERLAY_MASK,
+        }
+    }
+
+    /// Construct a segment mask from raw bits.
+    pub const fn from_bits(bits: u16) -> Self {
+        Self {
+            bits: bits & (Self::STATIC_MASK | Self::OVERLAY_MASK),
+        }
+    }
+
+    /// Return raw bit contents for diagnostics and tests.
+    pub const fn bits(self) -> u16 {
+        self.bits
+    }
+
+    /// Return `true` when the mask contains no segments.
+    pub const fn is_empty(self) -> bool {
+        self.bits == 0
+    }
+
+    /// Return `true` when any static segment requires rebuild.
+    pub const fn requires_static_rebuild(self) -> bool {
+        (self.bits & Self::STATIC_MASK) != 0
+    }
+
+    /// Return `true` when any overlay segment requires rebuild.
+    pub const fn requires_overlay_rebuild(self) -> bool {
+        (self.bits & Self::OVERLAY_MASK) != 0
+    }
+
+    /// Insert one or more segment bits into this mask.
+    pub fn insert(&mut self, bits: u16) {
+        self.bits |= bits & (Self::STATIC_MASK | Self::OVERLAY_MASK);
+    }
+}
+
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeMotionModel {
@@ -914,6 +991,14 @@ pub trait NativeAppBridge {
     /// full-model work on animation-only ticks.
     fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
         None
+    }
+
+    /// Return and clear dirty projection segments produced by the latest `pull_model`.
+    ///
+    /// Implementations that do not track segment deltas may return
+    /// [`DirtySegments::all`] to preserve conservative full-rebuild behavior.
+    fn take_dirty_segments(&mut self) -> DirtySegments {
+        DirtySegments::all()
     }
 
     /// Handle a user action emitted by runtime input processing.

@@ -1,7 +1,9 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
 use super::{NativeRunOptions, WindowIconRgba};
-use crate::app::{AppModel, FrameBuildResult, NativeAppBridge, NativeMotionModel, UiAction};
+use crate::app::{
+    AppModel, DirtySegments, FrameBuildResult, NativeAppBridge, NativeMotionModel, UiAction,
+};
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
@@ -45,6 +47,16 @@ const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
+const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
+
+/// Parse standard truthy environment variable values.
+fn parse_truthy_env(value: &str) -> bool {
+    let normalized = value.trim();
+    normalized == "1"
+        || normalized.eq_ignore_ascii_case("true")
+        || normalized.eq_ignore_ascii_case("on")
+        || normalized.eq_ignore_ascii_case("yes")
+}
 
 /// Interaction classes tracked by runtime performance profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -740,6 +752,8 @@ impl NativeVelloFrameState {
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: NativeRunOptions,
     bridge: B,
+    /// Enable bridge-driven static segment rebuild gating.
+    incremental_frame_pipeline: bool,
     model: AppModel,
     window_id: Option<WindowId>,
     window: Option<Arc<Window>>,
@@ -804,6 +818,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
         let idle_status_refresh_interval =
             Duration::from_nanos(1_000_000_000u64 / IDLE_STATUS_REFRESH_HZ.max(1));
+        let incremental_frame_pipeline = std::env::var(INCREMENTAL_FRAME_PIPELINE_ENV)
+            .ok()
+            .is_some_and(|value| parse_truthy_env(&value));
         info!(
             "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
             options.title,
@@ -814,6 +831,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         Self {
             options,
             bridge,
+            incremental_frame_pipeline,
             model: AppModel::default(),
             window_id: None,
             window: None,
@@ -1284,6 +1302,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Return whether bridge-provided segment deltas require static-scene rebuild.
+    fn bridge_requires_static_rebuild(&self, dirty_segments: DirtySegments) -> bool {
+        dirty_segments.requires_static_rebuild()
+    }
+
     fn rebuild_scene(
         &mut self,
         model_refresh_requested: bool,
@@ -1318,12 +1341,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 );
             }
             self.model = self.bridge.pull_model();
+            let bridge_dirty_segments = self.bridge.take_dirty_segments();
             let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_model_pull(pull_duration);
             self.shell_state.sync_from_model(&self.model);
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
+            if self.incremental_frame_pipeline
+                && model_refresh_requested
+                && !self.bridge_requires_static_rebuild(bridge_dirty_segments)
+            {
+                rebuild_static = false;
+            }
         } else if should_refresh_motion {
             let pull_start = self.profiler.now_if_enabled();
             if let Some(motion_model) = self.bridge.pull_motion_model() {

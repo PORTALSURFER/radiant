@@ -253,7 +253,7 @@ impl NativeVelloProfiler {
         blit: Duration,
         present: Duration,
         total: Duration,
-        text_profile: (u64, u64, u64),
+        text_profile: (u64, u64, u64, u64, u64, u64),
     ) {
         if !self.enabled {
             return;
@@ -304,7 +304,8 @@ impl NativeVelloProfiler {
         let state_overlay_rebuild_avg = self.state_overlay_rebuilds as f64 / frames;
         let motion_overlay_rebuild_avg = self.motion_overlay_rebuilds as f64 / frames;
         let motion_overlay_skip_avg = self.motion_overlay_skips as f64 / frames;
-        let (text_hits, text_misses, text_evictions) = text_profile;
+        let (text_hits, text_misses, text_evictions, atom_hits, atom_misses, atom_evictions) =
+            text_profile;
         let text_cache_hit_rate = if text_hits + text_misses == 0 {
             0.0
         } else {
@@ -314,6 +315,16 @@ impl NativeVelloProfiler {
             0.0
         } else {
             100.0 * (text_misses as f64) / (text_hits + text_misses) as f64
+        };
+        let atom_cache_hit_rate = if atom_hits + atom_misses == 0 {
+            0.0
+        } else {
+            100.0 * (atom_hits as f64) / (atom_hits + atom_misses) as f64
+        };
+        let atom_cache_miss_rate = if atom_hits + atom_misses == 0 {
+            0.0
+        } else {
+            100.0 * (atom_misses as f64) / (atom_hits + atom_misses) as f64
         };
         let hover_samples = self.hover_latency.samples;
         let wheel_samples = self.wheel_latency.samples;
@@ -349,7 +360,9 @@ impl NativeVelloProfiler {
              waveform_samples={waveform_samples} waveform_avg_ms={waveform_avg_ms:.3} waveform_max_ms={waveform_max_ms:.3} \
              volume_samples={volume_samples} volume_avg_ms={volume_avg_ms:.3} volume_max_ms={volume_max_ms:.3} \
              text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
-             text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
+             text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}% \
+             text_atom_hits={atom_hits} text_atom_misses={atom_misses} text_atom_evictions={atom_evictions} \
+             text_atom_hit_rate={atom_cache_hit_rate:.1}% text_atom_miss_rate={atom_cache_miss_rate:.1}%"
         );
         self.reset();
     }
@@ -441,7 +454,7 @@ impl NativeVelloProfiler {
         _blit: Duration,
         _present: Duration,
         _total: Duration,
-        _text_profile: (u64, u64, u64),
+        _text_profile: (u64, u64, u64, u64, u64, u64),
     ) {
     }
 }
@@ -1040,7 +1053,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let text_profile = if self.profiler.is_enabled() {
             self.text_renderer.take_layout_profile_counters()
         } else {
-            (0, 0, 0)
+            (0, 0, 0, 0, 0, 0)
         };
         self.profiler
             .record_redraw(rebuild, acquire, render, blit, present, total, text_profile);
@@ -2200,11 +2213,12 @@ struct TextLayout {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct TextLayoutKey {
-    text: String,
+    text: Arc<str>,
     font_size_bits: u32,
 }
 
 const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
+const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
 
 #[derive(Clone)]
 struct LoadedFont {
@@ -2215,9 +2229,15 @@ struct NativeTextRenderer {
     loaded_font: Option<LoadedFont>,
     layout_cache: HashMap<TextLayoutKey, TextLayout>,
     layout_cache_order: VecDeque<TextLayoutKey>,
+    atom_cache: HashMap<Arc<str>, u64>,
+    atom_cache_order: VecDeque<(Arc<str>, u64)>,
+    atom_cache_clock: u64,
     text_layout_hits: u64,
     text_layout_misses: u64,
     text_layout_evictions: u64,
+    text_atom_hits: u64,
+    text_atom_misses: u64,
+    text_atom_evictions: u64,
 }
 
 impl NativeTextRenderer {
@@ -2232,9 +2252,15 @@ impl NativeTextRenderer {
             loaded_font,
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
+            atom_cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
+            atom_cache_order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
+            atom_cache_clock: 0,
             text_layout_hits: 0,
             text_layout_misses: 0,
             text_layout_evictions: 0,
+            text_atom_hits: 0,
+            text_atom_misses: 0,
+            text_atom_evictions: 0,
         }
     }
 
@@ -2284,8 +2310,9 @@ impl NativeTextRenderer {
         text: &str,
         font_size: f32,
     ) -> Option<&'a TextLayout> {
+        let text_atom = self.intern_text(text);
         let key = TextLayoutKey {
-            text: text.to_string(),
+            text: text_atom,
             font_size_bits: font_size.to_bits(),
         };
 
@@ -2316,16 +2343,63 @@ impl NativeTextRenderer {
         return Some(cached_layout);
     }
 
-    fn take_layout_profile_counters(&mut self) -> (u64, u64, u64) {
+    fn take_layout_profile_counters(&mut self) -> (u64, u64, u64, u64, u64, u64) {
         let counters = (
             self.text_layout_hits,
             self.text_layout_misses,
             self.text_layout_evictions,
+            self.text_atom_hits,
+            self.text_atom_misses,
+            self.text_atom_evictions,
         );
         self.text_layout_hits = 0;
         self.text_layout_misses = 0;
         self.text_layout_evictions = 0;
+        self.text_atom_hits = 0;
+        self.text_atom_misses = 0;
+        self.text_atom_evictions = 0;
         counters
+    }
+
+    /// Intern text into a bounded atom cache so layout-key construction avoids
+    /// hot-path `String` allocations on repeated runs.
+    fn intern_text(&mut self, text: &str) -> Arc<str> {
+        self.atom_cache_clock = self.atom_cache_clock.saturating_add(1);
+        let stamp = self.atom_cache_clock;
+        if let Some((cached, _)) = self.atom_cache.get_key_value(text) {
+            let atom = Arc::clone(cached);
+            if let Some(last_seen) = self.atom_cache.get_mut(text) {
+                *last_seen = stamp;
+            }
+            self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
+            self.text_atom_hits = self.text_atom_hits.saturating_add(1);
+            return atom;
+        }
+
+        self.text_atom_misses = self.text_atom_misses.saturating_add(1);
+        let atom: Arc<str> = Arc::from(text);
+        self.atom_cache.insert(Arc::clone(&atom), stamp);
+        self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
+        self.evict_stale_atoms();
+        atom
+    }
+
+    /// Evict stale atom-cache entries using insertion stamps for bounded memory.
+    fn evict_stale_atoms(&mut self) {
+        while self.atom_cache.len() > TEXT_ATOM_CACHE_CAPACITY {
+            let Some((candidate, queued_stamp)) = self.atom_cache_order.pop_front() else {
+                break;
+            };
+            let Some(current_stamp) = self.atom_cache.get(candidate.as_ref()) else {
+                continue;
+            };
+            if *current_stamp != queued_stamp {
+                continue;
+            }
+            if self.atom_cache.remove(candidate.as_ref()).is_some() {
+                self.text_atom_evictions = self.text_atom_evictions.saturating_add(1);
+            }
+        }
     }
 
     fn compute_layout(font: &FontData, text: &str, font_size: f32) -> Option<TextLayout> {

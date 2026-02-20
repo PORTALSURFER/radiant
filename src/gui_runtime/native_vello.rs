@@ -783,7 +783,7 @@ struct NativeVelloFrameState {
     state_overlay_dirty: bool,
     /// Motion/timer-driven overlay cache needs a rebuild.
     motion_overlay_dirty: bool,
-    /// Input/model changes need at least static scene refresh.
+    /// Input/model changes require a model pull before the next redraw.
     model_dirty: bool,
 }
 
@@ -815,6 +815,15 @@ impl NativeVelloFrameState {
     fn mark_model_dirty(&mut self) {
         self.model_dirty = true;
         self.scene_dirty = true;
+        self.state_overlay_dirty = true;
+        self.motion_overlay_dirty = true;
+    }
+
+    /// Mark model-backed state dirty without forcing static-scene invalidation.
+    ///
+    /// Static segment rebuilds are decided later from bridge dirty-segment masks.
+    fn mark_model_overlay_dirty(&mut self) {
+        self.model_dirty = true;
         self.state_overlay_dirty = true;
         self.motion_overlay_dirty = true;
     }
@@ -1268,7 +1277,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.frame_state.mark_motion_overlay_dirty();
             }
             RuntimeInvalidationScope::ModelAndOverlays => {
-                self.frame_state.mark_model_dirty();
+                self.frame_state.mark_model_overlay_dirty();
             }
             RuntimeInvalidationScope::StaticAndOverlays => {
                 self.frame_state.mark_model_dirty();
@@ -1595,11 +1604,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
-            if self.incremental_frame_pipeline
-                && model_refresh_requested
-                && !self.bridge_requires_static_rebuild(bridge_dirty_segments)
-            {
-                rebuild_static = false;
+            if model_refresh_requested {
+                let bridge_requires_static =
+                    self.bridge_requires_static_rebuild(bridge_dirty_segments);
+                if bridge_requires_static {
+                    rebuild_static = true;
+                } else if !rebuild_static || self.incremental_frame_pipeline {
+                    rebuild_static = false;
+                }
             }
         } else if should_refresh_motion {
             let pull_start = self.profiler.now_if_enabled();
@@ -2070,9 +2082,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
         match action {
-            UiAction::SetVolume { .. } | UiAction::CommitVolumeSetting => {
-                RuntimeInvalidationScope::ModelAndOverlays
-            }
+            UiAction::SetVolume { .. }
+            | UiAction::CommitVolumeSetting
+            | UiAction::SetFolderSearch { .. }
+            | UiAction::FocusFolderRow { .. }
+            | UiAction::MoveFolderFocus { .. }
+            | UiAction::MoveBrowserFocus { .. }
+            | UiAction::FocusBrowserRow { .. }
+            | UiAction::ToggleBrowserRowSelection { .. }
+            | UiAction::ExtendBrowserSelectionToRow { .. }
+            | UiAction::AddRangeBrowserSelection { .. }
+            | UiAction::ExtendBrowserSelectionFromFocus { .. }
+            | UiAction::AddRangeBrowserSelectionFromFocus { .. }
+            | UiAction::ToggleFocusedBrowserRowSelection
+            | UiAction::SelectAllBrowserRows
+            | UiAction::SetBrowserSearch { .. }
+            | UiAction::SetBrowserTab { .. }
+            | UiAction::FocusMapSample { .. }
+            | UiAction::SetPromptInput { .. } => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
@@ -3041,7 +3068,19 @@ mod tests {
                     query: String::from("kick"),
                 }
             ),
-            RuntimeInvalidationScope::StaticAndOverlays
+            RuntimeInvalidationScope::ModelAndOverlays
+        );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetPromptInput {
+                value: String::from("rename-me"),
+            }),
+            RuntimeInvalidationScope::ModelAndOverlays
+        );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+                &UiAction::MoveBrowserFocus { delta: 1 }
+            ),
+            RuntimeInvalidationScope::ModelAndOverlays
         );
         assert_eq!(
             NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
@@ -3055,6 +3094,20 @@ mod tests {
             ),
             RuntimeInvalidationScope::ModelAndOverlays
         );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
+            RuntimeInvalidationScope::StaticAndOverlays
+        );
+    }
+
+    #[test]
+    fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
+        let mut state = NativeVelloFrameState::default();
+        state.mark_model_overlay_dirty();
+        assert!(state.take_model());
+        assert!(!state.take_scene());
+        assert!(state.take_state_overlay());
+        assert!(state.take_motion_overlay());
     }
 
     #[test]

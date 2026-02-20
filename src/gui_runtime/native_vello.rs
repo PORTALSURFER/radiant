@@ -910,6 +910,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     last_cursor: Option<Point>,
     pending_cursor: Option<Point>,
     pending_wheel_rows_delta: i32,
+    /// Latest queued top-bar volume update in normalized milli space.
+    pending_volume_milli: Option<u16>,
     volume_drag_active: bool,
     last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
@@ -1017,6 +1019,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             last_cursor: None,
             pending_cursor: None,
             pending_wheel_rows_delta: 0,
+            pending_volume_milli: None,
             volume_drag_active: false,
             last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
@@ -1374,8 +1377,35 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.pending_wheel_rows_delta = self.pending_wheel_rows_delta.saturating_add(steps as i32);
     }
 
+    fn queue_volume_milli(&mut self, value_milli: u16) {
+        self.pending_volume_milli = Some(value_milli.min(1000));
+    }
+
+    fn flush_pending_volume_action(&mut self) -> bool {
+        let Some(value_milli) = self.pending_volume_milli.take() else {
+            return false;
+        };
+        self.emit_model_action_with_profile(
+            UiAction::SetVolume { value_milli },
+            Some(InteractionProfileKind::Volume),
+        );
+        true
+    }
+
+    fn finish_volume_drag(&mut self) {
+        let _ = self.flush_pending_volume_action();
+        if self.volume_drag_active {
+            self.emit_model_action(UiAction::CommitVolumeSetting);
+        }
+        self.volume_drag_active = false;
+        self.last_emitted_volume_milli = None;
+    }
+
     fn flush_pending_input(&mut self) -> bool {
         let mut pending_action = false;
+        if self.flush_pending_volume_action() {
+            pending_action = true;
+        }
         if let Some(point) = self.pending_cursor.take() {
             if let Some(layout) = self.shell_layout.as_ref() {
                 let profile_start = self.profiler.now_if_enabled();
@@ -2183,7 +2213,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     if let UiAction::SetVolume { value_milli } = action {
                         if self.last_emitted_volume_milli != Some(value_milli) {
                             self.last_emitted_volume_milli = Some(value_milli);
-                            self.emit_model_action(action);
+                            self.queue_volume_milli(value_milli);
                         }
                     } else {
                         self.emit_model_action(action);
@@ -2204,6 +2234,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
                 {
                     self.text_input_target = TextInputTarget::None;
+                    self.pending_volume_milli = None;
                     self.volume_drag_active = false;
                     self.last_emitted_volume_milli = None;
                     let mut handled = false;
@@ -2219,8 +2250,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     {
                         if let UiAction::SetVolume { value_milli } = action {
                             self.last_emitted_volume_milli = Some(value_milli);
+                            self.queue_volume_milli(value_milli);
+                        } else {
+                            self.emit_model_action(action);
                         }
-                        self.emit_model_action(action);
                         self.volume_drag_active = true;
                         handled = true;
                     } else if let Some(action) = action_from_pointer(
@@ -2253,11 +2286,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 state: ElementState::Released,
                 ..
             } => {
-                if self.volume_drag_active {
-                    self.emit_model_action(UiAction::CommitVolumeSetting);
-                }
-                self.volume_drag_active = false;
-                self.last_emitted_volume_milli = None;
+                self.finish_volume_drag();
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.shell_layout.as_ref() {
@@ -2972,6 +3001,21 @@ mod tests {
     use crate::gui::types::Vector2;
     use winit::event::MouseScrollDelta;
 
+    #[derive(Default)]
+    struct RecordingBridge {
+        actions: Vec<UiAction>,
+    }
+
+    impl NativeAppBridge for RecordingBridge {
+        fn pull_model(&mut self) -> AppModel {
+            AppModel::default()
+        }
+
+        fn on_action(&mut self, action: UiAction) {
+            self.actions.push(action);
+        }
+    }
+
     #[test]
     fn action_scope_classification_routes_waveform_actions_to_motion_overlay() {
         assert_eq!(
@@ -3011,6 +3055,41 @@ mod tests {
             ),
             RuntimeInvalidationScope::ModelAndOverlays
         );
+    }
+
+    #[test]
+    fn pending_volume_updates_flush_last_write_wins() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.queue_volume_milli(140);
+        runner.queue_volume_milli(760);
+        assert!(runner.flush_pending_volume_action());
+        assert!(!runner.flush_pending_volume_action());
+        assert_eq!(
+            runner.bridge.actions,
+            vec![UiAction::SetVolume { value_milli: 760 }]
+        );
+    }
+
+    #[test]
+    fn finish_volume_drag_flushes_pending_value_before_commit() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.queue_volume_milli(915);
+        runner.volume_drag_active = true;
+
+        runner.finish_volume_drag();
+
+        assert_eq!(
+            runner.bridge.actions,
+            vec![
+                UiAction::SetVolume { value_milli: 915 },
+                UiAction::CommitVolumeSetting,
+            ]
+        );
+        assert!(!runner.volume_drag_active);
+        assert_eq!(runner.last_emitted_volume_milli, None);
+        assert_eq!(runner.pending_volume_milli, None);
     }
 
     #[test]

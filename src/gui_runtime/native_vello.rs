@@ -2,7 +2,8 @@
 
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::app::{
-    AppModel, DirtySegments, FrameBuildResult, NativeAppBridge, NativeMotionModel, UiAction,
+    AppModel, DirtySegments, FrameBuildResult, NativeAppBridge, NativeMotionModel,
+    SegmentRevisions, UiAction,
 };
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
@@ -532,8 +533,8 @@ struct StaticSegmentCacheFingerprint {
     layout_scale_bits: u32,
     /// Compact deterministic signature for style token changes.
     style_signature: u64,
-    /// Compact deterministic signature for segment-specific model inputs.
-    model_signature: u64,
+    /// Monotonic bridge-provided revision for this static segment.
+    segment_revision: u64,
 }
 
 /// Retained scene cache entry for one static segment.
@@ -603,13 +604,6 @@ fn fingerprint_mix_u16(state: &mut u64, value: u16) {
 
 /// Mix one `u32` into a fingerprint accumulator.
 fn fingerprint_mix_u32(state: &mut u64, value: u32) {
-    for byte in value.to_le_bytes() {
-        fingerprint_mix_u8(state, byte);
-    }
-}
-
-/// Mix one signed `i32` into a fingerprint accumulator.
-fn fingerprint_mix_i32(state: &mut u64, value: i32) {
     for byte in value.to_le_bytes() {
         fingerprint_mix_u8(state, byte);
     }
@@ -779,121 +773,6 @@ fn static_segment_style_signature(style: &StyleTokens) -> u64 {
     state
 }
 
-/// Build a deterministic signature for one static segment model/input slice.
-fn static_segment_model_signature(
-    segment: StaticFrameSegment,
-    model: &AppModel,
-    shell_state: &NativeShellState,
-) -> u64 {
-    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
-    fingerprint_mix_u8(&mut state, segment.index() as u8);
-    fingerprint_mix_bool(&mut state, shell_state.is_transport_running());
-    match segment {
-        StaticFrameSegment::StatusBar => {
-            fingerprint_mix_string(&mut state, &model.status_text);
-            fingerprint_mix_string(&mut state, &model.status.left);
-            fingerprint_mix_string(&mut state, &model.status.center);
-            fingerprint_mix_string(&mut state, &model.status.right);
-            fingerprint_mix_usize(&mut state, model.browser.visible_count);
-            fingerprint_mix_usize(&mut state, model.browser.selected_path_count);
-        }
-        StaticFrameSegment::BrowserFrame => {
-            fingerprint_mix_bool(&mut state, model.map.active);
-            fingerprint_mix_string(&mut state, &model.browser.search_query);
-            fingerprint_mix_string(&mut state, &model.browser_chrome.search_placeholder);
-            fingerprint_mix_string(&mut state, &model.browser_chrome.sort_order_label);
-            fingerprint_mix_string(&mut state, &model.browser_chrome.item_count_label);
-            fingerprint_mix_bool(&mut state, model.browser.busy);
-            fingerprint_mix_option_string(&mut state, model.browser.sort_label.as_deref());
-            fingerprint_mix_string(&mut state, &model.browser_chrome.map_tab_label);
-            fingerprint_mix_string(&mut state, &model.browser_chrome.samples_tab_label);
-            fingerprint_mix_string(&mut state, &model.map.legend_label);
-            fingerprint_mix_string(&mut state, &model.map.selection_label);
-            fingerprint_mix_option_string(&mut state, model.map.error.as_deref());
-            fingerprint_mix_string(&mut state, &model.map.summary);
-            fingerprint_mix_string(&mut state, &model.map.cluster_label);
-            fingerprint_mix_string(&mut state, &model.map.viewport_label);
-        }
-        StaticFrameSegment::BrowserRowsWindow => {
-            fingerprint_mix_bool(&mut state, model.map.active);
-            fingerprint_mix_usize(&mut state, model.browser.rows.len());
-            fingerprint_mix_usize(&mut state, model.browser.visible_count);
-            for row in &model.browser.rows {
-                fingerprint_mix_usize(&mut state, row.visible_row);
-                fingerprint_mix_string(&mut state, &row.label);
-                fingerprint_mix_usize(&mut state, row.column);
-                fingerprint_mix_bool(&mut state, row.selected);
-                fingerprint_mix_bool(&mut state, row.focused);
-            }
-        }
-        StaticFrameSegment::MapPanel => {
-            fingerprint_mix_bool(&mut state, model.map.active);
-            fingerprint_mix_usize(&mut state, model.map.points.len());
-            for point in &model.map.points {
-                fingerprint_mix_u16(&mut state, point.x_milli);
-                fingerprint_mix_u16(&mut state, point.y_milli);
-                fingerprint_mix_bool(&mut state, point.selected);
-                fingerprint_mix_bool(&mut state, point.focused);
-                if let Some(cluster_id) = point.cluster_id {
-                    fingerprint_mix_bool(&mut state, true);
-                    fingerprint_mix_i32(&mut state, cluster_id);
-                } else {
-                    fingerprint_mix_bool(&mut state, false);
-                }
-            }
-        }
-        StaticFrameSegment::WaveformOverlay => {
-            fingerprint_mix_option_u16(&mut state, model.waveform.cursor_milli);
-            fingerprint_mix_option_u16(&mut state, model.waveform.playhead_milli);
-            if let Some(selection) = model.waveform.selection_milli {
-                fingerprint_mix_bool(&mut state, true);
-                fingerprint_mix_u16(&mut state, selection.start_milli);
-                fingerprint_mix_u16(&mut state, selection.end_milli);
-            } else {
-                fingerprint_mix_bool(&mut state, false);
-            }
-            fingerprint_mix_u16(&mut state, model.waveform.view_start_milli);
-            fingerprint_mix_u16(&mut state, model.waveform.view_end_milli);
-            fingerprint_mix_option_string(&mut state, model.waveform.tempo_label.as_deref());
-            fingerprint_mix_option_string(&mut state, model.waveform.zoom_label.as_deref());
-            fingerprint_mix_option_string(&mut state, model.waveform.loaded_label.as_deref());
-            if let Some(signature) = model.waveform.waveform_image_signature {
-                fingerprint_mix_bool(&mut state, true);
-                fingerprint_mix_u64(&mut state, signature);
-            } else {
-                fingerprint_mix_bool(&mut state, false);
-            }
-            fingerprint_mix_string(&mut state, &model.waveform_chrome.transport_hint);
-        }
-        StaticFrameSegment::GlobalStatic => {
-            fingerprint_mix_string(&mut state, &model.title);
-            fingerprint_mix_f32(&mut state, model.volume);
-            fingerprint_mix_usize(&mut state, model.sources.rows.len());
-            fingerprint_mix_option_usize(&mut state, model.sources.selected_row);
-            fingerprint_mix_string(&mut state, &model.sources.search_query);
-            fingerprint_mix_usize(&mut state, model.sources.folder_rows.len());
-            fingerprint_mix_option_usize(&mut state, model.sources.focused_folder_row);
-            fingerprint_mix_string(&mut state, &model.sources.folder_search_query);
-            fingerprint_mix_u8(
-                &mut state,
-                match model.update.status {
-                    crate::app::UpdateStatusModel::Idle => 0,
-                    crate::app::UpdateStatusModel::Checking => 1,
-                    crate::app::UpdateStatusModel::Available => 2,
-                    crate::app::UpdateStatusModel::Error => 3,
-                },
-            );
-            fingerprint_mix_option_string(&mut state, model.update.available_tag.as_deref());
-            fingerprint_mix_option_string(&mut state, model.update.available_url.as_deref());
-            fingerprint_mix_option_string(&mut state, model.update.last_error.as_deref());
-            fingerprint_mix_usize(&mut state, model.columns[0].item_count);
-            fingerprint_mix_usize(&mut state, model.columns[1].item_count);
-            fingerprint_mix_usize(&mut state, model.columns[2].item_count);
-        }
-    }
-    state
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeVelloFrameState {
     /// Layout-only changes invalidate both static frame and cached overlays.
@@ -1015,6 +894,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     motion_model: Option<NativeMotionModel>,
     /// Whether the active bridge supports `pull_motion_model`.
     motion_model_supported: bool,
+    /// Latest bridge-provided static segment revision snapshot.
+    segment_revisions: SegmentRevisions,
+    /// Whether the bridge reports non-zero static segment revisions.
+    segment_revisions_supported: bool,
+    /// Whether we already forced one rebuild for zero-revision bridge fallbacks.
+    missing_segment_revision_fallback_applied: bool,
     text_renderer: NativeTextRenderer,
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
@@ -1111,6 +996,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             motion_overlay_fingerprint: None,
             motion_model: None,
             motion_model_supported: true,
+            segment_revisions: SegmentRevisions::default(),
+            segment_revisions_supported: false,
+            missing_segment_revision_fallback_applied: false,
             text_renderer: NativeTextRenderer::new(),
             style_cache: None,
             frame_state: NativeVelloFrameState {
@@ -1551,12 +1439,29 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         (dirty_segments.bits() & segment.dirty_mask()) != 0
     }
 
+    /// Return bridge-provided revision for one static segment.
+    fn static_segment_revision(
+        &self,
+        segment_revisions: SegmentRevisions,
+        segment: StaticFrameSegment,
+    ) -> u64 {
+        match segment {
+            StaticFrameSegment::StatusBar => segment_revisions.status_bar,
+            StaticFrameSegment::BrowserFrame => segment_revisions.browser_frame,
+            StaticFrameSegment::BrowserRowsWindow => segment_revisions.browser_rows_window,
+            StaticFrameSegment::MapPanel => segment_revisions.map_panel,
+            StaticFrameSegment::WaveformOverlay => segment_revisions.waveform_overlay,
+            StaticFrameSegment::GlobalStatic => segment_revisions.global_static,
+        }
+    }
+
     /// Rebuild and encode retained static segment scenes.
     fn rebuild_static_segment_scenes(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         dirty_segments: DirtySegments,
+        segment_revisions: SegmentRevisions,
         force_rebuild: bool,
     ) -> (Duration, Duration) {
         let layout_width_bits = layout.root.rect.width().to_bits();
@@ -1576,15 +1481,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let build_duration = build_start.elapsed();
         let encode_start = Instant::now();
         for segment in StaticFrameSegment::ALL {
-            let model_signature =
-                static_segment_model_signature(segment, &self.model, &self.shell_state);
+            let segment_revision = self.static_segment_revision(segment_revisions, segment);
             let fingerprint = StaticSegmentCacheFingerprint {
                 segment,
                 layout_width_bits,
                 layout_height_bits,
                 layout_scale_bits,
                 style_signature,
-                model_signature,
+                segment_revision,
             };
             let segment_dirty =
                 force_rebuild || self.static_segment_is_dirty(dirty_segments, segment);
@@ -1648,6 +1552,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             self.model = self.bridge.pull_model();
             bridge_dirty_segments = self.bridge.take_dirty_segments();
+            let bridge_segment_revisions = self.bridge.take_segment_revisions();
+            if bridge_segment_revisions.has_static_revisions() {
+                self.segment_revisions_supported = true;
+            }
+            if self.segment_revisions_supported {
+                self.segment_revisions = bridge_segment_revisions;
+            }
             let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_model_pull(pull_duration);
             self.shell_state.sync_from_model(&self.model);
@@ -1682,6 +1593,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
                 bridge_dirty_segments = self.bridge.take_dirty_segments();
+                let bridge_segment_revisions = self.bridge.take_segment_revisions();
+                if bridge_segment_revisions.has_static_revisions() {
+                    self.segment_revisions_supported = true;
+                }
+                if self.segment_revisions_supported {
+                    self.segment_revisions = bridge_segment_revisions;
+                }
                 let model_pull_duration =
                     model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_model_pull(model_pull_duration);
@@ -1705,11 +1623,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let style = self.cached_style_for_layout(&layout);
         if rebuild_static {
             if self.incremental_frame_pipeline {
-                let force_rebuild = !model_refresh_requested;
+                let mut force_rebuild = !model_refresh_requested;
+                if !self.segment_revisions_supported
+                    && !self.missing_segment_revision_fallback_applied
+                {
+                    warn!(
+                        "native vello bridge reported zero segment revisions; forcing one conservative static rebuild"
+                    );
+                    force_rebuild = true;
+                    self.missing_segment_revision_fallback_applied = true;
+                }
                 let (build_duration, encode_duration) = self.rebuild_static_segment_scenes(
                     &layout,
                     &style,
                     bridge_dirty_segments,
+                    self.segment_revisions,
                     force_rebuild,
                 );
                 self.profiler.add_build_static(build_duration);

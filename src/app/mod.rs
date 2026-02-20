@@ -928,6 +928,62 @@ impl DirtySegments {
     }
 }
 
+/// Monotonic revision counters for static projection segments.
+///
+/// Bridges bump the counters for segments whose projected model slices changed on
+/// the most recent `pull_model`. Runtimes use these revisions in retained-scene
+/// cache keys to avoid expensive segment hashing on every frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SegmentRevisions {
+    /// Status-bar projection revision.
+    pub status_bar: u64,
+    /// Browser metadata/chrome projection revision.
+    pub browser_frame: u64,
+    /// Browser visible-row window projection revision.
+    pub browser_rows_window: u64,
+    /// Map-panel projection revision.
+    pub map_panel: u64,
+    /// Waveform panel/chrome projection revision.
+    pub waveform_overlay: u64,
+    /// Global static fields projection revision.
+    pub global_static: u64,
+}
+
+impl SegmentRevisions {
+    /// Return whether any static-segment revision is non-zero.
+    pub const fn has_static_revisions(self) -> bool {
+        self.status_bar != 0
+            || self.browser_frame != 0
+            || self.browser_rows_window != 0
+            || self.map_panel != 0
+            || self.waveform_overlay != 0
+            || self.global_static != 0
+    }
+
+    /// Bump revisions for the static segments flagged in `dirty_segments`.
+    pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
+        let bits = dirty_segments.bits();
+        if (bits & DirtySegments::STATUS_BAR) != 0 {
+            self.status_bar = self.status_bar.saturating_add(1);
+        }
+        if (bits & DirtySegments::BROWSER_FRAME) != 0 {
+            self.browser_frame = self.browser_frame.saturating_add(1);
+        }
+        if (bits & DirtySegments::BROWSER_ROWS_WINDOW) != 0 {
+            self.browser_rows_window = self.browser_rows_window.saturating_add(1);
+        }
+        if (bits & DirtySegments::MAP_PANEL) != 0 {
+            self.map_panel = self.map_panel.saturating_add(1);
+        }
+        if (bits & DirtySegments::WAVEFORM_OVERLAY) != 0 {
+            self.waveform_overlay = self.waveform_overlay.saturating_add(1);
+        }
+        if (bits & DirtySegments::GLOBAL_STATIC) != 0 {
+            self.global_static = self.global_static.saturating_add(1);
+        }
+    }
+}
+
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeMotionModel {
@@ -999,6 +1055,15 @@ pub trait NativeAppBridge {
     /// [`DirtySegments::all`] to preserve conservative full-rebuild behavior.
     fn take_dirty_segments(&mut self) -> DirtySegments {
         DirtySegments::all()
+    }
+
+    /// Return static-segment revisions produced by the latest `pull_model`.
+    ///
+    /// Bridges that do not track segment revisions may return
+    /// [`SegmentRevisions::default`] and runtimes should fall back to conservative
+    /// behavior.
+    fn take_segment_revisions(&mut self) -> SegmentRevisions {
+        SegmentRevisions::default()
     }
 
     /// Handle a user action emitted by runtime input processing.

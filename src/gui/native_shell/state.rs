@@ -26,7 +26,9 @@ use super::{
     paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
-use crate::app::{AppModel, BrowserRowModel, BrowserTagTarget, NativeMotionModel, UiAction};
+use crate::app::{
+    AppModel, BrowserRowModel, BrowserTagTarget, DirtySegments, NativeMotionModel, UiAction,
+};
 use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
@@ -78,6 +80,114 @@ pub(crate) struct MotionOverlayFingerprint {
     pub startup_frame_ticks: u8,
     /// Quantized pulse animation phase.
     pub pulse_phase_bits: u32,
+}
+
+/// Static-scene segments used for retained incremental scene composition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum StaticFrameSegment {
+    /// Status-bar text and chrome.
+    StatusBar,
+    /// Browser metadata/chrome outside row-window and map canvas.
+    BrowserFrame,
+    /// Browser row-window list content.
+    BrowserRowsWindow,
+    /// Browser map panel content and map-header details.
+    MapPanel,
+    /// Waveform panel/chrome static content.
+    WaveformOverlay,
+    /// Remaining static content outside explicit segment buckets.
+    GlobalStatic,
+}
+
+impl StaticFrameSegment {
+    /// Number of static segment buckets.
+    pub(crate) const COUNT: usize = 6;
+
+    /// Deterministic segment iteration order for scene composition.
+    pub(crate) const ALL: [Self; Self::COUNT] = [
+        Self::GlobalStatic,
+        Self::WaveformOverlay,
+        Self::BrowserRowsWindow,
+        Self::MapPanel,
+        Self::BrowserFrame,
+        Self::StatusBar,
+    ];
+
+    /// Return the segment index for cache arrays.
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Self::GlobalStatic => 0,
+            Self::WaveformOverlay => 1,
+            Self::BrowserFrame => 2,
+            Self::BrowserRowsWindow => 3,
+            Self::MapPanel => 4,
+            Self::StatusBar => 5,
+        }
+    }
+
+    /// Return the corresponding bridge dirty-segment bit.
+    pub(crate) const fn dirty_mask(self) -> u16 {
+        match self {
+            Self::StatusBar => DirtySegments::STATUS_BAR,
+            Self::BrowserFrame => DirtySegments::BROWSER_FRAME,
+            Self::BrowserRowsWindow => DirtySegments::BROWSER_ROWS_WINDOW,
+            Self::MapPanel => DirtySegments::MAP_PANEL,
+            Self::WaveformOverlay => DirtySegments::WAVEFORM_OVERLAY,
+            Self::GlobalStatic => DirtySegments::GLOBAL_STATIC,
+        }
+    }
+}
+
+/// Static scene fragments split into deterministic segment buckets.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct StaticFrameSegments {
+    frames: [NativeViewFrame; StaticFrameSegment::COUNT],
+}
+
+impl Default for StaticFrameSegments {
+    /// Create empty frame buckets for each static segment.
+    fn default() -> Self {
+        Self {
+            frames: std::array::from_fn(|_| NativeViewFrame::default()),
+        }
+    }
+}
+
+impl StaticFrameSegments {
+    /// Clear all segment buffers and set a shared clear color.
+    pub(crate) fn clear(&mut self, clear_color: Rgba8) {
+        for frame in &mut self.frames {
+            frame.clear_color = clear_color;
+            frame.primitives.clear();
+            frame.text_runs.clear();
+        }
+    }
+
+    /// Return an immutable frame buffer for one static segment.
+    pub(crate) fn frame(&self, segment: StaticFrameSegment) -> &NativeViewFrame {
+        &self.frames[segment.index()]
+    }
+
+    /// Return a mutable frame buffer for one static segment.
+    pub(crate) fn frame_mut(&mut self, segment: StaticFrameSegment) -> &mut NativeViewFrame {
+        &mut self.frames[segment.index()]
+    }
+
+    /// Compose all static segments into one full static frame.
+    pub(crate) fn compose_into(&self, frame: &mut NativeViewFrame) {
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        for segment in StaticFrameSegment::ALL {
+            let segment_frame = self.frame(segment);
+            frame.clear_color = segment_frame.clear_color;
+            frame
+                .primitives
+                .extend(segment_frame.primitives.iter().copied());
+            frame
+                .text_runs
+                .extend(segment_frame.text_runs.iter().cloned());
+        }
+    }
 }
 
 impl NativeAnimationReasons {
@@ -571,6 +681,30 @@ impl NativeShellState {
         frame: &mut NativeViewFrame,
     ) {
         self.build_frame_with_style_into_with_motion(layout, style, model, frame, 0.0, false);
+    }
+
+    /// Build static content and partition it into deterministic segment buckets.
+    pub(crate) fn build_static_segments_with_style_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        segments: &mut StaticFrameSegments,
+    ) {
+        let mut full_frame = NativeViewFrame {
+            clear_color: style.clear_color,
+            primitives: Vec::new(),
+            text_runs: Vec::new(),
+        };
+        self.build_frame_with_style_into_with_motion(
+            layout,
+            style,
+            model,
+            &mut full_frame,
+            0.0,
+            false,
+        );
+        partition_static_frame_into_segments(layout, model, &mut full_frame, segments);
     }
 
     /// Build a frame with a caller-supplied motion phase.
@@ -2283,6 +2417,85 @@ impl NativeShellState {
         }
         &self.browser_rows
     }
+}
+
+/// Partition a full static frame into deterministic static segment buckets.
+fn partition_static_frame_into_segments(
+    layout: &ShellLayout,
+    model: &AppModel,
+    full_frame: &mut NativeViewFrame,
+    segments: &mut StaticFrameSegments,
+) {
+    segments.clear(full_frame.clear_color);
+    for primitive in full_frame.primitives.drain(..) {
+        let segment = static_segment_for_primitive(layout, model, &primitive);
+        segments.frame_mut(segment).primitives.push(primitive);
+    }
+    for text_run in full_frame.text_runs.drain(..) {
+        let segment = static_segment_for_text(layout, model, &text_run);
+        segments.frame_mut(segment).text_runs.push(text_run);
+    }
+}
+
+/// Resolve which static segment owns one primitive.
+fn static_segment_for_primitive(
+    layout: &ShellLayout,
+    model: &AppModel,
+    primitive: &Primitive,
+) -> StaticFrameSegment {
+    let anchor = match primitive {
+        Primitive::Rect(fill) => rect_center(fill.rect),
+        Primitive::Circle(fill) => fill.center,
+    };
+    static_segment_for_point(layout, model, anchor)
+}
+
+/// Resolve which static segment owns one text run.
+fn static_segment_for_text(
+    layout: &ShellLayout,
+    model: &AppModel,
+    text_run: &TextRun,
+) -> StaticFrameSegment {
+    static_segment_for_point(layout, model, text_run.position)
+}
+
+/// Resolve the owning static segment for a point in shell coordinates.
+fn static_segment_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> StaticFrameSegment {
+    if layout.status_bar.contains(point) {
+        return StaticFrameSegment::StatusBar;
+    }
+    if layout.waveform_card.contains(point) {
+        return StaticFrameSegment::WaveformOverlay;
+    }
+    if model.map.active
+        && (layout.browser_rows.contains(point) || layout.browser_table_header.contains(point))
+    {
+        return StaticFrameSegment::MapPanel;
+    }
+    if layout.browser_rows.contains(point) {
+        return StaticFrameSegment::BrowserRowsWindow;
+    }
+    if layout.browser_panel.contains(point)
+        || layout.browser_tabs.contains(point)
+        || layout.browser_toolbar.contains(point)
+        || layout.browser_table_header.contains(point)
+        || layout.browser_footer.contains(point)
+    {
+        return StaticFrameSegment::BrowserFrame;
+    }
+    StaticFrameSegment::GlobalStatic
+}
+
+/// Return the geometric center for a rectangle.
+fn rect_center(rect: Rect) -> Point {
+    Point::new(
+        rect.min.x + (rect.width() * 0.5),
+        rect.min.y + (rect.height() * 0.5),
+    )
 }
 
 fn push_waveform_playhead_overlay(
@@ -4105,6 +4318,51 @@ mod tests {
                 .text_runs
                 .iter()
                 .any(|run| run.text.contains("165 BPM"))
+        );
+    }
+
+    #[test]
+    fn static_segments_include_browser_rows_when_list_tab_is_active() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut state = NativeShellState::new();
+        let model = browser_model_with_rows(120, 40);
+        let mut segments = StaticFrameSegments::default();
+        state.build_static_segments_with_style_into(&layout, &style, &model, &mut segments);
+        let rows_segment = segments.frame(StaticFrameSegment::BrowserRowsWindow);
+        let map_segment = segments.frame(StaticFrameSegment::MapPanel);
+        assert!(!rows_segment.primitives.is_empty());
+        assert!(!rows_segment.text_runs.is_empty());
+        assert!(map_segment.primitives.is_empty());
+    }
+
+    #[test]
+    fn static_segments_include_map_panel_when_map_tab_is_active() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut state = NativeShellState::new();
+        let mut model = browser_model_with_rows(120, 40);
+        model.map.active = true;
+        model.map.summary = String::from("Map summary");
+        model.map.points.push(crate::app::MapPointModel {
+            sample_id: String::from("kick"),
+            x_milli: 512,
+            y_milli: 480,
+            cluster_id: Some(1),
+            selected: true,
+            focused: true,
+        });
+        let mut segments = StaticFrameSegments::default();
+        state.build_static_segments_with_style_into(&layout, &style, &model, &mut segments);
+        let rows_segment = segments.frame(StaticFrameSegment::BrowserRowsWindow);
+        let map_segment = segments.frame(StaticFrameSegment::MapPanel);
+        assert!(rows_segment.primitives.is_empty());
+        assert!(!map_segment.primitives.is_empty());
+        assert!(
+            map_segment
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Map"))
         );
     }
 

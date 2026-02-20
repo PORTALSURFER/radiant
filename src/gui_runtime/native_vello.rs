@@ -9,7 +9,7 @@ use crate::gui::{
     native_shell::{
         MotionOverlayFingerprint, NativeShellState, NativeViewFrame, Primitive, ShellLayout,
         ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind, StateOverlayFingerprint,
-        StyleTokens, TextAlign, TextRun,
+        StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign, TextRun,
     },
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
@@ -519,6 +519,74 @@ struct MotionOverlayCacheFingerprint {
     motion_signature: u64,
 }
 
+/// Cache key for one retained static-scene segment.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StaticSegmentCacheFingerprint {
+    /// Segment identifier for the cache entry.
+    segment: StaticFrameSegment,
+    /// Layout-width bits used for geometry-sensitive invalidation.
+    layout_width_bits: u32,
+    /// Layout-height bits used for geometry-sensitive invalidation.
+    layout_height_bits: u32,
+    /// Layout UI-scale bits used for token-sensitive invalidation.
+    layout_scale_bits: u32,
+    /// Compact deterministic signature for style token changes.
+    style_signature: u64,
+    /// Compact deterministic signature for segment-specific model inputs.
+    model_signature: u64,
+}
+
+/// Retained scene cache entry for one static segment.
+struct StaticSegmentSceneCacheEntry {
+    /// Last fingerprint used to build the cached scene.
+    fingerprint: Option<StaticSegmentCacheFingerprint>,
+    /// Encoded scene for this segment.
+    scene: Scene,
+}
+
+impl Default for StaticSegmentSceneCacheEntry {
+    /// Create an empty static segment scene-cache entry.
+    fn default() -> Self {
+        Self {
+            fingerprint: None,
+            scene: Scene::new(),
+        }
+    }
+}
+
+/// Retained static segment scenes keyed by deterministic fingerprints.
+struct StaticSegmentSceneCache {
+    entries: [StaticSegmentSceneCacheEntry; StaticFrameSegment::COUNT],
+}
+
+impl Default for StaticSegmentSceneCache {
+    /// Create empty scene entries for all static segments.
+    fn default() -> Self {
+        Self {
+            entries: std::array::from_fn(|_| StaticSegmentSceneCacheEntry::default()),
+        }
+    }
+}
+
+impl StaticSegmentSceneCache {
+    /// Return an immutable scene for one static segment.
+    fn scene(&self, segment: StaticFrameSegment) -> &Scene {
+        &self.entries[segment.index()].scene
+    }
+
+    /// Return a mutable cache entry for one static segment.
+    fn entry_mut(&mut self, segment: StaticFrameSegment) -> &mut StaticSegmentSceneCacheEntry {
+        &mut self.entries[segment.index()]
+    }
+
+    /// Clear all cached fingerprints so each segment rebuilds on next pass.
+    fn clear_fingerprints(&mut self) {
+        for entry in &mut self.entries {
+            entry.fingerprint = None;
+        }
+    }
+}
+
 const FINGERPRINT_FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FINGERPRINT_FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -528,6 +596,20 @@ fn fingerprint_mix_u8(state: &mut u64, value: u8) {
 }
 
 fn fingerprint_mix_u16(state: &mut u64, value: u16) {
+    for byte in value.to_le_bytes() {
+        fingerprint_mix_u8(state, byte);
+    }
+}
+
+/// Mix one `u32` into a fingerprint accumulator.
+fn fingerprint_mix_u32(state: &mut u64, value: u32) {
+    for byte in value.to_le_bytes() {
+        fingerprint_mix_u8(state, byte);
+    }
+}
+
+/// Mix one signed `i32` into a fingerprint accumulator.
+fn fingerprint_mix_i32(state: &mut u64, value: i32) {
     for byte in value.to_le_bytes() {
         fingerprint_mix_u8(state, byte);
     }
@@ -545,6 +627,11 @@ fn fingerprint_mix_usize(state: &mut u64, value: usize) {
 
 fn fingerprint_mix_bool(state: &mut u64, value: bool) {
     fingerprint_mix_u8(state, u8::from(value));
+}
+
+/// Mix one `f32` by its deterministic bit representation.
+fn fingerprint_mix_f32(state: &mut u64, value: f32) {
+    fingerprint_mix_u32(state, value.to_bits());
 }
 
 fn fingerprint_mix_string(state: &mut u64, value: &str) {
@@ -666,6 +753,147 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     state
 }
 
+/// Mix a compact RGBA8 color into a fingerprint accumulator.
+fn fingerprint_mix_rgba8(state: &mut u64, color: Rgba8) {
+    fingerprint_mix_u8(state, color.r);
+    fingerprint_mix_u8(state, color.g);
+    fingerprint_mix_u8(state, color.b);
+    fingerprint_mix_u8(state, color.a);
+}
+
+/// Build a deterministic signature for style values that affect static segments.
+fn static_segment_style_signature(style: &StyleTokens) -> u64 {
+    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
+    fingerprint_mix_rgba8(&mut state, style.clear_color);
+    fingerprint_mix_rgba8(&mut state, style.surface_base);
+    fingerprint_mix_rgba8(&mut state, style.surface_raised);
+    fingerprint_mix_rgba8(&mut state, style.surface_overlay);
+    fingerprint_mix_rgba8(&mut state, style.border);
+    fingerprint_mix_rgba8(&mut state, style.border_emphasis);
+    fingerprint_mix_f32(&mut state, style.sizing.border_width);
+    fingerprint_mix_f32(&mut state, style.sizing.focus_stroke_width);
+    fingerprint_mix_f32(&mut state, style.sizing.font_header);
+    fingerprint_mix_f32(&mut state, style.sizing.font_body);
+    fingerprint_mix_f32(&mut state, style.sizing.font_meta);
+    fingerprint_mix_f32(&mut state, style.sizing.font_status);
+    state
+}
+
+/// Build a deterministic signature for one static segment model/input slice.
+fn static_segment_model_signature(
+    segment: StaticFrameSegment,
+    model: &AppModel,
+    shell_state: &NativeShellState,
+) -> u64 {
+    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
+    fingerprint_mix_u8(&mut state, segment.index() as u8);
+    fingerprint_mix_bool(&mut state, shell_state.is_transport_running());
+    match segment {
+        StaticFrameSegment::StatusBar => {
+            fingerprint_mix_string(&mut state, &model.status_text);
+            fingerprint_mix_string(&mut state, &model.status.left);
+            fingerprint_mix_string(&mut state, &model.status.center);
+            fingerprint_mix_string(&mut state, &model.status.right);
+            fingerprint_mix_usize(&mut state, model.browser.visible_count);
+            fingerprint_mix_usize(&mut state, model.browser.selected_path_count);
+        }
+        StaticFrameSegment::BrowserFrame => {
+            fingerprint_mix_bool(&mut state, model.map.active);
+            fingerprint_mix_string(&mut state, &model.browser.search_query);
+            fingerprint_mix_string(&mut state, &model.browser_chrome.search_placeholder);
+            fingerprint_mix_string(&mut state, &model.browser_chrome.sort_order_label);
+            fingerprint_mix_string(&mut state, &model.browser_chrome.item_count_label);
+            fingerprint_mix_bool(&mut state, model.browser.busy);
+            fingerprint_mix_option_string(&mut state, model.browser.sort_label.as_deref());
+            fingerprint_mix_string(&mut state, &model.browser_chrome.map_tab_label);
+            fingerprint_mix_string(&mut state, &model.browser_chrome.samples_tab_label);
+            fingerprint_mix_string(&mut state, &model.map.legend_label);
+            fingerprint_mix_string(&mut state, &model.map.selection_label);
+            fingerprint_mix_option_string(&mut state, model.map.error.as_deref());
+            fingerprint_mix_string(&mut state, &model.map.summary);
+            fingerprint_mix_string(&mut state, &model.map.cluster_label);
+            fingerprint_mix_string(&mut state, &model.map.viewport_label);
+        }
+        StaticFrameSegment::BrowserRowsWindow => {
+            fingerprint_mix_bool(&mut state, model.map.active);
+            fingerprint_mix_usize(&mut state, model.browser.rows.len());
+            fingerprint_mix_usize(&mut state, model.browser.visible_count);
+            for row in &model.browser.rows {
+                fingerprint_mix_usize(&mut state, row.visible_row);
+                fingerprint_mix_string(&mut state, &row.label);
+                fingerprint_mix_usize(&mut state, row.column);
+                fingerprint_mix_bool(&mut state, row.selected);
+                fingerprint_mix_bool(&mut state, row.focused);
+            }
+        }
+        StaticFrameSegment::MapPanel => {
+            fingerprint_mix_bool(&mut state, model.map.active);
+            fingerprint_mix_usize(&mut state, model.map.points.len());
+            for point in &model.map.points {
+                fingerprint_mix_u16(&mut state, point.x_milli);
+                fingerprint_mix_u16(&mut state, point.y_milli);
+                fingerprint_mix_bool(&mut state, point.selected);
+                fingerprint_mix_bool(&mut state, point.focused);
+                if let Some(cluster_id) = point.cluster_id {
+                    fingerprint_mix_bool(&mut state, true);
+                    fingerprint_mix_i32(&mut state, cluster_id);
+                } else {
+                    fingerprint_mix_bool(&mut state, false);
+                }
+            }
+        }
+        StaticFrameSegment::WaveformOverlay => {
+            fingerprint_mix_option_u16(&mut state, model.waveform.cursor_milli);
+            fingerprint_mix_option_u16(&mut state, model.waveform.playhead_milli);
+            if let Some(selection) = model.waveform.selection_milli {
+                fingerprint_mix_bool(&mut state, true);
+                fingerprint_mix_u16(&mut state, selection.start_milli);
+                fingerprint_mix_u16(&mut state, selection.end_milli);
+            } else {
+                fingerprint_mix_bool(&mut state, false);
+            }
+            fingerprint_mix_u16(&mut state, model.waveform.view_start_milli);
+            fingerprint_mix_u16(&mut state, model.waveform.view_end_milli);
+            fingerprint_mix_option_string(&mut state, model.waveform.tempo_label.as_deref());
+            fingerprint_mix_option_string(&mut state, model.waveform.zoom_label.as_deref());
+            fingerprint_mix_option_string(&mut state, model.waveform.loaded_label.as_deref());
+            if let Some(signature) = model.waveform.waveform_image_signature {
+                fingerprint_mix_bool(&mut state, true);
+                fingerprint_mix_u64(&mut state, signature);
+            } else {
+                fingerprint_mix_bool(&mut state, false);
+            }
+            fingerprint_mix_string(&mut state, &model.waveform_chrome.transport_hint);
+        }
+        StaticFrameSegment::GlobalStatic => {
+            fingerprint_mix_string(&mut state, &model.title);
+            fingerprint_mix_f32(&mut state, model.volume);
+            fingerprint_mix_usize(&mut state, model.sources.rows.len());
+            fingerprint_mix_option_usize(&mut state, model.sources.selected_row);
+            fingerprint_mix_string(&mut state, &model.sources.search_query);
+            fingerprint_mix_usize(&mut state, model.sources.folder_rows.len());
+            fingerprint_mix_option_usize(&mut state, model.sources.focused_folder_row);
+            fingerprint_mix_string(&mut state, &model.sources.folder_search_query);
+            fingerprint_mix_u8(
+                &mut state,
+                match model.update.status {
+                    crate::app::UpdateStatusModel::Idle => 0,
+                    crate::app::UpdateStatusModel::Checking => 1,
+                    crate::app::UpdateStatusModel::Available => 2,
+                    crate::app::UpdateStatusModel::Error => 3,
+                },
+            );
+            fingerprint_mix_option_string(&mut state, model.update.available_tag.as_deref());
+            fingerprint_mix_option_string(&mut state, model.update.available_url.as_deref());
+            fingerprint_mix_option_string(&mut state, model.update.last_error.as_deref());
+            fingerprint_mix_usize(&mut state, model.columns[0].item_count);
+            fingerprint_mix_usize(&mut state, model.columns[1].item_count);
+            fingerprint_mix_usize(&mut state, model.columns[2].item_count);
+        }
+    }
+    state
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeVelloFrameState {
     /// Layout-only changes invalidate both static frame and cached overlays.
@@ -763,6 +991,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     redraw_requested: bool,
     /// Retained static scene primitives (layout and stable content).
     frame_cache: NativeViewFrame,
+    /// Retained per-segment static frame fragments.
+    static_segment_frame_cache: StaticFrameSegments,
+    /// Retained per-segment static encoded scenes.
+    static_segment_scene_cache: StaticSegmentSceneCache,
     /// Retained state-driven overlay primitives (focus/hover and dialog state).
     state_overlay_frame_cache: NativeViewFrame,
     /// Retained motion-driven overlay primitives (lamp pulse/playhead/update).
@@ -849,6 +1081,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
+            static_segment_frame_cache: StaticFrameSegments::default(),
+            static_segment_scene_cache: StaticSegmentSceneCache::default(),
             state_overlay_frame_cache: NativeViewFrame {
                 clear_color: Rgba8 {
                     r: 0,
@@ -1092,6 +1326,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             &style,
             &mut self.layout_runtime,
         ));
+        self.static_segment_scene_cache.clear_fingerprints();
         self.frame_state.clear_layout_dirty();
     }
 
@@ -1307,6 +1542,76 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         dirty_segments.requires_static_rebuild()
     }
 
+    /// Return whether a bridge dirty mask includes one static scene segment.
+    fn static_segment_is_dirty(
+        &self,
+        dirty_segments: DirtySegments,
+        segment: StaticFrameSegment,
+    ) -> bool {
+        (dirty_segments.bits() & segment.dirty_mask()) != 0
+    }
+
+    /// Rebuild and encode retained static segment scenes.
+    fn rebuild_static_segment_scenes(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        dirty_segments: DirtySegments,
+        force_rebuild: bool,
+    ) -> (Duration, Duration) {
+        let layout_width_bits = layout.root.rect.width().to_bits();
+        let layout_height_bits = layout.root.rect.height().to_bits();
+        let layout_scale_bits = layout.ui_scale.to_bits();
+        let style_signature = static_segment_style_signature(style);
+        if force_rebuild {
+            self.static_segment_scene_cache.clear_fingerprints();
+        }
+        let build_start = Instant::now();
+        self.shell_state.build_static_segments_with_style_into(
+            layout,
+            style,
+            &self.model,
+            &mut self.static_segment_frame_cache,
+        );
+        let build_duration = build_start.elapsed();
+        let encode_start = Instant::now();
+        for segment in StaticFrameSegment::ALL {
+            let model_signature =
+                static_segment_model_signature(segment, &self.model, &self.shell_state);
+            let fingerprint = StaticSegmentCacheFingerprint {
+                segment,
+                layout_width_bits,
+                layout_height_bits,
+                layout_scale_bits,
+                style_signature,
+                model_signature,
+            };
+            let segment_dirty =
+                force_rebuild || self.static_segment_is_dirty(dirty_segments, segment);
+            let entry = self.static_segment_scene_cache.entry_mut(segment);
+            if !segment_dirty && entry.fingerprint.as_ref() == Some(&fingerprint) {
+                continue;
+            }
+            entry.fingerprint = Some(fingerprint);
+            Self::encode_frame_to_scene(
+                self.static_segment_frame_cache.frame(segment),
+                &mut entry.scene,
+                &mut self.text_renderer,
+            );
+        }
+
+        self.frame_cache.clear_color = style.clear_color;
+        self.static_segment_frame_cache
+            .compose_into(&mut self.frame_cache);
+        self.clear_color = self.frame_cache.clear_color;
+        self.static_scene.reset();
+        for segment in StaticFrameSegment::ALL {
+            self.static_scene
+                .append(self.static_segment_scene_cache.scene(segment), None);
+        }
+        (build_duration, encode_start.elapsed())
+    }
+
     fn rebuild_scene(
         &mut self,
         model_refresh_requested: bool,
@@ -1314,6 +1619,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         mut rebuild_state_overlay: bool,
         mut rebuild_motion_overlay: bool,
     ) {
+        let mut bridge_dirty_segments = DirtySegments::all();
         let should_refresh_model =
             model_refresh_requested || (!self.motion_model_supported && rebuild_motion_overlay);
         let should_refresh_motion = rebuild_motion_overlay && self.motion_model_supported;
@@ -1341,7 +1647,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 );
             }
             self.model = self.bridge.pull_model();
-            let bridge_dirty_segments = self.bridge.take_dirty_segments();
+            bridge_dirty_segments = self.bridge.take_dirty_segments();
             let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_model_pull(pull_duration);
             self.shell_state.sync_from_model(&self.model);
@@ -1375,6 +1681,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let model_pull_start = self.profiler.now_if_enabled();
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
+                bridge_dirty_segments = self.bridge.take_dirty_segments();
                 let model_pull_duration =
                     model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_model_pull(model_pull_duration);
@@ -1387,7 +1694,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.profiler.add_motion_overlay_skip();
             rebuild_motion_overlay = false;
         }
-        let Some(layout) = self.shell_layout.as_ref() else {
+        let Some(layout) = self.shell_layout.as_ref().cloned() else {
             return;
         };
         let (layout_width_bits, layout_height_bits, layout_scale_bits) = (
@@ -1395,26 +1702,38 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             layout.root.rect.height().to_bits(),
             layout.ui_scale.to_bits(),
         );
-        let style = self.cached_style_for_layout(layout);
+        let style = self.cached_style_for_layout(&layout);
         if rebuild_static {
-            let build_start = self.profiler.now_if_enabled();
-            self.shell_state.build_frame_with_style_into_static(
-                layout,
-                &style,
-                &self.model,
-                &mut self.frame_cache,
-            );
-            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
-            self.profiler.add_build_static(build_duration);
-            self.clear_color = self.frame_cache.clear_color;
-            let encode_start = self.profiler.now_if_enabled();
-            Self::encode_frame_to_scene(
-                &self.frame_cache,
-                &mut self.static_scene,
-                &mut self.text_renderer,
-            );
-            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
-            self.profiler.add_encode_static(encode_duration);
+            if self.incremental_frame_pipeline {
+                let force_rebuild = !model_refresh_requested;
+                let (build_duration, encode_duration) = self.rebuild_static_segment_scenes(
+                    &layout,
+                    &style,
+                    bridge_dirty_segments,
+                    force_rebuild,
+                );
+                self.profiler.add_build_static(build_duration);
+                self.profiler.add_encode_static(encode_duration);
+            } else {
+                let build_start = self.profiler.now_if_enabled();
+                self.shell_state.build_frame_with_style_into_static(
+                    &layout,
+                    &style,
+                    &self.model,
+                    &mut self.frame_cache,
+                );
+                let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profiler.add_build_static(build_duration);
+                self.clear_color = self.frame_cache.clear_color;
+                let encode_start = self.profiler.now_if_enabled();
+                Self::encode_frame_to_scene(
+                    &self.frame_cache,
+                    &mut self.static_scene,
+                    &mut self.text_renderer,
+                );
+                let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+                self.profiler.add_encode_static(encode_duration);
+            }
         }
         if rebuild_state_overlay {
             let state_fingerprint = StateOverlayCacheFingerprint {
@@ -1433,7 +1752,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if rebuild_state_overlay {
             let build_start = self.profiler.now_if_enabled();
             self.shell_state.build_state_overlay_into(
-                layout,
+                &layout,
                 &style,
                 &self.model,
                 &mut self.state_overlay_frame_cache,
@@ -1481,7 +1800,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.motion_model.as_ref().unwrap()
             };
             self.shell_state.build_motion_overlay_into(
-                layout,
+                &layout,
                 &style,
                 motion_model,
                 &mut self.motion_overlay_frame_cache,

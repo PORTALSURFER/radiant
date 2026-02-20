@@ -17,7 +17,10 @@ pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
 pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
-pub(crate) use state::{MotionOverlayFingerprint, NativeShellState, StateOverlayFingerprint};
+pub(crate) use state::{
+    MotionOverlayFingerprint, NativeShellState, StateOverlayFingerprint, StaticFrameSegment,
+    StaticFrameSegments,
+};
 pub(crate) use style::StyleTokens;
 
 #[cfg(test)]

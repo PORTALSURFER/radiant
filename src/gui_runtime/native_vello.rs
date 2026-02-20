@@ -56,6 +56,8 @@ enum InteractionProfileKind {
     MapPanProxy,
     /// Waveform interaction actions (seek/cursor/selection/zoom).
     Waveform,
+    /// Top-bar volume slider drag/click updates.
+    Volume,
 }
 
 #[cfg(feature = "gui-performance")]
@@ -126,6 +128,7 @@ struct NativeVelloProfiler {
     wheel_latency: InteractionProfileStats,
     map_pan_proxy_latency: InteractionProfileStats,
     waveform_latency: InteractionProfileStats,
+    volume_latency: InteractionProfileStats,
 }
 
 #[cfg(feature = "gui-performance")]
@@ -237,6 +240,7 @@ impl NativeVelloProfiler {
             InteractionProfileKind::Wheel => self.wheel_latency.record(duration),
             InteractionProfileKind::MapPanProxy => self.map_pan_proxy_latency.record(duration),
             InteractionProfileKind::Waveform => self.waveform_latency.record(duration),
+            InteractionProfileKind::Volume => self.volume_latency.record(duration),
         }
     }
 
@@ -314,14 +318,17 @@ impl NativeVelloProfiler {
         let wheel_samples = self.wheel_latency.samples;
         let map_samples = self.map_pan_proxy_latency.samples;
         let waveform_samples = self.waveform_latency.samples;
+        let volume_samples = self.volume_latency.samples;
         let hover_avg_ms = self.hover_latency.avg_ms();
         let wheel_avg_ms = self.wheel_latency.avg_ms();
         let map_avg_ms = self.map_pan_proxy_latency.avg_ms();
         let waveform_avg_ms = self.waveform_latency.avg_ms();
+        let volume_avg_ms = self.volume_latency.avg_ms();
         let hover_max_ms = self.hover_latency.max_ms();
         let wheel_max_ms = self.wheel_latency.max_ms();
         let map_max_ms = self.map_pan_proxy_latency.max_ms();
         let waveform_max_ms = self.waveform_latency.max_ms();
+        let volume_max_ms = self.volume_latency.max_ms();
         eprintln!(
             "[native-vello] redraw avg over {REDRAW_PROFILE_INTERVAL_FRAMES} frames: \
              total={avg_total_ms:.2}ms ({fps:.1} fps) rebuild={avg_rebuild_ms:.2}ms ({rebuild_pct:.1}%) \
@@ -339,6 +346,7 @@ impl NativeVelloProfiler {
              wheel_samples={wheel_samples} wheel_avg_ms={wheel_avg_ms:.3} wheel_max_ms={wheel_max_ms:.3} \
              map_proxy_samples={map_samples} map_proxy_avg_ms={map_avg_ms:.3} map_proxy_max_ms={map_max_ms:.3} \
              waveform_samples={waveform_samples} waveform_avg_ms={waveform_avg_ms:.3} waveform_max_ms={waveform_max_ms:.3} \
+             volume_samples={volume_samples} volume_avg_ms={volume_avg_ms:.3} volume_max_ms={volume_max_ms:.3} \
              text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} \
              text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}%"
         );
@@ -372,6 +380,7 @@ impl NativeVelloProfiler {
         self.wheel_latency = InteractionProfileStats::default();
         self.map_pan_proxy_latency = InteractionProfileStats::default();
         self.waveform_latency = InteractionProfileStats::default();
+        self.volume_latency = InteractionProfileStats::default();
     }
 }
 
@@ -575,6 +584,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     pending_cursor: Option<Point>,
     pending_wheel_rows_delta: i32,
     volume_drag_active: bool,
+    last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
     text_input_target: TextInputTarget,
     last_redraw: Instant,
@@ -670,6 +680,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             pending_cursor: None,
             pending_wheel_rows_delta: 0,
             volume_drag_active: false,
+            last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
             text_input_target: TextInputTarget::None,
             last_redraw: Instant::now(),
@@ -1511,6 +1522,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
         match action {
+            UiAction::SetVolume { .. } => RuntimeInvalidationScope::OverlayStateOnly,
             UiAction::SeekWaveform { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
@@ -1535,6 +1547,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),
+            UiAction::SetVolume { .. } => Some(InteractionProfileKind::Volume),
             _ => None,
         }
     }
@@ -1647,9 +1660,18 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     && let Some(layout) = self.shell_layout.as_ref()
                     && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
                 {
-                    self.emit_model_action(action);
+                    if let UiAction::SetVolume { value_milli } = action {
+                        if self.last_emitted_volume_milli != Some(value_milli) {
+                            self.last_emitted_volume_milli = Some(value_milli);
+                            self.emit_model_action(action);
+                        }
+                    } else {
+                        self.emit_model_action(action);
+                    }
                 }
-                self.queue_cursor(point);
+                if !self.volume_drag_active {
+                    self.queue_cursor(point);
+                }
             }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
@@ -1663,6 +1685,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 {
                     self.text_input_target = TextInputTarget::None;
                     self.volume_drag_active = false;
+                    self.last_emitted_volume_milli = None;
                     let mut handled = false;
                     if self
                         .shell_state
@@ -1674,6 +1697,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         .shell_state
                         .top_bar_volume_action_at_point(layout, point)
                     {
+                        if let UiAction::SetVolume { value_milli } = action {
+                            self.last_emitted_volume_milli = Some(value_milli);
+                        }
                         self.emit_model_action(action);
                         self.volume_drag_active = true;
                         handled = true;
@@ -1707,7 +1733,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 state: ElementState::Released,
                 ..
             } => {
+                if self.volume_drag_active {
+                    self.emit_model_action(UiAction::CommitVolumeSetting);
+                }
                 self.volume_drag_active = false;
+                self.last_emitted_volume_milli = None;
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.shell_layout.as_ref() {
@@ -2392,7 +2422,7 @@ mod tests {
             NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
                 value_milli: 250
             }),
-            RuntimeInvalidationScope::StaticAndOverlays
+            RuntimeInvalidationScope::OverlayStateOnly
         );
     }
 

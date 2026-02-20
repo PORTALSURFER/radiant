@@ -794,6 +794,8 @@ pub enum UiAction {
         /// Normalized milli volume value (`0..=1000`).
         value_milli: u16,
     },
+    /// Persist the current volume setting after a drag/continuous edit.
+    CommitVolumeSetting,
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
     SeekWaveform {
         /// Normalized milli target position (`0..=1000`).

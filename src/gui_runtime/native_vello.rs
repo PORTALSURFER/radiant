@@ -458,6 +458,7 @@ enum TextInputTarget {
 enum RuntimeInvalidationScope {
     OverlayStateOnly,
     OverlayMotionOnly,
+    ModelAndOverlays,
     StaticAndOverlays,
     LayoutAndAll,
 }
@@ -924,6 +925,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             RuntimeInvalidationScope::OverlayMotionOnly => {
                 self.frame_state.mark_motion_overlay_dirty();
+            }
+            RuntimeInvalidationScope::ModelAndOverlays => {
+                self.frame_state.mark_model_dirty();
             }
             RuntimeInvalidationScope::StaticAndOverlays => {
                 self.frame_state.mark_model_dirty();
@@ -1522,7 +1526,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
         match action {
-            UiAction::SetVolume { .. } => RuntimeInvalidationScope::OverlayStateOnly,
+            UiAction::SetVolume { .. } | UiAction::CommitVolumeSetting => {
+                RuntimeInvalidationScope::ModelAndOverlays
+            }
             UiAction::SeekWaveform { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
@@ -2422,7 +2428,13 @@ mod tests {
             NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
                 value_milli: 250
             }),
-            RuntimeInvalidationScope::OverlayStateOnly
+            RuntimeInvalidationScope::ModelAndOverlays
+        );
+        assert_eq!(
+            NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+                &UiAction::CommitVolumeSetting
+            ),
+            RuntimeInvalidationScope::ModelAndOverlays
         );
     }
 

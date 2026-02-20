@@ -488,26 +488,8 @@ struct StateOverlayCacheFingerprint {
     layout_scale_bits: u32,
     /// Shell interaction-state fingerprint.
     shell: StateOverlayFingerprint,
-    /// Current selected browser column.
-    selected_column: usize,
-    /// Browser focused visible row.
-    browser_selected_visible_row: Option<usize>,
-    /// Browser selection anchor visible row.
-    browser_anchor_visible_row: Option<usize>,
-    /// Source panel selected row.
-    sources_selected_row: Option<usize>,
-    /// Folder panel focused row.
-    sources_focused_folder_row: Option<usize>,
-    /// Modal confirm prompt projection.
-    confirm_prompt: crate::app::ConfirmPromptModel,
-    /// Progress overlay projection.
-    progress_overlay: crate::app::ProgressOverlayModel,
-    /// Drag/drop overlay projection.
-    drag_overlay: crate::app::DragOverlayModel,
-    /// Top-bar update status projection.
-    update_status: crate::app::UpdateStatusModel,
-    /// Whether map mode is active.
-    map_active: bool,
+    /// Compact deterministic signature for state-overlay model inputs.
+    model_signature: u64,
 }
 
 /// Cache key for motion-overlay rebuild skipping.
@@ -521,8 +503,155 @@ struct MotionOverlayCacheFingerprint {
     layout_scale_bits: u32,
     /// Shell animation-state fingerprint.
     shell: MotionOverlayFingerprint,
-    /// Motion model projection used to build overlay content.
-    motion: NativeMotionModel,
+    /// Compact deterministic signature for motion-overlay model inputs.
+    motion_signature: u64,
+}
+
+const FINGERPRINT_FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FINGERPRINT_FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fingerprint_mix_u8(state: &mut u64, value: u8) {
+    *state ^= u64::from(value);
+    *state = state.wrapping_mul(FINGERPRINT_FNV_PRIME);
+}
+
+fn fingerprint_mix_u16(state: &mut u64, value: u16) {
+    for byte in value.to_le_bytes() {
+        fingerprint_mix_u8(state, byte);
+    }
+}
+
+fn fingerprint_mix_u64(state: &mut u64, value: u64) {
+    for byte in value.to_le_bytes() {
+        fingerprint_mix_u8(state, byte);
+    }
+}
+
+fn fingerprint_mix_usize(state: &mut u64, value: usize) {
+    fingerprint_mix_u64(state, value as u64);
+}
+
+fn fingerprint_mix_bool(state: &mut u64, value: bool) {
+    fingerprint_mix_u8(state, u8::from(value));
+}
+
+fn fingerprint_mix_string(state: &mut u64, value: &str) {
+    fingerprint_mix_usize(state, value.len());
+    for byte in value.as_bytes() {
+        fingerprint_mix_u8(state, *byte);
+    }
+}
+
+fn fingerprint_mix_option_string(state: &mut u64, value: Option<&str>) {
+    if let Some(value) = value {
+        fingerprint_mix_bool(state, true);
+        fingerprint_mix_string(state, value);
+        return;
+    }
+    fingerprint_mix_bool(state, false);
+}
+
+fn fingerprint_mix_option_usize(state: &mut u64, value: Option<usize>) {
+    if let Some(value) = value {
+        fingerprint_mix_bool(state, true);
+        fingerprint_mix_usize(state, value);
+        return;
+    }
+    fingerprint_mix_bool(state, false);
+}
+
+fn fingerprint_mix_option_u16(state: &mut u64, value: Option<u16>) {
+    if let Some(value) = value {
+        fingerprint_mix_bool(state, true);
+        fingerprint_mix_u16(state, value);
+        return;
+    }
+    fingerprint_mix_bool(state, false);
+}
+
+/// Build a compact, deterministic signature for state-overlay model inputs.
+fn state_overlay_model_signature(model: &AppModel) -> u64 {
+    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
+    fingerprint_mix_usize(&mut state, model.selected_column);
+    fingerprint_mix_option_usize(&mut state, model.browser.selected_visible_row);
+    fingerprint_mix_option_usize(&mut state, model.browser.anchor_visible_row);
+    fingerprint_mix_option_usize(&mut state, model.sources.selected_row);
+    fingerprint_mix_option_usize(&mut state, model.sources.focused_folder_row);
+    fingerprint_mix_bool(&mut state, model.confirm_prompt.visible);
+    fingerprint_mix_u8(
+        &mut state,
+        match model.confirm_prompt.kind {
+            None => 0,
+            Some(crate::app::ConfirmPromptKind::DestructiveEdit) => 1,
+            Some(crate::app::ConfirmPromptKind::BrowserRename) => 2,
+            Some(crate::app::ConfirmPromptKind::FolderRename) => 3,
+            Some(crate::app::ConfirmPromptKind::FolderCreate) => 4,
+        },
+    );
+    fingerprint_mix_string(&mut state, &model.confirm_prompt.title);
+    fingerprint_mix_string(&mut state, &model.confirm_prompt.message);
+    fingerprint_mix_string(&mut state, &model.confirm_prompt.confirm_label);
+    fingerprint_mix_string(&mut state, &model.confirm_prompt.cancel_label);
+    fingerprint_mix_option_string(&mut state, model.confirm_prompt.target_label.as_deref());
+    fingerprint_mix_option_string(&mut state, model.confirm_prompt.input_value.as_deref());
+    fingerprint_mix_option_string(
+        &mut state,
+        model.confirm_prompt.input_placeholder.as_deref(),
+    );
+    fingerprint_mix_option_string(&mut state, model.confirm_prompt.input_error.as_deref());
+    fingerprint_mix_bool(&mut state, model.progress_overlay.visible);
+    fingerprint_mix_bool(&mut state, model.progress_overlay.modal);
+    fingerprint_mix_string(&mut state, &model.progress_overlay.title);
+    fingerprint_mix_option_string(&mut state, model.progress_overlay.detail.as_deref());
+    fingerprint_mix_usize(&mut state, model.progress_overlay.completed);
+    fingerprint_mix_usize(&mut state, model.progress_overlay.total);
+    fingerprint_mix_bool(&mut state, model.progress_overlay.cancelable);
+    fingerprint_mix_bool(&mut state, model.progress_overlay.cancel_requested);
+    fingerprint_mix_bool(&mut state, model.drag_overlay.active);
+    fingerprint_mix_string(&mut state, &model.drag_overlay.label);
+    fingerprint_mix_string(&mut state, &model.drag_overlay.target_label);
+    fingerprint_mix_bool(&mut state, model.drag_overlay.valid_target);
+    fingerprint_mix_u8(
+        &mut state,
+        match model.update.status {
+            crate::app::UpdateStatusModel::Idle => 0,
+            crate::app::UpdateStatusModel::Checking => 1,
+            crate::app::UpdateStatusModel::Available => 2,
+            crate::app::UpdateStatusModel::Error => 3,
+        },
+    );
+    fingerprint_mix_bool(&mut state, model.map.active);
+    state
+}
+
+/// Build a compact, deterministic signature for motion-overlay model inputs.
+fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
+    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
+    fingerprint_mix_bool(&mut state, model.transport_running);
+    fingerprint_mix_bool(&mut state, model.map_active);
+    if let Some(selection) = model.waveform_selection_milli {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_u16(&mut state, selection.start_milli);
+        fingerprint_mix_u16(&mut state, selection.end_milli);
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
+    fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
+    fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);
+    fingerprint_mix_u16(&mut state, model.waveform_view_end_milli);
+    fingerprint_mix_option_string(&mut state, model.waveform_tempo_label.as_deref());
+    fingerprint_mix_option_string(&mut state, model.waveform_zoom_label.as_deref());
+    fingerprint_mix_option_string(&mut state, model.waveform_loaded_label.as_deref());
+    if let Some(signature) = model.waveform_image_signature {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_u64(&mut state, signature);
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
+    fingerprint_mix_string(&mut state, &model.waveform_transport_hint);
+    fingerprint_mix_string(&mut state, &model.status_right);
+    state
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1263,16 +1392,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 layout_height_bits,
                 layout_scale_bits,
                 shell: self.shell_state.state_overlay_fingerprint(),
-                selected_column: self.model.selected_column,
-                browser_selected_visible_row: self.model.browser.selected_visible_row,
-                browser_anchor_visible_row: self.model.browser.anchor_visible_row,
-                sources_selected_row: self.model.sources.selected_row,
-                sources_focused_folder_row: self.model.sources.focused_folder_row,
-                confirm_prompt: self.model.confirm_prompt.clone(),
-                progress_overlay: self.model.progress_overlay.clone(),
-                drag_overlay: self.model.drag_overlay.clone(),
-                update_status: self.model.update.status,
-                map_active: self.model.map.active,
+                model_signature: state_overlay_model_signature(&self.model),
             };
             if self.state_overlay_fingerprint.as_ref() == Some(&state_fingerprint) {
                 rebuild_state_overlay = false;
@@ -1313,7 +1433,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 layout_height_bits,
                 layout_scale_bits,
                 shell: self.shell_state.motion_overlay_fingerprint(),
-                motion: motion_model.clone(),
+                motion_signature: motion_overlay_model_signature(motion_model),
             };
             if self.motion_overlay_fingerprint.as_ref() == Some(&motion_fingerprint) {
                 self.profiler.add_motion_overlay_skip();

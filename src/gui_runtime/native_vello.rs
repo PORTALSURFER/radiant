@@ -59,6 +59,26 @@ fn parse_truthy_env(value: &str) -> bool {
         || normalized.eq_ignore_ascii_case("yes")
 }
 
+/// Resolve static-scene rebuild behavior for one frame update.
+///
+/// `static_rebuild_requested` represents explicit runtime invalidations
+/// (for example layout or full-static scopes). When no explicit static rebuild
+/// is requested, bridge dirty segments decide whether static content must
+/// rebuild during model refreshes.
+fn resolve_static_rebuild(
+    model_refresh_requested: bool,
+    static_rebuild_requested: bool,
+    bridge_dirty_segments: DirtySegments,
+) -> bool {
+    if !model_refresh_requested {
+        return static_rebuild_requested;
+    }
+    if bridge_dirty_segments.requires_static_rebuild() {
+        return true;
+    }
+    static_rebuild_requested
+}
+
 /// Interaction classes tracked by runtime performance profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InteractionProfileKind {
@@ -1254,7 +1274,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.rebuild_layout();
         }
         let model_refresh_requested = self.frame_state.take_model();
-        let rebuild_static = self.frame_state.take_scene() || model_refresh_requested;
+        let static_rebuild_requested = self.frame_state.take_scene();
+        let rebuild_static = static_rebuild_requested || model_refresh_requested;
         let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
         let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
@@ -1262,6 +1283,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.rebuild_scene(
             model_refresh_requested,
+            static_rebuild_requested,
             rebuild_static,
             rebuild_state_overlay,
             rebuild_motion_overlay,
@@ -1464,11 +1486,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
-    /// Return whether bridge-provided segment deltas require static-scene rebuild.
-    fn bridge_requires_static_rebuild(&self, dirty_segments: DirtySegments) -> bool {
-        dirty_segments.requires_static_rebuild()
-    }
-
     /// Return whether a bridge dirty mask includes one static scene segment.
     fn static_segment_is_dirty(
         &self,
@@ -1558,6 +1575,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn rebuild_scene(
         &mut self,
         model_refresh_requested: bool,
+        static_rebuild_requested: bool,
         mut rebuild_static: bool,
         mut rebuild_state_overlay: bool,
         mut rebuild_motion_overlay: bool,
@@ -1604,15 +1622,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
-            if model_refresh_requested {
-                let bridge_requires_static =
-                    self.bridge_requires_static_rebuild(bridge_dirty_segments);
-                if bridge_requires_static {
-                    rebuild_static = true;
-                } else if !rebuild_static || self.incremental_frame_pipeline {
-                    rebuild_static = false;
-                }
-            }
+            rebuild_static = resolve_static_rebuild(
+                model_refresh_requested,
+                static_rebuild_requested,
+                bridge_dirty_segments,
+            );
         } else if should_refresh_motion {
             let pull_start = self.profiler.now_if_enabled();
             if let Some(motion_model) = self.bridge.pull_motion_model() {
@@ -3108,6 +3122,24 @@ mod tests {
         assert!(!state.take_scene());
         assert!(state.take_state_overlay());
         assert!(state.take_motion_overlay());
+    }
+
+    #[test]
+    fn resolve_static_rebuild_skips_static_for_model_overlay_when_bridge_clean() {
+        let dirty = DirtySegments::empty();
+        assert!(!resolve_static_rebuild(true, false, dirty));
+    }
+
+    #[test]
+    fn resolve_static_rebuild_keeps_explicit_static_invalidation() {
+        let dirty = DirtySegments::empty();
+        assert!(resolve_static_rebuild(true, true, dirty));
+    }
+
+    #[test]
+    fn resolve_static_rebuild_honors_bridge_static_dirty_segments() {
+        let dirty = DirtySegments::from_bits(DirtySegments::STATUS_BAR);
+        assert!(resolve_static_rebuild(true, false, dirty));
     }
 
     #[test]

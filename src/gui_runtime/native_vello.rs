@@ -1459,6 +1459,33 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.pending_cursor = Some(point);
     }
 
+    /// Process one cursor move immediately when layout state is available.
+    ///
+    /// Returns `(processed, handled)` where:
+    /// - `processed` indicates whether layout/model state was available now.
+    /// - `handled` indicates whether hover state changed and triggered redraw.
+    fn process_cursor_move_immediately(&mut self, point: Point) -> (bool, bool) {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return (false, false);
+        };
+        let profile_start = self.profiler.now_if_enabled();
+        let handled = self
+            .shell_state
+            .handle_cursor_move(layout, &self.model, point);
+        if handled {
+            if let Some(start) = profile_start {
+                let kind = if self.model.map.active {
+                    InteractionProfileKind::MapPanProxy
+                } else {
+                    InteractionProfileKind::Hover
+                };
+                self.profiler.add_interaction_latency(kind, start.elapsed());
+            }
+            self.rebuild_overlay_and_request_redraw();
+        }
+        (true, handled)
+    }
+
     fn queue_wheel_rows(&mut self, steps: i8) {
         if steps == 0 {
             return;
@@ -1502,23 +1529,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             pending_action = true;
         }
         if let Some(point) = self.pending_cursor.take() {
-            if let Some(layout) = self.shell_layout.as_ref() {
-                let profile_start = self.profiler.now_if_enabled();
-                let handled = self
-                    .shell_state
-                    .handle_cursor_move(&layout, &self.model, point);
-                if handled {
-                    if let Some(start) = profile_start {
-                        let kind = if self.model.map.active {
-                            InteractionProfileKind::MapPanProxy
-                        } else {
-                            InteractionProfileKind::Hover
-                        };
-                        self.profiler.add_interaction_latency(kind, start.elapsed());
-                    }
-                    self.rebuild_overlay_and_request_redraw();
-                    pending_action = true;
-                }
+            let (_, handled) = self.process_cursor_move_immediately(point);
+            if handled {
+                pending_action = true;
             }
         }
 
@@ -2335,7 +2348,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     }
                 }
                 if !self.volume_drag_active {
-                    self.queue_cursor(point);
+                    let (processed, _) = self.process_cursor_move_immediately(point);
+                    if !processed {
+                        self.queue_cursor(point);
+                    }
                 }
             }
             WindowEvent::MouseInput {
@@ -3249,6 +3265,16 @@ mod tests {
             vec![UiAction::SetVolume { value_milli: 505 }]
         );
         assert_eq!(runner.pending_volume_milli, None);
+    }
+
+    #[test]
+    fn process_cursor_move_immediately_defers_when_layout_is_unavailable() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        assert_eq!(
+            runner.process_cursor_move_immediately(Point::new(10.0, 20.0)),
+            (false, false)
+        );
     }
 
     #[test]

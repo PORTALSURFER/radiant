@@ -79,6 +79,17 @@ fn resolve_static_rebuild(
     static_rebuild_requested
 }
 
+/// Return whether bridge dirty segments forced a static rebuild for this refresh.
+fn static_rebuild_from_dirty_mask(
+    model_refresh_requested: bool,
+    static_rebuild_requested: bool,
+    bridge_dirty_segments: DirtySegments,
+) -> bool {
+    model_refresh_requested
+        && !static_rebuild_requested
+        && bridge_dirty_segments.requires_static_rebuild()
+}
+
 /// Interaction classes tracked by runtime performance profiling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum InteractionProfileKind {
@@ -150,6 +161,10 @@ struct NativeVelloProfiler {
     model_refreshes: u64,
     model_pull_ns: u128,
     motion_pull_ns: u128,
+    bridge_model_pull_rebuilds: u64,
+    bridge_motion_pull_rebuilds: u64,
+    explicit_static_rebuilds: u64,
+    dirty_mask_static_rebuilds: u64,
     tick_ns: u128,
     build_static_ns: u128,
     build_state_overlay_ns: u128,
@@ -216,6 +231,26 @@ impl NativeVelloProfiler {
     #[inline]
     fn add_model_pull(&mut self, duration: Duration) {
         self.model_pull_ns = self.model_pull_ns.saturating_add(duration.as_nanos());
+    }
+
+    #[inline]
+    fn add_bridge_model_pull_rebuild(&mut self) {
+        self.bridge_model_pull_rebuilds = self.bridge_model_pull_rebuilds.saturating_add(1);
+    }
+
+    #[inline]
+    fn add_bridge_motion_pull_rebuild(&mut self) {
+        self.bridge_motion_pull_rebuilds = self.bridge_motion_pull_rebuilds.saturating_add(1);
+    }
+
+    #[inline]
+    fn add_explicit_static_rebuild(&mut self) {
+        self.explicit_static_rebuilds = self.explicit_static_rebuilds.saturating_add(1);
+    }
+
+    #[inline]
+    fn add_dirty_mask_static_rebuild(&mut self) {
+        self.dirty_mask_static_rebuilds = self.dirty_mask_static_rebuilds.saturating_add(1);
     }
 
     #[inline]
@@ -337,6 +372,10 @@ impl NativeVelloProfiler {
         let state_overlay_rebuild_avg = self.state_overlay_rebuilds as f64 / frames;
         let motion_overlay_rebuild_avg = self.motion_overlay_rebuilds as f64 / frames;
         let motion_overlay_skip_avg = self.motion_overlay_skips as f64 / frames;
+        let bridge_model_pull_rebuild_avg = self.bridge_model_pull_rebuilds as f64 / frames;
+        let bridge_motion_pull_rebuild_avg = self.bridge_motion_pull_rebuilds as f64 / frames;
+        let explicit_static_rebuild_avg = self.explicit_static_rebuilds as f64 / frames;
+        let dirty_mask_static_rebuild_avg = self.dirty_mask_static_rebuilds as f64 / frames;
         let (text_hits, text_misses, text_evictions, atom_hits, atom_misses, atom_evictions) =
             text_profile;
         let text_cache_hit_rate = if text_hits + text_misses == 0 {
@@ -382,6 +421,10 @@ impl NativeVelloProfiler {
              model_refresh_avg={model_refresh_avg:.2} scene_rebuild_avg={scene_rebuild_avg:.2} \
              state_overlay_rebuild_avg={state_overlay_rebuild_avg:.2} \
              motion_overlay_rebuild_avg={motion_overlay_rebuild_avg:.2} motion_overlay_skip_avg={motion_overlay_skip_avg:.2} \
+             bridge_model_pull_rebuild_avg={bridge_model_pull_rebuild_avg:.2} \
+             bridge_motion_pull_rebuild_avg={bridge_motion_pull_rebuild_avg:.2} \
+             explicit_static_rebuild_avg={explicit_static_rebuild_avg:.2} \
+             dirty_mask_static_rebuild_avg={dirty_mask_static_rebuild_avg:.2} \
              model_pull_ms={avg_model_pull_ms:.3} motion_pull_ms={avg_motion_pull_ms:.3} \
              tick_ms={avg_tick_ms:.3} build_static_ms={avg_build_static_ms:.3} \
              build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
@@ -415,6 +458,10 @@ impl NativeVelloProfiler {
         self.model_refreshes = 0;
         self.model_pull_ns = 0;
         self.motion_pull_ns = 0;
+        self.bridge_model_pull_rebuilds = 0;
+        self.bridge_motion_pull_rebuilds = 0;
+        self.explicit_static_rebuilds = 0;
+        self.dirty_mask_static_rebuilds = 0;
         self.tick_ns = 0;
         self.build_static_ns = 0;
         self.build_state_overlay_ns = 0;
@@ -460,6 +507,14 @@ impl NativeVelloProfiler {
     fn add_model_refresh(&mut self) {}
     #[inline]
     fn add_model_pull(&mut self, _duration: Duration) {}
+    #[inline]
+    fn add_bridge_model_pull_rebuild(&mut self) {}
+    #[inline]
+    fn add_bridge_motion_pull_rebuild(&mut self) {}
+    #[inline]
+    fn add_explicit_static_rebuild(&mut self) {}
+    #[inline]
+    fn add_dirty_mask_static_rebuild(&mut self) {}
     #[inline]
     fn add_motion_pull(&mut self, _duration: Duration) {}
     #[inline]
@@ -1275,6 +1330,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         let model_refresh_requested = self.frame_state.take_model();
         let static_rebuild_requested = self.frame_state.take_scene();
+        if static_rebuild_requested {
+            self.profiler.add_explicit_static_rebuild();
+        }
         let rebuild_static = static_rebuild_requested || model_refresh_requested;
         let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
         let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
@@ -1410,6 +1468,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn queue_volume_milli(&mut self, value_milli: u16) {
         self.pending_volume_milli = Some(value_milli.min(1000));
+    }
+
+    /// Emit one normalized volume update immediately for smooth drag visuals.
+    fn emit_volume_milli_immediately(&mut self, value_milli: u16) {
+        self.queue_volume_milli(value_milli);
+        let _ = self.flush_pending_volume_action();
     }
 
     fn flush_pending_volume_action(&mut self) -> bool {
@@ -1595,6 +1659,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .and_then(|model| model.waveform_image_signature);
         let mut motion_changed = false;
         if should_refresh_model {
+            self.profiler.add_bridge_model_pull_rebuild();
             let pull_start = self.profiler.now_if_enabled();
             self.profiler.add_model_refresh();
             self.model_refresh_count = self.model_refresh_count.saturating_add(1);
@@ -1627,7 +1692,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 static_rebuild_requested,
                 bridge_dirty_segments,
             );
+            if static_rebuild_from_dirty_mask(
+                model_refresh_requested,
+                static_rebuild_requested,
+                bridge_dirty_segments,
+            ) {
+                self.profiler.add_dirty_mask_static_rebuild();
+            }
         } else if should_refresh_motion {
+            self.profiler.add_bridge_motion_pull_rebuild();
             let pull_start = self.profiler.now_if_enabled();
             if let Some(motion_model) = self.bridge.pull_motion_model() {
                 let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -1646,6 +1719,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_motion_pull(pull_duration);
                 let model_pull_start = self.profiler.now_if_enabled();
+                self.profiler.add_bridge_model_pull_rebuild();
                 self.motion_model_supported = false;
                 self.model = self.bridge.pull_model();
                 bridge_dirty_segments = self.bridge.take_dirty_segments();
@@ -2254,7 +2328,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     if let UiAction::SetVolume { value_milli } = action {
                         if self.last_emitted_volume_milli != Some(value_milli) {
                             self.last_emitted_volume_milli = Some(value_milli);
-                            self.queue_volume_milli(value_milli);
+                            self.emit_volume_milli_immediately(value_milli);
                         }
                     } else {
                         self.emit_model_action(action);
@@ -2291,7 +2365,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     {
                         if let UiAction::SetVolume { value_milli } = action {
                             self.last_emitted_volume_milli = Some(value_milli);
-                            self.queue_volume_milli(value_milli);
+                            self.emit_volume_milli_immediately(value_milli);
                         } else {
                             self.emit_model_action(action);
                         }
@@ -3143,6 +3217,14 @@ mod tests {
     }
 
     #[test]
+    fn static_rebuild_from_dirty_mask_requires_model_refresh_without_explicit_request() {
+        let dirty = DirtySegments::from_bits(DirtySegments::STATUS_BAR);
+        assert!(static_rebuild_from_dirty_mask(true, false, dirty));
+        assert!(!static_rebuild_from_dirty_mask(false, false, dirty));
+        assert!(!static_rebuild_from_dirty_mask(true, true, dirty));
+    }
+
+    #[test]
     fn pending_volume_updates_flush_last_write_wins() {
         let mut runner =
             NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -3154,6 +3236,19 @@ mod tests {
             runner.bridge.actions,
             vec![UiAction::SetVolume { value_milli: 760 }]
         );
+    }
+
+    #[test]
+    fn immediate_volume_emit_updates_action_queue_without_pending_buffer() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.emit_volume_milli_immediately(505);
+
+        assert_eq!(
+            runner.bridge.actions,
+            vec![UiAction::SetVolume { value_milli: 505 }]
+        );
+        assert_eq!(runner.pending_volume_milli, None);
     }
 
     #[test]

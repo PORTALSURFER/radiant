@@ -849,6 +849,18 @@ pub struct FrameBuildResult {
     pub text_run_count: usize,
     /// Whether runtime should keep animating while idle.
     pub needs_animation: bool,
+    /// End-to-end frame time in microseconds for the redraw pass.
+    pub frame_total_us: u32,
+    /// Present-stage duration in microseconds for the redraw pass.
+    pub present_us: u32,
+    /// Frame-time budget used to classify redraw jank.
+    pub frame_budget_us: u32,
+    /// Whether the frame exceeded the configured frame-time budget.
+    pub jank: bool,
+    /// Whether the redraw produced a successful surface present.
+    pub presented: bool,
+    /// Whether a present was expected but not completed for this redraw.
+    pub missed_present: bool,
 }
 
 /// Bitmask describing which projection segments changed during the last model pull.

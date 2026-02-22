@@ -1572,16 +1572,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.rebuild_scene_if_needed();
     }
 
-    fn rebuild_scene_for_redraw(&mut self, needs_animation: bool, delta_seconds: f32) -> bool {
+    fn rebuild_scene_for_redraw(
+        &mut self,
+        needs_animation: bool,
+        delta_seconds: f32,
+    ) -> (bool, FrameBuildResult) {
         if !needs_animation {
             if self.frame_state.has_pending_rebuild() {
                 self.rebuild_scene_if_needed();
-                return true;
+                return (true, self.frame_result_base());
             }
-            return false;
+            return (false, self.frame_result_base());
         }
         let Some(layout) = self.shell_layout.as_ref() else {
-            return false;
+            return (false, self.frame_result_base());
         };
         let tick_start = self.profiler.now_if_enabled();
         let style = self.cached_style_for_layout(layout);
@@ -1589,7 +1593,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.rebuild_scene_for_tick();
         let tick_duration = tick_start.map_or(Duration::ZERO, |start| start.elapsed());
         self.profiler.add_tick(tick_duration);
-        true
+        (true, self.frame_result_base())
     }
 
     fn maybe_record_redraw_profile(
@@ -1608,6 +1612,89 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.profiler
             .record_redraw(rebuild, acquire, render, blit, present, total, text_profile);
+    }
+
+    /// Build per-frame renderer counts shared with bridge-side telemetry.
+    fn frame_result_base(&self) -> FrameBuildResult {
+        FrameBuildResult {
+            primitive_count: self
+                .frame_cache
+                .primitives
+                .len()
+                .saturating_add(self.state_overlay_frame_cache.primitives.len())
+                .saturating_add(self.motion_overlay_frame_cache.primitives.len()),
+            text_run_count: self
+                .frame_cache
+                .text_runs
+                .len()
+                .saturating_add(self.state_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.motion_overlay_frame_cache.text_runs.len()),
+            needs_animation: self.shell_state.needs_animation(),
+            ..FrameBuildResult::default()
+        }
+    }
+
+    /// Convert one duration to microseconds while saturating at `u32::MAX`.
+    fn duration_us_u32(duration: Duration) -> u32 {
+        duration.as_micros().min(u128::from(u32::MAX)) as u32
+    }
+
+    /// Return the configured redraw frame budget in microseconds.
+    fn frame_budget_us(&self) -> u32 {
+        Self::duration_us_u32(self.target_frame_interval)
+    }
+
+    /// Finalize and emit one frame result payload to the host bridge.
+    fn emit_frame_result(
+        &mut self,
+        frame_result: &mut FrameBuildResult,
+        frame_total: Duration,
+        present: Duration,
+        presented: bool,
+        present_expected: bool,
+    ) {
+        let frame_budget_us = self.frame_budget_us();
+        let frame_total_us = Self::duration_us_u32(frame_total);
+        frame_result.frame_total_us = frame_total_us;
+        frame_result.present_us = Self::duration_us_u32(present);
+        frame_result.frame_budget_us = frame_budget_us;
+        frame_result.presented = presented;
+        frame_result.missed_present = present_expected && !presented;
+        frame_result.jank = presented && frame_total_us > frame_budget_us;
+        self.bridge.on_frame_result(*frame_result);
+    }
+
+    /// Record profiler data (if enabled) and emit one finalized frame result.
+    fn finish_redraw_attempt(
+        &mut self,
+        frame_result: &mut FrameBuildResult,
+        frame_started_at: Instant,
+        frame_profile_start: Option<Instant>,
+        rebuild: Duration,
+        acquire: Duration,
+        render: Duration,
+        blit: Duration,
+        present: Duration,
+        presented: bool,
+        present_expected: bool,
+    ) {
+        if let Some(start) = frame_profile_start {
+            self.maybe_record_redraw_profile(
+                rebuild,
+                acquire,
+                render,
+                blit,
+                present,
+                start.elapsed(),
+            );
+        }
+        self.emit_frame_result(
+            frame_result,
+            frame_started_at.elapsed(),
+            present,
+            presented,
+            present_expected,
+        );
     }
 
     fn encode_frame_to_scene(
@@ -2166,22 +2253,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.scene.append(&self.state_overlay_scene, None);
             self.scene.append(&self.motion_overlay_scene, None);
         }
-        let frame_result = FrameBuildResult {
-            primitive_count: self
-                .frame_cache
-                .primitives
-                .len()
-                .saturating_add(self.state_overlay_frame_cache.primitives.len())
-                .saturating_add(self.motion_overlay_frame_cache.primitives.len()),
-            text_run_count: self
-                .frame_cache
-                .text_runs
-                .len()
-                .saturating_add(self.state_overlay_frame_cache.text_runs.len())
-                .saturating_add(self.motion_overlay_frame_cache.text_runs.len()),
-            needs_animation: self.shell_state.needs_animation(),
-        };
-        self.bridge.on_frame_result(frame_result);
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -2190,10 +2261,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let now = Instant::now();
         let delta = (now - self.last_redraw).as_secs_f32();
         self.last_redraw = now;
-        let frame_start = self.profiler.now_if_enabled();
+        let frame_started_at = Instant::now();
+        let frame_profile_start = self.profiler.now_if_enabled();
         let rebuild_start = self.profiler.now_if_enabled();
         let needs_animation = self.shell_state.needs_animation();
-        let has_rebuild = self.rebuild_scene_for_redraw(needs_animation, delta);
+        let (has_rebuild, mut frame_result) = self.rebuild_scene_for_redraw(needs_animation, delta);
         let rebuild_duration = rebuild_start.map_or(Duration::ZERO, |start| start.elapsed());
         if self.redraw_count <= 8 {
             info!(
@@ -2209,29 +2281,33 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
 
         let Some(window) = self.window.as_ref() else {
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                false,
+            );
             return;
         };
         let Some(dev_id) = self.render_surface.as_ref().map(|surface| surface.dev_id) else {
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                false,
+            );
             return;
         };
 
@@ -2241,16 +2317,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let acquire_start = self.profiler.now_if_enabled();
         let surface_texture = {
             let Some(surface) = self.render_surface.as_mut() else {
-                if let Some(frame_start) = frame_start {
-                    self.maybe_record_redraw_profile(
-                        rebuild_duration,
-                        Duration::ZERO,
-                        Duration::ZERO,
-                        Duration::ZERO,
-                        Duration::ZERO,
-                        frame_start.elapsed(),
-                    );
-                }
+                self.finish_redraw_attempt(
+                    &mut frame_result,
+                    frame_started_at,
+                    frame_profile_start,
+                    rebuild_duration,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    Duration::ZERO,
+                    false,
+                    false,
+                );
                 return;
             };
             match surface.surface.get_current_texture() {
@@ -2263,15 +2341,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     match err {
                         wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated => {
                             let size = window.inner_size();
-                            let Some(render_ctx) = self.render_ctx.as_mut() else {
-                                return;
-                            };
-                            render_ctx.resize_surface(
-                                surface,
-                                size.width.max(1),
-                                size.height.max(1),
-                            );
-                            needs_resize = true;
+                            if let Some(render_ctx) = self.render_ctx.as_mut() {
+                                render_ctx.resize_surface(
+                                    surface,
+                                    size.width.max(1),
+                                    size.height.max(1),
+                                );
+                                needs_resize = true;
+                            }
                         }
                         wgpu::SurfaceError::OutOfMemory => out_of_memory = true,
                         wgpu::SurfaceError::Timeout | wgpu::SurfaceError::Other => {}
@@ -2287,16 +2364,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             } else if self.redraw_count <= 8 {
                 info!("native vello non-fatal surface error: {:?}", err);
             }
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    acquire_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             if matches!(err, wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)
                 && needs_resize
             {
@@ -2309,46 +2388,64 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         }
         let Some(surface_texture) = surface_texture else {
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             return;
         };
 
         let Some(surface) = self.render_surface.as_mut() else {
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             return;
         };
         let Some(render_ctx) = self.render_ctx.as_ref() else {
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             return;
         };
         let Some(renderer) = self.renderer.as_mut() else {
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             return;
         };
         let dev_handle = &render_ctx.devices[dev_id];
@@ -2372,16 +2469,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             error!("native vello render_to_texture failed: {:?}", err);
             event_loop.exit();
             let render = render_start.map_or(Duration::ZERO, |start| start.elapsed());
-            if let Some(frame_start) = frame_start {
-                self.maybe_record_redraw_profile(
-                    rebuild_duration,
-                    acquire_duration,
-                    render,
-                    Duration::ZERO,
-                    Duration::ZERO,
-                    frame_start.elapsed(),
-                );
-            }
+            self.finish_redraw_attempt(
+                &mut frame_result,
+                frame_started_at,
+                frame_profile_start,
+                rebuild_duration,
+                acquire_duration,
+                render,
+                Duration::ZERO,
+                Duration::ZERO,
+                false,
+                true,
+            );
             return;
         }
         let render_duration = render_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -2400,20 +2499,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         );
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         let blit_duration = blit_start.map_or(Duration::ZERO, |start| start.elapsed());
-        let present_start = self.profiler.now_if_enabled();
+        let present_started_at = Instant::now();
         surface_texture.present();
         self.complete_first_present();
-        let present_duration = present_start.map_or(Duration::ZERO, |start| start.elapsed());
-        if let Some(frame_start) = frame_start {
-            self.maybe_record_redraw_profile(
-                rebuild_duration,
-                acquire_duration,
-                render_duration,
-                blit_duration,
-                present_duration,
-                frame_start.elapsed(),
-            );
-        }
+        let present_duration = present_started_at.elapsed();
+        self.finish_redraw_attempt(
+            &mut frame_result,
+            frame_started_at,
+            frame_profile_start,
+            rebuild_duration,
+            acquire_duration,
+            render_duration,
+            blit_duration,
+            present_duration,
+            true,
+            true,
+        );
     }
 
     fn sync_text_input_target(&mut self) {

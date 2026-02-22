@@ -105,6 +105,20 @@ enum InteractionProfileKind {
     Volume,
 }
 
+/// Waveform drag interaction mode captured on pointer press.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WaveformPointerDragMode {
+    /// Drag updates seek/playhead position.
+    Seek,
+    /// Drag updates cursor position.
+    Cursor,
+    /// Drag extends selection from a fixed anchor milli value.
+    Selection {
+        /// Fixed anchor milli captured at drag start.
+        anchor_milli: u16,
+    },
+}
+
 #[cfg(feature = "gui-performance")]
 /// Aggregate timing stats for one interaction profile class.
 #[derive(Clone, Copy, Debug, Default)]
@@ -996,6 +1010,14 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     pending_wheel_rows_delta: i32,
     /// Latest queued top-bar volume update in normalized milli space.
     pending_volume_milli: Option<u16>,
+    /// Active waveform drag mode while primary pointer is held on waveform.
+    waveform_drag_mode: Option<WaveformPointerDragMode>,
+    /// Last waveform drag action emitted for pointer-move dedupe.
+    last_emitted_waveform_drag_action: Option<UiAction>,
+    /// Whether map sample focus drag is active for primary pointer movement.
+    map_focus_drag_active: bool,
+    /// Last map sample id emitted during active map focus drag.
+    last_emitted_map_drag_sample_id: Option<String>,
     volume_drag_active: bool,
     last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
@@ -1104,6 +1126,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             pending_cursor: None,
             pending_wheel_rows_delta: 0,
             pending_volume_milli: None,
+            waveform_drag_mode: None,
+            last_emitted_waveform_drag_action: None,
+            map_focus_drag_active: false,
+            last_emitted_map_drag_sample_id: None,
             volume_drag_active: false,
             last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
@@ -1497,6 +1523,53 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.pending_volume_milli = Some(value_milli.min(1000));
     }
 
+    /// Emit one waveform action immediately during active pointer drag.
+    fn emit_waveform_drag_action_immediately(&mut self, action: UiAction) {
+        if self.last_emitted_waveform_drag_action.as_ref() == Some(&action) {
+            return;
+        }
+        self.last_emitted_waveform_drag_action = Some(action.clone());
+        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::Waveform));
+    }
+
+    /// Process one waveform drag cursor update when waveform drag mode is active.
+    fn process_waveform_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(mode) = self.waveform_drag_mode else {
+            return false;
+        };
+        let action = waveform_drag_action_for_mode(layout, point, mode);
+        self.emit_waveform_drag_action_immediately(action);
+        true
+    }
+
+    /// Process one map-focus drag cursor update when map drag mode is active.
+    fn process_map_focus_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        if !self.model.map.active {
+            return false;
+        }
+        let Some(action) = self
+            .shell_state
+            .map_sample_action_at_point(layout, &self.model, point)
+        else {
+            return false;
+        };
+        let UiAction::FocusMapSample { sample_id } = &action else {
+            return false;
+        };
+        if self.last_emitted_map_drag_sample_id.as_deref() == Some(sample_id.as_str()) {
+            return false;
+        }
+        self.last_emitted_map_drag_sample_id = Some(sample_id.clone());
+        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::MapPanProxy));
+        true
+    }
+
     /// Emit one normalized volume update immediately for smooth drag visuals.
     fn emit_volume_milli_immediately(&mut self, value_milli: u16) {
         self.queue_volume_milli(value_milli);
@@ -1521,6 +1594,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.volume_drag_active = false;
         self.last_emitted_volume_milli = None;
+        self.waveform_drag_mode = None;
+        self.last_emitted_waveform_drag_action = None;
+        self.map_focus_drag_active = false;
+        self.last_emitted_map_drag_sample_id = None;
     }
 
     fn flush_pending_input(&mut self) -> bool {
@@ -2347,7 +2424,11 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         self.emit_model_action(action);
                     }
                 }
-                if !self.volume_drag_active {
+                if !self.volume_drag_active && self.waveform_drag_mode.is_some() {
+                    let _ = self.process_waveform_drag_immediately(point);
+                } else if !self.volume_drag_active && self.map_focus_drag_active {
+                    let _ = self.process_map_focus_drag_immediately(point);
+                } else if !self.volume_drag_active {
                     let (processed, _) = self.process_cursor_move_immediately(point);
                     if !processed {
                         self.queue_cursor(point);
@@ -2368,7 +2449,13 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     self.pending_volume_milli = None;
                     self.volume_drag_active = false;
                     self.last_emitted_volume_milli = None;
+                    self.waveform_drag_mode = None;
+                    self.last_emitted_waveform_drag_action = None;
+                    self.map_focus_drag_active = false;
+                    self.last_emitted_map_drag_sample_id = None;
                     let mut handled = false;
+                    let map_drag_start =
+                        self.model.map.active && layout.browser_rows.contains(point);
                     if self
                         .shell_state
                         .prompt_input_at_point(layout, &self.model, point)
@@ -2394,8 +2481,18 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                         point,
                         self.modifiers,
                     ) {
+                        let waveform_drag_mode = waveform_drag_mode_for_action(&action);
+                        let map_drag_sample_id = match &action {
+                            UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
+                            _ => None,
+                        };
                         self.update_text_target_after_action(&action);
                         self.emit_model_action(action);
+                        self.waveform_drag_mode = waveform_drag_mode;
+                        if map_drag_start {
+                            self.map_focus_drag_active = true;
+                            self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+                        }
                         handled = true;
                     } else if self.shell_state.handle_primary_click(layout, point)
                         && let Some(column) = layout.column_at_point(point)
@@ -2678,24 +2775,9 @@ fn action_from_pointer(
             .map_or(Some(UiAction::FocusSourcesPanel), |index| {
                 Some(UiAction::SelectSourceRow { index })
             }),
-        ShellNodeKind::WaveformCard => {
-            let inner = layout.waveform_plot;
-            let width = inner.width().max(1.0);
-            let ratio = ((point.x - inner.min.x) / width).clamp(0.0, 1.0);
-            let position_milli = ratio_to_milli(ratio);
-            let shift = modifiers.shift_key();
-            let command = modifiers.control_key() || modifiers.super_key();
-            if shift {
-                Some(UiAction::SetWaveformSelectionRange {
-                    start_milli: waveform_anchor_milli(model),
-                    end_milli: position_milli,
-                })
-            } else if command {
-                Some(UiAction::SetWaveformCursor { position_milli })
-            } else {
-                Some(UiAction::SeekWaveform { position_milli })
-            }
-        }
+        ShellNodeKind::WaveformCard => Some(waveform_action_from_pointer(
+            layout, model, point, modifiers,
+        )),
         ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
         ShellNodeKind::Content
         | ShellNodeKind::BrowserPanel
@@ -2704,6 +2786,70 @@ fn action_from_pointer(
         ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedSampleInBrowser),
         _ => None,
     }
+}
+
+/// Build one waveform action from pointer position and active modifier keys.
+fn waveform_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    modifiers: ModifiersState,
+) -> UiAction {
+    let position_milli = waveform_position_milli_from_point(layout, point);
+    let shift = modifiers.shift_key();
+    let command = modifiers.control_key() || modifiers.super_key();
+    if shift {
+        UiAction::SetWaveformSelectionRange {
+            start_milli: waveform_anchor_milli(model),
+            end_milli: position_milli,
+        }
+    } else if command {
+        UiAction::SetWaveformCursor { position_milli }
+    } else {
+        UiAction::SeekWaveform { position_milli }
+    }
+}
+
+/// Resolve one waveform action for a captured waveform drag mode.
+fn waveform_drag_action_for_mode(
+    layout: &ShellLayout,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> UiAction {
+    let position_milli = waveform_position_milli_from_point(layout, point);
+    match mode {
+        WaveformPointerDragMode::Seek => UiAction::SeekWaveform { position_milli },
+        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor { position_milli },
+        WaveformPointerDragMode::Selection { anchor_milli } => {
+            UiAction::SetWaveformSelectionRange {
+                start_milli: anchor_milli,
+                end_milli: position_milli,
+            }
+        }
+    }
+}
+
+/// Resolve drag mode from an initial waveform action emitted on pointer press.
+fn waveform_drag_mode_for_action(action: &UiAction) -> Option<WaveformPointerDragMode> {
+    match action {
+        UiAction::SeekWaveform { .. } => Some(WaveformPointerDragMode::Seek),
+        UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
+        UiAction::SetWaveformSelectionRange { start_milli, .. } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_milli: *start_milli,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Resolve normalized waveform milli position from an arbitrary pointer point.
+fn waveform_position_milli_from_point(layout: &ShellLayout, point: Point) -> u16 {
+    let inner = layout.waveform_plot;
+    let width = inner.width().max(1.0);
+    let clamped_x = point.x.clamp(inner.min.x, inner.max.x);
+    let ratio = ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0);
+    ratio_to_milli(ratio)
 }
 
 fn ratio_to_milli(ratio: f32) -> u16 {
@@ -3283,6 +3429,12 @@ mod tests {
             NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
         runner.queue_volume_milli(915);
         runner.volume_drag_active = true;
+        runner.waveform_drag_mode = Some(WaveformPointerDragMode::Seek);
+        runner.last_emitted_waveform_drag_action = Some(UiAction::SeekWaveform {
+            position_milli: 915,
+        });
+        runner.map_focus_drag_active = true;
+        runner.last_emitted_map_drag_sample_id = Some(String::from("source::kick.wav"));
 
         runner.finish_volume_drag();
 
@@ -3296,6 +3448,10 @@ mod tests {
         assert!(!runner.volume_drag_active);
         assert_eq!(runner.last_emitted_volume_milli, None);
         assert_eq!(runner.pending_volume_milli, None);
+        assert_eq!(runner.waveform_drag_mode, None);
+        assert_eq!(runner.last_emitted_waveform_drag_action, None);
+        assert!(!runner.map_focus_drag_active);
+        assert_eq!(runner.last_emitted_map_drag_sample_id, None);
     }
 
     #[test]
@@ -3618,6 +3774,64 @@ mod tests {
 
         model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(111, 444));
         assert_eq!(waveform_anchor_milli(&model), 111);
+    }
+
+    #[test]
+    /// Waveform drag-mode mapping should preserve the initial action intent.
+    fn waveform_drag_mode_maps_from_waveform_actions() {
+        assert_eq!(
+            waveform_drag_mode_for_action(&UiAction::SeekWaveform {
+                position_milli: 250
+            }),
+            Some(WaveformPointerDragMode::Seek)
+        );
+        assert_eq!(
+            waveform_drag_mode_for_action(&UiAction::SetWaveformCursor {
+                position_milli: 250
+            }),
+            Some(WaveformPointerDragMode::Cursor)
+        );
+        assert_eq!(
+            waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRange {
+                start_milli: 125,
+                end_milli: 250,
+            }),
+            Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
+        );
+        assert_eq!(
+            waveform_drag_mode_for_action(&UiAction::ToggleTransport),
+            None
+        );
+    }
+
+    #[test]
+    /// Drag waveform actions should clamp pointer positions and preserve anchors.
+    fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
+        let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+        let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+        let left = Point::new(layout.waveform_plot.min.x - 200.0, y);
+        let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
+        assert_eq!(
+            waveform_drag_action_for_mode(&layout, left, WaveformPointerDragMode::Seek),
+            UiAction::SeekWaveform { position_milli: 0 }
+        );
+        assert_eq!(
+            waveform_drag_action_for_mode(&layout, right, WaveformPointerDragMode::Cursor),
+            UiAction::SetWaveformCursor {
+                position_milli: 1000
+            }
+        );
+        assert_eq!(
+            waveform_drag_action_for_mode(
+                &layout,
+                right,
+                WaveformPointerDragMode::Selection { anchor_milli: 200 }
+            ),
+            UiAction::SetWaveformSelectionRange {
+                start_milli: 200,
+                end_milli: 1000,
+            }
+        );
     }
 
     #[test]

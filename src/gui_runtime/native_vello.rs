@@ -49,6 +49,7 @@ const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
+const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
 
 /// Parse standard truthy environment variable values.
 fn parse_truthy_env(value: &str) -> bool {
@@ -954,6 +955,132 @@ impl NativeVelloFrameState {
     }
 }
 
+/// Startup lifecycle timing breakdown for first paint and deferred refresh.
+#[derive(Debug, Default)]
+struct StartupTimingProfile {
+    /// Whether stderr startup summary output is enabled.
+    enabled: bool,
+    /// Runtime initialization start instant.
+    init_started_at: Option<Instant>,
+    /// Native window creation complete instant.
+    window_created_at: Option<Instant>,
+    /// Render surface creation complete instant.
+    surface_ready_at: Option<Instant>,
+    /// Renderer creation complete instant.
+    renderer_ready_at: Option<Instant>,
+    /// First scene build/encode completion instant.
+    first_scene_ready_at: Option<Instant>,
+    /// First successful present completion instant.
+    first_presented_at: Option<Instant>,
+    /// Deferred full-model refresh completion instant.
+    deferred_model_refresh_done_at: Option<Instant>,
+    /// Whether summary output already emitted.
+    summary_emitted: bool,
+}
+
+impl StartupTimingProfile {
+    /// Create startup timing profile configuration from environment.
+    fn new() -> Self {
+        let enabled = std::env::var(STARTUP_PROFILE_ENV)
+            .ok()
+            .is_some_and(|value| parse_truthy_env(&value));
+        Self {
+            enabled,
+            ..Self::default()
+        }
+    }
+
+    /// Record startup initialization begin timestamp.
+    fn mark_init_started(&mut self) {
+        self.init_started_at = Some(Instant::now());
+    }
+
+    /// Record native window creation completion timestamp.
+    fn mark_window_created(&mut self) {
+        self.window_created_at = Some(Instant::now());
+    }
+
+    /// Record render-surface creation completion timestamp.
+    fn mark_surface_ready(&mut self) {
+        self.surface_ready_at = Some(Instant::now());
+    }
+
+    /// Record renderer creation completion timestamp.
+    fn mark_renderer_ready(&mut self) {
+        self.renderer_ready_at = Some(Instant::now());
+    }
+
+    /// Record first scene build/encode completion timestamp.
+    fn mark_first_scene_ready(&mut self) {
+        self.first_scene_ready_at = Some(Instant::now());
+    }
+
+    /// Record first successful present completion timestamp.
+    fn mark_first_presented(&mut self) {
+        self.first_presented_at = Some(Instant::now());
+    }
+
+    /// Record deferred full-model refresh completion timestamp.
+    fn mark_deferred_model_refresh_done(&mut self) {
+        self.deferred_model_refresh_done_at = Some(Instant::now());
+    }
+
+    /// Emit one startup timing summary once all required milestones are available.
+    fn maybe_emit_summary(&mut self) {
+        if self.summary_emitted {
+            return;
+        }
+        let (
+            Some(init_started_at),
+            Some(window_created_at),
+            Some(surface_ready_at),
+            Some(renderer_ready_at),
+            Some(first_scene_ready_at),
+            Some(first_presented_at),
+            Some(deferred_model_refresh_done_at),
+        ) = (
+            self.init_started_at,
+            self.window_created_at,
+            self.surface_ready_at,
+            self.renderer_ready_at,
+            self.first_scene_ready_at,
+            self.first_presented_at,
+            self.deferred_model_refresh_done_at,
+        )
+        else {
+            return;
+        };
+        let ms = |start: Instant, end: Instant| (end - start).as_secs_f64() * 1000.0;
+        let window_create_ms = ms(init_started_at, window_created_at);
+        let surface_ready_ms = ms(init_started_at, surface_ready_at);
+        let renderer_ready_ms = ms(init_started_at, renderer_ready_at);
+        let first_scene_ready_ms = ms(init_started_at, first_scene_ready_at);
+        let first_present_ms = ms(init_started_at, first_presented_at);
+        let deferred_model_refresh_ms = ms(first_presented_at, deferred_model_refresh_done_at);
+        let deferred_model_refresh_total_ms = ms(init_started_at, deferred_model_refresh_done_at);
+        info!(
+            window_create_ms,
+            surface_ready_ms,
+            renderer_ready_ms,
+            first_scene_ready_ms,
+            first_present_ms,
+            deferred_model_refresh_ms,
+            deferred_model_refresh_total_ms,
+            "native vello startup timing summary"
+        );
+        if self.enabled {
+            eprintln!(
+                "[native-vello-startup] window_create_ms={window_create_ms:.3} \
+surface_ready_ms={surface_ready_ms:.3} renderer_ready_ms={renderer_ready_ms:.3} \
+first_scene_ready_ms={first_scene_ready_ms:.3} first_present_ms={first_present_ms:.3} \
+deferred_model_refresh_ms={deferred_model_refresh_ms:.3} \
+deferred_model_refresh_total_ms={deferred_model_refresh_total_ms:.3}"
+            );
+        }
+        self.summary_emitted = true;
+    }
+}
+
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: NativeRunOptions,
     bridge: B,
@@ -1007,7 +1134,6 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     clear_color: Rgba8,
     last_cursor: Option<Point>,
     pending_cursor: Option<Point>,
-    pending_wheel_rows_delta: i32,
     /// Latest queued top-bar volume update in normalized milli space.
     pending_volume_milli: Option<u16>,
     /// Active waveform drag mode while primary pointer is held on waveform.
@@ -1030,6 +1156,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     first_frame_presented: bool,
     /// Whether the first startup full-model pull is deferred until first present.
     startup_model_pull_pending: bool,
+    /// Whether deferred startup full-model refresh is pending completion.
+    startup_deferred_model_refresh_pending: bool,
+    /// Startup first-paint timing profile.
+    startup_timing: StartupTimingProfile,
     target_frame_interval: Duration,
     focus_animation_interval: Duration,
     idle_status_refresh_interval: Duration,
@@ -1128,7 +1258,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             },
             last_cursor: None,
             pending_cursor: None,
-            pending_wheel_rows_delta: 0,
             pending_volume_milli: None,
             waveform_drag_mode: None,
             last_emitted_waveform_drag_action: None,
@@ -1144,6 +1273,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             redraw_count: 0,
             first_frame_presented: false,
             startup_model_pull_pending: true,
+            startup_deferred_model_refresh_pending: false,
+            startup_timing: StartupTimingProfile::new(),
             target_frame_interval,
             focus_animation_interval,
             idle_status_refresh_interval,
@@ -1187,6 +1318,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn initialize_runtime(&mut self, event_loop: &ActiveEventLoop) {
         info!("radiant native vello: initializing runtime window and surface");
+        self.startup_timing.mark_init_started();
         let window = match event_loop.create_window(self.build_window_attributes()) {
             Ok(window) => Arc::new(window),
             Err(err) => {
@@ -1195,6 +1327,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 return;
             }
         };
+        self.startup_timing.mark_window_created();
         info!("radiant native vello: window created");
         let mut render_ctx = RenderContext::new();
         let size = window.inner_size();
@@ -1297,6 +1430,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
             }
         };
+        self.startup_timing.mark_surface_ready();
         info!("radiant native vello: render surface created");
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
         info!("radiant native vello: creating renderer");
@@ -1308,6 +1442,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 return;
             }
         };
+        self.startup_timing.mark_renderer_ready();
         info!("radiant native vello: renderer created");
 
         self.window_id = Some(window.id());
@@ -1322,6 +1457,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.frame_state.mark_model_dirty();
         }
         self.rebuild_scene_if_needed();
+        self.startup_timing.mark_first_scene_ready();
         self.last_redraw = Instant::now();
     }
 
@@ -1350,6 +1486,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         ));
         self.static_segment_scene_cache.clear_fingerprints();
         self.frame_state.clear_layout_dirty();
+        if let Some(point) = self.pending_cursor.take() {
+            let _ = self.process_cursor_move_immediately(point);
+        }
     }
 
     fn request_redraw_if_needed(&mut self) {
@@ -1533,13 +1672,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         (true, handled)
     }
 
-    fn queue_wheel_rows(&mut self, steps: i8) {
-        if steps == 0 {
-            return;
-        }
-        self.pending_wheel_rows_delta = self.pending_wheel_rows_delta.saturating_add(steps as i32);
-    }
-
     /// Emit one wheel-derived browser-focus action immediately.
     ///
     /// Returns whether an action was emitted.
@@ -1644,8 +1776,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window.set_visible(true);
         }
         self.first_frame_presented = true;
+        self.startup_timing.mark_first_presented();
         if self.startup_model_pull_pending {
             self.startup_model_pull_pending = false;
+            self.startup_deferred_model_refresh_pending = true;
             self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
         }
     }
@@ -1660,18 +1794,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             if handled {
                 pending_action = true;
             }
-        }
-
-        if self.pending_wheel_rows_delta != 0 {
-            let steps = self
-                .pending_wheel_rows_delta
-                .clamp(i8::MIN as i32, i8::MAX as i32) as i8;
-            self.pending_wheel_rows_delta = 0;
-            self.emit_model_action_with_profile(
-                UiAction::MoveBrowserFocus { delta: steps },
-                Some(InteractionProfileKind::Wheel),
-            );
-            pending_action = true;
         }
 
         pending_action
@@ -1827,6 +1949,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
             self.motion_model_supported = true;
             self.sync_text_input_target();
+            if self.startup_deferred_model_refresh_pending {
+                self.startup_deferred_model_refresh_pending = false;
+                self.startup_timing.mark_deferred_model_refresh_done();
+                self.startup_timing.maybe_emit_summary();
+            }
             rebuild_static = resolve_static_rebuild(
                 model_refresh_requested,
                 static_rebuild_requested,
@@ -1876,6 +2003,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.shell_state.sync_from_model(&self.model);
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.sync_text_input_target();
+                if self.startup_deferred_model_refresh_pending {
+                    self.startup_deferred_model_refresh_pending = false;
+                    self.startup_timing.mark_deferred_model_refresh_done();
+                    self.startup_timing.maybe_emit_summary();
+                }
             }
         }
         if should_refresh_motion && !motion_changed {
@@ -2581,9 +2713,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     if let Some(delta) =
                         browser_wheel_row_delta(layout, &self.model, point, &style, delta)
                     {
-                        if !self.process_wheel_rows_immediately(delta) {
-                            self.queue_wheel_rows(delta);
-                        }
+                        let _ = self.process_wheel_rows_immediately(delta);
                     }
                 }
             }
@@ -3476,7 +3606,6 @@ mod tests {
             runner.bridge.actions,
             vec![UiAction::MoveBrowserFocus { delta: 3 }]
         );
-        assert_eq!(runner.pending_wheel_rows_delta, 0);
     }
 
     #[test]
@@ -3499,12 +3628,14 @@ mod tests {
         let mut runner =
             NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
         assert!(runner.startup_model_pull_pending);
+        assert!(!runner.startup_deferred_model_refresh_pending);
         assert!(!runner.first_frame_presented);
 
         runner.complete_first_present();
 
         assert!(runner.first_frame_presented);
         assert!(!runner.startup_model_pull_pending);
+        assert!(runner.startup_deferred_model_refresh_pending);
         assert!(runner.frame_state.take_model());
         assert!(!runner.frame_state.take_scene());
         assert!(runner.frame_state.take_state_overlay());

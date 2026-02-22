@@ -1026,6 +1026,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     resumed_count: u32,
     window_event_count: u32,
     redraw_count: u32,
+    /// Whether at least one frame has been presented to the native surface.
+    first_frame_presented: bool,
     target_frame_interval: Duration,
     focus_animation_interval: Duration,
     idle_status_refresh_interval: Duration,
@@ -1138,6 +1140,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             resumed_count: 0,
             window_event_count: 0,
             redraw_count: 0,
+            first_frame_presented: false,
             target_frame_interval,
             focus_animation_interval,
             idle_status_refresh_interval,
@@ -1160,7 +1163,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn build_window_attributes(&self) -> WindowAttributes {
         let mut attrs = Window::default_attributes()
             .with_title(self.options.title.clone())
-            .with_maximized(self.options.maximized);
+            .with_maximized(self.options.maximized)
+            .with_visible(false);
         if let Some([w, h]) = self.options.inner_size {
             attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
         }
@@ -2008,7 +2012,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 ((delta * 1000.0) as u32)
             );
         }
-        if !needs_animation && !has_rebuild {
+        if !needs_animation && !has_rebuild && self.first_frame_presented {
             return;
         }
 
@@ -2206,6 +2210,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let blit_duration = blit_start.map_or(Duration::ZERO, |start| start.elapsed());
         let present_start = self.profiler.now_if_enabled();
         surface_texture.present();
+        if !self.first_frame_presented {
+            if let Some(window) = self.window.as_ref() {
+                window.set_visible(true);
+            }
+            self.first_frame_presented = true;
+        }
         let present_duration = present_start.map_or(Duration::ZERO, |start| start.elapsed());
         if let Some(frame_start) = frame_start {
             self.maybe_record_redraw_profile(

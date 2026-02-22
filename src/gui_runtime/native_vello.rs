@@ -1154,6 +1154,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     redraw_count: u32,
     /// Whether at least one frame has been presented to the native surface.
     first_frame_presented: bool,
+    /// Whether the window has been revealed after startup frame sequencing.
+    startup_window_visible: bool,
     /// Whether the first startup full-model pull is deferred until first present.
     startup_model_pull_pending: bool,
     /// Whether deferred startup full-model refresh is pending completion.
@@ -1272,6 +1274,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window_event_count: 0,
             redraw_count: 0,
             first_frame_presented: false,
+            startup_window_visible: false,
             startup_model_pull_pending: true,
             startup_deferred_model_refresh_pending: false,
             startup_timing: StartupTimingProfile::new(),
@@ -1767,21 +1770,32 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_emitted_map_drag_sample_id = None;
     }
 
-    /// Handle one successful first present and schedule deferred startup pulls.
-    fn complete_first_present(&mut self) {
-        if self.first_frame_presented {
+    /// Reveal the native window after startup sequencing reaches a stable frame.
+    fn maybe_reveal_startup_window(&mut self) {
+        if self.startup_window_visible || !self.first_frame_presented {
+            return;
+        }
+        if self.startup_model_pull_pending || self.startup_deferred_model_refresh_pending {
             return;
         }
         if let Some(window) = self.window.as_ref() {
             window.set_visible(true);
         }
-        self.first_frame_presented = true;
-        self.startup_timing.mark_first_presented();
-        if self.startup_model_pull_pending {
-            self.startup_model_pull_pending = false;
-            self.startup_deferred_model_refresh_pending = true;
-            self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
+        self.startup_window_visible = true;
+    }
+
+    /// Handle one successful first present and schedule deferred startup pulls.
+    fn complete_first_present(&mut self) {
+        if !self.first_frame_presented {
+            self.first_frame_presented = true;
+            self.startup_timing.mark_first_presented();
+            if self.startup_model_pull_pending {
+                self.startup_model_pull_pending = false;
+                self.startup_deferred_model_refresh_pending = true;
+                self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
+            }
         }
+        self.maybe_reveal_startup_window();
     }
 
     fn flush_pending_input(&mut self) -> bool {
@@ -3630,16 +3644,45 @@ mod tests {
         assert!(runner.startup_model_pull_pending);
         assert!(!runner.startup_deferred_model_refresh_pending);
         assert!(!runner.first_frame_presented);
+        assert!(!runner.startup_window_visible);
 
         runner.complete_first_present();
 
         assert!(runner.first_frame_presented);
         assert!(!runner.startup_model_pull_pending);
         assert!(runner.startup_deferred_model_refresh_pending);
+        assert!(!runner.startup_window_visible);
         assert!(runner.frame_state.take_model());
         assert!(!runner.frame_state.take_scene());
         assert!(runner.frame_state.take_state_overlay());
         assert!(runner.frame_state.take_motion_overlay());
+    }
+
+    #[test]
+    fn startup_window_reveals_after_deferred_model_refresh_present() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+        runner.complete_first_present();
+        assert!(!runner.startup_window_visible);
+
+        runner.startup_deferred_model_refresh_pending = false;
+        runner.complete_first_present();
+
+        assert!(runner.startup_window_visible);
+    }
+
+    #[test]
+    fn startup_window_reveals_on_first_present_without_deferred_pull() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.startup_model_pull_pending = false;
+
+        runner.complete_first_present();
+
+        assert!(runner.startup_window_visible);
+        assert!(runner.first_frame_presented);
+        assert!(!runner.startup_deferred_model_refresh_pending);
     }
 
     #[test]

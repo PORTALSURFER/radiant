@@ -1028,6 +1028,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     redraw_count: u32,
     /// Whether at least one frame has been presented to the native surface.
     first_frame_presented: bool,
+    /// Whether the first startup full-model pull is deferred until first present.
+    startup_model_pull_pending: bool,
     target_frame_interval: Duration,
     focus_animation_interval: Duration,
     idle_status_refresh_interval: Duration,
@@ -1141,6 +1143,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window_event_count: 0,
             redraw_count: 0,
             first_frame_presented: false,
+            startup_model_pull_pending: true,
             target_frame_interval,
             focus_animation_interval,
             idle_status_refresh_interval,
@@ -1313,9 +1316,23 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.render_surface = Some(render_surface);
         self.renderer = Some(renderer);
         self.frame_state.mark_layout_dirty();
-        self.frame_state.mark_model_dirty();
+        if self.startup_model_pull_pending {
+            self.prepare_startup_first_frame_scene();
+        } else {
+            self.frame_state.mark_model_dirty();
+        }
         self.rebuild_scene_if_needed();
         self.last_redraw = Instant::now();
+    }
+
+    /// Keep startup first-frame work minimal by deferring model/overlay pulls.
+    ///
+    /// This preserves static scene rebuild work (for deterministic first paint)
+    /// while skipping model and overlay pulls until first present completes.
+    fn prepare_startup_first_frame_scene(&mut self) {
+        let _ = self.frame_state.take_model();
+        let _ = self.frame_state.take_state_overlay();
+        let _ = self.frame_state.take_motion_overlay();
     }
 
     fn rebuild_layout(&mut self) {
@@ -1523,6 +1540,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.pending_wheel_rows_delta = self.pending_wheel_rows_delta.saturating_add(steps as i32);
     }
 
+    /// Emit one wheel-derived browser-focus action immediately.
+    ///
+    /// Returns whether an action was emitted.
+    fn process_wheel_rows_immediately(&mut self, steps: i8) -> bool {
+        if steps == 0 {
+            return false;
+        }
+        self.emit_model_action_with_profile(
+            UiAction::MoveBrowserFocus { delta: steps },
+            Some(InteractionProfileKind::Wheel),
+        );
+        true
+    }
+
     fn queue_volume_milli(&mut self, value_milli: u16) {
         self.pending_volume_milli = Some(value_milli.min(1000));
     }
@@ -1602,6 +1633,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
         self.last_emitted_map_drag_sample_id = None;
+    }
+
+    /// Handle one successful first present and schedule deferred startup pulls.
+    fn complete_first_present(&mut self) {
+        if self.first_frame_presented {
+            return;
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.set_visible(true);
+        }
+        self.first_frame_presented = true;
+        if self.startup_model_pull_pending {
+            self.startup_model_pull_pending = false;
+            self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
+        }
     }
 
     fn flush_pending_input(&mut self) -> bool {
@@ -2210,12 +2256,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let blit_duration = blit_start.map_or(Duration::ZERO, |start| start.elapsed());
         let present_start = self.profiler.now_if_enabled();
         surface_texture.present();
-        if !self.first_frame_presented {
-            if let Some(window) = self.window.as_ref() {
-                window.set_visible(true);
-            }
-            self.first_frame_presented = true;
-        }
+        self.complete_first_present();
         let present_duration = present_start.map_or(Duration::ZERO, |start| start.elapsed());
         if let Some(frame_start) = frame_start {
             self.maybe_record_redraw_profile(
@@ -2540,7 +2581,9 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     if let Some(delta) =
                         browser_wheel_row_delta(layout, &self.model, point, &style, delta)
                     {
-                        self.queue_wheel_rows(delta);
+                        if !self.process_wheel_rows_immediately(delta) {
+                            self.queue_wheel_rows(delta);
+                        }
                     }
                 }
             }
@@ -3421,6 +3464,51 @@ mod tests {
             vec![UiAction::SetVolume { value_milli: 505 }]
         );
         assert_eq!(runner.pending_volume_milli, None);
+    }
+
+    #[test]
+    fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        assert!(runner.process_wheel_rows_immediately(3));
+
+        assert_eq!(
+            runner.bridge.actions,
+            vec![UiAction::MoveBrowserFocus { delta: 3 }]
+        );
+        assert_eq!(runner.pending_wheel_rows_delta, 0);
+    }
+
+    #[test]
+    fn startup_fast_path_defers_model_and_overlay_pulls() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.frame_state.mark_layout_dirty();
+        runner.frame_state.mark_model_dirty();
+
+        runner.prepare_startup_first_frame_scene();
+
+        assert!(!runner.frame_state.take_model());
+        assert!(runner.frame_state.take_scene());
+        assert!(!runner.frame_state.take_state_overlay());
+        assert!(!runner.frame_state.take_motion_overlay());
+    }
+
+    #[test]
+    fn complete_first_present_schedules_deferred_model_pull() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        assert!(runner.startup_model_pull_pending);
+        assert!(!runner.first_frame_presented);
+
+        runner.complete_first_present();
+
+        assert!(runner.first_frame_presented);
+        assert!(!runner.startup_model_pull_pending);
+        assert!(runner.frame_state.take_model());
+        assert!(!runner.frame_state.take_scene());
+        assert!(runner.frame_state.take_state_overlay());
+        assert!(runner.frame_state.take_motion_overlay());
     }
 
     #[test]

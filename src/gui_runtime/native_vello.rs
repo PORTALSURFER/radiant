@@ -1997,15 +1997,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if force_rebuild {
             self.static_segment_scene_cache.clear_fingerprints();
         }
-        let build_start = Instant::now();
-        self.shell_state.build_static_segments_with_style_into(
-            layout,
-            style,
-            &self.model,
-            &mut self.static_segment_frame_cache,
-        );
-        let build_duration = build_start.elapsed();
-        let encode_start = Instant::now();
+        let mut build_duration = Duration::ZERO;
+        let mut encode_duration = Duration::ZERO;
         for segment in StaticFrameSegment::ALL {
             let segment_revision = self.static_segment_revision(segment_revisions, segment);
             let fingerprint = StaticSegmentCacheFingerprint {
@@ -2018,16 +2011,34 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             };
             let segment_dirty =
                 force_rebuild || self.static_segment_is_dirty(dirty_segments, segment);
-            let entry = self.static_segment_scene_cache.entry_mut(segment);
-            if !segment_dirty && entry.fingerprint.as_ref() == Some(&fingerprint) {
+            let needs_rebuild = {
+                let entry = self.static_segment_scene_cache.entry_mut(segment);
+                if !segment_dirty && entry.fingerprint.as_ref() == Some(&fingerprint) {
+                    false
+                } else {
+                    entry.fingerprint = Some(fingerprint);
+                    true
+                }
+            };
+            if !needs_rebuild {
                 continue;
             }
-            entry.fingerprint = Some(fingerprint);
-            Self::encode_frame_to_scene(
-                self.static_segment_frame_cache.frame(segment),
-                &mut entry.scene,
-                &mut self.text_renderer,
+
+            let segment_build_start = Instant::now();
+            self.shell_state.build_static_segment_with_style_into(
+                layout,
+                style,
+                &self.model,
+                segment,
+                &mut self.static_segment_frame_cache,
             );
+            build_duration += segment_build_start.elapsed();
+
+            let segment_encode_start = Instant::now();
+            let frame = self.static_segment_frame_cache.frame(segment);
+            let entry = self.static_segment_scene_cache.entry_mut(segment);
+            Self::encode_frame_to_scene(frame, &mut entry.scene, &mut self.text_renderer);
+            encode_duration += segment_encode_start.elapsed();
         }
 
         self.frame_cache.clear_color = style.clear_color;
@@ -2039,7 +2050,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.static_scene
                 .append(self.static_segment_scene_cache.scene(segment), None);
         }
-        (build_duration, encode_start.elapsed())
+        (build_duration, encode_duration)
     }
 
     fn rebuild_scene(

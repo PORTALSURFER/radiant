@@ -33,7 +33,14 @@ use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
 };
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    hash::{Hash, Hasher},
+};
+
+/// Maximum retained entries for browser-row text truncation outputs.
+const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,6 +58,70 @@ pub(crate) struct NativeShellState {
     folder_row_cache_key: Option<SidebarRowsCacheKey>,
     browser_rows: Vec<CachedBrowserRow>,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
+    browser_row_truncation_cache: BrowserRowTruncationCache,
+    browser_row_truncation_cache_key: Option<BrowserRowTruncationCacheKey>,
+    browser_row_truncation_frame_counts: BrowserRowTruncationFrameCounts,
+}
+
+/// Per-build browser-row truncation cache lookup counts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct BrowserRowTruncationFrameCounts {
+    /// Number of truncation lookups requested while building browser rows.
+    pub lookup_count: u32,
+    /// Number of lookups that reused cached truncated strings.
+    pub cache_hit_count: u32,
+    /// Number of lookups that required fresh truncation work.
+    pub cache_miss_count: u32,
+}
+
+/// Browser row text variants tracked in truncation cache keys.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum BrowserRowTextKind {
+    /// Primary sample label text in browser rows.
+    Sample,
+    /// Secondary bucket/chip label text in browser rows.
+    Bucket,
+}
+
+/// Lookup key for one browser-row truncation output.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct BrowserRowTruncationEntryKey {
+    /// Stable visible-row identity used to scope cached text.
+    row_id: u32,
+    /// Quantized width bucket used by truncation heuristics.
+    width_bucket: u16,
+    /// Quantized font-size bucket used by truncation heuristics.
+    font_size_bucket: u16,
+    /// Distinguishes sample-label vs bucket-label truncation outputs.
+    text_kind: BrowserRowTextKind,
+}
+
+/// Invalidation key for browser-row truncation cache content.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct BrowserRowTruncationCacheKey {
+    /// Browser rows region minimum x-coordinate.
+    browser_rows_min_x: u32,
+    /// Browser rows region minimum y-coordinate.
+    browser_rows_min_y: u32,
+    /// Browser rows region maximum x-coordinate.
+    browser_rows_max_x: u32,
+    /// Browser rows region maximum y-coordinate.
+    browser_rows_max_y: u32,
+    /// Sample-label font size token bits.
+    font_body_bits: u32,
+    /// Bucket-label font size token bits.
+    font_meta_bits: u32,
+    /// Effective UI scale token bits.
+    ui_scale: u32,
+    /// Visible-window row-label content revision fingerprint.
+    row_text_revision: u64,
+}
+
+/// Small retained LRU cache for browser-row text truncation outputs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct BrowserRowTruncationCache {
+    values: HashMap<BrowserRowTruncationEntryKey, String>,
+    lru: VecDeque<BrowserRowTruncationEntryKey>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -272,6 +343,55 @@ impl NativeAnimationReasons {
     }
 }
 
+impl BrowserRowTruncationCache {
+    /// Clear all retained truncation entries.
+    fn clear(&mut self) {
+        self.values.clear();
+        self.lru.clear();
+    }
+
+    /// Resolve one truncation output from cache or compute and insert on miss.
+    fn resolve(
+        &mut self,
+        key: BrowserRowTruncationEntryKey,
+        text: &str,
+        max_width: f32,
+        font_size: f32,
+        frame_counts: &mut BrowserRowTruncationFrameCounts,
+    ) -> String {
+        frame_counts.lookup_count = frame_counts.lookup_count.saturating_add(1);
+        if let Some(cached) = self.values.get(&key).cloned() {
+            frame_counts.cache_hit_count = frame_counts.cache_hit_count.saturating_add(1);
+            self.touch(key);
+            return cached;
+        }
+        frame_counts.cache_miss_count = frame_counts.cache_miss_count.saturating_add(1);
+        let truncated = truncate_to_width(text, max_width, font_size);
+        self.insert(key, truncated.clone());
+        truncated
+    }
+
+    /// Move one key to the back of the LRU order.
+    fn touch(&mut self, key: BrowserRowTruncationEntryKey) {
+        if let Some(index) = self.lru.iter().position(|candidate| *candidate == key) {
+            let _ = self.lru.remove(index);
+        }
+        self.lru.push_back(key);
+    }
+
+    /// Insert one key/value pair and enforce the fixed cache capacity.
+    fn insert(&mut self, key: BrowserRowTruncationEntryKey, value: String) {
+        self.values.insert(key, value);
+        self.touch(key);
+        while self.values.len() > BROWSER_ROW_TRUNCATION_CACHE_CAPACITY {
+            let Some(evicted) = self.lru.pop_front() else {
+                break;
+            };
+            self.values.remove(&evicted);
+        }
+    }
+}
+
 impl NativeShellState {
     /// Create a default shell state.
     pub(crate) fn new() -> Self {
@@ -289,6 +409,9 @@ impl NativeShellState {
             folder_row_cache_key: None,
             browser_rows: Vec::new(),
             browser_rows_cache_key: None,
+            browser_row_truncation_cache: BrowserRowTruncationCache::default(),
+            browser_row_truncation_cache_key: None,
+            browser_row_truncation_frame_counts: BrowserRowTruncationFrameCounts::default(),
         }
     }
 
@@ -355,6 +478,12 @@ impl NativeShellState {
             startup_frame_ticks: self.startup_frame_ticks,
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
+    }
+
+    /// Return browser-row truncation lookup counts from the latest row-cache refresh.
+    #[cfg(test)]
+    pub(crate) fn browser_row_truncation_frame_counts(&self) -> BrowserRowTruncationFrameCounts {
+        self.browser_row_truncation_frame_counts
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.
@@ -1129,11 +1258,7 @@ impl NativeShellState {
                     emit_text(
                         text_runs,
                         TextRun {
-                            text: truncate_to_width(
-                                &row.bucket_label,
-                                bucket_label_max_width,
-                                sizing.font_meta,
-                            ),
+                            text: row.bucket_label.clone(),
                             position: row_text_layout.bucket_label.min,
                             font_size: sizing.font_meta,
                             color: style.text_primary,
@@ -2859,8 +2984,20 @@ impl NativeShellState {
         model: &AppModel,
     ) -> &[CachedBrowserRow] {
         let cache_key = browser_rows_cache_key(layout, style, model);
+        let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
+        if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
+            self.browser_row_truncation_cache.clear();
+            self.browser_row_truncation_cache_key = Some(truncation_cache_key);
+        }
+        self.browser_row_truncation_frame_counts = BrowserRowTruncationFrameCounts::default();
         if self.browser_rows_cache_key != Some(cache_key) {
-            self.browser_rows = rendered_browser_rows(layout, model, style);
+            self.browser_rows = rendered_browser_rows_cached(
+                layout,
+                model,
+                style,
+                &mut self.browser_row_truncation_cache,
+                &mut self.browser_row_truncation_frame_counts,
+            );
             self.browser_rows_cache_key = Some(cache_key);
         }
         &self.browser_rows
@@ -3191,6 +3328,7 @@ struct BrowserRowsCacheKey {
     map_active: u32,
     visible_count: u32,
     window_start: u32,
+    row_text_revision: u64,
     ui_scale: u32,
 }
 
@@ -3421,16 +3559,8 @@ fn browser_rows_cache_key(
         .find(|row| row.selected)
         .map(|row| row.visible_row as u32)
         .unwrap_or(u32::MAX);
-    let row_start = if model.map.active || rows.is_empty() {
-        0
-    } else {
-        browser_window_start(
-            rows,
-            browser_rows_capacity(layout.browser_rows, sizing),
-            model.browser.selected_visible_row,
-            model.browser.anchor_visible_row,
-        ) as u32
-    };
+    let (window_start, window_end) = browser_rows_window_bounds(layout, model, sizing);
+    let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
     BrowserRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),
         root_min_y: f32_to_bits(layout.root.rect.min.y),
@@ -3451,8 +3581,27 @@ fn browser_rows_cache_key(
         selected_visible_hint,
         map_active: model.map.active as u32,
         visible_count: model.browser.visible_count as u32,
-        window_start: row_start,
+        window_start: usize_to_u32(window_start),
+        row_text_revision,
         ui_scale: f32_to_bits(layout.ui_scale),
+    }
+}
+
+/// Build a truncation-cache invalidation key from the current layout/style/row-revision state.
+fn browser_row_truncation_cache_key(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    rows_key: BrowserRowsCacheKey,
+) -> BrowserRowTruncationCacheKey {
+    BrowserRowTruncationCacheKey {
+        browser_rows_min_x: f32_to_bits(layout.browser_rows.min.x),
+        browser_rows_min_y: f32_to_bits(layout.browser_rows.min.y),
+        browser_rows_max_x: f32_to_bits(layout.browser_rows.max.x),
+        browser_rows_max_y: f32_to_bits(layout.browser_rows.max.y),
+        font_body_bits: f32_to_bits(style.sizing.font_body),
+        font_meta_bits: f32_to_bits(style.sizing.font_meta),
+        ui_scale: f32_to_bits(layout.ui_scale),
+        row_text_revision: rows_key.row_text_revision,
     }
 }
 
@@ -3469,41 +3618,72 @@ fn rendered_browser_rows(
     model: &AppModel,
     style: &StyleTokens,
 ) -> Vec<CachedBrowserRow> {
+    let mut truncation_cache = BrowserRowTruncationCache::default();
+    let mut frame_counts = BrowserRowTruncationFrameCounts::default();
+    rendered_browser_rows_cached(
+        layout,
+        model,
+        style,
+        &mut truncation_cache,
+        &mut frame_counts,
+    )
+}
+
+/// Build rendered browser rows while reusing a retained truncation cache.
+fn rendered_browser_rows_cached(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+    truncation_cache: &mut BrowserRowTruncationCache,
+    frame_counts: &mut BrowserRowTruncationFrameCounts,
+) -> Vec<CachedBrowserRow> {
     let sizing = style.sizing;
     if model.map.active || model.browser.rows.is_empty() {
         return Vec::new();
     }
 
-    let window_len = browser_rows_capacity(layout.browser_rows, sizing);
-    let window_start = browser_window_start(
-        &model.browser.rows,
-        window_len,
-        model.browser.selected_visible_row,
-        model.browser.anchor_visible_row,
-    );
-    let window_end = (window_start + window_len).min(model.browser.rows.len());
+    let (window_start, window_end) = browser_rows_window_bounds(layout, model, sizing);
     let window = &model.browser.rows[window_start..window_end];
-
-    let mut rendered = Vec::with_capacity(window.len());
-    for (row, rect) in window.iter().zip(build_stacked_rows(
+    let row_rects = build_stacked_rows(
         layout.browser_rows,
         window.len(),
         sizing.browser_row_gap,
         sizing.browser_row_height,
-    )) {
+    );
+
+    let mut rendered = Vec::with_capacity(window.len());
+    for (row, rect) in window.iter().zip(row_rects) {
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
         let label_width = row_text_layout.sample_label.width().max(20.0);
+        let bucket_label_width = row_text_layout.bucket_label.width().max(10.0);
+        let bucket_label = row
+            .bucket_label
+            .clone()
+            .unwrap_or_else(|| match row.column {
+                0 => String::from("TRASH"),
+                2 => String::from("KEEP"),
+                _ => String::from("SAMPLE"),
+            });
         rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
-            label: truncate_to_width(&row.label, label_width, sizing.font_body),
-            bucket_label: row
-                .bucket_label
-                .clone()
-                .unwrap_or_else(|| match row.column {
-                    0 => String::from("TRASH"),
-                    2 => String::from("KEEP"),
-                    _ => String::from("SAMPLE"),
-                }),
+            label: truncate_browser_row_text_cached(
+                truncation_cache,
+                frame_counts,
+                row.visible_row,
+                BrowserRowTextKind::Sample,
+                &row.label,
+                label_width,
+                sizing.font_body,
+            ),
+            bucket_label: truncate_browser_row_text_cached(
+                truncation_cache,
+                frame_counts,
+                row.visible_row,
+                BrowserRowTextKind::Bucket,
+                &bucket_label,
+                bucket_label_width,
+                sizing.font_meta,
+            ),
             column: row.column.min(2),
             selected: row.selected,
             focused: row.focused,
@@ -3511,6 +3691,37 @@ fn rendered_browser_rows(
         });
     }
     rendered
+}
+
+/// Resolve one truncated browser-row text string from cache or compute it on miss.
+fn truncate_browser_row_text_cached(
+    truncation_cache: &mut BrowserRowTruncationCache,
+    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    row_id: usize,
+    text_kind: BrowserRowTextKind,
+    text: &str,
+    max_width: f32,
+    font_size: f32,
+) -> String {
+    let key = BrowserRowTruncationEntryKey {
+        row_id: usize_to_u32(row_id),
+        width_bucket: truncation_width_bucket(max_width),
+        font_size_bucket: truncation_font_size_bucket(font_size),
+        text_kind,
+    };
+    truncation_cache.resolve(key, text, max_width, font_size, frame_counts)
+}
+
+/// Quantize truncation width inputs into stable cache buckets.
+fn truncation_width_bucket(width: f32) -> u16 {
+    ((width.max(0.0) * 2.0).round().clamp(0.0, u16::MAX as f32)) as u16
+}
+
+/// Quantize truncation font-size inputs into stable cache buckets.
+fn truncation_font_size_bucket(font_size: f32) -> u16 {
+    ((font_size.max(0.0) * 64.0)
+        .round()
+        .clamp(0.0, u16::MAX as f32)) as u16
 }
 
 fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens) -> usize {
@@ -3522,6 +3733,39 @@ fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens) -> usize {
     geometric_capacity
         .max(1)
         .min(sizing.browser_rows_max_per_column.max(1))
+}
+
+/// Resolve browser row-window bounds in model-row index space.
+fn browser_rows_window_bounds(
+    layout: &ShellLayout,
+    model: &AppModel,
+    sizing: SizingTokens,
+) -> (usize, usize) {
+    if model.map.active || model.browser.rows.is_empty() {
+        return (0, 0);
+    }
+    let window_len = browser_rows_capacity(layout.browser_rows, sizing);
+    let window_start = browser_window_start(
+        &model.browser.rows,
+        window_len,
+        model.browser.selected_visible_row,
+        model.browser.anchor_visible_row,
+    );
+    let window_end = (window_start + window_len).min(model.browser.rows.len());
+    (window_start, window_end)
+}
+
+/// Hash visible browser-row labels into one revision fingerprint.
+fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    rows.len().hash(&mut hasher);
+    for row in rows {
+        row.visible_row.hash(&mut hasher);
+        row.label.hash(&mut hasher);
+        row.bucket_label.hash(&mut hasher);
+        row.column.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 fn browser_window_start(
@@ -4979,6 +5223,76 @@ mod tests {
             row.label,
             truncate_to_width(&label, sample_width, style.sizing.font_body)
         );
+    }
+
+    #[test]
+    fn browser_row_truncation_cache_reuses_entries_across_row_cache_rebuilds() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        for index in 0..8 {
+            model.browser.rows.push(
+                BrowserRowModel::new(
+                    index,
+                    format!("very_long_browser_label_{index}_for_truncation_cache"),
+                    1,
+                    false,
+                    false,
+                )
+                .with_bucket_label("meta_bucket_label_that_is_also_long"),
+            );
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(0);
+        let _ = state.build_frame(&layout, &model);
+        let first = state.browser_row_truncation_frame_counts();
+        assert!(first.lookup_count > 0);
+        assert_eq!(first.cache_hit_count, 0);
+        assert!(first.cache_miss_count > 0);
+
+        model.browser.selected_visible_row = Some(1);
+        let _ = state.build_frame(&layout, &model);
+        let second = state.browser_row_truncation_frame_counts();
+        assert!(second.lookup_count > 0);
+        assert!(second.cache_hit_count > 0);
+        assert_eq!(second.cache_miss_count, 0);
+    }
+
+    #[test]
+    fn browser_row_truncation_cache_invalidates_when_row_text_revision_changes() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.browser.rows.push(
+            BrowserRowModel::new(
+                0,
+                "very_long_browser_label_for_truncation_cache",
+                1,
+                false,
+                false,
+            )
+            .with_bucket_label("bucket_label"),
+        );
+        model.browser.rows.push(
+            BrowserRowModel::new(
+                1,
+                "another_very_long_browser_label_for_truncation_cache",
+                1,
+                false,
+                false,
+            )
+            .with_bucket_label("bucket_label"),
+        );
+        model.browser.visible_count = model.browser.rows.len();
+        let _ = state.build_frame(&layout, &model);
+        let _ = state.browser_row_truncation_frame_counts();
+
+        model.browser.rows[0].label = String::from("updated_long_browser_label_for_cache_reset");
+        let _ = state.build_frame(&layout, &model);
+        let second = state.browser_row_truncation_frame_counts();
+        assert!(second.lookup_count > 0);
+        assert_eq!(second.cache_hit_count, 0);
+        assert!(second.cache_miss_count > 0);
     }
 
     #[test]

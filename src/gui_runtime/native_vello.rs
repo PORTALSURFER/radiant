@@ -1181,6 +1181,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         !cfg!(target_os = "windows")
     }
 
+    /// Resolve a deterministic startup clear color used before style/layout are ready.
+    fn startup_placeholder_clear_color() -> Rgba8 {
+        StyleTokens::for_viewport_width(1280.0).clear_color
+    }
+
     fn new(options: NativeRunOptions, bridge: B) -> Self {
         let target_fps = options.target_fps.max(1);
         let frame_interval_ns = (1_000_000_000u64 / target_fps as u64).max(1);
@@ -1189,6 +1194,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
         let idle_status_refresh_interval =
             Duration::from_nanos(1_000_000_000u64 / IDLE_STATUS_REFRESH_HZ.max(1));
+        let startup_clear_color = Self::startup_placeholder_clear_color();
         let incremental_frame_pipeline = std::env::var(INCREMENTAL_FRAME_PIPELINE_ENV)
             .ok()
             .is_some_and(|value| parse_truthy_env(&value));
@@ -1211,34 +1217,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             renderer: None,
             redraw_requested: false,
             frame_cache: NativeViewFrame {
-                clear_color: Rgba8 {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: 255,
-                },
+                clear_color: startup_clear_color,
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
             static_segment_frame_cache: StaticFrameSegments::default(),
             static_segment_scene_cache: StaticSegmentSceneCache::default(),
             state_overlay_frame_cache: NativeViewFrame {
-                clear_color: Rgba8 {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: 255,
-                },
+                clear_color: startup_clear_color,
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
             motion_overlay_frame_cache: NativeViewFrame {
-                clear_color: Rgba8 {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                    a: 255,
-                },
+                clear_color: startup_clear_color,
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
@@ -1262,12 +1253,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             layout_runtime: ShellLayoutRuntime::default(),
             shell_layout: None,
             shell_state: NativeShellState::new(),
-            clear_color: Rgba8 {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 255,
-            },
+            clear_color: startup_clear_color,
             last_cursor: None,
             pending_cursor: None,
             pending_volume_milli: None,
@@ -1527,18 +1513,107 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .unwrap_or_else(|| Self::build_style_for_layout(layout))
     }
 
+    /// Build one minimal branded startup scene while full model pull is deferred.
+    fn build_startup_placeholder_scene(&mut self, layout: &ShellLayout, style: &StyleTokens) {
+        let root = layout.root.rect;
+        let panel_width = (root.width() * 0.36).clamp(220.0, 420.0);
+        let panel_height = (style.sizing.font_header * 2.8).clamp(58.0, 86.0);
+        let panel_min = Point::new(
+            root.min.x + (root.width() - panel_width) * 0.5,
+            root.min.y + (root.height() - panel_height) * 0.5,
+        );
+        let panel = UiRect::from_min_size(panel_min, Vector2::new(panel_width, panel_height));
+        let accent_height = (panel_height * 0.08).clamp(3.0, 6.0);
+        let accent = UiRect::from_min_max(
+            panel.min,
+            Point::new(panel.max.x, panel.min.y + accent_height),
+        );
+        let title = TextRun {
+            text: String::from("Sempal"),
+            position: Point::new(panel.min.x + 12.0, panel.min.y + 10.0),
+            font_size: style.sizing.font_header.max(12.0),
+            color: style.text_primary,
+            max_width: Some((panel.width() - 24.0).max(20.0)),
+            align: TextAlign::Center,
+        };
+        let subtitle = TextRun {
+            text: String::from("Starting audio engine..."),
+            position: Point::new(panel.min.x + 12.0, panel.min.y + panel_height * 0.48),
+            font_size: style.sizing.font_meta.max(10.0),
+            color: style.text_muted,
+            max_width: Some((panel.width() - 24.0).max(20.0)),
+            align: TextAlign::Center,
+        };
+
+        self.frame_cache.clear_color = style.clear_color;
+        self.frame_cache.primitives.clear();
+        self.frame_cache.text_runs.clear();
+        self.frame_cache.text_runs.push(title.clone());
+        self.frame_cache.text_runs.push(subtitle.clone());
+        self.state_overlay_frame_cache.clear_color = style.clear_color;
+        self.state_overlay_frame_cache.primitives.clear();
+        self.state_overlay_frame_cache.text_runs.clear();
+        self.motion_overlay_frame_cache.clear_color = style.clear_color;
+        self.motion_overlay_frame_cache.primitives.clear();
+        self.motion_overlay_frame_cache.text_runs.clear();
+        self.clear_color = style.clear_color;
+
+        self.static_scene.reset();
+        self.static_scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            color_from_rgba(style.surface_base),
+            None,
+            &to_kurbo_rect(root),
+        );
+        self.static_scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            color_from_rgba(style.surface_raised),
+            None,
+            &to_kurbo_rect(panel),
+        );
+        self.static_scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            color_from_rgba(style.accent_mint),
+            None,
+            &to_kurbo_rect(accent),
+        );
+        self.text_renderer
+            .draw_text_runs(&mut self.static_scene, &[title, subtitle]);
+        self.state_overlay_scene.reset();
+        self.motion_overlay_scene.reset();
+        self.scene.reset();
+        self.scene.append(&self.static_scene, None);
+    }
+
     fn rebuild_scene_if_needed(&mut self) {
         if self.shell_layout.is_none() || self.frame_state.layout_dirty {
             self.rebuild_layout();
         }
         let model_refresh_requested = self.frame_state.take_model();
         let static_rebuild_requested = self.frame_state.take_scene();
+        let state_overlay_requested = self.frame_state.take_state_overlay();
+        let motion_overlay_requested = self.frame_state.take_motion_overlay();
+        if self.startup_model_pull_pending
+            && !self.first_frame_presented
+            && !model_refresh_requested
+            && static_rebuild_requested
+        {
+            let Some(layout) = self.shell_layout.as_ref().cloned() else {
+                return;
+            };
+            let style = self.cached_style_for_layout(&layout);
+            self.build_startup_placeholder_scene(&layout, &style);
+            return;
+        }
         if static_rebuild_requested {
             self.profiler.add_explicit_static_rebuild();
         }
         let rebuild_static = static_rebuild_requested || model_refresh_requested;
-        let rebuild_state_overlay = self.frame_state.take_state_overlay() || rebuild_static;
-        let rebuild_motion_overlay = self.frame_state.take_motion_overlay() || rebuild_static;
+        let rebuild_state_overlay = state_overlay_requested || rebuild_static;
+        let rebuild_motion_overlay = motion_overlay_requested || rebuild_static;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
             return;
         }
@@ -3793,6 +3868,52 @@ mod tests {
         assert!(runner.frame_state.take_scene());
         assert!(!runner.frame_state.take_state_overlay());
         assert!(!runner.frame_state.take_motion_overlay());
+    }
+
+    #[test]
+    fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+
+        runner.build_startup_placeholder_scene(&layout, &style);
+
+        assert_eq!(runner.clear_color, style.clear_color);
+        assert_eq!(runner.frame_cache.clear_color, style.clear_color);
+        assert!(
+            runner
+                .frame_cache
+                .text_runs
+                .iter()
+                .any(|run| run.text == "Sempal")
+        );
+    }
+
+    #[test]
+    fn startup_fast_path_rebuild_uses_placeholder_scene_before_first_present() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+        runner.shell_layout = Some(layout);
+        runner.style_cache = Some(style);
+        runner.frame_state.scene_dirty = true;
+        runner.frame_state.model_dirty = false;
+        runner.frame_state.state_overlay_dirty = false;
+        runner.frame_state.motion_overlay_dirty = false;
+        runner.startup_model_pull_pending = true;
+        runner.first_frame_presented = false;
+
+        runner.rebuild_scene_if_needed();
+
+        assert!(
+            runner
+                .frame_cache
+                .text_runs
+                .iter()
+                .any(|run| run.text.contains("Starting audio engine"))
+        );
     }
 
     #[test]

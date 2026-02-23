@@ -50,6 +50,8 @@ const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
 const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
+/// Maximum time to wait for a deferred startup refresh before revealing anyway.
+const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 
 /// Parse standard truthy environment variable values.
 fn parse_truthy_env(value: &str) -> bool {
@@ -1160,6 +1162,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     startup_model_pull_pending: bool,
     /// Whether deferred startup full-model refresh is pending completion.
     startup_deferred_model_refresh_pending: bool,
+    /// Deadline used to prevent startup reveal from stalling indefinitely.
+    startup_reveal_deadline: Option<Instant>,
     /// Startup first-paint timing profile.
     startup_timing: StartupTimingProfile,
     target_frame_interval: Duration,
@@ -1277,6 +1281,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             startup_window_visible: false,
             startup_model_pull_pending: true,
             startup_deferred_model_refresh_pending: false,
+            startup_reveal_deadline: None,
             startup_timing: StartupTimingProfile::new(),
             target_frame_interval,
             focus_animation_interval,
@@ -1869,6 +1874,31 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window.set_visible(true);
         }
         self.startup_window_visible = true;
+        self.startup_reveal_deadline = None;
+    }
+
+    /// Force startup reveal when deferred refresh redraws stall while hidden.
+    ///
+    /// Some backends can throttle redraw delivery for hidden windows. This
+    /// fallback ensures the app cannot remain hidden forever waiting on a
+    /// second present.
+    fn maybe_force_reveal_startup_window_on_stall(&mut self, now: Instant) {
+        if self.startup_window_visible || !self.first_frame_presented {
+            return;
+        }
+        let Some(deadline) = self.startup_reveal_deadline else {
+            return;
+        };
+        if now < deadline {
+            return;
+        }
+        warn!("native vello startup reveal fallback: forcing window visible after stall");
+        if let Some(window) = self.window.as_ref() {
+            window.set_visible(true);
+        }
+        self.startup_window_visible = true;
+        self.startup_reveal_deadline = None;
+        self.request_redraw_if_needed();
     }
 
     /// Handle one successful first present and schedule deferred startup pulls.
@@ -1879,6 +1909,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             if self.startup_model_pull_pending {
                 self.startup_model_pull_pending = false;
                 self.startup_deferred_model_refresh_pending = true;
+                self.startup_reveal_deadline = Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
                 self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
             }
         }
@@ -2052,6 +2083,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.sync_text_input_target();
             if self.startup_deferred_model_refresh_pending {
                 self.startup_deferred_model_refresh_pending = false;
+                self.startup_reveal_deadline = None;
                 self.startup_timing.mark_deferred_model_refresh_done();
                 self.startup_timing.maybe_emit_summary();
             }
@@ -2106,6 +2138,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.sync_text_input_target();
                 if self.startup_deferred_model_refresh_pending {
                     self.startup_deferred_model_refresh_pending = false;
+                    self.startup_reveal_deadline = None;
                     self.startup_timing.mark_deferred_model_refresh_done();
                     self.startup_timing.maybe_emit_summary();
                 }
@@ -2911,6 +2944,7 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
         let has_pending_input = self.flush_pending_input();
         let needs_animation = self.shell_state.needs_animation();
         let now = Instant::now();
+        self.maybe_force_reveal_startup_window_on_stall(now);
         let should_refresh_idle_status =
             !needs_animation && !has_pending_input && { self.mark_idle_status_refresh_if_due(now) };
         if needs_animation || has_pending_input {
@@ -3784,6 +3818,24 @@ mod tests {
         assert!(runner.startup_window_visible);
         assert!(runner.first_frame_presented);
         assert!(!runner.startup_deferred_model_refresh_pending);
+        assert_eq!(runner.startup_reveal_deadline, None);
+    }
+
+    #[test]
+    fn startup_window_force_reveal_fallback_unblocks_hidden_stalls() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.complete_first_present();
+
+        assert!(runner.startup_deferred_model_refresh_pending);
+        assert!(!runner.startup_window_visible);
+        runner.startup_reveal_deadline = Some(Instant::now() - Duration::from_millis(1));
+
+        runner.maybe_force_reveal_startup_window_on_stall(Instant::now());
+
+        assert!(runner.startup_window_visible);
+        assert!(runner.startup_deferred_model_refresh_pending);
+        assert_eq!(runner.startup_reveal_deadline, None);
     }
 
     #[test]

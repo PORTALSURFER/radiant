@@ -1057,6 +1057,14 @@ pub trait NativeAppBridge {
     /// Pull the latest app model snapshot before frame build.
     fn pull_model(&mut self) -> AppModel;
 
+    /// Pull the latest app model snapshot as a shared immutable `Arc`.
+    ///
+    /// Runtimes can use this to avoid full-model cloning on retained cache hits
+    /// when hosts already store projected models behind shared ownership.
+    fn pull_model_arc(&mut self) -> Arc<AppModel> {
+        Arc::new(self.pull_model())
+    }
+
     /// Pull motion-sensitive fields only; this allows renderers to avoid
     /// full-model work on animation-only ticks.
     fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {

@@ -1088,7 +1088,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     bridge: B,
     /// Enable bridge-driven static segment rebuild gating.
     incremental_frame_pipeline: bool,
-    model: AppModel,
+    model: Arc<AppModel>,
     window_id: Option<WindowId>,
     window: Option<Arc<Window>>,
     render_ctx: Option<RenderContext>,
@@ -1203,7 +1203,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             options,
             bridge,
             incremental_frame_pipeline,
-            model: AppModel::default(),
+            model: Arc::new(AppModel::default()),
             window_id: None,
             window: None,
             render_ctx: None,
@@ -2078,7 +2078,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     rebuild_motion_overlay
                 );
             }
-            self.model = self.bridge.pull_model();
+            self.model = self.bridge.pull_model_arc();
             bridge_dirty_segments = self.bridge.take_dirty_segments();
             let bridge_segment_revisions = self.bridge.take_segment_revisions();
             if bridge_segment_revisions.has_static_revisions() {
@@ -2133,7 +2133,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let model_pull_start = self.profiler.now_if_enabled();
                 self.profiler.add_bridge_model_pull_rebuild();
                 self.motion_model_supported = false;
-                self.model = self.bridge.pull_model();
+                self.model = self.bridge.pull_model_arc();
                 bridge_dirty_segments = self.bridge.take_dirty_segments();
                 let bridge_segment_revisions = self.bridge.take_segment_revisions();
                 if bridge_segment_revisions.has_static_revisions() {

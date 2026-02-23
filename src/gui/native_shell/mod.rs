@@ -212,7 +212,7 @@ mod tests {
         let rebuilt_style =
             style::StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
 
-        let expected_scale = (scaled_style.sizing.font_body / base_style.sizing.font_body);
+        let expected_scale = scaled_style.sizing.font_body / base_style.sizing.font_body;
         let observed_scale = rebuilt_style.sizing.font_body / base_style.sizing.font_body;
 
         assert!((layout.ui_scale - 1.6).abs() < 0.0001);
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn action_strip_hit_test_emits_browser_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.browser_actions.can_delete = true;
         let button = state
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn prompt_hit_test_emits_confirm_and_cancel() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn prompt_input_hit_test_resolves_text_entry_rect() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         model.confirm_prompt.input_value = Some(String::from("kicks"));
@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.confirm_prompt.visible = true;
         model.confirm_prompt.input_value = Some(String::from("bad/name"));
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn source_action_hit_test_emits_folder_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.sources.folder_actions.can_delete_folder = true;
         let button = state
@@ -530,7 +530,7 @@ mod tests {
     #[test]
     fn source_action_hit_test_ignores_disabled_button() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.sources.folder_actions.can_delete_folder = false;
         let button = state

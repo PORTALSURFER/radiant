@@ -5228,6 +5228,7 @@ mod tests {
     #[test]
     fn browser_row_truncation_cache_reuses_entries_across_row_cache_rebuilds() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         for index in 0..8 {
@@ -5244,14 +5245,14 @@ mod tests {
         }
         model.browser.visible_count = model.browser.rows.len();
         model.browser.selected_visible_row = Some(0);
-        let _ = state.build_frame(&layout, &model);
+        let _ = state.cached_browser_rows(&layout, &style, &model);
         let first = state.browser_row_truncation_frame_counts();
         assert!(first.lookup_count > 0);
         assert_eq!(first.cache_hit_count, 0);
         assert!(first.cache_miss_count > 0);
 
         model.browser.selected_visible_row = Some(1);
-        let _ = state.build_frame(&layout, &model);
+        let _ = state.cached_browser_rows(&layout, &style, &model);
         let second = state.browser_row_truncation_frame_counts();
         assert!(second.lookup_count > 0);
         assert!(second.cache_hit_count > 0);
@@ -5261,6 +5262,7 @@ mod tests {
     #[test]
     fn browser_row_truncation_cache_invalidates_when_row_text_revision_changes() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
         let mut state = NativeShellState::new();
         let mut model = AppModel::default();
         model.browser.rows.push(
@@ -5284,11 +5286,11 @@ mod tests {
             .with_bucket_label("bucket_label"),
         );
         model.browser.visible_count = model.browser.rows.len();
-        let _ = state.build_frame(&layout, &model);
+        let _ = state.cached_browser_rows(&layout, &style, &model);
         let _ = state.browser_row_truncation_frame_counts();
 
         model.browser.rows[0].label = String::from("updated_long_browser_label_for_cache_reset");
-        let _ = state.build_frame(&layout, &model);
+        let _ = state.cached_browser_rows(&layout, &style, &model);
         let second = state.browser_row_truncation_frame_counts();
         assert!(second.lookup_count > 0);
         assert_eq!(second.cache_hit_count, 0);

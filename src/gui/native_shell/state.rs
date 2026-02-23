@@ -3536,7 +3536,29 @@ fn row_index_for_visible_rows(
     if rows.is_empty() || !browser_rows.contains(point) {
         return None;
     }
-    rows.iter().position(|row| row.rect.contains(point))
+    row_index_for_stacked_geometry(rows, point)
+}
+
+/// Resolve one browser-row index from stacked row geometry in constant time.
+fn row_index_for_stacked_geometry(rows: &[CachedBrowserRow], point: Point) -> Option<usize> {
+    let first = rows.first()?;
+    let stride = if rows.len() > 1 {
+        (rows[1].rect.min.y - first.rect.min.y).max(1.0)
+    } else {
+        first.rect.height().max(1.0)
+    };
+    let relative_y = point.y - first.rect.min.y;
+    if relative_y < 0.0 {
+        return None;
+    }
+    let index = (relative_y / stride).floor() as usize;
+    if index >= rows.len() {
+        return None;
+    }
+    if index > 0 && rows[index - 1].rect.contains(point) {
+        return Some(index - 1);
+    }
+    rows[index].rect.contains(point).then_some(index)
 }
 
 fn browser_rows_cache_key(
@@ -4729,6 +4751,24 @@ mod tests {
         model
     }
 
+    /// Build cached browser rows from rects for hit-test unit coverage.
+    fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
+        rects
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, rect)| CachedBrowserRow {
+                visible_row: index,
+                label: format!("row_{index}"),
+                bucket_label: String::from("SAMPLE"),
+                column: 1,
+                selected: false,
+                focused: false,
+                rect,
+            })
+            .collect()
+    }
+
     fn assert_rect_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
         assert!(inner.min.y >= outer.min.y);
@@ -5024,6 +5064,52 @@ mod tests {
                     Some(row.visible_row)
                 );
             }
+        }
+    }
+
+    #[test]
+    /// Hit-testing should return no row when pointer sits in an inter-row gap.
+    fn browser_row_hit_test_returns_none_inside_gap() {
+        let column = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(310.0, 320.0));
+        let rows = build_stacked_rows(column, 4, 6.0, 24.0);
+        let cached_rows = cached_browser_rows_from_rects(rows.as_slice());
+        let point = Point::new(
+            (column.min.x + column.max.x) * 0.5,
+            rows[0].max.y + ((rows[1].min.y - rows[0].max.y) * 0.5),
+        );
+        assert_eq!(
+            row_index_for_visible_rows(&cached_rows, point, column),
+            None
+        );
+    }
+
+    #[test]
+    /// Zero-gap row boundaries should resolve to the earlier row for stable selection.
+    fn browser_row_hit_test_zero_gap_boundary_prefers_previous_row() {
+        let column = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(310.0, 320.0));
+        let rows = build_stacked_rows(column, 3, 0.0, 24.0);
+        let cached_rows = cached_browser_rows_from_rects(rows.as_slice());
+        let point = Point::new((column.min.x + column.max.x) * 0.5, rows[1].min.y);
+        assert_eq!(
+            row_index_for_visible_rows(&cached_rows, point, column),
+            Some(0)
+        );
+    }
+
+    #[test]
+    /// Constant-time row hit-testing should match linear scan semantics.
+    fn browser_row_hit_test_matches_linear_scan_semantics() {
+        let column = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(310.0, 320.0));
+        let rows = build_stacked_rows(column, 8, 5.0, 20.0);
+        let cached_rows = cached_browser_rows_from_rects(rows.as_slice());
+        let sample_points = [21.0, 39.0, 43.0, 46.0, 80.0, 144.0, 312.0];
+        for y in sample_points {
+            let point = Point::new((column.min.x + column.max.x) * 0.5, y);
+            let linear = cached_rows.iter().position(|row| row.rect.contains(point));
+            assert_eq!(
+                row_index_for_visible_rows(&cached_rows, point, column),
+                linear
+            );
         }
     }
 

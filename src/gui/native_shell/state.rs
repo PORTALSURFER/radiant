@@ -2111,7 +2111,7 @@ impl NativeShellState {
                     align: TextAlign::Right,
                 },
             );
-        } else {
+        } else if build_browser_frame {
             let header_text_layout =
                 compute_browser_header_text_layout(layout.browser_table_header, sizing);
             let header = header_text_layout.columns;

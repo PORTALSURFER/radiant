@@ -1,5 +1,6 @@
 //! Backend-neutral geometry and image buffer types.
 #![allow(dead_code)]
+use std::sync::Arc;
 
 /// 2D point in logical UI coordinates.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -93,8 +94,10 @@ pub struct ImageRgba {
     pub width: usize,
     /// Image height in pixels.
     pub height: usize,
-    /// Packed RGBA8 pixels in row-major order.
-    pub pixels: Vec<u8>,
+    /// Shared packed RGBA8 pixels in row-major order.
+    ///
+    /// Cloning `ImageRgba` reuses this backing storage to avoid deep payload copies.
+    pub pixels: Arc<[u8]>,
 }
 
 impl ImageRgba {
@@ -106,7 +109,7 @@ impl ImageRgba {
         Some(Self {
             width,
             height,
-            pixels,
+            pixels: pixels.into(),
         })
     }
 }

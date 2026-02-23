@@ -558,7 +558,7 @@ fn waveform_selection_model() -> AppModel {
     model.waveform.loop_enabled = true;
     model.waveform.tempo_label = Some(String::from("128.0 BPM"));
     model.waveform.zoom_label = Some(String::from("125%"));
-    model.waveform.waveform_image = Some(waveform_waveform_image(160, 32));
+    model.waveform.waveform_image = Some(std::sync::Arc::new(waveform_waveform_image(160, 32)));
     model.waveform.waveform_image_signature = Some(7_123_456);
     model.waveform_chrome.transport_hint = String::from("Loop enabled");
 

@@ -1175,6 +1175,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    /// Keep hidden-launch startup sequencing off on Windows to avoid hidden-window
+    /// redraw stalls that can block first reveal.
+    fn startup_should_launch_hidden() -> bool {
+        !cfg!(target_os = "windows")
+    }
+
     fn new(options: NativeRunOptions, bridge: B) -> Self {
         let target_fps = options.target_fps.max(1);
         let frame_interval_ns = (1_000_000_000u64 / target_fps as u64).max(1);
@@ -1278,7 +1284,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window_event_count: 0,
             redraw_count: 0,
             first_frame_presented: false,
-            startup_window_visible: false,
+            startup_window_visible: !Self::startup_should_launch_hidden(),
             startup_model_pull_pending: true,
             startup_deferred_model_refresh_pending: false,
             startup_reveal_deadline: None,
@@ -1306,7 +1312,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut attrs = Window::default_attributes()
             .with_title(self.options.title.clone())
             .with_maximized(self.options.maximized)
-            .with_visible(false);
+            .with_visible(!Self::startup_should_launch_hidden());
         if let Some([w, h]) = self.options.inner_size {
             attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
         }
@@ -1337,6 +1343,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.startup_timing.mark_window_created();
         info!("radiant native vello: window created");
+        if Self::startup_should_launch_hidden() {
+            self.startup_reveal_deadline = Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
+        }
         let mut render_ctx = RenderContext::new();
         let size = window.inner_size();
         let width = size.width.max(1);
@@ -1877,13 +1886,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.startup_reveal_deadline = None;
     }
 
-    /// Force startup reveal when deferred refresh redraws stall while hidden.
+    /// Force startup reveal when redraw delivery stalls while hidden.
     ///
     /// Some backends can throttle redraw delivery for hidden windows. This
     /// fallback ensures the app cannot remain hidden forever waiting on a
     /// second present.
     fn maybe_force_reveal_startup_window_on_stall(&mut self, now: Instant) {
-        if self.startup_window_visible || !self.first_frame_presented {
+        if self.startup_window_visible {
             return;
         }
         let Some(deadline) = self.startup_reveal_deadline else {
@@ -1909,7 +1918,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             if self.startup_model_pull_pending {
                 self.startup_model_pull_pending = false;
                 self.startup_deferred_model_refresh_pending = true;
-                self.startup_reveal_deadline = Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
+                if !self.startup_window_visible {
+                    self.startup_reveal_deadline =
+                        Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
+                }
                 self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
             }
         }
@@ -3835,6 +3847,19 @@ mod tests {
 
         assert!(runner.startup_window_visible);
         assert!(runner.startup_deferred_model_refresh_pending);
+        assert_eq!(runner.startup_reveal_deadline, None);
+    }
+
+    #[test]
+    fn startup_window_force_reveal_fallback_unblocks_pre_first_present_stalls() {
+        let mut runner =
+            NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+        runner.startup_window_visible = false;
+        runner.startup_reveal_deadline = Some(Instant::now() - Duration::from_millis(1));
+
+        runner.maybe_force_reveal_startup_window_on_stall(Instant::now());
+
+        assert!(runner.startup_window_visible);
         assert_eq!(runner.startup_reveal_deadline, None);
     }
 

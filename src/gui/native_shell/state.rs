@@ -33,6 +33,7 @@ use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
 };
+use std::cell::RefCell;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -187,6 +188,77 @@ impl StaticFrameSegments {
                 .text_runs
                 .extend(segment_frame.text_runs.iter().cloned());
         }
+    }
+}
+
+/// Sink for emitted frame primitives.
+trait PrimitiveSink {
+    /// Push one primitive into the sink.
+    fn push_primitive(&mut self, primitive: Primitive);
+}
+
+impl PrimitiveSink for Vec<Primitive> {
+    fn push_primitive(&mut self, primitive: Primitive) {
+        self.push(primitive);
+    }
+}
+
+/// Sink for emitted frame text runs.
+trait TextRunSink {
+    /// Push one text run into the sink.
+    fn push_text_run(&mut self, text_run: TextRun);
+}
+
+impl TextRunSink for Vec<TextRun> {
+    fn push_text_run(&mut self, text_run: TextRun) {
+        self.push(text_run);
+    }
+}
+
+/// Emit one primitive into a generic sink.
+fn emit_primitive(primitives: &mut impl PrimitiveSink, primitive: Primitive) {
+    primitives.push_primitive(primitive);
+}
+
+/// Emit one text run into a generic sink.
+fn emit_text(text_runs: &mut impl TextRunSink, text_run: TextRun) {
+    text_runs.push_text_run(text_run);
+}
+
+/// Shared segmented emit context that routes output into static buckets.
+struct SegmentedStaticEmitContext<'a> {
+    layout: &'a ShellLayout,
+    model: &'a AppModel,
+    segments: &'a mut StaticFrameSegments,
+}
+
+/// Primitive sink that routes primitives directly into static buckets.
+struct SegmentedPrimitiveSink<'a, 'b> {
+    context: &'a RefCell<SegmentedStaticEmitContext<'b>>,
+}
+
+impl PrimitiveSink for SegmentedPrimitiveSink<'_, '_> {
+    fn push_primitive(&mut self, primitive: Primitive) {
+        let mut context = self.context.borrow_mut();
+        let segment = static_segment_for_primitive(context.layout, context.model, &primitive);
+        context
+            .segments
+            .frame_mut(segment)
+            .primitives
+            .push(primitive);
+    }
+}
+
+/// Text-run sink that routes text directly into static buckets.
+struct SegmentedTextRunSink<'a, 'b> {
+    context: &'a RefCell<SegmentedStaticEmitContext<'b>>,
+}
+
+impl TextRunSink for SegmentedTextRunSink<'_, '_> {
+    fn push_text_run(&mut self, text_run: TextRun) {
+        let mut context = self.context.borrow_mut();
+        let segment = static_segment_for_text(context.layout, context.model, &text_run);
+        context.segments.frame_mut(segment).text_runs.push(text_run);
     }
 }
 
@@ -691,20 +763,27 @@ impl NativeShellState {
         model: &AppModel,
         segments: &mut StaticFrameSegments,
     ) {
-        let mut full_frame = NativeViewFrame {
-            clear_color: style.clear_color,
-            primitives: Vec::new(),
-            text_runs: Vec::new(),
+        segments.clear(style.clear_color);
+        let emit_context = RefCell::new(SegmentedStaticEmitContext {
+            layout,
+            model,
+            segments,
+        });
+        let mut primitives = SegmentedPrimitiveSink {
+            context: &emit_context,
         };
-        self.build_frame_with_style_into_with_motion(
+        let mut text_runs = SegmentedTextRunSink {
+            context: &emit_context,
+        };
+        self.build_frame_with_style_into_with_motion_sinks(
             layout,
             style,
             model,
-            &mut full_frame,
+            &mut primitives,
+            &mut text_runs,
             0.0,
             false,
         );
-        partition_static_frame_into_segments(layout, model, &mut full_frame, segments);
     }
 
     /// Build a frame with a caller-supplied motion phase.
@@ -717,55 +796,106 @@ impl NativeShellState {
         pulse_phase: f32,
         include_overlays: bool,
     ) {
+        frame.clear_color = style.clear_color;
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        self.build_frame_with_style_into_with_motion_sinks(
+            layout,
+            style,
+            model,
+            &mut frame.primitives,
+            &mut frame.text_runs,
+            pulse_phase,
+            include_overlays,
+        );
+    }
+
+    /// Build a frame with a caller-supplied motion phase into generic sinks.
+    fn build_frame_with_style_into_with_motion_sinks(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        primitives: &mut impl PrimitiveSink,
+        text_runs: &mut impl TextRunSink,
+        pulse_phase: f32,
+        include_overlays: bool,
+    ) {
         let sizing = style.sizing;
         let motion_wave = interaction_wave(pulse_phase);
         let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
         let focus_text_emphasis = focus_text_blend(style, motion_wave);
-        frame.primitives.clear();
-        frame.text_runs.clear();
-        let primitives = &mut frame.primitives;
-        let text_runs = &mut frame.text_runs;
 
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.top_bar,
-            color: style.surface_raised,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.sidebar,
-            color: style.surface_raised,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.content,
-            color: style.surface_base,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.waveform_card,
-            color: style.surface_raised,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.status_bar,
-            color: style.surface_raised,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.browser_panel,
-            color: style.surface_raised,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.browser_tabs,
-            color: style.surface_overlay,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.browser_toolbar,
-            color: style.surface_base,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.browser_table_header,
-            color: style.surface_overlay,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.browser_footer,
-            color: style.surface_overlay,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.top_bar,
+                color: style.surface_raised,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.sidebar,
+                color: style.surface_raised,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.content,
+                color: style.surface_base,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.waveform_card,
+                color: style.surface_raised,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.status_bar,
+                color: style.surface_raised,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.browser_panel,
+                color: style.surface_raised,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.browser_tabs,
+                color: style.surface_overlay,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.browser_toolbar,
+                color: style.surface_base,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.browser_table_header,
+                color: style.surface_overlay,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.browser_footer,
+                color: style.surface_overlay,
+            }),
+        );
 
         let waveform_inner = layout.waveform_plot;
         let scan_step = sizing.waveform_scan_step;
@@ -777,16 +907,19 @@ impl NativeShellState {
             } else {
                 style.grid_soft
             };
-            primitives.push(Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(x, waveform_inner.min.y),
-                    Point::new(
-                        (x + sizing.border_width).min(waveform_inner.max.x),
-                        waveform_inner.max.y,
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        Point::new(x, waveform_inner.min.y),
+                        Point::new(
+                            (x + sizing.border_width).min(waveform_inner.max.x),
+                            waveform_inner.max.y,
+                        ),
                     ),
-                ),
-                color: line_color,
-            }));
+                    color: line_color,
+                }),
+            );
             x += scan_step;
         }
 
@@ -802,10 +935,13 @@ impl NativeShellState {
         let browser_rows = rendered_browser_rows(layout, model, style);
         if model.map.active {
             let canvas = compute_browser_map_canvas_rect(layout.browser_rows, sizing);
-            primitives.push(Primitive::Rect(FillRect {
-                rect: canvas,
-                color: blend_color(style.surface_base, style.bg_secondary, 0.24),
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: canvas,
+                    color: blend_color(style.surface_base, style.bg_secondary, 0.24),
+                }),
+            );
             push_border(
                 primitives,
                 canvas,
@@ -822,11 +958,14 @@ impl NativeShellState {
                 } else {
                     2.6
                 };
-                primitives.push(Primitive::Circle(FillCircle {
-                    center,
-                    radius,
-                    color,
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Circle(FillCircle {
+                        center,
+                        radius,
+                        color,
+                    }),
+                );
             }
         } else {
             for row in browser_rows.iter() {
@@ -875,21 +1014,27 @@ impl NativeShellState {
                 } else {
                     style.text_primary
                 };
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: row.rect,
-                    color: row_fill,
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: row.rect,
+                        color: row_fill,
+                    }),
+                );
                 for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
-                    primitives.push(Primitive::Rect(FillRect {
-                        rect: Rect::from_min_max(
-                            Point::new(separator_x, row.rect.min.y),
-                            Point::new(
-                                (separator_x + sizing.border_width).min(row.rect.max.x),
-                                row.rect.max.y,
+                    emit_primitive(
+                        primitives,
+                        Primitive::Rect(FillRect {
+                            rect: Rect::from_min_max(
+                                Point::new(separator_x, row.rect.min.y),
+                                Point::new(
+                                    (separator_x + sizing.border_width).min(row.rect.max.x),
+                                    row.rect.max.y,
+                                ),
                             ),
-                        ),
-                        color: blend_color(style.border, style.grid_soft, 0.36),
-                    }));
+                            color: blend_color(style.border, style.grid_soft, 0.36),
+                        }),
+                    );
                 }
                 push_border(
                     primitives,
@@ -907,41 +1052,53 @@ impl NativeShellState {
                     2 => blend_color(style.accent_mint, style.bg_secondary, 0.54),
                     _ => blend_color(style.text_muted, style.bg_secondary, 0.54),
                 };
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: chip_rect,
-                    color: chip_color,
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: chip_rect,
+                        color: chip_color,
+                    }),
+                );
                 push_border(primitives, chip_rect, style.border, sizing.border_width);
-                text_runs.push(TextRun {
-                    text: row.visible_row.to_string(),
-                    position: row_text_layout.index_label.min,
-                    font_size: sizing.font_meta,
-                    color: style.text_muted,
-                    max_width: Some(row_text_layout.index_label.width().max(12.0)),
-                    align: TextAlign::Right,
-                });
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: row.visible_row.to_string(),
+                        position: row_text_layout.index_label.min,
+                        font_size: sizing.font_meta,
+                        color: style.text_muted,
+                        max_width: Some(row_text_layout.index_label.width().max(12.0)),
+                        align: TextAlign::Right,
+                    },
+                );
                 let label_max_width = row_text_layout.sample_label.width().max(20.0);
-                text_runs.push(TextRun {
-                    text: row.label.clone(),
-                    position: row_text_layout.sample_label.min,
-                    font_size: sizing.font_body,
-                    color: row_text_color,
-                    max_width: Some(label_max_width.max(20.0)),
-                    align: TextAlign::Left,
-                });
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: row.label.clone(),
+                        position: row_text_layout.sample_label.min,
+                        font_size: sizing.font_body,
+                        color: row_text_color,
+                        max_width: Some(label_max_width.max(20.0)),
+                        align: TextAlign::Left,
+                    },
+                );
                 let bucket_label_max_width = row_text_layout.bucket_label.width().max(10.0);
-                text_runs.push(TextRun {
-                    text: truncate_to_width(
-                        &row.bucket_label,
-                        bucket_label_max_width,
-                        sizing.font_meta,
-                    ),
-                    position: row_text_layout.bucket_label.min,
-                    font_size: sizing.font_meta,
-                    color: style.text_primary,
-                    max_width: Some(bucket_label_max_width),
-                    align: TextAlign::Center,
-                });
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: truncate_to_width(
+                            &row.bucket_label,
+                            bucket_label_max_width,
+                            sizing.font_meta,
+                        ),
+                        position: row_text_layout.bucket_label.min,
+                        font_size: sizing.font_meta,
+                        color: style.text_primary,
+                        max_width: Some(bucket_label_max_width),
+                        align: TextAlign::Center,
+                    },
+                );
             }
         }
 
@@ -989,14 +1146,17 @@ impl NativeShellState {
         } else {
             style.accent_copper
         };
-        primitives.push(Primitive::Circle(FillCircle {
-            center: Point::new(
-                layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
-                layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
-            ),
-            radius: lamp_radius,
-            color: lamp_color,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Circle(FillCircle {
+                center: Point::new(
+                    layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
+                    layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
+                ),
+                radius: lamp_radius,
+                color: lamp_color,
+            }),
+        );
 
         let top_title_rect = compute_top_bar_title_text_rect(
             layout.top_bar_title_cluster,
@@ -1004,14 +1164,17 @@ impl NativeShellState {
             sizing,
         );
         let top_title_width = top_title_rect.width().max(72.0);
-        text_runs.push(TextRun {
-            text: truncate_to_width(&model.title, top_title_width, sizing.font_title),
-            position: top_title_rect.min,
-            font_size: sizing.font_title,
-            color: style.text_primary,
-            max_width: Some(top_title_width),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(&model.title, top_title_width, sizing.font_title),
+                position: top_title_rect.min,
+                font_size: sizing.font_title,
+                color: style.text_primary,
+                max_width: Some(top_title_width),
+                align: TextAlign::Left,
+            },
+        );
         let top_controls = top_bar_controls_layout(layout, sizing);
         if top_controls.active {
             let top_controls_text = compute_top_bar_controls_text_layout(
@@ -1021,20 +1184,26 @@ impl NativeShellState {
                 sizing,
             );
             let divider_y = layout.top_bar_controls_row.min.y;
-            primitives.push(Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(layout.top_bar.min.x, divider_y),
-                    Point::new(
-                        layout.top_bar.max.x,
-                        (divider_y + sizing.border_width).min(layout.top_bar.max.y),
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        Point::new(layout.top_bar.min.x, divider_y),
+                        Point::new(
+                            layout.top_bar.max.x,
+                            (divider_y + sizing.border_width).min(layout.top_bar.max.y),
+                        ),
                     ),
-                ),
-                color: style.border,
-            }));
-            primitives.push(Primitive::Rect(FillRect {
-                rect: top_controls.volume_meter,
-                color: style.surface_overlay,
-            }));
+                    color: style.border,
+                }),
+            );
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: top_controls.volume_meter,
+                    color: style.surface_overlay,
+                }),
+            );
             push_border(
                 primitives,
                 top_controls.volume_meter,
@@ -1044,40 +1213,52 @@ impl NativeShellState {
             let volume_level = model.volume.clamp(0.0, 1.0);
             let fill_width = (top_controls.volume_meter.width() * volume_level)
                 .clamp(1.0, top_controls.volume_meter.width());
-            primitives.push(Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    top_controls.volume_meter.min,
-                    Point::new(
-                        top_controls.volume_meter.min.x + fill_width,
-                        top_controls.volume_meter.max.y,
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        top_controls.volume_meter.min,
+                        Point::new(
+                            top_controls.volume_meter.min.x + fill_width,
+                            top_controls.volume_meter.max.y,
+                        ),
                     ),
-                ),
-                color: blend_color(style.accent_mint, style.text_primary, 0.28),
-            }));
-            text_runs.push(TextRun {
-                text: String::from("Options"),
-                position: top_controls_text.options_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(top_controls_text.options_label.width().max(24.0)),
-                align: TextAlign::Left,
-            });
-            text_runs.push(TextRun {
-                text: format!("{volume_level:.2}"),
-                position: top_controls_text.volume_value.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(top_controls_text.volume_value.width().max(20.0)),
-                align: TextAlign::Right,
-            });
-            text_runs.push(TextRun {
-                text: String::from("Vol"),
-                position: top_controls_text.volume_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(top_controls_text.volume_label.width().max(18.0)),
-                align: TextAlign::Left,
-            });
+                    color: blend_color(style.accent_mint, style.text_primary, 0.28),
+                }),
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("Options"),
+                    position: top_controls_text.options_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some(top_controls_text.options_label.width().max(24.0)),
+                    align: TextAlign::Left,
+                },
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: format!("{volume_level:.2}"),
+                    position: top_controls_text.volume_value.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(top_controls_text.volume_value.width().max(20.0)),
+                    align: TextAlign::Right,
+                },
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("Vol"),
+                    position: top_controls_text.volume_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(top_controls_text.volume_label.width().max(18.0)),
+                    align: TextAlign::Left,
+                },
+            );
         }
         let update_buttons = update_action_buttons(layout, style, model);
         let update_status_text = update_status_text(model);
@@ -1100,35 +1281,48 @@ impl NativeShellState {
             &update_button_rects,
         );
         let update_status_width = update_text_layout.status_line.width().max(20.0);
-        text_runs.push(TextRun {
-            text: truncate_to_width(&update_status_text, update_status_width, sizing.font_meta),
-            position: update_text_layout.status_line.min,
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(update_status_width),
-            align: TextAlign::Left,
-        });
-        if !update_controls_text.is_empty() && update_text_layout.controls_line.width() > 0.0 {
-            let controls_width = update_text_layout.controls_line.width().max(20.0);
-            text_runs.push(TextRun {
-                text: truncate_to_width(&update_controls_text, controls_width, sizing.font_meta),
-                position: update_text_layout.controls_line.min,
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(&update_status_text, update_status_width, sizing.font_meta),
+                position: update_text_layout.status_line.min,
                 font_size: sizing.font_meta,
                 color: style.text_muted,
-                max_width: Some(controls_width),
+                max_width: Some(update_status_width),
                 align: TextAlign::Left,
-            });
+            },
+        );
+        if !update_controls_text.is_empty() && update_text_layout.controls_line.width() > 0.0 {
+            let controls_width = update_text_layout.controls_line.width().max(20.0);
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: truncate_to_width(
+                        &update_controls_text,
+                        controls_width,
+                        sizing.font_meta,
+                    ),
+                    position: update_text_layout.controls_line.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(controls_width),
+                    align: TextAlign::Left,
+                },
+            );
         }
         for button in &update_buttons {
             let label_rect = compute_action_button_text_rect(button.rect, sizing);
-            primitives.push(Primitive::Rect(FillRect {
-                rect: button.rect,
-                color: if button.enabled {
-                    style.surface_overlay
-                } else {
-                    style.control_disabled_fill
-                },
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: button.rect,
+                    color: if button.enabled {
+                        style.surface_overlay
+                    } else {
+                        style.control_disabled_fill
+                    },
+                }),
+            );
             push_border(
                 primitives,
                 button.rect,
@@ -1143,29 +1337,35 @@ impl NativeShellState {
                 },
                 sizing.border_width,
             );
-            text_runs.push(TextRun {
-                text: button.label.to_string(),
-                position: label_rect.min,
-                font_size: sizing.font_meta,
-                color: if button.enabled {
-                    button.text_color
-                } else {
-                    style.text_muted
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: button.label.to_string(),
+                    position: label_rect.min,
+                    font_size: sizing.font_meta,
+                    color: if button.enabled {
+                        button.text_color
+                    } else {
+                        style.text_muted
+                    },
+                    max_width: Some(label_rect.width().max(12.0)),
+                    align: TextAlign::Center,
                 },
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
-            });
+            );
         }
         for button in &browser_buttons {
             let label_rect = compute_action_button_text_rect(button.rect, sizing);
-            primitives.push(Primitive::Rect(FillRect {
-                rect: button.rect,
-                color: if button.enabled {
-                    style.surface_overlay
-                } else {
-                    style.control_disabled_fill
-                },
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: button.rect,
+                    color: if button.enabled {
+                        style.surface_overlay
+                    } else {
+                        style.control_disabled_fill
+                    },
+                }),
+            );
             push_border(
                 primitives,
                 button.rect,
@@ -1180,18 +1380,21 @@ impl NativeShellState {
                 },
                 sizing.border_width,
             );
-            text_runs.push(TextRun {
-                text: button.label.to_string(),
-                position: label_rect.min,
-                font_size: sizing.font_meta,
-                color: if button.enabled {
-                    button.text_color
-                } else {
-                    style.text_muted
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: button.label.to_string(),
+                    position: label_rect.min,
+                    font_size: sizing.font_meta,
+                    color: if button.enabled {
+                        button.text_color
+                    } else {
+                        style.text_muted
+                    },
+                    max_width: Some(label_rect.width().max(12.0)),
+                    align: TextAlign::Center,
                 },
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
-            });
+            );
         }
         let sources_header = if model.sources.header.is_empty() {
             model.sources_label.as_str()
@@ -1202,33 +1405,39 @@ impl NativeShellState {
         let sidebar_header_text = compute_sidebar_header_text_layout(layout.sidebar_header, sizing);
         let sidebar_header_title_width = sidebar_header_text.title_row.width().max(72.0);
         let sidebar_header_query_width = sidebar_header_text.query_row.width().max(72.0);
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                sources_header,
-                sidebar_header_title_width,
-                sizing.font_header,
-            ),
-            position: sidebar_header_text.title_row.min,
-            font_size: sizing.font_header,
-            color: style.text_primary,
-            max_width: Some(sidebar_header_title_width),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: format!(
-                "search: {}",
-                if model.sources.search_query.is_empty() {
-                    "—"
-                } else {
-                    model.sources.search_query.as_str()
-                }
-            ),
-            position: sidebar_header_text.query_row.min,
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(sidebar_header_query_width),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    sources_header,
+                    sidebar_header_title_width,
+                    sizing.font_header,
+                ),
+                position: sidebar_header_text.title_row.min,
+                font_size: sizing.font_header,
+                color: style.text_primary,
+                max_width: Some(sidebar_header_title_width),
+                align: TextAlign::Left,
+            },
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: format!(
+                    "search: {}",
+                    if model.sources.search_query.is_empty() {
+                        "—"
+                    } else {
+                        model.sources.search_query.as_str()
+                    }
+                ),
+                position: sidebar_header_text.query_row.min,
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(sidebar_header_query_width),
+                align: TextAlign::Left,
+            },
+        );
         let rendered_sources = source_row_rects.len();
         for (row_index, row_rect) in source_row_rects.iter().enumerate() {
             let row_rect = *row_rect;
@@ -1247,10 +1456,13 @@ impl NativeShellState {
             } else {
                 style.surface_base
             };
-            primitives.push(Primitive::Rect(FillRect {
-                rect: row_rect,
-                color: row_fill,
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: row_rect,
+                    color: row_fill,
+                }),
+            );
             push_border(
                 primitives,
                 row_rect,
@@ -1268,22 +1480,25 @@ impl NativeShellState {
                 sizing.border_width,
             );
             let source_label_rect = compute_sidebar_source_row_text_rect(row_rect, sizing);
-            text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &row.label,
-                    source_label_rect.width().max(24.0),
-                    sizing.font_body,
-                ),
-                position: source_label_rect.min,
-                font_size: sizing.font_body,
-                color: if row_selected {
-                    style.accent_mint
-                } else {
-                    style.text_primary
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: truncate_to_width(
+                        &row.label,
+                        source_label_rect.width().max(24.0),
+                        sizing.font_body,
+                    ),
+                    position: source_label_rect.min,
+                    font_size: sizing.font_body,
+                    color: if row_selected {
+                        style.accent_mint
+                    } else {
+                        style.text_primary
+                    },
+                    max_width: Some(source_label_rect.width().max(24.0)),
+                    align: TextAlign::Left,
                 },
-                max_width: Some(source_label_rect.width().max(24.0)),
-                align: TextAlign::Left,
-            });
+            );
         }
         let rendered_folders = folder_row_rects.len();
         if rendered_folders > 0 {
@@ -1292,10 +1507,13 @@ impl NativeShellState {
                 sidebar_sections.folder_header,
                 sizing,
             ) {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: divider_rect,
-                    color: style.source_section_divider,
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: divider_rect,
+                        color: style.source_section_divider,
+                    }),
+                );
             }
             let folder_header_layout = compute_sidebar_folder_header_layout(
                 sidebar_sections.folder_header,
@@ -1304,14 +1522,17 @@ impl NativeShellState {
                 model.sources.folder_recovery.entry_count,
             );
             if let Some(badge) = folder_header_layout.badge.as_ref() {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: badge.rect,
-                    color: if badge.active {
-                        style.source_recovery_badge_active
-                    } else {
-                        style.source_recovery_badge_idle
-                    },
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: badge.rect,
+                        color: if badge.active {
+                            style.source_recovery_badge_active
+                        } else {
+                            style.source_recovery_badge_idle
+                        },
+                    }),
+                );
                 push_border(
                     primitives,
                     badge.rect,
@@ -1323,46 +1544,55 @@ impl NativeShellState {
                     sizing.border_width,
                 );
                 let badge_text_rect = compute_sidebar_recovery_badge_text_rect(badge.rect, sizing);
-                text_runs.push(TextRun {
-                    text: badge.label.clone(),
-                    position: badge_text_rect.min,
-                    font_size: sizing.font_meta,
-                    color: style.text_primary,
-                    max_width: Some(badge_text_rect.width().max(18.0)),
-                    align: TextAlign::Center,
-                });
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: badge.label.clone(),
+                        position: badge_text_rect.min,
+                        font_size: sizing.font_meta,
+                        color: style.text_primary,
+                        max_width: Some(badge_text_rect.width().max(18.0)),
+                        align: TextAlign::Center,
+                    },
+                );
             }
             if folder_header_layout.title_row.width() > 8.0 {
-                text_runs.push(TextRun {
-                    text: format!("Folders ({})", model.sources.folder_rows.len()),
-                    position: Point::new(
-                        folder_header_layout.title_row.min.x,
-                        folder_header_layout.title_row.min.y,
-                    ),
-                    font_size: sizing.font_header,
-                    color: style.text_primary,
-                    max_width: Some(folder_header_layout.title_row.width()),
-                    align: TextAlign::Left,
-                });
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: format!("Folders ({})", model.sources.folder_rows.len()),
+                        position: Point::new(
+                            folder_header_layout.title_row.min.x,
+                            folder_header_layout.title_row.min.y,
+                        ),
+                        font_size: sizing.font_header,
+                        color: style.text_primary,
+                        max_width: Some(folder_header_layout.title_row.width()),
+                        align: TextAlign::Left,
+                    },
+                );
                 if let Some(metadata_row) = folder_header_layout
                     .metadata_row
                     .filter(|row| row.width() > 24.0)
                 {
-                    text_runs.push(TextRun {
-                        text: format!(
-                            "query: {}",
-                            if model.sources.folder_search_query.is_empty() {
-                                "—"
-                            } else {
-                                model.sources.folder_search_query.as_str()
-                            }
-                        ),
-                        position: metadata_row.min,
-                        font_size: sizing.font_meta,
-                        color: style.text_muted,
-                        max_width: Some(metadata_row.width()),
-                        align: TextAlign::Left,
-                    });
+                    emit_text(
+                        text_runs,
+                        TextRun {
+                            text: format!(
+                                "query: {}",
+                                if model.sources.folder_search_query.is_empty() {
+                                    "—"
+                                } else {
+                                    model.sources.folder_search_query.as_str()
+                                }
+                            ),
+                            position: metadata_row.min,
+                            font_size: sizing.font_meta,
+                            color: style.text_muted,
+                            max_width: Some(metadata_row.width()),
+                            align: TextAlign::Left,
+                        },
+                    );
                 }
             }
             for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
@@ -1385,10 +1615,13 @@ impl NativeShellState {
                 } else {
                     style.surface_base
                 };
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: row_rect,
-                    color: row_fill,
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: row_rect,
+                        color: row_fill,
+                    }),
+                );
                 push_border(
                     primitives,
                     row_rect,
@@ -1426,32 +1659,38 @@ impl NativeShellState {
                 let folder_text_rect =
                     compute_sidebar_folder_row_text_rect(row_rect, sizing, depth_indent);
                 let folder_text_width = folder_text_rect.width().max(24.0);
-                text_runs.push(TextRun {
-                    text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
-                    position: folder_text_rect.min,
-                    font_size: sizing.font_body,
-                    color: if row.focused {
-                        style.accent_warning
-                    } else if row.selected {
-                        style.accent_mint
-                    } else {
-                        style.text_primary
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: truncate_to_width(&label_text, folder_text_width, sizing.font_body),
+                        position: folder_text_rect.min,
+                        font_size: sizing.font_body,
+                        color: if row.focused {
+                            style.accent_warning
+                        } else if row.selected {
+                            style.accent_mint
+                        } else {
+                            style.text_primary
+                        },
+                        max_width: Some(folder_text_width),
+                        align: TextAlign::Left,
                     },
-                    max_width: Some(folder_text_width),
-                    align: TextAlign::Left,
-                });
+                );
             }
         }
         for button in source_action_buttons(layout, style, model) {
             let label_rect = compute_action_button_text_rect(button.rect, sizing);
-            primitives.push(Primitive::Rect(FillRect {
-                rect: button.rect,
-                color: if button.enabled {
-                    style.surface_overlay
-                } else {
-                    style.control_disabled_fill
-                },
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: button.rect,
+                    color: if button.enabled {
+                        style.surface_overlay
+                    } else {
+                        style.control_disabled_fill
+                    },
+                }),
+            );
             push_border(
                 primitives,
                 button.rect,
@@ -1466,56 +1705,68 @@ impl NativeShellState {
                 },
                 sizing.border_width,
             );
-            text_runs.push(TextRun {
-                text: button.label.to_string(),
-                position: label_rect.min,
-                font_size: sizing.font_meta,
-                color: if button.enabled {
-                    button.text_color
-                } else {
-                    style.text_muted
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: button.label.to_string(),
+                    position: label_rect.min,
+                    font_size: sizing.font_meta,
+                    color: if button.enabled {
+                        button.text_color
+                    } else {
+                        style.text_muted
+                    },
+                    max_width: Some(label_rect.width().max(12.0)),
+                    align: TextAlign::Center,
                 },
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
-            });
+            );
         }
         let sidebar_footer_text = compute_sidebar_footer_text_layout(layout.sidebar_footer, sizing);
         let sidebar_footer_primary_width = sidebar_footer_text.primary_row.width().max(56.0);
         let sidebar_footer_secondary_width = sidebar_footer_text.secondary_row.width().max(56.0);
         if model.sources.rows.len() > rendered_sources {
-            text_runs.push(TextRun {
-                text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
-                position: sidebar_footer_text.primary_row.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(sidebar_footer_primary_width),
-                align: TextAlign::Left,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: format!("+{} more…", model.sources.rows.len() - rendered_sources),
+                    position: sidebar_footer_text.primary_row.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(sidebar_footer_primary_width),
+                    align: TextAlign::Left,
+                },
+            );
         }
         if model.sources.folder_rows.len() > rendered_folders {
-            text_runs.push(TextRun {
-                text: format!(
-                    "folders: +{} more…",
-                    model.sources.folder_rows.len() - rendered_folders
-                ),
-                position: sidebar_footer_text.secondary_row.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(sidebar_footer_secondary_width),
-                align: TextAlign::Left,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: format!(
+                        "folders: +{} more…",
+                        model.sources.folder_rows.len() - rendered_folders
+                    ),
+                    position: sidebar_footer_text.secondary_row.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(sidebar_footer_secondary_width),
+                    align: TextAlign::Left,
+                },
+            );
         } else if model.sources.folder_recovery.entry_count > 0 {
-            text_runs.push(TextRun {
-                text: format!(
-                    "recovery entries: {}",
-                    model.sources.folder_recovery.entry_count
-                ),
-                position: sidebar_footer_text.secondary_row.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(sidebar_footer_secondary_width),
-                align: TextAlign::Left,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: format!(
+                        "recovery entries: {}",
+                        model.sources.folder_recovery.entry_count
+                    ),
+                    position: sidebar_footer_text.secondary_row.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(sidebar_footer_secondary_width),
+                    align: TextAlign::Left,
+                },
+            );
         }
         // Waveform summary text is produced during overlay rendering so it can
         // update while transport advances without invalidating the static scene.
@@ -1564,14 +1815,20 @@ impl NativeShellState {
                 ),
             )
         };
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.samples,
-            color: samples_fill,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.map,
-            color: map_fill,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.samples,
+                color: samples_fill,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.map,
+                color: map_fill,
+            }),
+        );
         push_border(
             primitives,
             tabs.samples,
@@ -1585,33 +1842,42 @@ impl NativeShellState {
             model.browser_chrome.samples_tab_label,
             model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
         );
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &samples_text,
-                tabs_text_layout.samples_label.width().max(40.0),
-                sizing.font_header,
-            ),
-            position: tabs_text_layout.samples_label.min,
-            font_size: sizing.font_header,
-            color: samples_text_color,
-            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &samples_text,
+                    tabs_text_layout.samples_label.width().max(40.0),
+                    sizing.font_header,
+                ),
+                position: tabs_text_layout.samples_label.min,
+                font_size: sizing.font_header,
+                color: samples_text_color,
+                max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
+                align: TextAlign::Left,
+            },
+        );
         let map_text = model.browser_chrome.map_tab_label.as_str();
-        text_runs.push(TextRun {
-            text: String::from(map_text),
-            position: tabs_text_layout.map_label.min,
-            font_size: sizing.font_header,
-            color: map_text_color,
-            max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: String::from(map_text),
+                position: tabs_text_layout.map_label.min,
+                font_size: sizing.font_header,
+                color: map_text_color,
+                max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
+                align: TextAlign::Left,
+            },
+        );
         let toolbar = browser_toolbar_layout(layout, style, &browser_buttons);
         if toolbar.search_field.width() > 1.0 {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: toolbar.search_field,
-                color: style.surface_overlay,
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: toolbar.search_field,
+                    color: style.surface_overlay,
+                }),
+            );
             push_border(
                 primitives,
                 toolbar.search_field,
@@ -1620,14 +1886,17 @@ impl NativeShellState {
             );
         }
         if toolbar.activity_chip.width() > 1.0 {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: toolbar.activity_chip,
-                color: if model.browser.busy {
-                    blend_color(style.accent_warning, style.bg_secondary, 0.45)
-                } else {
-                    blend_color(style.accent_mint, style.bg_secondary, 0.40)
-                },
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: toolbar.activity_chip,
+                    color: if model.browser.busy {
+                        blend_color(style.accent_warning, style.bg_secondary, 0.45)
+                    } else {
+                        blend_color(style.accent_mint, style.bg_secondary, 0.40)
+                    },
+                }),
+            );
             push_border(
                 primitives,
                 toolbar.activity_chip,
@@ -1636,10 +1905,13 @@ impl NativeShellState {
             );
         }
         if toolbar.sort_chip.width() > 1.0 {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: toolbar.sort_chip,
-                color: style.surface_overlay,
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: toolbar.sort_chip,
+                    color: style.surface_overlay,
+                }),
+            );
             push_border(
                 primitives,
                 toolbar.sort_chip,
@@ -1662,36 +1934,42 @@ impl NativeShellState {
             )
         };
         if toolbar.search_field.width() > 1.0 {
-            text_runs.push(TextRun {
-                text: truncate_to_width(
-                    &search_text,
-                    toolbar_text_layout.search_label.width().max(24.0),
-                    sizing.font_meta,
-                ),
-                position: toolbar_text_layout.search_label.min,
-                font_size: sizing.font_meta,
-                color: if model.browser.search_query.is_empty() {
-                    style.text_muted
-                } else {
-                    style.text_primary
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: truncate_to_width(
+                        &search_text,
+                        toolbar_text_layout.search_label.width().max(24.0),
+                        sizing.font_meta,
+                    ),
+                    position: toolbar_text_layout.search_label.min,
+                    font_size: sizing.font_meta,
+                    color: if model.browser.search_query.is_empty() {
+                        style.text_muted
+                    } else {
+                        style.text_primary
+                    },
+                    max_width: Some(toolbar_text_layout.search_label.width().max(24.0)),
+                    align: TextAlign::Left,
                 },
-                max_width: Some(toolbar_text_layout.search_label.width().max(24.0)),
-                align: TextAlign::Left,
-            });
+            );
         }
         if toolbar.activity_chip.width() > 1.0 {
-            text_runs.push(TextRun {
-                text: if model.browser.busy {
-                    model.browser_chrome.activity_busy_label.clone()
-                } else {
-                    model.browser_chrome.activity_ready_label.clone()
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: if model.browser.busy {
+                        model.browser_chrome.activity_busy_label.clone()
+                    } else {
+                        model.browser_chrome.activity_ready_label.clone()
+                    },
+                    position: toolbar_text_layout.activity_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some(toolbar_text_layout.activity_label.width().max(20.0)),
+                    align: TextAlign::Center,
                 },
-                position: toolbar_text_layout.activity_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(toolbar_text_layout.activity_label.width().max(20.0)),
-                align: TextAlign::Center,
-            });
+            );
         }
         if toolbar.sort_chip.width() > 1.0 {
             let sort_label = if model.browser_chrome.sort_order_label.is_empty() {
@@ -1704,14 +1982,17 @@ impl NativeShellState {
             } else {
                 format!("{}: {}", model.browser_chrome.sort_prefix_label, sort_label)
             };
-            text_runs.push(TextRun {
-                text: sort_text,
-                position: toolbar_text_layout.sort_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(toolbar_text_layout.sort_label.width().max(20.0)),
-                align: TextAlign::Center,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: sort_text,
+                    position: toolbar_text_layout.sort_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(toolbar_text_layout.sort_label.width().max(20.0)),
+                    align: TextAlign::Center,
+                },
+            );
         }
         if model.map.active {
             let mode_label = match model.map.render_mode {
@@ -1741,63 +2022,85 @@ impl NativeShellState {
                 compute_browser_map_header_text_layout(layout.browser_table_header, sizing);
             let left_max_width = map_header_text_layout.left_label.width().max(24.0);
             let right_max_width = map_header_text_layout.right_label.width().max(36.0);
-            text_runs.push(TextRun {
-                text: truncate_to_width(&header_left_text, left_max_width, sizing.font_meta),
-                position: map_header_text_layout.left_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(left_max_width),
-                align: TextAlign::Left,
-            });
-            text_runs.push(TextRun {
-                text: truncate_to_width(&selection_or_error.0, right_max_width, sizing.font_meta),
-                position: map_header_text_layout.right_label.min,
-                font_size: sizing.font_meta,
-                color: selection_or_error.1,
-                max_width: Some(right_max_width),
-                align: TextAlign::Right,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: truncate_to_width(&header_left_text, left_max_width, sizing.font_meta),
+                    position: map_header_text_layout.left_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some(left_max_width),
+                    align: TextAlign::Left,
+                },
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: truncate_to_width(
+                        &selection_or_error.0,
+                        right_max_width,
+                        sizing.font_meta,
+                    ),
+                    position: map_header_text_layout.right_label.min,
+                    font_size: sizing.font_meta,
+                    color: selection_or_error.1,
+                    max_width: Some(right_max_width),
+                    align: TextAlign::Right,
+                },
+            );
         } else {
             let header_text_layout =
                 compute_browser_header_text_layout(layout.browser_table_header, sizing);
             let header = header_text_layout.columns;
             for separator_x in [header.index.max.x, header.sample.max.x] {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: Rect::from_min_max(
-                        Point::new(separator_x, layout.browser_table_header.min.y),
-                        Point::new(
-                            (separator_x + sizing.border_width)
-                                .min(layout.browser_table_header.max.x),
-                            layout.browser_table_header.max.y,
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: Rect::from_min_max(
+                            Point::new(separator_x, layout.browser_table_header.min.y),
+                            Point::new(
+                                (separator_x + sizing.border_width)
+                                    .min(layout.browser_table_header.max.x),
+                                layout.browser_table_header.max.y,
+                            ),
                         ),
-                    ),
-                    color: style.border,
-                }));
+                        color: style.border,
+                    }),
+                );
             }
-            text_runs.push(TextRun {
-                text: String::from("#"),
-                position: header_text_layout.index_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_muted,
-                max_width: Some(header_text_layout.index_label.width().max(12.0)),
-                align: TextAlign::Right,
-            });
-            text_runs.push(TextRun {
-                text: String::from("Sample"),
-                position: header_text_layout.sample_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(header_text_layout.sample_label.width().max(24.0)),
-                align: TextAlign::Left,
-            });
-            text_runs.push(TextRun {
-                text: String::from("Bucket"),
-                position: header_text_layout.bucket_label.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(header_text_layout.bucket_label.width().max(20.0)),
-                align: TextAlign::Center,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("#"),
+                    position: header_text_layout.index_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_muted,
+                    max_width: Some(header_text_layout.index_label.width().max(12.0)),
+                    align: TextAlign::Right,
+                },
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("Sample"),
+                    position: header_text_layout.sample_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some(header_text_layout.sample_label.width().max(24.0)),
+                    align: TextAlign::Left,
+                },
+            );
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("Bucket"),
+                    position: header_text_layout.bucket_label.min,
+                    font_size: sizing.font_meta,
+                    color: style.text_primary,
+                    max_width: Some(header_text_layout.bucket_label.width().max(20.0)),
+                    align: TextAlign::Center,
+                },
+            );
         }
         let footer_text = if model.map.active {
             let mut parts = Vec::new();
@@ -1831,18 +2134,21 @@ impl NativeShellState {
             )
         };
         let browser_footer_text = compute_browser_footer_text_rect(layout.browser_footer, sizing);
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &footer_text,
-                browser_footer_text.width().max(36.0),
-                sizing.font_meta,
-            ),
-            position: browser_footer_text.min,
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(browser_footer_text.width().max(36.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &footer_text,
+                    browser_footer_text.width().max(36.0),
+                    sizing.font_meta,
+                ),
+                position: browser_footer_text.min,
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(browser_footer_text.width().max(36.0)),
+                align: TextAlign::Left,
+            },
+        );
 
         let status_text = if model.status_text.is_empty() {
             if self.transport_running {
@@ -1900,42 +2206,51 @@ impl NativeShellState {
             compute_status_text_line_rect(layout.status_center_segment, sizing, sizing.font_status);
         let status_right_text_rect =
             compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &status_left,
-                status_left_text_rect.width().max(36.0),
-                sizing.font_status,
-            ),
-            position: status_left_text_rect.min,
-            font_size: sizing.font_status,
-            color: style.text_muted,
-            max_width: Some(status_left_text_rect.width().max(36.0)),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &status_center,
-                status_center_text_rect.width().max(36.0),
-                sizing.font_status,
-            ),
-            position: status_center_text_rect.min,
-            font_size: sizing.font_status,
-            color: style.text_primary,
-            max_width: Some(status_center_text_rect.width().max(36.0)),
-            align: TextAlign::Center,
-        });
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &status_right,
-                status_right_text_rect.width().max(36.0),
-                sizing.font_status,
-            ),
-            position: status_right_text_rect.min,
-            font_size: sizing.font_status,
-            color: style.text_muted,
-            max_width: Some(status_right_text_rect.width().max(36.0)),
-            align: TextAlign::Right,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &status_left,
+                    status_left_text_rect.width().max(36.0),
+                    sizing.font_status,
+                ),
+                position: status_left_text_rect.min,
+                font_size: sizing.font_status,
+                color: style.text_muted,
+                max_width: Some(status_left_text_rect.width().max(36.0)),
+                align: TextAlign::Left,
+            },
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &status_center,
+                    status_center_text_rect.width().max(36.0),
+                    sizing.font_status,
+                ),
+                position: status_center_text_rect.min,
+                font_size: sizing.font_status,
+                color: style.text_primary,
+                max_width: Some(status_center_text_rect.width().max(36.0)),
+                align: TextAlign::Center,
+            },
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &status_right,
+                    status_right_text_rect.width().max(36.0),
+                    sizing.font_status,
+                ),
+                position: status_right_text_rect.min,
+                font_size: sizing.font_status,
+                color: style.text_muted,
+                max_width: Some(status_right_text_rect.width().max(36.0)),
+                align: TextAlign::Right,
+            },
+        );
 
         if include_overlays {
             let motion_model = NativeMotionModel::from_app_model(model);
@@ -1944,8 +2259,6 @@ impl NativeShellState {
             render_confirm_prompt(primitives, text_runs, layout, style, model);
             render_drag_overlay(primitives, text_runs, layout, style, model);
         }
-
-        frame.clear_color = style.clear_color;
     }
 
     /// Build only state-driven overlays into reusable buffers.
@@ -1963,24 +2276,33 @@ impl NativeShellState {
         let text_runs = &mut frame.text_runs;
 
         if self.hovered == Some(ShellNodeKind::TopBar) {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: layout.top_bar,
-                color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: layout.top_bar,
+                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
+                }),
+            );
         }
 
         if self.hovered == Some(ShellNodeKind::Sidebar) {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: layout.sidebar,
-                color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: layout.sidebar,
+                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
+                }),
+            );
         }
 
         if self.hovered == Some(ShellNodeKind::WaveformCard) {
-            primitives.push(Primitive::Rect(FillRect {
-                rect: layout.waveform_card,
-                color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-            }));
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: layout.waveform_card,
+                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
+                }),
+            );
         }
         if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
             let browser_rows = self.cached_browser_rows(layout, style, model);
@@ -1988,14 +2310,17 @@ impl NativeShellState {
                 .iter()
                 .find(|row| row.visible_row == hovered_visible_row)
             {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: row.rect,
-                    color: translucent_overlay_color(
-                        style.bg_tertiary,
-                        style.grid_soft,
-                        style.state_hover_soft,
-                    ),
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: row.rect,
+                        color: translucent_overlay_color(
+                            style.bg_tertiary,
+                            style.grid_soft,
+                            style.state_hover_soft,
+                        ),
+                    }),
+                );
             }
         }
 
@@ -2037,14 +2362,17 @@ impl NativeShellState {
                         continue;
                     }
                     if row.focused {
-                        primitives.push(Primitive::Rect(FillRect {
-                            rect: *row_rect,
-                            color: translucent_overlay_color(
-                                style.bg_tertiary,
-                                style.grid_strong,
-                                style.state_focus_pulse_blend,
-                            ),
-                        }));
+                        emit_primitive(
+                            primitives,
+                            Primitive::Rect(FillRect {
+                                rect: *row_rect,
+                                color: translucent_overlay_color(
+                                    style.bg_tertiary,
+                                    style.grid_strong,
+                                    style.state_focus_pulse_blend,
+                                ),
+                            }),
+                        );
                     }
                     if row.focused || row.selected {
                         push_border(
@@ -2084,18 +2412,25 @@ impl NativeShellState {
                             compute_sidebar_folder_row_text_rect(*row_rect, sizing, depth_indent);
                         let row_text_width = row_text_rect.width().max(24.0);
                         let row_label = format!("{glyph} {}", row.label);
-                        text_runs.push(TextRun {
-                            text: truncate_to_width(&row_label, row_text_width, sizing.font_body),
-                            position: row_text_rect.min,
-                            font_size: sizing.font_body,
-                            color: blend_color(
-                                style.accent_warning,
-                                style.text_primary,
-                                style.state_focus_pulse_blend,
-                            ),
-                            max_width: Some(row_text_width),
-                            align: TextAlign::Left,
-                        });
+                        emit_text(
+                            text_runs,
+                            TextRun {
+                                text: truncate_to_width(
+                                    &row_label,
+                                    row_text_width,
+                                    sizing.font_body,
+                                ),
+                                position: row_text_rect.min,
+                                font_size: sizing.font_body,
+                                color: blend_color(
+                                    style.accent_warning,
+                                    style.text_primary,
+                                    style.state_focus_pulse_blend,
+                                ),
+                                max_width: Some(row_text_width),
+                                align: TextAlign::Left,
+                            },
+                        );
                     }
                 }
             }
@@ -2108,14 +2443,17 @@ impl NativeShellState {
                     }
                     let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
                     if row.focused {
-                        primitives.push(Primitive::Rect(FillRect {
-                            rect: row.rect,
-                            color: translucent_overlay_color(
-                                style.bg_tertiary,
-                                style.grid_strong,
-                                style.state_focus_pulse_blend,
-                            ),
-                        }));
+                        emit_primitive(
+                            primitives,
+                            Primitive::Rect(FillRect {
+                                rect: row.rect,
+                                color: translucent_overlay_color(
+                                    style.bg_tertiary,
+                                    style.grid_strong,
+                                    style.state_focus_pulse_blend,
+                                ),
+                            }),
+                        );
                     }
                     push_border(
                         primitives,
@@ -2140,30 +2478,36 @@ impl NativeShellState {
                         },
                     );
                     if row.focused {
-                        text_runs.push(TextRun {
-                            text: row.visible_row.to_string(),
-                            position: row_text_layout.index_label.min,
-                            font_size: sizing.font_meta,
-                            color: blend_color(
-                                style.accent_warning,
-                                style.text_primary,
-                                style.state_focus_pulse_blend,
-                            ),
-                            max_width: Some(row_text_layout.index_label.width().max(12.0)),
-                            align: TextAlign::Right,
-                        });
-                        text_runs.push(TextRun {
-                            text: row.label.clone(),
-                            position: row_text_layout.sample_label.min,
-                            font_size: sizing.font_body,
-                            color: blend_color(
-                                style.accent_warning,
-                                style.text_primary,
-                                style.state_focus_pulse_blend,
-                            ),
-                            max_width: Some(row_text_layout.sample_label.width().max(20.0)),
-                            align: TextAlign::Left,
-                        });
+                        emit_text(
+                            text_runs,
+                            TextRun {
+                                text: row.visible_row.to_string(),
+                                position: row_text_layout.index_label.min,
+                                font_size: sizing.font_meta,
+                                color: blend_color(
+                                    style.accent_warning,
+                                    style.text_primary,
+                                    style.state_focus_pulse_blend,
+                                ),
+                                max_width: Some(row_text_layout.index_label.width().max(12.0)),
+                                align: TextAlign::Right,
+                            },
+                        );
+                        emit_text(
+                            text_runs,
+                            TextRun {
+                                text: row.label.clone(),
+                                position: row_text_layout.sample_label.min,
+                                font_size: sizing.font_body,
+                                color: blend_color(
+                                    style.accent_warning,
+                                    style.text_primary,
+                                    style.state_focus_pulse_blend,
+                                ),
+                                max_width: Some(row_text_layout.sample_label.width().max(20.0)),
+                                align: TextAlign::Left,
+                            },
+                        );
                     }
                 }
             }
@@ -2201,14 +2545,20 @@ impl NativeShellState {
                 ),
             )
         };
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.samples,
-            color: samples_fill,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.map,
-            color: map_fill,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.samples,
+                color: samples_fill,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.map,
+                color: map_fill,
+            }),
+        );
         push_border(primitives, tabs.samples, style.border, sizing.border_width);
         push_border(
             primitives,
@@ -2226,26 +2576,32 @@ impl NativeShellState {
                 .map(|column| column.item_count)
                 .unwrap_or(0)
         );
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                &samples_text,
-                tabs_text_layout.samples_label.width().max(40.0),
-                sizing.font_header,
-            ),
-            position: tabs_text_layout.samples_label.min,
-            font_size: sizing.font_header,
-            color: samples_text_color,
-            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
-            align: TextAlign::Left,
-        });
-        text_runs.push(TextRun {
-            text: String::from(model.browser_chrome.map_tab_label.as_str()),
-            position: tabs_text_layout.map_label.min,
-            font_size: sizing.font_header,
-            color: map_text_color,
-            max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    &samples_text,
+                    tabs_text_layout.samples_label.width().max(40.0),
+                    sizing.font_header,
+                ),
+                position: tabs_text_layout.samples_label.min,
+                font_size: sizing.font_header,
+                color: samples_text_color,
+                max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
+                align: TextAlign::Left,
+            },
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: String::from(model.browser_chrome.map_tab_label.as_str()),
+                position: tabs_text_layout.map_label.min,
+                font_size: sizing.font_header,
+                color: map_text_color,
+                max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
+                align: TextAlign::Left,
+            },
+        );
 
         render_progress_overlay(primitives, text_runs, layout, style, model);
         render_confirm_prompt(primitives, text_runs, layout, style, model);
@@ -2275,14 +2631,17 @@ impl NativeShellState {
         } else {
             style.accent_copper
         };
-        primitives.push(Primitive::Circle(FillCircle {
-            center: Point::new(
-                layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
-                layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
-            ),
-            radius: lamp_radius,
-            color: lamp_color,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Circle(FillCircle {
+                center: Point::new(
+                    layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
+                    layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
+                ),
+                radius: lamp_radius,
+                color: lamp_color,
+            }),
+        );
 
         push_waveform_playhead_overlay(primitives, layout, style, model);
         push_waveform_header_overlay(primitives, text_runs, layout, style, model);
@@ -2307,14 +2666,20 @@ impl NativeShellState {
                 ),
             )
         };
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.samples,
-            color: samples_fill,
-        }));
-        primitives.push(Primitive::Rect(FillRect {
-            rect: tabs.map,
-            color: map_fill,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.samples,
+                color: samples_fill,
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: tabs.map,
+                color: map_fill,
+            }),
+        );
         push_border(primitives, tabs.samples, style.border, sizing.border_width);
         push_border(
             primitives,
@@ -2344,8 +2709,8 @@ impl NativeShellState {
     }
 
     fn push_status_right_motion_overlay(
-        primitives: &mut Vec<Primitive>,
-        text_runs: &mut Vec<TextRun>,
+        primitives: &mut impl PrimitiveSink,
+        text_runs: &mut impl TextRunSink,
         layout: &ShellLayout,
         style: &StyleTokens,
         status_right: &str,
@@ -2353,25 +2718,31 @@ impl NativeShellState {
         if status_right.is_empty() {
             return;
         }
-        primitives.push(Primitive::Rect(FillRect {
-            rect: layout.status_right_segment,
-            color: style.surface_raised,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: layout.status_right_segment,
+                color: style.surface_raised,
+            }),
+        );
         let sizing = style.sizing;
         let status_text_rect =
             compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
-        text_runs.push(TextRun {
-            text: truncate_to_width(
-                status_right,
-                status_text_rect.width().max(36.0),
-                sizing.font_status,
-            ),
-            position: status_text_rect.min,
-            font_size: sizing.font_status,
-            color: style.text_muted,
-            max_width: Some(status_text_rect.width().max(36.0)),
-            align: TextAlign::Right,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    status_right,
+                    status_text_rect.width().max(36.0),
+                    sizing.font_status,
+                ),
+                position: status_text_rect.min,
+                font_size: sizing.font_status,
+                color: style.text_muted,
+                max_width: Some(status_text_rect.width().max(36.0)),
+                align: TextAlign::Right,
+            },
+        );
     }
 
     fn cached_source_row_rects(
@@ -2416,24 +2787,6 @@ impl NativeShellState {
             self.browser_rows_cache_key = Some(cache_key);
         }
         &self.browser_rows
-    }
-}
-
-/// Partition a full static frame into deterministic static segment buckets.
-fn partition_static_frame_into_segments(
-    layout: &ShellLayout,
-    model: &AppModel,
-    full_frame: &mut NativeViewFrame,
-    segments: &mut StaticFrameSegments,
-) {
-    segments.clear(full_frame.clear_color);
-    for primitive in full_frame.primitives.drain(..) {
-        let segment = static_segment_for_primitive(layout, model, &primitive);
-        segments.frame_mut(segment).primitives.push(primitive);
-    }
-    for text_run in full_frame.text_runs.drain(..) {
-        let segment = static_segment_for_text(layout, model, &text_run);
-        segments.frame_mut(segment).text_runs.push(text_run);
     }
 }
 
@@ -2499,7 +2852,7 @@ fn rect_center(rect: Rect) -> Point {
 }
 
 fn push_waveform_playhead_overlay(
-    primitives: &mut Vec<Primitive>,
+    primitives: &mut impl PrimitiveSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
@@ -2513,10 +2866,13 @@ fn push_waveform_playhead_overlay(
     );
 
     if let Some(rect) = annotations.selection {
-        primitives.push(Primitive::Rect(FillRect {
-            rect,
-            color: style.grid_strong,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: style.grid_strong,
+            }),
+        );
         push_border(
             primitives,
             rect,
@@ -2526,21 +2882,27 @@ fn push_waveform_playhead_overlay(
     }
 
     if let Some(rect) = annotations.cursor {
-        primitives.push(Primitive::Rect(FillRect {
-            rect,
-            color: style.accent_warning,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: style.accent_warning,
+            }),
+        );
     }
     if let Some(rect) = annotations.playhead {
-        primitives.push(Primitive::Rect(FillRect {
-            rect,
-            color: style.accent_copper,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: style.accent_copper,
+            }),
+        );
     }
 }
 
 fn push_waveform_image(
-    primitives: &mut Vec<Primitive>,
+    primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
     image: Option<&ImageRgba>,
 ) {
@@ -2596,18 +2958,24 @@ fn push_waveform_image(
             let top = waveform_plot.min.y + (y0 as f32 / src_height) * plot_height;
             let bottom = waveform_plot.min.y + (y1 as f32 / src_height) * plot_height;
             if bottom > top {
-                primitives.push(Primitive::Rect(FillRect {
-                    rect: Rect::from_min_max(
-                        Point::new(x0, top),
-                        Point::new(x1.min(waveform_plot.max.x), bottom.min(waveform_plot.max.y)),
-                    ),
-                    color: Rgba8 {
-                        r: red,
-                        g: green,
-                        b: blue,
-                        a: alpha,
-                    },
-                }));
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: Rect::from_min_max(
+                            Point::new(x0, top),
+                            Point::new(
+                                x1.min(waveform_plot.max.x),
+                                bottom.min(waveform_plot.max.y),
+                            ),
+                        ),
+                        color: Rgba8 {
+                            r: red,
+                            g: green,
+                            b: blue,
+                            a: alpha,
+                        },
+                    }),
+                );
             }
             y = y1 + 1;
         }
@@ -2615,31 +2983,37 @@ fn push_waveform_image(
 }
 
 fn push_waveform_header_overlay(
-    primitives: &mut Vec<Primitive>,
-    text_runs: &mut Vec<TextRun>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
     let sizing = style.sizing;
     let text_layout = compute_waveform_header_text_layout(layout.waveform_header, sizing);
-    primitives.push(Primitive::Rect(FillRect {
-        rect: layout.waveform_header,
-        color: style.surface_raised,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: layout.waveform_header,
+            color: style.surface_raised,
+        }),
+    );
     let title_max_width = text_layout.title_row.width().max(72.0);
-    text_runs.push(TextRun {
-        text: truncate_to_width(
-            model.waveform_loaded_label.as_deref().unwrap_or("Waveform"),
-            title_max_width,
-            sizing.font_header,
-        ),
-        position: text_layout.title_row.min,
-        font_size: sizing.font_header,
-        color: style.text_primary,
-        max_width: Some(title_max_width),
-        align: TextAlign::Left,
-    });
+    emit_text(
+        text_runs,
+        TextRun {
+            text: truncate_to_width(
+                model.waveform_loaded_label.as_deref().unwrap_or("Waveform"),
+                title_max_width,
+                sizing.font_header,
+            ),
+            position: text_layout.title_row.min,
+            font_size: sizing.font_header,
+            color: style.text_primary,
+            max_width: Some(title_max_width),
+            align: TextAlign::Left,
+        },
+    );
     let playhead_text = model
         .waveform_playhead_milli
         .map(format_milli_value)
@@ -2656,22 +3030,25 @@ fn push_waveform_header_overlay(
     let tempo_text = model.waveform_tempo_label.as_deref().unwrap_or("— BPM");
     let zoom_text = model.waveform_zoom_label.as_deref().unwrap_or("100%");
     let metadata_max_width = text_layout.metadata_row.width().max(72.0);
-    text_runs.push(TextRun {
-        text: format!(
-            "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
-            model.waveform_transport_hint,
-            tempo_text,
-            zoom_text,
-            playhead_text,
-            cursor_text,
-            view_text,
-        ),
-        position: text_layout.metadata_row.min,
-        font_size: sizing.font_meta,
-        color: style.text_muted,
-        max_width: Some(metadata_max_width),
-        align: TextAlign::Left,
-    });
+    emit_text(
+        text_runs,
+        TextRun {
+            text: format!(
+                "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
+                model.waveform_transport_hint,
+                tempo_text,
+                zoom_text,
+                playhead_text,
+                cursor_text,
+                view_text,
+            ),
+            position: text_layout.metadata_row.min,
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some(metadata_max_width),
+            align: TextAlign::Left,
+        },
+    );
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3447,8 +3824,8 @@ fn drag_overlay_rect(layout: &ShellLayout, style: &StyleTokens) -> Rect {
 }
 
 fn render_progress_overlay(
-    primitives: &mut Vec<Primitive>,
-    text_runs: &mut Vec<TextRun>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -3471,15 +3848,18 @@ fn render_progress_overlay(
         fraction,
     );
     if let Some(scrim_rect) = progress_visuals.scrim {
-        primitives.push(Primitive::Rect(FillRect {
-            rect: scrim_rect,
-            color: Rgba8 {
-                r: style.bg_primary.r,
-                g: style.bg_primary.g,
-                b: style.bg_primary.b,
-                a: style.scrim_soft_alpha,
-            },
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: scrim_rect,
+                color: Rgba8 {
+                    r: style.bg_primary.r,
+                    g: style.bg_primary.g,
+                    b: style.bg_primary.b,
+                    a: style.scrim_soft_alpha,
+                },
+            }),
+        );
     }
     let overlay_sections = progress_visuals.sections;
     let progress_text_layout = compute_progress_overlay_text_layout(
@@ -3489,68 +3869,89 @@ fn render_progress_overlay(
         model.progress_overlay.cancelable,
     );
     let rect = overlay_sections.dialog;
-    primitives.push(Primitive::Rect(FillRect {
-        rect,
-        color: style.surface_overlay,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect,
+            color: style.surface_overlay,
+        }),
+    );
     push_border(primitives, rect, style.border, sizing.border_width);
 
-    text_runs.push(TextRun {
-        text: model.progress_overlay.title.clone(),
-        position: progress_text_layout.title.min,
-        font_size: sizing.font_header,
-        color: style.text_primary,
-        max_width: Some(progress_text_layout.title.width().max(24.0)),
-        align: TextAlign::Left,
-    });
+    emit_text(
+        text_runs,
+        TextRun {
+            text: model.progress_overlay.title.clone(),
+            position: progress_text_layout.title.min,
+            font_size: sizing.font_header,
+            color: style.text_primary,
+            max_width: Some(progress_text_layout.title.width().max(24.0)),
+            align: TextAlign::Left,
+        },
+    );
     if let (Some(detail), Some(detail_rect)) = (
         model.progress_overlay.detail.as_deref(),
         progress_text_layout.detail,
     ) {
-        text_runs.push(TextRun {
-            text: detail.to_string(),
-            position: detail_rect.min,
-            font_size: sizing.font_meta,
-            color: style.text_muted,
-            max_width: Some(detail_rect.width().max(24.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: detail.to_string(),
+                position: detail_rect.min,
+                font_size: sizing.font_meta,
+                color: style.text_muted,
+                max_width: Some(detail_rect.width().max(24.0)),
+                align: TextAlign::Left,
+            },
+        );
     }
     let bar_rect = overlay_sections.progress_bar;
-    primitives.push(Primitive::Rect(FillRect {
-        rect: bar_rect,
-        color: style.grid_soft,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: bar_rect,
+            color: style.grid_soft,
+        }),
+    );
     if let Some(fill_rect) = progress_visuals.progress_fill {
-        primitives.push(Primitive::Rect(FillRect {
-            rect: fill_rect,
-            color: style.accent_mint,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: fill_rect,
+                color: style.accent_mint,
+            }),
+        );
     }
     push_border(primitives, bar_rect, style.border, sizing.border_width);
 
-    text_runs.push(TextRun {
-        text: format!(
-            "{} / {}",
-            model.progress_overlay.completed, model.progress_overlay.total
-        ),
-        position: progress_text_layout.counter.min,
-        font_size: sizing.font_meta,
-        color: style.text_muted,
-        max_width: Some(progress_text_layout.counter.width().max(24.0)),
-        align: TextAlign::Right,
-    });
+    emit_text(
+        text_runs,
+        TextRun {
+            text: format!(
+                "{} / {}",
+                model.progress_overlay.completed, model.progress_overlay.total
+            ),
+            position: progress_text_layout.counter.min,
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some(progress_text_layout.counter.width().max(24.0)),
+            align: TextAlign::Right,
+        },
+    );
 
     if model.progress_overlay.cancelable {
         let button = overlay_sections.cancel_button;
-        primitives.push(Primitive::Rect(FillRect {
-            rect: button,
-            color: if model.progress_overlay.cancel_requested {
-                style.grid_soft
-            } else {
-                style.bg_tertiary
-            },
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: button,
+                color: if model.progress_overlay.cancel_requested {
+                    style.grid_soft
+                } else {
+                    style.bg_tertiary
+                },
+            }),
+        );
         push_border(
             primitives,
             button,
@@ -3561,28 +3962,31 @@ fn render_progress_overlay(
             },
             sizing.border_width,
         );
-        text_runs.push(TextRun {
-            text: if model.progress_overlay.cancel_requested {
-                String::from("Cancelling")
-            } else {
-                String::from("Cancel")
+        emit_text(
+            text_runs,
+            TextRun {
+                text: if model.progress_overlay.cancel_requested {
+                    String::from("Cancelling")
+                } else {
+                    String::from("Cancel")
+                },
+                position: progress_text_layout.cancel_label.min,
+                font_size: sizing.font_meta,
+                color: if model.progress_overlay.cancel_requested {
+                    style.text_muted
+                } else {
+                    style.text_primary
+                },
+                max_width: Some(progress_text_layout.cancel_label.width().max(12.0)),
+                align: TextAlign::Center,
             },
-            position: progress_text_layout.cancel_label.min,
-            font_size: sizing.font_meta,
-            color: if model.progress_overlay.cancel_requested {
-                style.text_muted
-            } else {
-                style.text_primary
-            },
-            max_width: Some(progress_text_layout.cancel_label.width().max(12.0)),
-            align: TextAlign::Center,
-        });
+        );
     }
 }
 
 fn render_confirm_prompt(
-    primitives: &mut Vec<Primitive>,
-    text_runs: &mut Vec<TextRun>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -3608,20 +4012,26 @@ fn render_confirm_prompt(
         has_target_label,
         model.confirm_prompt.input_error.is_some(),
     );
-    primitives.push(Primitive::Rect(FillRect {
-        rect: prompt_visuals.scrim,
-        color: Rgba8 {
-            r: style.bg_primary.r,
-            g: style.bg_primary.g,
-            b: style.bg_primary.b,
-            a: style.scrim_modal_alpha,
-        },
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: prompt_visuals.scrim,
+            color: Rgba8 {
+                r: style.bg_primary.r,
+                g: style.bg_primary.g,
+                b: style.bg_primary.b,
+                a: style.scrim_modal_alpha,
+            },
+        }),
+    );
     let dialog = prompt_sections.dialog;
-    primitives.push(Primitive::Rect(FillRect {
-        rect: dialog,
-        color: style.surface_overlay,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: dialog,
+            color: style.surface_overlay,
+        }),
+    );
     push_border(
         primitives,
         dialog,
@@ -3629,40 +4039,52 @@ fn render_confirm_prompt(
         sizing.border_width,
     );
 
-    text_runs.push(TextRun {
-        text: model.confirm_prompt.title.clone(),
-        position: prompt_text_layout.title.min,
-        font_size: sizing.font_title,
-        color: style.text_primary,
-        max_width: Some(prompt_text_layout.title.width().max(24.0)),
-        align: TextAlign::Left,
-    });
-    text_runs.push(TextRun {
-        text: model.confirm_prompt.message.clone(),
-        position: prompt_text_layout.message.min,
-        font_size: sizing.font_meta,
-        color: style.text_muted,
-        max_width: Some(prompt_text_layout.message.width().max(24.0)),
-        align: TextAlign::Left,
-    });
+    emit_text(
+        text_runs,
+        TextRun {
+            text: model.confirm_prompt.title.clone(),
+            position: prompt_text_layout.title.min,
+            font_size: sizing.font_title,
+            color: style.text_primary,
+            max_width: Some(prompt_text_layout.title.width().max(24.0)),
+            align: TextAlign::Left,
+        },
+    );
+    emit_text(
+        text_runs,
+        TextRun {
+            text: model.confirm_prompt.message.clone(),
+            position: prompt_text_layout.message.min,
+            font_size: sizing.font_meta,
+            color: style.text_muted,
+            max_width: Some(prompt_text_layout.message.width().max(24.0)),
+            align: TextAlign::Left,
+        },
+    );
     if let (Some(target), Some(target_rect)) = (
         model.confirm_prompt.target_label.as_deref(),
         prompt_text_layout.target,
     ) {
-        text_runs.push(TextRun {
-            text: target.to_string(),
-            position: target_rect.min,
-            font_size: sizing.font_meta,
-            color: style.accent_copper,
-            max_width: Some(target_rect.width().max(24.0)),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: target.to_string(),
+                position: target_rect.min,
+                font_size: sizing.font_meta,
+                color: style.accent_copper,
+                max_width: Some(target_rect.width().max(24.0)),
+                align: TextAlign::Left,
+            },
+        );
     }
     if let Some(input_rect) = prompt_sections.input {
-        primitives.push(Primitive::Rect(FillRect {
-            rect: input_rect,
-            color: style.surface_base,
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: input_rect,
+                color: style.surface_base,
+            }),
+        );
         push_border(
             primitives,
             input_rect,
@@ -3697,26 +4119,32 @@ fn render_confirm_prompt(
             .input_text
             .map(|line_rect: Rect| line_rect.width().max(24.0))
             .unwrap_or((input_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0));
-        text_runs.push(TextRun {
-            text: text.to_string(),
-            position: input_text_rect.min,
-            font_size: sizing.font_meta,
-            color,
-            max_width: Some(input_text_width),
-            align: TextAlign::Left,
-        });
+        emit_text(
+            text_runs,
+            TextRun {
+                text: text.to_string(),
+                position: input_text_rect.min,
+                font_size: sizing.font_meta,
+                color,
+                max_width: Some(input_text_width),
+                align: TextAlign::Left,
+            },
+        );
         if let (Some(error), Some(error_rect)) = (
             model.confirm_prompt.input_error.as_deref(),
             prompt_text_layout.input_error,
         ) {
-            text_runs.push(TextRun {
-                text: error.to_string(),
-                position: error_rect.min,
-                font_size: sizing.font_meta,
-                color: style.accent_warning,
-                max_width: Some(error_rect.width().max(24.0)),
-                align: TextAlign::Left,
-            });
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: error.to_string(),
+                    position: error_rect.min,
+                    font_size: sizing.font_meta,
+                    color: style.accent_warning,
+                    max_width: Some(error_rect.width().max(24.0)),
+                    align: TextAlign::Left,
+                },
+            );
         }
     }
     let confirm_button = prompt_sections.confirm_button;
@@ -3745,48 +4173,54 @@ fn render_confirm_prompt(
     .enumerate()
     {
         let enabled = if index == 0 { confirm_enabled } else { true };
-        primitives.push(Primitive::Rect(FillRect {
-            rect,
-            color: if enabled {
-                style.surface_overlay
-            } else {
-                style.control_disabled_fill
-            },
-        }));
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: if enabled {
+                    style.surface_overlay
+                } else {
+                    style.control_disabled_fill
+                },
+            }),
+        );
         push_border(
             primitives,
             rect,
             if enabled { color } else { style.border },
             sizing.border_width,
         );
-        text_runs.push(TextRun {
-            text: label.to_string(),
-            position: if index == 0 {
-                prompt_text_layout.confirm_label.min
-            } else {
-                prompt_text_layout.cancel_label.min
+        emit_text(
+            text_runs,
+            TextRun {
+                text: label.to_string(),
+                position: if index == 0 {
+                    prompt_text_layout.confirm_label.min
+                } else {
+                    prompt_text_layout.cancel_label.min
+                },
+                font_size: sizing.font_meta,
+                color: if !enabled {
+                    style.text_muted
+                } else if index == 0 {
+                    style.text_primary
+                } else {
+                    style.text_muted
+                },
+                max_width: Some(if index == 0 {
+                    prompt_text_layout.confirm_label.width().max(12.0)
+                } else {
+                    prompt_text_layout.cancel_label.width().max(12.0)
+                }),
+                align: TextAlign::Center,
             },
-            font_size: sizing.font_meta,
-            color: if !enabled {
-                style.text_muted
-            } else if index == 0 {
-                style.text_primary
-            } else {
-                style.text_muted
-            },
-            max_width: Some(if index == 0 {
-                prompt_text_layout.confirm_label.width().max(12.0)
-            } else {
-                prompt_text_layout.cancel_label.width().max(12.0)
-            }),
-            align: TextAlign::Center,
-        });
+        );
     }
 }
 
 fn render_drag_overlay(
-    primitives: &mut Vec<Primitive>,
-    text_runs: &mut Vec<TextRun>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -3797,10 +4231,13 @@ fn render_drag_overlay(
     let sizing = style.sizing;
     let rect = drag_overlay_rect(layout, style);
     let drag_text_layout = compute_drag_overlay_text_layout(rect, sizing);
-    primitives.push(Primitive::Rect(FillRect {
-        rect,
-        color: style.surface_overlay,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect,
+            color: style.surface_overlay,
+        }),
+    );
     push_border(
         primitives,
         rect,
@@ -3811,25 +4248,28 @@ fn render_drag_overlay(
         },
         sizing.border_width,
     );
-    text_runs.push(TextRun {
-        text: if model.drag_overlay.target_label.is_empty() {
-            model.drag_overlay.label.clone()
-        } else {
-            format!(
-                "{} -> {}",
-                model.drag_overlay.label, model.drag_overlay.target_label
-            )
+    emit_text(
+        text_runs,
+        TextRun {
+            text: if model.drag_overlay.target_label.is_empty() {
+                model.drag_overlay.label.clone()
+            } else {
+                format!(
+                    "{} -> {}",
+                    model.drag_overlay.label, model.drag_overlay.target_label
+                )
+            },
+            position: drag_text_layout.label.min,
+            font_size: sizing.font_meta,
+            color: if model.drag_overlay.valid_target {
+                style.text_primary
+            } else {
+                style.accent_warning
+            },
+            max_width: Some(drag_text_layout.label.width().max(24.0)),
+            align: TextAlign::Center,
         },
-        position: drag_text_layout.label.min,
-        font_size: sizing.font_meta,
-        color: if model.drag_overlay.valid_target {
-            style.text_primary
-        } else {
-            style.accent_warning
-        },
-        max_width: Some(drag_text_layout.label.width().max(24.0)),
-        align: TextAlign::Center,
-    });
+    );
 }
 
 fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
@@ -3845,7 +4285,7 @@ fn prompt_has_validation_error(model: &AppModel) -> bool {
 }
 
 fn push_border(
-    primitives: &mut Vec<Primitive>,
+    primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: crate::gui::types::Rgba8,
     stroke: f32,
@@ -3854,22 +4294,34 @@ fn push_border(
     if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
         return;
     }
-    primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
-        color,
-    }));
-    primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
-        color,
-    }));
-    primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
-        color,
-    }));
-    primitives.push(Primitive::Rect(FillRect {
-        rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
-        color,
-    }));
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
+            color,
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
+            color,
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
+            color,
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
+            color,
+        }),
+    );
 }
 
 fn build_stacked_rows(column: Rect, rows: usize, gap: f32, row_height: f32) -> Vec<Rect> {

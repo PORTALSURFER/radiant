@@ -3562,10 +3562,14 @@ fn row_index_for_visible_rows(
 /// Resolve one browser-row index from stacked row geometry in constant time.
 fn row_index_for_stacked_geometry(rows: &[CachedBrowserRow], point: Point) -> Option<usize> {
     let first = rows.first()?;
+    if point.x < first.rect.min.x || point.x > first.rect.max.x {
+        return None;
+    }
+    let row_height = first.rect.height().max(0.0);
     let stride = if rows.len() > 1 {
         (rows[1].rect.min.y - first.rect.min.y).max(1.0)
     } else {
-        first.rect.height().max(1.0)
+        row_height.max(1.0)
     };
     let relative_y = point.y - first.rect.min.y;
     if relative_y < 0.0 {
@@ -3575,10 +3579,15 @@ fn row_index_for_stacked_geometry(rows: &[CachedBrowserRow], point: Point) -> Op
     if index >= rows.len() {
         return None;
     }
-    if index > 0 && rows[index - 1].rect.contains(point) {
-        return Some(index - 1);
+    let row_start = first.rect.min.y + (index as f32 * stride);
+    let row_end = row_start + row_height;
+    if index > 0 {
+        let previous_end = row_start - stride + row_height;
+        if point.y <= previous_end {
+            return Some(index - 1);
+        }
     }
-    rows[index].rect.contains(point).then_some(index)
+    ((point.y >= row_start) && (point.y <= row_end)).then_some(index)
 }
 
 fn browser_rows_cache_key(

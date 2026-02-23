@@ -629,10 +629,97 @@ struct StaticSegmentCacheFingerprint {
     segment_revision: u64,
 }
 
+/// Immutable retained state node for one static segment in the view graph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StaticSegmentStateNode {
+    /// Segment represented by this node.
+    segment: StaticFrameSegment,
+    /// Last projected fingerprint associated with this node.
+    fingerprint: StaticSegmentCacheFingerprint,
+}
+
+/// Diff plan produced from retained segment-node state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StaticSegmentDiffPlan {
+    /// Candidate fingerprints for this frame keyed by segment index.
+    fingerprints: [StaticSegmentCacheFingerprint; StaticFrameSegment::COUNT],
+    /// Bitset for segments that must rebuild this frame.
+    rebuild_bits: u8,
+}
+
+impl StaticSegmentDiffPlan {
+    /// Return whether one segment should rebuild this frame.
+    fn should_rebuild(&self, segment: StaticFrameSegment) -> bool {
+        (self.rebuild_bits & (1 << segment.index())) != 0
+    }
+
+    /// Return the candidate fingerprint for one segment.
+    fn fingerprint(&self, segment: StaticFrameSegment) -> &StaticSegmentCacheFingerprint {
+        &self.fingerprints[segment.index()]
+    }
+}
+
+/// Retained graph of immutable static segment state nodes.
+struct StaticSegmentStateGraph {
+    nodes: [Option<StaticSegmentStateNode>; StaticFrameSegment::COUNT],
+}
+
+impl Default for StaticSegmentStateGraph {
+    /// Create an empty retained static segment state graph.
+    fn default() -> Self {
+        Self {
+            nodes: std::array::from_fn(|_| None),
+        }
+    }
+}
+
+impl StaticSegmentStateGraph {
+    /// Discard all retained nodes so the next diff pass rebuilds every segment.
+    fn clear(&mut self) {
+        for node in &mut self.nodes {
+            *node = None;
+        }
+    }
+
+    /// Diff candidate segment fingerprints against retained immutable nodes.
+    fn diff(
+        &self,
+        dirty_segments: DirtySegments,
+        force_rebuild: bool,
+        fingerprints: [StaticSegmentCacheFingerprint; StaticFrameSegment::COUNT],
+    ) -> StaticSegmentDiffPlan {
+        let mut rebuild_bits = 0u8;
+        for segment in StaticFrameSegment::ALL {
+            let idx = segment.index();
+            let explicit_dirty = (dirty_segments.bits() & segment.dirty_mask()) != 0;
+            let fingerprint_changed =
+                self.nodes[idx].as_ref().map(|node| &node.fingerprint) != Some(&fingerprints[idx]);
+            let needs_rebuild = force_rebuild || explicit_dirty || fingerprint_changed;
+            if needs_rebuild {
+                rebuild_bits |= 1 << idx;
+            }
+        }
+        StaticSegmentDiffPlan {
+            fingerprints,
+            rebuild_bits,
+        }
+    }
+
+    /// Commit one rebuilt segment fingerprint into the retained graph.
+    fn commit_segment(
+        &mut self,
+        segment: StaticFrameSegment,
+        fingerprint: &StaticSegmentCacheFingerprint,
+    ) {
+        self.nodes[segment.index()] = Some(StaticSegmentStateNode {
+            segment,
+            fingerprint: fingerprint.clone(),
+        });
+    }
+}
+
 /// Retained scene cache entry for one static segment.
 struct StaticSegmentSceneCacheEntry {
-    /// Last fingerprint used to build the cached scene.
-    fingerprint: Option<StaticSegmentCacheFingerprint>,
     /// Encoded scene for this segment.
     scene: Scene,
 }
@@ -641,7 +728,6 @@ impl Default for StaticSegmentSceneCacheEntry {
     /// Create an empty static segment scene-cache entry.
     fn default() -> Self {
         Self {
-            fingerprint: None,
             scene: Scene::new(),
         }
     }
@@ -670,13 +756,6 @@ impl StaticSegmentSceneCache {
     /// Return a mutable cache entry for one static segment.
     fn entry_mut(&mut self, segment: StaticFrameSegment) -> &mut StaticSegmentSceneCacheEntry {
         &mut self.entries[segment.index()]
-    }
-
-    /// Clear all cached fingerprints so each segment rebuilds on next pass.
-    fn clear_fingerprints(&mut self) {
-        for entry in &mut self.entries {
-            entry.fingerprint = None;
-        }
     }
 }
 
@@ -1099,6 +1178,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     frame_cache: NativeViewFrame,
     /// Retained per-segment static frame fragments.
     static_segment_frame_cache: StaticFrameSegments,
+    /// Retained immutable static segment nodes for diff-based rebuild planning.
+    static_segment_graph: StaticSegmentStateGraph,
     /// Retained per-segment static encoded scenes.
     static_segment_scene_cache: StaticSegmentSceneCache,
     /// Retained state-driven overlay primitives (focus/hover and dialog state).
@@ -1222,6 +1303,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 text_runs: Vec::new(),
             },
             static_segment_frame_cache: StaticFrameSegments::default(),
+            static_segment_graph: StaticSegmentStateGraph::default(),
             static_segment_scene_cache: StaticSegmentSceneCache::default(),
             state_overlay_frame_cache: NativeViewFrame {
                 clear_color: startup_clear_color,
@@ -1487,7 +1569,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             &style,
             &mut self.layout_runtime,
         ));
-        self.static_segment_scene_cache.clear_fingerprints();
+        self.static_segment_graph.clear();
         self.frame_state.clear_layout_dirty();
         if let Some(point) = self.pending_cursor.take() {
             let _ = self.process_cursor_move_immediately(point);
@@ -2031,15 +2113,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
-    /// Return whether a bridge dirty mask includes one static scene segment.
-    fn static_segment_is_dirty(
-        &self,
-        dirty_segments: DirtySegments,
-        segment: StaticFrameSegment,
-    ) -> bool {
-        (dirty_segments.bits() & segment.dirty_mask()) != 0
-    }
-
     /// Return bridge-provided revision for one static segment.
     fn static_segment_revision(
         &self,
@@ -2056,6 +2129,43 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
+    /// Return deterministic static segment identifier from cache-array index.
+    fn static_segment_from_cache_index(index: usize) -> StaticFrameSegment {
+        match index {
+            0 => StaticFrameSegment::GlobalStatic,
+            1 => StaticFrameSegment::WaveformOverlay,
+            2 => StaticFrameSegment::BrowserFrame,
+            3 => StaticFrameSegment::BrowserRowsWindow,
+            4 => StaticFrameSegment::MapPanel,
+            5 => StaticFrameSegment::StatusBar,
+            _ => unreachable!("invalid static segment index {index}"),
+        }
+    }
+
+    /// Build candidate fingerprints for every retained static segment.
+    fn build_static_segment_fingerprints(
+        &self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        segment_revisions: SegmentRevisions,
+    ) -> [StaticSegmentCacheFingerprint; StaticFrameSegment::COUNT] {
+        let layout_width_bits = layout.root.rect.width().to_bits();
+        let layout_height_bits = layout.root.rect.height().to_bits();
+        let layout_scale_bits = layout.ui_scale.to_bits();
+        let style_signature = static_segment_style_signature(style);
+        std::array::from_fn(|idx| {
+            let segment = Self::static_segment_from_cache_index(idx);
+            StaticSegmentCacheFingerprint {
+                segment,
+                layout_width_bits,
+                layout_height_bits,
+                layout_scale_bits,
+                style_signature,
+                segment_revision: self.static_segment_revision(segment_revisions, segment),
+            }
+        })
+    }
+
     /// Rebuild and encode retained static segment scenes.
     fn rebuild_static_segment_scenes(
         &mut self,
@@ -2065,37 +2175,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         segment_revisions: SegmentRevisions,
         force_rebuild: bool,
     ) -> (Duration, Duration) {
-        let layout_width_bits = layout.root.rect.width().to_bits();
-        let layout_height_bits = layout.root.rect.height().to_bits();
-        let layout_scale_bits = layout.ui_scale.to_bits();
-        let style_signature = static_segment_style_signature(style);
         if force_rebuild {
-            self.static_segment_scene_cache.clear_fingerprints();
+            self.static_segment_graph.clear();
         }
+        let fingerprints = self.build_static_segment_fingerprints(layout, style, segment_revisions);
+        let diff_plan = self
+            .static_segment_graph
+            .diff(dirty_segments, force_rebuild, fingerprints);
         let mut build_duration = Duration::ZERO;
         let mut encode_duration = Duration::ZERO;
         for segment in StaticFrameSegment::ALL {
-            let segment_revision = self.static_segment_revision(segment_revisions, segment);
-            let fingerprint = StaticSegmentCacheFingerprint {
-                segment,
-                layout_width_bits,
-                layout_height_bits,
-                layout_scale_bits,
-                style_signature,
-                segment_revision,
-            };
-            let segment_dirty =
-                force_rebuild || self.static_segment_is_dirty(dirty_segments, segment);
-            let needs_rebuild = {
-                let entry = self.static_segment_scene_cache.entry_mut(segment);
-                if !segment_dirty && entry.fingerprint.as_ref() == Some(&fingerprint) {
-                    false
-                } else {
-                    entry.fingerprint = Some(fingerprint);
-                    true
-                }
-            };
-            if !needs_rebuild {
+            if !diff_plan.should_rebuild(segment) {
                 continue;
             }
 
@@ -2114,6 +2204,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let entry = self.static_segment_scene_cache.entry_mut(segment);
             Self::encode_frame_to_scene(frame, &mut entry.scene, &mut self.text_renderer);
             encode_duration += segment_encode_start.elapsed();
+            self.static_segment_graph
+                .commit_segment(segment, diff_plan.fingerprint(segment));
         }
 
         self.frame_cache.clear_color = style.clear_color;
@@ -3814,6 +3906,79 @@ mod tests {
         assert!(static_rebuild_from_dirty_mask(true, false, dirty));
         assert!(!static_rebuild_from_dirty_mask(false, false, dirty));
         assert!(!static_rebuild_from_dirty_mask(true, true, dirty));
+    }
+
+    fn test_segment_fingerprints(
+        revision_seed: u64,
+    ) -> [StaticSegmentCacheFingerprint; StaticFrameSegment::COUNT] {
+        std::array::from_fn(|idx| {
+            let segment = NativeVelloRunner::<PreviewBridge>::static_segment_from_cache_index(idx);
+            StaticSegmentCacheFingerprint {
+                segment,
+                layout_width_bits: 1920.0f32.to_bits(),
+                layout_height_bits: 1080.0f32.to_bits(),
+                layout_scale_bits: 1.0f32.to_bits(),
+                style_signature: 7,
+                segment_revision: revision_seed + idx as u64,
+            }
+        })
+    }
+
+    #[test]
+    fn static_segment_graph_diff_rebuilds_all_on_cold_start() {
+        let graph = StaticSegmentStateGraph::default();
+        let plan = graph.diff(DirtySegments::empty(), false, test_segment_fingerprints(10));
+        for segment in StaticFrameSegment::ALL {
+            assert!(plan.should_rebuild(segment));
+        }
+    }
+
+    #[test]
+    fn static_segment_graph_diff_skips_when_fingerprints_match_and_clean() {
+        let mut graph = StaticSegmentStateGraph::default();
+        let fingerprints = test_segment_fingerprints(20);
+        let first_plan = graph.diff(DirtySegments::empty(), false, fingerprints.clone());
+        for segment in StaticFrameSegment::ALL {
+            assert!(first_plan.should_rebuild(segment));
+            graph.commit_segment(segment, first_plan.fingerprint(segment));
+        }
+
+        let second_plan = graph.diff(DirtySegments::empty(), false, fingerprints);
+        for segment in StaticFrameSegment::ALL {
+            assert!(!second_plan.should_rebuild(segment));
+        }
+    }
+
+    #[test]
+    fn static_segment_graph_diff_targets_dirty_and_changed_segments() {
+        let mut graph = StaticSegmentStateGraph::default();
+        let fingerprints = test_segment_fingerprints(30);
+        let first_plan = graph.diff(DirtySegments::empty(), false, fingerprints.clone());
+        for segment in StaticFrameSegment::ALL {
+            graph.commit_segment(segment, first_plan.fingerprint(segment));
+        }
+
+        let dirty_plan = graph.diff(
+            DirtySegments::from_bits(DirtySegments::STATUS_BAR),
+            false,
+            fingerprints.clone(),
+        );
+        assert!(dirty_plan.should_rebuild(StaticFrameSegment::StatusBar));
+        for segment in StaticFrameSegment::ALL {
+            if segment != StaticFrameSegment::StatusBar {
+                assert!(!dirty_plan.should_rebuild(segment));
+            }
+        }
+
+        let mut changed_fingerprints = fingerprints;
+        changed_fingerprints[StaticFrameSegment::MapPanel.index()].segment_revision += 1;
+        let changed_plan = graph.diff(DirtySegments::empty(), false, changed_fingerprints);
+        assert!(changed_plan.should_rebuild(StaticFrameSegment::MapPanel));
+        for segment in StaticFrameSegment::ALL {
+            if segment != StaticFrameSegment::MapPanel {
+                assert!(!changed_plan.should_rebuild(segment));
+            }
+        }
     }
 
     #[test]

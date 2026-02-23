@@ -35,7 +35,7 @@ use crate::gui::{
 };
 use std::{
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     hash::{Hash, Hasher},
 };
 
@@ -120,8 +120,15 @@ struct BrowserRowTruncationCacheKey {
 /// Small retained LRU cache for browser-row text truncation outputs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct BrowserRowTruncationCache {
-    values: HashMap<BrowserRowTruncationEntryKey, String>,
-    lru: VecDeque<BrowserRowTruncationEntryKey>,
+    values: HashMap<BrowserRowTruncationEntryKey, BrowserRowTruncationCacheValue>,
+    touch_epoch: u64,
+}
+
+/// One cached truncation result with the latest logical access epoch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BrowserRowTruncationCacheValue {
+    truncated: String,
+    last_touch_epoch: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -347,7 +354,7 @@ impl BrowserRowTruncationCache {
     /// Clear all retained truncation entries.
     fn clear(&mut self) {
         self.values.clear();
-        self.lru.clear();
+        self.touch_epoch = 0;
     }
 
     /// Resolve one truncation output from cache or compute and insert on miss.
@@ -359,32 +366,45 @@ impl BrowserRowTruncationCache {
         font_size: f32,
         frame_counts: &mut BrowserRowTruncationFrameCounts,
     ) -> String {
+        let touch_epoch = self.next_touch_epoch();
         frame_counts.lookup_count = frame_counts.lookup_count.saturating_add(1);
-        if let Some(cached) = self.values.get(&key).cloned() {
+        if let Some(cached) = self.values.get_mut(&key) {
             frame_counts.cache_hit_count = frame_counts.cache_hit_count.saturating_add(1);
-            self.touch(key);
-            return cached;
+            cached.last_touch_epoch = touch_epoch;
+            return cached.truncated.clone();
         }
         frame_counts.cache_miss_count = frame_counts.cache_miss_count.saturating_add(1);
         let truncated = truncate_to_width(text, max_width, font_size);
-        self.insert(key, truncated.clone());
+        self.insert(key, truncated.clone(), touch_epoch);
         truncated
     }
 
-    /// Move one key to the back of the LRU order.
-    fn touch(&mut self, key: BrowserRowTruncationEntryKey) {
-        if let Some(index) = self.lru.iter().position(|candidate| *candidate == key) {
-            let _ = self.lru.remove(index);
+    /// Return the next logical access epoch used for cache aging.
+    fn next_touch_epoch(&mut self) -> u64 {
+        if self.touch_epoch == u64::MAX {
+            // This epoch only grows during one process lifetime; clear on overflow.
+            self.clear();
         }
-        self.lru.push_back(key);
+        self.touch_epoch = self.touch_epoch.saturating_add(1);
+        self.touch_epoch
     }
 
-    /// Insert one key/value pair and enforce the fixed cache capacity.
-    fn insert(&mut self, key: BrowserRowTruncationEntryKey, value: String) {
-        self.values.insert(key, value);
-        self.touch(key);
+    /// Insert one key/value pair and enforce the fixed cache capacity via LRU epoch eviction.
+    fn insert(&mut self, key: BrowserRowTruncationEntryKey, value: String, touch_epoch: u64) {
+        self.values.insert(
+            key,
+            BrowserRowTruncationCacheValue {
+                truncated: value,
+                last_touch_epoch: touch_epoch,
+            },
+        );
         while self.values.len() > BROWSER_ROW_TRUNCATION_CACHE_CAPACITY {
-            let Some(evicted) = self.lru.pop_front() else {
+            let Some((evicted, _)) = self
+                .values
+                .iter()
+                .min_by_key(|(_, value)| value.last_touch_epoch)
+                .map(|(key, value)| (*key, value.last_touch_epoch))
+            else {
                 break;
             };
             self.values.remove(&evicted);

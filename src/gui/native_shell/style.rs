@@ -6,6 +6,9 @@ const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
     Rgba8 { r, g, b, a }
 }
 
+/// Global baseline size multiplier used to keep default shell density slightly larger.
+const DEFAULT_UI_SCALE: f32 = 1.06;
+
 const fn clamp_ui_scale(scale: f32) -> f32 {
     scale.clamp(1.0, 3.0)
 }
@@ -313,11 +316,13 @@ impl Default for StyleTokens {
 impl StyleTokens {
     /// Build style tokens tuned for a viewport width and DPI scale factor.
     ///
-    /// The scale factor is clamped to a safe range so accidental outlier scale
-    /// values cannot collapse or overinflate layout geometry.
+    /// The input scale factor is clamped to a safe range so accidental outlier
+    /// values cannot collapse or overinflate layout geometry. A small baseline
+    /// multiplier is then applied to keep the default UI density slightly larger.
     pub(crate) fn for_viewport_with_scale(viewport_width: f32, ui_scale: f32) -> Self {
         let mut tokens = Self::for_tier(LayoutScaleTier::from_viewport_width(viewport_width));
-        tokens.sizing = tokens.sizing.with_ui_scale(clamp_ui_scale(ui_scale));
+        let effective_scale = clamp_ui_scale(clamp_ui_scale(ui_scale) * DEFAULT_UI_SCALE);
+        tokens.sizing = tokens.sizing.with_ui_scale(effective_scale);
         tokens
     }
 
@@ -767,7 +772,7 @@ impl SizingTokens {
 
 #[cfg(test)]
 mod tests {
-    use super::{LayoutScaleTier, StyleTokens};
+    use super::{LayoutScaleTier, StyleTokens, DEFAULT_UI_SCALE};
 
     #[test]
     fn viewport_width_maps_to_expected_tier() {
@@ -787,14 +792,17 @@ mod tests {
 
     #[test]
     fn explicit_tier_builder_matches_width_builder() {
-        let compact = StyleTokens::for_tier(LayoutScaleTier::Compact);
-        assert_eq!(compact, StyleTokens::for_viewport_width(820.0));
+        let compact = StyleTokens::for_tier(LayoutScaleTier::Compact).sizing;
+        let compact_from_width = StyleTokens::for_viewport_width(820.0).sizing;
+        assert_eq!(compact.with_ui_scale(DEFAULT_UI_SCALE), compact_from_width);
 
-        let standard = StyleTokens::for_tier(LayoutScaleTier::Standard);
-        assert_eq!(standard, StyleTokens::for_viewport_width(1280.0));
+        let standard = StyleTokens::for_tier(LayoutScaleTier::Standard).sizing;
+        let standard_from_width = StyleTokens::for_viewport_width(1280.0).sizing;
+        assert_eq!(standard.with_ui_scale(DEFAULT_UI_SCALE), standard_from_width);
 
-        let wide = StyleTokens::for_tier(LayoutScaleTier::Wide);
-        assert_eq!(wide, StyleTokens::for_viewport_width(2300.0));
+        let wide = StyleTokens::for_tier(LayoutScaleTier::Wide).sizing;
+        let wide_from_width = StyleTokens::for_viewport_width(2300.0).sizing;
+        assert_eq!(wide.with_ui_scale(DEFAULT_UI_SCALE), wide_from_width);
     }
 
     #[test]
@@ -843,14 +851,17 @@ mod tests {
     fn standard_tier_matches_classic_dense_shell_targets() {
         let standard = StyleTokens::for_viewport_width(1280.0);
         assert!((0.14..=0.18).contains(&standard.sizing.sidebar_ratio));
-        assert!((15.5..=17.0).contains(&standard.sizing.browser_row_height));
-        assert!(standard.sizing.browser_tabs_height <= 20.0);
-        assert!(standard.sizing.browser_toolbar_height <= 21.0);
-        assert!(standard.sizing.browser_table_header_height <= 20.0);
+        assert!(
+            (15.5 * DEFAULT_UI_SCALE..=17.0 * DEFAULT_UI_SCALE)
+                .contains(&standard.sizing.browser_row_height)
+        );
+        assert!(standard.sizing.browser_tabs_height <= 20.0 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.browser_toolbar_height <= 21.0 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.browser_table_header_height <= 20.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.waveform_ratio <= 0.36);
-        assert!(standard.sizing.sidebar_max_width <= 220.0);
-        assert!(standard.sizing.font_body <= 9.1);
-        assert!(standard.sizing.font_meta <= 8.8);
+        assert!(standard.sizing.sidebar_max_width <= 220.0 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.font_body <= 9.1 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.font_meta <= 8.8 * DEFAULT_UI_SCALE);
     }
 
     #[test]
@@ -876,9 +887,9 @@ mod tests {
         let below = StyleTokens::for_viewport_with_scale(1280.0, 0.5);
         let identity = StyleTokens::for_viewport_with_scale(1280.0, 1.0);
         let above = StyleTokens::for_viewport_with_scale(1280.0, 4.0);
-        let max_scale = 3.0;
+        let max = StyleTokens::for_viewport_with_scale(1280.0, 3.0);
         assert_eq!(below, identity);
-        assert!((above.sizing.font_body - (identity.sizing.font_body * max_scale)).abs() < 0.0001);
+        assert!((above.sizing.font_body - max.sizing.font_body).abs() < 0.0001);
     }
 
     #[test]

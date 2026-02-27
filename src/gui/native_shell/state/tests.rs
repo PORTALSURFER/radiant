@@ -709,6 +709,49 @@ fn waveform_image_data_renders_non_transparent_span_rectangles() {
 }
 
 #[test]
+fn waveform_image_data_preserves_distinct_column_colors() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform.waveform_image = Some(std::sync::Arc::new(
+        ImageRgba::new(
+            1,
+            2,
+            vec![
+                11, 22, 33, 255, // top pixel
+                99, 88, 77, 255, // bottom pixel
+            ],
+        )
+        .unwrap(),
+    ));
+    let frame = state.build_frame(&layout, &model);
+    let top_color_present = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect) if rect.color == Rgba8 {
+                r: 11,
+                g: 22,
+                b: 33,
+                a: 255
+            }
+        )
+    });
+    let bottom_color_present = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect) if rect.color == Rgba8 {
+                r: 99,
+                g: 88,
+                b: 77,
+                a: 255
+            }
+        )
+    });
+    assert!(top_color_present);
+    assert!(bottom_color_present);
+}
+
+#[test]
 fn waveform_image_transparent_pixels_do_not_emit_geometry() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

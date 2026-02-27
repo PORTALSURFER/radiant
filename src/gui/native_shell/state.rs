@@ -3167,29 +3167,27 @@ fn push_waveform_image(
         let x1 = waveform_plot.min.x + ((x + 1) as f32 * plot_width) / src_width;
         let mut y = 0usize;
         while y < image.height {
-            let first_idx = y * stride + x * 4;
-            let y0 = y;
-            if image.pixels[first_idx + 3] == 0 {
+            let idx = y * stride + x * 4;
+            if image.pixels[idx + 3] == 0 {
                 y += 1;
                 continue;
             }
-            let mut y1 = y0;
-            let mut red = image.pixels[first_idx];
-            let mut green = image.pixels[first_idx + 1];
-            let mut blue = image.pixels[first_idx + 2];
-            let mut alpha = image.pixels[first_idx + 3];
+            let y0 = y;
+            let red = image.pixels[idx];
+            let green = image.pixels[idx + 1];
+            let blue = image.pixels[idx + 2];
+            let alpha = image.pixels[idx + 3];
 
+            let mut y1 = y0 + 1;
             while y1 < image.height {
                 let span_idx = y1 * stride + x * 4;
-                if image.pixels[span_idx + 3] == 0 {
+                if image.pixels[span_idx + 3] == 0
+                    || image.pixels[span_idx] != red
+                    || image.pixels[span_idx + 1] != green
+                    || image.pixels[span_idx + 2] != blue
+                    || image.pixels[span_idx + 3] != alpha
+                {
                     break;
-                }
-                let span_alpha = image.pixels[span_idx + 3];
-                if span_alpha > alpha {
-                    alpha = span_alpha;
-                    red = image.pixels[span_idx];
-                    green = image.pixels[span_idx + 1];
-                    blue = image.pixels[span_idx + 2];
                 }
                 y1 += 1;
             }
@@ -3216,7 +3214,7 @@ fn push_waveform_image(
                     }),
                 );
             }
-            y = y1 + 1;
+            y = y1;
         }
     }
 }

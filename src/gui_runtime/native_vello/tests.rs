@@ -4,6 +4,7 @@ use crate::app::{
     UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
 };
 use crate::gui::types::Vector2;
+use std::sync::Arc;
 use winit::event::MouseScrollDelta;
 
 #[derive(Default)]
@@ -12,11 +13,11 @@ struct RecordingBridge {
 }
 
 impl NativeAppBridge for RecordingBridge {
-    fn pull_model(&mut self) -> AppModel {
-        AppModel::default()
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(AppModel::default())
     }
 
-    fn on_action(&mut self, action: UiAction) {
+    fn reduce_action(&mut self, action: UiAction) {
         self.actions.push(action);
     }
 }

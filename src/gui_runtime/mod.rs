@@ -53,4 +53,6 @@ impl Default for NativeRunOptions {
     }
 }
 
-pub use native_vello::{run_native_vello_app, run_native_vello_preview};
+pub use native_vello::{
+    run_native_vello_app, run_native_vello_app_declarative, run_native_vello_preview,
+};

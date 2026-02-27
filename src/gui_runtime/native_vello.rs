@@ -1205,7 +1205,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     motion_overlay_fingerprint: Option<MotionOverlayCacheFingerprint>,
     /// Cached latest motion-only model for lightweight overlay rebuilds.
     motion_model: Option<NativeMotionModel>,
-    /// Whether the active bridge supports `pull_motion_model`.
+    /// Whether the active bridge supports `project_motion_model`.
     motion_model_supported: bool,
     /// Latest bridge-provided static segment revision snapshot.
     segment_revisions: SegmentRevisions,
@@ -1837,7 +1837,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         frame_result.presented = presented;
         frame_result.missed_present = present_expected && !presented;
         frame_result.jank = presented && frame_total_us > frame_budget_us;
-        self.bridge.on_frame_result(*frame_result);
+        self.bridge.observe_frame_result(*frame_result);
     }
 
     /// Record profiler data (if enabled) and emit one finalized frame result.
@@ -2261,7 +2261,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     rebuild_motion_overlay
                 );
             }
-            self.model = self.bridge.pull_model_arc();
+            self.model = self.bridge.project_model();
             bridge_dirty_segments = self.bridge.take_dirty_segments();
             let bridge_segment_revisions = self.bridge.take_segment_revisions();
             if bridge_segment_revisions.has_static_revisions() {
@@ -2297,7 +2297,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if should_refresh_motion {
             self.profiler.add_bridge_motion_pull_rebuild();
             let pull_start = self.profiler.now_if_enabled();
-            if let Some(motion_model) = self.bridge.pull_motion_model() {
+            if let Some(motion_model) = self.bridge.project_motion_model() {
                 let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_motion_pull(pull_duration);
                 if self.motion_model.as_ref() != Some(&motion_model) {
@@ -2316,7 +2316,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let model_pull_start = self.profiler.now_if_enabled();
                 self.profiler.add_bridge_model_pull_rebuild();
                 self.motion_model_supported = false;
-                self.model = self.bridge.pull_model_arc();
+                self.model = self.bridge.project_model();
                 bridge_dirty_segments = self.bridge.take_dirty_segments();
                 let bridge_segment_revisions = self.bridge.take_segment_revisions();
                 if bridge_segment_revisions.has_static_revisions() {
@@ -2845,7 +2845,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     ) {
         self.apply_invalidation_scope(Self::classify_action_scope(&action));
         let profile_start = profile_kind.and_then(|_| self.profiler.now_if_enabled());
-        self.bridge.on_action(action);
+        self.bridge.reduce_action(action);
         if let (Some(kind), Some(start)) = (profile_kind, profile_start) {
             self.profiler.add_interaction_latency(kind, start.elapsed());
         }
@@ -3800,8 +3800,8 @@ fn icon_from_rgba(icon: &WindowIconRgba) -> Option<Icon> {
 struct PreviewBridge;
 
 impl NativeAppBridge for PreviewBridge {
-    fn pull_model(&mut self) -> AppModel {
-        AppModel::default()
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(AppModel::default())
     }
 }
 
@@ -3839,8 +3839,19 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
         ),
     }
     info!("radiant native vello: event loop finished");
-    runner.bridge.on_exit();
+    runner.bridge.on_runtime_exit();
     run_result
+}
+
+/// Run the native Vello backend using a declarative state+reducer bridge.
+///
+/// This is an API-level alias to [`run_native_vello_app`] that emphasizes
+/// one-way declarative host integration (`project_model` + `reduce_action`).
+pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> Result<(), String> {
+    run_native_vello_app(options, bridge)
 }
 
 /// Run the experimental native Vello backend window for backend-selection testing.
@@ -3848,7 +3859,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 /// This preview path now renders an interactive backend-neutral shell model with
 /// Vello primitives and exercises native input hit-testing without `egui`.
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    run_native_vello_app(options, PreviewBridge)
+    run_native_vello_app_declarative(options, PreviewBridge)
 }
 
 #[cfg(test)]

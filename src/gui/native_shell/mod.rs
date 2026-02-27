@@ -356,6 +356,43 @@ mod tests {
     }
 
     #[test]
+    fn browser_column_chip_hit_test_emits_select_column_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.columns[2].item_count = 42;
+        let chip = state
+            .browser_column_chip_rect(&layout, &model, 2)
+            .expect("keep column chip should be present");
+        let point = Point::new(
+            (chip.min.x + chip.max.x) * 0.5,
+            (chip.min.y + chip.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.browser_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::SelectColumn { index: 2 })
+        );
+    }
+
+    #[test]
+    fn waveform_toolbar_hit_test_emits_transport_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let model = crate::app::AppModel::default();
+        let play = state
+            .waveform_toolbar_button_rect(&layout, &model, "Play")
+            .expect("play waveform toolbar button should be present");
+        let point = Point::new(
+            (play.min.x + play.max.x) * 0.5,
+            (play.min.y + play.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.waveform_toolbar_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::ToggleTransport)
+        );
+    }
+
+    #[test]
     fn prompt_hit_test_emits_confirm_and_cancel() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let state = NativeShellState::new();

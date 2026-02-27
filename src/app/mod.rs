@@ -434,16 +434,43 @@ impl Default for WaveformPanelModel {
 }
 
 /// Waveform chrome copy used by metadata lines in the native shell header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaveformChannelViewModel {
+    /// Collapse channels into one mono envelope.
+    Mono,
+    /// Render left/right channels in split stereo mode.
+    Stereo,
+}
+
+/// Waveform chrome copy used by metadata lines and control surfaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WaveformChromeModel {
     /// Extra transport metadata hint shown alongside waveform labels.
     pub transport_hint: String,
+    /// Current channel-view mode used by waveform rendering.
+    pub channel_view: WaveformChannelViewModel,
+    /// Whether normalized audition playback is enabled.
+    pub normalized_audition_enabled: bool,
+    /// Whether BPM snapping is enabled for waveform edits.
+    pub bpm_snap_enabled: bool,
+    /// Whether transient snapping is enabled for waveform edits.
+    pub transient_snap_enabled: bool,
+    /// Whether transient markers are visible on the waveform.
+    pub transient_markers_enabled: bool,
+    /// Whether slice mode is currently active.
+    pub slice_mode_enabled: bool,
 }
 
 impl Default for WaveformChromeModel {
     fn default() -> Self {
         Self {
             transport_hint: String::from("transport idle"),
+            channel_view: WaveformChannelViewModel::Mono,
+            normalized_audition_enabled: false,
+            bpm_snap_enabled: false,
+            transient_snap_enabled: false,
+            transient_markers_enabled: true,
+            slice_mode_enabled: false,
         }
     }
 }
@@ -797,6 +824,36 @@ pub enum UiAction {
     CancelProgress,
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
+    /// Set waveform channel view mode.
+    SetWaveformChannelView {
+        /// When true, uses split stereo mode; otherwise mono mode.
+        stereo: bool,
+    },
+    /// Enable/disable normalized audition playback.
+    SetNormalizedAuditionEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable BPM snapping for waveform edits.
+    SetBpmSnapEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable transient snapping for waveform edits.
+    SetTransientSnapEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable transient marker visibility.
+    SetTransientMarkersEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable slice mode.
+    SetSliceModeEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
     /// Set output volume to a normalized milli value (`0..=1000`).
     SetVolume {
         /// Normalized milli volume value (`0..=1000`).
@@ -1042,6 +1099,18 @@ pub struct NativeMotionModel {
     pub waveform_image_signature: Option<u64>,
     /// Transport hint rendered with waveform metadata.
     pub waveform_transport_hint: String,
+    /// Current waveform channel-view mode.
+    pub waveform_channel_view: WaveformChannelViewModel,
+    /// Whether normalized audition playback is enabled.
+    pub waveform_normalized_audition_enabled: bool,
+    /// Whether BPM snapping is enabled.
+    pub waveform_bpm_snap_enabled: bool,
+    /// Whether transient snapping is enabled.
+    pub waveform_transient_snap_enabled: bool,
+    /// Whether transient markers are visible.
+    pub waveform_transient_markers_enabled: bool,
+    /// Whether slice mode is active.
+    pub waveform_slice_mode_enabled: bool,
     /// Right-aligned status-bar text rendered in the motion overlay.
     pub status_right: String,
 }
@@ -1062,6 +1131,12 @@ impl NativeMotionModel {
             waveform_loaded_label: model.waveform.loaded_label.clone(),
             waveform_image_signature: model.waveform.waveform_image_signature,
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
+            waveform_channel_view: model.waveform_chrome.channel_view,
+            waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
+            waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,
+            waveform_transient_snap_enabled: model.waveform_chrome.transient_snap_enabled,
+            waveform_transient_markers_enabled: model.waveform_chrome.transient_markers_enabled,
+            waveform_slice_mode_enabled: model.waveform_chrome.slice_mode_enabled,
             status_right: model.status.right.clone(),
         }
     }

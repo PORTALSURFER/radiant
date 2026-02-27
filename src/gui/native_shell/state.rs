@@ -692,6 +692,38 @@ impl NativeShellState {
             .map(|button| button.rect)
     }
 
+    /// Return a browser column-chip rect for one column index in tests.
+    #[cfg(test)]
+    pub(crate) fn browser_column_chip_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        column: usize,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let buttons = browser_action_buttons(layout, &style, model);
+        browser_column_chips(layout, &style, model, &buttons)
+            .into_iter()
+            .find(|chip| chip.column == column)
+            .map(|chip| chip.rect)
+    }
+
+    /// Return a waveform-toolbar button rect for one control label in tests.
+    #[cfg(test)]
+    pub(crate) fn waveform_toolbar_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        label: &'static str,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        waveform_toolbar_buttons(layout, &style, &motion_model)
+            .into_iter()
+            .find(|button| button.label == label)
+            .map(|button| button.rect)
+    }
+
     /// Resolve a source-management action button click into a native UI action.
     pub(crate) fn source_action_at_point(
         &self,
@@ -730,7 +762,15 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
-        browser_action_buttons(layout, &style, model)
+        let buttons = browser_action_buttons(layout, &style, model);
+        if let Some(action) = browser_column_chips(layout, &style, model, &buttons)
+            .into_iter()
+            .find(|chip| chip.rect.contains(point))
+            .map(|chip| UiAction::SelectColumn { index: chip.column })
+        {
+            return Some(action);
+        }
+        buttons
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| button.action)
@@ -751,6 +791,21 @@ impl NativeShellState {
             return Some(UiAction::SetBrowserTab { map: true });
         }
         None
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        waveform_toolbar_buttons(layout, &style, &motion_model)
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .and_then(|button| button.action)
     }
 
     /// Resolve a top-bar update action button click.
@@ -1126,6 +1181,7 @@ impl NativeShellState {
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
+        let browser_column_chips = browser_column_chips(layout, style, model, &browser_buttons);
         let source_row_rects = if build_global_static {
             rendered_source_row_rects(layout, style, model)
         } else {
@@ -2145,6 +2201,53 @@ impl NativeShellState {
                     sizing.border_width,
                 );
             }
+            for chip in &browser_column_chips {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: chip.rect,
+                        color: if chip.selected {
+                            match chip.column {
+                                0 => blend_color(style.accent_warning, style.bg_secondary, 0.50),
+                                2 => blend_color(style.accent_mint, style.bg_secondary, 0.50),
+                                _ => blend_color(style.text_primary, style.bg_secondary, 0.42),
+                            }
+                        } else {
+                            match chip.column {
+                                0 => blend_color(style.accent_warning, style.bg_secondary, 0.34),
+                                2 => blend_color(style.accent_mint, style.bg_secondary, 0.34),
+                                _ => blend_color(style.text_muted, style.bg_secondary, 0.28),
+                            }
+                        },
+                    }),
+                );
+                push_border(
+                    primitives,
+                    chip.rect,
+                    if chip.selected {
+                        blend_color(style.border_emphasis, style.text_primary, 0.55)
+                    } else {
+                        style.border
+                    },
+                    sizing.border_width,
+                );
+                let label_rect = compute_action_button_text_rect(chip.rect, sizing);
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: format!("{} ({})", chip.label, chip.item_count),
+                        position: label_rect.min,
+                        font_size: sizing.font_meta,
+                        color: if chip.selected {
+                            style.text_primary
+                        } else {
+                            style.text_muted
+                        },
+                        max_width: Some(label_rect.width().max(16.0)),
+                        align: TextAlign::Center,
+                    },
+                );
+            }
             let toolbar_text_layout = compute_browser_toolbar_text_layout(
                 toolbar.search_field,
                 toolbar.activity_chip,
@@ -2495,7 +2598,26 @@ impl NativeShellState {
 
         if include_overlays {
             let motion_model = NativeMotionModel::from_app_model(model);
-            push_waveform_header_overlay(primitives, text_runs, layout, style, &motion_model);
+            let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, &motion_model);
+            let waveform_toolbar_left = waveform_toolbar_left_edge(
+                &waveform_toolbar_buttons,
+                layout.waveform_header.max.x - sizing.text_inset_x,
+            );
+            push_waveform_header_overlay(
+                primitives,
+                text_runs,
+                layout,
+                style,
+                &motion_model,
+                Some(waveform_toolbar_left - sizing.action_button_gap),
+            );
+            render_waveform_toolbar_buttons(
+                primitives,
+                text_runs,
+                style,
+                sizing,
+                &waveform_toolbar_buttons,
+            );
             render_progress_overlay(primitives, text_runs, layout, style, model);
             render_confirm_prompt(primitives, text_runs, layout, style, model);
             render_drag_overlay(primitives, text_runs, layout, style, model);
@@ -2885,7 +3007,26 @@ impl NativeShellState {
         );
 
         push_waveform_playhead_overlay(primitives, layout, style, model);
-        push_waveform_header_overlay(primitives, text_runs, layout, style, model);
+        let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
+        let waveform_toolbar_left = waveform_toolbar_left_edge(
+            &waveform_toolbar_buttons,
+            layout.waveform_header.max.x - sizing.text_inset_x,
+        );
+        push_waveform_header_overlay(
+            primitives,
+            text_runs,
+            layout,
+            style,
+            model,
+            Some(waveform_toolbar_left - sizing.action_button_gap),
+        );
+        render_waveform_toolbar_buttons(
+            primitives,
+            text_runs,
+            style,
+            sizing,
+            &waveform_toolbar_buttons,
+        );
 
         let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let (samples_fill, map_fill) = if !model.map_active {
@@ -3205,6 +3346,223 @@ fn browser_toolbar_layout(
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,
         sort_chip: sections.sort_chip,
+        triage_chips: sections.triage_chips,
+    }
+}
+
+fn browser_column_chips(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    browser_buttons: &[ActionButton],
+) -> Vec<BrowserColumnChip> {
+    let toolbar = browser_toolbar_layout(layout, style, browser_buttons);
+    toolbar
+        .triage_chips
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(_, rect)| rect.width() > 1.0)
+        .map(|(column, rect)| {
+            let fallback = match column {
+                0 => "Trash",
+                1 => "Neutral",
+                _ => "Keep",
+            };
+            let label = model
+                .columns
+                .get(column)
+                .map(|entry| entry.title.as_str())
+                .filter(|value| !value.is_empty())
+                .unwrap_or(fallback)
+                .to_string();
+            BrowserColumnChip {
+                rect,
+                column,
+                label,
+                item_count: model
+                    .columns
+                    .get(column)
+                    .map(|entry| entry.item_count)
+                    .unwrap_or(0),
+                selected: model.selected_column.min(2) == column,
+            }
+        })
+        .collect()
+}
+
+fn waveform_toolbar_buttons(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &NativeMotionModel,
+) -> Vec<WaveformToolbarButton> {
+    let specs = [
+        (
+            "Mono",
+            true,
+            model.waveform_channel_view == crate::app::WaveformChannelViewModel::Mono,
+            Some(UiAction::SetWaveformChannelView { stereo: false }),
+            style.text_muted,
+        ),
+        (
+            "Stereo",
+            true,
+            model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo,
+            Some(UiAction::SetWaveformChannelView { stereo: true }),
+            style.text_muted,
+        ),
+        (
+            "Norm",
+            true,
+            model.waveform_normalized_audition_enabled,
+            Some(UiAction::SetNormalizedAuditionEnabled {
+                enabled: !model.waveform_normalized_audition_enabled,
+            }),
+            style.accent_mint,
+        ),
+        (
+            "BPM Snap",
+            true,
+            model.waveform_bpm_snap_enabled,
+            Some(UiAction::SetBpmSnapEnabled {
+                enabled: !model.waveform_bpm_snap_enabled,
+            }),
+            style.accent_copper,
+        ),
+        (
+            "Tr Snap",
+            true,
+            model.waveform_transient_snap_enabled,
+            Some(UiAction::SetTransientSnapEnabled {
+                enabled: !model.waveform_transient_snap_enabled,
+            }),
+            style.accent_warning,
+        ),
+        (
+            "Show Tr",
+            true,
+            model.waveform_transient_markers_enabled,
+            Some(UiAction::SetTransientMarkersEnabled {
+                enabled: !model.waveform_transient_markers_enabled,
+            }),
+            style.text_primary,
+        ),
+        (
+            "Slice",
+            true,
+            model.waveform_slice_mode_enabled,
+            Some(UiAction::SetSliceModeEnabled {
+                enabled: !model.waveform_slice_mode_enabled,
+            }),
+            style.accent_warning,
+        ),
+        (
+            "Stop",
+            true,
+            !model.transport_running,
+            Some(UiAction::HandleEscape),
+            style.accent_copper,
+        ),
+        (
+            "Play",
+            true,
+            model.transport_running,
+            Some(UiAction::ToggleTransport),
+            style.accent_mint,
+        ),
+        ("Rec", false, false, None, style.accent_warning),
+    ];
+    let labels: Vec<&str> = specs.iter().map(|(label, ..)| *label).collect();
+    let cluster = Rect::from_min_max(
+        Point::new(
+            layout.waveform_header.min.x + (layout.waveform_header.width() * 0.42),
+            layout.waveform_header.min.y,
+        ),
+        layout.waveform_header.max,
+    );
+    let rects =
+        compute_update_action_button_rects(layout.waveform_header, cluster, style.sizing, &labels);
+    let start_index = specs.len().saturating_sub(rects.len());
+    rects
+        .into_iter()
+        .zip(specs.into_iter().skip(start_index))
+        .map(
+            |(rect, (label, enabled, active, action, text_color))| WaveformToolbarButton {
+                rect,
+                label,
+                enabled,
+                active,
+                action,
+                text_color,
+            },
+        )
+        .collect()
+}
+
+fn waveform_toolbar_left_edge(buttons: &[WaveformToolbarButton], fallback: f32) -> f32 {
+    buttons
+        .iter()
+        .map(|button| button.rect.min.x)
+        .min_by(f32::total_cmp)
+        .unwrap_or(fallback)
+}
+
+fn render_waveform_toolbar_buttons(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    buttons: &[WaveformToolbarButton],
+) {
+    for button in buttons {
+        let label_rect = compute_action_button_text_rect(button.rect, sizing);
+        let fill = if button.enabled {
+            if button.active {
+                blend_color(
+                    style.surface_overlay,
+                    style.bg_tertiary,
+                    style.state_selected_blend,
+                )
+            } else {
+                style.surface_overlay
+            }
+        } else {
+            style.control_disabled_fill
+        };
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: button.rect,
+                color: fill,
+            }),
+        );
+        push_border(
+            primitives,
+            button.rect,
+            if button.enabled && button.active {
+                blend_color(style.border_emphasis, style.text_primary, 0.58)
+            } else if button.enabled {
+                style.border
+            } else {
+                style.control_disabled_fill
+            },
+            sizing.border_width,
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: button.label.to_string(),
+                position: label_rect.min,
+                font_size: sizing.font_meta,
+                color: if button.enabled {
+                    button.text_color
+                } else {
+                    style.text_muted
+                },
+                max_width: Some(label_rect.width().max(12.0)),
+                align: TextAlign::Center,
+            },
+        );
     }
 }
 

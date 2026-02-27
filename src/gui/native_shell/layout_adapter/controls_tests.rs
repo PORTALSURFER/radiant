@@ -38,6 +38,14 @@ fn toolbar_sections_stay_left_of_action_cluster() {
         assert!(sections.activity_chip.min.x >= sections.search_field.max.x);
         assert!(sections.activity_chip.max.x <= 980.0);
     }
+    for chip in sections.triage_chips {
+        if chip.width() > 0.0 {
+            assert!(chip.min.x >= toolbar.min.x);
+            assert!(chip.max.x <= 980.0);
+            assert!(chip.min.y >= toolbar.min.y);
+            assert!(chip.max.y <= toolbar.max.y);
+        }
+    }
 }
 
 #[test]

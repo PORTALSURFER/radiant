@@ -236,6 +236,12 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     if controls.sort_chip.width() > 1.0 {
         assert_rect_inside(layout.browser_toolbar, controls.sort_chip);
     }
+    for chip in controls.triage_chips {
+        if chip.width() > 1.0 {
+            assert_rect_inside(layout.browser_toolbar, chip);
+            assert!(chip.max.x <= action_cluster_left);
+        }
+    }
     assert!(controls.search_field.max.x <= action_cluster_left);
     assert!(controls.activity_chip.max.x <= action_cluster_left);
     assert!(controls.sort_chip.max.x <= action_cluster_left);

@@ -139,6 +139,9 @@ pub(super) fn action_from_pointer(
     if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.waveform_toolbar_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();

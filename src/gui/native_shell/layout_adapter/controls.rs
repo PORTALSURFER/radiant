@@ -25,6 +25,7 @@ pub(crate) struct BrowserToolbarSections {
     pub search_field: Rect,
     pub activity_chip: Rect,
     pub sort_chip: Rect,
+    pub triage_chips: [Rect; 3],
 }
 
 /// Compute top-bar update action button rects aligned to the right cluster.
@@ -166,11 +167,13 @@ pub(crate) fn compute_browser_toolbar_sections(
     action_cluster_left: Option<f32>,
 ) -> BrowserToolbarSections {
     let empty = empty_rect(toolbar);
+    let empty_chips = [empty; 3];
     if toolbar.width() <= 0.0 || toolbar.height() <= 0.0 {
         return BrowserToolbarSections {
             search_field: empty,
             activity_chip: empty,
             sort_chip: empty,
+            triage_chips: empty_chips,
         };
     }
     let gap = sizing.action_button_gap.max(1.0);
@@ -183,22 +186,45 @@ pub(crate) fn compute_browser_toolbar_sections(
             search_field: empty,
             activity_chip: empty,
             sort_chip: empty,
+            triage_chips: empty_chips,
         };
     }
 
+    let triage_gap = gap;
+    let min_triage_width = 40.0;
+    let triage_count = 3.0;
+    let min_triage_total = (min_triage_width * triage_count) + (triage_gap * (triage_count - 1.0));
+    let preferred_triage_width = (sizing.action_button_width - 14.0).clamp(48.0, 76.0);
+    let preferred_triage_total =
+        (preferred_triage_width * triage_count) + (triage_gap * (triage_count - 1.0));
+
     let min_search = sizing.browser_search_field_min_width.min(available);
-    let search_width =
-        (toolbar.width() * sizing.browser_search_field_ratio).clamp(min_search, available);
-    let remainder = (available - search_width).max(0.0);
+    let mut triage_chips = empty_chips;
+    let reserve_for_triage = if available > (min_search + gap + min_triage_total) {
+        preferred_triage_total
+            .min((available - min_search - gap).max(min_triage_total))
+            .max(min_triage_total)
+    } else {
+        0.0
+    };
+    let controls_max_x = if reserve_for_triage > 0.0 {
+        (left_max - reserve_for_triage - gap).max(left_min)
+    } else {
+        left_max
+    };
+    let controls_available = (controls_max_x - left_min).max(0.0);
+    let search_width = (toolbar.width() * sizing.browser_search_field_ratio)
+        .clamp(min_search.min(controls_available), controls_available);
+    let remainder = (controls_available - search_width).max(0.0);
     let chip_width = ((remainder - gap).max(0.0) * 0.5).max(0.0);
-    let mut widths = vec![search_width];
+    let mut widths = vec![search_width.max(0.0)];
     if chip_width >= 1.0 {
         widths.push(chip_width);
         widths.push(chip_width);
     }
     let bounds = Rect::from_min_max(
         Point::new(left_min, toolbar.min.y),
-        Point::new(left_max, toolbar.max.y),
+        Point::new(controls_max_x, toolbar.max.y),
     );
     let rects = layout_left_aligned_fixed_widths(
         bounds,
@@ -210,10 +236,29 @@ pub(crate) fn compute_browser_toolbar_sections(
     let search_field = rects.first().copied().unwrap_or(empty);
     let activity_chip = if rects.len() > 1 { rects[1] } else { empty };
     let sort_chip = if rects.len() > 2 { rects[2] } else { empty };
+    if reserve_for_triage > 0.0 {
+        let triage_left = (left_max - reserve_for_triage).max(controls_max_x);
+        let triage_bounds = Rect::from_min_max(
+            Point::new(triage_left, toolbar.min.y),
+            Point::new(left_max, toolbar.max.y),
+        );
+        let chip_width = ((reserve_for_triage - (triage_gap * 2.0)) / 3.0).max(min_triage_width);
+        let chips = layout_left_aligned_fixed_widths(
+            triage_bounds,
+            triage_gap,
+            &[chip_width, chip_width, chip_width],
+            TOOLBAR_SECTION_ROW_ID + 20,
+            TOOLBAR_SEARCH_ID + 20,
+        );
+        for (index, chip) in chips.into_iter().enumerate().take(3) {
+            triage_chips[index] = chip;
+        }
+    }
     BrowserToolbarSections {
         search_field,
         activity_chip,
         sort_chip,
+        triage_chips,
     }
 }
 

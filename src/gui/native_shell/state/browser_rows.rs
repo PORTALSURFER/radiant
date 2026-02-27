@@ -73,6 +73,25 @@ pub(super) struct ActionButton {
     pub(super) text_color: Rgba8,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct BrowserColumnChip {
+    pub(super) rect: Rect,
+    pub(super) column: usize,
+    pub(super) label: String,
+    pub(super) item_count: usize,
+    pub(super) selected: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct WaveformToolbarButton {
+    pub(super) rect: Rect,
+    pub(super) label: &'static str,
+    pub(super) enabled: bool,
+    pub(super) active: bool,
+    pub(super) action: Option<UiAction>,
+    pub(super) text_color: Rgba8,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SidebarSections {
     pub(super) source_rows: Rect,
@@ -85,6 +104,7 @@ pub(super) struct BrowserToolbarLayout {
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,
     pub(super) sort_chip: Rect,
+    pub(super) triage_chips: [Rect; 3],
 }
 
 #[derive(Clone, Copy, Debug)]

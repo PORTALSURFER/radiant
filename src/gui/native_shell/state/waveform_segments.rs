@@ -207,6 +207,7 @@ pub(super) fn push_waveform_header_overlay(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
+    toolbar_left: Option<f32>,
 ) {
     let sizing = style.sizing;
     let text_layout = compute_waveform_header_text_layout(layout.waveform_header, sizing);
@@ -217,7 +218,17 @@ pub(super) fn push_waveform_header_overlay(
             color: style.surface_raised,
         }),
     );
-    let title_max_width = text_layout.title_row.width().max(72.0);
+    let content_right = toolbar_left
+        .unwrap_or(layout.waveform_header.max.x - sizing.text_inset_x)
+        .clamp(
+            text_layout.title_row.min.x + 24.0,
+            layout.waveform_header.max.x,
+        );
+    let title_max_width = text_layout
+        .title_row
+        .width()
+        .min((content_right - text_layout.title_row.min.x).max(24.0))
+        .max(24.0);
     emit_text(
         text_runs,
         TextRun {
@@ -248,7 +259,11 @@ pub(super) fn push_waveform_header_overlay(
     );
     let tempo_text = model.waveform_tempo_label.as_deref().unwrap_or("— BPM");
     let zoom_text = model.waveform_zoom_label.as_deref().unwrap_or("100%");
-    let metadata_max_width = text_layout.metadata_row.width().max(72.0);
+    let metadata_max_width = text_layout
+        .metadata_row
+        .width()
+        .min((content_right - text_layout.metadata_row.min.x).max(24.0))
+        .max(24.0);
     emit_text(
         text_runs,
         TextRun {

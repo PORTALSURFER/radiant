@@ -608,12 +608,12 @@ pub struct AppModel {
 impl Default for AppModel {
     fn default() -> Self {
         Self {
-            title: String::from("Sempal Native Shell"),
+            title: String::from("Sempal"),
             backend_label: String::from("backend: native_vello"),
             sources_label: String::from("Sources"),
-            status_text: String::from("Native shell preview"),
+            status_text: String::new(),
             status: StatusBarModel {
-                left: String::from("Native shell preview"),
+                left: String::new(),
                 center: String::from("rows: 0 | selected: 0 | anchor: — | search: —"),
                 right: String::from("col: 2/3"),
             },

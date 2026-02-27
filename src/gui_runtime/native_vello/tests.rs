@@ -8,7 +8,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use winit::event::MouseScrollDelta;
+use winit::event::{MouseButton, MouseScrollDelta};
 
 #[derive(Default)]
 struct RecordingBridge {
@@ -398,7 +398,7 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
     runner.map_focus_drag_active = true;
     runner.last_emitted_map_drag_sample_id = Some(String::from("source::kick.wav"));
 
-    runner.finish_volume_drag();
+    runner.finish_volume_drag(None);
 
     assert_eq!(
         runner.bridge.actions,
@@ -414,6 +414,33 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
     assert_eq!(runner.last_emitted_waveform_drag_action, None);
     assert!(!runner.map_focus_drag_active);
     assert_eq!(runner.last_emitted_map_drag_sample_id, None);
+}
+
+#[test]
+fn finish_volume_drag_left_click_on_waveform_emits_seek() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
+        layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+    );
+    let position_milli = waveform_position_milli_from_point(&layout, point);
+    runner.shell_layout = Some(layout);
+    runner.last_cursor = Some(point);
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
+        anchor_milli: position_milli,
+    });
+    runner.last_emitted_waveform_drag_action = None;
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SeekWaveform { position_milli }]
+    );
+    assert_eq!(runner.waveform_drag_mode, None);
+    assert_eq!(runner.last_emitted_waveform_drag_action, None);
 }
 
 #[test]

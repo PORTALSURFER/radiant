@@ -2003,7 +2003,25 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
-    fn finish_volume_drag(&mut self) {
+    fn finish_volume_drag(&mut self, released_button: Option<MouseButton>) {
+        let seek_on_waveform_click_release = if matches!(released_button, Some(MouseButton::Left))
+            && self.last_emitted_waveform_drag_action.is_none()
+        {
+            if let Some(WaveformPointerDragMode::Selection { anchor_milli }) =
+                self.waveform_drag_mode
+            {
+                if let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
+                {
+                    waveform_position_milli_from_point(layout, point) == anchor_milli
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         let _ = self.flush_pending_volume_action();
         if self.volume_drag_active {
             self.emit_model_action(UiAction::CommitVolumeSetting);
@@ -2014,6 +2032,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
         self.last_emitted_map_drag_sample_id = None;
+        if seek_on_waveform_click_release
+            && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
+        {
+            let position_milli = waveform_position_milli_from_point(layout, point);
+            self.emit_model_action_with_profile(
+                UiAction::SeekWaveform { position_milli },
+                Some(InteractionProfileKind::Waveform),
+            );
+        }
     }
 
     /// Reveal the native window after startup sequencing reaches a stable frame.
@@ -3046,7 +3073,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 state: ElementState::Released,
                 ..
             } if matches!(button, MouseButton::Left | MouseButton::Right) => {
-                self.finish_volume_drag();
+                self.finish_volume_drag(Some(button));
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.shell_layout.as_ref() {

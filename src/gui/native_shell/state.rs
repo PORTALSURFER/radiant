@@ -761,6 +761,19 @@ impl NativeShellState {
             .map(|button| button.action)
     }
 
+    /// Resolve a click inside the top-bar options label to a native options action.
+    pub(crate) fn top_bar_options_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
+        if !controls.active || !controls.options_label.contains(point) {
+            return None;
+        }
+        Some(UiAction::OpenOptionsMenu)
+    }
+
     /// Resolve a click inside the top-bar volume meter to a volume action.
     pub(crate) fn top_bar_volume_action_at_point(
         &self,

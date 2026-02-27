@@ -1021,6 +1021,22 @@ fn top_bar_volume_click_maps_to_set_volume_action() {
 }
 
 #[test]
+fn top_bar_options_click_maps_to_open_options_menu_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
+    assert!(controls.active);
+    let point = Point::new(
+        controls.options_label.min.x + (controls.options_label.width() * 0.5),
+        controls.options_label.min.y + (controls.options_label.height() * 0.5),
+    );
+    let action = state
+        .top_bar_options_action_at_point(&layout, point)
+        .expect("options click should produce action");
+    assert_eq!(action, UiAction::OpenOptionsMenu);
+}
+
+#[test]
 fn top_bar_volume_drag_clamps_beyond_meter_bounds() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();

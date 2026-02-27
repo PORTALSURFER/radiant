@@ -677,6 +677,8 @@ pub enum UiAction {
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
     FocusBrowserSearch,
+    /// Open the native options menu.
+    OpenOptionsMenu,
     /// Focus the source-folder search field.
     FocusFolderSearch,
     /// Set folder search query.

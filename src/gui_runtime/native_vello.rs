@@ -3283,6 +3283,9 @@ fn action_from_pointer(
     if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.top_bar_options_action_at_point(layout, point) {
+        return Some(action);
+    }
     if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {
         return Some(action);
     }

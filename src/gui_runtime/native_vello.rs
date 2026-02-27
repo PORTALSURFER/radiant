@@ -194,12 +194,7 @@ struct NativeVelloProfiler {
 #[cfg(feature = "gui-performance")]
 impl NativeVelloProfiler {
     fn new() -> Self {
-        let enabled = std::env::var(REDRAW_PROFILE_ENV).ok().is_some_and(|value| {
-            matches!(
-                value.as_str(),
-                "1" | "true" | "TRUE" | "on" | "On" | "ON" | "yes"
-            )
-        });
+        let enabled = crate::env_flags::env_var_truthy(REDRAW_PROFILE_ENV);
         Self {
             enabled,
             ..Self::default()
@@ -1056,9 +1051,7 @@ struct StartupTimingProfile {
 impl StartupTimingProfile {
     /// Create startup timing profile configuration from environment.
     fn new() -> Self {
-        let enabled = std::env::var(STARTUP_PROFILE_ENV)
-            .ok()
-            .is_some_and(|value| parse_truthy_env(&value));
+        let enabled = crate::env_flags::env_var_truthy(STARTUP_PROFILE_ENV);
         Self {
             enabled,
             ..Self::default()
@@ -1271,9 +1264,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let idle_status_refresh_interval =
             Duration::from_nanos(1_000_000_000u64 / IDLE_STATUS_REFRESH_HZ.max(1));
         let startup_clear_color = Self::startup_placeholder_clear_color();
-        let incremental_frame_pipeline = std::env::var(INCREMENTAL_FRAME_PIPELINE_ENV)
-            .ok()
-            .is_some_and(|value| parse_truthy_env(&value));
+        let incremental_frame_pipeline =
+            crate::env_flags::env_var_truthy(INCREMENTAL_FRAME_PIPELINE_ENV);
         info!(
             "radiant native vello runner created: title={} target_fps={} maximized={} has_icon={}",
             options.title,

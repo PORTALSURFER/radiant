@@ -11,6 +11,8 @@
 
 /// App-facing model/action contracts for runtime integration.
 pub mod app;
+/// Shared environment-flag parsing helpers used by runtime internals.
+mod env_flags;
 /// Backend-agnostic GUI primitives.
 pub mod gui;
 /// Shared runtime host implementations.

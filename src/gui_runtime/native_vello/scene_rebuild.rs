@@ -1,14 +1,6 @@
-//! Static-scene rebuild policy and runtime env-flag parsing helpers.
+//! Static-scene rebuild policy helpers for native-vello frame updates.
 
 use super::*;
-
-pub(super) fn parse_truthy_env(value: &str) -> bool {
-    let normalized = value.trim();
-    normalized == "1"
-        || normalized.eq_ignore_ascii_case("true")
-        || normalized.eq_ignore_ascii_case("on")
-        || normalized.eq_ignore_ascii_case("yes")
-}
 
 /// Resolve static-scene rebuild behavior for one frame update.
 ///

@@ -12,6 +12,7 @@ use crate::gui::{
         ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind, StateOverlayFingerprint,
         StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign, TextRun,
     },
+    repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use skrifa::{
@@ -22,7 +23,10 @@ use std::panic::AssertUnwindSafe;
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
@@ -37,7 +41,7 @@ use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
@@ -52,6 +56,44 @@ const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PI
 const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
 /// Maximum time to wait for a deferred startup refresh before revealing anyway.
 const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeUserEvent {
+    RepaintRequested,
+}
+
+fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
+    pending
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
+#[derive(Clone)]
+struct EventLoopProxyRepaintSignal {
+    proxy: EventLoopProxy<RuntimeUserEvent>,
+    pending: Arc<AtomicBool>,
+}
+
+impl EventLoopProxyRepaintSignal {
+    fn new(proxy: EventLoopProxy<RuntimeUserEvent>, pending: Arc<AtomicBool>) -> Self {
+        Self { proxy, pending }
+    }
+}
+
+impl RepaintSignal for EventLoopProxyRepaintSignal {
+    fn request_repaint(&self) {
+        if !try_mark_repaint_event_pending(self.pending.as_ref()) {
+            return;
+        }
+        if self
+            .proxy
+            .send_event(RuntimeUserEvent::RepaintRequested)
+            .is_err()
+        {
+            self.pending.store(false, Ordering::Release);
+        }
+    }
+}
 
 /// Parse standard truthy environment variable values.
 fn parse_truthy_env(value: &str) -> bool {
@@ -1170,6 +1212,7 @@ deferred_model_refresh_total_ms={deferred_model_refresh_total_ms:.3}"
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: NativeRunOptions,
     bridge: B,
+    repaint_event_pending: Arc<AtomicBool>,
     /// Enable bridge-driven static segment rebuild gating.
     incremental_frame_pipeline: bool,
     model: Arc<AppModel>,
@@ -1294,6 +1337,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         Self {
             options,
             bridge,
+            repaint_event_pending: Arc::new(AtomicBool::new(false)),
             incremental_frame_pipeline,
             model: Arc::new(AppModel::default()),
             window_id: None,
@@ -2879,7 +2923,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 }
 
-impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
+impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRunner<B> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.resumed_count = self.resumed_count.saturating_add(1);
         if self.resumed_count <= 2 {
@@ -3155,6 +3199,15 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
+        }
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
+        match event {
+            RuntimeUserEvent::RepaintRequested => {
+                self.repaint_event_pending.store(false, Ordering::Release);
+                self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
+            }
         }
     }
 
@@ -3816,12 +3869,19 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 ) -> Result<(), String> {
     info!("radiant native vello: creating event loop");
     let run_started = Instant::now();
-    let event_loop = EventLoop::new().map_err(|err| err.to_string())?;
+    let event_loop = EventLoop::<RuntimeUserEvent>::with_user_event()
+        .build()
+        .map_err(|err| err.to_string())?;
     info!(
         "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
         options.inner_size, options.min_inner_size, options.target_fps
     );
     let mut runner = NativeVelloRunner::new(options, bridge);
+    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(EventLoopProxyRepaintSignal::new(
+        event_loop.create_proxy(),
+        Arc::clone(&runner.repaint_event_pending),
+    ));
+    runner.bridge.install_repaint_signal(repaint_signal);
     info!("radiant native vello: runner initialized");
     let run_result = event_loop
         .run_app(&mut runner)

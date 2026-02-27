@@ -4,7 +4,10 @@ use crate::app::{
     UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
 };
 use crate::gui::types::Vector2;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use winit::event::MouseScrollDelta;
 
 #[derive(Default)]
@@ -73,6 +76,15 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
         RuntimeInvalidationScope::StaticAndOverlays
     );
+}
+
+#[test]
+fn repaint_event_pending_gate_coalesces_duplicate_requests() {
+    let pending = AtomicBool::new(false);
+
+    assert!(try_mark_repaint_event_pending(&pending));
+    assert!(pending.load(Ordering::Acquire));
+    assert!(!try_mark_repaint_event_pending(&pending));
 }
 
 #[test]

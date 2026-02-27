@@ -1123,6 +1123,12 @@ pub trait NativeAppBridge {
     /// Reduce one UI action into host state.
     fn reduce_action(&mut self, _action: UiAction) {}
 
+    /// Install a runtime repaint signal used by background workers.
+    ///
+    /// Hosts that run background jobs can store this callback and forward it into
+    /// worker systems so asynchronous completions can wake the UI runtime.
+    fn install_repaint_signal(&mut self, _signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {}
+
     /// Handle a user action emitted by runtime input processing.
     ///
     /// Compatibility shim that forwards to [`NativeAppBridge::reduce_action`].

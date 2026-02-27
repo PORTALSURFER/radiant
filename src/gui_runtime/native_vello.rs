@@ -115,8 +115,13 @@ enum WaveformPointerDragMode {
     Seek,
     /// Drag updates cursor position.
     Cursor,
-    /// Drag extends selection from a fixed anchor milli value.
+    /// Drag extends playback selection from a fixed anchor milli value.
     Selection {
+        /// Fixed anchor milli captured at drag start.
+        anchor_milli: u16,
+    },
+    /// Drag extends edit selection from a fixed anchor milli value.
+    EditSelection {
         /// Fixed anchor milli captured at drag start.
         anchor_milli: u16,
     },
@@ -2802,7 +2807,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SeekWaveform { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::ClearWaveformSelection
+            | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::OverlayMotionOnly,
@@ -2819,7 +2826,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SeekWaveform { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::ClearWaveformSelection
+            | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),
@@ -2957,16 +2966,15 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 }
             }
             WindowEvent::MouseInput {
-                button: MouseButton::Left,
+                button,
                 state: ElementState::Pressed,
                 ..
-            } => {
+            } if matches!(button, MouseButton::Left | MouseButton::Right) => {
                 if self.window.is_none() {
                     return;
                 }
                 if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
                 {
-                    self.text_input_target = TextInputTarget::None;
                     self.pending_volume_milli = None;
                     self.volume_drag_active = false;
                     self.last_emitted_volume_milli = None;
@@ -2975,51 +2983,71 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                     self.map_focus_drag_active = false;
                     self.last_emitted_map_drag_sample_id = None;
                     let mut handled = false;
-                    let map_drag_start =
-                        self.model.map.active && layout.browser_rows.contains(point);
-                    if self
-                        .shell_state
-                        .prompt_input_at_point(layout, &self.model, point)
-                    {
-                        self.text_input_target = TextInputTarget::PromptInput;
-                        handled = true;
-                    } else if let Some(action) = self
-                        .shell_state
-                        .top_bar_volume_action_at_point(layout, point)
-                    {
-                        if let UiAction::SetVolume { value_milli } = action {
-                            self.last_emitted_volume_milli = Some(value_milli);
-                            self.emit_volume_milli_immediately(value_milli);
-                        } else {
-                            self.emit_model_action(action);
+                    match button {
+                        MouseButton::Left => {
+                            self.text_input_target = TextInputTarget::None;
+                            let map_drag_start =
+                                self.model.map.active && layout.browser_rows.contains(point);
+                            if self
+                                .shell_state
+                                .prompt_input_at_point(layout, &self.model, point)
+                            {
+                                self.text_input_target = TextInputTarget::PromptInput;
+                                handled = true;
+                            } else if let Some(action) = self
+                                .shell_state
+                                .top_bar_volume_action_at_point(layout, point)
+                            {
+                                if let UiAction::SetVolume { value_milli } = action {
+                                    self.last_emitted_volume_milli = Some(value_milli);
+                                    self.emit_volume_milli_immediately(value_milli);
+                                } else {
+                                    self.emit_model_action(action);
+                                }
+                                self.volume_drag_active = true;
+                                handled = true;
+                            } else if let Some(action) = action_from_pointer(
+                                layout,
+                                &self.model,
+                                &mut self.shell_state,
+                                point,
+                                self.modifiers,
+                            ) {
+                                let waveform_drag_mode = waveform_drag_mode_for_action(&action);
+                                let map_drag_sample_id = match &action {
+                                    UiAction::FocusMapSample { sample_id } => {
+                                        Some(sample_id.clone())
+                                    }
+                                    _ => None,
+                                };
+                                self.update_text_target_after_action(&action);
+                                self.emit_model_action(action);
+                                self.waveform_drag_mode = waveform_drag_mode;
+                                if map_drag_start {
+                                    self.map_focus_drag_active = true;
+                                    self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+                                }
+                                handled = true;
+                            } else if self.shell_state.handle_primary_click(layout, point)
+                                && let Some(column) = layout.column_at_point(point)
+                            {
+                                self.emit_model_action(UiAction::SelectColumn { index: column });
+                                handled = true;
+                            }
                         }
-                        self.volume_drag_active = true;
-                        handled = true;
-                    } else if let Some(action) = action_from_pointer(
-                        layout,
-                        &self.model,
-                        &mut self.shell_state,
-                        point,
-                        self.modifiers,
-                    ) {
-                        let waveform_drag_mode = waveform_drag_mode_for_action(&action);
-                        let map_drag_sample_id = match &action {
-                            UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
-                            _ => None,
-                        };
-                        self.update_text_target_after_action(&action);
-                        self.emit_model_action(action);
-                        self.waveform_drag_mode = waveform_drag_mode;
-                        if map_drag_start {
-                            self.map_focus_drag_active = true;
-                            self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+                        MouseButton::Right => {
+                            if matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard)) {
+                                let action = waveform_edit_action_from_pointer(
+                                    layout,
+                                    point,
+                                    self.modifiers,
+                                );
+                                self.waveform_drag_mode = waveform_drag_mode_for_action(&action);
+                                self.emit_model_action(action);
+                                handled = true;
+                            }
                         }
-                        handled = true;
-                    } else if self.shell_state.handle_primary_click(layout, point)
-                        && let Some(column) = layout.column_at_point(point)
-                    {
-                        self.emit_model_action(UiAction::SelectColumn { index: column });
-                        handled = true;
+                        _ => {}
                     }
                     if handled {
                         if !self.frame_state.has_pending_rebuild() {
@@ -3031,10 +3059,10 @@ impl<B: NativeAppBridge> ApplicationHandler for NativeVelloRunner<B> {
                 }
             }
             WindowEvent::MouseInput {
-                button: MouseButton::Left,
+                button,
                 state: ElementState::Released,
                 ..
-            } => {
+            } if matches!(button, MouseButton::Left | MouseButton::Right) => {
                 self.finish_volume_drag();
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -3318,17 +3346,36 @@ fn waveform_action_from_pointer(
     modifiers: ModifiersState,
 ) -> UiAction {
     let position_milli = waveform_position_milli_from_point(layout, point);
+    let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
-    if shift {
+    if command {
+        UiAction::SetWaveformCursor { position_milli }
+    } else if alt {
+        UiAction::SeekWaveform { position_milli }
+    } else if shift {
         UiAction::SetWaveformSelectionRange {
             start_milli: waveform_anchor_milli(model),
             end_milli: position_milli,
         }
-    } else if command {
-        UiAction::SetWaveformCursor { position_milli }
     } else {
-        UiAction::SeekWaveform { position_milli }
+        UiAction::SetWaveformSelectionRange {
+            start_milli: position_milli,
+            end_milli: position_milli,
+        }
+    }
+}
+
+/// Build one waveform edit-selection action from pointer position.
+fn waveform_edit_action_from_pointer(
+    layout: &ShellLayout,
+    point: Point,
+    _modifiers: ModifiersState,
+) -> UiAction {
+    let position_milli = waveform_position_milli_from_point(layout, point);
+    UiAction::SetWaveformEditSelectionRange {
+        start_milli: position_milli,
+        end_milli: position_milli,
     }
 }
 
@@ -3348,6 +3395,12 @@ fn waveform_drag_action_for_mode(
                 end_milli: position_milli,
             }
         }
+        WaveformPointerDragMode::EditSelection { anchor_milli } => {
+            UiAction::SetWaveformEditSelectionRange {
+                start_milli: anchor_milli,
+                end_milli: position_milli,
+            }
+        }
     }
 }
 
@@ -3358,6 +3411,11 @@ fn waveform_drag_mode_for_action(action: &UiAction) -> Option<WaveformPointerDra
         UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
         UiAction::SetWaveformSelectionRange { start_milli, .. } => {
             Some(WaveformPointerDragMode::Selection {
+                anchor_milli: *start_milli,
+            })
+        }
+        UiAction::SetWaveformEditSelectionRange { start_milli, .. } => {
+            Some(WaveformPointerDragMode::EditSelection {
                 anchor_milli: *start_milli,
             })
         }

@@ -815,8 +815,17 @@ pub enum UiAction {
         /// Selection end position in normalized milli-units.
         end_milli: u16,
     },
+    /// Set waveform edit-selection bounds in normalized milli space (`0..=1000`).
+    SetWaveformEditSelectionRange {
+        /// Edit-selection start position in normalized milli-units.
+        start_milli: u16,
+        /// Edit-selection end position in normalized milli-units.
+        end_milli: u16,
+    },
     /// Clear active waveform selection.
     ClearWaveformSelection,
+    /// Clear active waveform edit selection.
+    ClearWaveformEditSelection,
     /// Zoom waveform view by discrete steps.
     ZoomWaveform {
         /// When true, zooms in; otherwise zooms out.

@@ -677,8 +677,9 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SeekWaveform {
-            position_milli: 500
+        Some(UiAction::SetWaveformSelectionRange {
+            start_milli: 500,
+            end_milli: 500,
         })
     );
 
@@ -707,6 +708,36 @@ fn waveform_click_modifiers_route_expected_actions() {
             start_milli: 120,
             end_milli: 500,
         })
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::ALT,
+        ),
+        Some(UiAction::SeekWaveform {
+            position_milli: 500
+        })
+    );
+}
+
+#[test]
+fn waveform_right_click_maps_to_edit_selection_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
+        layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+    );
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, point, ModifiersState::default()),
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: 500,
+            end_milli: 500,
+        }
     );
 }
 
@@ -748,6 +779,13 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditSelectionRange {
+            start_milli: 90,
+            end_milli: 320,
+        }),
+        Some(WaveformPointerDragMode::EditSelection { anchor_milli: 90 })
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::ToggleTransport),
         None
     );
@@ -778,6 +816,17 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         ),
         UiAction::SetWaveformSelectionRange {
             start_milli: 200,
+            end_milli: 1000,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            right,
+            WaveformPointerDragMode::EditSelection { anchor_milli: 300 }
+        ),
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: 300,
             end_milli: 1000,
         }
     );

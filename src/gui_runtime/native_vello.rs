@@ -1935,6 +1935,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Return whether one held-key repeat should be processed for navigation.
+    ///
+    /// Repeats stay intentionally narrow to preserve existing single-fire behavior
+    /// for actions like toggles/prompts while allowing rapid sample stepping.
+    fn allows_key_repeat(&self, key: KeyCode) -> bool {
+        if self.text_input_target != TextInputTarget::None {
+            return false;
+        }
+        if self.modifiers.shift_key()
+            || self.modifiers.control_key()
+            || self.modifiers.super_key()
+            || self.modifiers.alt_key()
+        {
+            return false;
+        }
+        matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown)
+    }
+
     fn queue_volume_milli(&mut self, value_milli: u16) {
         self.pending_volume_milli = Some(value_milli.min(1000));
     }
@@ -3097,7 +3115,13 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 self.modifiers = modifiers.state();
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                if event.state == ElementState::Pressed && !event.repeat {
+                let key = match event.physical_key {
+                    PhysicalKey::Code(code) => key_code_from_winit(code),
+                    _ => None,
+                };
+                let allow_repeat =
+                    event.repeat && key.is_some_and(|key| self.allows_key_repeat(key));
+                if event.state == ElementState::Pressed && (!event.repeat || allow_repeat) {
                     let mut handled = false;
                     if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
                         if self.model.confirm_prompt.visible {
@@ -3139,10 +3163,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                             handled = self.append_text(&appended);
                         }
                     }
-                    if !handled
-                        && let PhysicalKey::Code(code) = event.physical_key
-                        && let Some(key) = key_code_from_winit(code)
-                    {
+                    if !handled && let Some(key) = key {
                         handled = if self.model.confirm_prompt.visible {
                             false
                         } else {

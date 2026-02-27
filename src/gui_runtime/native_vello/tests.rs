@@ -444,6 +444,22 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
 }
 
 #[test]
+fn key_repeat_is_limited_to_plain_browser_arrow_navigation() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    assert!(runner.allows_key_repeat(KeyCode::ArrowUp));
+    assert!(runner.allows_key_repeat(KeyCode::ArrowDown));
+    assert!(!runner.allows_key_repeat(KeyCode::Enter));
+
+    runner.modifiers = ModifiersState::SHIFT;
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowDown));
+
+    runner.modifiers = ModifiersState::default();
+    runner.text_input_target = TextInputTarget::BrowserSearch;
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowDown));
+}
+
+#[test]
 fn key_bindings_emit_waveform_zoom_actions() {
     let model = AppModel::default();
     assert_eq!(

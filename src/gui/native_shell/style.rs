@@ -772,7 +772,7 @@ impl SizingTokens {
 
 #[cfg(test)]
 mod tests {
-    use super::{LayoutScaleTier, StyleTokens, DEFAULT_UI_SCALE};
+    use super::{DEFAULT_UI_SCALE, LayoutScaleTier, StyleTokens};
 
     #[test]
     fn viewport_width_maps_to_expected_tier() {
@@ -798,7 +798,10 @@ mod tests {
 
         let standard = StyleTokens::for_tier(LayoutScaleTier::Standard).sizing;
         let standard_from_width = StyleTokens::for_viewport_width(1280.0).sizing;
-        assert_eq!(standard.with_ui_scale(DEFAULT_UI_SCALE), standard_from_width);
+        assert_eq!(
+            standard.with_ui_scale(DEFAULT_UI_SCALE),
+            standard_from_width
+        );
 
         let wide = StyleTokens::for_tier(LayoutScaleTier::Wide).sizing;
         let wide_from_width = StyleTokens::for_viewport_width(2300.0).sizing;

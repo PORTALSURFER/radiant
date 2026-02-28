@@ -1178,6 +1178,27 @@ impl NativeShellState {
                 waveform_inner,
                 model.waveform.waveform_image.as_deref(),
             );
+            let motion_model = NativeMotionModel::from_app_model(model);
+            let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, &motion_model);
+            let waveform_toolbar_left = waveform_toolbar_left_edge(
+                &waveform_toolbar_buttons,
+                layout.waveform_header.max.x - sizing.text_inset_x,
+            );
+            push_waveform_header_overlay(
+                primitives,
+                text_runs,
+                layout,
+                style,
+                &motion_model,
+                Some(waveform_toolbar_left - sizing.action_button_gap),
+            );
+            render_waveform_toolbar_buttons(
+                primitives,
+                text_runs,
+                style,
+                sizing,
+                &waveform_toolbar_buttons,
+            );
         }
 
         let browser_buttons = browser_action_buttons(layout, style, model);
@@ -2597,27 +2618,6 @@ impl NativeShellState {
         }
 
         if include_overlays {
-            let motion_model = NativeMotionModel::from_app_model(model);
-            let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, &motion_model);
-            let waveform_toolbar_left = waveform_toolbar_left_edge(
-                &waveform_toolbar_buttons,
-                layout.waveform_header.max.x - sizing.text_inset_x,
-            );
-            push_waveform_header_overlay(
-                primitives,
-                text_runs,
-                layout,
-                style,
-                &motion_model,
-                Some(waveform_toolbar_left - sizing.action_button_gap),
-            );
-            render_waveform_toolbar_buttons(
-                primitives,
-                text_runs,
-                style,
-                sizing,
-                &waveform_toolbar_buttons,
-            );
             render_progress_overlay(primitives, text_runs, layout, style, model);
             render_confirm_prompt(primitives, text_runs, layout, style, model);
             render_drag_overlay(primitives, text_runs, layout, style, model);

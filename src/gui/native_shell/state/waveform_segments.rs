@@ -144,11 +144,51 @@ pub(super) fn push_waveform_playhead_overlay(
         );
     }
     if let Some(rect) = annotations.playhead {
+        if model.transport_running {
+            emit_waveform_playhead_trail(primitives, layout.waveform_plot, rect, style);
+        }
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect,
                 color: style.accent_copper,
+            }),
+        );
+    }
+}
+
+/// Emit a short faded trail behind the active playhead for transport motion readability.
+fn emit_waveform_playhead_trail(
+    primitives: &mut impl PrimitiveSink,
+    waveform_plot: Rect,
+    playhead_rect: Rect,
+    style: &StyleTokens,
+) {
+    let trail_segments = 6usize;
+    let trail_span = (waveform_plot.width() * 0.06).clamp(24.0, 160.0);
+    let right_edge = playhead_rect.min.x;
+    let segment_span = trail_span / trail_segments as f32;
+
+    for segment in 0..trail_segments {
+        let near_ratio = 1.0 - (segment as f32 / trail_segments as f32);
+        let left = (right_edge - ((segment + 1) as f32 * segment_span)).max(waveform_plot.min.x);
+        let right = (right_edge - (segment as f32 * segment_span)).min(right_edge);
+        if right <= left {
+            continue;
+        }
+        let amount = (0.04 + (0.24 * near_ratio.powf(1.4))).clamp(0.04, 0.28);
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(left, playhead_rect.min.y),
+                    Point::new(right, playhead_rect.max.y),
+                ),
+                color: translucent_overlay_color(
+                    style.surface_overlay,
+                    style.accent_copper,
+                    amount,
+                ),
             }),
         );
     }

@@ -1076,6 +1076,95 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.transport_running = true;
+    model.waveform.playhead_milli = Some(740);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+
+    let trail_rect_count = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.rect.max.x <= playhead_rect.min.x
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+
+    assert!(
+        trail_rect_count >= 3,
+        "expected faded playhead trail segments, got {trail_rect_count}"
+    );
+}
+
+#[test]
+fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.transport_running = false;
+    model.waveform.playhead_milli = Some(740);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+
+    let trail_rect_count = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.rect.max.x <= playhead_rect.min.x
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+
+    assert_eq!(trail_rect_count, 0);
+}
+
+#[test]
 fn source_row_selected_fill_is_translucent_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

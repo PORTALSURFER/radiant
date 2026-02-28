@@ -896,6 +896,18 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     fingerprint_mix_option_string(&mut state, model.waveform_tempo_label.as_deref());
     fingerprint_mix_option_string(&mut state, model.waveform_zoom_label.as_deref());
     fingerprint_mix_option_string(&mut state, model.waveform_loaded_label.as_deref());
+    fingerprint_mix_u8(
+        &mut state,
+        match model.waveform_channel_view {
+            crate::app::WaveformChannelViewModel::Mono => 0,
+            crate::app::WaveformChannelViewModel::Stereo => 1,
+        },
+    );
+    fingerprint_mix_bool(&mut state, model.waveform_normalized_audition_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_bpm_snap_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_transient_snap_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_transient_markers_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_slice_mode_enabled);
     if let Some(signature) = model.waveform_image_signature {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u64(&mut state, signature);

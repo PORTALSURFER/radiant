@@ -98,6 +98,60 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 }
 
 #[test]
+fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
+    let baseline = NativeMotionModel::from_app_model(&AppModel::default());
+    let baseline_signature = motion_overlay_model_signature(&baseline);
+
+    let mut changed_channel = baseline.clone();
+    changed_channel.waveform_channel_view = match baseline.waveform_channel_view {
+        crate::app::WaveformChannelViewModel::Mono => crate::app::WaveformChannelViewModel::Stereo,
+        crate::app::WaveformChannelViewModel::Stereo => crate::app::WaveformChannelViewModel::Mono,
+    };
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_channel)
+    );
+
+    let mut changed_normalized = baseline.clone();
+    changed_normalized.waveform_normalized_audition_enabled =
+        !baseline.waveform_normalized_audition_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_normalized)
+    );
+
+    let mut changed_bpm_snap = baseline.clone();
+    changed_bpm_snap.waveform_bpm_snap_enabled = !baseline.waveform_bpm_snap_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_bpm_snap)
+    );
+
+    let mut changed_transient_snap = baseline.clone();
+    changed_transient_snap.waveform_transient_snap_enabled =
+        !baseline.waveform_transient_snap_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_transient_snap)
+    );
+
+    let mut changed_transient_markers = baseline.clone();
+    changed_transient_markers.waveform_transient_markers_enabled =
+        !baseline.waveform_transient_markers_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_transient_markers)
+    );
+
+    let mut changed_slice_mode = baseline.clone();
+    changed_slice_mode.waveform_slice_mode_enabled = !baseline.waveform_slice_mode_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_slice_mode)
+    );
+}
+
+#[test]
 fn resolve_static_rebuild_skips_static_for_model_overlay_when_bridge_clean() {
     let dirty = DirtySegments::empty();
     assert!(!resolve_static_rebuild(true, false, dirty));

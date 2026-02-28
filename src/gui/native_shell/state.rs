@@ -771,6 +771,10 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let buttons = browser_action_buttons(layout, &style, model);
+        let toolbar = browser_toolbar_layout(layout, &style, &buttons);
+        if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
+            return Some(UiAction::FocusBrowserSearch);
+        }
         if let Some(action) = browser_column_chips(layout, &style, model, &buttons)
             .into_iter()
             .find(|chip| chip.rect.contains(point))

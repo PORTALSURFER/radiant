@@ -2856,6 +2856,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FocusMapSample { .. }
             | UiAction::SetPromptInput { .. } => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
+            | UiAction::ReplayFromLastStart
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
@@ -2875,6 +2876,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 Some(InteractionProfileKind::MapPanProxy)
             }
             UiAction::SeekWaveform { .. }
+            | UiAction::ReplayFromLastStart
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }

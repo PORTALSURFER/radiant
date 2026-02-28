@@ -763,6 +763,37 @@ fn key_bindings_respect_progress_cancelability() {
 }
 
 #[test]
+fn clicking_browser_search_field_focuses_text_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = AppModel::default();
+    let point = Point::new(
+        layout.browser_toolbar.min.x + 24.0,
+        layout.browser_toolbar.min.y + (layout.browser_toolbar.height() * 0.5),
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusBrowserSearch)
+    );
+}
+
+#[test]
+fn space_key_maps_to_replay_from_last_start() {
+    let model = AppModel::default();
+    assert_eq!(
+        action_from_key(KeyCode::Space, ModifiersState::default(), &model),
+        Some(UiAction::ReplayFromLastStart)
+    );
+}
+
+#[test]
 fn waveform_click_modifiers_route_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut shell_state = NativeShellState::new();

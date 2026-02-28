@@ -67,6 +67,8 @@ pub enum KeyCode {
     T,
     /// Latin letter U.
     U,
+    /// Space key.
+    Space,
     /// Latin letter W.
     W,
     /// Latin letter X.
@@ -124,6 +126,7 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::Backslash => KeyCode::Backslash,
         WinitKeyCode::KeyT => KeyCode::T,
         WinitKeyCode::KeyU => KeyCode::U,
+        WinitKeyCode::Space => KeyCode::Space,
         WinitKeyCode::KeyW => KeyCode::W,
         WinitKeyCode::KeyX => KeyCode::X,
         WinitKeyCode::KeyY => KeyCode::Y,
@@ -155,6 +158,10 @@ mod tests {
         assert_eq!(
             key_code_from_winit(WinitKeyCode::NumpadEnter),
             Some(KeyCode::Enter)
+        );
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Space),
+            Some(KeyCode::Space)
         );
     }
 

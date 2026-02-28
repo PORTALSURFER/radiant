@@ -699,6 +699,8 @@ pub enum UiAction {
     },
     /// Toggle transport playback state.
     ToggleTransport,
+    /// Start playback from the saved play-start marker (or cursor fallback).
+    ReplayFromLastStart,
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
     HandleEscape,
     /// Focus the browser/list panel.

@@ -54,6 +54,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
+    waveform_hover_milli: Option<u16>,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -152,6 +153,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered waveform milli position in normalized `0..=1000` space.
+    pub waveform_hover_milli: Option<u16>,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }
@@ -425,6 +428,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
+            waveform_hover_milli: None,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -493,6 +497,7 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
+            waveform_hover_milli: self.waveform_hover_milli,
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }
@@ -535,13 +540,16 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_waveform_hover_milli = waveform_hover_milli_for_point(layout, next_hover, point);
         let changed = next_hover != self.hovered
-            || next_hovered_browser_row != self.hovered_browser_visible_row;
+            || next_hovered_browser_row != self.hovered_browser_visible_row
+            || next_waveform_hover_milli != self.waveform_hover_milli;
         if !changed {
             return false;
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.waveform_hover_milli = next_waveform_hover_milli;
         true
     }
 
@@ -2667,6 +2675,30 @@ impl NativeShellState {
                 }),
             );
         }
+        if let Some(hover_milli) = self.waveform_hover_milli {
+            let annotations = compute_waveform_annotation_rects(
+                layout.waveform_plot,
+                sizing.border_width,
+                None,
+                Some(hover_milli),
+                None,
+            );
+            if let Some(rect) = annotations.cursor {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect,
+                        color: tinted_overlay_color(style.accent_mint, 0.72),
+                    }),
+                );
+                push_border(
+                    primitives,
+                    rect,
+                    blend_color(style.accent_mint, style.text_primary, 0.5),
+                    sizing.border_width,
+                );
+            }
+        }
         if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
             let browser_rows = self.cached_browser_rows(layout, style, model);
             if let Some(row) = browser_rows
@@ -3182,6 +3214,22 @@ impl NativeShellState {
         }
         &self.browser_rows
     }
+}
+
+/// Return hovered waveform marker milli position for one pointer point.
+fn waveform_hover_milli_for_point(
+    layout: &ShellLayout,
+    hover: Option<ShellNodeKind>,
+    point: Point,
+) -> Option<u16> {
+    if hover != Some(ShellNodeKind::WaveformCard) || !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let inner = layout.waveform_plot;
+    let width = inner.width().max(1.0);
+    let clamped_x = point.x.clamp(inner.min.x, inner.max.x);
+    let ratio = ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0);
+    Some((ratio * 1000.0).round() as u16)
 }
 
 fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {

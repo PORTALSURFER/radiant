@@ -921,6 +921,92 @@ fn browser_row_hovered_overlay_uses_hover_fill() {
 }
 
 #[test]
+fn cursor_move_tracks_waveform_hover_milli_inside_plot() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.25),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+
+    assert!(state.handle_cursor_move(&layout, &model, point));
+    let fingerprint = state.state_overlay_fingerprint();
+    assert_eq!(fingerprint.hovered, Some(ShellNodeKind::WaveformCard));
+    assert!(fingerprint.waveform_hover_milli.is_some());
+}
+
+#[test]
+fn cursor_move_clears_waveform_hover_milli_outside_plot() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let in_plot = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.4),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let outside = Point::new(
+        layout.sidebar.min.x + 6.0,
+        layout.sidebar.min.y + (layout.sidebar.height() * 0.5),
+    );
+
+    assert!(state.handle_cursor_move(&layout, &model, in_plot));
+    assert!(
+        state
+            .state_overlay_fingerprint()
+            .waveform_hover_milli
+            .is_some()
+    );
+    assert!(state.handle_cursor_move(&layout, &model, outside));
+    assert!(
+        state
+            .state_overlay_fingerprint()
+            .waveform_hover_milli
+            .is_none()
+    );
+}
+
+#[test]
+fn waveform_hover_overlay_draws_preview_cursor_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.6),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    state.handle_cursor_move(&layout, &model, point);
+    let hover_milli = state
+        .state_overlay_fingerprint()
+        .waveform_hover_milli
+        .expect("waveform hover should be tracked");
+    let expected_marker = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        Some(hover_milli),
+        None,
+    )
+    .cursor
+    .expect("cursor marker rect should exist");
+    let expected_color = tinted_overlay_color(style.accent_mint, 0.72);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == expected_marker => Some(rect.color),
+            _ => None,
+        })
+        .expect("waveform hover marker should emit a cursor fill rectangle");
+    assert_eq!(overlay_color, expected_color);
+}
+
+#[test]
 fn source_row_selected_fill_is_translucent_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

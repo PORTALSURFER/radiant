@@ -908,8 +908,7 @@ fn browser_row_hovered_overlay_uses_hover_fill() {
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
-    let expected_hover =
-        translucent_overlay_color(style.bg_tertiary, style.grid_soft, style.state_hover_soft);
+    let expected_hover = subtle_item_hover_fill(&style);
     let overlay_color = frame
         .primitives
         .iter()

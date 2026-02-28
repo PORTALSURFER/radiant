@@ -2715,11 +2715,7 @@ impl NativeShellState {
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: row.rect,
-                        color: translucent_overlay_color(
-                            style.bg_tertiary,
-                            style.grid_soft,
-                            style.state_hover_soft,
-                        ),
+                        color: subtle_item_hover_fill(style),
                     }),
                 );
             }

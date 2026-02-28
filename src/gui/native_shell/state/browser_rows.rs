@@ -234,6 +234,15 @@ pub(super) fn translucent_overlay_color(base: Rgba8, tint: Rgba8, amount: f32) -
     color
 }
 
+/// Return a subtle whitish row-hover fill used across item lists.
+pub(super) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
+    translucent_overlay_color(
+        style.bg_tertiary,
+        style.text_primary,
+        (style.state_hover_soft * 0.8).clamp(0.10, 0.22),
+    )
+}
+
 pub(super) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {

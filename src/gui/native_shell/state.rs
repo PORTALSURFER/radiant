@@ -2676,9 +2676,11 @@ impl NativeShellState {
             );
         }
         if let Some(hover_milli) = self.waveform_hover_milli {
+            // Keep hover preview cursor visually obvious against dense waveform content.
+            let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
             let annotations = compute_waveform_annotation_rects(
                 layout.waveform_plot,
-                sizing.border_width,
+                hover_marker_width,
                 None,
                 Some(hover_milli),
                 None,
@@ -2688,13 +2690,13 @@ impl NativeShellState {
                     primitives,
                     Primitive::Rect(FillRect {
                         rect,
-                        color: tinted_overlay_color(style.accent_mint, 0.72),
+                        color: blend_color(style.accent_warning, style.text_primary, 0.72),
                     }),
                 );
                 push_border(
                     primitives,
                     rect,
-                    blend_color(style.accent_mint, style.text_primary, 0.5),
+                    blend_color(style.accent_warning, style.text_primary, 0.48),
                     sizing.border_width,
                 );
             }

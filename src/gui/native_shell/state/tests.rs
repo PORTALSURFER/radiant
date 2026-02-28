@@ -981,16 +981,17 @@ fn waveform_hover_overlay_draws_preview_cursor_marker() {
         .state_overlay_fingerprint()
         .waveform_hover_milli
         .expect("waveform hover should be tracked");
+    let hover_marker_width = (style.sizing.border_width * 2.0).max(2.0);
     let expected_marker = compute_waveform_annotation_rects(
         layout.waveform_plot,
-        style.sizing.border_width,
+        hover_marker_width,
         None,
         Some(hover_milli),
         None,
     )
     .cursor
     .expect("cursor marker rect should exist");
-    let expected_color = tinted_overlay_color(style.accent_mint, 0.72);
+    let expected_color = blend_color(style.accent_warning, style.text_primary, 0.72);
 
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);

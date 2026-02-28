@@ -5,6 +5,8 @@ use super::*;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+/// Height in logical pixels for loop-range marker bars.
+const LOOP_BAR_HEIGHT: f32 = 3.0;
 
 /// Resolve which static segment owns one primitive.
 pub(super) fn static_segment_for_primitive(
@@ -109,6 +111,9 @@ pub(super) fn push_waveform_playhead_overlay(
             blend_color(style.accent_warning, style.text_primary, 0.28),
             style.sizing.border_width,
         );
+        if model.waveform_loop_enabled {
+            emit_waveform_loop_bar(primitives, style, rect);
+        }
     }
 
     if let Some(edit_selection) = model.waveform_edit_selection_milli {
@@ -167,6 +172,48 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
+}
+
+/// Emit top/bottom loop-range bars over the active playback selection.
+fn emit_waveform_loop_bar(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    selection: Rect,
+) {
+    let bar_height = LOOP_BAR_HEIGHT
+        .max(style.sizing.border_width)
+        .min(selection.height().max(1.0));
+    let top = Rect::from_min_max(
+        selection.min,
+        Point::new(
+            selection.max.x,
+            (selection.min.y + bar_height).min(selection.max.y),
+        ),
+    );
+    let bottom = Rect::from_min_max(
+        Point::new(
+            selection.min.x,
+            (selection.max.y - bar_height).max(selection.min.y),
+        ),
+        selection.max,
+    );
+    let edge_color = blend_color(style.accent_copper, style.text_primary, 0.2);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: top,
+            color: translucent_overlay_color(style.surface_overlay, style.accent_copper, 0.42),
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: bottom,
+            color: translucent_overlay_color(style.surface_overlay, style.accent_copper, 0.32),
+        }),
+    );
+    push_border(primitives, top, edge_color, style.sizing.border_width);
+    push_border(primitives, bottom, edge_color, style.sizing.border_width);
 }
 
 /// Emit edit-fade shading and draggable handle markers for the active edit selection.

@@ -1110,6 +1110,8 @@ pub struct NativeMotionModel {
     pub waveform_edit_fade_in_end_milli: Option<u16>,
     /// Waveform edit fade-out start handle in normalized milliseconds.
     pub waveform_edit_fade_out_start_milli: Option<u16>,
+    /// Whether loop playback is enabled for the active waveform selection.
+    pub waveform_loop_enabled: bool,
     /// Waveform cursor position in normalized milliseconds.
     pub waveform_cursor_milli: Option<u16>,
     /// Waveform playhead position in normalized milliseconds.
@@ -1156,6 +1158,7 @@ impl NativeMotionModel {
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
             waveform_edit_fade_out_start_milli: model.waveform.edit_fade_out_start_milli,
+            waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
             waveform_view_start_milli: model.waveform.view_start_milli,

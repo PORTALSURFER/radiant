@@ -3495,6 +3495,13 @@ fn waveform_toolbar_buttons(
             style.accent_warning,
         ),
         (
+            "Loop",
+            true,
+            model.waveform_loop_enabled,
+            Some(UiAction::ToggleLoopPlayback),
+            style.accent_copper,
+        ),
+        (
             "Stop",
             true,
             !model.transport_running,

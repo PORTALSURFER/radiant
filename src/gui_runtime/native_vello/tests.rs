@@ -157,6 +157,13 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         baseline_signature,
         motion_overlay_model_signature(&changed_slice_mode)
     );
+
+    let mut changed_loop = baseline.clone();
+    changed_loop.waveform_loop_enabled = !baseline.waveform_loop_enabled;
+    assert_ne!(
+        baseline_signature,
+        motion_overlay_model_signature(&changed_loop)
+    );
 }
 
 #[test]

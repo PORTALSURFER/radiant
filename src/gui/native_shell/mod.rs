@@ -393,6 +393,25 @@ mod tests {
     }
 
     #[test]
+    fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.waveform.loop_enabled = true;
+        let loop_button = state
+            .waveform_toolbar_button_rect(&layout, &model, "Loop")
+            .expect("loop waveform toolbar button should be present");
+        let point = Point::new(
+            (loop_button.min.x + loop_button.max.x) * 0.5,
+            (loop_button.min.y + loop_button.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.waveform_toolbar_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::ToggleLoopPlayback)
+        );
+    }
+
+    #[test]
     fn prompt_hit_test_emits_confirm_and_cancel() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let state = NativeShellState::new();

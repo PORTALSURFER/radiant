@@ -1130,6 +1130,59 @@ fn waveform_motion_overlay_draws_edit_fade_handles() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_loop_range_bar_when_loop_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let play_selection = NormalizedRangeModel::new(260, 620);
+    model.waveform.selection_milli = Some(play_selection);
+    model.waveform.loop_enabled = true;
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(play_selection),
+        None,
+        None,
+    )
+    .selection
+    .expect("play selection rect");
+    let bar_height = 3.0f32
+        .max(style.sizing.border_width)
+        .min(selection_rect.height().max(1.0));
+    let top = Rect::from_min_max(
+        selection_rect.min,
+        Point::new(
+            selection_rect.max.x,
+            (selection_rect.min.y + bar_height).min(selection_rect.max.y),
+        ),
+    );
+    let bottom = Rect::from_min_max(
+        Point::new(
+            selection_rect.min.x,
+            (selection_rect.max.y - bar_height).max(selection_rect.min.y),
+        ),
+        selection_rect.max,
+    );
+    let top_color = translucent_overlay_color(style.surface_overlay, style.accent_copper, 0.42);
+    let bottom_color = translucent_overlay_color(style.surface_overlay, style.accent_copper, 0.32);
+
+    let has_top = frame.primitives.iter().any(|primitive| {
+        matches!(primitive, Primitive::Rect(rect) if rect.rect == top && rect.color == top_color)
+    });
+    let has_bottom = frame.primitives.iter().any(|primitive| {
+        matches!(primitive, Primitive::Rect(rect) if rect.rect == bottom && rect.color == bottom_color)
+    });
+    assert!(has_top, "expected top loop-range bar fill");
+    assert!(has_bottom, "expected bottom loop-range bar fill");
+}
+
+#[test]
 fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

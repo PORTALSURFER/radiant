@@ -898,6 +898,7 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     }
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_start_milli);
+    fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);

@@ -3474,7 +3474,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientSnapEnabled {
                 enabled: !model.waveform_transient_snap_enabled,
             }),
-            style.highlight_rose,
+            style.highlight_orange,
         ),
         (
             "Show Tr",
@@ -3483,7 +3483,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientMarkersEnabled {
                 enabled: !model.waveform_transient_markers_enabled,
             }),
-            style.highlight_azure,
+            style.highlight_blue_soft,
         ),
         (
             "Slice",
@@ -3492,21 +3492,21 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetSliceModeEnabled {
                 enabled: !model.waveform_slice_mode_enabled,
             }),
-            style.highlight_violet,
+            style.highlight_cyan_soft,
         ),
         (
             "Loop",
             true,
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
-            style.highlight_ruby_violet,
+            style.highlight_blue,
         ),
         (
             "Stop",
             true,
             !model.transport_running,
             Some(UiAction::HandleEscape),
-            style.highlight_rose,
+            style.highlight_orange_soft,
         ),
         (
             "Play",
@@ -3515,7 +3515,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::ToggleTransport),
             style.highlight_cyan,
         ),
-        ("Rec", false, false, None, style.highlight_ruby_violet),
+        ("Rec", false, false, None, style.highlight_blue_soft),
     ];
     let labels: Vec<&str> = specs.iter().map(|(label, ..)| *label).collect();
     let cluster = Rect::from_min_max(

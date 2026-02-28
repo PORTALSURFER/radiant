@@ -2379,7 +2379,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
             }
         }
-        if should_refresh_motion && !motion_changed {
+        if should_skip_motion_overlay_rebuild(
+            should_refresh_motion,
+            should_refresh_model,
+            motion_changed,
+        ) {
             self.profiler.add_motion_overlay_skip();
             rebuild_motion_overlay = false;
         }
@@ -2917,6 +2921,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             _ => {}
         }
     }
+}
+
+/// Return whether motion-overlay rebuild can be skipped safely for this frame.
+fn should_skip_motion_overlay_rebuild(
+    should_refresh_motion: bool,
+    should_refresh_model: bool,
+    motion_changed: bool,
+) -> bool {
+    should_refresh_motion && !should_refresh_model && !motion_changed
 }
 
 impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRunner<B> {

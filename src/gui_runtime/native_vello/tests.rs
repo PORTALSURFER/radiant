@@ -98,6 +98,14 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 }
 
 #[test]
+fn motion_overlay_skip_guard_requires_motion_only_refresh_with_no_change() {
+    assert!(should_skip_motion_overlay_rebuild(true, false, false));
+    assert!(!should_skip_motion_overlay_rebuild(true, true, false));
+    assert!(!should_skip_motion_overlay_rebuild(true, false, true));
+    assert!(!should_skip_motion_overlay_rebuild(false, false, false));
+}
+
+#[test]
 fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let baseline = NativeMotionModel::from_app_model(&AppModel::default());
     let baseline_signature = motion_overlay_model_signature(&baseline);

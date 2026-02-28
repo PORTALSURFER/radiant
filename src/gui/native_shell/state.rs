@@ -3456,7 +3456,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetNormalizedAuditionEnabled {
                 enabled: !model.waveform_normalized_audition_enabled,
             }),
-            style.accent_mint,
+            style.highlight_cyan,
         ),
         (
             "BPM Snap",
@@ -3465,7 +3465,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetBpmSnapEnabled {
                 enabled: !model.waveform_bpm_snap_enabled,
             }),
-            style.accent_copper,
+            style.highlight_blue,
         ),
         (
             "Tr Snap",
@@ -3474,7 +3474,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientSnapEnabled {
                 enabled: !model.waveform_transient_snap_enabled,
             }),
-            style.accent_warning,
+            style.highlight_rose,
         ),
         (
             "Show Tr",
@@ -3483,7 +3483,7 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientMarkersEnabled {
                 enabled: !model.waveform_transient_markers_enabled,
             }),
-            style.text_primary,
+            style.highlight_azure,
         ),
         (
             "Slice",
@@ -3492,30 +3492,30 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetSliceModeEnabled {
                 enabled: !model.waveform_slice_mode_enabled,
             }),
-            style.accent_warning,
+            style.highlight_violet,
         ),
         (
             "Loop",
             true,
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
-            style.accent_copper,
+            style.highlight_ruby_violet,
         ),
         (
             "Stop",
             true,
             !model.transport_running,
             Some(UiAction::HandleEscape),
-            style.accent_copper,
+            style.highlight_rose,
         ),
         (
             "Play",
             true,
             model.transport_running,
             Some(UiAction::ToggleTransport),
-            style.accent_mint,
+            style.highlight_cyan,
         ),
-        ("Rec", false, false, None, style.accent_warning),
+        ("Rec", false, false, None, style.highlight_ruby_violet),
     ];
     let labels: Vec<&str> = specs.iter().map(|(label, ..)| *label).collect();
     let cluster = Rect::from_min_max(

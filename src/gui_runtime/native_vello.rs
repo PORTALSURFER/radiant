@@ -896,6 +896,8 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     } else {
         fingerprint_mix_bool(&mut state, false);
     }
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_start_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);
@@ -2860,6 +2862,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }
@@ -2880,6 +2884,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }

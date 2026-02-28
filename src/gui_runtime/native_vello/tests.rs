@@ -935,6 +935,18 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::EditSelection { anchor_milli: 90 })
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInEnd {
+            position_milli: 200,
+        }),
+        Some(WaveformPointerDragMode::EditFadeInEnd)
+    );
+    assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutStart {
+            position_milli: 800,
+        }),
+        Some(WaveformPointerDragMode::EditFadeOutStart)
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::ToggleTransport),
         None
     );
@@ -978,6 +990,41 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             start_milli: 300,
             end_milli: 1000,
         }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(&layout, left, WaveformPointerDragMode::EditFadeInEnd),
+        UiAction::SetWaveformEditFadeInEnd { position_milli: 0 }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(&layout, right, WaveformPointerDragMode::EditFadeOutStart),
+        UiAction::SetWaveformEditFadeOutStart {
+            position_milli: 1000
+        }
+    );
+}
+
+#[test]
+fn waveform_click_over_edit_fade_handle_routes_fade_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
+    let point = Point::new(fade_in_x + 1.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, point);
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_fade_in_end_milli = Some(300);
+    model.waveform.edit_fade_out_start_milli = Some(700);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
     );
 }
 

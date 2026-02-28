@@ -18,7 +18,14 @@ pub(super) enum WaveformPointerDragMode {
         /// Fixed anchor milli captured at drag start.
         anchor_milli: u16,
     },
+    /// Drag updates the edit fade-in end handle.
+    EditFadeInEnd,
+    /// Drag updates the edit fade-out start handle.
+    EditFadeOutStart,
 }
+
+/// Half-width in pixels used for fade-handle hit testing.
+const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
@@ -191,6 +198,13 @@ pub(super) fn waveform_action_from_pointer(
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
     if command {
         UiAction::SetWaveformCursor { position_milli }
     } else if alt {
@@ -243,6 +257,12 @@ pub(super) fn waveform_drag_action_for_mode(
                 end_milli: position_milli,
             }
         }
+        WaveformPointerDragMode::EditFadeInEnd => {
+            UiAction::SetWaveformEditFadeInEnd { position_milli }
+        }
+        WaveformPointerDragMode::EditFadeOutStart => {
+            UiAction::SetWaveformEditFadeOutStart { position_milli }
+        }
     }
 }
 
@@ -260,6 +280,10 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
             Some(WaveformPointerDragMode::EditSelection {
                 anchor_milli: *start_milli,
             })
+        }
+        UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
+        UiAction::SetWaveformEditFadeOutStart { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutStart)
         }
         _ => None,
     }
@@ -286,6 +310,51 @@ pub(super) fn waveform_anchor_milli(model: &AppModel) -> u16 {
         .or(model.waveform.cursor_milli)
         .or(model.waveform.playhead_milli)
         .unwrap_or(0)
+}
+
+/// Resolve one fade-handle action when a pointer lands near edit fade handles.
+fn waveform_edit_fade_handle_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.edit_selection_milli?;
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    if selection.end_milli <= selection.start_milli {
+        return None;
+    }
+    let fade_in_end_milli = model
+        .waveform
+        .edit_fade_in_end_milli
+        .unwrap_or(selection.start_milli)
+        .clamp(selection.start_milli, selection.end_milli);
+    let fade_out_start_milli = model
+        .waveform
+        .edit_fade_out_start_milli
+        .unwrap_or(selection.end_milli)
+        .clamp(selection.start_milli, selection.end_milli);
+    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, fade_in_end_milli);
+    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, fade_out_start_milli);
+    let in_distance = (point.x - fade_in_x).abs();
+    let out_distance = (point.x - fade_out_x).abs();
+    let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
+    if in_distance > threshold && out_distance > threshold {
+        return None;
+    }
+    let position_milli = waveform_position_milli_from_point(layout, point);
+    if in_distance <= out_distance {
+        Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
+    } else {
+        Some(UiAction::SetWaveformEditFadeOutStart { position_milli })
+    }
+}
+
+/// Convert a normalized waveform milli position into plot-space x.
+fn waveform_x_for_milli(plot: UiRect, milli: u16) -> f32 {
+    let ratio = f32::from(milli.min(1000)) / 1000.0;
+    plot.min.x + (plot.width() * ratio)
 }
 
 pub(super) fn browser_wheel_row_delta(

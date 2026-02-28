@@ -3,6 +3,9 @@
 use super::browser_rows::format_milli_value;
 use super::*;
 
+/// Width in logical pixels for edit-fade drag handles.
+const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+
 /// Resolve which static segment owns one primitive.
 pub(super) fn static_segment_for_primitive(
     layout: &ShellLayout,
@@ -131,6 +134,15 @@ pub(super) fn push_waveform_playhead_overlay(
                 blend_color(edit_selection_blue, style.text_primary, 0.24),
                 style.sizing.border_width,
             );
+            emit_edit_fade_overlays(
+                primitives,
+                style,
+                rect,
+                edit_selection,
+                model.waveform_edit_fade_in_end_milli,
+                model.waveform_edit_fade_out_start_milli,
+                edit_selection_blue,
+            );
         }
     }
 
@@ -155,6 +167,120 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
+}
+
+/// Emit edit-fade shading and draggable handle markers for the active edit selection.
+fn emit_edit_fade_overlays(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    edit_selection_rect: Rect,
+    edit_selection: crate::app::NormalizedRangeModel,
+    fade_in_end_milli: Option<u16>,
+    fade_out_start_milli: Option<u16>,
+    accent_blue: Rgba8,
+) {
+    let selection_start = edit_selection.start_milli.min(edit_selection.end_milli);
+    let selection_end = edit_selection.start_milli.max(edit_selection.end_milli);
+    if selection_end <= selection_start {
+        return;
+    }
+    let fade_in_end = fade_in_end_milli
+        .unwrap_or(selection_start)
+        .clamp(selection_start, selection_end);
+    let fade_out_start = fade_out_start_milli
+        .unwrap_or(selection_end)
+        .clamp(selection_start, selection_end);
+
+    let selection_width = edit_selection_rect.width();
+    if selection_width <= 0.0 {
+        return;
+    }
+
+    let x_for_milli = |milli: u16| {
+        edit_selection_rect.min.x
+            + (selection_width
+                * (f32::from(milli.saturating_sub(selection_start))
+                    / f32::from((selection_end - selection_start).max(1))))
+    };
+    let fade_in_x =
+        x_for_milli(fade_in_end).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x);
+    let fade_out_x =
+        x_for_milli(fade_out_start).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x);
+
+    if fade_in_x > edit_selection_rect.min.x {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(edit_selection_rect.min.x, edit_selection_rect.min.y),
+                    Point::new(fade_in_x, edit_selection_rect.max.y),
+                ),
+                color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.22),
+            }),
+        );
+    }
+    if fade_out_x < edit_selection_rect.max.x {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(fade_out_x, edit_selection_rect.min.y),
+                    Point::new(edit_selection_rect.max.x, edit_selection_rect.max.y),
+                ),
+                color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.22),
+            }),
+        );
+    }
+
+    emit_edit_fade_handle(
+        primitives,
+        style,
+        edit_selection_rect,
+        fade_in_x,
+        accent_blue,
+    );
+    emit_edit_fade_handle(
+        primitives,
+        style,
+        edit_selection_rect,
+        fade_out_x,
+        accent_blue,
+    );
+}
+
+/// Emit one draggable edit-fade handle marker.
+fn emit_edit_fade_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    edit_selection_rect: Rect,
+    x: f32,
+    accent_blue: Rgba8,
+) {
+    let width = EDIT_FADE_HANDLE_WIDTH
+        .max(style.sizing.border_width)
+        .max(1.0);
+    let half = width * 0.5;
+    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
+    let right = (left + width)
+        .min(edit_selection_rect.max.x)
+        .max(left + 1.0);
+    let handle = Rect::from_min_max(
+        Point::new(left, edit_selection_rect.min.y),
+        Point::new(right, edit_selection_rect.max.y),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.bg_secondary, accent_blue, 0.62),
+        }),
+    );
+    push_border(
+        primitives,
+        handle,
+        blend_color(accent_blue, style.text_primary, 0.42),
+        style.sizing.border_width,
+    );
 }
 
 /// Emit a short faded trail behind the active playhead for transport motion readability.

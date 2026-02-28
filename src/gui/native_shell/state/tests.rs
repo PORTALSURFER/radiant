@@ -1076,6 +1076,60 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_edit_fade_handles() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let edit_selection = NormalizedRangeModel::new(200, 800);
+    model.waveform.edit_selection_milli = Some(edit_selection);
+    model.waveform.edit_fade_in_end_milli = Some(320);
+    model.waveform.edit_fade_out_start_milli = Some(690);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let edit_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(edit_selection),
+        None,
+        None,
+    )
+    .selection
+    .expect("edit selection rect");
+    let span = f32::from(edit_selection.end_milli - edit_selection.start_milli).max(1.0);
+    let handle_in_x = edit_rect.min.x
+        + (edit_rect.width() * (f32::from(320u16 - edit_selection.start_milli) / span));
+    let handle_out_x = edit_rect.min.x
+        + (edit_rect.width() * (f32::from(690u16 - edit_selection.start_milli) / span));
+
+    let has_in_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= handle_in_x
+                    && rect.rect.max.x >= handle_in_x
+                    && rect.rect.min.y <= edit_rect.min.y
+                    && rect.rect.max.y >= edit_rect.max.y
+        )
+    });
+    let has_out_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= handle_out_x
+                    && rect.rect.max.x >= handle_out_x
+                    && rect.rect.min.y <= edit_rect.min.y
+                    && rect.rect.max.y >= edit_rect.max.y
+        )
+    });
+    assert!(has_in_handle, "expected edit fade-in handle primitive");
+    assert!(has_out_handle, "expected edit fade-out handle primitive");
+}
+
+#[test]
 fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

@@ -1455,22 +1455,10 @@ impl NativeShellState {
                 }),
             );
 
-            let top_title_rect = compute_top_bar_title_text_rect(
+            let _top_title_rect = compute_top_bar_title_text_rect(
                 layout.top_bar_title_cluster,
                 layout.top_bar_title_row,
                 sizing,
-            );
-            let top_title_width = top_title_rect.width().max(72.0);
-            emit_text(
-                text_runs,
-                TextRun {
-                    text: truncate_to_width(&model.title, top_title_width, sizing.font_title),
-                    position: top_title_rect.min,
-                    font_size: sizing.font_title,
-                    color: style.text_primary,
-                    max_width: Some(top_title_width),
-                    align: TextAlign::Left,
-                },
             );
             let top_controls = top_bar_controls_layout(layout, sizing);
             if top_controls.active {

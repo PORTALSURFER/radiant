@@ -1,6 +1,8 @@
 use super::*;
-use crate::app::{BrowserRowModel, FolderActionsModel, FolderRowModel, SourceRowModel};
-use crate::gui::types::{ImageRgba, Point, Vector2};
+use crate::app::{
+    BrowserRowModel, FolderActionsModel, FolderRowModel, NormalizedRangeModel, SourceRowModel,
+};
+use crate::gui::types::{ImageRgba, Point, Rgba8, Vector2};
 
 fn populated_sidebar_model() -> AppModel {
     let mut model = AppModel::default();
@@ -1005,6 +1007,73 @@ fn waveform_hover_overlay_draws_preview_cursor_marker() {
         })
         .expect("waveform hover marker should emit a cursor fill rectangle");
     assert_eq!(overlay_color, expected_color);
+}
+
+#[test]
+fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let play_selection = NormalizedRangeModel::new(180, 420);
+    let edit_selection = NormalizedRangeModel::new(560, 820);
+    let edit_selection_blue = Rgba8 {
+        r: 86,
+        g: 156,
+        b: 255,
+        a: 255,
+    };
+    model.waveform.selection_milli = Some(play_selection);
+    model.waveform.edit_selection_milli = Some(edit_selection);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let play_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(play_selection),
+        None,
+        None,
+    )
+    .selection
+    .expect("play selection rect");
+    let edit_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(edit_selection),
+        None,
+        None,
+    )
+    .selection
+    .expect("edit selection rect");
+
+    let play_fill = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == play_rect => Some(rect.color),
+            _ => None,
+        })
+        .expect("play selection fill");
+    let edit_fill = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == edit_rect => Some(rect.color),
+            _ => None,
+        })
+        .expect("edit selection fill");
+    assert_eq!(
+        play_fill,
+        translucent_overlay_color(style.bg_secondary, style.accent_warning, 0.52)
+    );
+    assert_eq!(
+        edit_fill,
+        translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5)
+    );
+    assert_ne!(play_fill, edit_fill);
 }
 
 #[test]

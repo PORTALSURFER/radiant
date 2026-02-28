@@ -889,6 +889,13 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     } else {
         fingerprint_mix_bool(&mut state, false);
     }
+    if let Some(edit_selection) = model.waveform_edit_selection_milli {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_u16(&mut state, edit_selection.start_milli);
+        fingerprint_mix_u16(&mut state, edit_selection.end_milli);
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);

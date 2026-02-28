@@ -396,6 +396,8 @@ pub struct WaveformPanelModel {
     pub playhead_milli: Option<u16>,
     /// Current waveform selection bounds.
     pub selection_milli: Option<NormalizedRangeModel>,
+    /// Current waveform edit-selection bounds (right-click paint range).
+    pub edit_selection_milli: Option<NormalizedRangeModel>,
     /// Visible view start in normalized milli-units.
     pub view_start_milli: u16,
     /// Visible view end in normalized milli-units.
@@ -422,6 +424,7 @@ impl Default for WaveformPanelModel {
             cursor_milli: None,
             playhead_milli: None,
             selection_milli: None,
+            edit_selection_milli: None,
             view_start_milli: 0,
             view_end_milli: 1000,
             loop_enabled: false,
@@ -1079,6 +1082,8 @@ pub struct NativeMotionModel {
     pub map_active: bool,
     /// Waveform selected playback window in normalized milliseconds.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
+    /// Waveform edit-selection window in normalized milliseconds.
+    pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform cursor position in normalized milliseconds.
     pub waveform_cursor_milli: Option<u16>,
     /// Waveform playhead position in normalized milliseconds.
@@ -1122,6 +1127,7 @@ impl NativeMotionModel {
             transport_running: model.transport_running,
             map_active: model.map.active,
             waveform_selection_milli: model.waveform.selection_milli,
+            waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
             waveform_view_start_milli: model.waveform.view_start_milli,

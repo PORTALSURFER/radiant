@@ -78,6 +78,12 @@ pub(super) fn push_waveform_playhead_overlay(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
+    let edit_selection_blue = Rgba8 {
+        r: 86,
+        g: 156,
+        b: 255,
+        a: 255,
+    };
     let annotations = compute_waveform_annotation_rects(
         layout.waveform_plot,
         style.sizing.border_width,
@@ -91,15 +97,41 @@ pub(super) fn push_waveform_playhead_overlay(
             primitives,
             Primitive::Rect(FillRect {
                 rect,
-                color: style.grid_strong,
+                color: translucent_overlay_color(style.bg_secondary, style.accent_warning, 0.52),
             }),
         );
         push_border(
             primitives,
             rect,
-            style.accent_mint,
+            blend_color(style.accent_warning, style.text_primary, 0.28),
             style.sizing.border_width,
         );
+    }
+
+    if let Some(edit_selection) = model.waveform_edit_selection_milli {
+        let edit_selection_rect = compute_waveform_annotation_rects(
+            layout.waveform_plot,
+            style.sizing.border_width,
+            Some(edit_selection),
+            None,
+            None,
+        )
+        .selection;
+        if let Some(rect) = edit_selection_rect {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect,
+                    color: translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5),
+                }),
+            );
+            push_border(
+                primitives,
+                rect,
+                blend_color(edit_selection_blue, style.text_primary, 0.24),
+                style.sizing.border_width,
+            );
+        }
     }
 
     if let Some(rect) = annotations.cursor {

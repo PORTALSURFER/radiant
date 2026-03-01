@@ -59,6 +59,10 @@ const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
+/// Short-lived redraw cadence used immediately after cursor movement.
+const CURSOR_ACTIVITY_REDRAW_HZ: u64 = 120;
+/// Duration to keep the high-frequency cursor redraw cadence active.
+const CURSOR_ACTIVITY_REDRAW_WINDOW: Duration = Duration::from_millis(100);
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
 const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
 /// Maximum time to wait for a deferred startup refresh before revealing anyway.
@@ -1290,6 +1294,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     focus_animation_interval: Duration,
     idle_status_refresh_interval: Duration,
     next_idle_status_refresh: Instant,
+    cursor_activity_redraw_interval: Duration,
+    cursor_activity_redraw_until: Option<Instant>,
     model_refresh_count: u32,
     profiler: NativeVelloProfiler,
 }
@@ -1314,6 +1320,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             Duration::from_nanos((1_000_000_000u64 / FOCUS_PULSE_HZ).max(1));
         let idle_status_refresh_interval =
             Duration::from_nanos(1_000_000_000u64 / IDLE_STATUS_REFRESH_HZ.max(1));
+        let cursor_activity_redraw_interval =
+            Duration::from_nanos(1_000_000_000u64 / CURSOR_ACTIVITY_REDRAW_HZ.max(1));
         let startup_clear_color = Self::startup_placeholder_clear_color();
         let incremental_frame_pipeline =
             crate::env_flags::env_var_truthy(INCREMENTAL_FRAME_PIPELINE_ENV);
@@ -1407,6 +1415,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             focus_animation_interval,
             idle_status_refresh_interval,
             next_idle_status_refresh: Instant::now() + idle_status_refresh_interval,
+            cursor_activity_redraw_interval,
+            cursor_activity_redraw_until: None,
             model_refresh_count: 0,
             profiler: NativeVelloProfiler::new(),
         }
@@ -1985,6 +1995,28 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn queue_cursor(&mut self, point: Point) {
         self.pending_cursor = Some(point);
+    }
+
+    /// Record recent pointer activity for short-lived high-frequency redraw pacing.
+    fn note_cursor_activity(&mut self, now: Instant) {
+        self.cursor_activity_redraw_until = Some(now + CURSOR_ACTIVITY_REDRAW_WINDOW);
+    }
+
+    /// Return the next redraw deadline while recent cursor activity is active.
+    fn next_cursor_activity_redraw_deadline(&mut self, now: Instant) -> Option<Instant> {
+        let until = self.cursor_activity_redraw_until?;
+        if now >= until {
+            self.cursor_activity_redraw_until = None;
+            return None;
+        }
+        let mut next_redraw_at = self.last_redraw + self.cursor_activity_redraw_interval;
+        if next_redraw_at < now {
+            next_redraw_at = now;
+        }
+        if next_redraw_at > until {
+            next_redraw_at = until;
+        }
+        Some(next_redraw_at)
     }
 
     /// Process one cursor move immediately when layout state is available.
@@ -3140,6 +3172,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     return;
                 }
                 self.last_cursor = Some(point);
+                self.note_cursor_activity(Instant::now());
                 if self.volume_drag_active
                     && let Some(layout) = self.shell_layout.as_ref()
                     && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
@@ -3436,16 +3469,25 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
         let needs_animation = self.shell_state.needs_animation();
         let now = Instant::now();
         self.maybe_force_reveal_startup_window_on_stall(now);
+        let cursor_activity_redraw_deadline = if !needs_animation && !has_pending_input {
+            self.next_cursor_activity_redraw_deadline(now)
+        } else {
+            None
+        };
         let should_refresh_idle_status =
             !needs_animation && !has_pending_input && { self.mark_idle_status_refresh_if_due(now) };
-        if needs_animation || has_pending_input {
+        if needs_animation || has_pending_input || cursor_activity_redraw_deadline.is_some() {
             self.request_redraw_if_needed();
-            let frame_interval = if self.shell_state.is_transport_running() {
-                self.target_frame_interval
+            let mut next_redraw_at = if let Some(deadline) = cursor_activity_redraw_deadline {
+                deadline
             } else {
-                self.focus_animation_interval
+                let frame_interval = if self.shell_state.is_transport_running() {
+                    self.target_frame_interval
+                } else {
+                    self.focus_animation_interval
+                };
+                self.last_redraw + frame_interval
             };
-            let mut next_redraw_at = self.last_redraw + frame_interval;
             if next_redraw_at < now {
                 next_redraw_at = now;
             }

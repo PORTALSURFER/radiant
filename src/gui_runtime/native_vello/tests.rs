@@ -473,6 +473,35 @@ fn process_cursor_move_waveform_hover_only_marks_motion_overlay_dirty() {
 }
 
 #[test]
+fn cursor_activity_redraw_deadline_tracks_recent_pointer_activity() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let now = Instant::now();
+    runner.last_redraw = now - runner.cursor_activity_redraw_interval;
+    runner.note_cursor_activity(now);
+
+    let deadline = runner.next_cursor_activity_redraw_deadline(now);
+
+    assert_eq!(deadline, Some(now));
+    assert!(runner.cursor_activity_redraw_until.is_some());
+}
+
+#[test]
+fn cursor_activity_redraw_deadline_expires_after_activity_window() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let now = Instant::now();
+    runner.note_cursor_activity(now);
+
+    let deadline = runner.next_cursor_activity_redraw_deadline(
+        now + CURSOR_ACTIVITY_REDRAW_WINDOW + Duration::from_millis(1),
+    );
+
+    assert_eq!(deadline, None);
+    assert_eq!(runner.cursor_activity_redraw_until, None);
+}
+
+#[test]
 fn rebuild_scene_processes_waveform_hover_motion_overlay_without_model_motion_change() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

@@ -1311,6 +1311,69 @@ fn source_row_selected_fill_is_translucent_overlay() {
 }
 
 #[test]
+/// Source context menu hit testing should emit reload for the targeted row.
+fn source_context_menu_hit_test_emits_reload_action_for_row() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    let row_rect = *state
+        .rendered_source_row_rects(&layout, &model)
+        .first()
+        .expect("source row should be rendered");
+    let anchor = Point::new(
+        (row_rect.min.x + row_rect.max.x) * 0.5,
+        (row_rect.min.y + row_rect.max.y) * 0.5,
+    );
+    state.open_source_context_menu_for_row(0, anchor);
+
+    let reload_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .expect("reload action button should be present");
+    let point = Point::new(
+        (reload_rect.min.x + reload_rect.max.x) * 0.5,
+        (reload_rect.min.y + reload_rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.source_context_menu_action_at_point(&layout, &model, point),
+        Some(UiAction::ReloadSourceRow { index: 0 })
+    );
+}
+
+#[test]
+/// Source context menu geometry should disappear after explicit close.
+fn source_context_menu_contains_point_tracks_open_close_state() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    state.open_source_context_menu_for_row(
+        0,
+        Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
+    );
+    let reload_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .expect("reload action button should be present");
+    let point = Point::new(
+        (reload_rect.min.x + reload_rect.max.x) * 0.5,
+        (reload_rect.min.y + reload_rect.max.y) * 0.5,
+    );
+    assert!(state.source_context_menu_contains_point(&layout, &model, point));
+    assert!(state.close_source_context_menu());
+    assert!(!state.source_context_menu_contains_point(&layout, &model, point));
+}
+
+#[test]
 fn top_bar_update_prefers_projected_status_and_hint_copy() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

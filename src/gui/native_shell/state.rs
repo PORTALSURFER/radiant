@@ -59,6 +59,7 @@ pub(crate) struct NativeShellState {
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
     pulse_phase: f32,
+    source_context_menu: Option<SourceContextMenuState>,
     source_row_rects: Vec<Rect>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     folder_row_rects: Vec<Rect>,
@@ -136,6 +137,15 @@ struct BrowserRowTruncationCache {
 struct BrowserRowTruncationCacheValue {
     truncated: String,
     last_touch_epoch: u64,
+}
+
+/// Ephemeral sidebar source-menu state tracked by the runtime.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SourceContextMenuState {
+    /// Source row index the menu actions target.
+    row_index: usize,
+    /// Pointer anchor used to place the floating menu panel.
+    anchor: Point,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -433,6 +443,7 @@ impl NativeShellState {
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
             pulse_phase: 0.0,
+            source_context_menu: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
             folder_row_rects: Vec::new(),
@@ -471,6 +482,12 @@ impl NativeShellState {
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         if model.map.active {
             self.hovered_browser_visible_row = None;
+        }
+        if self
+            .source_context_menu
+            .is_some_and(|menu| menu.row_index >= model.sources.rows.len())
+        {
+            self.source_context_menu = None;
         }
         self.has_focus_emphasis = model
             .browser
@@ -648,6 +665,55 @@ impl NativeShellState {
         compute_row_index_at_point(folder_rows, point)
     }
 
+    /// Open the transient source context menu for one source row.
+    pub(crate) fn open_source_context_menu_for_row(&mut self, row_index: usize, anchor: Point) {
+        self.source_context_menu = Some(SourceContextMenuState { row_index, anchor });
+    }
+
+    /// Close the transient source context menu.
+    ///
+    /// Returns `true` when a visible menu was dismissed.
+    pub(crate) fn close_source_context_menu(&mut self) -> bool {
+        if self.source_context_menu.is_some() {
+            self.source_context_menu = None;
+            return true;
+        }
+        false
+    }
+
+    /// Resolve one source context-menu action at a pointer location.
+    pub(crate) fn source_context_menu_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)?;
+        buttons
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action)
+    }
+
+    /// Return `true` when a point lands inside the visible source context menu panel.
+    #[cfg(test)]
+    pub(crate) fn source_context_menu_contains_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let Some((panel_rect, _)) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)
+        else {
+            return false;
+        };
+        panel_rect.contains(point)
+    }
+
     /// Return rendered source-row rectangles for geometry tests.
     #[cfg(test)]
     pub(crate) fn rendered_source_row_rects(
@@ -680,6 +746,23 @@ impl NativeShellState {
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
         source_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.action == action)
+            .map(|button| button.rect)
+    }
+
+    /// Return a source-context-menu button rect for one action in tests.
+    #[cfg(test)]
+    pub(crate) fn source_context_menu_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)?;
+        buttons
             .into_iter()
             .find(|button| button.action == action)
             .map(|button| button.rect)
@@ -1973,6 +2056,62 @@ impl NativeShellState {
                             },
                             max_width: Some(folder_text_width),
                             align: TextAlign::Left,
+                        },
+                    );
+                }
+            }
+            if let Some((menu_panel, menu_buttons)) =
+                source_context_menu_spec(layout, style, model, self.source_context_menu)
+            {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: menu_panel,
+                        color: style.surface_overlay,
+                    }),
+                );
+                push_border(
+                    primitives,
+                    menu_panel,
+                    style.border_emphasis,
+                    sizing.border_width,
+                );
+                for button in menu_buttons {
+                    let label_rect = compute_action_button_text_rect(button.rect, sizing);
+                    emit_primitive(
+                        primitives,
+                        Primitive::Rect(FillRect {
+                            rect: button.rect,
+                            color: if button.enabled {
+                                blend_color(style.surface_base, style.bg_secondary, 0.36)
+                            } else {
+                                style.control_disabled_fill
+                            },
+                        }),
+                    );
+                    push_border(
+                        primitives,
+                        button.rect,
+                        if button.enabled {
+                            style.border
+                        } else {
+                            style.grid_soft
+                        },
+                        sizing.border_width,
+                    );
+                    emit_text(
+                        text_runs,
+                        TextRun {
+                            text: button.label.to_string(),
+                            position: label_rect.min,
+                            font_size: sizing.font_meta,
+                            color: if button.enabled {
+                                button.text_color
+                            } else {
+                                style.text_muted
+                            },
+                            max_width: Some(label_rect.width().max(16.0)),
+                            align: TextAlign::Center,
                         },
                     );
                 }
@@ -3759,6 +3898,94 @@ fn source_action_buttons(
             },
         )
         .collect()
+}
+
+/// Build source context-menu panel geometry and action buttons.
+fn source_context_menu_spec(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    menu: Option<SourceContextMenuState>,
+) -> Option<(Rect, Vec<ActionButton>)> {
+    let menu = menu?;
+    if menu.row_index >= model.sources.rows.len() {
+        return None;
+    }
+    let source_index = menu.row_index;
+    let definitions = [
+        (
+            "Reload",
+            true,
+            UiAction::ReloadSourceRow {
+                index: source_index,
+            },
+            style.text_primary,
+        ),
+        (
+            "Hard sync",
+            true,
+            UiAction::HardSyncSourceRow {
+                index: source_index,
+            },
+            style.accent_warning,
+        ),
+        (
+            "Open folder",
+            true,
+            UiAction::OpenSourceFolderRow {
+                index: source_index,
+            },
+            style.accent_mint,
+        ),
+        (
+            "Remove dead links",
+            true,
+            UiAction::RemoveDeadLinksForSourceRow {
+                index: source_index,
+            },
+            style.accent_copper,
+        ),
+    ];
+    let sizing = style.sizing;
+    let panel_padding = sizing.panel_inset.max(4.0);
+    let button_width = sizing.sidebar_action_button_width.max(168.0);
+    let button_height = sizing.sidebar_action_button_height.max(18.0);
+    let button_gap = sizing.sidebar_action_button_gap.max(2.0);
+    let button_count = definitions.len();
+    let panel_width = button_width + panel_padding * 2.0;
+    let panel_height = (button_height * button_count as f32)
+        + (button_gap * button_count.saturating_sub(1) as f32)
+        + panel_padding * 2.0;
+    let min_x = layout.sidebar.min.x + sizing.panel_inset;
+    let max_x = (layout.sidebar.max.x - sizing.panel_inset - panel_width).max(min_x);
+    let min_y = layout.sidebar.min.y + sizing.panel_inset;
+    let max_y = (layout.sidebar.max.y - sizing.panel_inset - panel_height).max(min_y);
+    let panel_min = Point::new(
+        menu.anchor.x.clamp(min_x, max_x),
+        menu.anchor.y.clamp(min_y, max_y),
+    );
+    let panel_rect = Rect::from_min_max(
+        panel_min,
+        Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
+    );
+    let mut buttons = Vec::with_capacity(button_count);
+    let button_x = panel_rect.min.x + panel_padding;
+    let mut button_y = panel_rect.min.y + panel_padding;
+    for (label, enabled, action, text_color) in definitions {
+        let rect = Rect::from_min_max(
+            Point::new(button_x, button_y),
+            Point::new(button_x + button_width, button_y + button_height),
+        );
+        buttons.push(ActionButton {
+            rect,
+            label,
+            enabled,
+            action,
+            text_color,
+        });
+        button_y += button_height + button_gap;
+    }
+    Some((panel_rect, buttons))
 }
 
 #[cfg(test)]

@@ -2843,6 +2843,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SetVolume { .. }
             | UiAction::CommitVolumeSetting
             | UiAction::SetFolderSearch { .. }
+            | UiAction::ReloadSourceRow { .. }
+            | UiAction::HardSyncSourceRow { .. }
+            | UiAction::OpenSourceFolderRow { .. }
+            | UiAction::RemoveDeadLinksForSourceRow { .. }
             | UiAction::FocusFolderRow { .. }
             | UiAction::MoveFolderFocus { .. }
             | UiAction::MoveBrowserFocus { .. }
@@ -3042,7 +3046,8 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 if self.window.is_none() {
                     return;
                 }
-                if let (Some(point), Some(layout)) = (self.last_cursor, self.shell_layout.as_ref())
+                if let (Some(point), Some(layout)) =
+                    (self.last_cursor, self.shell_layout.as_ref().cloned())
                 {
                     self.pending_volume_milli = None;
                     self.volume_drag_active = false;
@@ -3052,62 +3057,106 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     self.map_focus_drag_active = false;
                     self.last_emitted_map_drag_sample_id = None;
                     let mut handled = false;
+                    let mut source_menu_state_changed = false;
                     match button {
                         MouseButton::Left => {
                             self.text_input_target = TextInputTarget::None;
                             let map_drag_start =
                                 self.model.map.active && layout.browser_rows.contains(point);
-                            if self
+                            if let Some(action) = self
                                 .shell_state
-                                .prompt_input_at_point(layout, &self.model, point)
+                                .source_context_menu_action_at_point(&layout, &self.model, point)
                             {
-                                self.text_input_target = TextInputTarget::PromptInput;
-                                handled = true;
-                            } else if let Some(action) = self
-                                .shell_state
-                                .top_bar_volume_action_at_point(layout, point)
-                            {
-                                if let UiAction::SetVolume { value_milli } = action {
-                                    self.last_emitted_volume_milli = Some(value_milli);
-                                    self.emit_volume_milli_immediately(value_milli);
-                                } else {
-                                    self.emit_model_action(action);
-                                }
-                                self.volume_drag_active = true;
-                                handled = true;
-                            } else if let Some(action) = action_from_pointer(
-                                layout,
-                                &self.model,
-                                &mut self.shell_state,
-                                point,
-                                self.modifiers,
-                            ) {
-                                let waveform_drag_mode = waveform_drag_mode_for_action(&action);
-                                let map_drag_sample_id = match &action {
-                                    UiAction::FocusMapSample { sample_id } => {
-                                        Some(sample_id.clone())
-                                    }
-                                    _ => None,
-                                };
-                                self.update_text_target_after_action(&action);
                                 self.emit_model_action(action);
-                                self.waveform_drag_mode = waveform_drag_mode;
-                                if map_drag_start {
-                                    self.map_focus_drag_active = true;
-                                    self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+                                source_menu_state_changed |=
+                                    self.shell_state.close_source_context_menu();
+                                handled = true;
+                            } else {
+                                source_menu_state_changed |=
+                                    self.shell_state.close_source_context_menu();
+                            }
+                            if !handled {
+                                if self.shell_state.prompt_input_at_point(
+                                    &layout,
+                                    &self.model,
+                                    point,
+                                ) {
+                                    self.text_input_target = TextInputTarget::PromptInput;
+                                    handled = true;
+                                } else if let Some(action) = self
+                                    .shell_state
+                                    .top_bar_volume_action_at_point(&layout, point)
+                                {
+                                    if let UiAction::SetVolume { value_milli } = action {
+                                        self.last_emitted_volume_milli = Some(value_milli);
+                                        self.emit_volume_milli_immediately(value_milli);
+                                    } else {
+                                        self.emit_model_action(action);
+                                    }
+                                    self.volume_drag_active = true;
+                                    handled = true;
+                                } else if let Some(action) = action_from_pointer(
+                                    &layout,
+                                    &self.model,
+                                    &mut self.shell_state,
+                                    point,
+                                    self.modifiers,
+                                ) {
+                                    let waveform_drag_mode = waveform_drag_mode_for_action(&action);
+                                    let map_drag_sample_id = match &action {
+                                        UiAction::FocusMapSample { sample_id } => {
+                                            Some(sample_id.clone())
+                                        }
+                                        _ => None,
+                                    };
+                                    self.update_text_target_after_action(&action);
+                                    self.emit_model_action(action);
+                                    self.waveform_drag_mode = waveform_drag_mode;
+                                    if map_drag_start {
+                                        self.map_focus_drag_active = true;
+                                        self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+                                    }
+                                    handled = true;
+                                } else if self.shell_state.handle_primary_click(&layout, point)
+                                    && let Some(column) = layout.column_at_point(point)
+                                {
+                                    self.emit_model_action(UiAction::SelectColumn {
+                                        index: column,
+                                    });
+                                    handled = true;
                                 }
-                                handled = true;
-                            } else if self.shell_state.handle_primary_click(layout, point)
-                                && let Some(column) = layout.column_at_point(point)
-                            {
-                                self.emit_model_action(UiAction::SelectColumn { index: column });
-                                handled = true;
                             }
                         }
                         MouseButton::Right => {
-                            if matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard)) {
+                            if let Some(action) = self
+                                .shell_state
+                                .source_context_menu_action_at_point(&layout, &self.model, point)
+                            {
+                                self.emit_model_action(action);
+                                source_menu_state_changed |=
+                                    self.shell_state.close_source_context_menu();
+                                handled = true;
+                            } else if let Some(index) =
+                                self.shell_state
+                                    .source_row_at_point(&layout, &self.model, point)
+                            {
+                                self.emit_model_action(UiAction::SelectSourceRow { index });
+                                self.shell_state
+                                    .open_source_context_menu_for_row(index, point);
+                                source_menu_state_changed = true;
+                                handled = true;
+                            } else {
+                                source_menu_state_changed |=
+                                    self.shell_state.close_source_context_menu();
+                            }
+                            if !handled
+                                && matches!(
+                                    layout.hit_test(point),
+                                    Some(ShellNodeKind::WaveformCard)
+                                )
+                            {
                                 let action = waveform_edit_action_from_pointer(
-                                    layout,
+                                    &layout,
                                     point,
                                     self.modifiers,
                                 );
@@ -3118,7 +3167,9 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         }
                         _ => {}
                     }
-                    if handled {
+                    if source_menu_state_changed {
+                        self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
+                    } else if handled {
                         if !self.frame_state.has_pending_rebuild() {
                             self.apply_invalidation_scope(
                                 RuntimeInvalidationScope::OverlayStateOnly,

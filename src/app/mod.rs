@@ -737,6 +737,26 @@ pub enum UiAction {
         /// Target source row index.
         index: usize,
     },
+    /// Reload wav entries for one source row.
+    ReloadSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
+    /// Run a hard sync/rescan for one source row.
+    HardSyncSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
+    /// Open one source row folder in the system file manager.
+    OpenSourceFolderRow {
+        /// Target source row index.
+        index: usize,
+    },
+    /// Remove missing/dead-link rows for one source row.
+    RemoveDeadLinksForSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
     /// Focus a folder row by index.
     FocusFolderRow {
         /// Target folder row index.

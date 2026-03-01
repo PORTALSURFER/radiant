@@ -8,9 +8,10 @@ use crate::app::{
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
-        MotionOverlayFingerprint, NativeShellState, NativeViewFrame, Primitive, ShellLayout,
-        ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind, StateOverlayFingerprint,
-        StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign, TextRun,
+        CursorMoveEffect, MotionOverlayFingerprint, NativeShellState, NativeViewFrame, Primitive,
+        ShellLayout, ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind,
+        StateOverlayFingerprint, StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign,
+        TextRun,
     },
     repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
@@ -1926,9 +1927,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return (false, false);
         };
         let profile_start = self.profiler.now_if_enabled();
-        let handled = self
+        let effect = self
             .shell_state
-            .handle_cursor_move(layout, &self.model, point);
+            .handle_cursor_move_effect(layout, &self.model, point);
+        let handled = effect != CursorMoveEffect::None;
         if handled {
             if let Some(start) = profile_start {
                 let kind = if self.model.map.active {
@@ -1938,7 +1940,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 };
                 self.profiler.add_interaction_latency(kind, start.elapsed());
             }
-            self.rebuild_overlay_and_request_redraw();
+            match effect {
+                CursorMoveEffect::WaveformHoverOnly => {
+                    self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayMotionOnly);
+                }
+                CursorMoveEffect::GeneralOverlay => self.rebuild_overlay_and_request_redraw(),
+                CursorMoveEffect::None => {}
+            }
         }
         (true, handled)
     }

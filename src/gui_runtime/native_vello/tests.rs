@@ -455,6 +455,32 @@ fn process_cursor_move_immediately_defers_when_layout_is_unavailable() {
 }
 
 #[test]
+fn process_cursor_move_waveform_hover_only_marks_motion_overlay_dirty() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let first = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let second = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.7),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(layout);
+
+    let _ = runner.process_cursor_move_immediately(first);
+    let _ = runner.frame_state.take_state_overlay();
+    let _ = runner.frame_state.take_motion_overlay();
+    let _ = runner.frame_state.take_model();
+    let _ = runner.frame_state.take_scene();
+
+    assert_eq!(runner.process_cursor_move_immediately(second), (true, true));
+    assert!(!runner.frame_state.take_state_overlay());
+    assert!(runner.frame_state.take_motion_overlay());
+}
+
+#[test]
 fn finish_volume_drag_flushes_pending_value_before_commit() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

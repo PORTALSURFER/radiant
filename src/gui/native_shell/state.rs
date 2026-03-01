@@ -154,6 +154,17 @@ struct NativeAnimationReasons {
     startup_frame_tick: bool,
 }
 
+/// Cursor-move effect classification used by runtime overlay invalidation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CursorMoveEffect {
+    /// Pointer movement did not change observable hover state.
+    None,
+    /// Only waveform hover-cursor position changed.
+    WaveformHoverOnly,
+    /// Hovered node and/or hovered row changed.
+    GeneralOverlay,
+}
+
 /// Compact state-overlay fingerprint for change detection in runtime caches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StateOverlayFingerprint {
@@ -163,8 +174,6 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
-    /// Hovered waveform marker x-position bits in shell-space coordinates.
-    pub waveform_hover_x_bits: Option<u32>,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }
@@ -178,6 +187,8 @@ pub(crate) struct MotionOverlayFingerprint {
     pub startup_frame_ticks: u8,
     /// Quantized pulse animation phase.
     pub pulse_phase_bits: u32,
+    /// Hovered waveform marker x-position bits in shell-space coordinates.
+    pub waveform_hover_x_bits: Option<u32>,
 }
 
 /// Static-scene segments used for retained incremental scene composition.
@@ -514,7 +525,6 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
-            waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }
@@ -525,6 +535,7 @@ impl NativeShellState {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
             pulse_phase_bits: self.pulse_phase.to_bits(),
+            waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
         }
     }
 
@@ -547,27 +558,32 @@ impl NativeShellState {
         }
     }
 
-    /// Handle pointer movement and update hovered view target.
-    pub(crate) fn handle_cursor_move(
+    /// Handle pointer movement and classify which overlay bucket changed.
+    pub(crate) fn handle_cursor_move_effect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> bool {
+    ) -> CursorMoveEffect {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
-        let changed = next_hover != self.hovered
-            || next_hovered_browser_row != self.hovered_browser_visible_row
-            || next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
-        if !changed {
-            return false;
+        let hover_changed = next_hover != self.hovered;
+        let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let waveform_hover_changed =
+            next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
+        if !hover_changed && !browser_row_changed && !waveform_hover_changed {
+            return CursorMoveEffect::None;
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.waveform_hover_x = next_waveform_hover_x;
-        true
+        if waveform_hover_changed && !hover_changed && !browser_row_changed {
+            CursorMoveEffect::WaveformHoverOnly
+        } else {
+            CursorMoveEffect::GeneralOverlay
+        }
     }
 
     fn resolve_hovered_browser_row(
@@ -2806,27 +2822,6 @@ impl NativeShellState {
                 }),
             );
         }
-        if let Some(hover_x) = self.waveform_hover_x {
-            // Keep hover preview cursor visually obvious against dense waveform content.
-            let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
-            let hover_marker =
-                waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x);
-            if let Some(rect) = hover_marker {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect,
-                        color: blend_color(style.accent_warning, style.text_primary, 0.72),
-                    }),
-                );
-                push_border(
-                    primitives,
-                    rect,
-                    blend_color(style.accent_warning, style.text_primary, 0.48),
-                    sizing.border_width,
-                );
-            }
-        }
         if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
             let browser_rows = self.cached_browser_rows(layout, style, model);
             if let Some(row) = browser_rows
@@ -3163,6 +3158,27 @@ impl NativeShellState {
         );
 
         push_waveform_playhead_overlay(primitives, layout, style, model);
+        if let Some(hover_x) = self.waveform_hover_x {
+            // Keep hover preview cursor visually obvious against dense waveform content.
+            let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
+            if let Some(rect) =
+                waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x)
+            {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect,
+                        color: blend_color(style.accent_warning, style.text_primary, 0.72),
+                    }),
+                );
+                push_border(
+                    primitives,
+                    rect,
+                    blend_color(style.accent_warning, style.text_primary, 0.48),
+                    sizing.border_width,
+                );
+            }
+        }
         let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
         let waveform_toolbar_left = waveform_toolbar_left_edge(
             &waveform_toolbar_buttons,

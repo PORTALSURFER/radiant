@@ -54,7 +54,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
-    waveform_hover_milli: Option<u16>,
+    waveform_hover_x: Option<f32>,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -163,8 +163,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
-    /// Hovered waveform milli position in normalized `0..=1000` space.
-    pub waveform_hover_milli: Option<u16>,
+    /// Hovered waveform marker x-position bits in shell-space coordinates.
+    pub waveform_hover_x_bits: Option<u32>,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }
@@ -438,7 +438,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
-            waveform_hover_milli: None,
+            waveform_hover_x: None,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -514,7 +514,7 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
-            waveform_hover_milli: self.waveform_hover_milli,
+            waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }
@@ -557,16 +557,16 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
-        let next_waveform_hover_milli = waveform_hover_milli_for_point(layout, next_hover, point);
+        let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let changed = next_hover != self.hovered
             || next_hovered_browser_row != self.hovered_browser_visible_row
-            || next_waveform_hover_milli != self.waveform_hover_milli;
+            || next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !changed {
             return false;
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
-        self.waveform_hover_milli = next_waveform_hover_milli;
+        self.waveform_hover_x = next_waveform_hover_x;
         true
     }
 
@@ -2806,17 +2806,12 @@ impl NativeShellState {
                 }),
             );
         }
-        if let Some(hover_milli) = self.waveform_hover_milli {
+        if let Some(hover_x) = self.waveform_hover_x {
             // Keep hover preview cursor visually obvious against dense waveform content.
             let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
-            let annotations = compute_waveform_annotation_rects(
-                layout.waveform_plot,
-                hover_marker_width,
-                None,
-                Some(hover_milli),
-                None,
-            );
-            if let Some(rect) = annotations.cursor {
+            let hover_marker =
+                waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x);
+            if let Some(rect) = hover_marker {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
@@ -3345,20 +3340,41 @@ impl NativeShellState {
     }
 }
 
-/// Return hovered waveform marker milli position for one pointer point.
-fn waveform_hover_milli_for_point(
+/// Return hovered waveform marker x-position for one pointer point.
+fn waveform_hover_x_for_point(
     layout: &ShellLayout,
     hover: Option<ShellNodeKind>,
     point: Point,
-) -> Option<u16> {
+) -> Option<f32> {
     if hover != Some(ShellNodeKind::WaveformCard) || !layout.waveform_plot.contains(point) {
         return None;
     }
-    let inner = layout.waveform_plot;
-    let width = inner.width().max(1.0);
-    let clamped_x = point.x.clamp(inner.min.x, inner.max.x);
-    let ratio = ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0);
-    Some((ratio * 1000.0).round() as u16)
+    Some(
+        point
+            .x
+            .clamp(layout.waveform_plot.min.x, layout.waveform_plot.max.x)
+            .round(),
+    )
+}
+
+/// Return one plot-bounded hover marker rectangle for a waveform x-position.
+fn waveform_hover_marker_rect(
+    waveform_plot: Rect,
+    marker_width: f32,
+    hover_x: f32,
+) -> Option<Rect> {
+    if waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0 {
+        return None;
+    }
+    let width = marker_width.max(1.0);
+    let half = width * 0.5;
+    let clamped_x = hover_x.clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let left = (clamped_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
+    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
+    Some(Rect::from_min_max(
+        Point::new(left, waveform_plot.min.y),
+        Point::new(right, waveform_plot.max.y),
+    ))
 }
 
 fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {

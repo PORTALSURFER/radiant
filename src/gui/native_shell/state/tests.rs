@@ -922,7 +922,7 @@ fn browser_row_hovered_overlay_uses_hover_fill() {
 }
 
 #[test]
-fn cursor_move_tracks_waveform_hover_milli_inside_plot() {
+fn cursor_move_tracks_waveform_hover_position_inside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut state = NativeShellState::new();
@@ -934,11 +934,11 @@ fn cursor_move_tracks_waveform_hover_milli_inside_plot() {
     assert!(state.handle_cursor_move(&layout, &model, point));
     let fingerprint = state.state_overlay_fingerprint();
     assert_eq!(fingerprint.hovered, Some(ShellNodeKind::WaveformCard));
-    assert!(fingerprint.waveform_hover_milli.is_some());
+    assert!(fingerprint.waveform_hover_x_bits.is_some());
 }
 
 #[test]
-fn cursor_move_clears_waveform_hover_milli_outside_plot() {
+fn cursor_move_clears_waveform_hover_position_outside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut state = NativeShellState::new();
@@ -955,14 +955,14 @@ fn cursor_move_clears_waveform_hover_milli_outside_plot() {
     assert!(
         state
             .state_overlay_fingerprint()
-            .waveform_hover_milli
+            .waveform_hover_x_bits
             .is_some()
     );
     assert!(state.handle_cursor_move(&layout, &model, outside));
     assert!(
         state
             .state_overlay_fingerprint()
-            .waveform_hover_milli
+            .waveform_hover_x_bits
             .is_none()
     );
 }
@@ -978,20 +978,16 @@ fn waveform_hover_overlay_draws_preview_cursor_marker() {
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
     state.handle_cursor_move(&layout, &model, point);
-    let hover_milli = state
-        .state_overlay_fingerprint()
-        .waveform_hover_milli
-        .expect("waveform hover should be tracked");
+    let hover_x = f32::from_bits(
+        state
+            .state_overlay_fingerprint()
+            .waveform_hover_x_bits
+            .expect("waveform hover should be tracked"),
+    );
     let hover_marker_width = (style.sizing.border_width * 2.0).max(2.0);
-    let expected_marker = compute_waveform_annotation_rects(
-        layout.waveform_plot,
-        hover_marker_width,
-        None,
-        Some(hover_milli),
-        None,
-    )
-    .cursor
-    .expect("cursor marker rect should exist");
+    let expected_marker =
+        waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x)
+            .expect("cursor marker rect should exist");
     let expected_color = blend_color(style.accent_warning, style.text_primary, 0.72);
 
     let mut frame = NativeViewFrame::default();

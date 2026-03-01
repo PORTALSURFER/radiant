@@ -2298,6 +2298,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 layout,
                 style,
                 &self.model,
+                self.motion_model.as_ref(),
                 segment,
                 &mut self.static_segment_frame_cache,
             );
@@ -2322,6 +2323,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .append(self.static_segment_scene_cache.scene(segment), None);
         }
         (build_duration, encode_duration)
+    }
+
+    /// Refresh cached motion-model projection from the latest full app model.
+    fn refresh_motion_model_from_model(&mut self) {
+        self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
     }
 
     fn rebuild_scene(
@@ -2371,7 +2377,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_model_pull(pull_duration);
             self.shell_state.sync_from_model(&self.model);
-            self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+            self.refresh_motion_model_from_model();
             self.motion_model_supported = true;
             self.sync_text_input_target();
             if self.startup_deferred_model_refresh_pending {
@@ -2426,7 +2432,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_model_pull(model_pull_duration);
                 self.shell_state.sync_from_model(&self.model);
-                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
+                self.refresh_motion_model_from_model();
                 self.sync_text_input_target();
                 if self.startup_deferred_model_refresh_pending {
                     self.startup_deferred_model_refresh_pending = false;
@@ -2523,20 +2529,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut rebuild_waveform_motion_overlay = rebuild_motion_overlay;
         let mut rebuild_chrome_motion_overlay = rebuild_motion_overlay;
         if rebuild_motion_overlay {
-            let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
-                motion_model
-            } else {
-                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
-                self.motion_model
+            if self.motion_model.is_none() {
+                self.refresh_motion_model_from_model();
+            }
+            let waveform_motion_signature = {
+                let motion_model = self
+                    .motion_model
                     .as_ref()
-                    .expect("motion model just inserted")
+                    .expect("motion model should exist for waveform-motion signature");
+                waveform_motion_overlay_model_signature(motion_model)
             };
             let waveform_motion_fingerprint = WaveformMotionOverlayCacheFingerprint {
                 layout_width_bits,
                 layout_height_bits,
                 layout_scale_bits,
                 shell: self.shell_state.waveform_motion_overlay_fingerprint(),
-                motion_signature: waveform_motion_overlay_model_signature(motion_model),
+                motion_signature: waveform_motion_signature,
             };
             if self.waveform_motion_overlay_fingerprint.as_ref()
                 == Some(&waveform_motion_fingerprint)
@@ -2545,12 +2553,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             } else {
                 self.waveform_motion_overlay_fingerprint = Some(waveform_motion_fingerprint);
             }
+            let chrome_motion_signature = {
+                let motion_model = self
+                    .motion_model
+                    .as_ref()
+                    .expect("motion model should exist for chrome-motion signature");
+                chrome_motion_overlay_model_signature(motion_model)
+            };
             let chrome_motion_fingerprint = ChromeMotionOverlayCacheFingerprint {
                 layout_width_bits,
                 layout_height_bits,
                 layout_scale_bits,
                 shell: self.shell_state.chrome_motion_overlay_fingerprint(),
-                motion_signature: chrome_motion_overlay_model_signature(motion_model),
+                motion_signature: chrome_motion_signature,
             };
             if self.chrome_motion_overlay_fingerprint.as_ref() == Some(&chrome_motion_fingerprint) {
                 rebuild_chrome_motion_overlay = false;
@@ -2567,13 +2582,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if rebuild_waveform_motion_overlay || rebuild_chrome_motion_overlay {
             let mut build_duration = Duration::ZERO;
             let mut encode_duration = Duration::ZERO;
-            let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
-                motion_model
-            } else {
-                self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
-                self.motion_model.as_ref().unwrap()
-            };
+            if self.motion_model.is_none() {
+                self.refresh_motion_model_from_model();
+            }
             if rebuild_waveform_motion_overlay {
+                let motion_model = self
+                    .motion_model
+                    .as_ref()
+                    .expect("motion model should exist before waveform-motion build");
                 let build_start = self.profiler.now_if_enabled();
                 self.shell_state.build_waveform_motion_overlay_into(
                     &layout,
@@ -2591,6 +2607,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             }
             if rebuild_chrome_motion_overlay {
+                let motion_model = self
+                    .motion_model
+                    .as_ref()
+                    .expect("motion model should exist before chrome-motion build");
                 let build_start = self.profiler.now_if_enabled();
                 self.shell_state.build_chrome_motion_overlay_into(
                     &layout,
@@ -3172,9 +3192,10 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     }
                                     self.volume_drag_active = true;
                                     handled = true;
-                                } else if let Some(action) = action_from_pointer(
+                                } else if let Some(action) = action_from_pointer_with_motion(
                                     &layout,
                                     &self.model,
+                                    self.motion_model.as_ref(),
                                     &mut self.shell_state,
                                     point,
                                     self.modifiers,

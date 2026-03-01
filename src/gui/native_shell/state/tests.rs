@@ -500,7 +500,14 @@ fn static_segments_include_browser_rows_when_list_tab_is_active() {
     let model = browser_model_with_rows(120, 40);
     let mut segments = StaticFrameSegments::default();
     for segment in StaticFrameSegment::ALL {
-        state.build_static_segment_with_style_into(&layout, &style, &model, segment, &mut segments);
+        state.build_static_segment_with_style_into(
+            &layout,
+            &style,
+            &model,
+            None,
+            segment,
+            &mut segments,
+        );
     }
     let rows_segment = segments.frame(StaticFrameSegment::BrowserRowsWindow);
     let map_segment = segments.frame(StaticFrameSegment::MapPanel);
@@ -527,7 +534,14 @@ fn static_segments_include_map_panel_when_map_tab_is_active() {
     });
     let mut segments = StaticFrameSegments::default();
     for segment in StaticFrameSegment::ALL {
-        state.build_static_segment_with_style_into(&layout, &style, &model, segment, &mut segments);
+        state.build_static_segment_with_style_into(
+            &layout,
+            &style,
+            &model,
+            None,
+            segment,
+            &mut segments,
+        );
     }
     let rows_segment = segments.frame(StaticFrameSegment::BrowserRowsWindow);
     let map_segment = segments.frame(StaticFrameSegment::MapPanel);

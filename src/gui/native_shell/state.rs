@@ -947,9 +947,19 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let style = style_for_layout(layout);
         let motion_model = NativeMotionModel::from_app_model(model);
-        waveform_toolbar_buttons(layout, &style, &motion_model)
+        self.waveform_toolbar_action_at_point_with_motion(layout, &motion_model, point)
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point_with_motion(
+        &self,
+        layout: &ShellLayout,
+        motion_model: &NativeMotionModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        waveform_toolbar_buttons(layout, &style, motion_model)
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .and_then(|button| button.action)
@@ -1135,6 +1145,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
+        motion_model: Option<&NativeMotionModel>,
         segment: StaticFrameSegment,
         segments: &mut StaticFrameSegments,
     ) {
@@ -1164,6 +1175,7 @@ impl NativeShellState {
             &mut text_runs,
             0.0,
             false,
+            motion_model,
             Some(segment),
         );
     }
@@ -1190,6 +1202,7 @@ impl NativeShellState {
             pulse_phase,
             include_overlays,
             None,
+            None,
         );
     }
 
@@ -1203,6 +1216,7 @@ impl NativeShellState {
         text_runs: &mut impl TextRunSink,
         pulse_phase: f32,
         include_overlays: bool,
+        motion_model: Option<&NativeMotionModel>,
         static_segment_filter: Option<StaticFrameSegment>,
     ) {
         let sizing = style.sizing;
@@ -1325,7 +1339,13 @@ impl NativeShellState {
                 waveform_inner,
                 model.waveform.waveform_image.as_deref(),
             );
-            let motion_model = NativeMotionModel::from_app_model(model);
+            let owned_motion_model;
+            let motion_model = if let Some(motion_model) = motion_model {
+                motion_model
+            } else {
+                owned_motion_model = NativeMotionModel::from_app_model(model);
+                &owned_motion_model
+            };
             let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, &motion_model);
             let waveform_toolbar_left = waveform_toolbar_left_edge(
                 &waveform_toolbar_buttons,

@@ -115,9 +115,22 @@ pub(super) fn action_from_key(
     }
 }
 
+#[cfg(test)]
 pub(super) fn action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+    modifiers: ModifiersState,
+) -> Option<UiAction> {
+    action_from_pointer_with_motion(layout, model, None, shell_state, point, modifiers)
+}
+
+/// Resolve one pointer click action using optional retained motion-model context.
+pub(super) fn action_from_pointer_with_motion(
+    layout: &ShellLayout,
+    model: &AppModel,
+    motion_model: Option<&NativeMotionModel>,
     shell_state: &mut NativeShellState,
     point: Point,
     modifiers: ModifiersState,
@@ -147,6 +160,11 @@ pub(super) fn action_from_pointer(
         return Some(action);
     }
     if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = motion_model.and_then(|motion_model| {
+        shell_state.waveform_toolbar_action_at_point_with_motion(layout, motion_model, point)
+    }) {
         return Some(action);
     }
     if let Some(action) = shell_state.waveform_toolbar_action_at_point(layout, model, point) {

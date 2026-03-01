@@ -8,10 +8,10 @@ use crate::app::{
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
     native_shell::{
-        CursorMoveEffect, MotionOverlayFingerprint, NativeShellState, NativeViewFrame, Primitive,
-        ShellLayout, ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind,
+        ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, NativeViewFrame,
+        Primitive, ShellLayout, ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind,
         StateOverlayFingerprint, StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign,
-        TextRun,
+        TextRun, WaveformMotionOverlayFingerprint,
     },
     repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
@@ -587,18 +587,33 @@ struct StateOverlayCacheFingerprint {
     model_signature: u64,
 }
 
-/// Cache key for motion-overlay rebuild skipping.
+/// Cache key for waveform-motion overlay rebuild skipping.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct MotionOverlayCacheFingerprint {
+struct WaveformMotionOverlayCacheFingerprint {
     /// Layout-width bits used for geometry-sensitive invalidation.
     layout_width_bits: u32,
     /// Layout-height bits used for geometry-sensitive invalidation.
     layout_height_bits: u32,
     /// Layout UI-scale bits used for token-sensitive invalidation.
     layout_scale_bits: u32,
-    /// Shell animation-state fingerprint.
-    shell: MotionOverlayFingerprint,
-    /// Compact deterministic signature for motion-overlay model inputs.
+    /// Shell waveform-motion-state fingerprint.
+    shell: WaveformMotionOverlayFingerprint,
+    /// Compact deterministic signature for waveform-motion model inputs.
+    motion_signature: u64,
+}
+
+/// Cache key for chrome-motion overlay rebuild skipping.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ChromeMotionOverlayCacheFingerprint {
+    /// Layout-width bits used for geometry-sensitive invalidation.
+    layout_width_bits: u32,
+    /// Layout-height bits used for geometry-sensitive invalidation.
+    layout_height_bits: u32,
+    /// Layout UI-scale bits used for token-sensitive invalidation.
+    layout_scale_bits: u32,
+    /// Shell chrome-motion-state fingerprint.
+    shell: ChromeMotionOverlayFingerprint,
+    /// Compact deterministic signature for chrome-motion model inputs.
     motion_signature: u64,
 }
 
@@ -878,11 +893,10 @@ fn state_overlay_model_signature(model: &AppModel) -> u64 {
     state
 }
 
-/// Build a compact, deterministic signature for motion-overlay model inputs.
-fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
+/// Build a compact, deterministic signature for waveform-motion overlay model inputs.
+fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
     fingerprint_mix_bool(&mut state, model.transport_running);
-    fingerprint_mix_bool(&mut state, model.map_active);
     if let Some(selection) = model.waveform_selection_milli {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u16(&mut state, selection.start_milli);
@@ -904,6 +918,20 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_end_milli);
+    if let Some(signature) = model.waveform_image_signature {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_u64(&mut state, signature);
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
+    state
+}
+
+/// Build a compact, deterministic signature for chrome-motion overlay model inputs.
+fn chrome_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
+    let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
+    fingerprint_mix_bool(&mut state, model.transport_running);
+    fingerprint_mix_bool(&mut state, model.map_active);
     fingerprint_mix_option_string(&mut state, model.waveform_tempo_label.as_deref());
     fingerprint_mix_option_string(&mut state, model.waveform_zoom_label.as_deref());
     fingerprint_mix_option_string(&mut state, model.waveform_loaded_label.as_deref());
@@ -919,12 +947,6 @@ fn motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     fingerprint_mix_bool(&mut state, model.waveform_transient_snap_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_transient_markers_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_slice_mode_enabled);
-    if let Some(signature) = model.waveform_image_signature {
-        fingerprint_mix_bool(&mut state, true);
-        fingerprint_mix_u64(&mut state, signature);
-    } else {
-        fingerprint_mix_bool(&mut state, false);
-    }
     fingerprint_mix_string(&mut state, &model.waveform_transport_hint);
     fingerprint_mix_string(&mut state, &model.status_right);
     state
@@ -1195,20 +1217,26 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     static_segment_scene_cache: StaticSegmentSceneCache,
     /// Retained state-driven overlay primitives (focus/hover and dialog state).
     state_overlay_frame_cache: NativeViewFrame,
-    /// Retained motion-driven overlay primitives (lamp pulse/playhead/update).
-    motion_overlay_frame_cache: NativeViewFrame,
+    /// Retained waveform-motion overlay primitives (cursor/playhead/hover marker).
+    waveform_motion_overlay_frame_cache: NativeViewFrame,
+    /// Retained chrome-motion overlay primitives (toolbar/tabs/status/lamp pulse).
+    chrome_motion_overlay_frame_cache: NativeViewFrame,
     /// Full scene sent to Vello after combining static + overlay scenes.
     scene: Scene,
     /// Cached encoded static scene.
     static_scene: Scene,
     /// Cached encoded state-driven overlay scene.
     state_overlay_scene: Scene,
-    /// Cached encoded motion-driven overlay scene.
-    motion_overlay_scene: Scene,
+    /// Cached encoded waveform-motion overlay scene.
+    waveform_motion_overlay_scene: Scene,
+    /// Cached encoded chrome-motion overlay scene.
+    chrome_motion_overlay_scene: Scene,
     /// Last state-overlay fingerprint used for cache-skip checks.
     state_overlay_fingerprint: Option<StateOverlayCacheFingerprint>,
-    /// Last motion-overlay fingerprint used for cache-skip checks.
-    motion_overlay_fingerprint: Option<MotionOverlayCacheFingerprint>,
+    /// Last waveform-motion fingerprint used for cache-skip checks.
+    waveform_motion_overlay_fingerprint: Option<WaveformMotionOverlayCacheFingerprint>,
+    /// Last chrome-motion fingerprint used for cache-skip checks.
+    chrome_motion_overlay_fingerprint: Option<ChromeMotionOverlayCacheFingerprint>,
     /// Cached latest motion-only model for lightweight overlay rebuilds.
     motion_model: Option<NativeMotionModel>,
     /// Whether the active bridge supports `project_motion_model`.
@@ -1321,7 +1349,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
             },
-            motion_overlay_frame_cache: NativeViewFrame {
+            waveform_motion_overlay_frame_cache: NativeViewFrame {
+                clear_color: startup_clear_color,
+                primitives: Vec::new(),
+                text_runs: Vec::new(),
+            },
+            chrome_motion_overlay_frame_cache: NativeViewFrame {
                 clear_color: startup_clear_color,
                 primitives: Vec::new(),
                 text_runs: Vec::new(),
@@ -1329,9 +1362,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             scene: Scene::new(),
             static_scene: Scene::new(),
             state_overlay_scene: Scene::new(),
-            motion_overlay_scene: Scene::new(),
+            waveform_motion_overlay_scene: Scene::new(),
+            chrome_motion_overlay_scene: Scene::new(),
             state_overlay_fingerprint: None,
-            motion_overlay_fingerprint: None,
+            waveform_motion_overlay_fingerprint: None,
+            chrome_motion_overlay_fingerprint: None,
             motion_model: None,
             motion_model_supported: true,
             segment_revisions: SegmentRevisions::default(),
@@ -1646,9 +1681,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.state_overlay_frame_cache.clear_color = style.clear_color;
         self.state_overlay_frame_cache.primitives.clear();
         self.state_overlay_frame_cache.text_runs.clear();
-        self.motion_overlay_frame_cache.clear_color = style.clear_color;
-        self.motion_overlay_frame_cache.primitives.clear();
-        self.motion_overlay_frame_cache.text_runs.clear();
+        self.waveform_motion_overlay_frame_cache.clear_color = style.clear_color;
+        self.waveform_motion_overlay_frame_cache.primitives.clear();
+        self.waveform_motion_overlay_frame_cache.text_runs.clear();
+        self.chrome_motion_overlay_frame_cache.clear_color = style.clear_color;
+        self.chrome_motion_overlay_frame_cache.primitives.clear();
+        self.chrome_motion_overlay_frame_cache.text_runs.clear();
         self.clear_color = style.clear_color;
 
         self.static_scene.reset();
@@ -1676,7 +1714,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.text_renderer
             .draw_text_runs(&mut self.static_scene, &[title, subtitle]);
         self.state_overlay_scene.reset();
-        self.motion_overlay_scene.reset();
+        self.waveform_motion_overlay_scene.reset();
+        self.chrome_motion_overlay_scene.reset();
         self.scene.reset();
         self.scene.append(&self.static_scene, None);
     }
@@ -1804,13 +1843,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .primitives
                 .len()
                 .saturating_add(self.state_overlay_frame_cache.primitives.len())
-                .saturating_add(self.motion_overlay_frame_cache.primitives.len()),
+                .saturating_add(self.waveform_motion_overlay_frame_cache.primitives.len())
+                .saturating_add(self.chrome_motion_overlay_frame_cache.primitives.len()),
             text_run_count: self
                 .frame_cache
                 .text_runs
                 .len()
                 .saturating_add(self.state_overlay_frame_cache.text_runs.len())
-                .saturating_add(self.motion_overlay_frame_cache.text_runs.len()),
+                .saturating_add(self.waveform_motion_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.chrome_motion_overlay_frame_cache.text_runs.len()),
             needs_animation: self.shell_state.needs_animation(),
             ..FrameBuildResult::default()
         }
@@ -2479,6 +2520,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_encode_state_overlay(encode_duration);
         }
+        let mut rebuild_waveform_motion_overlay = rebuild_motion_overlay;
+        let mut rebuild_chrome_motion_overlay = rebuild_motion_overlay;
         if rebuild_motion_overlay {
             let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
                 motion_model
@@ -2488,50 +2531,95 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .as_ref()
                     .expect("motion model just inserted")
             };
-            let motion_fingerprint = MotionOverlayCacheFingerprint {
+            let waveform_motion_fingerprint = WaveformMotionOverlayCacheFingerprint {
                 layout_width_bits,
                 layout_height_bits,
                 layout_scale_bits,
-                shell: self.shell_state.motion_overlay_fingerprint(),
-                motion_signature: motion_overlay_model_signature(motion_model),
+                shell: self.shell_state.waveform_motion_overlay_fingerprint(),
+                motion_signature: waveform_motion_overlay_model_signature(motion_model),
             };
-            if self.motion_overlay_fingerprint.as_ref() == Some(&motion_fingerprint) {
-                self.profiler.add_motion_overlay_skip();
-                rebuild_motion_overlay = false;
+            if self.waveform_motion_overlay_fingerprint.as_ref()
+                == Some(&waveform_motion_fingerprint)
+            {
+                rebuild_waveform_motion_overlay = false;
             } else {
-                self.motion_overlay_fingerprint = Some(motion_fingerprint);
+                self.waveform_motion_overlay_fingerprint = Some(waveform_motion_fingerprint);
             }
+            let chrome_motion_fingerprint = ChromeMotionOverlayCacheFingerprint {
+                layout_width_bits,
+                layout_height_bits,
+                layout_scale_bits,
+                shell: self.shell_state.chrome_motion_overlay_fingerprint(),
+                motion_signature: chrome_motion_overlay_model_signature(motion_model),
+            };
+            if self.chrome_motion_overlay_fingerprint.as_ref() == Some(&chrome_motion_fingerprint) {
+                rebuild_chrome_motion_overlay = false;
+            } else {
+                self.chrome_motion_overlay_fingerprint = Some(chrome_motion_fingerprint);
+            }
+            if !rebuild_waveform_motion_overlay && !rebuild_chrome_motion_overlay {
+                self.profiler.add_motion_overlay_skip();
+            }
+        } else {
+            rebuild_waveform_motion_overlay = false;
+            rebuild_chrome_motion_overlay = false;
         }
-        if rebuild_motion_overlay {
-            let build_start = self.profiler.now_if_enabled();
+        if rebuild_waveform_motion_overlay || rebuild_chrome_motion_overlay {
+            let mut build_duration = Duration::ZERO;
+            let mut encode_duration = Duration::ZERO;
             let motion_model = if let Some(motion_model) = self.motion_model.as_ref() {
                 motion_model
             } else {
                 self.motion_model = Some(NativeMotionModel::from_app_model(&self.model));
                 self.motion_model.as_ref().unwrap()
             };
-            self.shell_state.build_motion_overlay_into(
-                &layout,
-                &style,
-                motion_model,
-                &mut self.motion_overlay_frame_cache,
-            );
-            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            if rebuild_waveform_motion_overlay {
+                let build_start = self.profiler.now_if_enabled();
+                self.shell_state.build_waveform_motion_overlay_into(
+                    &layout,
+                    &style,
+                    motion_model,
+                    &mut self.waveform_motion_overlay_frame_cache,
+                );
+                build_duration += build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                let encode_start = self.profiler.now_if_enabled();
+                Self::encode_frame_to_scene(
+                    &self.waveform_motion_overlay_frame_cache,
+                    &mut self.waveform_motion_overlay_scene,
+                    &mut self.text_renderer,
+                );
+                encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+            }
+            if rebuild_chrome_motion_overlay {
+                let build_start = self.profiler.now_if_enabled();
+                self.shell_state.build_chrome_motion_overlay_into(
+                    &layout,
+                    &style,
+                    motion_model,
+                    &mut self.chrome_motion_overlay_frame_cache,
+                );
+                build_duration += build_start.map_or(Duration::ZERO, |start| start.elapsed());
+                let encode_start = self.profiler.now_if_enabled();
+                Self::encode_frame_to_scene(
+                    &self.chrome_motion_overlay_frame_cache,
+                    &mut self.chrome_motion_overlay_scene,
+                    &mut self.text_renderer,
+                );
+                encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+            }
             self.profiler.add_build_motion_overlay(build_duration);
-            let encode_start = self.profiler.now_if_enabled();
-            Self::encode_frame_to_scene(
-                &self.motion_overlay_frame_cache,
-                &mut self.motion_overlay_scene,
-                &mut self.text_renderer,
-            );
-            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_encode_motion_overlay(encode_duration);
         }
-        if rebuild_static || rebuild_state_overlay || rebuild_motion_overlay {
+        if rebuild_static
+            || rebuild_state_overlay
+            || rebuild_waveform_motion_overlay
+            || rebuild_chrome_motion_overlay
+        {
             self.scene.reset();
             self.scene.append(&self.static_scene, None);
             self.scene.append(&self.state_overlay_scene, None);
-            self.scene.append(&self.motion_overlay_scene, None);
+            self.scene.append(&self.waveform_motion_overlay_scene, None);
+            self.scene.append(&self.chrome_motion_overlay_scene, None);
         }
     }
 

@@ -18,8 +18,8 @@ pub(crate) use layout::ShellNodeKind;
 pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::{
-    CursorMoveEffect, MotionOverlayFingerprint, NativeShellState, StateOverlayFingerprint,
-    StaticFrameSegment, StaticFrameSegments,
+    ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, StateOverlayFingerprint,
+    StaticFrameSegment, StaticFrameSegments, WaveformMotionOverlayFingerprint,
 };
 pub(crate) use style::StyleTokens;
 

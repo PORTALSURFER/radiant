@@ -179,6 +179,7 @@ pub(crate) struct StateOverlayFingerprint {
 }
 
 /// Compact motion-overlay fingerprint for runtime overlay skip checks.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct MotionOverlayFingerprint {
     /// Whether transport-running animation is active.
@@ -189,6 +190,24 @@ pub(crate) struct MotionOverlayFingerprint {
     pub pulse_phase_bits: u32,
     /// Hovered waveform marker x-position bits in shell-space coordinates.
     pub waveform_hover_x_bits: Option<u32>,
+}
+
+/// Compact waveform-motion fingerprint for cursor/playhead overlay caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct WaveformMotionOverlayFingerprint {
+    /// Hovered waveform marker x-position bits in shell-space coordinates.
+    pub waveform_hover_x_bits: Option<u32>,
+}
+
+/// Compact chrome-motion fingerprint for toolbar/tabs/status overlay caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ChromeMotionOverlayFingerprint {
+    /// Whether transport-running animation is active.
+    pub transport_running: bool,
+    /// Remaining startup animation ticks.
+    pub startup_frame_ticks: u8,
+    /// Quantized pulse animation phase.
+    pub pulse_phase_bits: u32,
 }
 
 /// Static-scene segments used for retained incremental scene composition.
@@ -530,12 +549,29 @@ impl NativeShellState {
     }
 
     /// Return the current motion-overlay fingerprint.
+    #[cfg(test)]
     pub(crate) fn motion_overlay_fingerprint(&self) -> MotionOverlayFingerprint {
         MotionOverlayFingerprint {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
             pulse_phase_bits: self.pulse_phase.to_bits(),
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
+        }
+    }
+
+    /// Return the current waveform-motion overlay fingerprint.
+    pub(crate) fn waveform_motion_overlay_fingerprint(&self) -> WaveformMotionOverlayFingerprint {
+        WaveformMotionOverlayFingerprint {
+            waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
+        }
+    }
+
+    /// Return the current chrome-motion overlay fingerprint.
+    pub(crate) fn chrome_motion_overlay_fingerprint(&self) -> ChromeMotionOverlayFingerprint {
+        ChromeMotionOverlayFingerprint {
+            transport_running: self.transport_running,
+            startup_frame_ticks: self.startup_frame_ticks,
+            pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
 
@@ -3124,8 +3160,45 @@ impl NativeShellState {
         frame.clear_color = style.clear_color;
     }
 
-    /// Build only motion-sensitive overlays into reusable buffers.
-    pub(crate) fn build_motion_overlay_into(
+    /// Build only waveform cursor/playhead motion overlays into reusable buffers.
+    pub(crate) fn build_waveform_motion_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &NativeMotionModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        let sizing = style.sizing;
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        push_waveform_playhead_overlay(primitives, layout, style, model);
+        if let Some(hover_x) = self.waveform_hover_x {
+            // Keep hover preview cursor visually obvious against dense waveform content.
+            let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
+            if let Some(rect) =
+                waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x)
+            {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect,
+                        color: blend_color(style.accent_warning, style.text_primary, 0.72),
+                    }),
+                );
+                push_border(
+                    primitives,
+                    rect,
+                    blend_color(style.accent_warning, style.text_primary, 0.48),
+                    sizing.border_width,
+                );
+            }
+        }
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build only heavier motion-driven chrome overlays into reusable buffers.
+    pub(crate) fn build_chrome_motion_overlay_into(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
@@ -3157,28 +3230,6 @@ impl NativeShellState {
             }),
         );
 
-        push_waveform_playhead_overlay(primitives, layout, style, model);
-        if let Some(hover_x) = self.waveform_hover_x {
-            // Keep hover preview cursor visually obvious against dense waveform content.
-            let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
-            if let Some(rect) =
-                waveform_hover_marker_rect(layout.waveform_plot, hover_marker_width, hover_x)
-            {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect,
-                        color: blend_color(style.accent_warning, style.text_primary, 0.72),
-                    }),
-                );
-                push_border(
-                    primitives,
-                    rect,
-                    blend_color(style.accent_warning, style.text_primary, 0.48),
-                    sizing.border_width,
-                );
-            }
-        }
         let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
         let waveform_toolbar_left = waveform_toolbar_left_edge(
             &waveform_toolbar_buttons,
@@ -3249,6 +3300,27 @@ impl NativeShellState {
             &model.status_right,
         );
 
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build all motion-sensitive overlays into one reusable buffer.
+    #[cfg(test)]
+    pub(crate) fn build_motion_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &NativeMotionModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        self.build_waveform_motion_overlay_into(layout, style, model, frame);
+        let mut chrome_frame = NativeViewFrame {
+            clear_color: style.clear_color,
+            primitives: Vec::new(),
+            text_runs: Vec::new(),
+        };
+        self.build_chrome_motion_overlay_into(layout, style, model, &mut chrome_frame);
+        frame.primitives.extend(chrome_frame.primitives);
+        frame.text_runs.extend(chrome_frame.text_runs);
         frame.clear_color = style.clear_color;
     }
 

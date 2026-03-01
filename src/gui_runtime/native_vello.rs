@@ -35,7 +35,7 @@ use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene,
     kurbo::{Affine, Circle, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData},
+    peniko::{Blob, Color, Fill, FontData, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{
@@ -1948,6 +1948,35 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                             fill.radius as f64,
                         ),
                     );
+                }
+                Primitive::Image(draw) => {
+                    let (Ok(width), Ok(height)) = (
+                        u32::try_from(draw.image.width),
+                        u32::try_from(draw.image.height),
+                    ) else {
+                        continue;
+                    };
+                    if width == 0
+                        || height == 0
+                        || draw.rect.width() <= 0.0
+                        || draw.rect.height() <= 0.0
+                    {
+                        continue;
+                    }
+                    let image_data = ImageData {
+                        data: Blob::new(std::sync::Arc::new(draw.image.pixels.clone())),
+                        format: ImageFormat::Rgba8,
+                        alpha_type: ImageAlphaType::Alpha,
+                        width,
+                        height,
+                    };
+                    let transform =
+                        Affine::translate((draw.rect.min.x as f64, draw.rect.min.y as f64))
+                            * Affine::scale_non_uniform(
+                                draw.rect.width() as f64 / f64::from(width),
+                                draw.rect.height() as f64 / f64::from(height),
+                            );
+                    scene.draw_image(&image_data, transform);
                 }
             }
         }

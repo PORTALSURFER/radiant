@@ -43,6 +43,12 @@ enum ShotPrimitive {
         radius: f32,
         color: ShotColor,
     },
+    Image {
+        rect: ShotRect,
+        width: u32,
+        height: u32,
+        pixels: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -149,6 +155,12 @@ fn build_snapshot(name: &str, viewport: Vector2, model: &AppModel) -> ShotSnapsh
                 center: snap_point(fill_circle.center),
                 radius: quantize(fill_circle.radius),
                 color: snap_color(fill_circle.color),
+            },
+            Primitive::Image(draw_image) => ShotPrimitive::Image {
+                rect: snap_rect(draw_image.rect),
+                width: u32::try_from(draw_image.image.width).unwrap_or(0),
+                height: u32::try_from(draw_image.image.height).unwrap_or(0),
+                pixels: draw_image.image.pixels.as_ref().to_vec(),
             },
         })
         .collect();
@@ -277,6 +289,55 @@ fn rasterize_shot(snapshot: &ShotSnapshot) -> RgbaImage {
                             );
                             blend_pixel(pixel, color);
                         }
+                    }
+                }
+            }
+            ShotPrimitive::Image {
+                rect,
+                width: image_width,
+                height: image_height,
+                pixels,
+            } => {
+                if *image_width == 0
+                    || *image_height == 0
+                    || rect.width <= 0.0
+                    || rect.height <= 0.0
+                {
+                    continue;
+                }
+                let left = rect.x.floor().clamp(0.0, width as f32) as i64;
+                let right = (rect.x + rect.width).ceil().clamp(0.0, width as f32) as i64;
+                let top = rect.y.floor().clamp(0.0, height as f32) as i64;
+                let bottom = (rect.y + rect.height).ceil().clamp(0.0, height as f32) as i64;
+                let src_width = *image_width as usize;
+                let src_height = *image_height as usize;
+                if pixels.len() < src_width.saturating_mul(src_height).saturating_mul(4) {
+                    continue;
+                }
+
+                for y in top.max(0)..bottom.min(height) {
+                    for x in left.max(0)..right.min(width) {
+                        let norm_x = ((x as f32 + 0.5) - rect.x) / rect.width;
+                        let norm_y = ((y as f32 + 0.5) - rect.y) / rect.height;
+                        if !(0.0..=1.0).contains(&norm_x) || !(0.0..=1.0).contains(&norm_y) {
+                            continue;
+                        }
+                        let src_x = ((norm_x * *image_width as f32).floor() as usize)
+                            .min(src_width.saturating_sub(1));
+                        let src_y = ((norm_y * *image_height as f32).floor() as usize)
+                            .min(src_height.saturating_sub(1));
+                        let idx = (src_y * src_width + src_x) * 4;
+                        let color = ShotColor {
+                            r: pixels[idx],
+                            g: pixels[idx + 1],
+                            b: pixels[idx + 2],
+                            a: pixels[idx + 3],
+                        };
+                        let pixel = image.get_pixel_mut(
+                            u32::try_from(x).unwrap_or(0),
+                            u32::try_from(y).unwrap_or(0),
+                        );
+                        blend_pixel(pixel, &color);
                     }
                 }
             }

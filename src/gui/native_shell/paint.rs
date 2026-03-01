@@ -1,6 +1,7 @@
 //! Backend-neutral paint primitives emitted by the native shell.
 
-use crate::gui::types::{Point, Rect, Rgba8};
+use crate::gui::types::{ImageRgba, Point, Rect, Rgba8};
+use std::sync::Arc;
 
 /// Filled rectangle draw primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -15,6 +16,15 @@ pub(crate) struct FillCircle {
     pub center: Point,
     pub radius: f32,
     pub color: Rgba8,
+}
+
+/// Textured RGBA image draw primitive stretched into one destination rect.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DrawImage {
+    /// Destination rectangle in logical shell coordinates.
+    pub rect: Rect,
+    /// Source RGBA image payload.
+    pub image: Arc<ImageRgba>,
 }
 
 /// Horizontal alignment strategy for text runs.
@@ -43,10 +53,11 @@ pub(crate) struct TextRun {
 }
 
 /// Backend-neutral scene primitive.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Primitive {
     Rect(FillRect),
     Circle(FillCircle),
+    Image(DrawImage),
 }
 
 /// Full frame emitted by the retained shell render pipeline.

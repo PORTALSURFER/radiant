@@ -17,6 +17,7 @@ pub(super) fn static_segment_for_primitive(
     let anchor = match primitive {
         Primitive::Rect(fill) => rect_center(fill.rect),
         Primitive::Circle(fill) => fill.center,
+        Primitive::Image(image) => rect_center(image.rect),
     };
     static_segment_for_point(layout, model, anchor)
 }
@@ -383,67 +384,20 @@ pub(super) fn push_waveform_image(
         return;
     }
 
-    let plot_width = waveform_plot.width();
-    let plot_height = waveform_plot.height();
-    let src_width = image.width as f32;
-    let src_height = image.height as f32;
-    let stride = image.width.saturating_mul(4);
-
-    for x in 0..image.width {
-        let x0 = waveform_plot.min.x + (x as f32 * plot_width) / src_width;
-        let x1 = waveform_plot.min.x + ((x + 1) as f32 * plot_width) / src_width;
-        let mut y = 0usize;
-        while y < image.height {
-            let idx = y * stride + x * 4;
-            if image.pixels[idx + 3] == 0 {
-                y += 1;
-                continue;
-            }
-            let y0 = y;
-            let red = image.pixels[idx];
-            let green = image.pixels[idx + 1];
-            let blue = image.pixels[idx + 2];
-            let alpha = image.pixels[idx + 3];
-
-            let mut y1 = y0 + 1;
-            while y1 < image.height {
-                let span_idx = y1 * stride + x * 4;
-                if image.pixels[span_idx + 3] == 0
-                    || image.pixels[span_idx] != red
-                    || image.pixels[span_idx + 1] != green
-                    || image.pixels[span_idx + 2] != blue
-                    || image.pixels[span_idx + 3] != alpha
-                {
-                    break;
-                }
-                y1 += 1;
-            }
-
-            let top = waveform_plot.min.y + (y0 as f32 / src_height) * plot_height;
-            let bottom = waveform_plot.min.y + (y1 as f32 / src_height) * plot_height;
-            if bottom > top {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: Rect::from_min_max(
-                            Point::new(x0, top),
-                            Point::new(
-                                x1.min(waveform_plot.max.x),
-                                bottom.min(waveform_plot.max.y),
-                            ),
-                        ),
-                        color: Rgba8 {
-                            r: red,
-                            g: green,
-                            b: blue,
-                            a: alpha,
-                        },
-                    }),
-                );
-            }
-            y = y1;
-        }
+    let has_visible_pixels = image
+        .pixels
+        .chunks_exact(4)
+        .any(|pixel| pixel.get(3).copied().unwrap_or(0) > 0);
+    if !has_visible_pixels {
+        return;
     }
+    emit_primitive(
+        primitives,
+        Primitive::Image(DrawImage {
+            rect: waveform_plot,
+            image: std::sync::Arc::new(image.clone()),
+        }),
+    );
 }
 
 pub(super) fn push_waveform_header_overlay(

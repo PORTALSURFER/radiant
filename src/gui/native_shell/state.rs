@@ -23,7 +23,7 @@ use super::{
         compute_update_action_button_rects, compute_waveform_annotation_rects,
         compute_waveform_header_text_layout,
     },
-    paint::{FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
+    paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
 use crate::app::{
@@ -301,7 +301,7 @@ impl StaticFrameSegments {
             frame.clear_color = segment_frame.clear_color;
             frame
                 .primitives
-                .extend(segment_frame.primitives.iter().copied());
+                .extend(segment_frame.primitives.iter().cloned());
             frame
                 .text_runs
                 .extend(segment_frame.text_runs.iter().cloned());

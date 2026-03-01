@@ -708,7 +708,7 @@ fn waveform_title_uses_primary_text_hierarchy_color() {
 }
 
 #[test]
-fn waveform_image_data_renders_non_transparent_span_rectangles() {
+fn waveform_image_data_emits_textured_waveform_primitive() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
@@ -716,23 +716,15 @@ fn waveform_image_data_renders_non_transparent_span_rectangles() {
         ImageRgba::new(1, 1, vec![11, 22, 33, 255]).unwrap(),
     ));
     let frame = state.build_frame(&layout, &model);
-    let expected_color = Rgba8 {
-        r: 11,
-        g: 22,
-        b: 33,
-        a: 255,
-    };
-    let has_waveform_pixel = frame.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(rect) if rect.color == expected_color
-        )
-    });
-    assert!(has_waveform_pixel);
+    let has_waveform_image = frame
+        .primitives
+        .iter()
+        .any(|primitive| matches!(primitive, Primitive::Image(_)));
+    assert!(has_waveform_image);
 }
 
 #[test]
-fn waveform_image_data_preserves_distinct_column_colors() {
+fn waveform_image_data_preserves_distinct_colors_in_texture_payload() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
@@ -748,34 +740,23 @@ fn waveform_image_data_preserves_distinct_column_colors() {
         .unwrap(),
     ));
     let frame = state.build_frame(&layout, &model);
-    let top_color_present = frame.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(rect) if rect.color == Rgba8 {
-                r: 11,
-                g: 22,
-                b: 33,
-                a: 255
-            }
-        )
-    });
-    let bottom_color_present = frame.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(rect) if rect.color == Rgba8 {
-                r: 99,
-                g: 88,
-                b: 77,
-                a: 255
-            }
-        )
-    });
+    let (top_color_present, bottom_color_present) = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Image(image) => Some((
+                image.image.pixels.get(0..4) == Some(&[11, 22, 33, 255]),
+                image.image.pixels.get(4..8) == Some(&[99, 88, 77, 255]),
+            )),
+            _ => None,
+        })
+        .unwrap_or((false, false));
     assert!(top_color_present);
     assert!(bottom_color_present);
 }
 
 #[test]
-fn waveform_image_transparent_pixels_do_not_emit_geometry() {
+fn waveform_image_transparent_pixels_do_not_emit_texture_primitive() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
@@ -783,18 +764,11 @@ fn waveform_image_transparent_pixels_do_not_emit_geometry() {
         ImageRgba::new(1, 1, vec![11, 22, 33, 0]).unwrap(),
     ));
     let frame = state.build_frame(&layout, &model);
-    let has_expected_waveform_color = frame.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(rect) if rect.color == Rgba8 {
-                r: 1,
-                g: 1,
-                b: 1,
-                a: 255
-            }
-        )
-    });
-    assert!(!has_expected_waveform_color);
+    let has_waveform_image = frame
+        .primitives
+        .iter()
+        .any(|primitive| matches!(primitive, Primitive::Image(_)));
+    assert!(!has_waveform_image);
 }
 
 #[test]

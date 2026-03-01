@@ -66,6 +66,12 @@ pub(crate) struct NativeShellState {
     folder_row_cache_key: Option<SidebarRowsCacheKey>,
     browser_rows: Vec<CachedBrowserRow>,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
+    browser_action_buttons: Vec<ActionButton>,
+    browser_column_chips: Vec<BrowserColumnChip>,
+    browser_toolbar_layout: Option<BrowserToolbarLayout>,
+    browser_action_hit_test_cache_key: Option<BrowserActionHitTestCacheKey>,
+    waveform_toolbar_buttons: Vec<WaveformToolbarButton>,
+    waveform_toolbar_hit_test_cache_key: Option<WaveformToolbarHitTestCacheKey>,
     browser_row_truncation_cache: BrowserRowTruncationCache,
     browser_row_truncation_cache_key: Option<BrowserRowTruncationCacheKey>,
     browser_row_truncation_frame_counts: BrowserRowTruncationFrameCounts,
@@ -123,6 +129,40 @@ struct BrowserRowTruncationCacheKey {
     ui_scale: u32,
     /// Visible-window row-label content revision fingerprint.
     row_text_revision: u64,
+}
+
+/// Invalidation key for browser action/button hit-test geometry caches.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct BrowserActionHitTestCacheKey {
+    /// Browser toolbar region minimum x-coordinate.
+    browser_toolbar_min_x: u32,
+    /// Browser toolbar region minimum y-coordinate.
+    browser_toolbar_min_y: u32,
+    /// Browser toolbar region maximum x-coordinate.
+    browser_toolbar_max_x: u32,
+    /// Browser toolbar region maximum y-coordinate.
+    browser_toolbar_max_y: u32,
+    /// Effective UI scale token bits.
+    ui_scale: u32,
+    /// Stable digest of action-strip and triage-chip model fields.
+    model_signature: u64,
+}
+
+/// Invalidation key for waveform-toolbar hit-test geometry caches.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct WaveformToolbarHitTestCacheKey {
+    /// Waveform header region minimum x-coordinate.
+    waveform_header_min_x: u32,
+    /// Waveform header region minimum y-coordinate.
+    waveform_header_min_y: u32,
+    /// Waveform header region maximum x-coordinate.
+    waveform_header_max_x: u32,
+    /// Waveform header region maximum y-coordinate.
+    waveform_header_max_y: u32,
+    /// Effective UI scale token bits.
+    ui_scale: u32,
+    /// Packed waveform-toolbar model state flags.
+    model_flags: u16,
 }
 
 /// Small retained LRU cache for browser-row text truncation outputs.
@@ -480,6 +520,12 @@ impl NativeShellState {
             folder_row_cache_key: None,
             browser_rows: Vec::new(),
             browser_rows_cache_key: None,
+            browser_action_buttons: Vec::new(),
+            browser_column_chips: Vec::new(),
+            browser_toolbar_layout: None,
+            browser_action_hit_test_cache_key: None,
+            waveform_toolbar_buttons: Vec::new(),
+            waveform_toolbar_hit_test_cache_key: None,
             browser_row_truncation_cache: BrowserRowTruncationCache::default(),
             browser_row_truncation_cache_key: None,
             browser_row_truncation_frame_counts: BrowserRowTruncationFrameCounts::default(),
@@ -746,7 +792,7 @@ impl NativeShellState {
         buttons
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
-            .map(|button| button.action)
+            .map(|button| button.action.clone())
     }
 
     /// Return `true` when a point lands inside the visible source context menu panel.
@@ -899,18 +945,17 @@ impl NativeShellState {
 
     /// Resolve a browser action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
-        let buttons = browser_action_buttons(layout, &style, model);
-        let toolbar = browser_toolbar_layout(layout, &style, &buttons);
+        let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
             return Some(UiAction::FocusBrowserSearch);
         }
-        if let Some(action) = browser_column_chips(layout, &style, model, &buttons)
+        if let Some(action) = chips
             .into_iter()
             .find(|chip| chip.rect.contains(point))
             .map(|chip| UiAction::SelectColumn { index: chip.column })
@@ -920,7 +965,7 @@ impl NativeShellState {
         buttons
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
-            .map(|button| button.action)
+            .map(|button| button.action.clone())
     }
 
     /// Resolve a browser tab click into a list/map tab selection action.
@@ -942,7 +987,7 @@ impl NativeShellState {
 
     /// Resolve a waveform-toolbar control click into a native UI action.
     pub(crate) fn waveform_toolbar_action_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
@@ -953,16 +998,16 @@ impl NativeShellState {
 
     /// Resolve a waveform-toolbar control click into a native UI action.
     pub(crate) fn waveform_toolbar_action_at_point_with_motion(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         motion_model: &NativeMotionModel,
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
-        waveform_toolbar_buttons(layout, &style, motion_model)
+        self.cached_waveform_toolbar_buttons(layout, &style, motion_model)
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
-            .and_then(|button| button.action)
+            .and_then(|button| button.action.clone())
     }
 
     /// Resolve a top-bar update action button click.
@@ -3446,6 +3491,122 @@ impl NativeShellState {
         }
         &self.browser_rows
     }
+
+    fn cached_browser_action_hit_test(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> (&[ActionButton], &[BrowserColumnChip], BrowserToolbarLayout) {
+        let cache_key = browser_action_hit_test_cache_key(layout, model);
+        if self.browser_action_hit_test_cache_key != Some(cache_key) {
+            self.browser_action_buttons = browser_action_buttons(layout, style, model);
+            self.browser_column_chips =
+                browser_column_chips(layout, style, model, &self.browser_action_buttons);
+            self.browser_toolbar_layout = Some(browser_toolbar_layout(
+                layout,
+                style,
+                &self.browser_action_buttons,
+            ));
+            self.browser_action_hit_test_cache_key = Some(cache_key);
+        }
+        let toolbar = self
+            .browser_toolbar_layout
+            .unwrap_or_else(|| browser_toolbar_layout(layout, style, &self.browser_action_buttons));
+        (
+            &self.browser_action_buttons,
+            &self.browser_column_chips,
+            toolbar,
+        )
+    }
+
+    fn cached_waveform_toolbar_buttons(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &NativeMotionModel,
+    ) -> &[WaveformToolbarButton] {
+        let cache_key = waveform_toolbar_hit_test_cache_key(layout, model);
+        if self.waveform_toolbar_hit_test_cache_key != Some(cache_key) {
+            self.waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
+            self.waveform_toolbar_hit_test_cache_key = Some(cache_key);
+        }
+        &self.waveform_toolbar_buttons
+    }
+}
+
+fn browser_action_hit_test_cache_key(
+    layout: &ShellLayout,
+    model: &AppModel,
+) -> BrowserActionHitTestCacheKey {
+    BrowserActionHitTestCacheKey {
+        browser_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
+        browser_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
+        browser_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),
+        browser_toolbar_max_y: f32_to_bits(layout.browser_toolbar.max.y),
+        ui_scale: f32_to_bits(layout.ui_scale),
+        model_signature: browser_action_model_signature(model),
+    }
+}
+
+fn browser_action_model_signature(model: &AppModel) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    model.browser_actions.can_rename.hash(&mut hasher);
+    model.browser_actions.can_tag.hash(&mut hasher);
+    model.browser_actions.can_delete.hash(&mut hasher);
+    model.selected_column.min(2).hash(&mut hasher);
+    for index in 0..3 {
+        if let Some(column) = model.columns.get(index) {
+            column.title.hash(&mut hasher);
+            column.item_count.hash(&mut hasher);
+        } else {
+            index.hash(&mut hasher);
+        }
+    }
+    hasher.finish()
+}
+
+fn waveform_toolbar_hit_test_cache_key(
+    layout: &ShellLayout,
+    model: &NativeMotionModel,
+) -> WaveformToolbarHitTestCacheKey {
+    WaveformToolbarHitTestCacheKey {
+        waveform_header_min_x: f32_to_bits(layout.waveform_header.min.x),
+        waveform_header_min_y: f32_to_bits(layout.waveform_header.min.y),
+        waveform_header_max_x: f32_to_bits(layout.waveform_header.max.x),
+        waveform_header_max_y: f32_to_bits(layout.waveform_header.max.y),
+        ui_scale: f32_to_bits(layout.ui_scale),
+        model_flags: waveform_toolbar_model_flags(model),
+    }
+}
+
+fn waveform_toolbar_model_flags(model: &NativeMotionModel) -> u16 {
+    let mut bits = 0u16;
+    if model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo {
+        bits |= 1 << 0;
+    }
+    if model.waveform_normalized_audition_enabled {
+        bits |= 1 << 1;
+    }
+    if model.waveform_bpm_snap_enabled {
+        bits |= 1 << 2;
+    }
+    if model.waveform_transient_snap_enabled {
+        bits |= 1 << 3;
+    }
+    if model.waveform_transient_markers_enabled {
+        bits |= 1 << 4;
+    }
+    if model.waveform_slice_mode_enabled {
+        bits |= 1 << 5;
+    }
+    if model.waveform_loop_enabled {
+        bits |= 1 << 6;
+    }
+    if model.transport_running {
+        bits |= 1 << 7;
+    }
+    bits
 }
 
 /// Return hovered waveform marker x-position for one pointer point.

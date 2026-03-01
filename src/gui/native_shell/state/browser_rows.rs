@@ -64,7 +64,7 @@ pub(super) struct BrowserRowsCacheKey {
     pub(super) ui_scale: u32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct ActionButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
@@ -73,7 +73,7 @@ pub(super) struct ActionButton {
     pub(super) text_color: Rgba8,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct BrowserColumnChip {
     pub(super) rect: Rect,
     pub(super) column: usize,
@@ -82,7 +82,7 @@ pub(super) struct BrowserColumnChip {
     pub(super) selected: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct WaveformToolbarButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
@@ -99,7 +99,7 @@ pub(super) struct SidebarSections {
     pub(super) folder_rows: Rect,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarLayout {
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,

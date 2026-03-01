@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn action_strip_hit_test_emits_browser_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.browser_actions.can_delete = true;
         let button = state
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn browser_column_chip_hit_test_emits_select_column_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.columns[2].item_count = 42;
         let chip = state
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn waveform_toolbar_hit_test_emits_transport_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let model = crate::app::AppModel::default();
         let play = state
             .waveform_toolbar_button_rect(&layout, &model, "Play")
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let state = NativeShellState::new();
+        let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.waveform.loop_enabled = true;
         let loop_button = state

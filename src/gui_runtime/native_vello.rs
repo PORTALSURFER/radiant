@@ -3186,20 +3186,34 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 self.finish_volume_drag(Some(button));
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if let Some(layout) = self.shell_layout.as_ref() {
-                    let fallback_point = Point::new(
-                        (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
-                        (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
-                    );
-                    let point = self
+                if let Some(layout) = self.shell_layout.as_ref().cloned() {
+                    let waveform_zoom_action = self
                         .last_cursor
-                        .filter(|point| layout.browser_panel.contains(*point))
-                        .unwrap_or(fallback_point);
-                    let style = self.cached_style_for_layout(layout);
-                    if let Some(delta) =
-                        browser_wheel_row_delta(layout, &self.model, point, &style, delta)
-                    {
-                        let _ = self.process_wheel_rows_immediately(delta);
+                        .and_then(|point| waveform_wheel_zoom_action(&layout, point, delta));
+                    let waveform_zoom_emitted = if let Some(action) = waveform_zoom_action {
+                        self.emit_model_action_with_profile(
+                            action,
+                            Some(InteractionProfileKind::Waveform),
+                        );
+                        true
+                    } else {
+                        false
+                    };
+                    if !waveform_zoom_emitted {
+                        let fallback_point = Point::new(
+                            (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
+                            (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
+                        );
+                        let point = self
+                            .last_cursor
+                            .filter(|point| layout.browser_panel.contains(*point))
+                            .unwrap_or(fallback_point);
+                        let style = self.cached_style_for_layout(&layout);
+                        if let Some(delta) =
+                            browser_wheel_row_delta(&layout, &self.model, point, &style, delta)
+                        {
+                            let _ = self.process_wheel_rows_immediately(delta);
+                        }
                     }
                 }
             }

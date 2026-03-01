@@ -26,6 +26,8 @@ pub(super) enum WaveformPointerDragMode {
 
 /// Half-width in pixels used for fade-handle hit testing.
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
+/// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
+const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
@@ -391,4 +393,33 @@ pub(super) fn browser_wheel_row_delta(
         steps.max(i8::MIN as f32)
     };
     Some(clamped as i8)
+}
+
+/// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.
+pub(super) fn waveform_wheel_zoom_action(
+    layout: &ShellLayout,
+    point: Point,
+    delta: MouseScrollDelta,
+) -> Option<UiAction> {
+    if !layout.waveform_card.contains(point) {
+        return None;
+    }
+    let raw = match delta {
+        MouseScrollDelta::LineDelta(_, y) => y,
+        MouseScrollDelta::PixelDelta(position) => {
+            (position.y as f32) / WAVEFORM_WHEEL_ZOOM_PIXEL_STEP
+        }
+    };
+    if raw.abs() <= f32::EPSILON {
+        return None;
+    }
+    let zoom_in = raw > 0.0;
+    let mut steps = raw.abs().round();
+    if steps < 1.0 {
+        steps = 1.0;
+    }
+    Some(UiAction::ZoomWaveform {
+        zoom_in,
+        steps: steps.min(u8::MAX as f32) as u8,
+    })
 }

@@ -1270,3 +1270,39 @@ fn browser_wheel_delta_is_bounded_and_directional() {
         Some(-2)
     );
 }
+
+#[test]
+fn waveform_wheel_zoom_requires_waveform_hover_and_maps_direction() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    assert_eq!(
+        waveform_wheel_zoom_action(&layout, point, MouseScrollDelta::LineDelta(0.0, 2.0)),
+        Some(UiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 2,
+        })
+    );
+    assert_eq!(
+        waveform_wheel_zoom_action(&layout, point, MouseScrollDelta::LineDelta(0.0, -1.0)),
+        Some(UiAction::ZoomWaveform {
+            zoom_in: false,
+            steps: 1,
+        })
+    );
+
+    let outside_point = Point::new(
+        layout.browser_rows.min.x + 12.0,
+        layout.browser_rows.min.y + 12.0,
+    );
+    assert_eq!(
+        waveform_wheel_zoom_action(
+            &layout,
+            outside_point,
+            MouseScrollDelta::LineDelta(0.0, 2.0)
+        ),
+        None
+    );
+}

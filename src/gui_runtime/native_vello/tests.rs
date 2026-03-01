@@ -98,14 +98,6 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 }
 
 #[test]
-fn motion_overlay_skip_guard_requires_motion_only_refresh_with_no_change() {
-    assert!(should_skip_motion_overlay_rebuild(true, false, false));
-    assert!(!should_skip_motion_overlay_rebuild(true, true, false));
-    assert!(!should_skip_motion_overlay_rebuild(true, false, true));
-    assert!(!should_skip_motion_overlay_rebuild(false, false, false));
-}
-
-#[test]
 fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let baseline = NativeMotionModel::from_app_model(&AppModel::default());
     let baseline_signature = motion_overlay_model_signature(&baseline);
@@ -345,7 +337,7 @@ fn startup_fast_path_rebuild_uses_placeholder_scene_before_first_present() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
-    runner.shell_layout = Some(layout);
+    runner.shell_layout = Some(layout.clone());
     runner.style_cache = Some(style);
     runner.frame_state.scene_dirty = true;
     runner.frame_state.model_dirty = false;
@@ -467,7 +459,7 @@ fn process_cursor_move_waveform_hover_only_marks_motion_overlay_dirty() {
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.7),
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
-    runner.shell_layout = Some(layout);
+    runner.shell_layout = Some(layout.clone());
 
     let _ = runner.process_cursor_move_immediately(first);
     let _ = runner.frame_state.take_state_overlay();
@@ -478,6 +470,34 @@ fn process_cursor_move_waveform_hover_only_marks_motion_overlay_dirty() {
     assert_eq!(runner.process_cursor_move_immediately(second), (true, true));
     assert!(!runner.frame_state.take_state_overlay());
     assert!(runner.frame_state.take_motion_overlay());
+}
+
+#[test]
+fn rebuild_scene_processes_waveform_hover_motion_overlay_without_model_motion_change() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(layout.clone());
+    runner.motion_model = Some(NativeMotionModel::from_app_model(&runner.model));
+    runner.frame_state.model_dirty = false;
+    runner.frame_state.scene_dirty = false;
+    runner.frame_state.state_overlay_dirty = false;
+    runner.frame_state.motion_overlay_dirty = true;
+
+    let effect = runner
+        .shell_state
+        .handle_cursor_move_effect(&layout, &runner.model, point);
+    assert_ne!(effect, CursorMoveEffect::None);
+    runner.rebuild_scene_if_needed();
+
+    assert!(
+        runner.motion_overlay_fingerprint.is_some(),
+        "waveform-hover updates should rebuild motion overlay without requiring transport motion"
+    );
 }
 
 #[test]

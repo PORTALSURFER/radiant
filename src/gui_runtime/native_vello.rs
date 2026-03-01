@@ -2304,7 +2304,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .motion_model
             .as_ref()
             .and_then(|model| model.waveform_image_signature);
-        let mut motion_changed = false;
         if should_refresh_model {
             self.profiler.add_bridge_model_pull_rebuild();
             let pull_start = self.profiler.now_if_enabled();
@@ -2359,7 +2358,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_motion_pull(pull_duration);
                 if self.motion_model.as_ref() != Some(&motion_model) {
-                    motion_changed = true;
                     if previous_waveform_signature != motion_model.waveform_image_signature {
                         rebuild_static = true;
                         rebuild_state_overlay = true;
@@ -2396,14 +2394,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     self.startup_timing.maybe_emit_summary();
                 }
             }
-        }
-        if should_skip_motion_overlay_rebuild(
-            should_refresh_motion,
-            should_refresh_model,
-            motion_changed,
-        ) {
-            self.profiler.add_motion_overlay_skip();
-            rebuild_motion_overlay = false;
         }
         let Some(layout) = self.shell_layout.as_ref().cloned() else {
             return;
@@ -2949,15 +2939,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             _ => {}
         }
     }
-}
-
-/// Return whether motion-overlay rebuild can be skipped safely for this frame.
-fn should_skip_motion_overlay_rebuild(
-    should_refresh_motion: bool,
-    should_refresh_model: bool,
-    motion_changed: bool,
-) -> bool {
-    should_refresh_motion && !should_refresh_model && !motion_changed
 }
 
 impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRunner<B> {

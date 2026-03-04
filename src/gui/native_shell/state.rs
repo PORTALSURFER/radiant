@@ -3446,7 +3446,6 @@ impl NativeShellState {
         if self.source_row_cache_key != Some(cache_key) {
             self.source_row_rects = rendered_source_row_rects(layout, style, model);
             self.source_row_cache_key = Some(cache_key);
-            self.folder_row_cache_key = Some(cache_key);
         }
         &self.source_row_rects
     }
@@ -3461,7 +3460,6 @@ impl NativeShellState {
         if self.folder_row_cache_key != Some(cache_key) {
             self.folder_row_rects = rendered_folder_row_rects(layout, style, model);
             self.folder_row_cache_key = Some(cache_key);
-            self.source_row_cache_key = Some(cache_key);
         }
         &self.folder_row_rects
     }

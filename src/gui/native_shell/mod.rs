@@ -621,6 +621,44 @@ mod tests {
     }
 
     #[test]
+    fn folder_row_hit_test_survives_source_row_cache_priming() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.sources.rows.push(crate::app::SourceRowModel::new(
+            "Pack", "pack", false, false,
+        ));
+        model
+            .sources
+            .folder_rows
+            .push(crate::app::FolderRowModel::new(
+                "Drums", "Drums", 0, false, true, false, true, true,
+            ));
+
+        let source_rects = state.rendered_source_row_rects(&layout, &model);
+        assert_eq!(source_rects.len(), 1);
+        let source_point = Point::new(
+            (source_rects[0].min.x + source_rects[0].max.x) * 0.5,
+            (source_rects[0].min.y + source_rects[0].max.y) * 0.5,
+        );
+        assert_eq!(
+            state.source_row_at_point(&layout, &model, source_point),
+            Some(0)
+        );
+
+        let folder_rects = state.rendered_folder_row_rects(&layout, &model);
+        assert_eq!(folder_rects.len(), 1);
+        let folder_point = Point::new(
+            (folder_rects[0].min.x + folder_rects[0].max.x) * 0.5,
+            (folder_rects[0].min.y + folder_rects[0].max.y) * 0.5,
+        );
+        assert_eq!(
+            state.folder_row_at_point(&layout, &model, folder_point),
+            Some(0)
+        );
+    }
+
+    #[test]
     fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();

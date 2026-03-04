@@ -47,6 +47,15 @@ use self::{browser_rows::*, overlays::*, waveform_segments::*};
 
 /// Maximum retained entries for browser-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
+/// Text glyph shown before browser sample labels whose backing files are missing.
+const BROWSER_MISSING_SAMPLE_MARKER: &str = "!";
+/// Red marker color used to flag missing browser sample files.
+const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
+    r: 236,
+    g: 84,
+    b: 84,
+    a: 255,
+};
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -1563,15 +1572,35 @@ impl NativeShellState {
                             align: TextAlign::Right,
                         },
                     );
-                    let label_max_width = row_text_layout.sample_label.width().max(20.0);
+                    let mut label_position = row_text_layout.sample_label.min;
+                    let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
+                    if row.missing {
+                        let marker_advance = browser_missing_marker_advance(sizing.font_body)
+                            .min(label_max_width.max(0.0));
+                        emit_text(
+                            text_runs,
+                            TextRun {
+                                text: String::from(BROWSER_MISSING_SAMPLE_MARKER),
+                                position: label_position,
+                                font_size: sizing.font_body,
+                                color: BROWSER_MISSING_SAMPLE_MARKER_COLOR,
+                                max_width: Some(marker_advance),
+                                align: TextAlign::Left,
+                            },
+                        );
+                        label_position.x = (label_position.x + marker_advance)
+                            .min(row_text_layout.sample_label.max.x);
+                        label_max_width =
+                            (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+                    }
                     emit_text(
                         text_runs,
                         TextRun {
                             text: row.label.clone(),
-                            position: row_text_layout.sample_label.min,
+                            position: label_position,
                             font_size: sizing.font_body,
                             color: row_text_color,
-                            max_width: Some(label_max_width.max(20.0)),
+                            max_width: Some(label_max_width),
                             align: TextAlign::Left,
                         },
                     );
@@ -3084,6 +3113,27 @@ impl NativeShellState {
                         row_border_stroke,
                     );
                     if row.focused {
+                        let mut label_position = row_text_layout.sample_label.min;
+                        let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
+                        if row.missing {
+                            let marker_advance = browser_missing_marker_advance(sizing.font_body)
+                                .min(label_max_width.max(0.0));
+                            emit_text(
+                                text_runs,
+                                TextRun {
+                                    text: String::from(BROWSER_MISSING_SAMPLE_MARKER),
+                                    position: label_position,
+                                    font_size: sizing.font_body,
+                                    color: BROWSER_MISSING_SAMPLE_MARKER_COLOR,
+                                    max_width: Some(marker_advance),
+                                    align: TextAlign::Left,
+                                },
+                            );
+                            label_position.x = (label_position.x + marker_advance)
+                                .min(row_text_layout.sample_label.max.x);
+                            label_max_width =
+                                (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+                        }
                         emit_text(
                             text_runs,
                             TextRun {
@@ -3103,14 +3153,14 @@ impl NativeShellState {
                             text_runs,
                             TextRun {
                                 text: row.label.clone(),
-                                position: row_text_layout.sample_label.min,
+                                position: label_position,
                                 font_size: sizing.font_body,
                                 color: blend_color(
                                     style.accent_warning,
                                     style.text_primary,
                                     style.state_focus_pulse_blend,
                                 ),
-                                max_width: Some(row_text_layout.sample_label.width().max(20.0)),
+                                max_width: Some(label_max_width),
                                 align: TextAlign::Left,
                             },
                         );
@@ -4041,6 +4091,11 @@ fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBar
 /// visually consistent at 100% scale.
 fn browser_row_border_stroke(layout: &ShellLayout) -> f32 {
     layout.ui_scale.max(1.0)
+}
+
+/// Return x-advance reserved for the missing-file marker before a sample label.
+fn browser_missing_marker_advance(font_size: f32) -> f32 {
+    (font_size * 1.05).max(7.0)
 }
 
 /// Snap browser-row border bounds to the border stroke grid to avoid uneven AA

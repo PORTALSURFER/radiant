@@ -10,6 +10,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) column: usize,
     pub(super) selected: bool,
     pub(super) focused: bool,
+    pub(super) missing: bool,
     pub(super) rect: Rect,
 }
 
@@ -482,6 +483,7 @@ pub(super) fn rendered_browser_rows_cached(
             column: row.column.min(2),
             selected: row.selected,
             focused: row.focused,
+            missing: row.missing,
             rect,
         });
     }

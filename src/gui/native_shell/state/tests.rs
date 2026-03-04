@@ -67,6 +67,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
             column: 1,
             selected: false,
             focused: false,
+            missing: false,
             rect,
         })
         .collect()
@@ -646,6 +647,27 @@ fn browser_rows_use_alternating_fill_stripes_for_readability() {
     assert!(even_fill.is_some());
     assert!(odd_fill.is_some());
     assert_ne!(even_fill, odd_fill);
+}
+
+#[test]
+fn missing_browser_rows_render_red_exclamation_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "row_missing", 1, false, false).with_missing(true));
+    model.browser.visible_count = model.browser.rows.len();
+
+    let frame = state.build_frame(&layout, &model);
+    let has_marker = frame.text_runs.iter().any(|run| {
+        run.text == BROWSER_MISSING_SAMPLE_MARKER
+            && run.color == BROWSER_MISSING_SAMPLE_MARKER_COLOR
+            && (run.font_size - style.sizing.font_body).abs() <= f32::EPSILON
+    });
+    assert!(has_marker, "missing row marker should be rendered in red");
 }
 
 #[test]

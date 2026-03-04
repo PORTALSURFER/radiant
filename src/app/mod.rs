@@ -190,6 +190,8 @@ pub struct BrowserRowModel {
     pub selected: bool,
     /// Whether this row currently has focus/caret.
     pub focused: bool,
+    /// Whether the backing sample file is missing on disk.
+    pub missing: bool,
 }
 
 impl BrowserRowModel {
@@ -208,12 +210,19 @@ impl BrowserRowModel {
             bucket_label: None,
             selected,
             focused,
+            missing: false,
         }
     }
 
     /// Attach an explicit bucket-column label for this row.
     pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
         self.bucket_label = Some(label.into());
+        self
+    }
+
+    /// Mark whether the backing sample file is missing on disk.
+    pub fn with_missing(mut self, missing: bool) -> Self {
+        self.missing = missing;
         self
     }
 }

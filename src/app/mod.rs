@@ -949,6 +949,11 @@ pub enum UiAction {
         zoom_in: bool,
         /// Number of discrete zoom steps to apply.
         steps: u8,
+        /// Optional high-precision hover anchor ratio within current waveform view.
+        ///
+        /// Values are stored in micros (`0..=1_000_000`) to preserve deterministic
+        /// equality semantics while keeping pointer-anchored zoom stable at deep zoom.
+        anchor_ratio_micros: Option<u32>,
     },
     /// Fit waveform view to the active selection.
     ZoomWaveformToSelection,

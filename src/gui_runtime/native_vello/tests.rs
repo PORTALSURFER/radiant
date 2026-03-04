@@ -37,6 +37,7 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
+            anchor_ratio_micros: None,
         }),
         RuntimeInvalidationScope::StaticAndOverlays
     );
@@ -569,7 +570,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
         layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
-    let position_milli = waveform_position_milli_from_point(&layout, point);
+    let position_milli = waveform_position_milli_from_point(&layout, &runner.model, point);
     runner.shell_layout = Some(layout);
     runner.last_cursor = Some(point);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
@@ -611,6 +612,7 @@ fn key_bindings_emit_waveform_zoom_actions() {
         Some(UiAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
+            anchor_ratio_micros: None,
         })
     );
     assert_eq!(
@@ -618,6 +620,7 @@ fn key_bindings_emit_waveform_zoom_actions() {
         Some(UiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
+            anchor_ratio_micros: None,
         })
     );
     assert_eq!(
@@ -964,7 +967,12 @@ fn waveform_right_click_maps_to_edit_selection_action() {
     );
 
     assert_eq!(
-        waveform_edit_action_from_pointer(&layout, point, ModifiersState::default()),
+        waveform_edit_action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            point,
+            ModifiersState::default()
+        ),
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 500,
             end_milli: 500,
@@ -1038,15 +1046,16 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
 /// Drag waveform actions should clamp pointer positions and preserve anchors.
 fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let model = AppModel::default();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let left = Point::new(layout.waveform_plot.min.x - 200.0, y);
     let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, left, WaveformPointerDragMode::Seek),
+        waveform_drag_action_for_mode(&layout, &model, left, WaveformPointerDragMode::Seek),
         UiAction::SeekWaveform { position_milli: 0 }
     );
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, right, WaveformPointerDragMode::Cursor),
+        waveform_drag_action_for_mode(&layout, &model, right, WaveformPointerDragMode::Cursor),
         UiAction::SetWaveformCursor {
             position_milli: 1000
         }
@@ -1054,6 +1063,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     assert_eq!(
         waveform_drag_action_for_mode(
             &layout,
+            &model,
             right,
             WaveformPointerDragMode::Selection { anchor_milli: 200 }
         ),
@@ -1065,6 +1075,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     assert_eq!(
         waveform_drag_action_for_mode(
             &layout,
+            &model,
             right,
             WaveformPointerDragMode::EditSelection { anchor_milli: 300 }
         ),
@@ -1074,11 +1085,21 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         }
     );
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, left, WaveformPointerDragMode::EditFadeInEnd),
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::EditFadeInEnd
+        ),
         UiAction::SetWaveformEditFadeInEnd { position_milli: 0 }
     );
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, right, WaveformPointerDragMode::EditFadeOutStart),
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::EditFadeOutStart
+        ),
         UiAction::SetWaveformEditFadeOutStart {
             position_milli: 1000
         }
@@ -1092,7 +1113,7 @@ fn waveform_click_over_edit_fade_handle_routes_fade_action() {
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
     let point = Point::new(fade_in_x + 1.0, y);
-    let position_milli = waveform_position_milli_from_point(&layout, point);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
     let mut model = AppModel::default();
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     model.waveform.edit_fade_in_end_milli = Some(300);
@@ -1349,22 +1370,35 @@ fn browser_wheel_delta_is_bounded_and_directional() {
 #[test]
 fn waveform_wheel_zoom_requires_waveform_hover_and_maps_direction() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
     assert_eq!(
-        waveform_wheel_zoom_action(&layout, point, MouseScrollDelta::LineDelta(0.0, 2.0)),
+        waveform_wheel_zoom_action(
+            &layout,
+            &model,
+            point,
+            MouseScrollDelta::LineDelta(0.0, 2.0)
+        ),
         Some(UiAction::ZoomWaveform {
             zoom_in: true,
             steps: 2,
+            anchor_ratio_micros: Some(500_000),
         })
     );
     assert_eq!(
-        waveform_wheel_zoom_action(&layout, point, MouseScrollDelta::LineDelta(0.0, -1.0)),
+        waveform_wheel_zoom_action(
+            &layout,
+            &model,
+            point,
+            MouseScrollDelta::LineDelta(0.0, -1.0)
+        ),
         Some(UiAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
+            anchor_ratio_micros: Some(500_000),
         })
     );
 
@@ -1375,9 +1409,63 @@ fn waveform_wheel_zoom_requires_waveform_hover_and_maps_direction() {
     assert_eq!(
         waveform_wheel_zoom_action(
             &layout,
+            &model,
             outside_point,
             MouseScrollDelta::LineDelta(0.0, 2.0)
         ),
         None
+    );
+}
+
+#[test]
+fn waveform_pointer_position_tracks_active_view_window() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.waveform.view_start_milli = 250;
+    model.waveform.view_end_milli = 750;
+    let y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+
+    let left = Point::new(layout.waveform_plot.min.x, y);
+    let center = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
+        y,
+    );
+    let right = Point::new(layout.waveform_plot.max.x, y);
+
+    assert_eq!(
+        waveform_position_milli_from_point(&layout, &model, left),
+        250
+    );
+    assert_eq!(
+        waveform_position_milli_from_point(&layout, &model, center),
+        500
+    );
+    assert_eq!(
+        waveform_position_milli_from_point(&layout, &model, right),
+        750
+    );
+}
+
+#[test]
+fn waveform_wheel_zoom_action_uses_pointer_anchor_ratio() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.25),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+
+    assert_eq!(
+        waveform_wheel_zoom_action(
+            &layout,
+            &model,
+            point,
+            MouseScrollDelta::LineDelta(0.0, 1.0)
+        ),
+        Some(UiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1,
+            anchor_ratio_micros: Some(250_000),
+        })
     );
 }

@@ -2158,7 +2158,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(mode) = self.waveform_drag_mode else {
             return false;
         };
-        let action = waveform_drag_action_for_mode(layout, point, mode);
+        let action = waveform_drag_action_for_mode(layout, &self.model, point, mode);
         self.emit_waveform_drag_action_immediately(action);
         true
     }
@@ -2214,7 +2214,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             {
                 if let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
                 {
-                    waveform_position_milli_from_point(layout, point) == anchor_milli
+                    waveform_position_milli_from_point(layout, &self.model, point) == anchor_milli
                 } else {
                     false
                 }
@@ -2237,7 +2237,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if seek_on_waveform_click_release
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {
-            let position_milli = waveform_position_milli_from_point(layout, point);
+            let position_milli = waveform_position_milli_from_point(layout, &self.model, point);
             self.emit_model_action_with_profile(
                 UiAction::SeekWaveform { position_milli },
                 Some(InteractionProfileKind::Waveform),
@@ -3378,6 +3378,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                             {
                                 let action = waveform_edit_action_from_pointer(
                                     &layout,
+                                    &self.model,
                                     point,
                                     self.modifiers,
                                 );
@@ -3408,9 +3409,9 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if let Some(layout) = self.shell_layout.as_ref().cloned() {
-                    let waveform_zoom_action = self
-                        .last_cursor
-                        .and_then(|point| waveform_wheel_zoom_action(&layout, point, delta));
+                    let waveform_zoom_action = self.last_cursor.and_then(|point| {
+                        waveform_wheel_zoom_action(&layout, &self.model, point, delta)
+                    });
                     let waveform_zoom_emitted = if let Some(action) = waveform_zoom_action {
                         self.emit_model_action_with_profile(
                             action,

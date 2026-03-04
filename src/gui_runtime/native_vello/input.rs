@@ -28,6 +28,8 @@ pub(super) enum WaveformPointerDragMode {
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
+/// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
+const WAVEFORM_ANCHOR_RATIO_MICROS_SCALE: u32 = 1_000_000;
 pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
@@ -87,6 +89,7 @@ pub(super) fn action_from_key(
         KeyCode::OpenBracket => Some(UiAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
+            anchor_ratio_micros: None,
         }),
         KeyCode::P => model
             .progress_overlay
@@ -95,6 +98,7 @@ pub(super) fn action_from_key(
         KeyCode::CloseBracket => Some(UiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
+            anchor_ratio_micros: None,
         }),
         KeyCode::Slash => Some(UiAction::ZoomWaveformFull),
         KeyCode::Quote => Some(UiAction::FocusFolderSearch),
@@ -214,7 +218,7 @@ pub(super) fn waveform_action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> UiAction {
-    let position_milli = waveform_position_milli_from_point(layout, point);
+    let position_milli = waveform_position_milli_from_point(layout, model, point);
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
@@ -245,10 +249,11 @@ pub(super) fn waveform_action_from_pointer(
 /// Build one waveform edit-selection action from pointer position.
 pub(super) fn waveform_edit_action_from_pointer(
     layout: &ShellLayout,
+    model: &AppModel,
     point: Point,
     _modifiers: ModifiersState,
 ) -> UiAction {
-    let position_milli = waveform_position_milli_from_point(layout, point);
+    let position_milli = waveform_position_milli_from_point(layout, model, point);
     UiAction::SetWaveformEditSelectionRange {
         start_milli: position_milli,
         end_milli: position_milli,
@@ -258,10 +263,11 @@ pub(super) fn waveform_edit_action_from_pointer(
 /// Resolve one waveform action for a captured waveform drag mode.
 pub(super) fn waveform_drag_action_for_mode(
     layout: &ShellLayout,
+    model: &AppModel,
     point: Point,
     mode: WaveformPointerDragMode,
 ) -> UiAction {
-    let position_milli = waveform_position_milli_from_point(layout, point);
+    let position_milli = waveform_position_milli_from_point(layout, model, point);
     match mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveform { position_milli },
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor { position_milli },
@@ -310,16 +316,32 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
 }
 
 /// Resolve normalized waveform milli position from an arbitrary pointer point.
-pub(super) fn waveform_position_milli_from_point(layout: &ShellLayout, point: Point) -> u16 {
+pub(super) fn waveform_position_milli_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> u16 {
+    let view = normalized_waveform_view(model);
+    let ratio_in_view = waveform_ratio_from_point(layout, point);
+    let absolute_ratio = view.start + (view.width * ratio_in_view);
+    ratio_to_milli(absolute_ratio)
+}
+
+/// Resolve pointer x-position as a normalized ratio within the current plot.
+pub(super) fn waveform_ratio_from_point(layout: &ShellLayout, point: Point) -> f32 {
     let inner = layout.waveform_plot;
     let width = inner.width().max(1.0);
     let clamped_x = point.x.clamp(inner.min.x, inner.max.x);
-    let ratio = ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0);
-    ratio_to_milli(ratio)
+    ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0)
 }
 
 pub(super) fn ratio_to_milli(ratio: f32) -> u16 {
     (ratio.clamp(0.0, 1.0) * 1000.0).round() as u16
+}
+
+/// Convert one normalized view ratio to deterministic micro-units.
+pub(super) fn ratio_to_micros(ratio: f32) -> u32 {
+    (ratio.clamp(0.0, 1.0) * WAVEFORM_ANCHOR_RATIO_MICROS_SCALE as f32).round() as u32
 }
 
 pub(super) fn waveform_anchor_milli(model: &AppModel) -> u16 {
@@ -355,15 +377,15 @@ fn waveform_edit_fade_handle_action_from_pointer(
         .edit_fade_out_start_milli
         .unwrap_or(selection.end_milli)
         .clamp(selection.start_milli, selection.end_milli);
-    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, fade_in_end_milli);
-    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, fade_out_start_milli);
+    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
+    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
     let in_distance = (point.x - fade_in_x).abs();
     let out_distance = (point.x - fade_out_x).abs();
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
     if in_distance > threshold && out_distance > threshold {
         return None;
     }
-    let position_milli = waveform_position_milli_from_point(layout, point);
+    let position_milli = waveform_position_milli_from_point(layout, model, point);
     if in_distance <= out_distance {
         Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
     } else {
@@ -372,9 +394,15 @@ fn waveform_edit_fade_handle_action_from_pointer(
 }
 
 /// Convert a normalized waveform milli position into plot-space x.
-fn waveform_x_for_milli(plot: UiRect, milli: u16) -> f32 {
-    let ratio = f32::from(milli.min(1000)) / 1000.0;
-    plot.min.x + (plot.width() * ratio)
+fn waveform_x_for_milli(plot: UiRect, model: &AppModel, milli: u16) -> f32 {
+    let view = normalized_waveform_view(model);
+    let absolute_ratio = f32::from(milli.min(1000)) / 1000.0;
+    let ratio_in_view = if view.width <= f32::EPSILON {
+        0.0
+    } else {
+        ((absolute_ratio - view.start) / view.width).clamp(0.0, 1.0)
+    };
+    plot.min.x + (plot.width() * ratio_in_view)
 }
 
 pub(super) fn browser_wheel_row_delta(
@@ -416,6 +444,7 @@ pub(super) fn browser_wheel_row_delta(
 /// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.
 pub(super) fn waveform_wheel_zoom_action(
     layout: &ShellLayout,
+    _model: &AppModel,
     point: Point,
     delta: MouseScrollDelta,
 ) -> Option<UiAction> {
@@ -439,5 +468,22 @@ pub(super) fn waveform_wheel_zoom_action(
     Some(UiAction::ZoomWaveform {
         zoom_in,
         steps: steps.min(u8::MAX as f32) as u8,
+        anchor_ratio_micros: Some(ratio_to_micros(waveform_ratio_from_point(layout, point))),
     })
+}
+
+/// Normalized waveform viewport bounds (`0..=1`) resolved from panel milli fields.
+fn normalized_waveform_view(model: &AppModel) -> WaveformNormalizedView {
+    let start_milli = model.waveform.view_start_milli.min(1000);
+    let end_milli = model.waveform.view_end_milli.min(1000).max(start_milli);
+    let start = f32::from(start_milli) / 1000.0;
+    let end = f32::from(end_milli) / 1000.0;
+    let width = (end - start).max(0.0);
+    WaveformNormalizedView { start, width }
+}
+
+/// Precomputed normalized waveform viewport bounds for pointer conversions.
+struct WaveformNormalizedView {
+    start: f32,
+    width: f32,
 }

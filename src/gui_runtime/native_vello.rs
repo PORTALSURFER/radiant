@@ -63,6 +63,8 @@ const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 const CURSOR_ACTIVITY_REDRAW_HZ: u64 = 120;
 /// Duration to keep the high-frequency cursor redraw cadence active.
 const CURSOR_ACTIVITY_REDRAW_WINDOW: Duration = Duration::from_millis(100);
+/// Maximum retained image-upload blobs before cache reset.
+const IMAGE_UPLOAD_BLOB_CACHE_LIMIT: usize = 32;
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
 const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
 /// Maximum time to wait for a deferred startup refresh before revealing anyway.
@@ -71,6 +73,23 @@ const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeUserEvent {
     RepaintRequested,
+}
+
+/// Stable cache key for one retained image-upload blob payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ImageUploadBlobCacheKey {
+    pixels_ptr: usize,
+    width: u32,
+    height: u32,
+}
+
+/// Sized wrapper allowing `Arc<[u8]>` payloads to be reused by `Blob<u8>`.
+struct SharedPixelBytes(Arc<[u8]>);
+
+impl AsRef<[u8]> for SharedPixelBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
 }
 
 fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
@@ -1235,6 +1254,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     waveform_motion_overlay_scene: Scene,
     /// Cached encoded chrome-motion overlay scene.
     chrome_motion_overlay_scene: Scene,
+    /// Retained blobs for repeated image draw payload uploads.
+    image_upload_blob_cache: HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
     /// Last state-overlay fingerprint used for cache-skip checks.
     state_overlay_fingerprint: Option<StateOverlayCacheFingerprint>,
     /// Last waveform-motion fingerprint used for cache-skip checks.
@@ -1372,6 +1393,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             state_overlay_scene: Scene::new(),
             waveform_motion_overlay_scene: Scene::new(),
             chrome_motion_overlay_scene: Scene::new(),
+            image_upload_blob_cache: HashMap::new(),
             state_overlay_fingerprint: None,
             waveform_motion_overlay_fingerprint: None,
             chrome_motion_overlay_fingerprint: None,
@@ -1930,10 +1952,34 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         );
     }
 
+    /// Resolve a retained image-upload blob for one RGBA payload.
+    fn cached_image_upload_blob(
+        cache: &mut HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
+        pixels: Arc<[u8]>,
+        width: u32,
+        height: u32,
+    ) -> Blob<u8> {
+        let key = ImageUploadBlobCacheKey {
+            pixels_ptr: pixels.as_ptr() as usize,
+            width,
+            height,
+        };
+        if let Some(blob) = cache.get(&key) {
+            return blob.clone();
+        }
+        if cache.len() >= IMAGE_UPLOAD_BLOB_CACHE_LIMIT {
+            cache.clear();
+        }
+        let blob = Blob::new(Arc::new(SharedPixelBytes(pixels)));
+        cache.insert(key, blob.clone());
+        blob
+    }
+
     fn encode_frame_to_scene(
         frame: &NativeViewFrame,
         scene: &mut Scene,
         text_renderer: &mut NativeTextRenderer,
+        image_upload_blob_cache: &mut HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
     ) {
         scene.reset();
         for primitive in frame.primitives.iter() {
@@ -1973,8 +2019,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     {
                         continue;
                     }
+                    let blob = Self::cached_image_upload_blob(
+                        image_upload_blob_cache,
+                        draw.image.pixels.clone(),
+                        width,
+                        height,
+                    );
                     let image_data = ImageData {
-                        data: Blob::new(std::sync::Arc::new(draw.image.pixels.clone())),
+                        data: blob,
                         format: ImageFormat::Rgba8,
                         alpha_type: ImageAlphaType::Alpha,
                         width,
@@ -2368,7 +2420,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let segment_encode_start = Instant::now();
             let frame = self.static_segment_frame_cache.frame(segment);
             let entry = self.static_segment_scene_cache.entry_mut(segment);
-            Self::encode_frame_to_scene(frame, &mut entry.scene, &mut self.text_renderer);
+            Self::encode_frame_to_scene(
+                frame,
+                &mut entry.scene,
+                &mut self.text_renderer,
+                &mut self.image_upload_blob_cache,
+            );
             encode_duration += segment_encode_start.elapsed();
             self.static_segment_graph
                 .commit_segment(segment, diff_plan.fingerprint(segment));
@@ -2549,6 +2606,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &self.frame_cache,
                     &mut self.static_scene,
                     &mut self.text_renderer,
+                    &mut self.image_upload_blob_cache,
                 );
                 let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_encode_static(encode_duration);
@@ -2583,6 +2641,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 &self.state_overlay_frame_cache,
                 &mut self.state_overlay_scene,
                 &mut self.text_renderer,
+                &mut self.image_upload_blob_cache,
             );
             let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_encode_state_overlay(encode_duration);
@@ -2664,6 +2723,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &self.waveform_motion_overlay_frame_cache,
                     &mut self.waveform_motion_overlay_scene,
                     &mut self.text_renderer,
+                    &mut self.image_upload_blob_cache,
                 );
                 encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             }
@@ -2685,6 +2745,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &self.chrome_motion_overlay_frame_cache,
                     &mut self.chrome_motion_overlay_scene,
                     &mut self.text_renderer,
+                    &mut self.image_upload_blob_cache,
                 );
                 encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             }
@@ -3037,10 +3098,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::ClearWaveformSelection
-            | UiAction::ClearWaveformEditSelection
-            | UiAction::ZoomWaveform { .. }
+            | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::OverlayMotionOnly,
+            UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
-            | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::OverlayMotionOnly,
+            | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::StaticAndOverlays,
             _ => RuntimeInvalidationScope::StaticAndOverlays,
         }
     }

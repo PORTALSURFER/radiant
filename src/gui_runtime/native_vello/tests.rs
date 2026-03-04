@@ -26,7 +26,7 @@ impl NativeAppBridge for RecordingBridge {
 }
 
 #[test]
-fn action_scope_classification_routes_waveform_actions_to_motion_overlay() {
+fn action_scope_classification_routes_waveform_actions_by_cost() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SeekWaveform {
             position_milli: 420,
@@ -38,7 +38,7 @@ fn action_scope_classification_routes_waveform_actions_to_motion_overlay() {
             zoom_in: true,
             steps: 1,
         }),
-        RuntimeInvalidationScope::OverlayMotionOnly
+        RuntimeInvalidationScope::StaticAndOverlays
     );
 }
 

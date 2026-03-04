@@ -1469,6 +1469,8 @@ impl NativeShellState {
             } else if !model.map.active && build_browser_rows_window {
                 for row in browser_rows.iter() {
                     let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
+                    let row_border_stroke = browser_row_border_stroke(layout);
+                    let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
                     let row_columns = row_text_layout.columns;
                     let row_fill = if row.focused {
                         translucent_overlay_color(
@@ -1535,16 +1537,7 @@ impl NativeShellState {
                             }),
                         );
                     }
-                    push_border(
-                        primitives,
-                        row.rect,
-                        row_border,
-                        if row.focused {
-                            sizing.focus_stroke_width
-                        } else {
-                            sizing.border_width
-                        },
-                    );
+                    push_border(primitives, row_border_rect, row_border, row_border_stroke);
                     let chip_rect = row_text_layout.bucket_chip;
                     let chip_color = match row.column {
                         0 => blend_color(style.accent_warning, style.bg_secondary, 0.54),
@@ -3057,6 +3050,8 @@ impl NativeShellState {
                         continue;
                     }
                     let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
+                    let row_border_stroke = browser_row_border_stroke(layout);
+                    let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
                     if row.focused {
                         emit_primitive(
                             primitives,
@@ -3072,7 +3067,7 @@ impl NativeShellState {
                     }
                     push_border(
                         primitives,
-                        row.rect,
+                        row_border_rect,
                         if row.focused {
                             blend_color(
                                 style.accent_warning,
@@ -3086,11 +3081,7 @@ impl NativeShellState {
                                 style.state_selected_blend,
                             )
                         },
-                        if row.focused {
-                            sizing.focus_stroke_width
-                        } else {
-                            sizing.border_width
-                        },
+                        row_border_stroke,
                     );
                     if row.focused {
                         emit_text(
@@ -4041,6 +4032,31 @@ fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBar
         volume_meter: resolved.volume_meter,
         volume_value: resolved.volume_value,
         volume_label: resolved.volume_label,
+    }
+}
+
+/// Resolve a stable browser-row border stroke in logical units.
+///
+/// At `ui_scale == 1.0` this resolves to `1.0` logical px so row borders stay
+/// visually consistent at 100% scale.
+fn browser_row_border_stroke(layout: &ShellLayout) -> f32 {
+    layout.ui_scale.max(1.0)
+}
+
+/// Snap browser-row border bounds to the border stroke grid to avoid uneven AA
+/// widths between top/bottom edges.
+fn browser_row_border_rect(rect: Rect, stroke: f32) -> Rect {
+    let stroke = stroke.max(1.0);
+    let snap = |value: f32| (value / stroke).round() * stroke;
+    let min_x = snap(rect.min.x);
+    let min_y = snap(rect.min.y);
+    let max_x = snap(rect.max.x);
+    let max_y = snap(rect.max.y);
+    let snapped = Rect::from_min_max(Point::new(min_x, min_y), Point::new(max_x, max_y));
+    if snapped.width() <= stroke * 2.0 || snapped.height() <= stroke * 2.0 {
+        rect
+    } else {
+        snapped
     }
 }
 

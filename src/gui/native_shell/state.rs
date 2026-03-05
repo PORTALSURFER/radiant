@@ -42,9 +42,10 @@ use std::{
 mod browser_rows;
 mod frame_build;
 mod overlays;
+mod svg_icons;
 mod waveform_segments;
 
-use self::{browser_rows::*, overlays::*, waveform_segments::*};
+use self::{browser_rows::*, overlays::*, svg_icons::*, waveform_segments::*};
 
 /// Maximum retained entries for browser-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
@@ -2213,6 +2214,21 @@ fn render_waveform_toolbar_buttons(
             },
             sizing.border_width,
         );
+        let icon_color = if button.enabled {
+            button.text_color
+        } else {
+            style.text_muted
+        };
+        if let Some(icon) = toolbar_icon_for_label(button.label) {
+            if emit_toolbar_svg_icon(
+                primitives,
+                icon,
+                waveform_toolbar_icon_rect(button.rect, sizing),
+                icon_color,
+            ) {
+                continue;
+            }
+        }
         emit_text(
             text_runs,
             TextRun {
@@ -2229,6 +2245,21 @@ fn render_waveform_toolbar_buttons(
             },
         );
     }
+}
+
+fn waveform_toolbar_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
+    let max_side =
+        (button_rect.width().min(button_rect.height()) - (sizing.border_width * 4.0)).max(6.0);
+    let icon_side = max_side.clamp(8.0, 18.0);
+    let offset_x = (button_rect.width() - icon_side).max(0.0) * 0.5;
+    let offset_y = (button_rect.height() - icon_side).max(0.0) * 0.5;
+    Rect::from_min_max(
+        Point::new(button_rect.min.x + offset_x, button_rect.min.y + offset_y),
+        Point::new(
+            button_rect.min.x + offset_x + icon_side,
+            button_rect.min.y + offset_y + icon_side,
+        ),
+    )
 }
 
 fn top_bar_controls_layout(layout: &ShellLayout, sizing: SizingTokens) -> TopBarControlsLayout {

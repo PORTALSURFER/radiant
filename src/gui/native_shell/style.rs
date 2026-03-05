@@ -347,32 +347,32 @@ impl StyleTokens {
     pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
         let mut tokens = Self {
             layout_tier,
-            clear_color: rgba(48, 48, 52, 255),
-            bg_primary: rgba(14, 14, 17, 255),
-            bg_secondary: rgba(22, 22, 26, 255),
-            bg_tertiary: rgba(31, 31, 36, 255),
-            surface_base: rgba(14, 14, 17, 255),
-            surface_raised: rgba(22, 22, 26, 255),
-            surface_overlay: rgba(37, 37, 43, 255),
-            border: rgba(58, 58, 66, 255),
-            border_emphasis: rgba(83, 83, 94, 255),
-            source_section_divider: rgba(74, 74, 84, 255),
-            source_recovery_badge_idle: rgba(66, 66, 75, 255),
-            source_recovery_badge_active: rgba(89, 142, 255, 255),
-            control_disabled_fill: rgba(41, 41, 47, 255),
-            grid_strong: rgba(69, 69, 79, 255),
-            grid_soft: rgba(49, 49, 57, 255),
-            accent_mint: rgba(68, 226, 214, 255),
-            accent_copper: rgba(240, 152, 66, 255),
-            accent_warning: rgba(244, 168, 84, 255),
-            highlight_orange: rgba(242, 154, 64, 255),
-            highlight_orange_soft: rgba(248, 182, 102, 255),
-            highlight_blue: rgba(86, 150, 255, 255),
-            highlight_blue_soft: rgba(112, 186, 255, 255),
-            highlight_cyan: rgba(66, 222, 220, 255),
-            highlight_cyan_soft: rgba(98, 236, 232, 255),
-            text_primary: rgba(232, 234, 239, 255),
-            text_muted: rgba(168, 172, 181, 255),
+            clear_color: rgba(38, 38, 37, 255),
+            bg_primary: rgba(19, 19, 19, 255),
+            bg_secondary: rgba(26, 26, 25, 255),
+            bg_tertiary: rgba(37, 37, 36, 255),
+            surface_base: rgba(19, 19, 19, 255),
+            surface_raised: rgba(31, 30, 29, 255),
+            surface_overlay: rgba(43, 42, 40, 255),
+            border: rgba(75, 74, 72, 255),
+            border_emphasis: rgba(119, 118, 116, 255),
+            source_section_divider: rgba(96, 94, 91, 255),
+            source_recovery_badge_idle: rgba(63, 62, 60, 255),
+            source_recovery_badge_active: rgba(223, 195, 121, 255),
+            control_disabled_fill: rgba(50, 50, 48, 255),
+            grid_strong: rgba(90, 89, 86, 255),
+            grid_soft: rgba(60, 59, 57, 255),
+            accent_mint: rgba(193, 193, 169, 255),
+            accent_copper: rgba(227, 195, 122, 255),
+            accent_warning: rgba(239, 211, 149, 255),
+            highlight_orange: rgba(223, 176, 92, 255),
+            highlight_orange_soft: rgba(236, 204, 142, 255),
+            highlight_blue: rgba(164, 164, 164, 255),
+            highlight_blue_soft: rgba(184, 184, 184, 255),
+            highlight_cyan: rgba(193, 193, 169, 255),
+            highlight_cyan_soft: rgba(227, 226, 195, 255),
+            text_primary: rgba(238, 234, 224, 255),
+            text_muted: rgba(185, 180, 166, 255),
             state_hover_soft: 0.12,
             state_hover_strong: 0.20,
             state_selected_blend: 0.12,
@@ -574,12 +574,12 @@ impl StyleTokens {
             tokens.sizing.font_body = 8.8;
             tokens.sizing.font_meta = 8.4;
             tokens.sizing.font_status = 9.2;
-            tokens.surface_overlay = rgba(34, 34, 40, 255);
-            tokens.border_emphasis = rgba(75, 75, 85, 255);
-            tokens.source_section_divider = rgba(67, 67, 77, 255);
-            tokens.source_recovery_badge_idle = rgba(60, 60, 69, 255);
-            tokens.source_recovery_badge_active = tokens.highlight_blue;
-            tokens.control_disabled_fill = rgba(37, 37, 43, 255);
+            tokens.surface_overlay = rgba(40, 39, 37, 255);
+            tokens.border_emphasis = rgba(112, 111, 108, 255);
+            tokens.source_section_divider = rgba(88, 86, 83, 255);
+            tokens.source_recovery_badge_idle = rgba(57, 56, 53, 255);
+            tokens.source_recovery_badge_active = tokens.accent_warning;
+            tokens.control_disabled_fill = rgba(47, 46, 44, 255);
             return tokens;
         }
 
@@ -673,12 +673,12 @@ impl StyleTokens {
             tokens.sizing.font_body = 9.4;
             tokens.sizing.font_meta = 8.9;
             tokens.sizing.font_status = 9.5;
-            tokens.surface_overlay = rgba(43, 43, 49, 255);
-            tokens.border_emphasis = rgba(91, 91, 102, 255);
-            tokens.source_section_divider = rgba(80, 80, 90, 255);
-            tokens.source_recovery_badge_idle = rgba(70, 70, 79, 255);
-            tokens.source_recovery_badge_active = tokens.highlight_blue_soft;
-            tokens.control_disabled_fill = rgba(47, 47, 53, 255);
+            tokens.surface_overlay = rgba(47, 46, 44, 255);
+            tokens.border_emphasis = rgba(128, 126, 123, 255);
+            tokens.source_section_divider = rgba(102, 100, 96, 255);
+            tokens.source_recovery_badge_idle = rgba(74, 72, 69, 255);
+            tokens.source_recovery_badge_active = tokens.accent_warning;
+            tokens.control_disabled_fill = rgba(53, 52, 49, 255);
         }
         tokens
     }

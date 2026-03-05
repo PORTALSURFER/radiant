@@ -861,6 +861,16 @@ fn fingerprint_mix_option_u16(state: &mut u64, value: Option<u16>) {
     fingerprint_mix_bool(state, false);
 }
 
+/// Mix one optional `u32` into a fingerprint accumulator.
+fn fingerprint_mix_option_u32(state: &mut u64, value: Option<u32>) {
+    if let Some(value) = value {
+        fingerprint_mix_bool(state, true);
+        fingerprint_mix_u32(state, value);
+        return;
+    }
+    fingerprint_mix_bool(state, false);
+}
+
 /// Build a compact, deterministic signature for state-overlay model inputs.
 fn state_overlay_model_signature(model: &AppModel) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
@@ -939,6 +949,7 @@ fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
     fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
+    fingerprint_mix_option_u32(&mut state, model.waveform_playhead_micros);
     fingerprint_mix_u16(&mut state, model.waveform_view_start_milli);
     fingerprint_mix_u16(&mut state, model.waveform_view_end_milli);
     if let Some(signature) = model.waveform_image_signature {

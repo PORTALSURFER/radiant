@@ -105,8 +105,10 @@ pub(super) fn push_waveform_playhead_overlay(
         style.sizing.border_width,
         model.waveform_selection_milli,
         model.waveform_cursor_milli,
-        model.waveform_playhead_milli,
+        None,
     );
+    let playhead_rect =
+        playhead_marker_rect(layout.waveform_plot, style.sizing.border_width, model);
 
     if let Some(rect) = annotations.selection {
         emit_primitive(
@@ -171,7 +173,7 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
-    if let Some(rect) = annotations.playhead {
+    if let Some(rect) = playhead_rect {
         if let Some(direction) = playhead_trail_direction {
             emit_waveform_playhead_trail(primitives, layout.waveform_plot, rect, style, direction);
         }
@@ -183,6 +185,40 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
+}
+
+/// Resolve the active playhead marker rectangle, preferring high-precision micros.
+fn playhead_marker_rect(
+    waveform_plot: Rect,
+    border_width: f32,
+    model: &NativeMotionModel,
+) -> Option<Rect> {
+    if let Some(playhead_micros) = model.waveform_playhead_micros {
+        let ratio = (playhead_micros as f32 / 1_000_000.0).clamp(0.0, 1.0);
+        return marker_rect_for_ratio(waveform_plot, border_width, ratio);
+    }
+    model.waveform_playhead_milli.and_then(|playhead_milli| {
+        marker_rect_for_ratio(
+            waveform_plot,
+            border_width,
+            (f32::from(playhead_milli) / 1000.0).clamp(0.0, 1.0),
+        )
+    })
+}
+
+/// Resolve one marker rectangle for a normalized ratio in `0..=1`.
+fn marker_rect_for_ratio(waveform_plot: Rect, border_width: f32, ratio: f32) -> Option<Rect> {
+    if waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0 {
+        return None;
+    }
+    let marker_width = border_width.max(1.0).min(waveform_plot.width());
+    let raw_x = waveform_plot.min.x + (waveform_plot.width() * ratio.clamp(0.0, 1.0));
+    let left = raw_x.clamp(waveform_plot.min.x, waveform_plot.max.x - marker_width);
+    let right = (left + marker_width).min(waveform_plot.max.x);
+    Some(Rect::from_min_max(
+        Point::new(left, waveform_plot.min.y),
+        Point::new(right, waveform_plot.max.y),
+    ))
 }
 
 /// Emit top/bottom loop-range bars over the active playback selection.

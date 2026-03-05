@@ -1150,6 +1150,12 @@ pub struct NativeMotionModel {
     pub waveform_cursor_milli: Option<u16>,
     /// Waveform playhead position in normalized milliseconds.
     pub waveform_playhead_milli: Option<u16>,
+    /// Waveform playhead position in normalized micro-units (`0..=1_000_000`).
+    ///
+    /// This complements `waveform_playhead_milli` for high-precision motion
+    /// overlays so transport playback can animate smoothly while preserving
+    /// deterministic integer contracts across runtime boundaries.
+    pub waveform_playhead_micros: Option<u32>,
     /// Current waveform view start in normalized milliseconds.
     pub waveform_view_start_milli: u16,
     /// Current waveform view end in normalized milliseconds.
@@ -1195,6 +1201,10 @@ impl NativeMotionModel {
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
+            waveform_playhead_micros: model
+                .waveform
+                .playhead_milli
+                .map(|milli| u32::from(milli).saturating_mul(1000)),
             waveform_view_start_milli: model.waveform.view_start_milli,
             waveform_view_end_milli: model.waveform.view_end_milli,
             waveform_tempo_label: model.waveform.tempo_label.clone(),

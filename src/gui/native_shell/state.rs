@@ -65,7 +65,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     waveform_hover_x: Option<f32>,
-    last_waveform_playhead_milli: Option<u16>,
+    last_waveform_playhead_micros: Option<u32>,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -520,7 +520,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             waveform_hover_x: None,
-            last_waveform_playhead_milli: None,
+            last_waveform_playhead_micros: None,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -1309,9 +1309,13 @@ impl NativeShellState {
         &mut self,
         model: &NativeMotionModel,
     ) -> Option<PlayheadTrailDirection> {
-        let previous = self.last_waveform_playhead_milli;
-        let current = model.waveform_playhead_milli;
-        self.last_waveform_playhead_milli = current;
+        let previous = self.last_waveform_playhead_micros;
+        let current = model.waveform_playhead_micros.or_else(|| {
+            model
+                .waveform_playhead_milli
+                .map(|milli| u32::from(milli) * 1000)
+        });
+        self.last_waveform_playhead_micros = current;
 
         if !model.transport_running {
             return None;
@@ -1323,12 +1327,12 @@ impl NativeShellState {
             return None;
         }
 
-        let raw_delta = i32::from(current) - i32::from(previous);
-        let wrapped_delta = if raw_delta.abs() > 500 {
+        let raw_delta = i64::from(current) - i64::from(previous);
+        let wrapped_delta = if raw_delta.abs() > 500_000 {
             if raw_delta > 0 {
-                raw_delta - 1000
+                raw_delta - 1_000_000
             } else {
-                raw_delta + 1000
+                raw_delta + 1_000_000
             }
         } else {
             raw_delta

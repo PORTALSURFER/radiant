@@ -1294,15 +1294,12 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
     model.transport_running = true;
-    model.waveform.playhead_milli = Some(700);
-    let first_motion = NativeMotionModel::from_app_model(&model);
-
     let mut frame = NativeViewFrame::default();
-    state.build_motion_overlay_into(&layout, &style, &first_motion, &mut frame);
-
-    model.waveform.playhead_milli = Some(740);
-    let second_motion = NativeMotionModel::from_app_model(&model);
-    state.build_motion_overlay_into(&layout, &style, &second_motion, &mut frame);
+    for playhead in [700u16, 712, 724, 736, 748] {
+        model.waveform.playhead_milli = Some(playhead);
+        let motion = NativeMotionModel::from_app_model(&model);
+        state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+    }
 
     let playhead_rect = compute_waveform_annotation_rects(
         layout.waveform_plot,
@@ -1321,7 +1318,6 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
             Primitive::Rect(rect)
                 if rect.rect.min.y == playhead_rect.min.y
                     && rect.rect.max.y == playhead_rect.max.y
-                    && rect.rect.max.x <= playhead_rect.min.x
                     && rect.color.a > 0
                     && rect.color != style.accent_copper =>
             {
@@ -1332,8 +1328,8 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
         .count();
 
     assert!(
-        trail_rect_count >= 3,
-        "expected faded playhead trail segments, got {trail_rect_count}"
+        trail_rect_count >= 8,
+        "expected many retained ghost lines, got {trail_rect_count}"
     );
 }
 
@@ -1426,12 +1422,83 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
 
     assert!(
         trail_rect_count >= 3,
-        "expected backward faded playhead trail segments, got {trail_rect_count}"
+        "expected backward ghost lines, got {trail_rect_count}"
     );
 }
 
 #[test]
-fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped() {
+fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let mut frame = NativeViewFrame::default();
+    model.transport_running = true;
+    for playhead in [700u16, 718, 736, 754] {
+        model.waveform.playhead_milli = Some(playhead);
+        let motion = NativeMotionModel::from_app_model(&model);
+        state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+    }
+
+    model.transport_running = false;
+    model.waveform.playhead_milli = Some(754);
+    let stopped_motion = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &stopped_motion, &mut frame);
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+
+    let trail_rect_count = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert!(
+        trail_rect_count > 0,
+        "expected residual ghost lines right after stop"
+    );
+
+    for _ in 0..(PLAYHEAD_TRAIL_FADE_FRAMES + 2) {
+        state.build_motion_overlay_into(&layout, &style, &stopped_motion, &mut frame);
+    }
+
+    let faded_trail_rect_count = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert_eq!(faded_trail_rect_count, 0);
+}
+
+#[test]
+fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped_without_history() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -1460,7 +1527,6 @@ fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped() {
             Primitive::Rect(rect)
                 if rect.rect.min.y == playhead_rect.min.y
                     && rect.rect.max.y == playhead_rect.max.y
-                    && rect.rect.max.x <= playhead_rect.min.x
                     && rect.color.a > 0
                     && rect.color != style.accent_copper =>
             {

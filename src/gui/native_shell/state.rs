@@ -57,6 +57,12 @@ const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
     b: 84,
     a: 255,
 };
+/// Maximum retained ghost lines for the dynamic waveform playhead trail.
+const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 192;
+/// Number of overlay frames used to fade one playhead ghost line.
+const PLAYHEAD_TRAIL_FADE_FRAMES: u64 = 36;
+/// Maximum inserted in-between samples per motion frame for smooth trails.
+const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +72,8 @@ pub(crate) struct NativeShellState {
     hovered_browser_visible_row: Option<usize>,
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
+    playhead_trail_samples: Vec<PlayheadTrailSample>,
+    playhead_trail_frame_index: u64,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -199,10 +207,20 @@ struct SourceContextMenuState {
     anchor: Point,
 }
 
+/// One retained playhead x-position sample used to build ghost-line trails.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PlayheadTrailSample {
+    /// Normalized x-position in `0.0..=1.0`.
+    ratio: f32,
+    /// Overlay frame index when this sample was captured.
+    frame_index: u64,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct NativeAnimationReasons {
     transport_running: bool,
     startup_frame_tick: bool,
+    playhead_trail_active: bool,
 }
 
 /// Cursor-move effect classification used by runtime overlay invalidation.
@@ -248,6 +266,8 @@ pub(crate) struct MotionOverlayFingerprint {
 pub(crate) struct WaveformMotionOverlayFingerprint {
     /// Hovered waveform marker x-position bits in shell-space coordinates.
     pub waveform_hover_x_bits: Option<u32>,
+    /// Quantized motion phase to force repaint while dynamic trails fade.
+    pub pulse_phase_bits: u32,
 }
 
 /// Compact chrome-motion fingerprint for toolbar/tabs/status overlay caches.
@@ -446,7 +466,7 @@ impl TextRunSink for SegmentedTextRunSink<'_, '_> {
 
 impl NativeAnimationReasons {
     fn needs_animation(self) -> bool {
-        self.transport_running || self.startup_frame_tick
+        self.transport_running || self.startup_frame_tick || self.playhead_trail_active
     }
 }
 
@@ -521,6 +541,8 @@ impl NativeShellState {
             hovered_browser_visible_row: None,
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
+            playhead_trail_samples: Vec::new(),
+            playhead_trail_frame_index: 0,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -555,6 +577,7 @@ impl NativeShellState {
         NativeAnimationReasons {
             transport_running: self.transport_running,
             startup_frame_tick: self.startup_frame_ticks > 0,
+            playhead_trail_active: !self.playhead_trail_samples.is_empty(),
         }
     }
 
@@ -621,6 +644,7 @@ impl NativeShellState {
     pub(crate) fn waveform_motion_overlay_fingerprint(&self) -> WaveformMotionOverlayFingerprint {
         WaveformMotionOverlayFingerprint {
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
+            pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
 
@@ -1275,8 +1299,8 @@ impl NativeShellState {
         frame.primitives.clear();
         frame.text_runs.clear();
         let primitives = &mut frame.primitives;
-        let playhead_trail_direction = self.playhead_trail_direction(model);
-        push_waveform_playhead_overlay(primitives, layout, style, model, playhead_trail_direction);
+        let playhead_trail_lines = self.update_playhead_trail(layout.waveform_plot, model);
+        push_waveform_playhead_overlay(primitives, layout, style, model, &playhead_trail_lines);
         if let Some(hover_x) = self.waveform_hover_x {
             // Keep hover preview cursor visually obvious against dense waveform content.
             let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
@@ -1301,34 +1325,45 @@ impl NativeShellState {
         frame.clear_color = style.clear_color;
     }
 
-    /// Resolve playhead trail direction from the latest motion frame.
-    ///
-    /// Trail emission is intentionally gated on active motion: no trail is drawn
-    /// when transport is stopped or the playhead is not moving.
-    fn playhead_trail_direction(
+    /// Update retained playhead-trail samples and return drawable ghost lines.
+    fn update_playhead_trail(
         &mut self,
+        waveform_plot: Rect,
         model: &NativeMotionModel,
-    ) -> Option<PlayheadTrailDirection> {
+    ) -> Vec<PlayheadTrailLine> {
+        self.playhead_trail_frame_index = self.playhead_trail_frame_index.saturating_add(1);
+        let frame_index = self.playhead_trail_frame_index;
         let previous = self.last_waveform_playhead_micros;
-        let current = model.waveform_playhead_micros.or_else(|| {
+        let current = Self::playhead_position_micros(model);
+        self.last_waveform_playhead_micros = current;
+        if current.is_none() {
+            self.playhead_trail_samples.clear();
+            return Vec::new();
+        }
+        self.append_playhead_trail_samples_if_moving(
+            waveform_plot,
+            model.transport_running,
+            previous,
+            current,
+            frame_index,
+        );
+        self.prune_playhead_trail_samples(frame_index);
+        self.playhead_trail_lines(frame_index)
+    }
+
+    /// Resolve normalized playhead position using micro precision when available.
+    fn playhead_position_micros(model: &NativeMotionModel) -> Option<u32> {
+        model.waveform_playhead_micros.or_else(|| {
             model
                 .waveform_playhead_milli
                 .map(|milli| u32::from(milli) * 1000)
-        });
-        self.last_waveform_playhead_micros = current;
+        })
+    }
 
-        if !model.transport_running {
-            return None;
-        }
-        let (Some(previous), Some(current)) = (previous, current) else {
-            return None;
-        };
-        if previous == current {
-            return None;
-        }
-
+    /// Return wrapped playhead delta in micro-units for forward/backward motion.
+    fn wrapped_playhead_delta_micros(previous: u32, current: u32) -> i64 {
         let raw_delta = i64::from(current) - i64::from(previous);
-        let wrapped_delta = if raw_delta.abs() > 500_000 {
+        if raw_delta.abs() > 500_000 {
             if raw_delta > 0 {
                 raw_delta - 1_000_000
             } else {
@@ -1336,14 +1371,83 @@ impl NativeShellState {
             }
         } else {
             raw_delta
-        };
-        if wrapped_delta > 0 {
-            Some(PlayheadTrailDirection::Forward)
-        } else if wrapped_delta < 0 {
-            Some(PlayheadTrailDirection::Backward)
-        } else {
-            None
         }
+    }
+
+    /// Insert one trail sample sequence for the latest frame when the playhead moved.
+    fn append_playhead_trail_samples_if_moving(
+        &mut self,
+        waveform_plot: Rect,
+        transport_running: bool,
+        previous: Option<u32>,
+        current: Option<u32>,
+        frame_index: u64,
+    ) {
+        if !transport_running {
+            return;
+        }
+        let (Some(previous), Some(current)) = (previous, current) else {
+            return;
+        };
+        let delta = Self::wrapped_playhead_delta_micros(previous, current);
+        if delta == 0 {
+            return;
+        }
+        let previous_ratio = previous as f32 / 1_000_000.0;
+        let current_ratio = Self::unwrap_playhead_ratio(previous_ratio, current, delta);
+        let delta_ratio = current_ratio - previous_ratio;
+        let pixel_step_ratio = (1.0 / waveform_plot.width().max(1.0)).clamp(0.0005, 0.05);
+        let steps = ((delta_ratio.abs() / pixel_step_ratio).ceil() as usize)
+            .clamp(1, PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS);
+        for step in 0..steps {
+            let progress = step as f32 / steps as f32;
+            let ratio = (previous_ratio + (delta_ratio * progress)).rem_euclid(1.0);
+            self.playhead_trail_samples
+                .push(PlayheadTrailSample { ratio, frame_index });
+        }
+    }
+
+    /// Convert wrapped playhead movement to an unwrapped normalized ratio.
+    fn unwrap_playhead_ratio(previous_ratio: f32, current_micros: u32, delta_micros: i64) -> f32 {
+        let mut current_ratio = current_micros as f32 / 1_000_000.0;
+        if delta_micros > 0 && current_ratio < previous_ratio {
+            current_ratio += 1.0;
+        } else if delta_micros < 0 && current_ratio > previous_ratio {
+            current_ratio -= 1.0;
+        }
+        current_ratio
+    }
+
+    /// Remove expired and overflowed trail samples from retained state.
+    fn prune_playhead_trail_samples(&mut self, frame_index: u64) {
+        self.playhead_trail_samples.retain(|sample| {
+            frame_index.saturating_sub(sample.frame_index) <= PLAYHEAD_TRAIL_FADE_FRAMES
+        });
+        let overflow = self
+            .playhead_trail_samples
+            .len()
+            .saturating_sub(PLAYHEAD_TRAIL_MAX_SAMPLES);
+        if overflow > 0 {
+            self.playhead_trail_samples.drain(0..overflow);
+        }
+    }
+
+    /// Project retained trail samples into drawable ghost-line primitives.
+    fn playhead_trail_lines(&self, frame_index: u64) -> Vec<PlayheadTrailLine> {
+        self.playhead_trail_samples
+            .iter()
+            .filter_map(|sample| {
+                let age = frame_index
+                    .saturating_sub(sample.frame_index)
+                    .min(PLAYHEAD_TRAIL_FADE_FRAMES);
+                let remaining = 1.0 - (age as f32 / PLAYHEAD_TRAIL_FADE_FRAMES as f32);
+                let alpha = (0.34 * remaining.powf(1.8)).clamp(0.0, 1.0);
+                (alpha > 0.01).then_some(PlayheadTrailLine {
+                    ratio: sample.ratio,
+                    alpha,
+                })
+            })
+            .collect()
     }
 
     /// Build only heavier motion-driven chrome overlays into reusable buffers.

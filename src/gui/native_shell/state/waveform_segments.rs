@@ -8,13 +8,13 @@ const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
-/// Direction of the current playhead motion used for trail orientation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum PlayheadTrailDirection {
-    /// Playback is moving forward in time.
-    Forward,
-    /// Playback is moving backward in time.
-    Backward,
+/// One retained ghost line for the dynamic playhead trail.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct PlayheadTrailLine {
+    /// Normalized x-position in `0.0..=1.0`.
+    pub ratio: f32,
+    /// Blend amount for the ghost line.
+    pub alpha: f32,
 }
 
 /// Resolve which static segment owns one primitive.
@@ -92,7 +92,7 @@ pub(super) fn push_waveform_playhead_overlay(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
-    playhead_trail_direction: Option<PlayheadTrailDirection>,
+    playhead_trail_lines: &[PlayheadTrailLine],
 ) {
     let edit_selection_blue = Rgba8 {
         r: 86,
@@ -174,9 +174,13 @@ pub(super) fn push_waveform_playhead_overlay(
         );
     }
     if let Some(rect) = playhead_rect {
-        if let Some(direction) = playhead_trail_direction {
-            emit_waveform_playhead_trail(primitives, layout.waveform_plot, rect, style, direction);
-        }
+        emit_waveform_playhead_trail(
+            primitives,
+            layout.waveform_plot,
+            style,
+            style.sizing.border_width,
+            playhead_trail_lines,
+        );
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -377,47 +381,26 @@ fn emit_edit_fade_handle(
     );
 }
 
-/// Emit a short faded trail behind the active playhead for transport motion readability.
+/// Emit retained ghost lines behind the active playhead.
 fn emit_waveform_playhead_trail(
     primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
-    playhead_rect: Rect,
     style: &StyleTokens,
-    direction: PlayheadTrailDirection,
+    border_width: f32,
+    trail_lines: &[PlayheadTrailLine],
 ) {
-    let trail_segments = 6usize;
-    let trail_span = (waveform_plot.width() * 0.06).clamp(24.0, 160.0);
-    let segment_span = trail_span / trail_segments as f32;
-
-    for segment in 0..trail_segments {
-        let near_ratio = 1.0 - (segment as f32 / trail_segments as f32);
-        let (left, right) = match direction {
-            PlayheadTrailDirection::Forward => {
-                let right_edge = playhead_rect.min.x;
-                let left =
-                    (right_edge - ((segment + 1) as f32 * segment_span)).max(waveform_plot.min.x);
-                let right = (right_edge - (segment as f32 * segment_span)).min(right_edge);
-                (left, right)
-            }
-            PlayheadTrailDirection::Backward => {
-                let left_edge = playhead_rect.max.x;
-                let left = (left_edge + (segment as f32 * segment_span)).max(left_edge);
-                let right =
-                    (left_edge + ((segment + 1) as f32 * segment_span)).min(waveform_plot.max.x);
-                (left, right)
-            }
+    for line in trail_lines {
+        let Some(rect) = marker_rect_for_ratio(waveform_plot, border_width, line.ratio) else {
+            continue;
         };
-        if right <= left {
+        let amount = line.alpha.clamp(0.0, 1.0);
+        if amount <= 0.0 {
             continue;
         }
-        let amount = (0.04 + (0.24 * near_ratio.powf(1.4))).clamp(0.04, 0.28);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(left, playhead_rect.min.y),
-                    Point::new(right, playhead_rect.max.y),
-                ),
+                rect,
                 color: translucent_overlay_color(
                     style.surface_overlay,
                     style.accent_copper,

@@ -65,6 +65,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     waveform_hover_x: Option<f32>,
+    last_waveform_playhead_milli: Option<u16>,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -519,6 +520,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             waveform_hover_x: None,
+            last_waveform_playhead_milli: None,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -1273,7 +1275,8 @@ impl NativeShellState {
         frame.primitives.clear();
         frame.text_runs.clear();
         let primitives = &mut frame.primitives;
-        push_waveform_playhead_overlay(primitives, layout, style, model);
+        let playhead_trail_direction = self.playhead_trail_direction(model);
+        push_waveform_playhead_overlay(primitives, layout, style, model, playhead_trail_direction);
         if let Some(hover_x) = self.waveform_hover_x {
             // Keep hover preview cursor visually obvious against dense waveform content.
             let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
@@ -1296,6 +1299,47 @@ impl NativeShellState {
             }
         }
         frame.clear_color = style.clear_color;
+    }
+
+    /// Resolve playhead trail direction from the latest motion frame.
+    ///
+    /// Trail emission is intentionally gated on active motion: no trail is drawn
+    /// when transport is stopped or the playhead is not moving.
+    fn playhead_trail_direction(
+        &mut self,
+        model: &NativeMotionModel,
+    ) -> Option<PlayheadTrailDirection> {
+        let previous = self.last_waveform_playhead_milli;
+        let current = model.waveform_playhead_milli;
+        self.last_waveform_playhead_milli = current;
+
+        if !model.transport_running {
+            return None;
+        }
+        let (Some(previous), Some(current)) = (previous, current) else {
+            return None;
+        };
+        if previous == current {
+            return None;
+        }
+
+        let raw_delta = i32::from(current) - i32::from(previous);
+        let wrapped_delta = if raw_delta.abs() > 500 {
+            if raw_delta > 0 {
+                raw_delta - 1000
+            } else {
+                raw_delta + 1000
+            }
+        } else {
+            raw_delta
+        };
+        if wrapped_delta > 0 {
+            Some(PlayheadTrailDirection::Forward)
+        } else if wrapped_delta < 0 {
+            Some(PlayheadTrailDirection::Backward)
+        } else {
+            None
+        }
     }
 
     /// Build only heavier motion-driven chrome overlays into reusable buffers.

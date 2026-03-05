@@ -8,6 +8,15 @@ const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
+/// Direction of the current playhead motion used for trail orientation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PlayheadTrailDirection {
+    /// Playback is moving forward in time.
+    Forward,
+    /// Playback is moving backward in time.
+    Backward,
+}
+
 /// Resolve which static segment owns one primitive.
 pub(super) fn static_segment_for_primitive(
     layout: &ShellLayout,
@@ -83,6 +92,7 @@ pub(super) fn push_waveform_playhead_overlay(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
+    playhead_trail_direction: Option<PlayheadTrailDirection>,
 ) {
     let edit_selection_blue = Rgba8 {
         r: 86,
@@ -162,8 +172,8 @@ pub(super) fn push_waveform_playhead_overlay(
         );
     }
     if let Some(rect) = annotations.playhead {
-        if model.transport_running {
-            emit_waveform_playhead_trail(primitives, layout.waveform_plot, rect, style);
+        if let Some(direction) = playhead_trail_direction {
+            emit_waveform_playhead_trail(primitives, layout.waveform_plot, rect, style, direction);
         }
         emit_primitive(
             primitives,
@@ -337,16 +347,30 @@ fn emit_waveform_playhead_trail(
     waveform_plot: Rect,
     playhead_rect: Rect,
     style: &StyleTokens,
+    direction: PlayheadTrailDirection,
 ) {
     let trail_segments = 6usize;
     let trail_span = (waveform_plot.width() * 0.06).clamp(24.0, 160.0);
-    let right_edge = playhead_rect.min.x;
     let segment_span = trail_span / trail_segments as f32;
 
     for segment in 0..trail_segments {
         let near_ratio = 1.0 - (segment as f32 / trail_segments as f32);
-        let left = (right_edge - ((segment + 1) as f32 * segment_span)).max(waveform_plot.min.x);
-        let right = (right_edge - (segment as f32 * segment_span)).min(right_edge);
+        let (left, right) = match direction {
+            PlayheadTrailDirection::Forward => {
+                let right_edge = playhead_rect.min.x;
+                let left =
+                    (right_edge - ((segment + 1) as f32 * segment_span)).max(waveform_plot.min.x);
+                let right = (right_edge - (segment as f32 * segment_span)).min(right_edge);
+                (left, right)
+            }
+            PlayheadTrailDirection::Backward => {
+                let left_edge = playhead_rect.max.x;
+                let left = (left_edge + (segment as f32 * segment_span)).max(left_edge);
+                let right =
+                    (left_edge + ((segment + 1) as f32 * segment_span)).min(waveform_plot.max.x);
+                (left, right)
+            }
+        };
         if right <= left {
             continue;
         }

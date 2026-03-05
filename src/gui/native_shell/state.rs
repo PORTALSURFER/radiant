@@ -186,6 +186,8 @@ struct WaveformToolbarHitTestCacheKey {
     ui_scale: u32,
     /// Packed waveform-toolbar model state flags.
     model_flags: u16,
+    /// Stable digest of waveform tempo label text.
+    tempo_label_signature: u64,
 }
 
 /// Small retained LRU cache for browser-row text truncation outputs.
@@ -247,6 +249,12 @@ pub(crate) enum WaveformToolbarHoverHint {
     Stereo,
     /// Normalized audition toggle.
     NormalizedAudition,
+    /// Decrease waveform BPM.
+    BpmDown,
+    /// Increase waveform BPM.
+    BpmUp,
+    /// Current playback BPM value display.
+    BpmValue,
     /// BPM snap toggle.
     BpmSnap,
     /// Transient snap toggle.
@@ -1837,6 +1845,7 @@ fn waveform_toolbar_hit_test_cache_key(
         waveform_header_max_y: f32_to_bits(layout.waveform_header.max.y),
         ui_scale: f32_to_bits(layout.ui_scale),
         model_flags: waveform_toolbar_model_flags(model),
+        tempo_label_signature: waveform_tempo_label_signature(model),
     }
 }
 
@@ -1869,11 +1878,20 @@ fn waveform_toolbar_model_flags(model: &NativeMotionModel) -> u16 {
     bits
 }
 
+fn waveform_tempo_label_signature(model: &NativeMotionModel) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    model.waveform_tempo_label.hash(&mut hasher);
+    hasher.finish()
+}
+
 fn waveform_toolbar_hover_hint(label: &str) -> Option<WaveformToolbarHoverHint> {
     match label {
         "Mono" => Some(WaveformToolbarHoverHint::Mono),
         "Stereo" => Some(WaveformToolbarHoverHint::Stereo),
         "Norm" => Some(WaveformToolbarHoverHint::NormalizedAudition),
+        "BPM -" => Some(WaveformToolbarHoverHint::BpmDown),
+        "BPM +" => Some(WaveformToolbarHoverHint::BpmUp),
+        "BPM Value" => Some(WaveformToolbarHoverHint::BpmValue),
         "BPM Snap" => Some(WaveformToolbarHoverHint::BpmSnap),
         "Tr Snap" => Some(WaveformToolbarHoverHint::TransientSnap),
         "Show Tr" => Some(WaveformToolbarHoverHint::ShowTransients),
@@ -2135,9 +2153,11 @@ fn waveform_toolbar_buttons(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) -> Vec<WaveformToolbarButton> {
-    let specs = [
+    let bpm_value_label = waveform_toolbar_bpm_value_label(model);
+    let specs = vec![
         (
             "Mono",
+            None,
             true,
             model.waveform_channel_view == crate::app::WaveformChannelViewModel::Mono,
             Some(UiAction::SetWaveformChannelView { stereo: false }),
@@ -2145,6 +2165,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Stereo",
+            None,
             true,
             model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo,
             Some(UiAction::SetWaveformChannelView { stereo: true }),
@@ -2152,6 +2173,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Norm",
+            None,
             true,
             model.waveform_normalized_audition_enabled,
             Some(UiAction::SetNormalizedAuditionEnabled {
@@ -2160,7 +2182,32 @@ fn waveform_toolbar_buttons(
             style.highlight_cyan,
         ),
         (
+            "BPM -",
+            None,
+            true,
+            false,
+            Some(UiAction::AdjustWaveformBpm { delta: -1 }),
+            style.highlight_blue_soft,
+        ),
+        (
+            "BPM Value",
+            Some(bpm_value_label),
+            true,
+            false,
+            None,
+            style.text_primary,
+        ),
+        (
+            "BPM +",
+            None,
+            true,
+            false,
+            Some(UiAction::AdjustWaveformBpm { delta: 1 }),
+            style.highlight_blue_soft,
+        ),
+        (
             "BPM Snap",
+            None,
             true,
             model.waveform_bpm_snap_enabled,
             Some(UiAction::SetBpmSnapEnabled {
@@ -2170,6 +2217,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Tr Snap",
+            None,
             true,
             model.waveform_transient_snap_enabled,
             Some(UiAction::SetTransientSnapEnabled {
@@ -2179,6 +2227,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Show Tr",
+            None,
             true,
             model.waveform_transient_markers_enabled,
             Some(UiAction::SetTransientMarkersEnabled {
@@ -2188,6 +2237,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Slice",
+            None,
             true,
             model.waveform_slice_mode_enabled,
             Some(UiAction::SetSliceModeEnabled {
@@ -2197,6 +2247,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Loop",
+            None,
             true,
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
@@ -2204,6 +2255,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Stop",
+            None,
             true,
             !model.transport_running,
             Some(UiAction::HandleEscape),
@@ -2211,14 +2263,21 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Play",
+            None,
             true,
             model.transport_running,
             Some(UiAction::ToggleTransport),
             style.highlight_cyan,
         ),
-        ("Rec", false, false, None, style.highlight_blue_soft),
+        ("Rec", None, false, false, None, style.highlight_blue_soft),
     ];
-    let labels: Vec<&str> = specs.iter().map(|(label, ..)| *label).collect();
+    let label_strings: Vec<String> = specs
+        .iter()
+        .map(|(label, display_text, ..)| {
+            display_text.clone().unwrap_or_else(|| (*label).to_string())
+        })
+        .collect();
+    let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
     let cluster = Rect::from_min_max(
         Point::new(
             layout.waveform_header.min.x + (layout.waveform_header.width() * 0.42),
@@ -2233,16 +2292,28 @@ fn waveform_toolbar_buttons(
         .into_iter()
         .zip(specs.into_iter().skip(start_index))
         .map(
-            |(rect, (label, enabled, active, action, text_color))| WaveformToolbarButton {
-                rect,
-                label,
-                enabled,
-                active,
-                action,
-                text_color,
+            |(rect, (label, display_text, enabled, active, action, text_color))| {
+                WaveformToolbarButton {
+                    rect,
+                    label,
+                    display_text,
+                    enabled,
+                    active,
+                    action,
+                    text_color,
+                }
             },
         )
         .collect()
+}
+
+fn waveform_toolbar_bpm_value_label(model: &NativeMotionModel) -> String {
+    model
+        .waveform_tempo_label
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| String::from("— BPM"))
 }
 
 fn waveform_toolbar_left_edge(buttons: &[WaveformToolbarButton], fallback: f32) -> f32 {
@@ -2312,7 +2383,10 @@ fn render_waveform_toolbar_buttons(
         emit_text(
             text_runs,
             TextRun {
-                text: button.label.to_string(),
+                text: button
+                    .display_text
+                    .clone()
+                    .unwrap_or_else(|| button.label.to_string()),
                 position: label_rect.min,
                 font_size: sizing.font_meta,
                 color: if button.enabled {

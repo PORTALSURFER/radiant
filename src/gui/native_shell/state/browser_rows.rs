@@ -87,6 +87,7 @@ pub(super) struct BrowserColumnChip {
 pub(super) struct WaveformToolbarButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
+    pub(super) display_text: Option<String>,
     pub(super) enabled: bool,
     pub(super) active: bool,
     pub(super) action: Option<UiAction>,

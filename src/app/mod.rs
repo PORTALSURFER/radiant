@@ -883,6 +883,11 @@ pub enum UiAction {
         /// Target enabled state.
         enabled: bool,
     },
+    /// Adjust waveform BPM by a signed whole-number delta.
+    AdjustWaveformBpm {
+        /// Signed BPM delta applied to the current value.
+        delta: i8,
+    },
     /// Enable/disable transient snapping for waveform edits.
     SetTransientSnapEnabled {
         /// Target enabled state.

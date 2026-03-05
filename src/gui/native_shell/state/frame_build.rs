@@ -2093,6 +2093,24 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
                 String::from("Enable normalized audition")
             }
         }
+        WaveformToolbarHoverHint::BpmDown => model
+            .waveform
+            .tempo_label
+            .as_deref()
+            .map(|tempo| format!("Decrease BPM by 1 ({tempo})"))
+            .unwrap_or_else(|| String::from("Decrease BPM by 1")),
+        WaveformToolbarHoverHint::BpmUp => model
+            .waveform
+            .tempo_label
+            .as_deref()
+            .map(|tempo| format!("Increase BPM by 1 ({tempo})"))
+            .unwrap_or_else(|| String::from("Increase BPM by 1")),
+        WaveformToolbarHoverHint::BpmValue => model
+            .waveform
+            .tempo_label
+            .as_deref()
+            .map(|tempo| format!("Playback BPM ({tempo})"))
+            .unwrap_or_else(|| String::from("Playback BPM")),
         WaveformToolbarHoverHint::BpmSnap => {
             if model.waveform_chrome.bpm_snap_enabled {
                 String::from("Disable BPM snapping")

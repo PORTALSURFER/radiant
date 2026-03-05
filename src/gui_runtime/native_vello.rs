@@ -3128,6 +3128,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetBrowserTab { .. }
             | UiAction::FocusMapSample { .. }
             | UiAction::SetPromptInput { .. }
+            | UiAction::AdjustWaveformBpm { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
@@ -3154,6 +3155,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ReplayFromLastStart
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::AdjustWaveformBpm { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }

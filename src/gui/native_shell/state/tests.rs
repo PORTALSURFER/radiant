@@ -1037,6 +1037,65 @@ fn cursor_move_effect_classifies_waveform_hover_only_updates() {
 }
 
 #[test]
+fn cursor_move_effect_classifies_waveform_toolbar_hover_changes_as_general_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let mono_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Mono")
+        .expect("mono button should be present");
+    let stereo_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Stereo")
+        .expect("stereo button should be present");
+    let mono = Point::new(
+        (mono_rect.min.x + mono_rect.max.x) * 0.5,
+        (mono_rect.min.y + mono_rect.max.y) * 0.5,
+    );
+    let stereo = Point::new(
+        (stereo_rect.min.x + stereo_rect.max.x) * 0.5,
+        (stereo_rect.min.y + stereo_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, mono),
+        CursorMoveEffect::GeneralOverlay
+    );
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, stereo),
+        CursorMoveEffect::GeneralOverlay
+    );
+}
+
+#[test]
+fn state_overlay_renders_waveform_toolbar_hover_tooltip_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let mono_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Mono")
+        .expect("mono button should be present");
+    let mono = Point::new(
+        (mono_rect.min.x + mono_rect.max.x) * 0.5,
+        (mono_rect.min.y + mono_rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, mono),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("View waveform in mono"))
+    );
+}
+
+#[test]
 fn cursor_move_clears_waveform_hover_position_outside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

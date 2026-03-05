@@ -73,6 +73,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
+    hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
     playhead_trail_samples: Vec<PlayheadTrailSample>,
@@ -237,6 +238,33 @@ pub(crate) enum CursorMoveEffect {
     GeneralOverlay,
 }
 
+/// Stable hover-target identifier for waveform-toolbar tooltip hints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformToolbarHoverHint {
+    /// Mono channel-view toggle.
+    Mono,
+    /// Split-stereo channel-view toggle.
+    Stereo,
+    /// Normalized audition toggle.
+    NormalizedAudition,
+    /// BPM snap toggle.
+    BpmSnap,
+    /// Transient snap toggle.
+    TransientSnap,
+    /// Transient marker visibility toggle.
+    ShowTransients,
+    /// Slice-mode toggle.
+    SliceMode,
+    /// Loop playback toggle.
+    Loop,
+    /// Stop transport action.
+    Stop,
+    /// Transport toggle action.
+    Play,
+    /// Record action (currently disabled).
+    Record,
+}
+
 /// Compact state-overlay fingerprint for change detection in runtime caches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StateOverlayFingerprint {
@@ -246,6 +274,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered waveform-toolbar hint target.
+    pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }
@@ -542,6 +572,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
+            hovered_waveform_toolbar_hint: None,
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
             playhead_trail_samples: Vec::new(),
@@ -628,6 +659,7 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }
@@ -689,18 +721,31 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_waveform_toolbar_hint =
+            self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let waveform_toolbar_hint_changed =
+            next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
         let waveform_hover_changed =
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
-        if !hover_changed && !browser_row_changed && !waveform_hover_changed {
+        if !hover_changed
+            && !browser_row_changed
+            && !waveform_toolbar_hint_changed
+            && !waveform_hover_changed
+        {
             return CursorMoveEffect::None;
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
         self.waveform_hover_x = next_waveform_hover_x;
-        if waveform_hover_changed && !hover_changed && !browser_row_changed {
+        if waveform_hover_changed
+            && !hover_changed
+            && !browser_row_changed
+            && !waveform_toolbar_hint_changed
+        {
             CursorMoveEffect::WaveformHoverOnly
         } else {
             CursorMoveEffect::GeneralOverlay
@@ -721,6 +766,24 @@ impl NativeShellState {
         let rows = self.cached_browser_rows(layout, &style, model);
         row_index_for_visible_rows(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
+    }
+
+    fn resolve_hovered_waveform_toolbar_hint(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<WaveformToolbarHoverHint> {
+        if hover != Some(ShellNodeKind::WaveformCard) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.rect.contains(point))
+            .and_then(|button| waveform_toolbar_hover_hint(button.label))
     }
 
     /// Handle a primary button click at the pointer position.
@@ -1804,6 +1867,23 @@ fn waveform_toolbar_model_flags(model: &NativeMotionModel) -> u16 {
         bits |= 1 << 7;
     }
     bits
+}
+
+fn waveform_toolbar_hover_hint(label: &str) -> Option<WaveformToolbarHoverHint> {
+    match label {
+        "Mono" => Some(WaveformToolbarHoverHint::Mono),
+        "Stereo" => Some(WaveformToolbarHoverHint::Stereo),
+        "Norm" => Some(WaveformToolbarHoverHint::NormalizedAudition),
+        "BPM Snap" => Some(WaveformToolbarHoverHint::BpmSnap),
+        "Tr Snap" => Some(WaveformToolbarHoverHint::TransientSnap),
+        "Show Tr" => Some(WaveformToolbarHoverHint::ShowTransients),
+        "Slice" => Some(WaveformToolbarHoverHint::SliceMode),
+        "Loop" => Some(WaveformToolbarHoverHint::Loop),
+        "Stop" => Some(WaveformToolbarHoverHint::Stop),
+        "Play" => Some(WaveformToolbarHoverHint::Play),
+        "Rec" => Some(WaveformToolbarHoverHint::Record),
+        _ => None,
+    }
 }
 
 /// Return hovered waveform marker x-position for one pointer point.

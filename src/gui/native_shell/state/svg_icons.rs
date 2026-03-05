@@ -11,12 +11,28 @@ use std::sync::Arc;
 /// Icon identifiers used by waveform toolbar transport controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformToolbarIcon {
+    /// Mono channel-view icon.
+    Mono,
+    /// Stereo channel-view icon.
+    Stereo,
+    /// Normalize audition toggle icon.
+    Normalize,
+    /// BPM snap icon.
+    BpmSnap,
+    /// Transient snap icon.
+    TransientSnap,
+    /// Show transient markers icon.
+    ShowTransients,
+    /// Slice mode icon.
+    Slice,
     /// Loop toggle icon.
     Loop,
     /// Stop transport icon.
     Stop,
     /// Play/pause toggle icon.
     Play,
+    /// Pause icon used while transport is running.
+    Pause,
     /// Record icon placeholder.
     Record,
 }
@@ -46,12 +62,27 @@ enum SvgShape {
     Polygon(Vec<(f32, f32)>),
 }
 
-/// Return a toolbar icon for a waveform control label when icon rendering is enabled.
-pub(super) fn toolbar_icon_for_label(label: &str) -> Option<WaveformToolbarIcon> {
-    match label {
+/// Return a toolbar icon for one waveform toolbar button.
+pub(super) fn toolbar_icon_for_button(
+    button: &WaveformToolbarButton,
+) -> Option<WaveformToolbarIcon> {
+    match button.label {
+        "Mono" => Some(WaveformToolbarIcon::Mono),
+        "Stereo" => Some(WaveformToolbarIcon::Stereo),
+        "Norm" => Some(WaveformToolbarIcon::Normalize),
+        "BPM Snap" => Some(WaveformToolbarIcon::BpmSnap),
+        "Tr Snap" => Some(WaveformToolbarIcon::TransientSnap),
+        "Show Tr" => Some(WaveformToolbarIcon::ShowTransients),
+        "Slice" => Some(WaveformToolbarIcon::Slice),
         "Loop" => Some(WaveformToolbarIcon::Loop),
         "Stop" => Some(WaveformToolbarIcon::Stop),
-        "Play" => Some(WaveformToolbarIcon::Play),
+        "Play" => {
+            if button.active {
+                Some(WaveformToolbarIcon::Pause)
+            } else {
+                Some(WaveformToolbarIcon::Play)
+            }
+        }
         "Rec" => Some(WaveformToolbarIcon::Record),
         _ => None,
     }
@@ -238,8 +269,32 @@ fn point_in_polygon(x: f32, y: f32, points: &[(f32, f32)]) -> bool {
 
 fn icon_svg(icon: WaveformToolbarIcon) -> &'static str {
     match icon {
+        WaveformToolbarIcon::Mono => {
+            r#"<svg viewBox="0 0 16 16"><rect x="6.5" y="3" width="3" height="10"/></svg>"#
+        }
+        WaveformToolbarIcon::Stereo => {
+            r#"<svg viewBox="0 0 16 16"><rect x="3.5" y="3" width="3" height="10"/><rect x="9.5" y="3" width="3" height="10"/></svg>"#
+        }
+        WaveformToolbarIcon::Normalize => {
+            r#"<svg viewBox="0 0 16 16"><polygon points="3,12 3,4 5.5,4 8.5,9 8.5,4 11,4 11,12 8.5,12 5.5,7 5.5,12"/></svg>"#
+        }
+        WaveformToolbarIcon::BpmSnap => {
+            r#"<svg viewBox="0 0 16 16"><polygon points="8,2 5,6 11,6"/><rect x="6" y="6" width="4" height="7"/><rect x="4" y="13" width="8" height="1.5"/></svg>"#
+        }
+        WaveformToolbarIcon::TransientSnap => {
+            r#"<svg viewBox="0 0 16 16"><polygon points="9,2 5,9 8,9 7,14 11,7 8,7"/></svg>"#
+        }
+        WaveformToolbarIcon::ShowTransients => {
+            r#"<svg viewBox="0 0 16 16"><polygon points="2,8 5,5 11,5 14,8 11,11 5,11"/><circle cx="8" cy="8" r="2"/></svg>"#
+        }
+        WaveformToolbarIcon::Slice => {
+            r#"<svg viewBox="0 0 16 16"><rect x="3" y="4" width="10" height="1.5"/><rect x="3" y="7.25" width="10" height="1.5"/><rect x="3" y="10.5" width="10" height="1.5"/><polygon points="9,3 12.5,6.5 11.2,7.8 7.7,4.3"/></svg>"#
+        }
         WaveformToolbarIcon::Play => {
             r#"<svg viewBox="0 0 16 16"><polygon points="4,3 13,8 4,13"/></svg>"#
+        }
+        WaveformToolbarIcon::Pause => {
+            r#"<svg viewBox="0 0 16 16"><rect x="4.5" y="3.5" width="3" height="9"/><rect x="8.5" y="3.5" width="3" height="9"/></svg>"#
         }
         WaveformToolbarIcon::Stop => {
             r#"<svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>"#

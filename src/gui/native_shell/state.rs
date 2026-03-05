@@ -2219,7 +2219,7 @@ fn render_waveform_toolbar_buttons(
         } else {
             style.text_muted
         };
-        if let Some(icon) = toolbar_icon_for_label(button.label) {
+        if let Some(icon) = toolbar_icon_for_button(button) {
             if emit_toolbar_svg_icon(
                 primitives,
                 icon,

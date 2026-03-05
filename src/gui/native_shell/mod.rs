@@ -412,27 +412,8 @@ mod tests {
     }
 
     #[test]
-    /// Waveform toolbar BPM stepper buttons should dispatch signed BPM adjustments.
-    fn waveform_toolbar_hit_test_emits_bpm_adjust_action() {
-        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
-        let model = crate::app::AppModel::default();
-        let bpm_up = state
-            .waveform_toolbar_button_rect(&layout, &model, "BPM +")
-            .expect("bpm-up waveform toolbar button should be present");
-        let point = Point::new(
-            (bpm_up.min.x + bpm_up.max.x) * 0.5,
-            (bpm_up.min.y + bpm_up.max.y) * 0.5,
-        );
-        assert_eq!(
-            state.waveform_toolbar_action_at_point(&layout, &model, point),
-            Some(crate::app::UiAction::AdjustWaveformBpm { delta: 1 })
-        );
-    }
-
-    #[test]
-    /// Waveform toolbar BPM value widget should render and stay non-interactive.
-    fn waveform_toolbar_bpm_value_widget_is_display_only() {
+    /// Waveform toolbar BPM value widget should expose a hit-test area for editing.
+    fn waveform_toolbar_bpm_value_widget_exposes_input_hit_target() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
@@ -444,10 +425,7 @@ mod tests {
             (bpm_value.min.x + bpm_value.max.x) * 0.5,
             (bpm_value.min.y + bpm_value.max.y) * 0.5,
         );
-        assert_eq!(
-            state.waveform_toolbar_action_at_point(&layout, &model, point),
-            None
-        );
+        assert!(state.waveform_bpm_input_at_point(&layout, &model, point));
     }
 
     #[test]

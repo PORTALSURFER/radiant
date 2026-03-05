@@ -888,6 +888,11 @@ pub enum UiAction {
         /// Signed BPM delta applied to the current value.
         delta: i8,
     },
+    /// Set waveform BPM to an explicit positive numeric value.
+    SetWaveformBpmValue {
+        /// Absolute BPM value in tenths (`1200` = `120.0 BPM`).
+        value_tenths: u16,
+    },
     /// Enable/disable transient snapping for waveform edits.
     SetTransientSnapEnabled {
         /// Target enabled state.

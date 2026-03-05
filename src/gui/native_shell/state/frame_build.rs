@@ -142,7 +142,13 @@ impl NativeShellState {
                 owned_motion_model = NativeMotionModel::from_app_model(model);
                 &owned_motion_model
             };
-            let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, &motion_model);
+            let waveform_toolbar_buttons = waveform_toolbar_buttons(
+                layout,
+                style,
+                &motion_model,
+                self.waveform_bpm_input_active,
+                self.waveform_bpm_input_display.as_deref(),
+            );
             let waveform_toolbar_left = waveform_toolbar_left_edge(
                 &waveform_toolbar_buttons,
                 layout.waveform_header.max.x - sizing.text_inset_x,
@@ -2093,24 +2099,12 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
                 String::from("Enable normalized audition")
             }
         }
-        WaveformToolbarHoverHint::BpmDown => model
-            .waveform
-            .tempo_label
-            .as_deref()
-            .map(|tempo| format!("Decrease BPM by 1 ({tempo})"))
-            .unwrap_or_else(|| String::from("Decrease BPM by 1")),
-        WaveformToolbarHoverHint::BpmUp => model
-            .waveform
-            .tempo_label
-            .as_deref()
-            .map(|tempo| format!("Increase BPM by 1 ({tempo})"))
-            .unwrap_or_else(|| String::from("Increase BPM by 1")),
         WaveformToolbarHoverHint::BpmValue => model
             .waveform
             .tempo_label
             .as_deref()
-            .map(|tempo| format!("Playback BPM ({tempo})"))
-            .unwrap_or_else(|| String::from("Playback BPM")),
+            .map(|tempo| format!("Edit playback BPM ({tempo})"))
+            .unwrap_or_else(|| String::from("Edit playback BPM")),
         WaveformToolbarHoverHint::BpmSnap => {
             if model.waveform_chrome.bpm_snap_enabled {
                 String::from("Disable BPM snapping")

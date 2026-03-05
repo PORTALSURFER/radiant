@@ -74,6 +74,8 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    waveform_bpm_input_active: bool,
+    waveform_bpm_input_display: Option<String>,
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
     playhead_trail_samples: Vec<PlayheadTrailSample>,
@@ -188,6 +190,10 @@ struct WaveformToolbarHitTestCacheKey {
     model_flags: u16,
     /// Stable digest of waveform tempo label text.
     tempo_label_signature: u64,
+    /// Whether waveform BPM editor mode is active.
+    bpm_editor_active: bool,
+    /// Stable digest of waveform BPM editor display text.
+    bpm_editor_display_signature: u64,
 }
 
 /// Small retained LRU cache for browser-row text truncation outputs.
@@ -249,10 +255,6 @@ pub(crate) enum WaveformToolbarHoverHint {
     Stereo,
     /// Normalized audition toggle.
     NormalizedAudition,
-    /// Decrease waveform BPM.
-    BpmDown,
-    /// Increase waveform BPM.
-    BpmUp,
     /// Current playback BPM value display.
     BpmValue,
     /// BPM snap toggle.
@@ -581,6 +583,8 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_waveform_toolbar_hint: None,
+            waveform_bpm_input_active: false,
+            waveform_bpm_input_display: None,
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
             playhead_trail_samples: Vec::new(),
@@ -659,6 +663,22 @@ impl NativeShellState {
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
     pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
         self.transport_running = model.transport_running;
+    }
+
+    /// Update waveform BPM toolbar editor state used by toolbar rendering.
+    pub(crate) fn set_waveform_bpm_editor_state(
+        &mut self,
+        active: bool,
+        display_text: Option<String>,
+    ) {
+        if self.waveform_bpm_input_active == active
+            && self.waveform_bpm_input_display == display_text
+        {
+            return;
+        }
+        self.waveform_bpm_input_active = active;
+        self.waveform_bpm_input_display = display_text;
+        self.waveform_toolbar_hit_test_cache_key = None;
     }
 
     /// Return the current state-overlay fingerprint.
@@ -1017,10 +1037,16 @@ impl NativeShellState {
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
         let motion_model = NativeMotionModel::from_app_model(model);
-        waveform_toolbar_buttons(layout, &style, &motion_model)
-            .into_iter()
-            .find(|button| button.label == label)
-            .map(|button| button.rect)
+        waveform_toolbar_buttons(
+            layout,
+            &style,
+            &motion_model,
+            self.waveform_bpm_input_active,
+            self.waveform_bpm_input_display.as_deref(),
+        )
+        .into_iter()
+        .find(|button| button.label == label)
+        .map(|button| button.rect)
     }
 
     /// Resolve a source-management action button click into a native UI action.
@@ -1226,6 +1252,32 @@ impl NativeShellState {
         }
         let style = style_for_layout(layout);
         prompt_input_rect(layout, &style, model).is_some_and(|rect| rect.contains(point))
+    }
+
+    /// Return whether a point falls inside the waveform BPM text-input widget.
+    pub(crate) fn waveform_bpm_input_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.waveform_bpm_input_at_point_with_motion(layout, &motion_model, point)
+    }
+
+    /// Return whether a point falls inside the waveform BPM text-input widget.
+    pub(crate) fn waveform_bpm_input_at_point_with_motion(
+        &mut self,
+        layout: &ShellLayout,
+        motion_model: &NativeMotionModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        self.cached_waveform_toolbar_buttons(layout, &style, motion_model)
+            .iter()
+            .any(|button| {
+                button.label == "BPM Value" && button.enabled && button.rect.contains(point)
+            })
     }
 
     /// Resolve a progress-overlay cancel click.
@@ -1565,7 +1617,13 @@ impl NativeShellState {
             }),
         );
 
-        let waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
+        let waveform_toolbar_buttons = waveform_toolbar_buttons(
+            layout,
+            style,
+            model,
+            self.waveform_bpm_input_active,
+            self.waveform_bpm_input_display.as_deref(),
+        );
         let waveform_toolbar_left = waveform_toolbar_left_edge(
             &waveform_toolbar_buttons,
             layout.waveform_header.max.x - sizing.text_inset_x,
@@ -1794,9 +1852,20 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &NativeMotionModel,
     ) -> &[WaveformToolbarButton] {
-        let cache_key = waveform_toolbar_hit_test_cache_key(layout, model);
+        let cache_key = waveform_toolbar_hit_test_cache_key(
+            layout,
+            model,
+            self.waveform_bpm_input_active,
+            self.waveform_bpm_input_display.as_deref(),
+        );
         if self.waveform_toolbar_hit_test_cache_key != Some(cache_key) {
-            self.waveform_toolbar_buttons = waveform_toolbar_buttons(layout, style, model);
+            self.waveform_toolbar_buttons = waveform_toolbar_buttons(
+                layout,
+                style,
+                model,
+                self.waveform_bpm_input_active,
+                self.waveform_bpm_input_display.as_deref(),
+            );
             self.waveform_toolbar_hit_test_cache_key = Some(cache_key);
         }
         &self.waveform_toolbar_buttons
@@ -1837,6 +1906,8 @@ fn browser_action_model_signature(model: &AppModel) -> u64 {
 fn waveform_toolbar_hit_test_cache_key(
     layout: &ShellLayout,
     model: &NativeMotionModel,
+    bpm_editor_active: bool,
+    bpm_editor_display: Option<&str>,
 ) -> WaveformToolbarHitTestCacheKey {
     WaveformToolbarHitTestCacheKey {
         waveform_header_min_x: f32_to_bits(layout.waveform_header.min.x),
@@ -1846,6 +1917,8 @@ fn waveform_toolbar_hit_test_cache_key(
         ui_scale: f32_to_bits(layout.ui_scale),
         model_flags: waveform_toolbar_model_flags(model),
         tempo_label_signature: waveform_tempo_label_signature(model),
+        bpm_editor_active,
+        bpm_editor_display_signature: text_signature(bpm_editor_display),
     }
 }
 
@@ -1884,13 +1957,17 @@ fn waveform_tempo_label_signature(model: &NativeMotionModel) -> u64 {
     hasher.finish()
 }
 
+fn text_signature(value: Option<&str>) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
 fn waveform_toolbar_hover_hint(label: &str) -> Option<WaveformToolbarHoverHint> {
     match label {
         "Mono" => Some(WaveformToolbarHoverHint::Mono),
         "Stereo" => Some(WaveformToolbarHoverHint::Stereo),
         "Norm" => Some(WaveformToolbarHoverHint::NormalizedAudition),
-        "BPM -" => Some(WaveformToolbarHoverHint::BpmDown),
-        "BPM +" => Some(WaveformToolbarHoverHint::BpmUp),
         "BPM Value" => Some(WaveformToolbarHoverHint::BpmValue),
         "BPM Snap" => Some(WaveformToolbarHoverHint::BpmSnap),
         "Tr Snap" => Some(WaveformToolbarHoverHint::TransientSnap),
@@ -2152,8 +2229,10 @@ fn waveform_toolbar_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
+    bpm_input_active: bool,
+    bpm_input_display: Option<&str>,
 ) -> Vec<WaveformToolbarButton> {
-    let bpm_value_label = waveform_toolbar_bpm_value_label(model);
+    let bpm_value_label = waveform_toolbar_bpm_value_label(model, bpm_input_display);
     let specs = vec![
         (
             "Mono",
@@ -2182,28 +2261,12 @@ fn waveform_toolbar_buttons(
             style.highlight_cyan,
         ),
         (
-            "BPM -",
-            None,
-            true,
-            false,
-            Some(UiAction::AdjustWaveformBpm { delta: -1 }),
-            style.highlight_blue_soft,
-        ),
-        (
             "BPM Value",
             Some(bpm_value_label),
             true,
-            false,
+            bpm_input_active,
             None,
             style.text_primary,
-        ),
-        (
-            "BPM +",
-            None,
-            true,
-            false,
-            Some(UiAction::AdjustWaveformBpm { delta: 1 }),
-            style.highlight_blue_soft,
         ),
         (
             "BPM Snap",
@@ -2307,13 +2370,30 @@ fn waveform_toolbar_buttons(
         .collect()
 }
 
-fn waveform_toolbar_bpm_value_label(model: &NativeMotionModel) -> String {
+fn waveform_toolbar_bpm_value_label(
+    model: &NativeMotionModel,
+    bpm_input_display: Option<&str>,
+) -> String {
+    if let Some(display) = bpm_input_display {
+        return display.to_string();
+    }
     model
         .waveform_tempo_label
         .as_deref()
-        .filter(|value| !value.trim().is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| String::from("— BPM"))
+        .and_then(parse_waveform_tempo_number_text)
+        .unwrap_or_else(|| String::from("120.0"))
+}
+
+fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
+    let number = label.split_ascii_whitespace().next()?.trim();
+    if number.is_empty() {
+        return None;
+    }
+    let parsed = number.parse::<f32>().ok()?;
+    if !parsed.is_finite() || parsed <= 0.0 {
+        return None;
+    }
+    Some(number.to_string())
 }
 
 fn waveform_toolbar_left_edge(buttons: &[WaveformToolbarButton], fallback: f32) -> f32 {

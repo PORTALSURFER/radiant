@@ -981,6 +981,32 @@ fn waveform_right_click_maps_to_edit_selection_action() {
 }
 
 #[test]
+fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x - 2.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_milli: 800,
+            end_milli: position_milli,
+        })
+    );
+}
+
+#[test]
 fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
@@ -996,6 +1022,61 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
             start_milli: 800,
             end_milli: position_milli,
         }
+    );
+}
+
+#[test]
+fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(300, 700));
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let edit_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3) - 2.0;
+    let playback_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) - 2.0;
+    let outside_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5);
+
+    assert!(waveform_resize_handle_hovered(
+        &layout,
+        &model,
+        Point::new(edit_left_x, y),
+    ));
+    assert!(waveform_resize_handle_hovered(
+        &layout,
+        &model,
+        Point::new(playback_left_x, y),
+    ));
+    assert!(!waveform_resize_handle_hovered(
+        &layout,
+        &model,
+        Point::new(outside_x, y),
+    ));
+}
+
+#[test]
+fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x - 2.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::SetWaveformEditSelectionRange {
+            start_milli: 800,
+            end_milli: position_milli,
+        })
     );
 }
 

@@ -1244,6 +1244,63 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_selection_resize_handles() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let selection = NormalizedRangeModel::new(180, 420);
+    model.waveform.selection_milli = Some(selection);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("selection rect");
+    let left_handle_x = (selection_rect.min.x - 4.0).max(layout.waveform_plot.min.x);
+    let right_handle_x = (selection_rect.max.x + 4.0).min(layout.waveform_plot.max.x);
+
+    let has_left_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= left_handle_x
+                    && rect.rect.max.x >= left_handle_x
+                    && rect.rect.min.y <= selection_rect.min.y
+                    && rect.rect.max.y >= selection_rect.max.y
+        )
+    });
+    let has_right_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= right_handle_x
+                    && rect.rect.max.x >= right_handle_x
+                    && rect.rect.min.y <= selection_rect.min.y
+                    && rect.rect.max.y >= selection_rect.max.y
+        )
+    });
+    assert!(
+        has_left_handle,
+        "expected left selection resize handle primitive"
+    );
+    assert!(
+        has_right_handle,
+        "expected right selection resize handle primitive"
+    );
+}
+
+#[test]
 fn waveform_motion_overlay_draws_edit_fade_handles() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

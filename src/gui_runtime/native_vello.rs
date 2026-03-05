@@ -44,7 +44,7 @@ use winit::{
     event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
-    window::{Icon, Window, WindowAttributes, WindowId},
+    window::{CursorIcon, Icon, Window, WindowAttributes, WindowId},
 };
 
 mod input;
@@ -1290,6 +1290,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     shell_layout: Option<ShellLayout>,
     shell_state: NativeShellState,
     clear_color: Rgba8,
+    cursor_icon: CursorIcon,
     last_cursor: Option<Point>,
     pending_cursor: Option<Point>,
     /// Latest queued top-bar volume update in normalized milli space.
@@ -1423,6 +1424,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             shell_layout: None,
             shell_state: NativeShellState::new(),
             clear_color: startup_clear_color,
+            cursor_icon: CursorIcon::Default,
             last_cursor: None,
             pending_cursor: None,
             pending_volume_milli: None,
@@ -2058,6 +2060,31 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn queue_cursor(&mut self, point: Point) {
         self.pending_cursor = Some(point);
+    }
+
+    /// Update the native cursor icon only when it changed.
+    fn set_cursor_icon(&mut self, icon: CursorIcon) {
+        if self.cursor_icon == icon {
+            return;
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.set_cursor(icon);
+        }
+        self.cursor_icon = icon;
+    }
+
+    /// Resolve waveform-resize hover cursor state for the current pointer.
+    fn update_waveform_resize_cursor(&mut self, point: Point) {
+        let icon = if let Some(layout) = self.shell_layout.as_ref() {
+            if waveform_resize_handle_hovered(layout, &self.model, point) {
+                CursorIcon::EwResize
+            } else {
+                CursorIcon::Default
+            }
+        } else {
+            CursorIcon::Default
+        };
+        self.set_cursor_icon(icon);
     }
 
     /// Record recent pointer activity for short-lived high-frequency redraw pacing.
@@ -3245,6 +3272,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 }
                 self.last_cursor = Some(point);
                 self.note_cursor_activity(Instant::now());
+                self.update_waveform_resize_cursor(point);
                 if self.volume_drag_active
                     && let Some(layout) = self.shell_layout.as_ref()
                     && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
@@ -3268,6 +3296,11 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         self.queue_cursor(point);
                     }
                 }
+            }
+            WindowEvent::CursorLeft { .. } => {
+                self.last_cursor = None;
+                self.pending_cursor = None;
+                self.set_cursor_icon(CursorIcon::Default);
             }
             WindowEvent::MouseInput {
                 button,

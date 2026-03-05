@@ -9,6 +9,10 @@ const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
 const EDIT_SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
 /// Horizontal offset in logical pixels between selection edges and resize handles.
 const EDIT_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
+/// Width in logical pixels for playback-selection resize handles.
+const SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
+/// Horizontal offset in logical pixels between playback-selection edges and resize handles.
+const SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
@@ -130,6 +134,13 @@ pub(super) fn push_waveform_playhead_overlay(
             blend_color(style.accent_warning, style.text_primary, 0.28),
             style.sizing.border_width,
         );
+        emit_selection_resize_handles(
+            primitives,
+            style,
+            layout.waveform_plot,
+            rect,
+            style.accent_warning,
+        );
         if model.waveform_loop_enabled {
             emit_waveform_loop_bar(primitives, style, rect);
         }
@@ -206,6 +217,71 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
+}
+
+/// Emit draggable playback-selection edge handles outside the yellow selection.
+fn emit_selection_resize_handles(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    waveform_plot: Rect,
+    selection_rect: Rect,
+    accent_color: Rgba8,
+) {
+    emit_selection_resize_handle(
+        primitives,
+        style,
+        waveform_plot,
+        selection_rect,
+        true,
+        accent_color,
+    );
+    emit_selection_resize_handle(
+        primitives,
+        style,
+        waveform_plot,
+        selection_rect,
+        false,
+        accent_color,
+    );
+}
+
+/// Emit one draggable playback-selection resize handle.
+fn emit_selection_resize_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    waveform_plot: Rect,
+    selection_rect: Rect,
+    left_edge: bool,
+    accent_color: Rgba8,
+) {
+    let width = SELECTION_RESIZE_HANDLE_WIDTH
+        .max(style.sizing.border_width)
+        .max(1.0);
+    let half = width * 0.5;
+    let target_x = if left_edge {
+        (selection_rect.min.x - SELECTION_RESIZE_HANDLE_OUTSET).max(waveform_plot.min.x)
+    } else {
+        (selection_rect.max.x + SELECTION_RESIZE_HANDLE_OUTSET).min(waveform_plot.max.x)
+    };
+    let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
+    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
+    let handle = Rect::from_min_max(
+        Point::new(left, selection_rect.min.y),
+        Point::new(right, selection_rect.max.y),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.surface_overlay, accent_color, 0.56),
+        }),
+    );
+    push_border(
+        primitives,
+        handle,
+        blend_color(accent_color, style.text_primary, 0.5),
+        style.sizing.border_width,
+    );
 }
 
 /// Emit draggable edit-selection edge handles outside the blue edit selection.

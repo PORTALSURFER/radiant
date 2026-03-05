@@ -30,6 +30,10 @@ const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 const WAVEFORM_EDIT_RESIZE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Horizontal offset in pixels between edit-selection edges and resize handles.
 const WAVEFORM_EDIT_RESIZE_HANDLE_OUTSET: f32 = 4.0;
+/// Half-width in pixels used for playback-selection resize-handle hit testing.
+const WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
+/// Horizontal offset in pixels between playback-selection edges and resize handles.
+const WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
 /// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 /// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
@@ -229,7 +233,21 @@ pub(super) fn waveform_action_from_pointer(
     if !command
         && !alt
         && !shift
+        && let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && !shift
         && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_resize_action_from_pointer(layout, model, point)
     {
         return action;
     }
@@ -248,6 +266,60 @@ pub(super) fn waveform_action_from_pointer(
             end_milli: position_milli,
         }
     }
+}
+
+/// Return whether the pointer is hovering any waveform resize/fade handle.
+pub(super) fn waveform_resize_handle_hovered(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> bool {
+    waveform_edit_resize_action_from_pointer(layout, model, point).is_some()
+        || waveform_edit_fade_handle_action_from_pointer(layout, model, point).is_some()
+        || waveform_selection_resize_action_from_pointer(layout, model, point).is_some()
+}
+
+/// Resolve one playback-selection resize action when the pointer lands on an edge handle.
+fn waveform_selection_resize_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.selection_milli?;
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let selection_start = selection.start_milli.min(selection.end_milli);
+    let selection_end = selection.start_milli.max(selection.end_milli);
+    if selection_end <= selection_start {
+        return None;
+    }
+    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let left_handle_x = (selection_start_x - WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET)
+        .max(layout.waveform_plot.min.x);
+    let right_handle_x =
+        (selection_end_x + WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET).min(layout.waveform_plot.max.x);
+    let left_distance = (point.x - left_handle_x).abs();
+    let right_distance = (point.x - right_handle_x).abs();
+    let left_hit = point.x <= selection_start_x
+        && left_distance <= WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH;
+    let right_hit = point.x >= selection_end_x
+        && right_distance <= WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH;
+    if !left_hit && !right_hit {
+        return None;
+    }
+    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    if left_hit && (!right_hit || left_distance <= right_distance) {
+        return Some(UiAction::SetWaveformSelectionRange {
+            start_milli: selection_end,
+            end_milli: position_milli,
+        });
+    }
+    Some(UiAction::SetWaveformSelectionRange {
+        start_milli: selection_start,
+        end_milli: position_milli,
+    })
 }
 
 /// Build one waveform edit-selection action from pointer position.

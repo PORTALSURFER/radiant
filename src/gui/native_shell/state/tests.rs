@@ -1140,6 +1140,8 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
         Some(play_selection),
         None,
         None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .selection
     .expect("play selection rect");
@@ -1149,6 +1151,8 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
         Some(edit_selection),
         None,
         None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .selection
     .expect("edit selection rect");
@@ -1201,6 +1205,8 @@ fn waveform_motion_overlay_draws_edit_fade_handles() {
         Some(edit_selection),
         None,
         None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .selection
     .expect("edit selection rect");
@@ -1254,6 +1260,8 @@ fn waveform_motion_overlay_draws_loop_range_bar_when_loop_enabled() {
         Some(play_selection),
         None,
         None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .selection
     .expect("play selection rect");
@@ -1307,6 +1315,8 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
         None,
         None,
         model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .playhead
     .expect("playhead marker");
@@ -1353,6 +1363,8 @@ fn waveform_motion_overlay_omits_playhead_trail_when_playhead_is_stationary() {
         None,
         None,
         model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .playhead
     .expect("playhead marker");
@@ -1399,6 +1411,8 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
         None,
         None,
         model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .playhead
     .expect("playhead marker");
@@ -1427,7 +1441,7 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
 }
 
 #[test]
-fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
+fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -1440,17 +1454,14 @@ fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
         state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
     }
 
-    model.transport_running = false;
-    model.waveform.playhead_milli = Some(754);
-    let stopped_motion = NativeMotionModel::from_app_model(&model);
-    state.build_motion_overlay_into(&layout, &style, &stopped_motion, &mut frame);
-
-    let playhead_rect = compute_waveform_annotation_rects(
+    let running_playhead_rect = compute_waveform_annotation_rects(
         layout.waveform_plot,
         style.sizing.border_width,
         None,
         None,
         model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .playhead
     .expect("playhead marker");
@@ -1460,8 +1471,8 @@ fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
         .iter()
         .filter_map(|primitive| match primitive {
             Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
+                if rect.rect.min.y == running_playhead_rect.min.y
+                    && rect.rect.max.y == running_playhead_rect.max.y
                     && rect.color.a > 0
                     && rect.color != style.accent_copper =>
             {
@@ -1472,14 +1483,69 @@ fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
         .count();
     assert!(
         trail_rect_count > 0,
-        "expected residual ghost lines right after stop"
+        "expected running ghost lines before stop"
     );
 
-    for _ in 0..(PLAYHEAD_TRAIL_FADE_FRAMES + 2) {
-        state.build_motion_overlay_into(&layout, &style, &stopped_motion, &mut frame);
-    }
+    model.transport_running = false;
+    model.waveform.playhead_milli = Some(754);
+    let stopped_motion = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &stopped_motion, &mut frame);
+    let stopped_playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+    let cleared_trail_rect_count = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == stopped_playhead_rect.min.y
+                    && rect.rect.max.y == stopped_playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert_eq!(cleared_trail_rect_count, 0);
+}
 
-    let faded_trail_rect_count = frame
+#[test]
+fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let mut frame = NativeViewFrame::default();
+    model.transport_running = true;
+    model.waveform.playhead_milli = Some(200);
+    let first = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &first, &mut frame);
+    model.waveform.playhead_milli = Some(240);
+    let second = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &second, &mut frame);
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+    let trail_before_jump = frame
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
@@ -1494,7 +1560,38 @@ fn waveform_motion_overlay_fades_playhead_trail_after_transport_stops() {
             _ => None,
         })
         .count();
-    assert_eq!(faded_trail_rect_count, 0);
+    assert!(trail_before_jump > 0, "expected baseline running trail");
+
+    model.waveform.playhead_milli = Some(840);
+    let jumped = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &jumped, &mut frame);
+    let jumped_playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("jumped playhead marker");
+    let trail_after_jump = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == jumped_playhead_rect.min.y
+                    && rect.rect.max.y == jumped_playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert_eq!(trail_after_jump, 0);
 }
 
 #[test]
@@ -1516,6 +1613,8 @@ fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped_without_h
         None,
         None,
         model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
     )
     .playhead
     .expect("playhead marker");

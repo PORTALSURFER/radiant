@@ -60,9 +60,11 @@ const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
 const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 192;
 /// Number of overlay frames used to fade one playhead ghost line.
-const PLAYHEAD_TRAIL_FADE_FRAMES: u64 = 36;
+const PLAYHEAD_TRAIL_FADE_FRAMES: u64 = 72;
 /// Maximum inserted in-between samples per motion frame for smooth trails.
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
+/// Largest contiguous frame delta treated as normal transport motion.
+const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -1340,9 +1342,13 @@ impl NativeShellState {
             self.playhead_trail_samples.clear();
             return Vec::new();
         }
+        if !model.transport_running {
+            self.playhead_trail_samples.clear();
+            return Vec::new();
+        }
         self.append_playhead_trail_samples_if_moving(
             waveform_plot,
-            model.transport_running,
+            true,
             previous,
             current,
             frame_index,
@@ -1391,6 +1397,10 @@ impl NativeShellState {
         };
         let delta = Self::wrapped_playhead_delta_micros(previous, current);
         if delta == 0 {
+            return;
+        }
+        if delta.unsigned_abs() > PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS {
+            self.playhead_trail_samples.clear();
             return;
         }
         let previous_ratio = previous as f32 / 1_000_000.0;

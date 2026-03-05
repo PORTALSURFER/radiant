@@ -981,6 +981,25 @@ fn waveform_right_click_maps_to_edit_selection_action() {
 }
 
 #[test]
+fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x - 2.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: 800,
+            end_milli: position_milli,
+        }
+    );
+}
+
+#[test]
 fn waveform_anchor_prefers_selection_then_cursor_then_playhead() {
     let mut model = AppModel::default();
     assert_eq!(waveform_anchor_milli(&model), 0);
@@ -1110,14 +1129,14 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
 fn waveform_click_over_edit_fade_handle_routes_fade_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut shell_state = NativeShellState::new();
-    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
-    let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
-    let point = Point::new(fade_in_x + 1.0, y);
-    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
     let mut model = AppModel::default();
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     model.waveform.edit_fade_in_end_milli = Some(300);
     model.waveform.edit_fade_out_start_milli = Some(700);
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
+    let point = Point::new(fade_in_x + 1.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
 
     assert_eq!(
         action_from_pointer(
@@ -1128,6 +1147,24 @@ fn waveform_click_over_edit_fade_handle_routes_fade_action() {
             ModifiersState::default(),
         ),
         Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
+    );
+}
+
+#[test]
+fn waveform_right_click_over_edit_fade_handle_routes_edit_fade_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_fade_in_end_milli = Some(300);
+    model.waveform.edit_fade_out_start_milli = Some(700);
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
+    let point = Point::new(fade_in_x + 1.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
+        UiAction::SetWaveformEditFadeInEnd { position_milli }
     );
 }
 

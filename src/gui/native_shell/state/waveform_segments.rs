@@ -5,6 +5,10 @@ use super::*;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+/// Width in logical pixels for edit-selection resize handles.
+const EDIT_SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
+/// Horizontal offset in logical pixels between selection edges and resize handles.
+const EDIT_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
@@ -165,6 +169,13 @@ pub(super) fn push_waveform_playhead_overlay(
                 model.waveform_edit_fade_out_start_milli,
                 edit_selection_blue,
             );
+            emit_edit_resize_handles(
+                primitives,
+                style,
+                layout.waveform_plot,
+                rect,
+                edit_selection_blue,
+            );
         }
     }
 
@@ -195,6 +206,71 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
+}
+
+/// Emit draggable edit-selection edge handles outside the blue edit selection.
+fn emit_edit_resize_handles(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    accent_blue: Rgba8,
+) {
+    emit_edit_resize_handle(
+        primitives,
+        style,
+        waveform_plot,
+        edit_selection_rect,
+        true,
+        accent_blue,
+    );
+    emit_edit_resize_handle(
+        primitives,
+        style,
+        waveform_plot,
+        edit_selection_rect,
+        false,
+        accent_blue,
+    );
+}
+
+/// Emit one draggable edit-selection resize handle.
+fn emit_edit_resize_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    left_edge: bool,
+    accent_blue: Rgba8,
+) {
+    let width = EDIT_SELECTION_RESIZE_HANDLE_WIDTH
+        .max(style.sizing.border_width)
+        .max(1.0);
+    let half = width * 0.5;
+    let target_x = if left_edge {
+        (edit_selection_rect.min.x - EDIT_SELECTION_RESIZE_HANDLE_OUTSET).max(waveform_plot.min.x)
+    } else {
+        (edit_selection_rect.max.x + EDIT_SELECTION_RESIZE_HANDLE_OUTSET).min(waveform_plot.max.x)
+    };
+    let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
+    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
+    let handle = Rect::from_min_max(
+        Point::new(left, edit_selection_rect.min.y),
+        Point::new(right, edit_selection_rect.max.y),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.56),
+        }),
+    );
+    push_border(
+        primitives,
+        handle,
+        blend_color(accent_blue, style.text_primary, 0.5),
+        style.sizing.border_width,
+    );
 }
 
 /// Resolve the active playhead marker rectangle, preferring high-precision micros.

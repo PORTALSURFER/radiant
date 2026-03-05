@@ -3127,16 +3127,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetBrowserSearch { .. }
             | UiAction::SetBrowserTab { .. }
             | UiAction::FocusMapSample { .. }
-            | UiAction::SetPromptInput { .. } => RuntimeInvalidationScope::ModelAndOverlays,
-            UiAction::SeekWaveform { .. }
-            | UiAction::ReplayFromLastStart
-            | UiAction::SetWaveformCursor { .. }
+            | UiAction::SetPromptInput { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::ClearWaveformSelection
-            | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::OverlayMotionOnly,
+            | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
+            UiAction::SeekWaveform { .. }
+            | UiAction::ReplayFromLastStart
+            | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
             UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::StaticAndOverlays,

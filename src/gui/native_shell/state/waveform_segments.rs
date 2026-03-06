@@ -11,16 +11,10 @@ const EDIT_FADE_HANDLE_TAB_WIDTH: f32 = 12.0;
 const EDIT_FADE_HANDLE_TAB_HEIGHT: f32 = 7.0;
 /// Height in logical pixels for the bottom edit-fade grab tab.
 const EDIT_FADE_HANDLE_BOTTOM_TAB_HEIGHT: f32 = 7.0;
-/// Width in logical pixels for edit-selection resize handles.
-const EDIT_SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
-/// Horizontal offset in logical pixels between selection edges and resize handles.
-const EDIT_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
-/// Width in logical pixels for playback-selection resize handles.
-const SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
-/// Horizontal offset in logical pixels between playback-selection edges and resize handles.
-const SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
-/// Fraction of waveform height used by centered selection resize handles.
-const RESIZE_HANDLE_HEIGHT_RATIO: f32 = 0.34;
+/// Width in logical pixels for hovered waveform resize-edge highlights.
+const RESIZE_EDGE_HIGHLIGHT_WIDTH: f32 = 4.0;
+/// Fraction of waveform height used by centered waveform resize-edge targets.
+const RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
@@ -109,6 +103,7 @@ pub(super) fn push_waveform_playhead_overlay(
     style: &StyleTokens,
     model: &NativeMotionModel,
     playhead_trail_lines: &[PlayheadTrailLine],
+    hovered_resize_edge: Option<WaveformResizeHoverEdge>,
 ) {
     let edit_selection_blue = Rgba8 {
         r: 86,
@@ -142,12 +137,12 @@ pub(super) fn push_waveform_playhead_overlay(
             blend_color(style.accent_warning, style.text_primary, 0.28),
             style.sizing.border_width,
         );
-        emit_selection_resize_handles(
+        emit_hovered_selection_resize_edge(
             primitives,
             style,
-            layout.waveform_plot,
             rect,
             style.accent_warning,
+            hovered_resize_edge,
         );
         if model.waveform_loop_enabled {
             emit_waveform_loop_bar(primitives, style, rect);
@@ -195,12 +190,12 @@ pub(super) fn push_waveform_playhead_overlay(
                 model.waveform_view_end_milli,
                 edit_selection_blue,
             );
-            emit_edit_resize_handles(
+            emit_hovered_edit_resize_edge(
                 primitives,
                 style,
-                layout.waveform_plot,
                 rect,
                 edit_selection_blue,
+                hovered_resize_edge,
             );
         }
     }
@@ -234,134 +229,85 @@ pub(super) fn push_waveform_playhead_overlay(
     }
 }
 
-/// Emit draggable playback-selection edge handles outside the yellow selection.
-fn emit_selection_resize_handles(
+/// Emit a hovered playback-selection resize edge accent.
+fn emit_hovered_selection_resize_edge(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
-    waveform_plot: Rect,
     selection_rect: Rect,
     accent_color: Rgba8,
+    hovered_resize_edge: Option<WaveformResizeHoverEdge>,
 ) {
-    emit_selection_resize_handle(
-        primitives,
-        style,
-        waveform_plot,
-        selection_rect,
-        true,
-        accent_color,
-    );
-    emit_selection_resize_handle(
-        primitives,
-        style,
-        waveform_plot,
-        selection_rect,
-        false,
-        accent_color,
-    );
+    let left_edge = match hovered_resize_edge {
+        Some(WaveformResizeHoverEdge::SelectionStart) => Some(true),
+        Some(WaveformResizeHoverEdge::SelectionEnd) => Some(false),
+        _ => None,
+    };
+    if let Some(left_edge) = left_edge {
+        emit_resize_edge_highlight(primitives, style, selection_rect, left_edge, accent_color);
+    }
 }
 
-/// Emit one draggable playback-selection resize handle.
-fn emit_selection_resize_handle(
+/// Emit a hovered edit-selection resize edge accent.
+fn emit_hovered_edit_resize_edge(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
-    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    accent_blue: Rgba8,
+    hovered_resize_edge: Option<WaveformResizeHoverEdge>,
+) {
+    let left_edge = match hovered_resize_edge {
+        Some(WaveformResizeHoverEdge::EditSelectionStart) => Some(true),
+        Some(WaveformResizeHoverEdge::EditSelectionEnd) => Some(false),
+        _ => None,
+    };
+    if let Some(left_edge) = left_edge {
+        emit_resize_edge_highlight(
+            primitives,
+            style,
+            edit_selection_rect,
+            left_edge,
+            accent_blue,
+        );
+    }
+}
+
+/// Emit one centered resize-edge highlight over the hovered selection boundary.
+fn emit_resize_edge_highlight(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
     selection_rect: Rect,
     left_edge: bool,
     accent_color: Rgba8,
 ) {
-    let width = SELECTION_RESIZE_HANDLE_WIDTH
+    let width = RESIZE_EDGE_HIGHLIGHT_WIDTH
         .max(style.sizing.border_width)
         .max(1.0);
-    let half = width * 0.5;
-    let target_x = if left_edge {
-        (selection_rect.min.x - SELECTION_RESIZE_HANDLE_OUTSET).max(waveform_plot.min.x)
+    let edge_x = if left_edge {
+        selection_rect.min.x
     } else {
-        (selection_rect.max.x + SELECTION_RESIZE_HANDLE_OUTSET).min(waveform_plot.max.x)
+        selection_rect.max.x
     };
-    let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
-    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
-    let handle =
-        centered_resize_handle_rect(selection_rect, left, right, RESIZE_HANDLE_HEIGHT_RATIO);
+    let half = width * 0.5;
+    let left = (edge_x - half).max(selection_rect.min.x);
+    let right = (left + width).min(selection_rect.max.x).max(left + 1.0);
+    let handle = centered_resize_edge_rect(selection_rect, left, right, RESIZE_EDGE_HEIGHT_RATIO);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
             rect: handle,
-            color: translucent_overlay_color(style.surface_overlay, accent_color, 0.56),
+            color: translucent_overlay_color(style.surface_overlay, accent_color, 0.72),
         }),
     );
     push_border(
         primitives,
         handle,
-        blend_color(accent_color, style.text_primary, 0.5),
+        blend_color(accent_color, style.text_primary, 0.62),
         style.sizing.border_width,
     );
 }
 
-/// Emit draggable edit-selection edge handles outside the blue edit selection.
-fn emit_edit_resize_handles(
-    primitives: &mut impl PrimitiveSink,
-    style: &StyleTokens,
-    waveform_plot: Rect,
-    edit_selection_rect: Rect,
-    accent_blue: Rgba8,
-) {
-    emit_edit_resize_handle(
-        primitives,
-        style,
-        waveform_plot,
-        edit_selection_rect,
-        true,
-        accent_blue,
-    );
-    emit_edit_resize_handle(
-        primitives,
-        style,
-        waveform_plot,
-        edit_selection_rect,
-        false,
-        accent_blue,
-    );
-}
-
-/// Emit one draggable edit-selection resize handle.
-fn emit_edit_resize_handle(
-    primitives: &mut impl PrimitiveSink,
-    style: &StyleTokens,
-    waveform_plot: Rect,
-    edit_selection_rect: Rect,
-    left_edge: bool,
-    accent_blue: Rgba8,
-) {
-    let width = EDIT_SELECTION_RESIZE_HANDLE_WIDTH
-        .max(style.sizing.border_width)
-        .max(1.0);
-    let half = width * 0.5;
-    let target_x = if left_edge {
-        (edit_selection_rect.min.x - EDIT_SELECTION_RESIZE_HANDLE_OUTSET).max(waveform_plot.min.x)
-    } else {
-        (edit_selection_rect.max.x + EDIT_SELECTION_RESIZE_HANDLE_OUTSET).min(waveform_plot.max.x)
-    };
-    let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
-    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
-    let handle =
-        centered_resize_handle_rect(edit_selection_rect, left, right, RESIZE_HANDLE_HEIGHT_RATIO);
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: handle,
-            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.56),
-        }),
-    );
-    push_border(
-        primitives,
-        handle,
-        blend_color(accent_blue, style.text_primary, 0.5),
-        style.sizing.border_width,
-    );
-}
-
-/// Return a resize-handle rect centered vertically within a selection band.
-fn centered_resize_handle_rect(
+/// Return a resize-edge rect centered vertically within a selection band.
+fn centered_resize_edge_rect(
     selection_rect: Rect,
     left: f32,
     right: f32,

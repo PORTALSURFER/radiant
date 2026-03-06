@@ -1003,7 +1003,7 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
-    let point = Point::new(start_x - 2.0, y);
+    let point = Point::new(start_x + 2.0, y);
     let position_milli = waveform_position_milli_from_point(&layout, &model, point);
 
     assert_eq!(
@@ -1028,7 +1028,7 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
-    let point = Point::new(start_x - 2.0, y);
+    let point = Point::new(start_x + 2.0, y);
     let position_milli = waveform_position_milli_from_point(&layout, &model, point);
 
     assert_eq!(
@@ -1047,8 +1047,8 @@ fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
     model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(300, 700));
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
-    let edit_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3) - 2.0;
-    let playback_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) - 2.0;
+    let edit_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3) + 2.0;
+    let playback_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) + 2.0;
     let outside_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5);
 
     assert!(waveform_resize_handle_hovered(
@@ -1086,7 +1086,7 @@ fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
-    let point = Point::new(start_x - 2.0, y);
+    let point = Point::new(start_x + 2.0, y);
     let position_milli = waveform_position_milli_from_point(&layout, &model, point);
 
     assert_eq!(

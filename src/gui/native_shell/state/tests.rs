@@ -1385,7 +1385,7 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
 }
 
 #[test]
-fn waveform_motion_overlay_draws_selection_resize_handles() {
+fn waveform_motion_overlay_omits_selection_resize_handles_until_hovered() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -1408,16 +1408,16 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
     )
     .selection
     .expect("selection rect");
-    let left_handle_x = (selection_rect.min.x - 4.0).max(layout.waveform_plot.min.x);
-    let right_handle_x = (selection_rect.max.x + 4.0).min(layout.waveform_plot.max.x);
+    let left_edge_x = selection_rect.min.x;
+    let right_edge_x = selection_rect.max.x;
     let selection_center_y = selection_rect.min.y + (selection_rect.height() * 0.5);
 
     let has_left_handle = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x <= left_handle_x
-                    && rect.rect.max.x >= left_handle_x
+                if rect.rect.min.x <= left_edge_x
+                    && rect.rect.max.x >= left_edge_x
                     && rect.rect.min.y >= selection_rect.min.y
                     && rect.rect.max.y <= selection_rect.max.y
                     && (rect.rect.min.y + (rect.rect.height() * 0.5) - selection_center_y).abs()
@@ -1429,8 +1429,8 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
         matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x <= right_handle_x
-                    && rect.rect.max.x >= right_handle_x
+                if rect.rect.min.x <= right_edge_x
+                    && rect.rect.max.x >= right_edge_x
                     && rect.rect.min.y >= selection_rect.min.y
                     && rect.rect.max.y <= selection_rect.max.y
                     && (rect.rect.min.y + (rect.rect.height() * 0.5) - selection_center_y).abs()
@@ -1439,12 +1439,59 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
         )
     });
     assert!(
-        has_left_handle,
-        "expected left selection resize handle primitive"
+        !has_left_handle,
+        "selection edges should not draw standalone handles"
     );
     assert!(
-        has_right_handle,
-        "expected right selection resize handle primitive"
+        !has_right_handle,
+        "selection edges should not draw standalone handles"
+    );
+}
+
+#[test]
+fn waveform_motion_overlay_highlights_hovered_selection_resize_edge() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let selection = NormalizedRangeModel::new(180, 420);
+    model.waveform.selection_milli = Some(selection);
+    state.hovered_waveform_resize_edge = Some(WaveformResizeHoverEdge::SelectionStart);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("selection rect");
+    let edge_x = selection_rect.min.x;
+    let center_y = selection_rect.min.y + (selection_rect.height() * 0.5);
+
+    let has_edge_highlight = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= edge_x
+                    && rect.rect.max.x >= edge_x
+                    && rect.rect.min.y >= selection_rect.min.y
+                    && rect.rect.max.y <= selection_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - center_y).abs()
+                        <= (selection_rect.height() * 0.05)
+                    && rect.rect.height() < selection_rect.height()
+        )
+    });
+    assert!(
+        has_edge_highlight,
+        "expected hovered selection edge highlight"
     );
 }
 
@@ -1687,7 +1734,7 @@ fn waveform_motion_overlay_draws_edit_fade_curve_trace() {
 }
 
 #[test]
-fn waveform_motion_overlay_draws_edit_resize_handles() {
+fn waveform_motion_overlay_omits_edit_resize_handles_until_hovered() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -1710,16 +1757,16 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
     )
     .selection
     .expect("edit selection rect");
-    let left_handle_x = (edit_rect.min.x - 4.0).max(layout.waveform_plot.min.x);
-    let right_handle_x = (edit_rect.max.x + 4.0).min(layout.waveform_plot.max.x);
+    let left_edge_x = edit_rect.min.x;
+    let right_edge_x = edit_rect.max.x;
     let edit_center_y = edit_rect.min.y + (edit_rect.height() * 0.5);
 
     let has_left_handle = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x <= left_handle_x
-                    && rect.rect.max.x >= left_handle_x
+                if rect.rect.min.x <= left_edge_x
+                    && rect.rect.max.x >= left_edge_x
                     && rect.rect.min.y >= edit_rect.min.y
                     && rect.rect.max.y <= edit_rect.max.y
                     && (rect.rect.min.y + (rect.rect.height() * 0.5) - edit_center_y).abs()
@@ -1731,8 +1778,8 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
         matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x <= right_handle_x
-                    && rect.rect.max.x >= right_handle_x
+                if rect.rect.min.x <= right_edge_x
+                    && rect.rect.max.x >= right_edge_x
                     && rect.rect.min.y >= edit_rect.min.y
                     && rect.rect.max.y <= edit_rect.max.y
                     && (rect.rect.min.y + (rect.rect.height() * 0.5) - edit_center_y).abs()
@@ -1741,13 +1788,57 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
         )
     });
     assert!(
-        has_left_handle,
-        "expected left edit resize handle primitive"
+        !has_left_handle,
+        "edit edges should not draw standalone handles"
     );
     assert!(
-        has_right_handle,
-        "expected right edit resize handle primitive"
+        !has_right_handle,
+        "edit edges should not draw standalone handles"
     );
+}
+
+#[test]
+fn waveform_motion_overlay_highlights_hovered_edit_resize_edge() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let edit_selection = NormalizedRangeModel::new(200, 800);
+    model.waveform.edit_selection_milli = Some(edit_selection);
+    state.hovered_waveform_resize_edge = Some(WaveformResizeHoverEdge::EditSelectionEnd);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let edit_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(edit_selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("edit selection rect");
+    let edge_x = edit_rect.max.x;
+    let center_y = edit_rect.min.y + (edit_rect.height() * 0.5);
+
+    let has_edge_highlight = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= edge_x
+                    && rect.rect.max.x >= edge_x
+                    && rect.rect.min.y >= edit_rect.min.y
+                    && rect.rect.max.y <= edit_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - center_y).abs()
+                        <= (edit_rect.height() * 0.05)
+                    && rect.rect.height() < edit_rect.height()
+        )
+    });
+    assert!(has_edge_highlight, "expected hovered edit edge highlight");
 }
 
 #[test]

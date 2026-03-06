@@ -34,16 +34,10 @@ pub(super) enum WaveformPointerDragMode {
 
 /// Half-width in pixels used for fade-handle hit testing.
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
-/// Half-width in pixels used for edit-selection resize-handle hit testing.
-const WAVEFORM_EDIT_RESIZE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
-/// Horizontal offset in pixels between edit-selection edges and resize handles.
-const WAVEFORM_EDIT_RESIZE_HANDLE_OUTSET: f32 = 4.0;
-/// Half-width in pixels used for playback-selection resize-handle hit testing.
-const WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
-/// Horizontal offset in pixels between playback-selection edges and resize handles.
-const WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
-/// Fraction of waveform height used by centered resize-handle hit regions.
-const WAVEFORM_RESIZE_HANDLE_HEIGHT_RATIO: f32 = 0.34;
+/// Half-width in pixels used for waveform edge-resize hit testing.
+const WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH: f32 = 7.0;
+/// Fraction of waveform height used by centered resize-edge hit regions.
+const WAVEFORM_RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
 /// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 /// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
@@ -309,21 +303,14 @@ fn waveform_selection_resize_action_from_pointer(
     }
     let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
     let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
-    let left_handle_x = (selection_start_x - WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET)
-        .max(layout.waveform_plot.min.x);
-    let right_handle_x =
-        (selection_end_x + WAVEFORM_SELECTION_RESIZE_HANDLE_OUTSET).min(layout.waveform_plot.max.x);
-    let (handle_top, handle_bottom) =
-        waveform_centered_resize_handle_y_bounds(layout.waveform_plot);
+    let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
     if point.y < handle_top || point.y > handle_bottom {
         return None;
     }
-    let left_distance = (point.x - left_handle_x).abs();
-    let right_distance = (point.x - right_handle_x).abs();
-    let left_hit = point.x <= selection_start_x
-        && left_distance <= WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH;
-    let right_hit = point.x >= selection_end_x
-        && right_distance <= WAVEFORM_SELECTION_RESIZE_HANDLE_HIT_HALF_WIDTH;
+    let left_distance = (point.x - selection_start_x).abs();
+    let right_distance = (point.x - selection_end_x).abs();
+    let left_hit = left_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
+    let right_hit = right_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
     if !left_hit && !right_hit {
         return None;
     }
@@ -644,21 +631,14 @@ fn waveform_edit_resize_action_from_pointer(
     }
     let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
     let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
-    let left_handle_x =
-        (selection_start_x - WAVEFORM_EDIT_RESIZE_HANDLE_OUTSET).max(layout.waveform_plot.min.x);
-    let right_handle_x =
-        (selection_end_x + WAVEFORM_EDIT_RESIZE_HANDLE_OUTSET).min(layout.waveform_plot.max.x);
-    let (handle_top, handle_bottom) =
-        waveform_centered_resize_handle_y_bounds(layout.waveform_plot);
+    let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
     if point.y < handle_top || point.y > handle_bottom {
         return None;
     }
-    let left_distance = (point.x - left_handle_x).abs();
-    let right_distance = (point.x - right_handle_x).abs();
-    let left_hit =
-        point.x <= selection_start_x && left_distance <= WAVEFORM_EDIT_RESIZE_HANDLE_HIT_HALF_WIDTH;
-    let right_hit =
-        point.x >= selection_end_x && right_distance <= WAVEFORM_EDIT_RESIZE_HANDLE_HIT_HALF_WIDTH;
+    let left_distance = (point.x - selection_start_x).abs();
+    let right_distance = (point.x - selection_end_x).abs();
+    let left_hit = left_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
+    let right_hit = right_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
     if !left_hit && !right_hit {
         return None;
     }
@@ -687,9 +667,9 @@ fn waveform_x_for_milli(plot: UiRect, model: &AppModel, milli: u16) -> f32 {
     plot.min.x + (plot.width() * ratio_in_view)
 }
 
-/// Return the centered vertical hit span used by waveform resize handles.
-fn waveform_centered_resize_handle_y_bounds(plot: UiRect) -> (f32, f32) {
-    let height = (plot.height() * WAVEFORM_RESIZE_HANDLE_HEIGHT_RATIO)
+/// Return the centered vertical hit span used by waveform resize edges.
+fn waveform_centered_resize_edge_y_bounds(plot: UiRect) -> (f32, f32) {
+    let height = (plot.height() * WAVEFORM_RESIZE_EDGE_HEIGHT_RATIO)
         .max(1.0)
         .min(plot.height());
     let center_y = plot.min.y + (plot.height() * 0.5);

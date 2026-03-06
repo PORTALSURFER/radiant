@@ -74,6 +74,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     waveform_bpm_input_active: bool,
     waveform_bpm_input_display: Option<String>,
     waveform_hover_x: Option<f32>,
@@ -275,6 +276,19 @@ pub(crate) enum WaveformToolbarHoverHint {
     Record,
 }
 
+/// Stable hover target for waveform selection/edit resize edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformResizeHoverEdge {
+    /// Start edge of the playback selection.
+    SelectionStart,
+    /// End edge of the playback selection.
+    SelectionEnd,
+    /// Start edge of the edit selection.
+    EditSelectionStart,
+    /// End edge of the edit selection.
+    EditSelectionEnd,
+}
+
 /// Compact state-overlay fingerprint for change detection in runtime caches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StateOverlayFingerprint {
@@ -302,6 +316,8 @@ pub(crate) struct MotionOverlayFingerprint {
     pub pulse_phase_bits: u32,
     /// Hovered waveform marker x-position bits in shell-space coordinates.
     pub waveform_hover_x_bits: Option<u32>,
+    /// Hovered waveform resize-edge target for highlight overlays.
+    pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
 }
 
 /// Compact waveform-motion fingerprint for cursor/playhead overlay caches.
@@ -309,6 +325,8 @@ pub(crate) struct MotionOverlayFingerprint {
 pub(crate) struct WaveformMotionOverlayFingerprint {
     /// Hovered waveform marker x-position bits in shell-space coordinates.
     pub waveform_hover_x_bits: Option<u32>,
+    /// Hovered waveform resize-edge target for highlight overlays.
+    pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     /// Quantized motion phase to force repaint while dynamic trails fade.
     pub pulse_phase_bits: u32,
 }
@@ -583,6 +601,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_waveform_toolbar_hint: None,
+            hovered_waveform_resize_edge: None,
             waveform_bpm_input_active: false,
             waveform_bpm_input_display: None,
             waveform_hover_x: None,
@@ -700,6 +719,7 @@ impl NativeShellState {
             startup_frame_ticks: self.startup_frame_ticks,
             pulse_phase_bits: self.pulse_phase.to_bits(),
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
+            hovered_waveform_resize_edge: self.hovered_waveform_resize_edge,
         }
     }
 
@@ -707,6 +727,7 @@ impl NativeShellState {
     pub(crate) fn waveform_motion_overlay_fingerprint(&self) -> WaveformMotionOverlayFingerprint {
         WaveformMotionOverlayFingerprint {
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
+            hovered_waveform_resize_edge: self.hovered_waveform_resize_edge,
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
@@ -751,16 +772,21 @@ impl NativeShellState {
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
         let next_hovered_waveform_toolbar_hint =
             self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
+        let next_hovered_waveform_resize_edge =
+            hovered_waveform_resize_edge_for_point(layout, model, point, next_hover);
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
         let waveform_toolbar_hint_changed =
             next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
+        let waveform_resize_edge_changed =
+            next_hovered_waveform_resize_edge != self.hovered_waveform_resize_edge;
         let waveform_hover_changed =
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
             && !browser_row_changed
             && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
             && !waveform_hover_changed
         {
             return CursorMoveEffect::None;
@@ -768,11 +794,13 @@ impl NativeShellState {
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
+        self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
         self.waveform_hover_x = next_waveform_hover_x;
         if waveform_hover_changed
             && !hover_changed
             && !browser_row_changed
             && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
         {
             CursorMoveEffect::WaveformHoverOnly
         } else {
@@ -1437,7 +1465,14 @@ impl NativeShellState {
         frame.text_runs.clear();
         let primitives = &mut frame.primitives;
         let playhead_trail_lines = self.update_playhead_trail(layout.waveform_plot, model);
-        push_waveform_playhead_overlay(primitives, layout, style, model, &playhead_trail_lines);
+        push_waveform_playhead_overlay(
+            primitives,
+            layout,
+            style,
+            model,
+            &playhead_trail_lines,
+            self.hovered_waveform_resize_edge,
+        );
         if let Some(hover_x) = self.waveform_hover_x {
             // Keep hover preview cursor visually obvious against dense waveform content.
             let hover_marker_width = (sizing.border_width * 2.0).max(2.0);
@@ -2007,6 +2042,84 @@ fn waveform_hover_x_for_point(
             .clamp(layout.waveform_plot.min.x, layout.waveform_plot.max.x)
             .round(),
     )
+}
+
+/// Return the hovered waveform resize-edge target for one pointer point.
+fn hovered_waveform_resize_edge_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    hover: Option<ShellNodeKind>,
+) -> Option<WaveformResizeHoverEdge> {
+    if hover != Some(ShellNodeKind::WaveformCard) || !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    hovered_resize_edge_for_range(layout, model, point, model.waveform.edit_selection_milli)
+        .map(|left_edge| {
+            if left_edge {
+                WaveformResizeHoverEdge::EditSelectionStart
+            } else {
+                WaveformResizeHoverEdge::EditSelectionEnd
+            }
+        })
+        .or_else(|| {
+            hovered_resize_edge_for_range(layout, model, point, model.waveform.selection_milli).map(
+                |left_edge| {
+                    if left_edge {
+                        WaveformResizeHoverEdge::SelectionStart
+                    } else {
+                        WaveformResizeHoverEdge::SelectionEnd
+                    }
+                },
+            )
+        })
+}
+
+/// Return whether the pointer is hovering the start (`true`) or end (`false`) edge of one range.
+fn hovered_resize_edge_for_range(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    range: Option<crate::app::NormalizedRangeModel>,
+) -> Option<bool> {
+    let range = range?;
+    let start_milli = range.start_milli.min(range.end_milli);
+    let end_milli = range.start_milli.max(range.end_milli);
+    if end_milli <= start_milli {
+        return None;
+    }
+    let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
+    if point.y < handle_top || point.y > handle_bottom {
+        return None;
+    }
+    let start_x = waveform_x_for_milli(layout.waveform_plot, model, start_milli);
+    let end_x = waveform_x_for_milli(layout.waveform_plot, model, end_milli);
+    let threshold = 7.0;
+    let start_distance = (point.x - start_x).abs();
+    let end_distance = (point.x - end_x).abs();
+    if start_distance > threshold && end_distance > threshold {
+        return None;
+    }
+    Some(start_distance <= end_distance)
+}
+
+/// Convert one normalized waveform milli position into plot-space x.
+fn waveform_x_for_milli(plot: Rect, model: &AppModel, milli: u16) -> f32 {
+    let view_start = f32::from(model.waveform.view_start_milli.min(1000)) / 1000.0;
+    let view_end = f32::from(model.waveform.view_end_milli.min(1000)) / 1000.0;
+    let view_width = (view_end - view_start).max(f32::EPSILON);
+    let absolute_ratio = f32::from(milli.min(1000)) / 1000.0;
+    let ratio_in_view = ((absolute_ratio - view_start) / view_width).clamp(0.0, 1.0);
+    plot.min.x + (plot.width() * ratio_in_view)
+}
+
+/// Return the centered vertical hit span used by waveform edge-resize targets.
+fn waveform_centered_resize_edge_y_bounds(plot: Rect) -> (f32, f32) {
+    let height = (plot.height() * 0.34).max(1.0).min(plot.height());
+    let center_y = plot.min.y + (plot.height() * 0.5);
+    let top = (center_y - (height * 0.5)).max(plot.min.y);
+    let bottom = (top + height).min(plot.max.y).max(top + 1.0);
+    (top, bottom)
 }
 
 /// Return one plot-bounded hover marker rectangle for a waveform x-position.

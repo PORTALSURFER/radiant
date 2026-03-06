@@ -667,31 +667,6 @@ fn emit_edit_fade_handle(
     x: f32,
     accent_blue: Rgba8,
 ) {
-    let width = EDIT_FADE_HANDLE_WIDTH
-        .max(style.sizing.border_width)
-        .max(1.0);
-    let half = width * 0.5;
-    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
-    let right = (left + width)
-        .min(edit_selection_rect.max.x)
-        .max(left + 1.0);
-    let handle = Rect::from_min_max(
-        Point::new(left, edit_selection_rect.min.y),
-        Point::new(right, edit_selection_rect.max.y),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: handle,
-            color: translucent_overlay_color(style.bg_secondary, accent_blue, 0.62),
-        }),
-    );
-    push_border(
-        primitives,
-        handle,
-        blend_color(accent_blue, style.text_primary, 0.42),
-        style.sizing.border_width,
-    );
     let tab = edit_fade_handle_tab_rect(edit_selection_rect, x, style.sizing.border_width);
     emit_primitive(
         primitives,

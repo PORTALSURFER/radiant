@@ -2089,7 +2089,7 @@ fn waveform_wheel_zoom_action_uses_pointer_anchor_ratio() {
 }
 
 #[test]
-fn waveform_bottom_click_without_edit_fade_routes_top_handle_action() {
+fn waveform_bottom_click_without_edit_fade_does_not_hit_top_handle() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
@@ -2100,6 +2100,9 @@ fn waveform_bottom_click_without_edit_fade_routes_top_handle_action() {
 
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
-        UiAction::SetWaveformEditFadeInEnd { position_milli }
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: position_milli,
+            end_milli: position_milli,
+        }
     );
 }

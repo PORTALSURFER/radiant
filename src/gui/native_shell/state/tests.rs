@@ -1699,7 +1699,7 @@ fn waveform_motion_overlay_highlights_hovered_selection_resize_edge() {
 }
 
 #[test]
-fn waveform_motion_overlay_draws_edit_fade_handles() {
+fn waveform_motion_overlay_hides_edit_fade_vertical_bars() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -1730,7 +1730,7 @@ fn waveform_motion_overlay_draws_edit_fade_handles() {
     let handle_out_x = edit_rect.min.x
         + (edit_rect.width() * (f32::from(690u16 - edit_selection.start_milli) / span));
 
-    let has_in_handle = frame.primitives.iter().any(|primitive| {
+    let has_in_bar = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
@@ -1738,9 +1738,11 @@ fn waveform_motion_overlay_draws_edit_fade_handles() {
                     && rect.rect.max.x >= handle_in_x
                     && rect.rect.min.y <= edit_rect.min.y
                     && rect.rect.max.y >= edit_rect.max.y
+                    && rect.rect.height() >= edit_rect.height()
+                    && rect.rect.width() <= 8.0
         )
     });
-    let has_out_handle = frame.primitives.iter().any(|primitive| {
+    let has_out_bar = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
@@ -1748,12 +1750,19 @@ fn waveform_motion_overlay_draws_edit_fade_handles() {
                     && rect.rect.max.x >= handle_out_x
                     && rect.rect.min.y <= edit_rect.min.y
                     && rect.rect.max.y >= edit_rect.max.y
+                    && rect.rect.height() >= edit_rect.height()
+                    && rect.rect.width() <= 8.0
         )
     });
-    assert!(has_in_handle, "expected edit fade-in handle primitive");
-    assert!(has_out_handle, "expected edit fade-out handle primitive");
+    assert!(
+        !has_in_bar,
+        "top fade-in handle should not draw a full-height bar"
+    );
+    assert!(
+        !has_out_bar,
+        "top fade-out handle should not draw a full-height bar"
+    );
 }
-
 #[test]
 fn waveform_motion_overlay_draws_edit_fade_top_grab_tabs() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

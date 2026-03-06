@@ -52,6 +52,8 @@ pub(super) enum WaveformPointerDragMode {
 
 /// Half-width in pixels used for fade-handle hit testing.
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
+const WAVEFORM_EDIT_FADE_TOP_TAB_WIDTH: f32 = 12.0;
+const WAVEFORM_EDIT_FADE_TOP_TAB_HEIGHT: f32 = 7.0;
 /// Half-width in pixels used for waveform edge-resize hit testing.
 const WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Fraction of waveform height used by centered resize-edge hit regions.
@@ -670,66 +672,74 @@ fn waveform_edit_fade_handle_action_from_pointer(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
-    if selection.end_milli <= selection.start_milli {
+    let selection_start = selection.start_milli.min(selection.end_milli);
+    let selection_end = selection.start_milli.max(selection.end_milli);
+    if selection_end <= selection_start {
         return None;
     }
     let fade_in_end_milli = model
         .waveform
         .edit_fade_in_end_milli
-        .unwrap_or(selection.start_milli)
-        .clamp(selection.start_milli, selection.end_milli);
-    let has_fade_in = fade_in_end_milli > selection.start_milli;
+        .unwrap_or(selection_start)
+        .clamp(selection_start, selection_end);
+    let has_fade_in = fade_in_end_milli > selection_start;
     let fade_in_mute_start_milli = model
         .waveform
         .edit_fade_in_mute_start_milli
-        .unwrap_or(selection.start_milli)
-        .min(selection.start_milli);
+        .unwrap_or(selection_start)
+        .min(selection_start);
     let fade_out_start_milli = model
         .waveform
         .edit_fade_out_start_milli
-        .unwrap_or(selection.end_milli)
-        .clamp(selection.start_milli, selection.end_milli);
-    let has_fade_out = fade_out_start_milli < selection.end_milli;
+        .unwrap_or(selection_end)
+        .clamp(selection_start, selection_end);
+    let has_fade_out = fade_out_start_milli < selection_end;
     let fade_out_mute_end_milli = model
         .waveform
         .edit_fade_out_mute_end_milli
-        .unwrap_or(selection.end_milli)
-        .max(selection.end_milli);
+        .unwrap_or(selection_end)
+        .max(selection_end);
+    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let selection_rect = UiRect::from_min_max(
+        Point::new(
+            selection_start_x.min(selection_end_x),
+            layout.waveform_plot.min.y,
+        ),
+        Point::new(
+            selection_start_x.max(selection_end_x),
+            layout.waveform_plot.max.y,
+        ),
+    );
     let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
     let fade_in_mute_x =
         waveform_x_for_milli(layout.waveform_plot, model, fade_in_mute_start_milli);
     let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
     let fade_out_mute_x =
         waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
-    let in_distance = (point.x - fade_in_x).abs();
-    let in_mute_distance = (point.x - fade_in_mute_x).abs();
-    let out_distance = (point.x - fade_out_x).abs();
-    let out_mute_distance = (point.x - fade_out_mute_x).abs();
+    let in_top_hit =
+        waveform_edit_fade_top_handle_hit_rect(selection_rect, fade_in_x).contains(point);
+    let out_top_hit =
+        waveform_edit_fade_top_handle_hit_rect(selection_rect, fade_out_x).contains(point);
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
-    if in_distance > threshold
-        && in_mute_distance > threshold
-        && out_distance > threshold
-        && out_mute_distance > threshold
-    {
+    let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    let in_bottom_hit = has_fade_in && bottom_half && (point.x - fade_in_mute_x).abs() <= threshold;
+    let out_bottom_hit =
+        has_fade_out && bottom_half && (point.x - fade_out_mute_x).abs() <= threshold;
+    if !in_top_hit && !out_top_hit && !in_bottom_hit && !out_bottom_hit {
         return None;
     }
     let position_milli = waveform_position_milli_from_point(layout, model, point);
-    let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
-    if bottom_half
-        && has_fade_in
-        && in_mute_distance <= threshold
-        && (in_mute_distance <= out_mute_distance || out_mute_distance > threshold)
-    {
+    if in_bottom_hit && (!out_bottom_hit || point.x <= (fade_in_mute_x + fade_out_mute_x) * 0.5) {
         Some(UiAction::SetWaveformEditFadeInMuteStart { position_milli })
-    } else if bottom_half && has_fade_out && out_mute_distance <= threshold {
+    } else if out_bottom_hit {
         Some(UiAction::SetWaveformEditFadeOutMuteEnd { position_milli })
-    } else if in_distance <= out_distance {
+    } else if in_top_hit && (!out_top_hit || point.x <= (fade_in_x + fade_out_x) * 0.5) {
         Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
     } else {
         Some(UiAction::SetWaveformEditFadeOutStart { position_milli })
     }
 }
-
 /// Resolve one edit-fade curve action when Alt is held over a fade region or handle.
 fn waveform_edit_fade_curve_action_from_pointer(
     layout: &ShellLayout,
@@ -921,6 +931,23 @@ fn waveform_selection_shift_handle_rect(selection_rect: UiRect) -> UiRect {
     )
 }
 
+/// Return the visible top-tab hit rect for one edit-fade handle.
+fn waveform_edit_fade_top_handle_hit_rect(selection_rect: UiRect, x: f32) -> UiRect {
+    let width = WAVEFORM_EDIT_FADE_TOP_TAB_WIDTH
+        .max(WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH)
+        .min(selection_rect.width().max(1.0));
+    let height = WAVEFORM_EDIT_FADE_TOP_TAB_HEIGHT.min(selection_rect.height().max(1.0));
+    let half = width * 0.5;
+    let left = (x - half).clamp(selection_rect.min.x, selection_rect.max.x - 1.0);
+    let right = (left + width).min(selection_rect.max.x).max(left + 1.0);
+    let bottom = (selection_rect.min.y + height)
+        .min(selection_rect.max.y)
+        .max(selection_rect.min.y + 1.0);
+    UiRect::from_min_max(
+        Point::new(left, selection_rect.min.y),
+        Point::new(right, bottom),
+    )
+}
 /// Shift one milli-based waveform range while preserving width and clamping to bounds.
 fn shift_waveform_range_milli(
     pointer_milli: u16,

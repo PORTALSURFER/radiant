@@ -240,6 +240,7 @@ impl NativeShellState {
                     );
                 }
             } else if !model.map.active && build_browser_rows_window {
+                let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
                 for row in browser_rows.iter() {
                     let row_text_layout = compute_browser_row_text_layout(row.rect, sizing);
                     let row_border_stroke = browser_row_border_stroke(layout);
@@ -310,7 +311,13 @@ impl NativeShellState {
                             }),
                         );
                     }
-                    push_border(primitives, row_border_rect, row_border, row_border_stroke);
+                    push_browser_row_border(
+                        primitives,
+                        row_border_rect,
+                        row_border,
+                        row_border_stroke,
+                        Some(row.rect.max.y) == last_row_max_y,
+                    );
                     let chip_rect = row_text_layout.bucket_chip;
                     let chip_color = match row.column {
                         0 => blend_color(style.accent_warning, style.bg_secondary, 0.54),
@@ -1873,6 +1880,7 @@ impl NativeShellState {
 
             {
                 let browser_rows = self.cached_browser_rows(layout, style, model);
+                let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
                 for row in browser_rows.iter() {
                     if !(row.selected || row.focused) {
                         continue;
@@ -1893,7 +1901,7 @@ impl NativeShellState {
                             }),
                         );
                     }
-                    push_border(
+                    push_browser_row_border(
                         primitives,
                         row_border_rect,
                         if row.focused {
@@ -1910,6 +1918,7 @@ impl NativeShellState {
                             )
                         },
                         row_border_stroke,
+                        Some(row.rect.max.y) == last_row_max_y,
                     );
                     if row.focused {
                         let mut label_position = row_text_layout.sample_label.min;
@@ -2077,6 +2086,49 @@ impl NativeShellState {
 
         frame.clear_color = style.clear_color;
     }
+}
+
+fn push_browser_row_border(
+    primitives: &mut impl PrimitiveSink,
+    rect: Rect,
+    color: Rgba8,
+    stroke: f32,
+    include_bottom: bool,
+) {
+    let stroke = stroke.max(1.0);
+    if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
+        return;
+    }
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
+            color,
+        }),
+    );
+    if include_bottom {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
+                color,
+            }),
+        );
+    }
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
+            color,
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
+            color,
+        }),
+    );
 }
 
 fn render_source_context_menu(

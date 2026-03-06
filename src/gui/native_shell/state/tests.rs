@@ -774,6 +774,46 @@ fn browser_rows_use_alternating_fill_stripes_for_readability() {
 }
 
 #[test]
+fn browser_rows_share_single_pixel_separator_between_adjacent_rows() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "row_top", 1, false, false));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "row_bottom", 1, false, false));
+    model.browser.visible_count = model.browser.rows.len();
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    assert_eq!(rendered.len(), 2);
+
+    let stroke = browser_row_border_stroke(&layout);
+    let second_border = browser_row_border_rect(rendered[1].rect, stroke);
+    let separator_count = state
+        .build_frame(&layout, &model)
+        .primitives
+        .iter()
+        .filter(|primitive| match primitive {
+            Primitive::Rect(rect) => {
+                rect.color == style.border
+                    && rect.rect.min.x == second_border.min.x
+                    && rect.rect.max.x == second_border.max.x
+                    && rect.rect.min.y == second_border.min.y
+                    && rect.rect.max.y == second_border.min.y + stroke
+            }
+            _ => false,
+        })
+        .count();
+
+    assert_eq!(separator_count, 1);
+}
+
+#[test]
 fn missing_browser_rows_render_red_exclamation_marker() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

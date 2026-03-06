@@ -38,6 +38,10 @@ const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 const WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Fraction of waveform height used by centered resize-edge hit regions.
 const WAVEFORM_RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
+/// Width/height in logical pixels for the playback-selection drag handle.
+const WAVEFORM_SELECTION_DRAG_HANDLE_SIZE: f32 = 12.0;
+/// Extra hit slop around the playback-selection drag handle.
+const WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET: f32 = 4.0;
 /// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 /// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
@@ -233,6 +237,13 @@ pub(super) fn waveform_action_from_pointer(
     if !command
         && !alt
         && !shift
+        && let Some(action) = waveform_selection_drag_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && !shift
         && let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point)
     {
         return action;
@@ -281,9 +292,34 @@ pub(super) fn waveform_resize_handle_hovered(
     model: &AppModel,
     point: Point,
 ) -> bool {
-    waveform_edit_resize_action_from_pointer(layout, model, point).is_some()
+    waveform_selection_drag_action_from_pointer(layout, model, point).is_some()
+        || waveform_edit_resize_action_from_pointer(layout, model, point).is_some()
         || waveform_edit_fade_handle_action_from_pointer(layout, model, point).is_some()
         || waveform_selection_resize_action_from_pointer(layout, model, point).is_some()
+}
+
+/// Resolve one selection-drag action when the pointer lands on the playback-selection handle.
+fn waveform_selection_drag_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    waveform_selection_drag_handle_hit_rect(layout, model).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::StartWaveformSelectionDrag {
+                pointer_x: point.x.max(0.0).round() as u16,
+                pointer_y: point.y.max(0.0).round() as u16,
+            })
+    })
+}
+
+/// Return whether the pointer is hovering the playback-selection drag handle.
+pub(super) fn waveform_selection_drag_handle_hovered(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> bool {
+    waveform_selection_drag_handle_hit_rect(layout, model).is_some_and(|rect| rect.contains(point))
 }
 
 /// Resolve one playback-selection resize action when the pointer lands on an edge handle.
@@ -666,6 +702,44 @@ fn waveform_edit_resize_action_from_pointer(
         start_milli: selection_start,
         end_milli: position_milli,
     })
+}
+
+/// Return the expanded hit rect for the playback-selection drag handle.
+fn waveform_selection_drag_handle_hit_rect(
+    layout: &ShellLayout,
+    model: &AppModel,
+) -> Option<UiRect> {
+    let selection = model.waveform.selection_milli?;
+    let start_milli = selection.start_milli.min(selection.end_milli);
+    let end_milli = selection.start_milli.max(selection.end_milli);
+    if end_milli <= start_milli {
+        return None;
+    }
+    let start_x = waveform_x_for_milli(layout.waveform_plot, model, start_milli);
+    let end_x = waveform_x_for_milli(layout.waveform_plot, model, end_milli);
+    let selection_rect = UiRect::from_min_max(
+        Point::new(start_x.min(end_x), layout.waveform_plot.min.y),
+        Point::new(start_x.max(end_x), layout.waveform_plot.max.y),
+    );
+    let handle = waveform_selection_drag_handle_rect(selection_rect);
+    let hit_min = Point::new(
+        (handle.min.x - WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET).max(layout.waveform_plot.min.x),
+        (handle.min.y - WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET).max(layout.waveform_plot.min.y),
+    );
+    let hit_max = Point::new(
+        (handle.max.x + WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET).min(layout.waveform_plot.max.x),
+        (handle.max.y + WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET).min(layout.waveform_plot.max.y),
+    );
+    Some(UiRect::from_min_max(hit_min, hit_max))
+}
+
+/// Return the visible playback-selection drag handle rect.
+fn waveform_selection_drag_handle_rect(selection_rect: UiRect) -> UiRect {
+    let size = WAVEFORM_SELECTION_DRAG_HANDLE_SIZE
+        .min(selection_rect.width().max(1.0))
+        .min(selection_rect.height().max(1.0));
+    let min = Point::new(selection_rect.max.x - size, selection_rect.max.y - size);
+    UiRect::from_min_max(min, selection_rect.max)
 }
 
 /// Convert a normalized waveform milli position into plot-space x.

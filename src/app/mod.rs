@@ -1004,6 +1004,28 @@ pub enum UiAction {
     },
     /// Finish an active waveform edit-fade drag gesture.
     FinishWaveformEditFadeDrag,
+    /// Start dragging the current waveform playback selection from its drag handle.
+    StartWaveformSelectionDrag {
+        /// Pointer x-position in logical UI coordinates.
+        pointer_x: u16,
+        /// Pointer y-position in logical UI coordinates.
+        pointer_y: u16,
+    },
+    /// Update the active waveform-selection drag with the latest pointer position.
+    UpdateWaveformSelectionDrag {
+        /// Pointer x-position in logical UI coordinates.
+        pointer_x: u16,
+        /// Pointer y-position in logical UI coordinates.
+        pointer_y: u16,
+        /// Whether the pointer currently hovers the sample browser list.
+        over_browser_list: bool,
+        /// Whether Shift is currently held.
+        shift_down: bool,
+        /// Whether Alt is currently held.
+        alt_down: bool,
+    },
+    /// Finish the active waveform-selection drag gesture.
+    FinishWaveformSelectionDrag,
     /// Clear active waveform selection.
     ClearWaveformSelection,
     /// Clear active waveform edit selection.

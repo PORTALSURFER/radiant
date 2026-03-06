@@ -1543,6 +1543,52 @@ fn waveform_motion_overlay_omits_selection_resize_handles_until_hovered() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_selection_drag_handle() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let selection = NormalizedRangeModel::new(180, 420);
+    model.waveform.selection_milli = Some(selection);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("selection rect");
+    let handle_probe_x = selection_rect.max.x - 6.0;
+    let handle_probe_y = selection_rect.max.y - 6.0;
+
+    let has_drag_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= handle_probe_x
+                    && rect.rect.max.x >= handle_probe_x
+                    && rect.rect.min.y <= handle_probe_y
+                    && rect.rect.max.y >= handle_probe_y
+                    && rect.rect.width() < selection_rect.width()
+                    && rect.rect.height() < selection_rect.height()
+        )
+    });
+
+    assert!(
+        has_drag_handle,
+        "expected playback-selection drag handle primitive"
+    );
+}
+
+#[test]
 fn waveform_motion_overlay_highlights_hovered_selection_resize_edge() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

@@ -17,6 +17,8 @@ const RESIZE_EDGE_HIGHLIGHT_WIDTH: f32 = 4.0;
 const RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
+/// Width/height in logical pixels for the playback-selection drag handle.
+const SELECTION_DRAG_HANDLE_SIZE: f32 = 12.0;
 
 /// One retained ghost line for the dynamic playhead trail.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -147,6 +149,7 @@ pub(super) fn push_waveform_playhead_overlay(
         if model.waveform_loop_enabled {
             emit_waveform_loop_bar(primitives, style, rect);
         }
+        emit_selection_drag_handle(primitives, style, rect);
     }
 
     if let Some(edit_selection) = model.waveform_edit_selection_milli {
@@ -304,6 +307,39 @@ fn emit_resize_edge_highlight(
         blend_color(accent_color, style.text_primary, 0.62),
         style.sizing.border_width,
     );
+}
+
+/// Emit the playback-selection drag handle used for clip export drags.
+fn emit_selection_drag_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    selection_rect: Rect,
+) {
+    let handle = selection_drag_handle_rect(selection_rect);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.surface_overlay, style.accent_warning, 0.92),
+        }),
+    );
+    push_border(
+        primitives,
+        handle,
+        blend_color(style.accent_warning, style.text_primary, 0.55),
+        style.sizing.border_width,
+    );
+}
+
+/// Return the bottom-right playback-selection drag handle rectangle.
+fn selection_drag_handle_rect(selection_rect: Rect) -> Rect {
+    let size = SELECTION_DRAG_HANDLE_SIZE
+        .min(selection_rect.width().max(1.0))
+        .min(selection_rect.height().max(1.0));
+    Rect::from_min_max(
+        Point::new(selection_rect.max.x - size, selection_rect.max.y - size),
+        selection_rect.max,
+    )
 }
 
 /// Return a resize-edge rect centered vertically within a selection band.

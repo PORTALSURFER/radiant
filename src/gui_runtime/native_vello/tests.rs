@@ -41,6 +41,15 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
         }),
         RuntimeInvalidationScope::StaticAndOverlays
     );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::StartWaveformSelectionDrag {
+                pointer_x: 320,
+                pointer_y: 240,
+            }
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
 }
 
 #[test]
@@ -1084,6 +1093,32 @@ fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
 }
 
 #[test]
+fn waveform_left_click_on_selection_drag_handle_starts_drag() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8) - 4.0,
+        layout.waveform_plot.max.y - 4.0,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::StartWaveformSelectionDrag {
+            pointer_x: point.x.round() as u16,
+            pointer_y: point.y.round() as u16,
+        })
+    );
+}
+
+#[test]
 fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
@@ -1293,6 +1328,30 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
 }
 
 #[test]
+fn handle_pointer_press_action_starts_selection_drag_immediately() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::StartWaveformSelectionDrag {
+            pointer_x: 320,
+            pointer_y: 240,
+        },
+        false,
+    );
+
+    assert!(emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::StartWaveformSelectionDrag {
+            pointer_x: 320,
+            pointer_y: 240,
+        }]
+    );
+    assert!(runner.selection_drag_active);
+}
+
+#[test]
 fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -1307,6 +1366,21 @@ fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() 
         runner.bridge.actions,
         vec![UiAction::FinishWaveformEditFadeDrag]
     );
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_selection_drag_for_active_selection_export() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.selection_drag_active = true;
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformSelectionDrag]
+    );
+    assert!(!runner.selection_drag_active);
 }
 
 #[test]

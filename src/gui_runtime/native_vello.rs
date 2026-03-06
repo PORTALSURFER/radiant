@@ -115,6 +115,14 @@ fn present_mode_candidates(target_fps: u32) -> &'static [wgpu::PresentMode] {
     }
 }
 
+/// Convert one logical pointer point into lossless-enough action coordinates.
+fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
+    (
+        point.x.clamp(0.0, f32::from(u16::MAX)).round() as u16,
+        point.y.clamp(0.0, f32::from(u16::MAX)).round() as u16,
+    )
+}
+
 #[derive(Clone)]
 struct EventLoopProxyRepaintSignal {
     proxy: EventLoopProxy<RuntimeUserEvent>,
@@ -1320,6 +1328,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     pending_volume_milli: Option<u16>,
     /// Active waveform drag mode while primary pointer is held on waveform.
     waveform_drag_mode: Option<WaveformPointerDragMode>,
+    /// Whether a waveform-selection export drag is currently active.
+    selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.
     last_emitted_waveform_drag_action: Option<UiAction>,
     /// Whether map sample focus drag is active for primary pointer movement.
@@ -1454,6 +1464,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             pending_cursor: None,
             pending_volume_milli: None,
             waveform_drag_mode: None,
+            selection_drag_active: false,
             last_emitted_waveform_drag_action: None,
             map_focus_drag_active: false,
             last_emitted_map_drag_sample_id: None,
@@ -2076,7 +2087,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Resolve waveform-resize hover cursor state for the current pointer.
     fn update_waveform_resize_cursor(&mut self, point: Point) {
         let icon = if let Some(layout) = self.shell_layout.as_ref().cloned() {
-            if waveform_resize_handle_hovered(&layout, &self.model, point) {
+            if waveform_selection_drag_handle_hovered(&layout, &self.model, point) {
+                CursorIcon::Grab
+            } else if waveform_resize_handle_hovered(&layout, &self.model, point) {
                 CursorIcon::EwResize
             } else if self
                 .shell_state
@@ -2212,6 +2225,25 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Process one waveform-selection export drag cursor update.
+    fn process_selection_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
+        self.emit_model_action_with_profile(
+            UiAction::UpdateWaveformSelectionDrag {
+                pointer_x,
+                pointer_y,
+                over_browser_list: !self.model.map.active && layout.browser_rows.contains(point),
+                shift_down: self.modifiers.shift_key(),
+                alt_down: self.modifiers.alt_key(),
+            },
+            Some(InteractionProfileKind::Waveform),
+        );
+        true
+    }
+
     /// Process one map-focus drag cursor update when map drag mode is active.
     fn process_map_focus_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
@@ -2262,6 +2294,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             _ => None,
         };
         self.waveform_drag_mode = waveform_drag_mode;
+        self.selection_drag_active = matches!(action, UiAction::StartWaveformSelectionDrag { .. });
         if !waveform_press_action_emits_immediately(&action) {
             return false;
         }
@@ -2278,6 +2311,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let finish_edit_fade_drag = self
             .waveform_drag_mode
             .is_some_and(waveform_drag_mode_is_edit_fade);
+        let finish_selection_drag =
+            self.selection_drag_active && matches!(released_button, Some(MouseButton::Left));
         let seek_on_waveform_click_release = if matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
         {
@@ -2305,7 +2340,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if finish_edit_fade_drag {
             self.emit_model_action(UiAction::FinishWaveformEditFadeDrag);
         }
+        if finish_selection_drag {
+            self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
+        }
         self.waveform_drag_mode = None;
+        self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
         self.last_emitted_map_drag_sample_id = None;
@@ -3296,6 +3335,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::FinishWaveformEditFadeDrag
+            | UiAction::StartWaveformSelectionDrag { .. }
+            | UiAction::UpdateWaveformSelectionDrag { .. }
+            | UiAction::FinishWaveformSelectionDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
@@ -3328,6 +3370,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::FinishWaveformEditFadeDrag
+            | UiAction::StartWaveformSelectionDrag { .. }
+            | UiAction::UpdateWaveformSelectionDrag { .. }
+            | UiAction::FinishWaveformSelectionDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }
@@ -3507,6 +3552,8 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 }
                 if !self.volume_drag_active && self.waveform_drag_mode.is_some() {
                     let _ = self.process_waveform_drag_immediately(point);
+                } else if !self.volume_drag_active && self.selection_drag_active {
+                    let _ = self.process_selection_drag_immediately(point);
                 } else if !self.volume_drag_active && self.map_focus_drag_active {
                     let _ = self.process_map_focus_drag_immediately(point);
                 } else if !self.volume_drag_active {
@@ -3536,6 +3583,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     self.volume_drag_active = false;
                     self.last_emitted_volume_milli = None;
                     self.waveform_drag_mode = None;
+                    self.selection_drag_active = false;
                     self.last_emitted_waveform_drag_action = None;
                     self.map_focus_drag_active = false;
                     self.last_emitted_map_drag_sample_id = None;

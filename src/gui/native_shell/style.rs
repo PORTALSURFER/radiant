@@ -133,11 +133,11 @@ pub(crate) struct SizingTokens {
     pub panel_gap: f32,
     /// Fixed top-bar band height.
     pub top_bar_height: f32,
-    /// Height of the top title/menu row inside the top bar.
+    /// Height of the unified top-bar row inside the top bar.
     pub top_bar_title_row_height: f32,
-    /// Minimum title-row height when vertical space is constrained.
+    /// Minimum unified top-bar row height when vertical space is constrained.
     pub top_bar_title_row_min_height: f32,
-    /// Minimum reserved gap between title row and controls row.
+    /// Reserved gap between title and controls rows. Zero keeps the top bar unified.
     pub top_bar_title_row_bottom_gap: f32,
     /// Fixed status-bar band height.
     pub status_bar_height: f32,
@@ -391,10 +391,10 @@ impl StyleTokens {
                 min_viewport_height: 400.0,
                 frame_inset: 0.0,
                 panel_gap: 1.0,
-                top_bar_height: 30.0,
-                top_bar_title_row_height: 12.0,
-                top_bar_title_row_min_height: 12.0,
-                top_bar_title_row_bottom_gap: 4.0,
+                top_bar_height: 18.0,
+                top_bar_title_row_height: 18.0,
+                top_bar_title_row_min_height: 18.0,
+                top_bar_title_row_bottom_gap: 0.0,
                 status_bar_height: 16.0,
                 sidebar_ratio: 0.16,
                 sidebar_min_width: 158.0,
@@ -491,8 +491,10 @@ impl StyleTokens {
         if layout_tier == LayoutScaleTier::Compact {
             tokens.sizing.frame_inset = 0.0;
             tokens.sizing.panel_gap = 1.0;
-            tokens.sizing.top_bar_height = 34.0;
-            tokens.sizing.top_bar_title_row_height = 14.0;
+            tokens.sizing.top_bar_height = 20.0;
+            tokens.sizing.top_bar_title_row_height = 20.0;
+            tokens.sizing.top_bar_title_row_min_height = 20.0;
+            tokens.sizing.top_bar_title_row_bottom_gap = 0.0;
             tokens.sizing.status_bar_height = 19.0;
             tokens.sizing.sidebar_ratio = 0.23;
             tokens.sizing.sidebar_min_width = 168.0;
@@ -590,8 +592,10 @@ impl StyleTokens {
             // Keep wide tier dense to preserve the classic Sempal table-first feel.
             tokens.sizing.frame_inset = 0.0;
             tokens.sizing.panel_gap = 1.0;
-            tokens.sizing.top_bar_height = 32.0;
-            tokens.sizing.top_bar_title_row_height = 13.0;
+            tokens.sizing.top_bar_height = 19.0;
+            tokens.sizing.top_bar_title_row_height = 19.0;
+            tokens.sizing.top_bar_title_row_min_height = 19.0;
+            tokens.sizing.top_bar_title_row_bottom_gap = 0.0;
             tokens.sizing.status_bar_height = 17.0;
             tokens.sizing.sidebar_ratio = 0.17;
             tokens.sizing.sidebar_min_width = 170.0;

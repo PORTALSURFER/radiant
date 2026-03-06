@@ -518,20 +518,6 @@ impl NativeShellState {
                     top_controls.volume_label,
                     sizing,
                 );
-                let divider_y = layout.top_bar_controls_row.min.y;
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: Rect::from_min_max(
-                            Point::new(layout.top_bar.min.x, divider_y),
-                            Point::new(
-                                layout.top_bar.max.x,
-                                (divider_y + sizing.border_width).min(layout.top_bar.max.y),
-                            ),
-                        ),
-                        color: style.border,
-                    }),
-                );
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
@@ -599,19 +585,23 @@ impl NativeShellState {
             let update_status_text = update_status_text(model);
             let update_hint_text = update_hint_text(model);
             let update_notes_text = update_notes_text(model);
-            let update_controls_text = if update_notes_text.is_empty() {
+            let update_hint_and_notes = if update_notes_text.is_empty() {
                 update_hint_text
             } else if update_hint_text.is_empty() {
                 update_notes_text
             } else {
                 format!("{update_hint_text} | {update_notes_text}")
             };
+            let update_line_text = if update_hint_and_notes.is_empty() {
+                update_status_text
+            } else {
+                format!("{update_status_text} | {update_hint_and_notes}")
+            };
             let update_button_rects: Vec<Rect> =
                 update_buttons.iter().map(|button| button.rect).collect();
             let update_text_layout = compute_top_bar_update_text_layout(
                 layout.top_bar_action_cluster,
                 layout.top_bar_title_row,
-                layout.top_bar_controls_row,
                 sizing,
                 &update_button_rects,
             );
@@ -620,7 +610,7 @@ impl NativeShellState {
                 text_runs,
                 TextRun {
                     text: truncate_to_width(
-                        &update_status_text,
+                        &update_line_text,
                         update_status_width,
                         sizing.font_meta,
                     ),
@@ -631,24 +621,6 @@ impl NativeShellState {
                     align: TextAlign::Left,
                 },
             );
-            if !update_controls_text.is_empty() && update_text_layout.controls_line.width() > 0.0 {
-                let controls_width = update_text_layout.controls_line.width().max(20.0);
-                emit_text(
-                    text_runs,
-                    TextRun {
-                        text: truncate_to_width(
-                            &update_controls_text,
-                            controls_width,
-                            sizing.font_meta,
-                        ),
-                        position: update_text_layout.controls_line.min,
-                        font_size: sizing.font_meta,
-                        color: style.text_muted,
-                        max_width: Some(controls_width),
-                        align: TextAlign::Left,
-                    },
-                );
-            }
             for button in &update_buttons {
                 let label_rect = compute_action_button_text_rect(button.rect, sizing);
                 emit_primitive(

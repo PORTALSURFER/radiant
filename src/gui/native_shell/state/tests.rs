@@ -441,10 +441,10 @@ fn top_bar_controls_fit_inside_control_row() {
         if !controls.active {
             continue;
         }
-        assert_rect_inside(layout.top_bar_controls_row, controls.options_label);
-        assert_rect_inside(layout.top_bar_controls_row, controls.volume_meter);
-        assert_rect_inside(layout.top_bar_controls_row, controls.volume_value);
-        assert_rect_inside(layout.top_bar_controls_row, controls.volume_label);
+        assert_rect_inside(layout.top_bar_title_cluster, controls.options_label);
+        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_meter);
+        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_value);
+        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_label);
         assert!(controls.options_label.max.x <= controls.volume_meter.min.x);
         assert!(controls.volume_meter.max.x <= controls.volume_value.min.x);
         assert!(controls.volume_value.max.x <= controls.volume_label.min.x);
@@ -2685,18 +2685,17 @@ fn top_bar_update_prefers_projected_status_and_hint_copy() {
             .iter()
             .any(|run| run.text.contains("Update available"))
     );
-    assert!(
-        frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Actions: open"))
-    );
+    assert!(frame.text_runs.iter().any(|run| {
+        run.text.contains("Update available")
+            && run.text.contains("Actions: open")
+            && run.text.contains("Release: v20.1.0")
+    }));
     let controls_run = frame
         .text_runs
         .iter()
         .find(|run| run.text.contains("Actions: open"))
-        .expect("combined update controls text should be present");
-    assert_text_run_inside_band(controls_run, layout.top_bar_controls_row);
+        .expect("merged update text should be present");
+    assert_text_run_inside_band(controls_run, layout.top_bar_title_row);
 }
 
 #[test]

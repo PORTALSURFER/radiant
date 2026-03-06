@@ -8,9 +8,6 @@ use crate::gui::layout_core::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
-const TOP_BANDS_ROOT_ID: u64 = 600;
-const TOP_BANDS_TITLE_ROW_ID: u64 = 601;
-const TOP_BANDS_CONTROLS_ROW_ID: u64 = 602;
 const TOP_TITLE_CLUSTERS_ROOT_ID: u64 = 610;
 const TOP_TITLE_CLUSTERS_ROW_ID: u64 = 611;
 const TOP_TITLE_CLUSTER_ID: u64 = 612;
@@ -56,55 +53,8 @@ pub(crate) fn compute_top_bar_band_sections(
             top_bar_action_cluster: empty_rect(top_bar),
         };
     }
-    let min_title_height = sizing.top_bar_title_row_min_height.max(0.0);
-    let title_height = sizing
-        .top_bar_title_row_height
-        .max(min_title_height)
-        .min((top_bar.height() - sizing.top_bar_title_row_bottom_gap).max(min_title_height))
-        .min(top_bar.height());
-    let rows_tree = LayoutNode::container(
-        TOP_BANDS_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Column,
-            align_main: MainAlign::Start,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![
-            SlotChild {
-                slot: fixed_height_slot(title_height, sizing.text_row_gap.max(0.0)),
-                child: LayoutNode::widget(
-                    TOP_BANDS_TITLE_ROW_ID,
-                    Vector2::new(top_bar.width(), title_height.max(1.0)),
-                ),
-            },
-            SlotChild {
-                slot: SlotParams::fill(),
-                child: LayoutNode::widget(
-                    TOP_BANDS_CONTROLS_ROW_ID,
-                    Vector2::new(top_bar.width(), 1.0),
-                ),
-            },
-        ],
-    );
-    let row_output = layout_tree(&rows_tree, top_bar);
-    let title_row = clamp_rect_to_bounds(
-        rect_for(
-            &row_output.rects,
-            TOP_BANDS_TITLE_ROW_ID,
-            empty_rect(top_bar),
-        ),
-        top_bar,
-    );
-    let controls_row = clamp_rect_to_bounds(
-        rect_for(
-            &row_output.rects,
-            TOP_BANDS_CONTROLS_ROW_ID,
-            empty_rect(top_bar),
-        ),
-        top_bar,
-    );
+    let title_row = top_bar;
+    let controls_row = top_bar;
 
     let desired_action_cluster_width = ((sizing.action_button_width * 5.0)
         + (sizing.action_button_gap * 4.0)

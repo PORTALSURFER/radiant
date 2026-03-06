@@ -252,8 +252,8 @@ mod tests {
     #[test]
     fn layout_bands_stay_within_panel_bounds() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        assert!(layout.top_bar_title_row.max.y <= layout.top_bar_controls_row.min.y);
-        assert!(layout.top_bar_controls_row.max.y <= layout.top_bar.max.y);
+        assert_eq!(layout.top_bar_title_row, layout.top_bar);
+        assert_eq!(layout.top_bar_controls_row, layout.top_bar);
         assert!(layout.sidebar_header.max.y <= layout.sidebar_rows.min.y);
         assert!(layout.sidebar_rows.max.y <= layout.sidebar_footer.min.y);
         assert_eq!(layout.waveform_header.max.y, layout.waveform_plot.min.y);

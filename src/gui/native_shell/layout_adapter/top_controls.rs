@@ -29,7 +29,7 @@ pub(crate) fn compute_top_bar_controls_sections(
     layout: &super::super::layout::ShellLayout,
     sizing: SizingTokens,
 ) -> TopBarControlsSections {
-    let row = layout.top_bar_controls_row;
+    let row = layout.top_bar_title_cluster;
     if row.height() <= 1.0 || row.width() <= 1.0 {
         return inactive_top_controls(row);
     }

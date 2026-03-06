@@ -14,23 +14,20 @@ const UPDATE_TEXT_ROOT_ID: u64 = 1410;
 const UPDATE_TEXT_ALIGN_ID: u64 = 1411;
 const UPDATE_TEXT_LINE_ID: u64 = 1412;
 
-/// Slot-resolved top-bar update text bounds for title and controls rows.
+/// Slot-resolved top-bar update text bounds inside the update action cluster.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TopBarUpdateTextLayout {
     pub status_line: Rect,
-    pub controls_line: Rect,
 }
 
-/// Compute top-bar update status/controls text line bounds via strict slot layout.
+/// Compute top-bar update text bounds via strict slot layout.
 pub(crate) fn compute_top_bar_update_text_layout(
     action_cluster: Rect,
-    title_row: Rect,
-    controls_row: Rect,
+    row: Rect,
     sizing: SizingTokens,
     button_rects: &[Rect],
 ) -> TopBarUpdateTextLayout {
-    let status_bounds = row_with_action_cluster_x(action_cluster, title_row);
-    let controls_bounds = row_with_action_cluster_x(action_cluster, controls_row);
+    let status_bounds = row_with_action_cluster_x(action_cluster, row);
     let reserved_width = reserved_button_width(action_cluster, button_rects);
     TopBarUpdateTextLayout {
         status_line: compute_update_text_line(
@@ -39,7 +36,6 @@ pub(crate) fn compute_top_bar_update_text_layout(
             sizing.font_meta,
             reserved_width,
         ),
-        controls_line: compute_update_text_line(controls_bounds, sizing, sizing.font_meta, 0.0),
     }
 }
 
@@ -223,34 +219,21 @@ mod tests {
     fn update_text_lines_stay_inside_cluster_rows() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let cluster = Rect::from_min_max(Point::new(880.0, 16.0), Point::new(1260.0, 72.0));
-        let title_row = Rect::from_min_max(Point::new(20.0, 16.0), Point::new(1260.0, 36.0));
-        let controls_row = Rect::from_min_max(Point::new(20.0, 44.0), Point::new(1260.0, 72.0));
-        let layout =
-            compute_top_bar_update_text_layout(cluster, title_row, controls_row, style.sizing, &[]);
+        let row = Rect::from_min_max(Point::new(20.0, 16.0), Point::new(1260.0, 36.0));
+        let layout = compute_top_bar_update_text_layout(cluster, row, style.sizing, &[]);
         assert_inside(cluster, layout.status_line);
-        assert_inside(cluster, layout.controls_line);
-        assert!(layout.status_line.min.y >= title_row.min.y);
-        assert!(layout.status_line.max.y <= title_row.max.y);
-        assert!(layout.controls_line.min.y >= controls_row.min.y);
-        assert!(layout.controls_line.max.y <= controls_row.max.y);
+        assert!(layout.status_line.min.y >= row.min.y);
+        assert!(layout.status_line.max.y <= row.max.y);
     }
 
     #[test]
     fn update_status_line_reserves_button_region() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let cluster = Rect::from_min_max(Point::new(880.0, 16.0), Point::new(1260.0, 72.0));
-        let title_row = Rect::from_min_max(Point::new(20.0, 16.0), Point::new(1260.0, 36.0));
-        let controls_row = Rect::from_min_max(Point::new(20.0, 44.0), Point::new(1260.0, 72.0));
+        let row = Rect::from_min_max(Point::new(20.0, 16.0), Point::new(1260.0, 36.0));
         let button = Rect::from_min_max(Point::new(1120.0, 18.0), Point::new(1240.0, 34.0));
-        let layout = compute_top_bar_update_text_layout(
-            cluster,
-            title_row,
-            controls_row,
-            style.sizing,
-            &[button],
-        );
+        let layout = compute_top_bar_update_text_layout(cluster, row, style.sizing, &[button]);
         assert!(layout.status_line.max.x <= button.min.x);
-        assert!(layout.controls_line.max.x > layout.status_line.max.x);
     }
 
     #[test]
@@ -258,10 +241,8 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let cluster = Rect::from_min_max(Point::new(500.0, 20.0), Point::new(500.0, 20.0));
         let row = Rect::from_min_max(Point::new(20.0, 16.0), Point::new(1260.0, 36.0));
-        let layout = compute_top_bar_update_text_layout(cluster, row, row, style.sizing, &[]);
+        let layout = compute_top_bar_update_text_layout(cluster, row, style.sizing, &[]);
         assert_eq!(layout.status_line.width(), 0.0);
         assert_eq!(layout.status_line.height(), 0.0);
-        assert_eq!(layout.controls_line.width(), 0.0);
-        assert_eq!(layout.controls_line.height(), 0.0);
     }
 }

@@ -34,18 +34,14 @@ fn toolbar_sections_stay_left_of_action_cluster() {
     let sections = compute_browser_toolbar_sections(toolbar, style.sizing, Some(980.0));
     assert!(sections.search_field.min.x >= toolbar.min.x);
     assert!(sections.search_field.max.x <= 980.0);
-    if sections.activity_chip.width() > 0.0 {
-        assert!(sections.activity_chip.min.x >= sections.search_field.max.x);
-        assert!(sections.activity_chip.max.x <= 980.0);
-    }
-    for chip in sections.triage_chips {
-        if chip.width() > 0.0 {
-            assert!(chip.min.x >= toolbar.min.x);
-            assert!(chip.max.x <= 980.0);
-            assert!(chip.min.y >= toolbar.min.y);
-            assert!(chip.max.y <= toolbar.max.y);
-        }
-    }
+    assert!(sections.activity_chip.width() <= 0.0);
+    assert!(sections.sort_chip.width() <= 0.0);
+    assert!(
+        sections
+            .triage_chips
+            .into_iter()
+            .all(|chip| chip.width() <= 0.0)
+    );
 }
 
 #[test]

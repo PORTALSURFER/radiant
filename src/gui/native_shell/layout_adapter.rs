@@ -45,8 +45,8 @@ pub(super) use control_text::{
     compute_action_button_text_rect, compute_top_bar_controls_text_layout,
 };
 pub(super) use controls::{
-    compute_browser_action_button_rects, compute_browser_toolbar_sections,
-    compute_sidebar_action_button_rects, compute_update_action_button_rects,
+    compute_browser_toolbar_sections, compute_sidebar_action_button_rects,
+    compute_update_action_button_rects,
 };
 pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
 pub(super) use map_header::compute_browser_map_header_text_layout;

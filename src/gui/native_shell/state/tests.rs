@@ -331,13 +331,7 @@ fn browser_action_buttons_stay_inside_toolbar() {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
         let buttons = browser_action_buttons(&layout, &style, &model);
-        assert!(!buttons.is_empty());
-        for button in &buttons {
-            assert_rect_inside(layout.browser_toolbar, button.rect);
-        }
-        for pair in buttons.windows(2) {
-            assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
-        }
+        assert!(buttons.is_empty());
     }
 }
 
@@ -351,27 +345,16 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let style = style_for_layout(&layout);
     let buttons = browser_action_buttons(&layout, &style, &model);
     let controls = browser_toolbar_layout(&layout, &style, &buttons);
-    let action_cluster_left = buttons
-        .iter()
-        .map(|button| button.rect.min.x)
-        .min_by(f32::total_cmp)
-        .unwrap_or(layout.browser_toolbar.max.x);
+    assert!(buttons.is_empty());
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
-    if controls.activity_chip.width() > 1.0 {
-        assert_rect_inside(layout.browser_toolbar, controls.activity_chip);
-    }
-    if controls.sort_chip.width() > 1.0 {
-        assert_rect_inside(layout.browser_toolbar, controls.sort_chip);
-    }
-    for chip in controls.triage_chips {
-        if chip.width() > 1.0 {
-            assert_rect_inside(layout.browser_toolbar, chip);
-            assert!(chip.max.x <= action_cluster_left);
-        }
-    }
-    assert!(controls.search_field.max.x <= action_cluster_left);
-    assert!(controls.activity_chip.max.x <= action_cluster_left);
-    assert!(controls.sort_chip.max.x <= action_cluster_left);
+    assert!(controls.activity_chip.width() <= 0.0);
+    assert!(controls.sort_chip.width() <= 0.0);
+    assert!(
+        controls
+            .triage_chips
+            .into_iter()
+            .all(|chip| chip.width() <= 0.0)
+    );
 }
 
 #[test]

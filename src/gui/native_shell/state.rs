@@ -4,31 +4,28 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, SidebarRowCounts, compute_action_button_text_rect,
-        compute_browser_action_button_rects, compute_browser_footer_text_rect,
-        compute_browser_header_text_layout, compute_browser_map_canvas_rect,
-        compute_browser_map_header_text_layout, compute_browser_map_point_center,
-        compute_browser_row_text_layout, compute_browser_tabs_rects,
-        compute_browser_tabs_text_layout, compute_browser_toolbar_sections,
-        compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
-        compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
-        compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
-        compute_prompt_overlay_visual_layout, compute_row_index_at_point,
-        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
-        compute_sidebar_folder_row_text_rect, compute_sidebar_footer_text_layout,
-        compute_sidebar_header_text_layout, compute_sidebar_recovery_badge_text_rect,
-        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
-        compute_source_section_divider_rect, compute_status_text_line_rect,
-        compute_top_bar_controls_sections, compute_top_bar_controls_text_layout,
-        compute_top_bar_title_text_rect, compute_top_bar_update_text_layout,
-        compute_update_action_button_rects, compute_waveform_annotation_rects,
-        compute_waveform_header_text_layout,
+        compute_browser_footer_text_rect, compute_browser_header_text_layout,
+        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
+        compute_browser_map_point_center, compute_browser_row_text_layout,
+        compute_browser_tabs_rects, compute_browser_tabs_text_layout,
+        compute_browser_toolbar_sections, compute_browser_toolbar_text_layout,
+        compute_drag_overlay_text_layout, compute_drag_overlay_visual_layout,
+        compute_progress_overlay_text_layout, compute_progress_overlay_visual_layout,
+        compute_prompt_overlay_text_layout, compute_prompt_overlay_visual_layout,
+        compute_row_index_at_point, compute_sidebar_action_button_rects,
+        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_text_rect,
+        compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
+        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
+        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
+        compute_status_text_line_rect, compute_top_bar_controls_sections,
+        compute_top_bar_controls_text_layout, compute_top_bar_title_text_rect,
+        compute_top_bar_update_text_layout, compute_update_action_button_rects,
+        compute_waveform_annotation_rects, compute_waveform_header_text_layout,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
 };
-use crate::app::{
-    AppModel, BrowserRowModel, BrowserTagTarget, DirtySegments, NativeMotionModel, UiAction,
-};
+use crate::app::{AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction};
 use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
@@ -1025,21 +1022,6 @@ impl NativeShellState {
         let (_, buttons) =
             source_context_menu_spec(layout, &style, model, self.source_context_menu)?;
         buttons
-            .into_iter()
-            .find(|button| button.action == action)
-            .map(|button| button.rect)
-    }
-
-    /// Return a browser-action button rect for the provided action in tests.
-    #[cfg(test)]
-    pub(crate) fn browser_action_button_rect(
-        &self,
-        layout: &ShellLayout,
-        model: &AppModel,
-        action: UiAction,
-    ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        browser_action_buttons(layout, &style, model)
             .into_iter()
             .find(|button| button.action == action)
             .map(|button| button.rect)
@@ -2314,39 +2296,8 @@ fn browser_column_chips(
     model: &AppModel,
     browser_buttons: &[ActionButton],
 ) -> Vec<BrowserColumnChip> {
-    let toolbar = browser_toolbar_layout(layout, style, browser_buttons);
-    toolbar
-        .triage_chips
-        .iter()
-        .copied()
-        .enumerate()
-        .filter(|(_, rect)| rect.width() > 1.0)
-        .map(|(column, rect)| {
-            let fallback = match column {
-                0 => "Trash",
-                1 => "Neutral",
-                _ => "Keep",
-            };
-            let label = model
-                .columns
-                .get(column)
-                .map(|entry| entry.title.as_str())
-                .filter(|value| !value.is_empty())
-                .unwrap_or(fallback)
-                .to_string();
-            BrowserColumnChip {
-                rect,
-                column,
-                label,
-                item_count: model
-                    .columns
-                    .get(column)
-                    .map(|entry| entry.item_count)
-                    .unwrap_or(0),
-                selected: model.selected_column.min(2) == column,
-            }
-        })
-        .collect()
+    let _ = (layout, style, model, browser_buttons);
+    Vec::new()
 }
 
 fn waveform_toolbar_buttons(
@@ -2902,63 +2853,8 @@ fn browser_action_buttons(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<ActionButton> {
-    let definitions = [
-        (
-            "Rename",
-            model.browser_actions.can_rename,
-            UiAction::StartBrowserRename,
-            style.text_primary,
-        ),
-        (
-            "Trash",
-            model.browser_actions.can_tag,
-            UiAction::TagBrowserSelection {
-                target: BrowserTagTarget::Trash,
-            },
-            style.accent_trash,
-        ),
-        (
-            "Neutral",
-            model.browser_actions.can_tag,
-            UiAction::TagBrowserSelection {
-                target: BrowserTagTarget::Neutral,
-            },
-            style.text_muted,
-        ),
-        (
-            "Keep",
-            model.browser_actions.can_tag,
-            UiAction::TagBrowserSelection {
-                target: BrowserTagTarget::Keep,
-            },
-            style.accent_mint,
-        ),
-        (
-            "Delete",
-            model.browser_actions.can_delete,
-            UiAction::DeleteBrowserSelection,
-            style.accent_copper,
-        ),
-    ];
-    let rects = compute_browser_action_button_rects(
-        layout.browser_toolbar,
-        style.sizing,
-        definitions.len(),
-    );
-    let start_index = definitions.len().saturating_sub(rects.len());
-    rects
-        .into_iter()
-        .zip(definitions.into_iter().skip(start_index))
-        .map(
-            |(rect, (label, enabled, action, text_color))| ActionButton {
-                rect,
-                label,
-                enabled,
-                action,
-                text_color,
-            },
-        )
-        .collect()
+    let _ = (layout, style, model);
+    Vec::new()
 }
 
 fn source_action_buttons(

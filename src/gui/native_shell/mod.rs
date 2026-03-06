@@ -333,45 +333,27 @@ mod tests {
     }
 
     #[test]
-    fn action_strip_hit_test_emits_browser_action() {
+    fn toolbar_hit_test_focuses_browser_search() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
-        let mut model = crate::app::AppModel::default();
-        model.browser_actions.can_delete = true;
-        let button = state
-            .browser_action_button_rect(
-                &layout,
-                &model,
-                crate::app::UiAction::DeleteBrowserSelection,
-            )
-            .expect("delete action button should be present");
+        let model = crate::app::AppModel::default();
         let point = Point::new(
-            (button.min.x + button.max.x) * 0.5,
-            (button.min.y + button.max.y) * 0.5,
+            layout.browser_toolbar.min.x + 32.0,
+            (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
         );
         assert_eq!(
             state.browser_action_at_point(&layout, &model, point),
-            Some(crate::app::UiAction::DeleteBrowserSelection)
+            Some(crate::app::UiAction::FocusBrowserSearch)
         );
     }
 
     #[test]
-    fn browser_column_chip_hit_test_emits_select_column_action() {
+    fn browser_toolbar_exposes_no_column_chip_hit_targets() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-        let mut state = NativeShellState::new();
+        let state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();
         model.columns[2].item_count = 42;
-        let chip = state
-            .browser_column_chip_rect(&layout, &model, 2)
-            .expect("keep column chip should be present");
-        let point = Point::new(
-            (chip.min.x + chip.max.x) * 0.5,
-            (chip.min.y + chip.max.y) * 0.5,
-        );
-        assert_eq!(
-            state.browser_action_at_point(&layout, &model, point),
-            Some(crate::app::UiAction::SelectColumn { index: 2 })
-        );
+        assert!(state.browser_column_chip_rect(&layout, &model, 2).is_none());
     }
 
     #[test]

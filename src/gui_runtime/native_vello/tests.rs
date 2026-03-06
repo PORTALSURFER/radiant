@@ -1146,6 +1146,12 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::EditFadeInEnd)
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInMuteStart {
+            position_milli: 150,
+        }),
+        Some(WaveformPointerDragMode::EditFadeInMuteStart)
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInCurve { curve_milli: 650 }),
         Some(WaveformPointerDragMode::EditFadeInCurve)
     );
@@ -1154,6 +1160,12 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
             position_milli: 800,
         }),
         Some(WaveformPointerDragMode::EditFadeOutStart)
+    );
+    assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutMuteEnd {
+            position_milli: 850,
+        }),
+        Some(WaveformPointerDragMode::EditFadeOutMuteEnd)
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutCurve { curve_milli: 350 }),
@@ -1195,11 +1207,21 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeInMuteStart {
+            position_milli: 150,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeInCurve { curve_milli: 650 }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeOutStart {
             position_milli: 800,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeOutMuteEnd {
+            position_milli: 850,
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
@@ -1304,6 +1326,15 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         waveform_drag_action_for_mode(
             &layout,
             &model,
+            left,
+            WaveformPointerDragMode::EditFadeInMuteStart
+        ),
+        UiAction::SetWaveformEditFadeInMuteStart { position_milli: 0 }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
             Point::new(layout.waveform_plot.min.x, layout.waveform_plot.min.y),
             WaveformPointerDragMode::EditFadeInCurve
         ),
@@ -1317,6 +1348,17 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::EditFadeOutStart
         ),
         UiAction::SetWaveformEditFadeOutStart {
+            position_milli: 1000
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::EditFadeOutMuteEnd
+        ),
+        UiAction::SetWaveformEditFadeOutMuteEnd {
             position_milli: 1000
         }
     );
@@ -1371,6 +1413,26 @@ fn waveform_right_click_over_edit_fade_handle_routes_edit_fade_action() {
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
         UiAction::SetWaveformEditFadeInEnd { position_milli }
+    );
+}
+
+#[test]
+fn waveform_bottom_click_over_edit_fade_handle_routes_mute_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_fade_in_end_milli = Some(320);
+    model.waveform.edit_fade_in_mute_start_milli = Some(150);
+    model.waveform.edit_fade_out_start_milli = Some(690);
+    model.waveform.edit_fade_out_mute_end_milli = Some(860);
+    let bottom_y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.85);
+    let fade_in_mute_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.15);
+    let point = Point::new(fade_in_mute_x + 1.0, bottom_y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
+        UiAction::SetWaveformEditFadeInMuteStart { position_milli }
     );
 }
 

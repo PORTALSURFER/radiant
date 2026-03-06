@@ -963,8 +963,10 @@ fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
         fingerprint_mix_bool(&mut state, false);
     }
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_mute_start_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_curve_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_start_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_mute_end_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_curve_milli);
     fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
@@ -3275,8 +3277,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
@@ -3304,8 +3308,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::AdjustWaveformBpm { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection

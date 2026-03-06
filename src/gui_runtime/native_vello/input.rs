@@ -20,10 +20,14 @@ pub(super) enum WaveformPointerDragMode {
     },
     /// Drag updates the edit fade-in end handle.
     EditFadeInEnd,
+    /// Drag updates the edit fade-in mute-start handle.
+    EditFadeInMuteStart,
     /// Drag updates the edit fade-in curve.
     EditFadeInCurve,
     /// Drag updates the edit fade-out start handle.
     EditFadeOutStart,
+    /// Drag updates the edit fade-out mute-end handle.
+    EditFadeOutMuteEnd,
     /// Drag updates the edit fade-out curve.
     EditFadeOutCurve,
 }
@@ -380,11 +384,17 @@ pub(super) fn waveform_drag_action_for_mode(
         WaveformPointerDragMode::EditFadeInEnd => {
             UiAction::SetWaveformEditFadeInEnd { position_milli }
         }
+        WaveformPointerDragMode::EditFadeInMuteStart => {
+            UiAction::SetWaveformEditFadeInMuteStart { position_milli }
+        }
         WaveformPointerDragMode::EditFadeInCurve => UiAction::SetWaveformEditFadeInCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
         },
         WaveformPointerDragMode::EditFadeOutStart => {
             UiAction::SetWaveformEditFadeOutStart { position_milli }
+        }
+        WaveformPointerDragMode::EditFadeOutMuteEnd => {
+            UiAction::SetWaveformEditFadeOutMuteEnd { position_milli }
         }
         WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
@@ -408,11 +418,17 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
             })
         }
         UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
+        UiAction::SetWaveformEditFadeInMuteStart { .. } => {
+            Some(WaveformPointerDragMode::EditFadeInMuteStart)
+        }
         UiAction::SetWaveformEditFadeInCurve { .. } => {
             Some(WaveformPointerDragMode::EditFadeInCurve)
         }
         UiAction::SetWaveformEditFadeOutStart { .. } => {
             Some(WaveformPointerDragMode::EditFadeOutStart)
+        }
+        UiAction::SetWaveformEditFadeOutMuteEnd { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutMuteEnd)
         }
         UiAction::SetWaveformEditFadeOutCurve { .. } => {
             Some(WaveformPointerDragMode::EditFadeOutCurve)
@@ -432,8 +448,10 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
         UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
     )
 }
@@ -495,21 +513,49 @@ fn waveform_edit_fade_handle_action_from_pointer(
         .edit_fade_in_end_milli
         .unwrap_or(selection.start_milli)
         .clamp(selection.start_milli, selection.end_milli);
+    let fade_in_mute_start_milli = model
+        .waveform
+        .edit_fade_in_mute_start_milli
+        .unwrap_or(selection.start_milli)
+        .min(selection.start_milli);
     let fade_out_start_milli = model
         .waveform
         .edit_fade_out_start_milli
         .unwrap_or(selection.end_milli)
         .clamp(selection.start_milli, selection.end_milli);
+    let fade_out_mute_end_milli = model
+        .waveform
+        .edit_fade_out_mute_end_milli
+        .unwrap_or(selection.end_milli)
+        .max(selection.end_milli);
     let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
+    let fade_in_mute_x =
+        waveform_x_for_milli(layout.waveform_plot, model, fade_in_mute_start_milli);
     let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
+    let fade_out_mute_x =
+        waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
     let in_distance = (point.x - fade_in_x).abs();
+    let in_mute_distance = (point.x - fade_in_mute_x).abs();
     let out_distance = (point.x - fade_out_x).abs();
+    let out_mute_distance = (point.x - fade_out_mute_x).abs();
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
-    if in_distance > threshold && out_distance > threshold {
+    if in_distance > threshold
+        && in_mute_distance > threshold
+        && out_distance > threshold
+        && out_mute_distance > threshold
+    {
         return None;
     }
     let position_milli = waveform_position_milli_from_point(layout, model, point);
-    if in_distance <= out_distance {
+    let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    if bottom_half
+        && in_mute_distance <= threshold
+        && (in_mute_distance <= out_mute_distance || out_mute_distance > threshold)
+    {
+        Some(UiAction::SetWaveformEditFadeInMuteStart { position_milli })
+    } else if bottom_half && out_mute_distance <= threshold {
+        Some(UiAction::SetWaveformEditFadeOutMuteEnd { position_milli })
+    } else if in_distance <= out_distance {
         Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
     } else {
         Some(UiAction::SetWaveformEditFadeOutStart { position_milli })
@@ -536,20 +582,33 @@ fn waveform_edit_fade_curve_action_from_pointer(
         .edit_fade_in_end_milli
         .unwrap_or(selection.start_milli)
         .clamp(selection_start, selection_end);
+    let fade_in_mute_start_milli = model
+        .waveform
+        .edit_fade_in_mute_start_milli
+        .unwrap_or(selection_start)
+        .min(selection_start);
     let fade_out_start_milli = model
         .waveform
         .edit_fade_out_start_milli
         .unwrap_or(selection.end_milli)
         .clamp(selection_start, selection_end);
+    let fade_out_mute_end_milli = model
+        .waveform
+        .edit_fade_out_mute_end_milli
+        .unwrap_or(selection_end)
+        .max(selection_end);
+    let fade_in_mute_x =
+        waveform_x_for_milli(layout.waveform_plot, model, fade_in_mute_start_milli);
     let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
     let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
     let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
     let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
+    let fade_out_mute_x =
+        waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
-    let in_region_hit =
-        point.x >= selection_start_x - threshold && point.x <= fade_in_x + threshold;
+    let in_region_hit = point.x >= fade_in_mute_x - threshold && point.x <= fade_in_x + threshold;
     let out_region_hit =
-        point.x >= fade_out_x - threshold && point.x <= selection_end_x + threshold;
+        point.x >= fade_out_x - threshold && point.x <= fade_out_mute_x + threshold;
     let curve_milli = waveform_edit_fade_curve_milli_from_point(layout, point);
     if in_region_hit && (!out_region_hit || point.x <= (selection_start_x + selection_end_x) * 0.5)
     {

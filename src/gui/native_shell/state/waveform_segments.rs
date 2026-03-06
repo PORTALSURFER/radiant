@@ -180,12 +180,17 @@ pub(super) fn push_waveform_playhead_overlay(
             emit_edit_fade_overlays(
                 primitives,
                 style,
+                layout.waveform_plot,
                 rect,
                 edit_selection,
                 model.waveform_edit_fade_in_end_milli,
+                model.waveform_edit_fade_in_mute_start_milli,
                 model.waveform_edit_fade_in_curve_milli,
                 model.waveform_edit_fade_out_start_milli,
+                model.waveform_edit_fade_out_mute_end_milli,
                 model.waveform_edit_fade_out_curve_milli,
+                model.waveform_view_start_milli,
+                model.waveform_view_end_milli,
                 edit_selection_blue,
             );
             emit_edit_resize_handles(
@@ -457,12 +462,17 @@ fn emit_waveform_loop_bar(
 fn emit_edit_fade_overlays(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
+    waveform_plot: Rect,
     edit_selection_rect: Rect,
     edit_selection: crate::app::NormalizedRangeModel,
     fade_in_end_milli: Option<u16>,
+    fade_in_mute_start_milli: Option<u16>,
     fade_in_curve_milli: Option<u16>,
     fade_out_start_milli: Option<u16>,
+    fade_out_mute_end_milli: Option<u16>,
     fade_out_curve_milli: Option<u16>,
+    view_start_milli: u16,
+    view_end_milli: u16,
     accent_blue: Rgba8,
 ) {
     let selection_start = edit_selection.start_milli.min(edit_selection.end_milli);
@@ -477,21 +487,28 @@ fn emit_edit_fade_overlays(
         .unwrap_or(selection_end)
         .clamp(selection_start, selection_end);
 
-    let selection_width = edit_selection_rect.width();
-    if selection_width <= 0.0 {
+    let view_width = f32::from(view_end_milli.saturating_sub(view_start_milli)).max(1.0);
+    if waveform_plot.width() <= 0.0 {
         return;
     }
 
     let x_for_milli = |milli: u16| {
-        edit_selection_rect.min.x
-            + (selection_width
-                * (f32::from(milli.saturating_sub(selection_start))
-                    / f32::from((selection_end - selection_start).max(1))))
+        let in_view =
+            ((f32::from(milli) - f32::from(view_start_milli)) / view_width).clamp(0.0, 1.0);
+        waveform_plot.min.x + (waveform_plot.width() * in_view)
     };
-    let fade_in_x =
-        x_for_milli(fade_in_end).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x);
-    let fade_out_x =
-        x_for_milli(fade_out_start).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x);
+    let fade_in_mute_start = fade_in_mute_start_milli
+        .unwrap_or(selection_start)
+        .min(selection_start);
+    let fade_in_x = x_for_milli(fade_in_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_in_mute_x =
+        x_for_milli(fade_in_mute_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_out_x = x_for_milli(fade_out_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_out_mute_end = fade_out_mute_end_milli
+        .unwrap_or(selection_end)
+        .max(selection_end);
+    let fade_out_mute_x =
+        x_for_milli(fade_out_mute_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
 
     if fade_in_x > edit_selection_rect.min.x {
         emit_primitive(
@@ -507,12 +524,25 @@ fn emit_edit_fade_overlays(
         emit_edit_fade_curve_trace(
             primitives,
             style,
+            waveform_plot,
             edit_selection_rect,
-            edit_selection_rect.min.x,
+            fade_in_mute_x,
             fade_in_x,
             fade_in_curve_milli.unwrap_or(500),
             true,
             accent_blue,
+        );
+    }
+    if fade_in_mute_x < edit_selection_rect.min.x {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(fade_in_mute_x, edit_selection_rect.min.y),
+                    Point::new(edit_selection_rect.min.x, edit_selection_rect.max.y),
+                ),
+                color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.16),
+            }),
         );
     }
     if fade_out_x < edit_selection_rect.max.x {
@@ -529,12 +559,25 @@ fn emit_edit_fade_overlays(
         emit_edit_fade_curve_trace(
             primitives,
             style,
+            waveform_plot,
             edit_selection_rect,
             fade_out_x,
-            edit_selection_rect.max.x,
+            fade_out_mute_x,
             fade_out_curve_milli.unwrap_or(500),
             false,
             accent_blue,
+        );
+    }
+    if fade_out_mute_x > edit_selection_rect.max.x {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(edit_selection_rect.max.x, edit_selection_rect.min.y),
+                    Point::new(fade_out_mute_x, edit_selection_rect.max.y),
+                ),
+                color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.16),
+            }),
         );
     }
 
@@ -545,11 +588,27 @@ fn emit_edit_fade_overlays(
         fade_in_x,
         accent_blue,
     );
+    emit_edit_fade_bottom_handle(
+        primitives,
+        style,
+        waveform_plot,
+        edit_selection_rect,
+        fade_in_mute_x,
+        accent_blue,
+    );
     emit_edit_fade_handle(
         primitives,
         style,
         edit_selection_rect,
         fade_out_x,
+        accent_blue,
+    );
+    emit_edit_fade_bottom_handle(
+        primitives,
+        style,
+        waveform_plot,
+        edit_selection_rect,
+        fade_out_mute_x,
         accent_blue,
     );
 }
@@ -601,19 +660,51 @@ fn emit_edit_fade_handle(
         blend_color(accent_blue, style.text_primary, 0.5),
         style.sizing.border_width,
     );
-    let bottom_tab =
-        edit_fade_handle_bottom_tab_rect(edit_selection_rect, x, style.sizing.border_width);
+}
+
+/// Emit one draggable bottom mute-boundary handle for an edit fade.
+fn emit_edit_fade_bottom_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    x: f32,
+    accent_blue: Rgba8,
+) {
+    let width = EDIT_FADE_HANDLE_WIDTH
+        .max(style.sizing.border_width)
+        .max(1.0);
+    let half = width * 0.5;
+    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
+    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
+    let handle = Rect::from_min_max(
+        Point::new(left, edit_selection_rect.min.y),
+        Point::new(right, edit_selection_rect.max.y),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.bg_secondary, accent_blue, 0.38),
+        }),
+    );
+    let bottom_tab = edit_fade_handle_bottom_tab_rect(
+        waveform_plot,
+        edit_selection_rect,
+        x,
+        style.sizing.border_width,
+    );
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
             rect: bottom_tab,
-            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.72),
+            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.78),
         }),
     );
     push_border(
         primitives,
         bottom_tab,
-        blend_color(accent_blue, style.text_primary, 0.46),
+        blend_color(accent_blue, style.text_primary, 0.5),
         style.sizing.border_width,
     );
 }
@@ -641,8 +732,13 @@ fn edit_fade_handle_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f3
     )
 }
 
-/// Resolve the mirrored bottom grab-tab for one edit-fade handle.
-fn edit_fade_handle_bottom_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f32) -> Rect {
+/// Resolve the visible bottom grab-tab for one mute-boundary edit-fade handle.
+fn edit_fade_handle_bottom_tab_rect(
+    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    x: f32,
+    border_width: f32,
+) -> Rect {
     let width = EDIT_FADE_HANDLE_TAB_WIDTH
         .max(EDIT_FADE_HANDLE_WIDTH)
         .max(border_width + 2.0)
@@ -651,10 +747,8 @@ fn edit_fade_handle_bottom_tab_rect(edit_selection_rect: Rect, x: f32, border_wi
         .max(border_width + 2.0)
         .min(edit_selection_rect.height().max(1.0));
     let half = width * 0.5;
-    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
-    let right = (left + width)
-        .min(edit_selection_rect.max.x)
-        .max(left + 1.0);
+    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
+    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
     let top = (edit_selection_rect.max.y - height)
         .max(edit_selection_rect.min.y)
         .min(edit_selection_rect.max.y - 1.0);
@@ -668,6 +762,7 @@ fn edit_fade_handle_bottom_tab_rect(edit_selection_rect: Rect, x: f32, border_wi
 fn emit_edit_fade_curve_trace(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
+    waveform_plot: Rect,
     edit_selection_rect: Rect,
     start_x: f32,
     end_x: f32,
@@ -694,14 +789,12 @@ fn emit_edit_fade_curve_trace(
         };
         let rect = Rect::from_min_max(
             Point::new(
-                (x - (marker_size * 0.5))
-                    .clamp(edit_selection_rect.min.x, edit_selection_rect.max.x),
+                (x - (marker_size * 0.5)).clamp(waveform_plot.min.x, waveform_plot.max.x),
                 (y - (marker_size * 0.5))
                     .clamp(edit_selection_rect.min.y, edit_selection_rect.max.y),
             ),
             Point::new(
-                (x + (marker_size * 0.5))
-                    .clamp(edit_selection_rect.min.x, edit_selection_rect.max.x),
+                (x + (marker_size * 0.5)).clamp(waveform_plot.min.x, waveform_plot.max.x),
                 (y + (marker_size * 0.5))
                     .clamp(edit_selection_rect.min.y, edit_selection_rect.max.y),
             ),

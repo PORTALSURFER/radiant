@@ -1562,7 +1562,9 @@ fn waveform_motion_overlay_draws_edit_fade_bottom_grab_tabs() {
     let edit_selection = NormalizedRangeModel::new(200, 800);
     model.waveform.edit_selection_milli = Some(edit_selection);
     model.waveform.edit_fade_in_end_milli = Some(320);
+    model.waveform.edit_fade_in_mute_start_milli = Some(150);
     model.waveform.edit_fade_out_start_milli = Some(690);
+    model.waveform.edit_fade_out_mute_end_milli = Some(860);
     let motion = NativeMotionModel::from_app_model(&model);
 
     let mut frame = NativeViewFrame::default();
@@ -1579,11 +1581,8 @@ fn waveform_motion_overlay_draws_edit_fade_bottom_grab_tabs() {
     )
     .selection
     .expect("edit selection rect");
-    let span = f32::from(edit_selection.end_milli - edit_selection.start_milli).max(1.0);
-    let handle_in_x = edit_rect.min.x
-        + (edit_rect.width() * (f32::from(320u16 - edit_selection.start_milli) / span));
-    let handle_out_x = edit_rect.min.x
-        + (edit_rect.width() * (f32::from(690u16 - edit_selection.start_milli) / span));
+    let handle_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.15);
+    let handle_out_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.86);
 
     let has_in_tab = frame.primitives.iter().any(|primitive| {
         matches!(
@@ -1593,6 +1592,7 @@ fn waveform_motion_overlay_draws_edit_fade_bottom_grab_tabs() {
                     && rect.rect.max.x >= handle_in_x
                     && rect.rect.max.y == edit_rect.max.y
                     && rect.rect.height() < edit_rect.height()
+                    && rect.rect.min.x < edit_rect.min.x
         )
     });
     let has_out_tab = frame.primitives.iter().any(|primitive| {
@@ -1603,6 +1603,7 @@ fn waveform_motion_overlay_draws_edit_fade_bottom_grab_tabs() {
                     && rect.rect.max.x >= handle_out_x
                     && rect.rect.max.y == edit_rect.max.y
                     && rect.rect.height() < edit_rect.height()
+                    && rect.rect.max.x > edit_rect.max.x
         )
     });
     assert!(has_in_tab, "expected bottom grab tab for fade-in handle");
@@ -1618,8 +1619,10 @@ fn waveform_motion_overlay_draws_edit_fade_curve_trace() {
     let edit_selection = NormalizedRangeModel::new(200, 800);
     model.waveform.edit_selection_milli = Some(edit_selection);
     model.waveform.edit_fade_in_end_milli = Some(320);
+    model.waveform.edit_fade_in_mute_start_milli = Some(150);
     model.waveform.edit_fade_in_curve_milli = Some(800);
     model.waveform.edit_fade_out_start_milli = Some(690);
+    model.waveform.edit_fade_out_mute_end_milli = Some(860);
     model.waveform.edit_fade_out_curve_milli = Some(250);
     let motion = NativeMotionModel::from_app_model(&model);
 
@@ -1637,23 +1640,43 @@ fn waveform_motion_overlay_draws_edit_fade_curve_trace() {
     )
     .selection
     .expect("edit selection rect");
-    let fade_in_right = edit_rect.min.x + (edit_rect.width() * 0.2);
-    let fade_out_left = edit_rect.min.x + (edit_rect.width() * 0.81666666);
+    let fade_in_right = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.32);
+    let fade_out_left = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.69);
 
-    let has_curve_trace = frame.primitives.iter().any(|primitive| {
+    let has_left_curve_trace = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
                 if rect.rect.width() <= 4.0
                     && rect.rect.height() <= 4.0
-                    && rect.rect.min.x >= edit_rect.min.x
-                    && rect.rect.max.x <= edit_rect.max.x
-                    && (rect.rect.max.x <= fade_in_right || rect.rect.min.x >= fade_out_left)
+                    && rect.rect.max.x <= fade_in_right
+                    && rect.rect.min.x < edit_rect.min.x
+                    && rect.rect.min.x >= layout.waveform_plot.min.x
                     && rect.rect.min.y > edit_rect.min.y
                     && rect.rect.max.y < edit_rect.max.y
         )
     });
-    assert!(has_curve_trace, "expected edit fade curve trace markers");
+    let has_right_curve_trace = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.width() <= 4.0
+                    && rect.rect.height() <= 4.0
+                    && rect.rect.min.x >= fade_out_left
+                    && rect.rect.max.x > edit_rect.max.x
+                    && rect.rect.max.x <= layout.waveform_plot.max.x
+                    && rect.rect.min.y > edit_rect.min.y
+                    && rect.rect.max.y < edit_rect.max.y
+        )
+    });
+    assert!(
+        has_left_curve_trace,
+        "expected fade-in curve markers past the selection start"
+    );
+    assert!(
+        has_right_curve_trace,
+        "expected fade-out curve markers past the selection end"
+    );
 }
 
 #[test]

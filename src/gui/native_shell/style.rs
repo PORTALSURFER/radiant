@@ -76,6 +76,8 @@ pub(crate) struct StyleTokens {
     pub accent_mint: Rgba8,
     /// Secondary accent.
     pub accent_copper: Rgba8,
+    /// Negative/trash accent used for destructive triage indicators.
+    pub accent_trash: Rgba8,
     /// Warning/hover accent.
     pub accent_warning: Rgba8,
     /// Vibrant orange highlight used for strong warning emphasis.
@@ -364,6 +366,7 @@ impl StyleTokens {
             grid_soft: rgba(60, 59, 57, 255),
             accent_mint: rgba(193, 193, 169, 255),
             accent_copper: rgba(227, 195, 122, 255),
+            accent_trash: rgba(214, 110, 106, 255),
             accent_warning: rgba(239, 211, 149, 255),
             highlight_orange: rgba(223, 176, 92, 255),
             highlight_orange_soft: rgba(236, 204, 142, 255),

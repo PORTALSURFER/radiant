@@ -118,7 +118,7 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
 enum BrowserRowTextKind {
     /// Primary sample label text in browser rows.
     Sample,
-    /// Secondary bucket/chip label text in browser rows.
+    /// Secondary inline metadata text in browser rows.
     Bucket,
 }
 
@@ -979,6 +979,12 @@ impl NativeShellState {
             .map(|button| button.rect)
     }
 
+    /// Return the sidebar-header add-source button rect in tests.
+    #[cfg(test)]
+    pub(crate) fn source_add_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
+        source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+    }
+
     /// Return a source-context-menu button rect for one action in tests.
     #[cfg(test)]
     pub(crate) fn source_context_menu_button_rect(
@@ -1057,6 +1063,11 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
+        if source_add_button_rect(layout.sidebar_header, style.sizing)
+            .is_some_and(|rect| rect.contains(point))
+        {
+            return Some(UiAction::OpenOptionsMenu);
+        }
         source_action_buttons(layout, &style, model)
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
@@ -2520,6 +2531,114 @@ fn browser_missing_marker_advance(font_size: f32) -> f32 {
     (font_size * 1.05).max(7.0)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct BrowserRatingIndicatorLayout {
+    pub(super) rects: [Rect; 3],
+    pub(super) count: usize,
+}
+
+pub(super) fn browser_rating_indicator_reserved_width(
+    rating_level: i8,
+    sizing: SizingTokens,
+) -> f32 {
+    let count = rating_level.unsigned_abs().min(3) as usize;
+    if count == 0 {
+        return 0.0;
+    }
+    let side = browser_rating_indicator_side(sizing);
+    let gap = browser_rating_indicator_gap(sizing);
+    let text_gap = browser_rating_indicator_text_gap(sizing);
+    (count as f32 * side) + ((count.saturating_sub(1)) as f32 * gap) + text_gap
+}
+
+pub(super) fn browser_rating_indicator_layout(
+    sample_label: Rect,
+    rating_level: i8,
+    sizing: SizingTokens,
+) -> Option<BrowserRatingIndicatorLayout> {
+    let count = rating_level.unsigned_abs().min(3) as usize;
+    if count == 0 || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+        return None;
+    }
+    let side = browser_rating_indicator_side(sizing)
+        .min(sample_label.width())
+        .min(sample_label.height().max(1.0));
+    let gap = browser_rating_indicator_gap(sizing);
+    let total_width = (count as f32 * side) + ((count.saturating_sub(1)) as f32 * gap);
+    let start_x = (sample_label.max.x - total_width).max(sample_label.min.x);
+    let min_y = sample_label.min.y + ((sample_label.height() - side) * 0.5).floor();
+    let max_y = (min_y + side).min(sample_label.max.y);
+    let mut rects = [Rect::from_min_max(sample_label.min, sample_label.min); 3];
+    for (index, rect) in rects.iter_mut().take(count).enumerate() {
+        let min_x = start_x + index as f32 * (side + gap);
+        *rect = Rect::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new((min_x + side).min(sample_label.max.x), max_y),
+        );
+    }
+    Some(BrowserRatingIndicatorLayout { rects, count })
+}
+
+pub(super) fn browser_rating_indicator_color(style: &StyleTokens, rating_level: i8) -> Rgba8 {
+    if rating_level < 0 {
+        style.accent_trash
+    } else {
+        style.accent_mint
+    }
+}
+
+fn browser_rating_indicator_side(sizing: SizingTokens) -> f32 {
+    (sizing.font_meta * 0.68).round().clamp(5.0, 8.0)
+}
+
+fn browser_rating_indicator_gap(sizing: SizingTokens) -> f32 {
+    sizing.border_width.max(1.0) + 1.0
+}
+
+fn browser_rating_indicator_text_gap(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_x.min(5.0).max(2.0)
+}
+
+/// Return width reserved for one inline browser metadata label plus its left gutter.
+pub(super) fn browser_inline_tag_reserved_width(text: &str, sizing: SizingTokens) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    browser_inline_tag_text_width(text, sizing) + browser_inline_tag_gap(sizing)
+}
+
+/// Approximate the rendered width of one inline browser metadata label.
+pub(super) fn browser_inline_tag_text_width(text: &str, sizing: SizingTokens) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    ((text.chars().count() as f32) * (sizing.font_meta * 0.56).max(1.0)).ceil()
+}
+
+/// Return the horizontal gap between a sample label and its inline metadata label.
+pub(super) fn browser_inline_tag_gap(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_x.min(6.0).max(3.0)
+}
+
+fn source_add_button_rect(header_rect: Rect, sizing: SizingTokens) -> Option<Rect> {
+    if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
+        return None;
+    }
+    let side = (sizing.font_header + (sizing.text_inset_y * 1.5))
+        .round()
+        .clamp(12.0, header_rect.height().max(12.0));
+    if header_rect.width() < side + (sizing.text_inset_x * 2.0) {
+        return None;
+    }
+    let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
+    let min_x = (max_x - side).max(header_rect.min.x);
+    let min_y = header_rect.min.y + ((header_rect.height() - side) * 0.5).floor();
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, (min_y + side).min(header_rect.max.y)),
+    ))
+}
+
 /// Snap browser-row border bounds to the border stroke grid to avoid uneven AA
 /// widths between top/bottom edges.
 fn browser_row_border_rect(rect: Rect, stroke: f32) -> Rect {
@@ -2575,7 +2694,7 @@ fn browser_action_buttons(
             UiAction::TagBrowserSelection {
                 target: BrowserTagTarget::Trash,
             },
-            style.accent_warning,
+            style.accent_trash,
         ),
         (
             "Neutral",

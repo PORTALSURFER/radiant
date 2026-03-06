@@ -63,8 +63,9 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
         .map(|(index, rect)| CachedBrowserRow {
             visible_row: index,
             label: format!("row_{index}"),
-            bucket_label: String::from("SAMPLE"),
+            bucket_label: String::new(),
             column: 1,
+            rating_level: 0,
             selected: false,
             focused: false,
             missing: false,
@@ -245,6 +246,51 @@ fn source_action_buttons_stay_inside_sidebar_footer() {
             assert!(pair[0].rect.max.x <= pair[1].rect.min.x);
         }
     }
+}
+
+#[test]
+fn source_header_add_button_click_maps_to_add_source_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = populated_sidebar_model();
+    let state = NativeShellState::new();
+    let button = state
+        .source_add_button_rect(&layout)
+        .expect("source add button should render");
+    assert_rect_inside(layout.sidebar_header, button);
+    let point = Point::new(
+        button.min.x + (button.width() * 0.5),
+        button.min.y + (button.height() * 0.5),
+    );
+    let action = state
+        .source_action_at_point(&layout, &model, point)
+        .expect("source add button click should produce action");
+    assert_eq!(action, UiAction::OpenOptionsMenu);
+}
+
+#[test]
+fn browser_rating_indicator_layout_stays_inside_sample_label() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let sizing = style.sizing;
+    let row_rect = Rect::from_min_max(Point::new(80.0, 120.0), Point::new(520.0, 156.0));
+    let row_text = compute_browser_row_text_layout(row_rect, sizing);
+    let keep = browser_rating_indicator_layout(row_text.sample_label, 3, sizing)
+        .expect("keep indicators should render");
+    let trash = browser_rating_indicator_layout(row_text.sample_label, -2, sizing)
+        .expect("trash indicators should render");
+    assert_eq!(keep.count, 3);
+    assert_eq!(trash.count, 2);
+    for rect in keep.rects.iter().take(keep.count) {
+        assert_rect_inside(row_text.sample_label, *rect);
+    }
+    for rect in trash.rects.iter().take(trash.count) {
+        assert_rect_inside(row_text.sample_label, *rect);
+    }
+    assert_eq!(browser_rating_indicator_color(&style, 3), style.accent_mint);
+    assert_eq!(
+        browser_rating_indicator_color(&style, -2),
+        style.accent_trash
+    );
 }
 
 #[test]
@@ -475,6 +521,32 @@ fn browser_row_hit_test_matches_linear_scan_semantics() {
 }
 
 #[test]
+/// Fractional stacked-row metrics should still snap every row to stable pixel geometry.
+fn browser_rows_snap_vertical_geometry_to_pixels() {
+    let column = Rect::from_min_max(Point::new(10.0, 20.25), Point::new(310.0, 220.25));
+    let rows = build_stacked_rows(column, 6, 1.4, 15.8);
+    assert!(!rows.is_empty());
+    let expected_height = rows[0].height();
+    for row in rows {
+        assert!(
+            (row.min.y - row.min.y.round()).abs() <= 0.001,
+            "row min y {} should snap to the pixel grid",
+            row.min.y
+        );
+        assert!(
+            (row.max.y - row.max.y.round()).abs() <= 0.001,
+            "row max y {} should snap to the pixel grid",
+            row.max.y
+        );
+        assert!(
+            (row.height() - expected_height).abs() <= 0.001,
+            "row height {} should stay stable",
+            row.height()
+        );
+    }
+}
+
+#[test]
 fn large_dataset_frame_build_is_deterministic_across_tiers() {
     let mut state = NativeShellState::new();
     let model = browser_model_with_rows(5000, 4777);
@@ -529,7 +601,7 @@ fn browser_row_hit_test_is_disabled_when_map_tab_is_active() {
 }
 
 #[test]
-fn browser_bucket_label_prefers_explicit_row_metadata() {
+fn browser_inline_metadata_prefers_explicit_row_metadata() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
@@ -544,6 +616,15 @@ fn browser_bucket_label_prefers_explicit_row_metadata() {
             .iter()
             .any(|run| run.text.contains("165 BPM"))
     );
+}
+
+#[test]
+fn browser_header_omits_bucket_label() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = browser_model_with_rows(24, 8);
+    let frame = state.build_frame(&layout, &model);
+    assert!(!frame.text_runs.iter().any(|run| run.text == "Bucket"));
 }
 
 #[test]

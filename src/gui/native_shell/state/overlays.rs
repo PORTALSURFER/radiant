@@ -563,11 +563,15 @@ pub(super) fn build_stacked_rows(
     if rows == 0 {
         return Vec::new();
     }
-    let row_height = row_height.max(8.0);
-    let mut y = column.min.y;
+    let row_height = row_height.max(8.0).round().max(1.0);
+    let gap = gap.max(0.0);
+    let stride = row_height + gap;
+    let column_min_y = column.min.y.round();
+    let column_max_y = column.max.y.round().max(column_min_y);
     let mut output = Vec::with_capacity(rows);
-    for _ in 0..rows {
-        let max_y = (y + row_height).min(column.max.y);
+    for index in 0..rows {
+        let y = (column_min_y + (index as f32 * stride)).round();
+        let max_y = (y + row_height).min(column_max_y);
         if max_y <= y {
             break;
         }
@@ -575,8 +579,7 @@ pub(super) fn build_stacked_rows(
             Point::new(column.min.x, y),
             Point::new(column.max.x, max_y),
         ));
-        y = max_y + gap;
-        if y >= column.max.y {
+        if max_y >= column_max_y {
             break;
         }
     }

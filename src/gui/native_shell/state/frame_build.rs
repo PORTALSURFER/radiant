@@ -341,6 +341,36 @@ impl NativeShellState {
                         label_max_width =
                             (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
                     }
+                    let rating_indicator_layout = browser_rating_indicator_layout(
+                        row_text_layout.sample_label,
+                        row.rating_level,
+                        sizing,
+                    );
+                    let inline_tag_reserved_width =
+                        browser_inline_tag_reserved_width(&row.bucket_label, sizing);
+                    if let Some(indicators) = rating_indicator_layout {
+                        label_max_width = (label_max_width
+                            - browser_rating_indicator_reserved_width(row.rating_level, sizing)
+                            - inline_tag_reserved_width)
+                            .max(4.0);
+                        for rect in indicators.rects.into_iter().take(indicators.count) {
+                            emit_primitive(
+                                primitives,
+                                Primitive::Rect(FillRect {
+                                    rect,
+                                    color: browser_rating_indicator_color(style, row.rating_level),
+                                }),
+                            );
+                            push_border(
+                                primitives,
+                                rect,
+                                blend_color(style.border, style.text_primary, 0.28),
+                                sizing.border_width,
+                            );
+                        }
+                    } else {
+                        label_max_width = (label_max_width - inline_tag_reserved_width).max(4.0);
+                    }
                     emit_text(
                         text_runs,
                         TextRun {
@@ -352,18 +382,28 @@ impl NativeShellState {
                             align: TextAlign::Left,
                         },
                     );
-                    let bucket_label_max_width = row_text_layout.bucket_label.width().max(10.0);
-                    emit_text(
-                        text_runs,
-                        TextRun {
-                            text: row.bucket_label.clone(),
-                            position: row_text_layout.bucket_label.min,
-                            font_size: sizing.font_meta,
-                            color: style.text_primary,
-                            max_width: Some(bucket_label_max_width),
-                            align: TextAlign::Center,
-                        },
-                    );
+                    if !row.bucket_label.is_empty() {
+                        let rating_reserved_width =
+                            browser_rating_indicator_reserved_width(row.rating_level, sizing);
+                        let tag_width = browser_inline_tag_text_width(&row.bucket_label, sizing)
+                            .min(
+                                (row_text_layout.sample_label.width() - rating_reserved_width)
+                                    .max(0.0),
+                            );
+                        let tag_right = row_text_layout.sample_label.max.x - rating_reserved_width;
+                        let tag_min_x = (tag_right - tag_width).max(label_position.x);
+                        emit_text(
+                            text_runs,
+                            TextRun {
+                                text: row.bucket_label.clone(),
+                                position: Point::new(tag_min_x, row_text_layout.sample_label.min.y),
+                                font_size: sizing.font_meta,
+                                color: style.text_muted,
+                                max_width: Some((tag_right - tag_min_x).max(4.0)),
+                                align: TextAlign::Right,
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -667,8 +707,19 @@ impl NativeShellState {
             let sidebar_sections = sidebar_sections(layout, style, model);
             let sidebar_header_text =
                 compute_sidebar_header_text_layout(layout.sidebar_header, sizing);
-            let sidebar_header_title_width = sidebar_header_text.title_row.width().max(72.0);
-            let sidebar_header_query_width = sidebar_header_text.query_row.width().max(72.0);
+            let source_add_button = source_add_button_rect(layout.sidebar_header, sizing);
+            let sidebar_header_title_width = source_add_button
+                .map(|button| {
+                    (button.min.x - sidebar_header_text.title_row.min.x - sizing.text_inset_x)
+                        .max(24.0)
+                })
+                .unwrap_or_else(|| sidebar_header_text.title_row.width().max(72.0));
+            let sidebar_header_query_width = source_add_button
+                .map(|button| {
+                    (button.min.x - sidebar_header_text.query_row.min.x - sizing.text_inset_x)
+                        .max(24.0)
+                })
+                .unwrap_or_else(|| sidebar_header_text.query_row.width().max(72.0));
             emit_text(
                 text_runs,
                 TextRun {
@@ -702,6 +753,37 @@ impl NativeShellState {
                     align: TextAlign::Left,
                 },
             );
+            if let Some(button_rect) = source_add_button {
+                let label_rect = compute_action_button_text_rect(button_rect, sizing);
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: button_rect,
+                        color: style.surface_overlay,
+                    }),
+                );
+                push_border(
+                    primitives,
+                    button_rect,
+                    blend_color(
+                        style.border_emphasis,
+                        style.text_primary,
+                        style.state_hover_soft,
+                    ),
+                    sizing.border_width,
+                );
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: String::from("+"),
+                        position: label_rect.min,
+                        font_size: sizing.font_meta,
+                        color: style.accent_mint,
+                        max_width: Some(label_rect.width().max(8.0)),
+                        align: TextAlign::Center,
+                    },
+                );
+            }
             let rendered_sources = source_row_rects.len();
             for (row_index, row_rect) in source_row_rects.iter().enumerate() {
                 let row_rect = *row_rect;
@@ -1467,17 +1549,6 @@ impl NativeShellState {
                     align: TextAlign::Left,
                 },
             );
-            emit_text(
-                text_runs,
-                TextRun {
-                    text: String::from("Bucket"),
-                    position: header_text_layout.bucket_label.min,
-                    font_size: sizing.font_meta,
-                    color: style.text_primary,
-                    max_width: Some(header_text_layout.bucket_label.width().max(20.0)),
-                    align: TextAlign::Center,
-                },
-            );
         }
         if build_browser_frame {
             let footer_text = if model.map.active {
@@ -1863,7 +1934,12 @@ impl NativeShellState {
                     );
                     if row.focused {
                         let mut label_position = row_text_layout.sample_label.min;
-                        let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
+                        let inline_tag_reserved_width =
+                            browser_inline_tag_reserved_width(&row.bucket_label, sizing);
+                        let mut label_max_width = (row_text_layout.sample_label.width()
+                            - browser_rating_indicator_reserved_width(row.rating_level, sizing)
+                            - inline_tag_reserved_width)
+                            .max(20.0);
                         if row.missing {
                             let marker_advance = browser_missing_marker_advance(sizing.font_body)
                                 .min(label_max_width.max(0.0));

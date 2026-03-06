@@ -181,10 +181,13 @@ pub struct BrowserRowModel {
     pub label: String,
     /// Triage column index (`0..=2`) that currently owns the row.
     pub column: usize,
-    /// Optional badge/chip label rendered in the browser bucket column.
+    /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
+    pub rating_level: i8,
+    /// Optional inline metadata label rendered at the right edge of the sample lane.
     ///
-    /// Hosts can use this for metadata such as BPM (`"150 BPM"`). When absent,
-    /// the shell falls back to a column-derived label.
+    /// Hosts can use this for secondary metadata such as BPM or loop/length tags.
+    /// Keep/trash text should usually stay empty because the shell already renders
+    /// signed rating state via the right-edge indicator rectangles.
     pub bucket_label: Option<String>,
     /// Whether this row is currently selected in multi-selection state.
     pub selected: bool,
@@ -207,6 +210,7 @@ impl BrowserRowModel {
             visible_row,
             label: label.into(),
             column: column.min(2),
+            rating_level: 0,
             bucket_label: None,
             selected,
             focused,
@@ -214,7 +218,13 @@ impl BrowserRowModel {
         }
     }
 
-    /// Attach an explicit bucket-column label for this row.
+    /// Attach a signed keep/trash rating level for inline row indicators.
+    pub fn with_rating_level(mut self, rating_level: i8) -> Self {
+        self.rating_level = rating_level.clamp(-3, 3);
+        self
+    }
+
+    /// Attach an explicit inline metadata label for this row.
     pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
         self.bucket_label = Some(label.into());
         self

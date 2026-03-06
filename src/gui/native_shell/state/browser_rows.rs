@@ -8,6 +8,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) label: String,
     pub(super) bucket_label: String,
     pub(super) column: usize,
+    pub(super) rating_level: i8,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,
@@ -451,16 +452,30 @@ pub(super) fn rendered_browser_rows_cached(
     let mut rendered = Vec::with_capacity(window.len());
     for (row, rect) in window.iter().zip(row_rects) {
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
-        let label_width = row_text_layout.sample_label.width().max(20.0);
-        let bucket_label_width = row_text_layout.bucket_label.width().max(10.0);
-        let bucket_label = row
-            .bucket_label
-            .clone()
-            .unwrap_or_else(|| match row.column {
-                0 => String::from("TRASH"),
-                2 => String::from("KEEP"),
-                _ => String::from("SAMPLE"),
-            });
+        let rating_reserved_width =
+            browser_rating_indicator_reserved_width(row.rating_level, sizing);
+        let bucket_label_width = browser_inline_tag_max_width(
+            row_text_layout.sample_label.width(),
+            rating_reserved_width,
+        );
+        let bucket_label_source = row.bucket_label.clone().unwrap_or_default();
+        let bucket_label = if bucket_label_width > 0.0 {
+            truncate_browser_row_text_cached(
+                truncation_cache,
+                frame_counts,
+                row.visible_row,
+                BrowserRowTextKind::Bucket,
+                &bucket_label_source,
+                bucket_label_width,
+                sizing.font_meta,
+            )
+        } else {
+            String::new()
+        };
+        let label_width = (row_text_layout.sample_label.width()
+            - rating_reserved_width
+            - browser_inline_tag_reserved_width(&bucket_label, sizing))
+        .max(20.0);
         rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
             label: truncate_browser_row_text_cached(
@@ -472,16 +487,9 @@ pub(super) fn rendered_browser_rows_cached(
                 label_width,
                 sizing.font_body,
             ),
-            bucket_label: truncate_browser_row_text_cached(
-                truncation_cache,
-                frame_counts,
-                row.visible_row,
-                BrowserRowTextKind::Bucket,
-                &bucket_label,
-                bucket_label_width,
-                sizing.font_meta,
-            ),
+            bucket_label,
             column: row.column.min(2),
+            rating_level: row.rating_level.clamp(-3, 3),
             selected: row.selected,
             focused: row.focused,
             missing: row.missing,
@@ -489,6 +497,13 @@ pub(super) fn rendered_browser_rows_cached(
         });
     }
     rendered
+}
+
+/// Cap inline browser metadata width so the primary sample label keeps most of the row.
+fn browser_inline_tag_max_width(sample_width: f32, rating_reserved_width: f32) -> f32 {
+    let sample_width = sample_width.max(0.0);
+    let available = (sample_width - rating_reserved_width - 24.0).max(0.0);
+    available.min((sample_width * 0.38).clamp(44.0, 120.0))
 }
 
 /// Resolve one truncated browser-row text string from cache or compute it on miss.
@@ -562,6 +577,7 @@ pub(super) fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
         row.label.hash(&mut hasher);
         row.bucket_label.hash(&mut hasher);
         row.column.hash(&mut hasher);
+        row.rating_level.hash(&mut hasher);
     }
     hasher.finish()
 }

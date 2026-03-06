@@ -401,24 +401,46 @@ impl NativeShellState {
                     if !row.bucket_label.is_empty() {
                         let rating_reserved_width =
                             browser_rating_indicator_reserved_width(row.rating_level, sizing);
-                        let tag_width = browser_inline_tag_text_width(&row.bucket_label, sizing)
-                            .min(
-                                (row_text_layout.sample_label.width() - rating_reserved_width)
-                                    .max(0.0),
-                            );
-                        let tag_right = row_text_layout.sample_label.max.x - rating_reserved_width;
-                        let tag_min_x = (tag_right - tag_width).max(label_position.x);
-                        emit_text(
-                            text_runs,
-                            TextRun {
-                                text: row.bucket_label.clone(),
-                                position: Point::new(tag_min_x, row_text_layout.sample_label.min.y),
-                                font_size: sizing.font_meta,
-                                color: style.text_muted,
-                                max_width: Some((tag_right - tag_min_x).max(4.0)),
-                                align: TextAlign::Right,
-                            },
+                        let chip_rects = browser_inline_tag_chip_rects(
+                            row_text_layout.sample_label,
+                            &row.bucket_label,
+                            rating_reserved_width,
+                            sizing,
                         );
+                        for (chip_rect, chip_label) in chip_rects
+                            .into_iter()
+                            .zip(browser_inline_tag_labels(&row.bucket_label))
+                        {
+                            let text_origin = browser_inline_tag_text_origin(chip_rect, sizing);
+                            emit_primitive(
+                                primitives,
+                                Primitive::Rect(FillRect {
+                                    rect: chip_rect,
+                                    color: blend_color(
+                                        style.surface_overlay,
+                                        style.bg_tertiary,
+                                        0.54,
+                                    ),
+                                }),
+                            );
+                            push_border(
+                                primitives,
+                                chip_rect,
+                                blend_color(style.border_emphasis, style.text_muted, 0.18),
+                                sizing.border_width,
+                            );
+                            emit_text(
+                                text_runs,
+                                TextRun {
+                                    text: chip_label.to_owned(),
+                                    position: text_origin,
+                                    font_size: sizing.font_meta,
+                                    color: style.text_primary,
+                                    max_width: Some((chip_rect.max.x - text_origin.x).max(4.0)),
+                                    align: TextAlign::Left,
+                                },
+                            );
+                        }
                     }
                 }
             }

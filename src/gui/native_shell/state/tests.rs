@@ -643,6 +643,42 @@ fn browser_inline_metadata_prefers_explicit_row_metadata() {
 }
 
 #[test]
+fn browser_inline_metadata_tags_render_chip_backgrounds() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.rows.push(
+        BrowserRowModel::new(0, "Kick 01", 1, true, true)
+            .with_bucket_label("165 BPM · LOOP · LONG"),
+    );
+    let frame = state.build_frame(&layout, &model);
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let row = rendered.first().expect("browser row should render");
+    let row_text_layout = compute_browser_row_text_layout(row.rect, style.sizing);
+    let expected_chip_rects = browser_inline_tag_chip_rects(
+        row_text_layout.sample_label,
+        &row.bucket_label,
+        browser_rating_indicator_reserved_width(row.rating_level, style.sizing),
+        style.sizing,
+    );
+    assert_eq!(expected_chip_rects.len(), 3);
+    for rect in expected_chip_rects {
+        assert!(frame.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect: primitive_rect, color })
+                    if *primitive_rect == rect
+                        && *color == blend_color(style.surface_overlay, style.bg_tertiary, 0.54)
+            )
+        }));
+    }
+    for label in ["165 BPM", "LOOP", "LONG"] {
+        assert!(frame.text_runs.iter().any(|run| run.text == label));
+    }
+}
+
+#[test]
 fn browser_header_omits_bucket_label() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

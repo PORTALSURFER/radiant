@@ -2599,12 +2599,20 @@ fn browser_rating_indicator_text_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(5.0).max(2.0)
 }
 
-/// Return width reserved for one inline browser metadata label plus its left gutter.
+/// Return width reserved for the inline browser metadata chip cluster plus its left gutter.
 pub(super) fn browser_inline_tag_reserved_width(text: &str, sizing: SizingTokens) -> f32 {
-    if text.is_empty() {
+    let labels: Vec<&str> = browser_inline_tag_labels(text).collect();
+    if labels.is_empty() {
         return 0.0;
     }
-    browser_inline_tag_text_width(text, sizing) + browser_inline_tag_gap(sizing)
+    let chips_width: f32 = labels
+        .iter()
+        .map(|label| browser_inline_tag_chip_width(label, sizing))
+        .sum();
+    let chip_gap_count = labels.len().saturating_sub(1) as f32;
+    chips_width
+        + (chip_gap_count * browser_inline_tag_chip_gap(sizing))
+        + browser_inline_tag_gap(sizing)
 }
 
 /// Approximate the rendered width of one inline browser metadata label.
@@ -2618,6 +2626,87 @@ pub(super) fn browser_inline_tag_text_width(text: &str, sizing: SizingTokens) ->
 /// Return the horizontal gap between a sample label and its inline metadata label.
 pub(super) fn browser_inline_tag_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(6.0).max(3.0)
+}
+
+/// Split one inline browser metadata payload into stable per-chip labels.
+pub(super) fn browser_inline_tag_labels(text: &str) -> impl Iterator<Item = &str> + '_ {
+    text.split(" · ")
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+}
+
+/// Return the filled chip width needed for one inline browser metadata label.
+pub(super) fn browser_inline_tag_chip_width(text: &str, sizing: SizingTokens) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    browser_inline_tag_text_width(text, sizing) + (browser_inline_tag_chip_padding_x(sizing) * 2.0)
+}
+
+/// Compute chip rects for one inline browser metadata cluster.
+pub(super) fn browser_inline_tag_chip_rects(
+    sample_label: Rect,
+    text: &str,
+    rating_reserved_width: f32,
+    sizing: SizingTokens,
+) -> Vec<Rect> {
+    if text.is_empty() || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+        return Vec::new();
+    }
+    let labels: Vec<&str> = browser_inline_tag_labels(text).collect();
+    if labels.is_empty() {
+        return Vec::new();
+    }
+    let chip_gap = browser_inline_tag_chip_gap(sizing);
+    let total_width: f32 = labels
+        .iter()
+        .map(|label| browser_inline_tag_chip_width(label, sizing))
+        .sum::<f32>()
+        + (labels.len().saturating_sub(1) as f32 * chip_gap);
+    let right_edge = (sample_label.max.x - rating_reserved_width).max(sample_label.min.x);
+    let start_x = (right_edge - total_width).max(sample_label.min.x);
+    let chip_height = browser_inline_tag_chip_height(sample_label, sizing);
+    let min_y = sample_label.min.y + ((sample_label.height() - chip_height) * 0.5).floor();
+    let max_y = (min_y + chip_height).min(sample_label.max.y);
+    let mut x = start_x;
+    labels
+        .into_iter()
+        .map(|label| {
+            let width = browser_inline_tag_chip_width(label, sizing);
+            let rect = Rect::from_min_max(
+                Point::new(x, min_y),
+                Point::new((x + width).min(right_edge), max_y),
+            );
+            x = (rect.max.x + chip_gap).min(right_edge);
+            rect
+        })
+        .collect()
+}
+
+/// Return the inset text origin for one inline browser metadata chip.
+pub(super) fn browser_inline_tag_text_origin(chip_rect: Rect, sizing: SizingTokens) -> Point {
+    Point::new(
+        chip_rect.min.x + browser_inline_tag_chip_padding_x(sizing),
+        chip_rect.min.y + ((chip_rect.height() - sizing.font_meta) * 0.5).floor(),
+    )
+}
+
+fn browser_inline_tag_chip_height(sample_label: Rect, sizing: SizingTokens) -> f32 {
+    (sizing.font_meta + (browser_inline_tag_chip_padding_y(sizing) * 2.0))
+        .round()
+        .clamp(10.0, sample_label.height().max(1.0))
+}
+
+fn browser_inline_tag_chip_padding_x(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_x.min(5.0).max(3.0)
+}
+
+fn browser_inline_tag_chip_padding_y(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_y.min(3.0).max(1.0)
+}
+
+fn browser_inline_tag_chip_gap(sizing: SizingTokens) -> f32 {
+    sizing.border_width.max(1.0) + 2.0
 }
 
 /// Return the inset backplate rect used to visually lift the waveform deck.

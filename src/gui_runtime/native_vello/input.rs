@@ -13,10 +13,28 @@ pub(super) enum WaveformPointerDragMode {
         /// Fixed anchor milli captured at drag start.
         anchor_milli: u16,
     },
+    /// Drag shifts the playback selection while preserving its width.
+    SelectionShift {
+        /// Pointer milli captured at drag start.
+        pointer_milli: u16,
+        /// Original playback-selection start milli.
+        start_milli: u16,
+        /// Original playback-selection end milli.
+        end_milli: u16,
+    },
     /// Drag extends edit selection from a fixed anchor milli value.
     EditSelection {
         /// Fixed anchor milli captured at drag start.
         anchor_milli: u16,
+    },
+    /// Drag shifts the edit selection while preserving its width.
+    EditSelectionShift {
+        /// Pointer milli captured at drag start.
+        pointer_milli: u16,
+        /// Original edit-selection start milli.
+        start_milli: u16,
+        /// Original edit-selection end milli.
+        end_milli: u16,
     },
     /// Drag updates the edit fade-in end handle.
     EditFadeInEnd,
@@ -42,6 +60,12 @@ const WAVEFORM_RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
 const WAVEFORM_SELECTION_DRAG_HANDLE_SIZE: f32 = 12.0;
 /// Extra hit slop around the playback-selection drag handle.
 const WAVEFORM_SELECTION_DRAG_HANDLE_HIT_INSET: f32 = 4.0;
+/// Width in logical pixels for bottom-center selection shift handles.
+const WAVEFORM_SELECTION_SHIFT_HANDLE_WIDTH: f32 = 14.0;
+/// Height in logical pixels for bottom-center selection shift handles.
+const WAVEFORM_SELECTION_SHIFT_HANDLE_HEIGHT: f32 = 7.0;
+/// Extra hit slop around bottom-center selection shift handles.
+const WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET: f32 = 4.0;
 /// Pixel-delta normalization factor for wheel-driven waveform zoom steps.
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 /// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
@@ -237,7 +261,22 @@ pub(super) fn waveform_action_from_pointer(
     if !command
         && !alt
         && !shift
+        && let Some(action) =
+            waveform_edit_selection_shift_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && !shift
         && let Some(action) = waveform_selection_drag_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_shift_action_from_pointer(layout, model, point)
     {
         return action;
     }
@@ -293,6 +332,8 @@ pub(super) fn waveform_resize_handle_hovered(
     point: Point,
 ) -> bool {
     waveform_selection_drag_action_from_pointer(layout, model, point).is_some()
+        || waveform_selection_shift_action_from_pointer(layout, model, point).is_some()
+        || waveform_edit_selection_shift_action_from_pointer(layout, model, point).is_some()
         || waveform_edit_resize_action_from_pointer(layout, model, point).is_some()
         || waveform_edit_fade_handle_action_from_pointer(layout, model, point).is_some()
         || waveform_selection_resize_action_from_pointer(layout, model, point).is_some()
@@ -309,6 +350,40 @@ fn waveform_selection_drag_action_from_pointer(
             .then_some(UiAction::StartWaveformSelectionDrag {
                 pointer_x: point.x.max(0.0).round() as u16,
                 pointer_y: point.y.max(0.0).round() as u16,
+            })
+    })
+}
+
+/// Resolve one playback-selection shift action from the bottom-center handle.
+fn waveform_selection_shift_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.selection_milli?;
+    waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::BeginWaveformSelectionShift {
+                pointer_milli: waveform_position_milli_from_point(layout, model, point),
+                start_milli: selection.start_milli,
+                end_milli: selection.end_milli,
+            })
+    })
+}
+
+/// Resolve one edit-selection shift action from the bottom-center handle.
+fn waveform_edit_selection_shift_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.edit_selection_milli?;
+    waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::BeginWaveformEditSelectionShift {
+                pointer_milli: waveform_position_milli_from_point(layout, model, point),
+                start_milli: selection.start_milli,
+                end_milli: selection.end_milli,
             })
     })
 }
@@ -375,6 +450,9 @@ pub(super) fn waveform_edit_action_from_pointer(
     {
         return action;
     }
+    if let Some(action) = waveform_edit_selection_shift_action_from_pointer(layout, model, point) {
+        return action;
+    }
     if let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point) {
         return action;
     }
@@ -405,10 +483,34 @@ pub(super) fn waveform_drag_action_for_mode(
                 end_milli: position_milli,
             }
         }
+        WaveformPointerDragMode::SelectionShift {
+            pointer_milli,
+            start_milli,
+            end_milli,
+        } => {
+            let (start_milli, end_milli) =
+                shift_waveform_range_milli(pointer_milli, position_milli, start_milli, end_milli);
+            UiAction::SetWaveformSelectionRange {
+                start_milli,
+                end_milli,
+            }
+        }
         WaveformPointerDragMode::EditSelection { anchor_milli } => {
             UiAction::SetWaveformEditSelectionRange {
                 start_milli: anchor_milli,
                 end_milli: position_milli,
+            }
+        }
+        WaveformPointerDragMode::EditSelectionShift {
+            pointer_milli,
+            start_milli,
+            end_milli,
+        } => {
+            let (start_milli, end_milli) =
+                shift_waveform_range_milli(pointer_milli, position_milli, start_milli, end_milli);
+            UiAction::SetWaveformEditSelectionRange {
+                start_milli,
+                end_milli,
             }
         }
         WaveformPointerDragMode::EditFadeInEnd => {
@@ -442,11 +544,29 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
                 anchor_milli: *start_milli,
             })
         }
+        UiAction::BeginWaveformSelectionShift {
+            pointer_milli,
+            start_milli,
+            end_milli,
+        } => Some(WaveformPointerDragMode::SelectionShift {
+            pointer_milli: *pointer_milli,
+            start_milli: *start_milli,
+            end_milli: *end_milli,
+        }),
         UiAction::SetWaveformEditSelectionRange { start_milli, .. } => {
             Some(WaveformPointerDragMode::EditSelection {
                 anchor_milli: *start_milli,
             })
         }
+        UiAction::BeginWaveformEditSelectionShift {
+            pointer_milli,
+            start_milli,
+            end_milli,
+        } => Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_milli: *pointer_milli,
+            start_milli: *start_milli,
+            end_milli: *end_milli,
+        }),
         UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
         UiAction::SetWaveformEditFadeInMuteStart { .. } => {
             Some(WaveformPointerDragMode::EditFadeInMuteStart)
@@ -489,7 +609,9 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
     !matches!(
         action,
         UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::BeginWaveformSelectionShift { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::BeginWaveformEditSelectionShift { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
@@ -733,6 +855,44 @@ fn waveform_selection_drag_handle_hit_rect(
     Some(UiRect::from_min_max(hit_min, hit_max))
 }
 
+/// Return the expanded hit rect for one bottom-center selection shift handle.
+fn waveform_selection_shift_handle_hit_rect(
+    layout: &ShellLayout,
+    model: &AppModel,
+    selection: crate::app::NormalizedRangeModel,
+) -> Option<UiRect> {
+    let start_milli = selection.start_milli.min(selection.end_milli);
+    let end_milli = selection.start_milli.max(selection.end_milli);
+    if end_milli <= start_milli {
+        return None;
+    }
+    let selection_rect = UiRect::from_min_max(
+        Point::new(
+            waveform_x_for_milli(layout.waveform_plot, model, start_milli),
+            layout.waveform_plot.min.y,
+        ),
+        Point::new(
+            waveform_x_for_milli(layout.waveform_plot, model, end_milli),
+            layout.waveform_plot.max.y,
+        ),
+    );
+    let handle = waveform_selection_shift_handle_rect(selection_rect);
+    Some(UiRect::from_min_max(
+        Point::new(
+            (handle.min.x - WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET)
+                .max(layout.waveform_plot.min.x),
+            (handle.min.y - WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET)
+                .max(layout.waveform_plot.min.y),
+        ),
+        Point::new(
+            (handle.max.x + WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET)
+                .min(layout.waveform_plot.max.x),
+            (handle.max.y + WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET)
+                .min(layout.waveform_plot.max.y),
+        ),
+    ))
+}
+
 /// Return the visible playback-selection drag handle rect.
 fn waveform_selection_drag_handle_rect(selection_rect: UiRect) -> UiRect {
     let size = WAVEFORM_SELECTION_DRAG_HANDLE_SIZE
@@ -740,6 +900,41 @@ fn waveform_selection_drag_handle_rect(selection_rect: UiRect) -> UiRect {
         .min(selection_rect.height().max(1.0));
     let min = Point::new(selection_rect.max.x - size, selection_rect.max.y - size);
     UiRect::from_min_max(min, selection_rect.max)
+}
+
+/// Return the visible bottom-center selection shift handle rect.
+fn waveform_selection_shift_handle_rect(selection_rect: UiRect) -> UiRect {
+    let width = WAVEFORM_SELECTION_SHIFT_HANDLE_WIDTH.min(selection_rect.width().max(1.0));
+    let height = WAVEFORM_SELECTION_SHIFT_HANDLE_HEIGHT.min(selection_rect.height().max(1.0));
+    let left = (selection_rect.min.x + (selection_rect.width() - width) * 0.5)
+        .clamp(selection_rect.min.x, selection_rect.max.x - width.max(1.0));
+    let top = (selection_rect.max.y - height).max(selection_rect.min.y);
+    UiRect::from_min_max(
+        Point::new(left, top),
+        Point::new(
+            (left + width).min(selection_rect.max.x),
+            selection_rect.max.y,
+        ),
+    )
+}
+
+/// Shift one milli-based waveform range while preserving width and clamping to bounds.
+fn shift_waveform_range_milli(
+    pointer_milli: u16,
+    position_milli: u16,
+    start_milli: u16,
+    end_milli: u16,
+) -> (u16, u16) {
+    let original_start = i32::from(start_milli.min(end_milli));
+    let original_end = i32::from(start_milli.max(end_milli));
+    let width = original_end - original_start;
+    if width <= 0 {
+        return (start_milli, end_milli);
+    }
+    let delta = i32::from(position_milli) - i32::from(pointer_milli);
+    let shifted_start = (original_start + delta).clamp(0, 1000 - width);
+    let shifted_end = shifted_start + width;
+    (shifted_start as u16, shifted_end as u16)
 }
 
 /// Convert a normalized waveform milli position into plot-space x.

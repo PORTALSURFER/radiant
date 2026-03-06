@@ -1026,6 +1026,24 @@ pub enum UiAction {
     },
     /// Finish the active waveform-selection drag gesture.
     FinishWaveformSelectionDrag,
+    /// Arm a playback-selection translate gesture from the bottom-center handle.
+    BeginWaveformSelectionShift {
+        /// Pointer milli position captured at press time.
+        pointer_milli: u16,
+        /// Selection start preserved across the translate gesture.
+        start_milli: u16,
+        /// Selection end preserved across the translate gesture.
+        end_milli: u16,
+    },
+    /// Arm an edit-selection translate gesture from the bottom-center handle.
+    BeginWaveformEditSelectionShift {
+        /// Pointer milli position captured at press time.
+        pointer_milli: u16,
+        /// Edit-selection start preserved across the translate gesture.
+        start_milli: u16,
+        /// Edit-selection end preserved across the translate gesture.
+        end_milli: u16,
+    },
     /// Clear active waveform selection.
     ClearWaveformSelection,
     /// Clear active waveform edit selection.

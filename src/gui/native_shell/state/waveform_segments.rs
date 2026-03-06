@@ -19,6 +19,10 @@ const RESIZE_EDGE_HEIGHT_RATIO: f32 = 0.34;
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 /// Width/height in logical pixels for the playback-selection drag handle.
 const SELECTION_DRAG_HANDLE_SIZE: f32 = 12.0;
+/// Width in logical pixels for bottom-center selection shift handles.
+const SELECTION_SHIFT_HANDLE_WIDTH: f32 = 14.0;
+/// Height in logical pixels for bottom-center selection shift handles.
+const SELECTION_SHIFT_HANDLE_HEIGHT: f32 = 7.0;
 
 /// One retained ghost line for the dynamic playhead trail.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -149,6 +153,7 @@ pub(super) fn push_waveform_playhead_overlay(
         if model.waveform_loop_enabled {
             emit_waveform_loop_bar(primitives, style, rect);
         }
+        emit_selection_shift_handle(primitives, style, rect, style.accent_warning);
         emit_selection_drag_handle(primitives, style, rect);
     }
 
@@ -200,6 +205,7 @@ pub(super) fn push_waveform_playhead_overlay(
                 edit_selection_blue,
                 hovered_resize_edge,
             );
+            emit_selection_shift_handle(primitives, style, rect, edit_selection_blue);
         }
     }
 
@@ -331,6 +337,29 @@ fn emit_selection_drag_handle(
     );
 }
 
+/// Emit the bottom-center handle used to slide one selection along the waveform.
+fn emit_selection_shift_handle(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    selection_rect: Rect,
+    accent_color: Rgba8,
+) {
+    let handle = selection_shift_handle_rect(selection_rect);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: handle,
+            color: translucent_overlay_color(style.surface_overlay, accent_color, 0.82),
+        }),
+    );
+    push_border(
+        primitives,
+        handle,
+        blend_color(accent_color, style.text_primary, 0.48),
+        style.sizing.border_width,
+    );
+}
+
 /// Return the bottom-right playback-selection drag handle rectangle.
 fn selection_drag_handle_rect(selection_rect: Rect) -> Rect {
     let size = SELECTION_DRAG_HANDLE_SIZE
@@ -339,6 +368,21 @@ fn selection_drag_handle_rect(selection_rect: Rect) -> Rect {
     Rect::from_min_max(
         Point::new(selection_rect.max.x - size, selection_rect.max.y - size),
         selection_rect.max,
+    )
+}
+
+/// Return the bottom-center selection shift handle rectangle.
+fn selection_shift_handle_rect(selection_rect: Rect) -> Rect {
+    let width = SELECTION_SHIFT_HANDLE_WIDTH.min(selection_rect.width().max(1.0));
+    let height = SELECTION_SHIFT_HANDLE_HEIGHT.min(selection_rect.height().max(1.0));
+    let left = selection_rect.min.x + ((selection_rect.width() - width) * 0.5);
+    let top = (selection_rect.max.y - height).max(selection_rect.min.y);
+    Rect::from_min_max(
+        Point::new(left, top),
+        Point::new(
+            (left + width).min(selection_rect.max.x),
+            selection_rect.max.y,
+        ),
     )
 }
 

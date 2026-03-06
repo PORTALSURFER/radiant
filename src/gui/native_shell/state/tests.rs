@@ -1566,10 +1566,73 @@ fn waveform_motion_overlay_draws_selection_drag_handle() {
     )
     .selection
     .expect("selection rect");
-    let handle_probe_x = selection_rect.max.x - 6.0;
-    let handle_probe_y = selection_rect.max.y - 6.0;
+    let export_handle_probe_x = selection_rect.max.x - 6.0;
+    let bottom_handle_probe_x = selection_rect.min.x + (selection_rect.width() * 0.5);
+    let handle_probe_y = selection_rect.max.y - 3.0;
 
-    let has_drag_handle = frame.primitives.iter().any(|primitive| {
+    let has_export_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= export_handle_probe_x
+                    && rect.rect.max.x >= export_handle_probe_x
+                    && rect.rect.min.y <= handle_probe_y
+                    && rect.rect.max.y >= handle_probe_y
+                    && rect.rect.width() < selection_rect.width()
+                    && rect.rect.height() < selection_rect.height()
+        )
+    });
+    let has_shift_handle = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= bottom_handle_probe_x
+                    && rect.rect.max.x >= bottom_handle_probe_x
+                    && rect.rect.min.y <= handle_probe_y
+                    && rect.rect.max.y >= handle_probe_y
+                    && rect.rect.width() < selection_rect.width()
+                    && rect.rect.height() < selection_rect.height()
+        )
+    });
+
+    assert!(
+        has_export_handle,
+        "expected playback-selection drag handle primitive"
+    );
+    assert!(
+        has_shift_handle,
+        "expected playback-selection shift handle primitive"
+    );
+}
+
+#[test]
+fn waveform_motion_overlay_draws_edit_selection_shift_handle() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let selection = NormalizedRangeModel::new(240, 640);
+    model.waveform.edit_selection_milli = Some(selection);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("edit selection rect");
+    let handle_probe_x = selection_rect.min.x + (selection_rect.width() * 0.5);
+    let handle_probe_y = selection_rect.max.y - 3.0;
+
+    let has_shift_handle = frame.primitives.iter().any(|primitive| {
         matches!(
             primitive,
             Primitive::Rect(rect)
@@ -1583,8 +1646,8 @@ fn waveform_motion_overlay_draws_selection_drag_handle() {
     });
 
     assert!(
-        has_drag_handle,
-        "expected playback-selection drag handle primitive"
+        has_shift_handle,
+        "expected edit-selection shift handle primitive"
     );
 }
 

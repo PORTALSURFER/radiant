@@ -1119,6 +1119,60 @@ fn waveform_left_click_on_selection_drag_handle_starts_drag() {
 }
 
 #[test]
+fn waveform_left_click_on_selection_shift_handle_starts_shift_gesture() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
+        layout.waveform_plot.max.y - 3.0,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::BeginWaveformSelectionShift {
+            pointer_milli: waveform_position_milli_from_point(&layout, &model, point),
+            start_milli: 200,
+            end_milli: 800,
+        })
+    );
+}
+
+#[test]
+fn waveform_left_click_on_edit_selection_shift_handle_starts_shift_gesture() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(300, 700));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
+        layout.waveform_plot.max.y - 3.0,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::BeginWaveformEditSelectionShift {
+            pointer_milli: waveform_position_milli_from_point(&layout, &model, point),
+            start_milli: 300,
+            end_milli: 700,
+        })
+    );
+}
+
+#[test]
 fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
@@ -1183,11 +1237,35 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::BeginWaveformSelectionShift {
+            pointer_milli: 400,
+            start_milli: 125,
+            end_milli: 250,
+        }),
+        Some(WaveformPointerDragMode::SelectionShift {
+            pointer_milli: 400,
+            start_milli: 125,
+            end_milli: 250,
+        })
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditSelectionRange {
             start_milli: 90,
             end_milli: 320,
         }),
         Some(WaveformPointerDragMode::EditSelection { anchor_milli: 90 })
+    );
+    assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::BeginWaveformEditSelectionShift {
+            pointer_milli: 410,
+            start_milli: 90,
+            end_milli: 320,
+        }),
+        Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_milli: 410,
+            start_milli: 90,
+            end_milli: 320,
+        })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInEnd {
@@ -1231,6 +1309,13 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
     assert!(!waveform_drag_mode_is_edit_fade(
         WaveformPointerDragMode::Selection { anchor_milli: 250 }
     ));
+    assert!(!waveform_drag_mode_is_edit_fade(
+        WaveformPointerDragMode::EditSelectionShift {
+            pointer_milli: 400,
+            start_milli: 200,
+            end_milli: 600,
+        }
+    ));
 }
 
 #[test]
@@ -1252,7 +1337,21 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
+        &UiAction::BeginWaveformSelectionShift {
+            pointer_milli: 300,
+            start_milli: 125,
+            end_milli: 250,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditSelectionRange {
+            start_milli: 90,
+            end_milli: 320,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::BeginWaveformEditSelectionShift {
+            pointer_milli: 310,
             start_milli: 90,
             end_milli: 320,
         }
@@ -1328,6 +1427,58 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
 }
 
 #[test]
+fn handle_pointer_press_action_arms_selection_shift_without_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformSelectionShift {
+            pointer_milli: 400,
+            start_milli: 200,
+            end_milli: 600,
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::SelectionShift {
+            pointer_milli: 400,
+            start_milli: 200,
+            end_milli: 600,
+        })
+    );
+}
+
+#[test]
+fn handle_pointer_press_action_arms_edit_selection_shift_without_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformEditSelectionShift {
+            pointer_milli: 420,
+            start_milli: 250,
+            end_milli: 650,
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_milli: 420,
+            start_milli: 250,
+            end_milli: 650,
+        })
+    );
+}
+
+#[test]
 fn handle_pointer_press_action_starts_selection_drag_immediately() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -1384,7 +1535,7 @@ fn finish_volume_drag_emits_finish_selection_drag_for_active_selection_export() 
 }
 
 #[test]
-/// Drag waveform actions should clamp pointer positions and preserve anchors.
+/// Drag waveform actions should clamp pointer positions and preserve anchors or widths.
 fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let model = AppModel::default();
@@ -1418,11 +1569,43 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
+            WaveformPointerDragMode::SelectionShift {
+                pointer_milli: 300,
+                start_milli: 200,
+                end_milli: 400,
+            }
+        ),
+        UiAction::SetWaveformSelectionRange {
+            start_milli: 800,
+            end_milli: 1000,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
             WaveformPointerDragMode::EditSelection { anchor_milli: 300 }
         ),
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 300,
             end_milli: 1000,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::EditSelectionShift {
+                pointer_milli: 550,
+                start_milli: 400,
+                end_milli: 700,
+            }
+        ),
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: 0,
+            end_milli: 300,
         }
     );
     assert_eq!(

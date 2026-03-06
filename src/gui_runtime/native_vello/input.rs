@@ -431,6 +431,19 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
     }
 }
 
+/// Return whether one waveform drag mode edits fade geometry and needs a release callback.
+pub(super) fn waveform_drag_mode_is_edit_fade(mode: WaveformPointerDragMode) -> bool {
+    matches!(
+        mode,
+        WaveformPointerDragMode::EditFadeInEnd
+            | WaveformPointerDragMode::EditFadeInMuteStart
+            | WaveformPointerDragMode::EditFadeInCurve
+            | WaveformPointerDragMode::EditFadeOutStart
+            | WaveformPointerDragMode::EditFadeOutMuteEnd
+            | WaveformPointerDragMode::EditFadeOutCurve
+    )
+}
+
 /// Return whether one waveform press action should mutate model state immediately.
 ///
 /// Selection/edit/fade gestures are armed on press and only emit once the

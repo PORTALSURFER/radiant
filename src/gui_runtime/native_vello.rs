@@ -2274,6 +2274,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn finish_volume_drag(&mut self, released_button: Option<MouseButton>) {
+        let finish_edit_fade_drag = self
+            .waveform_drag_mode
+            .is_some_and(waveform_drag_mode_is_edit_fade);
         let seek_on_waveform_click_release = if matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
         {
@@ -2298,6 +2301,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.volume_drag_active = false;
         self.last_emitted_volume_milli = None;
+        if finish_edit_fade_drag {
+            self.emit_model_action(UiAction::FinishWaveformEditFadeDrag);
+        }
         self.waveform_drag_mode = None;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
@@ -3283,6 +3289,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
+            | UiAction::FinishWaveformEditFadeDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
@@ -3314,6 +3321,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeOutStart { .. }
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
+            | UiAction::FinishWaveformEditFadeDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }

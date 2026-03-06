@@ -1000,6 +1000,8 @@ pub enum UiAction {
         /// Fade-out curve value in normalized milli-units.
         curve_milli: u16,
     },
+    /// Finish an active waveform edit-fade drag gesture.
+    FinishWaveformEditFadeDrag,
     /// Clear active waveform selection.
     ClearWaveformSelection,
     /// Clear active waveform edit selection.

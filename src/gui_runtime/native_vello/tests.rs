@@ -93,6 +93,12 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::FinishWaveformEditFadeDrag
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
         RuntimeInvalidationScope::StaticAndOverlays
     );
@@ -1184,6 +1190,12 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         waveform_drag_mode_for_action(&UiAction::ToggleTransport),
         None
     );
+    assert!(waveform_drag_mode_is_edit_fade(
+        WaveformPointerDragMode::EditFadeOutMuteEnd
+    ));
+    assert!(!waveform_drag_mode_is_edit_fade(
+        WaveformPointerDragMode::Selection { anchor_milli: 250 }
+    ));
 }
 
 #[test]
@@ -1277,6 +1289,23 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::EditSelection { anchor_milli: 400 })
+    );
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::EditFadeOutMuteEnd);
+    runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformEditFadeOutMuteEnd {
+        position_milli: 500,
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformEditFadeDrag]
     );
 }
 

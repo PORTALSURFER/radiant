@@ -202,6 +202,77 @@ fn waveform_deck_backplate_renders_inside_waveform_card() {
 }
 
 #[test]
+fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let model = AppModel::default();
+    let labels = [
+        "Mono", "Stereo", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Stop",
+        "Play", "Rec",
+    ];
+    let widths: Vec<u32> = labels
+        .iter()
+        .map(|label| {
+            let rect = state
+                .waveform_toolbar_button_rect(&layout, &model, label)
+                .unwrap_or_else(|| panic!("missing waveform toolbar button rect for {label}"));
+            (rect.width() * 100.0).round() as u32
+        })
+        .collect();
+    let min_width = widths.iter().copied().min().unwrap_or(0);
+    let max_width = widths.iter().copied().max().unwrap_or(0);
+    assert!(
+        max_width.saturating_sub(min_width) <= 100,
+        "toolbar widths diverged too far: {widths:?}"
+    );
+}
+
+#[test]
+fn waveform_toolbar_renders_without_per_button_rect_chrome() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let button_rects = ["Mono", "Stereo", "Play"]
+        .into_iter()
+        .map(|label| {
+            state
+                .waveform_toolbar_button_rect(&layout, &model, label)
+                .unwrap_or_else(|| panic!("missing waveform toolbar button rect for {label}"))
+        })
+        .collect::<Vec<_>>();
+    let frame = state.build_frame(&layout, &model);
+    for button_rect in button_rects {
+        assert!(!frame.primitives.iter().any(|primitive| {
+            matches!(primitive, Primitive::Rect(FillRect { rect, .. }) if *rect == button_rect)
+        }));
+    }
+}
+
+#[test]
+fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = AppModel::default();
+    let play = state
+        .waveform_toolbar_button_rect(&layout, &model, "Play")
+        .expect("play waveform toolbar button should be present");
+    let point = Point::new(
+        (play.min.x + play.max.x) * 0.5,
+        (play.min.y + play.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.waveform_toolbar_action_at_point(&layout, &model, point),
+        Some(crate::app::UiAction::ToggleTransport)
+    );
+    let fingerprint = state.chrome_motion_overlay_fingerprint();
+    assert_eq!(
+        fingerprint.flashed_waveform_toolbar_hint,
+        Some(WaveformToolbarHoverHint::Play)
+    );
+    assert!(fingerprint.waveform_toolbar_flash_ticks > 0);
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

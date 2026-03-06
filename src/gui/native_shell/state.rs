@@ -63,6 +63,8 @@ const PLAYHEAD_TRAIL_FADE_FRAMES: u64 = 72;
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
 /// Largest contiguous frame delta treated as normal transport motion.
 const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
+/// Number of animation ticks used for one waveform-toolbar click flash.
+const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -71,6 +73,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    waveform_toolbar_flash: Option<WaveformToolbarFlash>,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     waveform_bpm_input_active: bool,
     waveform_bpm_input_display: Option<String>,
@@ -231,6 +234,13 @@ struct NativeAnimationReasons {
     transport_running: bool,
     startup_frame_tick: bool,
     playhead_trail_active: bool,
+    waveform_toolbar_flash_active: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WaveformToolbarFlash {
+    hint: WaveformToolbarHoverHint,
+    ticks_remaining: u8,
 }
 
 /// Cursor-move effect classification used by runtime overlay invalidation.
@@ -335,6 +345,12 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub transport_running: bool,
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
+    /// Hovered waveform-toolbar icon/button target.
+    pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Click-flashed waveform-toolbar icon/button target.
+    pub flashed_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Remaining flash ticks for waveform-toolbar click feedback.
+    pub waveform_toolbar_flash_ticks: u8,
     /// Quantized pulse animation phase.
     pub pulse_phase_bits: u32,
 }
@@ -524,7 +540,10 @@ impl TextRunSink for SegmentedTextRunSink<'_, '_> {
 
 impl NativeAnimationReasons {
     fn needs_animation(self) -> bool {
-        self.transport_running || self.startup_frame_tick || self.playhead_trail_active
+        self.transport_running
+            || self.startup_frame_tick
+            || self.playhead_trail_active
+            || self.waveform_toolbar_flash_active
     }
 }
 
@@ -598,6 +617,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_waveform_toolbar_hint: None,
+            waveform_toolbar_flash: None,
             hovered_waveform_resize_edge: None,
             waveform_bpm_input_active: false,
             waveform_bpm_input_display: None,
@@ -640,6 +660,7 @@ impl NativeShellState {
             transport_running: self.transport_running,
             startup_frame_tick: self.startup_frame_ticks > 0,
             playhead_trail_active: !self.playhead_trail_samples.is_empty(),
+            waveform_toolbar_flash_active: self.waveform_toolbar_flash.is_some(),
         }
     }
 
@@ -697,6 +718,13 @@ impl NativeShellState {
         self.waveform_toolbar_hit_test_cache_key = None;
     }
 
+    fn trigger_waveform_toolbar_flash(&mut self, hint: WaveformToolbarHoverHint) {
+        self.waveform_toolbar_flash = Some(WaveformToolbarFlash {
+            hint,
+            ticks_remaining: WAVEFORM_TOOLBAR_FLASH_TICKS,
+        });
+    }
+
     /// Return the current state-overlay fingerprint.
     pub(crate) fn state_overlay_fingerprint(&self) -> StateOverlayFingerprint {
         StateOverlayFingerprint {
@@ -734,6 +762,11 @@ impl NativeShellState {
         ChromeMotionOverlayFingerprint {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
+            hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
+            flashed_waveform_toolbar_hint: self.waveform_toolbar_flash.map(|flash| flash.hint),
+            waveform_toolbar_flash_ticks: self
+                .waveform_toolbar_flash
+                .map_or(0, |flash| flash.ticks_remaining),
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
@@ -754,6 +787,10 @@ impl NativeShellState {
             };
             self.pulse_phase =
                 (self.pulse_phase + delta_seconds * speed).rem_euclid(std::f32::consts::TAU);
+        }
+        if let Some(mut flash) = self.waveform_toolbar_flash {
+            flash.ticks_remaining = flash.ticks_remaining.saturating_sub(1);
+            self.waveform_toolbar_flash = (flash.ticks_remaining > 0).then_some(flash);
         }
     }
 
@@ -1161,10 +1198,20 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
-        self.cached_waveform_toolbar_buttons(layout, &style, motion_model)
+        let resolved = self
+            .cached_waveform_toolbar_buttons(layout, &style, motion_model)
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
-            .and_then(|button| button.action.clone())
+            .map(|button| {
+                (
+                    waveform_toolbar_hover_hint(button.label),
+                    button.action.clone(),
+                )
+            });
+        if let Some((Some(hint), _)) = resolved.as_ref() {
+            self.trigger_waveform_toolbar_flash(*hint);
+        }
+        resolved.and_then(|(_, action)| action)
     }
 
     /// Resolve a top-bar update action button click.
@@ -1294,11 +1341,16 @@ impl NativeShellState {
         point: Point,
     ) -> bool {
         let style = style_for_layout(layout);
-        self.cached_waveform_toolbar_buttons(layout, &style, motion_model)
+        let hit = self
+            .cached_waveform_toolbar_buttons(layout, &style, motion_model)
             .iter()
             .any(|button| {
                 button.label == "BPM Value" && button.enabled && button.rect.contains(point)
-            })
+            });
+        if hit {
+            self.trigger_waveform_toolbar_flash(WaveformToolbarHoverHint::BpmValue);
+        }
+        hit
     }
 
     /// Resolve a progress-overlay cancel click.
@@ -1670,6 +1722,9 @@ impl NativeShellState {
             style,
             sizing,
             &waveform_toolbar_buttons,
+            self.hovered_waveform_toolbar_hint,
+            self.waveform_toolbar_flash.map(|flash| flash.hint),
+            motion_wave,
         );
 
         let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
@@ -2411,9 +2466,7 @@ fn waveform_toolbar_buttons(
     ];
     let label_strings: Vec<String> = specs
         .iter()
-        .map(|(label, display_text, ..)| {
-            display_text.clone().unwrap_or_else(|| (*label).to_string())
-        })
+        .map(|(label, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
         .collect();
     let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
     let cluster = Rect::from_min_max(
@@ -2443,6 +2496,15 @@ fn waveform_toolbar_buttons(
             },
         )
         .collect()
+}
+
+fn waveform_toolbar_layout_label(label: &str, display_text: &Option<String>) -> String {
+    if label == "BPM Value" {
+        return display_text
+            .clone()
+            .unwrap_or_else(|| String::from("120.0"));
+    }
+    String::from("Mono")
 }
 
 fn waveform_toolbar_bpm_value_label(
@@ -2485,51 +2547,35 @@ fn render_waveform_toolbar_buttons(
     style: &StyleTokens,
     sizing: SizingTokens,
     buttons: &[WaveformToolbarButton],
+    hovered_hint: Option<WaveformToolbarHoverHint>,
+    flashed_hint: Option<WaveformToolbarHoverHint>,
+    motion_wave: f32,
 ) {
     for button in buttons {
         let label_rect = compute_action_button_text_rect(button.rect, sizing);
-        let fill = if button.enabled {
-            if button.active {
-                blend_color(
-                    style.surface_overlay,
-                    style.bg_tertiary,
-                    style.state_selected_blend,
-                )
-            } else {
-                style.surface_overlay
-            }
-        } else {
-            style.control_disabled_fill
-        };
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: button.rect,
-                color: fill,
-            }),
+        let button_hint = waveform_toolbar_hover_hint(button.label);
+        let is_hovered = button_hint.is_some() && button_hint == hovered_hint;
+        let is_flashed = button_hint.is_some() && button_hint == flashed_hint;
+        let icon_color = waveform_toolbar_visual_color(
+            style,
+            button.text_color,
+            button.enabled,
+            button.active,
+            is_hovered,
+            is_flashed,
+            motion_wave,
         );
-        push_border(
-            primitives,
-            button.rect,
-            if button.enabled && button.active {
-                blend_color(style.border_emphasis, style.text_primary, 0.58)
-            } else if button.enabled {
-                style.border
-            } else {
-                style.control_disabled_fill
-            },
-            sizing.border_width,
-        );
-        let icon_color = if button.enabled {
-            button.text_color
-        } else {
-            style.text_muted
-        };
         if let Some(icon) = toolbar_icon_for_button(button) {
             if emit_toolbar_svg_icon(
                 primitives,
                 icon,
-                waveform_toolbar_icon_rect(button.rect, sizing),
+                waveform_toolbar_icon_rect(
+                    button.rect,
+                    sizing,
+                    button.active,
+                    is_hovered,
+                    is_flashed,
+                ),
                 icon_color,
             ) {
                 continue;
@@ -2544,11 +2590,7 @@ fn render_waveform_toolbar_buttons(
                     .unwrap_or_else(|| button.label.to_string()),
                 position: label_rect.min,
                 font_size: sizing.font_meta,
-                color: if button.enabled {
-                    button.text_color
-                } else {
-                    style.text_muted
-                },
+                color: icon_color,
                 max_width: Some(label_rect.width().max(12.0)),
                 align: TextAlign::Center,
             },
@@ -2556,10 +2598,55 @@ fn render_waveform_toolbar_buttons(
     }
 }
 
-fn waveform_toolbar_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
+fn waveform_toolbar_visual_color(
+    style: &StyleTokens,
+    base_color: Rgba8,
+    enabled: bool,
+    active: bool,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    if !enabled {
+        return blend_color(style.text_muted, style.bg_tertiary, 0.42);
+    }
+    let idle_color = blend_color(style.text_muted, base_color, 0.16);
+    let active_color = if active {
+        blend_color(base_color, style.text_primary, 0.14 + (motion_wave * 0.08))
+    } else {
+        idle_color
+    };
+    let hover_color = if hovered {
+        blend_color(active_color, style.text_primary, 0.36)
+    } else {
+        active_color
+    };
+    if flashed {
+        blend_color(hover_color, style.text_primary, 0.58)
+    } else {
+        hover_color
+    }
+}
+
+fn waveform_toolbar_icon_rect(
+    button_rect: Rect,
+    sizing: SizingTokens,
+    active: bool,
+    hovered: bool,
+    flashed: bool,
+) -> Rect {
     let max_side =
         (button_rect.width().min(button_rect.height()) - (sizing.border_width * 4.0)).max(6.0);
-    let icon_side = max_side.clamp(8.0, 18.0);
+    let emphasis = if flashed {
+        2.0
+    } else if hovered {
+        1.0
+    } else if active {
+        0.6
+    } else {
+        0.0
+    };
+    let icon_side = (max_side + emphasis).clamp(8.0, 18.0);
     let offset_x = (button_rect.width() - icon_side).max(0.0) * 0.5;
     let offset_y = (button_rect.height() - icon_side).max(0.0) * 0.5;
     Rect::from_min_max(

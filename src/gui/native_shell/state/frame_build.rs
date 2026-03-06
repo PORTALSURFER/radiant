@@ -183,6 +183,9 @@ impl NativeShellState {
                 style,
                 sizing,
                 &waveform_toolbar_buttons,
+                self.hovered_waveform_toolbar_hint,
+                self.waveform_toolbar_flash.map(|flash| flash.hint),
+                motion_wave,
             );
         }
 

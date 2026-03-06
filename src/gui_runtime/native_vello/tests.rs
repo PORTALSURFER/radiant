@@ -1066,6 +1066,15 @@ fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
         &model,
         Point::new(outside_x, y),
     ));
+    let top_y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.1);
+    let mut playback_only_model = AppModel::default();
+    playback_only_model.waveform.selection_milli =
+        Some(crate::app::NormalizedRangeModel::new(200, 800));
+    assert!(!waveform_resize_handle_hovered(
+        &layout,
+        &playback_only_model,
+        Point::new(playback_left_x, top_y),
+    ));
 }
 
 #[test]

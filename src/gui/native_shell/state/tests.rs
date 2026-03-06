@@ -1410,6 +1410,7 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
     .expect("selection rect");
     let left_handle_x = (selection_rect.min.x - 4.0).max(layout.waveform_plot.min.x);
     let right_handle_x = (selection_rect.max.x + 4.0).min(layout.waveform_plot.max.x);
+    let selection_center_y = selection_rect.min.y + (selection_rect.height() * 0.5);
 
     let has_left_handle = frame.primitives.iter().any(|primitive| {
         matches!(
@@ -1417,8 +1418,11 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
             Primitive::Rect(rect)
                 if rect.rect.min.x <= left_handle_x
                     && rect.rect.max.x >= left_handle_x
-                    && rect.rect.min.y <= selection_rect.min.y
-                    && rect.rect.max.y >= selection_rect.max.y
+                    && rect.rect.min.y >= selection_rect.min.y
+                    && rect.rect.max.y <= selection_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - selection_center_y).abs()
+                        <= (selection_rect.height() * 0.05)
+                    && rect.rect.height() < selection_rect.height()
         )
     });
     let has_right_handle = frame.primitives.iter().any(|primitive| {
@@ -1427,8 +1431,11 @@ fn waveform_motion_overlay_draws_selection_resize_handles() {
             Primitive::Rect(rect)
                 if rect.rect.min.x <= right_handle_x
                     && rect.rect.max.x >= right_handle_x
-                    && rect.rect.min.y <= selection_rect.min.y
-                    && rect.rect.max.y >= selection_rect.max.y
+                    && rect.rect.min.y >= selection_rect.min.y
+                    && rect.rect.max.y <= selection_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - selection_center_y).abs()
+                        <= (selection_rect.height() * 0.05)
+                    && rect.rect.height() < selection_rect.height()
         )
     });
     assert!(
@@ -1705,6 +1712,7 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
     .expect("edit selection rect");
     let left_handle_x = (edit_rect.min.x - 4.0).max(layout.waveform_plot.min.x);
     let right_handle_x = (edit_rect.max.x + 4.0).min(layout.waveform_plot.max.x);
+    let edit_center_y = edit_rect.min.y + (edit_rect.height() * 0.5);
 
     let has_left_handle = frame.primitives.iter().any(|primitive| {
         matches!(
@@ -1712,8 +1720,11 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
             Primitive::Rect(rect)
                 if rect.rect.min.x <= left_handle_x
                     && rect.rect.max.x >= left_handle_x
-                    && rect.rect.min.y <= edit_rect.min.y
-                    && rect.rect.max.y >= edit_rect.max.y
+                    && rect.rect.min.y >= edit_rect.min.y
+                    && rect.rect.max.y <= edit_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - edit_center_y).abs()
+                        <= (edit_rect.height() * 0.05)
+                    && rect.rect.height() < edit_rect.height()
         )
     });
     let has_right_handle = frame.primitives.iter().any(|primitive| {
@@ -1722,8 +1733,11 @@ fn waveform_motion_overlay_draws_edit_resize_handles() {
             Primitive::Rect(rect)
                 if rect.rect.min.x <= right_handle_x
                     && rect.rect.max.x >= right_handle_x
-                    && rect.rect.min.y <= edit_rect.min.y
-                    && rect.rect.max.y >= edit_rect.max.y
+                    && rect.rect.min.y >= edit_rect.min.y
+                    && rect.rect.max.y <= edit_rect.max.y
+                    && (rect.rect.min.y + (rect.rect.height() * 0.5) - edit_center_y).abs()
+                        <= (edit_rect.height() * 0.05)
+                    && rect.rect.height() < edit_rect.height()
         )
     });
     assert!(

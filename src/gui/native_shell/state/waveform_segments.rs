@@ -19,6 +19,8 @@ const EDIT_SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
 const SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
 /// Horizontal offset in logical pixels between playback-selection edges and resize handles.
 const SELECTION_RESIZE_HANDLE_OUTSET: f32 = 4.0;
+/// Fraction of waveform height used by centered selection resize handles.
+const RESIZE_HANDLE_HEIGHT_RATIO: f32 = 0.34;
 /// Height in logical pixels for loop-range marker bars.
 const LOOP_BAR_HEIGHT: f32 = 3.0;
 
@@ -278,10 +280,8 @@ fn emit_selection_resize_handle(
     };
     let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
     let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
-    let handle = Rect::from_min_max(
-        Point::new(left, selection_rect.min.y),
-        Point::new(right, selection_rect.max.y),
-    );
+    let handle =
+        centered_resize_handle_rect(selection_rect, left, right, RESIZE_HANDLE_HEIGHT_RATIO);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -343,10 +343,8 @@ fn emit_edit_resize_handle(
     };
     let left = (target_x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
     let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
-    let handle = Rect::from_min_max(
-        Point::new(left, edit_selection_rect.min.y),
-        Point::new(right, edit_selection_rect.max.y),
-    );
+    let handle =
+        centered_resize_handle_rect(edit_selection_rect, left, right, RESIZE_HANDLE_HEIGHT_RATIO);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -360,6 +358,22 @@ fn emit_edit_resize_handle(
         blend_color(accent_blue, style.text_primary, 0.5),
         style.sizing.border_width,
     );
+}
+
+/// Return a resize-handle rect centered vertically within a selection band.
+fn centered_resize_handle_rect(
+    selection_rect: Rect,
+    left: f32,
+    right: f32,
+    height_ratio: f32,
+) -> Rect {
+    let height = (selection_rect.height() * height_ratio.clamp(0.0, 1.0))
+        .max(1.0)
+        .min(selection_rect.height());
+    let center_y = selection_rect.min.y + (selection_rect.height() * 0.5);
+    let top = (center_y - (height * 0.5)).max(selection_rect.min.y);
+    let bottom = (top + height).min(selection_rect.max.y).max(top + 1.0);
+    Rect::from_min_max(Point::new(left, top), Point::new(right, bottom))
 }
 
 /// Resolve the active playhead marker rectangle, preferring high-precision micros.

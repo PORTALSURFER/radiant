@@ -180,11 +180,10 @@ impl ShellLayout {
 
         let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
         let waveform_inset = waveform_card.inset(sizing.panel_inset);
-        let waveform_body_top = waveform_header.max.y
-            + sizing
-                .header_to_rows_gap
-                .max(waveform_inset.min.y)
-                .min(waveform_inset.max.y);
+        let waveform_body_top = waveform_header
+            .max
+            .y
+            .clamp(waveform_inset.min.y, waveform_inset.max.y);
         let waveform_plot = Rect::from_min_max(
             Point::new(waveform_inset.min.x, waveform_body_top),
             waveform_inset.max,

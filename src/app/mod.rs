@@ -758,6 +758,8 @@ pub enum UiAction {
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
     FocusBrowserSearch,
+    /// Clear browser-search focus while preserving the current query text.
+    BlurBrowserSearch,
     /// Open the native options menu.
     OpenOptionsMenu,
     /// Focus the source-folder search field.

@@ -3211,6 +3211,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn deactivate_text_input_target(&mut self) {
+        let previous_target = self.text_input_target;
         let was_waveform_bpm = self.text_input_target == TextInputTarget::WaveformBpm;
         if self.text_input_target == TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_buffer = None;
@@ -3218,6 +3219,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.text_input_target = TextInputTarget::None;
         self.sync_waveform_bpm_editor_state();
+        if previous_target == TextInputTarget::BrowserSearch {
+            self.emit_model_action(UiAction::BlurBrowserSearch);
+        }
         if was_waveform_bpm {
             self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
         }
@@ -3276,6 +3280,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ToggleFocusedBrowserRowSelection
             | UiAction::SelectAllBrowserRows
             | UiAction::SetBrowserSearch { .. }
+            | UiAction::BlurBrowserSearch
             | UiAction::SetBrowserTab { .. }
             | UiAction::FocusMapSample { .. }
             | UiAction::SetPromptInput { .. }
@@ -3375,6 +3380,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn update_text_target_after_action(&mut self, action: &UiAction) {
         match action {
             UiAction::FocusBrowserSearch => self.text_input_target = TextInputTarget::BrowserSearch,
+            UiAction::BlurBrowserSearch => self.text_input_target = TextInputTarget::None,
             UiAction::FocusFolderSearch => self.text_input_target = TextInputTarget::FolderSearch,
             UiAction::ConfirmPrompt | UiAction::CancelPrompt => {
                 self.text_input_target = TextInputTarget::None;

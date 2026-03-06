@@ -5,6 +5,10 @@ use super::*;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+/// Width in logical pixels for the top edit-fade grab tab.
+const EDIT_FADE_HANDLE_TAB_WIDTH: f32 = 12.0;
+/// Height in logical pixels for the top edit-fade grab tab.
+const EDIT_FADE_HANDLE_TAB_HEIGHT: f32 = 7.0;
 /// Width in logical pixels for edit-selection resize handles.
 const EDIT_SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
 /// Horizontal offset in logical pixels between selection edges and resize handles.
@@ -557,6 +561,43 @@ fn emit_edit_fade_handle(
         blend_color(accent_blue, style.text_primary, 0.42),
         style.sizing.border_width,
     );
+    let tab = edit_fade_handle_tab_rect(edit_selection_rect, x, style.sizing.border_width);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: tab,
+            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.78),
+        }),
+    );
+    push_border(
+        primitives,
+        tab,
+        blend_color(accent_blue, style.text_primary, 0.5),
+        style.sizing.border_width,
+    );
+}
+
+/// Resolve the visible top grab-tab for one edit-fade handle.
+fn edit_fade_handle_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f32) -> Rect {
+    let width = EDIT_FADE_HANDLE_TAB_WIDTH
+        .max(EDIT_FADE_HANDLE_WIDTH)
+        .max(border_width + 2.0)
+        .min(edit_selection_rect.width().max(1.0));
+    let height = EDIT_FADE_HANDLE_TAB_HEIGHT
+        .max(border_width + 2.0)
+        .min(edit_selection_rect.height().max(1.0));
+    let half = width * 0.5;
+    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
+    let right = (left + width)
+        .min(edit_selection_rect.max.x)
+        .max(left + 1.0);
+    let bottom = (edit_selection_rect.min.y + height)
+        .min(edit_selection_rect.max.y)
+        .max(edit_selection_rect.min.y + 1.0);
+    Rect::from_min_max(
+        Point::new(left, edit_selection_rect.min.y),
+        Point::new(right, bottom),
+    )
 }
 
 /// Emit retained ghost lines behind the active playhead.

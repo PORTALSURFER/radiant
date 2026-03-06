@@ -129,7 +129,13 @@ pub(super) fn action_from_key(
         KeyCode::B => Some(UiAction::StartNewFolder),
         KeyCode::C => Some(UiAction::ClearWaveformSelection),
         KeyCode::D => Some(UiAction::DeleteBrowserSelection),
-        KeyCode::Enter => Some(UiAction::CommitFocusedBrowserRow),
+        KeyCode::Enter => {
+            if matches!(model.focus_context, crate::app::FocusContextModel::Waveform) {
+                Some(UiAction::SaveWaveformSelectionToBrowser)
+            } else {
+                Some(UiAction::CommitFocusedBrowserRow)
+            }
+        }
         KeyCode::F => Some(UiAction::FocusBrowserSearch),
         KeyCode::G => Some(UiAction::DeleteFocusedFolder),
         KeyCode::I => Some(UiAction::StartBrowserRename),

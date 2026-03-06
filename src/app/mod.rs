@@ -850,6 +850,8 @@ pub enum UiAction {
     },
     /// Commit the currently focused browser row as the active loaded sample.
     CommitFocusedBrowserRow,
+    /// Save the current waveform selection or slices into the browser as a new sample.
+    SaveWaveformSelectionToBrowser,
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection {
         /// Target visible row index in the browser list.

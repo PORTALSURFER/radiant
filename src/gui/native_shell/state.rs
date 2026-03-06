@@ -2941,6 +2941,14 @@ fn source_context_menu_spec(
             style.accent_mint,
         ),
         (
+            "Remove source",
+            true,
+            UiAction::RemoveSourceRow {
+                index: source_index,
+            },
+            style.accent_copper,
+        ),
+        (
             "Remove dead links",
             true,
             UiAction::RemoveDeadLinksForSourceRow {

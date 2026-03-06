@@ -2237,6 +2237,54 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
 }
 
 #[test]
+/// Source context menu should expose source removal and render in the overlay pass.
+fn source_context_menu_exposes_remove_action_in_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(layout.root.rect.width());
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    state.open_source_context_menu_for_row(
+        0,
+        Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
+    );
+
+    let remove_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::RemoveSourceRow { index: 0 })
+        .expect("remove source action button should be present");
+    let point = Point::new(
+        (remove_rect.min.x + remove_rect.max.x) * 0.5,
+        (remove_rect.min.y + remove_rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.source_context_menu_action_at_point(&layout, &model, point),
+        Some(UiAction::RemoveSourceRow { index: 0 })
+    );
+
+    let frame = state.build_frame(&layout, &model);
+    assert!(
+        !frame
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Remove source")
+    );
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Remove source")
+    );
+}
+
+#[test]
 fn top_bar_update_prefers_projected_status_and_hint_copy() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

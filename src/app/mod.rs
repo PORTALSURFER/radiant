@@ -787,6 +787,11 @@ pub enum UiAction {
         /// Target source row index.
         index: usize,
     },
+    /// Remove one configured source row.
+    RemoveSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
     /// Remove missing/dead-link rows for one source row.
     RemoveDeadLinksForSourceRow {
         /// Target source row index.

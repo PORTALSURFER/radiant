@@ -3256,6 +3256,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ReloadSourceRow { .. }
             | UiAction::HardSyncSourceRow { .. }
             | UiAction::OpenSourceFolderRow { .. }
+            | UiAction::RemoveSourceRow { .. }
             | UiAction::RemoveDeadLinksForSourceRow { .. }
             | UiAction::FocusFolderRow { .. }
             | UiAction::MoveFolderFocus { .. }

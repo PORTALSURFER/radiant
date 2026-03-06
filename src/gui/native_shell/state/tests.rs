@@ -2702,3 +2702,62 @@ fn top_bar_volume_drag_clamps_beyond_meter_bounds() {
     assert_eq!(left_action, UiAction::SetVolume { value_milli: 0 });
     assert_eq!(right_action, UiAction::SetVolume { value_milli: 1000 });
 }
+
+#[test]
+fn waveform_motion_overlay_hides_edit_fade_bottom_grab_tabs_without_fades() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let edit_selection = NormalizedRangeModel::new(200, 800);
+    model.waveform.edit_selection_milli = Some(edit_selection);
+    let motion = NativeMotionModel::from_app_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let edit_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(edit_selection),
+        None,
+        None,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .selection
+    .expect("edit selection rect");
+    let handle_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let handle_out_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8);
+
+    let has_in_tab = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= handle_in_x
+                    && rect.rect.max.x >= handle_in_x
+                    && rect.rect.max.y == edit_rect.max.y
+                    && rect.rect.height() < edit_rect.height()
+                    && rect.rect.min.x < edit_rect.min.x
+        )
+    });
+    let has_out_tab = frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x <= handle_out_x
+                    && rect.rect.max.x >= handle_out_x
+                    && rect.rect.max.y == edit_rect.max.y
+                    && rect.rect.height() < edit_rect.height()
+                    && rect.rect.max.x > edit_rect.max.x
+        )
+    });
+    assert!(
+        !has_in_tab,
+        "bottom fade-in tab should stay hidden without a fade"
+    );
+    assert!(
+        !has_out_tab,
+        "bottom fade-out tab should stay hidden without a fade"
+    );
+}

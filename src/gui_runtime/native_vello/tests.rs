@@ -2087,3 +2087,19 @@ fn waveform_wheel_zoom_action_uses_pointer_anchor_ratio() {
         })
     );
 }
+
+#[test]
+fn waveform_bottom_click_without_edit_fade_routes_top_handle_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let bottom_y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.85);
+    let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(fade_in_x + 1.0, bottom_y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
+        UiAction::SetWaveformEditFadeInEnd { position_milli }
+    );
+}

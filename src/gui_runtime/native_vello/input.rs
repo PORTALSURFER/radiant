@@ -678,6 +678,7 @@ fn waveform_edit_fade_handle_action_from_pointer(
         .edit_fade_in_end_milli
         .unwrap_or(selection.start_milli)
         .clamp(selection.start_milli, selection.end_milli);
+    let has_fade_in = fade_in_end_milli > selection.start_milli;
     let fade_in_mute_start_milli = model
         .waveform
         .edit_fade_in_mute_start_milli
@@ -688,6 +689,7 @@ fn waveform_edit_fade_handle_action_from_pointer(
         .edit_fade_out_start_milli
         .unwrap_or(selection.end_milli)
         .clamp(selection.start_milli, selection.end_milli);
+    let has_fade_out = fade_out_start_milli < selection.end_milli;
     let fade_out_mute_end_milli = model
         .waveform
         .edit_fade_out_mute_end_milli
@@ -714,11 +716,12 @@ fn waveform_edit_fade_handle_action_from_pointer(
     let position_milli = waveform_position_milli_from_point(layout, model, point);
     let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
     if bottom_half
+        && has_fade_in
         && in_mute_distance <= threshold
         && (in_mute_distance <= out_mute_distance || out_mute_distance > threshold)
     {
         Some(UiAction::SetWaveformEditFadeInMuteStart { position_milli })
-    } else if bottom_half && out_mute_distance <= threshold {
+    } else if bottom_half && has_fade_out && out_mute_distance <= threshold {
         Some(UiAction::SetWaveformEditFadeOutMuteEnd { position_milli })
     } else if in_distance <= out_distance {
         Some(UiAction::SetWaveformEditFadeInEnd { position_milli })

@@ -541,12 +541,14 @@ fn emit_edit_fade_overlays(
         .unwrap_or(selection_start)
         .min(selection_start);
     let fade_in_x = x_for_milli(fade_in_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let has_fade_in = fade_in_end > selection_start;
     let fade_in_mute_x =
         x_for_milli(fade_in_mute_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
     let fade_out_x = x_for_milli(fade_out_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
     let fade_out_mute_end = fade_out_mute_end_milli
         .unwrap_or(selection_end)
         .max(selection_end);
+    let has_fade_out = fade_out_start < selection_end;
     let fade_out_mute_x =
         x_for_milli(fade_out_mute_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
 
@@ -628,14 +630,16 @@ fn emit_edit_fade_overlays(
         fade_in_x,
         accent_blue,
     );
-    emit_edit_fade_bottom_handle(
-        primitives,
-        style,
-        waveform_plot,
-        edit_selection_rect,
-        fade_in_mute_x,
-        accent_blue,
-    );
+    if has_fade_in {
+        emit_edit_fade_bottom_handle(
+            primitives,
+            style,
+            waveform_plot,
+            edit_selection_rect,
+            fade_in_mute_x,
+            accent_blue,
+        );
+    }
     emit_edit_fade_handle(
         primitives,
         style,
@@ -643,14 +647,16 @@ fn emit_edit_fade_overlays(
         fade_out_x,
         accent_blue,
     );
-    emit_edit_fade_bottom_handle(
-        primitives,
-        style,
-        waveform_plot,
-        edit_selection_rect,
-        fade_out_mute_x,
-        accent_blue,
-    );
+    if has_fade_out {
+        emit_edit_fade_bottom_handle(
+            primitives,
+            style,
+            waveform_plot,
+            edit_selection_rect,
+            fade_out_mute_x,
+            accent_blue,
+        );
+    }
 }
 
 /// Emit one draggable edit-fade handle marker.

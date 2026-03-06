@@ -216,18 +216,6 @@ pub(super) fn focus_text_blend(style: &StyleTokens, motion_wave: f32) -> f32 {
         .clamp(0.0, 1.0)
 }
 
-pub(super) fn tinted_overlay_color(color: Rgba8, alpha: f32) -> Rgba8 {
-    let alpha = (alpha.clamp(0.0, 1.0) * (color.a as f32 / 255.0) * 255.0)
-        .round()
-        .clamp(0.0, 255.0);
-    Rgba8 {
-        r: color.r,
-        g: color.g,
-        b: color.b,
-        a: alpha as u8,
-    }
-}
-
 pub(super) fn translucent_overlay_color(base: Rgba8, tint: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mut color = blend_color(base, tint, amount);

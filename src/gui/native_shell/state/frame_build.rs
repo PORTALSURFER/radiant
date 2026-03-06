@@ -1688,35 +1688,6 @@ impl NativeShellState {
         let primitives = &mut frame.primitives;
         let text_runs = &mut frame.text_runs;
 
-        if self.hovered == Some(ShellNodeKind::TopBar) {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: layout.top_bar,
-                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-                }),
-            );
-        }
-
-        if self.hovered == Some(ShellNodeKind::Sidebar) {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: layout.sidebar,
-                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-                }),
-            );
-        }
-
-        if self.hovered == Some(ShellNodeKind::WaveformCard) {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: layout.waveform_card,
-                    color: tinted_overlay_color(style.bg_tertiary, style.sizing.hover_fill_alpha),
-                }),
-            );
-        }
         push_waveform_toolbar_hover_tooltip(primitives, text_runs, layout, style, model, self);
         if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
             let browser_rows = self.cached_browser_rows(layout, style, model);

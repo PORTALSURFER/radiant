@@ -1150,34 +1150,32 @@ fn map_header_metadata_stays_within_header_band() {
 }
 
 #[test]
-fn hovered_top_bar_overlay_uses_hover_alpha() {
+fn hovered_sections_do_not_emit_panel_fill_overlays() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let model = AppModel::default();
     let mut state = NativeShellState::new();
-    let mut frame = NativeViewFrame::default();
-    state.hovered = Some(ShellNodeKind::TopBar);
-
-    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
-
-    let overlay_color = frame
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            Primitive::Rect(rect) if rect.rect == layout.top_bar => Some(rect.color),
-            _ => None,
-        })
-        .expect("hovered top bar should emit a fill rectangle");
-
-    let expected_alpha =
-        (style.sizing.hover_fill_alpha * (style.bg_tertiary.a as f32 / 255.0) * 255.0)
-            .round()
-            .clamp(0.0, 255.0) as u8;
-    assert_eq!(overlay_color.a, expected_alpha);
-    assert_eq!(overlay_color.r, style.bg_tertiary.r);
-    assert_eq!(overlay_color.g, style.bg_tertiary.g);
-    assert_eq!(overlay_color.b, style.bg_tertiary.b);
-    assert!(overlay_color.a < 255);
+    for hovered in [
+        ShellNodeKind::TopBar,
+        ShellNodeKind::Sidebar,
+        ShellNodeKind::WaveformCard,
+    ] {
+        let mut frame = NativeViewFrame::default();
+        state.hovered = Some(hovered);
+        state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+        assert!(
+            frame.primitives.iter().all(|primitive| {
+                !matches!(
+                    primitive,
+                    Primitive::Rect(rect)
+                        if rect.rect == layout.top_bar
+                            || rect.rect == layout.sidebar
+                            || rect.rect == layout.waveform_card
+                )
+            }),
+            "hovered section should not emit a panel-sized fill overlay"
+        );
+    }
 }
 
 #[test]

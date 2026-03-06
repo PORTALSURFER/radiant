@@ -303,7 +303,7 @@ fn icon_svg(icon: WaveformToolbarIcon) -> &'static str {
             r#"<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"/></svg>"#
         }
         WaveformToolbarIcon::Loop => {
-            r#"<svg viewBox="0 0 16 16"><rect x="3" y="4" width="7" height="2"/><polygon points="10,3 14,5 10,7"/><rect x="6" y="10" width="7" height="2"/><polygon points="6,9 2,11 6,13"/></svg>"#
+            r#"<svg viewBox="0 0 16 16"><rect x="6" y="2.5" width="4" height="2"/><polygon points="10,1.5 13.5,3.5 10,5.5"/><rect x="10" y="4.5" width="2" height="4"/><rect x="8" y="10.5" width="4" height="2"/><rect x="4" y="10.5" width="4" height="2"/><rect x="4" y="8.5" width="2" height="2"/><rect x="4" y="4.5" width="2" height="4"/><rect x="6" y="4.5" width="2" height="2"/><polygon points="6,9.5 2.5,11.5 6,13.5"/></svg>"#
         }
     }
 }

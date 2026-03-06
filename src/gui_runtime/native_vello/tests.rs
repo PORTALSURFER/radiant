@@ -44,6 +44,25 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
 }
 
 #[test]
+fn high_refresh_present_mode_candidates_prefer_non_vsync_fallback_before_vsync() {
+    assert_eq!(
+        present_mode_candidates(120),
+        &[
+            wgpu::PresentMode::Mailbox,
+            wgpu::PresentMode::Immediate,
+            wgpu::PresentMode::AutoVsync,
+        ]
+    );
+    assert_eq!(present_mode_candidates(240), present_mode_candidates(120));
+}
+
+#[test]
+fn standard_present_mode_candidates_use_vsync_only() {
+    assert_eq!(present_mode_candidates(60), &[wgpu::PresentMode::AutoVsync]);
+    assert_eq!(present_mode_candidates(119), present_mode_candidates(60));
+}
+
+#[test]
 fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_actions() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserSearch {
@@ -101,7 +120,7 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 #[test]
 fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let baseline = NativeMotionModel::from_app_model(&AppModel::default());
-    let baseline_signature = motion_overlay_model_signature(&baseline);
+    let baseline_signature = chrome_motion_overlay_model_signature(&baseline);
 
     let mut changed_channel = baseline.clone();
     changed_channel.waveform_channel_view = match baseline.waveform_channel_view {
@@ -110,7 +129,7 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     };
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_channel)
+        chrome_motion_overlay_model_signature(&changed_channel)
     );
 
     let mut changed_normalized = baseline.clone();
@@ -118,14 +137,14 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         !baseline.waveform_normalized_audition_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_normalized)
+        chrome_motion_overlay_model_signature(&changed_normalized)
     );
 
     let mut changed_bpm_snap = baseline.clone();
     changed_bpm_snap.waveform_bpm_snap_enabled = !baseline.waveform_bpm_snap_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_bpm_snap)
+        chrome_motion_overlay_model_signature(&changed_bpm_snap)
     );
 
     let mut changed_transient_snap = baseline.clone();
@@ -133,7 +152,7 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         !baseline.waveform_transient_snap_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_transient_snap)
+        chrome_motion_overlay_model_signature(&changed_transient_snap)
     );
 
     let mut changed_transient_markers = baseline.clone();
@@ -141,21 +160,21 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         !baseline.waveform_transient_markers_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_transient_markers)
+        chrome_motion_overlay_model_signature(&changed_transient_markers)
     );
 
     let mut changed_slice_mode = baseline.clone();
     changed_slice_mode.waveform_slice_mode_enabled = !baseline.waveform_slice_mode_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_slice_mode)
+        chrome_motion_overlay_model_signature(&changed_slice_mode)
     );
 
     let mut changed_loop = baseline.clone();
     changed_loop.waveform_loop_enabled = !baseline.waveform_loop_enabled;
     assert_ne!(
         baseline_signature,
-        motion_overlay_model_signature(&changed_loop)
+        chrome_motion_overlay_model_signature(&changed_loop)
     );
 }
 
@@ -525,7 +544,7 @@ fn rebuild_scene_processes_waveform_hover_motion_overlay_without_model_motion_ch
     runner.rebuild_scene_if_needed();
 
     assert!(
-        runner.motion_overlay_fingerprint.is_some(),
+        runner.waveform_motion_overlay_fingerprint.is_some(),
         "waveform-hover updates should rebuild motion overlay without requiring transport motion"
     );
 }
@@ -605,22 +624,18 @@ fn key_repeat_is_limited_to_plain_browser_arrow_navigation() {
 }
 
 #[test]
-fn key_bindings_emit_waveform_zoom_actions() {
+fn key_bindings_emit_rating_and_waveform_actions() {
     let model = AppModel::default();
     assert_eq!(
         action_from_key(KeyCode::OpenBracket, ModifiersState::default(), &model),
-        Some(UiAction::ZoomWaveform {
-            zoom_in: false,
-            steps: 1,
-            anchor_ratio_micros: None,
+        Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Trash
         })
     );
     assert_eq!(
         action_from_key(KeyCode::CloseBracket, ModifiersState::default(), &model),
-        Some(UiAction::ZoomWaveform {
-            zoom_in: true,
-            steps: 1,
-            anchor_ratio_micros: None,
+        Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Keep
         })
     );
     assert_eq!(
@@ -1131,14 +1146,106 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::EditFadeInEnd)
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInCurve { curve_milli: 650 }),
+        Some(WaveformPointerDragMode::EditFadeInCurve)
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutStart {
             position_milli: 800,
         }),
         Some(WaveformPointerDragMode::EditFadeOutStart)
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutCurve { curve_milli: 350 }),
+        Some(WaveformPointerDragMode::EditFadeOutCurve)
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::ToggleTransport),
         None
+    );
+}
+
+#[test]
+fn waveform_press_action_emit_policy_defers_mark_gestures() {
+    assert!(waveform_press_action_emits_immediately(
+        &UiAction::SeekWaveform {
+            position_milli: 250,
+        }
+    ));
+    assert!(waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformCursor {
+            position_milli: 250,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformSelectionRange {
+            start_milli: 125,
+            end_milli: 250,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditSelectionRange {
+            start_milli: 90,
+            end_milli: 320,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeInEnd {
+            position_milli: 200,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeInCurve { curve_milli: 650 }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeOutStart {
+            position_milli: 800,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformEditFadeOutCurve { curve_milli: 350 }
+    ));
+}
+
+#[test]
+fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::SetWaveformSelectionRange {
+            start_milli: 250,
+            end_milli: 250,
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::Selection { anchor_milli: 250 })
+    );
+}
+
+#[test]
+fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::SetWaveformEditSelectionRange {
+            start_milli: 400,
+            end_milli: 400,
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::EditSelection { anchor_milli: 400 })
     );
 }
 
@@ -1197,12 +1304,30 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         waveform_drag_action_for_mode(
             &layout,
             &model,
+            Point::new(layout.waveform_plot.min.x, layout.waveform_plot.min.y),
+            WaveformPointerDragMode::EditFadeInCurve
+        ),
+        UiAction::SetWaveformEditFadeInCurve { curve_milli: 1000 }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
             right,
             WaveformPointerDragMode::EditFadeOutStart
         ),
         UiAction::SetWaveformEditFadeOutStart {
             position_milli: 1000
         }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            Point::new(layout.waveform_plot.max.x, layout.waveform_plot.max.y),
+            WaveformPointerDragMode::EditFadeOutCurve
+        ),
+        UiAction::SetWaveformEditFadeOutCurve { curve_milli: 0 }
     );
 }
 
@@ -1246,6 +1371,24 @@ fn waveform_right_click_over_edit_fade_handle_routes_edit_fade_action() {
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
         UiAction::SetWaveformEditFadeInEnd { position_milli }
+    );
+}
+
+#[test]
+fn waveform_alt_click_over_edit_fade_region_routes_curve_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_fade_in_end_milli = Some(320);
+    model.waveform.edit_fade_out_start_milli = Some(690);
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.25),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.2),
+    );
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::ALT),
+        UiAction::SetWaveformEditFadeInCurve { curve_milli: 800 }
     );
 }
 

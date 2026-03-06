@@ -421,10 +421,14 @@ pub struct WaveformPanelModel {
     ///
     /// When absent, the fade-in handle defaults to the edit-selection start edge.
     pub edit_fade_in_end_milli: Option<u16>,
+    /// Fade-in curve tension in normalized milli-units (`0..=1000`).
+    pub edit_fade_in_curve_milli: Option<u16>,
     /// Start position for the edit fade-out region in normalized milli-units.
     ///
     /// When absent, the fade-out handle defaults to the edit-selection end edge.
     pub edit_fade_out_start_milli: Option<u16>,
+    /// Fade-out curve tension in normalized milli-units (`0..=1000`).
+    pub edit_fade_out_curve_milli: Option<u16>,
     /// Visible view start in normalized milli-units.
     pub view_start_milli: u16,
     /// Visible view end in normalized milli-units.
@@ -453,7 +457,9 @@ impl Default for WaveformPanelModel {
             selection_milli: None,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
+            edit_fade_in_curve_milli: None,
             edit_fade_out_start_milli: None,
+            edit_fade_out_curve_milli: None,
             view_start_milli: 0,
             view_end_milli: 1000,
             loop_enabled: false,
@@ -954,10 +960,20 @@ pub enum UiAction {
         /// Fade-in end handle position in normalized milli-units.
         position_milli: u16,
     },
+    /// Set the edit fade-in curve tension in normalized milli space (`0..=1000`).
+    SetWaveformEditFadeInCurve {
+        /// Fade-in curve value in normalized milli-units.
+        curve_milli: u16,
+    },
     /// Set the edit fade-out start handle in normalized milli space (`0..=1000`).
     SetWaveformEditFadeOutStart {
         /// Fade-out start handle position in normalized milli-units.
         position_milli: u16,
+    },
+    /// Set the edit fade-out curve tension in normalized milli space (`0..=1000`).
+    SetWaveformEditFadeOutCurve {
+        /// Fade-out curve value in normalized milli-units.
+        curve_milli: u16,
     },
     /// Clear active waveform selection.
     ClearWaveformSelection,
@@ -1162,8 +1178,12 @@ pub struct NativeMotionModel {
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit fade-in end handle in normalized milliseconds.
     pub waveform_edit_fade_in_end_milli: Option<u16>,
+    /// Waveform edit fade-in curve tension in normalized milliseconds.
+    pub waveform_edit_fade_in_curve_milli: Option<u16>,
     /// Waveform edit fade-out start handle in normalized milliseconds.
     pub waveform_edit_fade_out_start_milli: Option<u16>,
+    /// Waveform edit fade-out curve tension in normalized milliseconds.
+    pub waveform_edit_fade_out_curve_milli: Option<u16>,
     /// Whether loop playback is enabled for the active waveform selection.
     pub waveform_loop_enabled: bool,
     /// Waveform cursor position in normalized milliseconds.
@@ -1217,7 +1237,9 @@ impl NativeMotionModel {
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
+            waveform_edit_fade_in_curve_milli: model.waveform.edit_fade_in_curve_milli,
             waveform_edit_fade_out_start_milli: model.waveform.edit_fade_out_start_milli,
+            waveform_edit_fade_out_curve_milli: model.waveform.edit_fade_out_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,

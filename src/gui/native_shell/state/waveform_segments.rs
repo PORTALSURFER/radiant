@@ -9,6 +9,8 @@ const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
 const EDIT_FADE_HANDLE_TAB_WIDTH: f32 = 12.0;
 /// Height in logical pixels for the top edit-fade grab tab.
 const EDIT_FADE_HANDLE_TAB_HEIGHT: f32 = 7.0;
+/// Height in logical pixels for the bottom edit-fade grab tab.
+const EDIT_FADE_HANDLE_BOTTOM_TAB_HEIGHT: f32 = 7.0;
 /// Width in logical pixels for edit-selection resize handles.
 const EDIT_SELECTION_RESIZE_HANDLE_WIDTH: f32 = 3.0;
 /// Horizontal offset in logical pixels between selection edges and resize handles.
@@ -181,7 +183,9 @@ pub(super) fn push_waveform_playhead_overlay(
                 rect,
                 edit_selection,
                 model.waveform_edit_fade_in_end_milli,
+                model.waveform_edit_fade_in_curve_milli,
                 model.waveform_edit_fade_out_start_milli,
+                model.waveform_edit_fade_out_curve_milli,
                 edit_selection_blue,
             );
             emit_edit_resize_handles(
@@ -456,7 +460,9 @@ fn emit_edit_fade_overlays(
     edit_selection_rect: Rect,
     edit_selection: crate::app::NormalizedRangeModel,
     fade_in_end_milli: Option<u16>,
+    fade_in_curve_milli: Option<u16>,
     fade_out_start_milli: Option<u16>,
+    fade_out_curve_milli: Option<u16>,
     accent_blue: Rgba8,
 ) {
     let selection_start = edit_selection.start_milli.min(edit_selection.end_milli);
@@ -498,6 +504,16 @@ fn emit_edit_fade_overlays(
                 color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.22),
             }),
         );
+        emit_edit_fade_curve_trace(
+            primitives,
+            style,
+            edit_selection_rect,
+            edit_selection_rect.min.x,
+            fade_in_x,
+            fade_in_curve_milli.unwrap_or(500),
+            true,
+            accent_blue,
+        );
     }
     if fade_out_x < edit_selection_rect.max.x {
         emit_primitive(
@@ -509,6 +525,16 @@ fn emit_edit_fade_overlays(
                 ),
                 color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.22),
             }),
+        );
+        emit_edit_fade_curve_trace(
+            primitives,
+            style,
+            edit_selection_rect,
+            fade_out_x,
+            edit_selection_rect.max.x,
+            fade_out_curve_milli.unwrap_or(500),
+            false,
+            accent_blue,
         );
     }
 
@@ -575,6 +601,21 @@ fn emit_edit_fade_handle(
         blend_color(accent_blue, style.text_primary, 0.5),
         style.sizing.border_width,
     );
+    let bottom_tab =
+        edit_fade_handle_bottom_tab_rect(edit_selection_rect, x, style.sizing.border_width);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: bottom_tab,
+            color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.72),
+        }),
+    );
+    push_border(
+        primitives,
+        bottom_tab,
+        blend_color(accent_blue, style.text_primary, 0.46),
+        style.sizing.border_width,
+    );
 }
 
 /// Resolve the visible top grab-tab for one edit-fade handle.
@@ -598,6 +639,93 @@ fn edit_fade_handle_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f3
         Point::new(left, edit_selection_rect.min.y),
         Point::new(right, bottom),
     )
+}
+
+/// Resolve the mirrored bottom grab-tab for one edit-fade handle.
+fn edit_fade_handle_bottom_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f32) -> Rect {
+    let width = EDIT_FADE_HANDLE_TAB_WIDTH
+        .max(EDIT_FADE_HANDLE_WIDTH)
+        .max(border_width + 2.0)
+        .min(edit_selection_rect.width().max(1.0));
+    let height = EDIT_FADE_HANDLE_BOTTOM_TAB_HEIGHT
+        .max(border_width + 2.0)
+        .min(edit_selection_rect.height().max(1.0));
+    let half = width * 0.5;
+    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
+    let right = (left + width)
+        .min(edit_selection_rect.max.x)
+        .max(left + 1.0);
+    let top = (edit_selection_rect.max.y - height)
+        .max(edit_selection_rect.min.y)
+        .min(edit_selection_rect.max.y - 1.0);
+    Rect::from_min_max(
+        Point::new(left, top),
+        Point::new(right, edit_selection_rect.max.y),
+    )
+}
+
+/// Emit a dotted curve trace for one fade region using the current S-curve amount.
+fn emit_edit_fade_curve_trace(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    edit_selection_rect: Rect,
+    start_x: f32,
+    end_x: f32,
+    curve_milli: u16,
+    fade_in: bool,
+    accent_blue: Rgba8,
+) {
+    let width = (end_x - start_x).abs();
+    let height = edit_selection_rect.height();
+    if width <= 1.0 || height <= 1.0 {
+        return;
+    }
+    let curve = (f32::from(curve_milli.min(1000)) / 1000.0).clamp(0.0, 1.0);
+    let steps = ((width / 6.0).round() as usize).clamp(6, 28);
+    let marker_size = style.sizing.border_width.max(1.0) + 1.0;
+    for step in 0..=steps {
+        let t = step as f32 / steps as f32;
+        let eased = fade_curve_sample(t, curve);
+        let x = start_x + ((end_x - start_x) * t);
+        let y = if fade_in {
+            edit_selection_rect.max.y - (height * eased)
+        } else {
+            edit_selection_rect.min.y + (height * eased)
+        };
+        let rect = Rect::from_min_max(
+            Point::new(
+                (x - (marker_size * 0.5))
+                    .clamp(edit_selection_rect.min.x, edit_selection_rect.max.x),
+                (y - (marker_size * 0.5))
+                    .clamp(edit_selection_rect.min.y, edit_selection_rect.max.y),
+            ),
+            Point::new(
+                (x + (marker_size * 0.5))
+                    .clamp(edit_selection_rect.min.x, edit_selection_rect.max.x),
+                (y + (marker_size * 0.5))
+                    .clamp(edit_selection_rect.min.y, edit_selection_rect.max.y),
+            ),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: translucent_overlay_color(style.surface_overlay, accent_blue, 0.88),
+            }),
+        );
+    }
+}
+
+/// Sample the fade S-curve used by the live edit-fade engine.
+fn fade_curve_sample(t: f32, curve: f32) -> f32 {
+    if curve <= 0.0 {
+        return t.clamp(0.0, 1.0);
+    }
+    let t = t.clamp(0.0, 1.0);
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let smootherstep = t3 * (t * (t * 6.0 - 15.0) + 10.0);
+    t * (1.0 - curve) + smootherstep * curve
 }
 
 /// Emit retained ghost lines behind the active playhead.

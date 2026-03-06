@@ -20,8 +20,12 @@ pub(super) enum WaveformPointerDragMode {
     },
     /// Drag updates the edit fade-in end handle.
     EditFadeInEnd,
+    /// Drag updates the edit fade-in curve.
+    EditFadeInCurve,
     /// Drag updates the edit fade-out start handle.
     EditFadeOutStart,
+    /// Drag updates the edit fade-out curve.
+    EditFadeOutCurve,
 }
 
 /// Half-width in pixels used for fade-handle hit testing.
@@ -94,19 +98,15 @@ pub(super) fn action_from_key(
         KeyCode::N => Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Neutral,
         }),
-        KeyCode::OpenBracket => Some(UiAction::ZoomWaveform {
-            zoom_in: false,
-            steps: 1,
-            anchor_ratio_micros: None,
+        KeyCode::OpenBracket => Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Trash,
         }),
         KeyCode::P => model
             .progress_overlay
             .cancelable
             .then_some(UiAction::CancelProgress),
-        KeyCode::CloseBracket => Some(UiAction::ZoomWaveform {
-            zoom_in: true,
-            steps: 1,
-            anchor_ratio_micros: None,
+        KeyCode::CloseBracket => Some(UiAction::TagBrowserSelection {
+            target: crate::app::BrowserTagTarget::Keep,
         }),
         KeyCode::Slash => Some(UiAction::ZoomWaveformFull),
         KeyCode::Quote => Some(UiAction::FocusFolderSearch),
@@ -238,6 +238,13 @@ pub(super) fn waveform_action_from_pointer(
         return action;
     }
     if !command
+        && alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
         && !alt
         && !shift
         && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
@@ -327,8 +334,13 @@ pub(super) fn waveform_edit_action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
-    _modifiers: ModifiersState,
+    modifiers: ModifiersState,
 ) -> UiAction {
+    if modifiers.alt_key()
+        && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
     if let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point) {
         return action;
     }
@@ -368,9 +380,15 @@ pub(super) fn waveform_drag_action_for_mode(
         WaveformPointerDragMode::EditFadeInEnd => {
             UiAction::SetWaveformEditFadeInEnd { position_milli }
         }
+        WaveformPointerDragMode::EditFadeInCurve => UiAction::SetWaveformEditFadeInCurve {
+            curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
+        },
         WaveformPointerDragMode::EditFadeOutStart => {
             UiAction::SetWaveformEditFadeOutStart { position_milli }
         }
+        WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
+            curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
+        },
     }
 }
 
@@ -390,11 +408,34 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
             })
         }
         UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
+        UiAction::SetWaveformEditFadeInCurve { .. } => {
+            Some(WaveformPointerDragMode::EditFadeInCurve)
+        }
         UiAction::SetWaveformEditFadeOutStart { .. } => {
             Some(WaveformPointerDragMode::EditFadeOutStart)
         }
+        UiAction::SetWaveformEditFadeOutCurve { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutCurve)
+        }
         _ => None,
     }
+}
+
+/// Return whether one waveform press action should mutate model state immediately.
+///
+/// Selection/edit/fade gestures are armed on press and only emit once the
+/// pointer actually moves. This keeps simple clicks from creating zero-width
+/// markers or nudging handles without a drag.
+pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool {
+    !matches!(
+        action,
+        UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
+    )
 }
 
 /// Resolve normalized waveform milli position from an arbitrary pointer point.
@@ -475,6 +516,51 @@ fn waveform_edit_fade_handle_action_from_pointer(
     }
 }
 
+/// Resolve one edit-fade curve action when Alt is held over a fade region or handle.
+fn waveform_edit_fade_curve_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.edit_selection_milli?;
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let selection_start = selection.start_milli.min(selection.end_milli);
+    let selection_end = selection.start_milli.max(selection.end_milli);
+    if selection_end <= selection_start {
+        return None;
+    }
+    let fade_in_end_milli = model
+        .waveform
+        .edit_fade_in_end_milli
+        .unwrap_or(selection.start_milli)
+        .clamp(selection_start, selection_end);
+    let fade_out_start_milli = model
+        .waveform
+        .edit_fade_out_start_milli
+        .unwrap_or(selection.end_milli)
+        .clamp(selection_start, selection_end);
+    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
+    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
+    let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
+    let in_region_hit =
+        point.x >= selection_start_x - threshold && point.x <= fade_in_x + threshold;
+    let out_region_hit =
+        point.x >= fade_out_x - threshold && point.x <= selection_end_x + threshold;
+    let curve_milli = waveform_edit_fade_curve_milli_from_point(layout, point);
+    if in_region_hit && (!out_region_hit || point.x <= (selection_start_x + selection_end_x) * 0.5)
+    {
+        return Some(UiAction::SetWaveformEditFadeInCurve { curve_milli });
+    }
+    if out_region_hit {
+        return Some(UiAction::SetWaveformEditFadeOutCurve { curve_milli });
+    }
+    None
+}
+
 /// Resolve one edit-selection resize action when the pointer lands on an edge handle.
 fn waveform_edit_resize_action_from_pointer(
     layout: &ShellLayout,
@@ -528,6 +614,15 @@ fn waveform_x_for_milli(plot: UiRect, model: &AppModel, milli: u16) -> f32 {
         ((absolute_ratio - view.start) / view.width).clamp(0.0, 1.0)
     };
     plot.min.x + (plot.width() * ratio_in_view)
+}
+
+/// Map pointer Y within the waveform plot to one fade-curve milli value.
+fn waveform_edit_fade_curve_milli_from_point(layout: &ShellLayout, point: Point) -> u16 {
+    let plot = layout.waveform_plot;
+    let height = plot.height().max(1.0);
+    let clamped_y = point.y.clamp(plot.min.y, plot.max.y);
+    let ratio = 1.0 - ((clamped_y - plot.min.y) / height).clamp(0.0, 1.0);
+    ratio_to_milli(ratio)
 }
 
 pub(super) fn browser_wheel_row_delta(

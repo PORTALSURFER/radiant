@@ -63,6 +63,14 @@ const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 const CURSOR_ACTIVITY_REDRAW_HZ: u64 = 120;
 /// Duration to keep the high-frequency cursor redraw cadence active.
 const CURSOR_ACTIVITY_REDRAW_WINDOW: Duration = Duration::from_millis(100);
+/// High-refresh surface present-mode preference order for animation-heavy playback UI.
+const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
+    wgpu::PresentMode::Mailbox,
+    wgpu::PresentMode::Immediate,
+    wgpu::PresentMode::AutoVsync,
+];
+/// Standard present-mode preference order for non-high-refresh UI.
+const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentMode::AutoVsync];
 /// Maximum retained image-upload blobs before cache reset.
 const IMAGE_UPLOAD_BLOB_CACHE_LIMIT: usize = 32;
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
@@ -96,6 +104,15 @@ fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
     pending
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_ok()
+}
+
+/// Return the ordered present-mode fallback chain for the configured frame target.
+fn present_mode_candidates(target_fps: u32) -> &'static [wgpu::PresentMode] {
+    if target_fps >= 120 {
+        &HIGH_REFRESH_PRESENT_MODE_CANDIDATES
+    } else {
+        &STANDARD_PRESENT_MODE_CANDIDATES
+    }
 }
 
 #[derive(Clone)]
@@ -946,7 +963,9 @@ fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
         fingerprint_mix_bool(&mut state, false);
     }
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_curve_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_start_milli);
+    fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_curve_milli);
     fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_playhead_milli);
@@ -1518,11 +1537,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             "radiant native vello: creating render surface with {}x{}",
             width, height
         );
-        let preferred_present_mode = if self.options.target_fps >= 120 {
-            wgpu::PresentMode::Mailbox
-        } else {
-            wgpu::PresentMode::AutoVsync
-        };
+        let present_mode_candidates = present_mode_candidates(self.options.target_fps);
         let mut create_surface_with_mode = |present_mode| {
             std::panic::catch_unwind(AssertUnwindSafe(|| {
                 pollster::block_on(render_ctx.create_surface(
@@ -1533,83 +1548,60 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 ))
             }))
         };
-        let render_surface = match create_surface_with_mode(preferred_present_mode) {
-            Ok(Ok(surface)) => {
-                info!(
-                    "radiant native vello: render surface created using {:?}",
-                    preferred_present_mode
-                );
-                surface
-            }
-            Ok(Err(preferred_err)) => {
-                if preferred_present_mode == wgpu::PresentMode::AutoVsync {
-                    error!(
-                        "radiant native vello: failed to create primary surface: {:?}",
-                        preferred_err
+        let mut render_surface = None;
+        for (index, present_mode) in present_mode_candidates.iter().copied().enumerate() {
+            let last_attempt = index + 1 == present_mode_candidates.len();
+            match create_surface_with_mode(present_mode) {
+                Ok(Ok(surface)) => {
+                    if index == 0 {
+                        info!(
+                            "radiant native vello: render surface created using {:?}",
+                            present_mode
+                        );
+                    } else {
+                        info!(
+                            "radiant native vello: render surface created using {:?} fallback",
+                            present_mode
+                        );
+                    }
+                    render_surface = Some(surface);
+                    break;
+                }
+                Ok(Err(err)) => {
+                    if last_attempt {
+                        error!(
+                            "radiant native vello: failed to create {:?} surface: {:?}",
+                            present_mode, err
+                        );
+                        event_loop.exit();
+                        return;
+                    }
+                    let next_mode = present_mode_candidates[index + 1];
+                    warn!(
+                        "radiant native vello: {:?} surface creation failed (error): {:?}; retrying {:?}",
+                        present_mode, err, next_mode
                     );
-                    event_loop.exit();
-                    return;
                 }
-                warn!(
-                    "radiant native vello: mailbox surface creation failed (error): {:?}",
-                    preferred_err
-                );
-                warn!("radiant native vello: retrying AutoVsync render surface");
-                match create_surface_with_mode(wgpu::PresentMode::AutoVsync) {
-                    Ok(Ok(surface)) => {
-                        info!(
-                            "radiant native vello: render surface created using AutoVsync fallback"
-                        );
-                        surface
-                    }
-                    Ok(Err(fallback_err)) => {
+                Err(_) => {
+                    if last_attempt {
                         error!(
-                            "radiant native vello: failed to create AutoVsync fallback surface: {:?}",
-                            fallback_err
+                            "radiant native vello: {:?} surface creation panicked during startup",
+                            present_mode
                         );
                         event_loop.exit();
                         return;
                     }
-                    Err(_) => {
-                        error!(
-                            "radiant native vello: AutoVsync surface creation panicked during startup"
-                        );
-                        event_loop.exit();
-                        return;
-                    }
+                    let next_mode = present_mode_candidates[index + 1];
+                    warn!(
+                        "radiant native vello: {:?} surface creation panicked; retrying {:?}",
+                        present_mode, next_mode
+                    );
                 }
             }
-            Err(_) => {
-                if preferred_present_mode == wgpu::PresentMode::AutoVsync {
-                    error!("radiant native vello: panicked during AutoVsync surface creation");
-                    event_loop.exit();
-                    return;
-                }
-                warn!(
-                    "radiant native vello: mailbox surface creation panicked; retrying AutoVsync"
-                );
-                match create_surface_with_mode(wgpu::PresentMode::AutoVsync) {
-                    Ok(Ok(surface)) => {
-                        info!(
-                            "radiant native vello: render surface created using AutoVsync fallback"
-                        );
-                        surface
-                    }
-                    Ok(Err(fallback_err)) => {
-                        error!(
-                            "radiant native vello: failed to create AutoVsync fallback surface: {:?}",
-                            fallback_err
-                        );
-                        event_loop.exit();
-                        return;
-                    }
-                    Err(_) => {
-                        error!("radiant native vello: AutoVsync fallback panicked during startup");
-                        event_loop.exit();
-                        return;
-                    }
-                }
-            }
+        }
+        let Some(render_surface) = render_surface else {
+            event_loop.exit();
+            return;
         };
         self.startup_timing.mark_surface_ready();
         info!("radiant native vello: render surface created");
@@ -2256,6 +2248,26 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SetVolume { value_milli },
             Some(InteractionProfileKind::Volume),
         );
+        true
+    }
+
+    /// Handle one pointer-press action, deferring drag-only waveform edits until movement.
+    fn handle_pointer_press_action(&mut self, action: UiAction, map_drag_start: bool) -> bool {
+        let waveform_drag_mode = waveform_drag_mode_for_action(&action);
+        let map_drag_sample_id = match &action {
+            UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
+            _ => None,
+        };
+        self.waveform_drag_mode = waveform_drag_mode;
+        if !waveform_press_action_emits_immediately(&action) {
+            return false;
+        }
+        self.update_text_target_after_action(&action);
+        self.emit_model_action(action);
+        if map_drag_start {
+            self.map_focus_drag_active = true;
+            self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+        }
         true
     }
 
@@ -3263,7 +3275,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
@@ -3290,7 +3304,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::AdjustWaveformBpm { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
             | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }
@@ -3502,6 +3518,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     self.map_focus_drag_active = false;
                     self.last_emitted_map_drag_sample_id = None;
                     let mut handled = false;
+                    let mut action_emitted = false;
                     let mut source_menu_state_changed = false;
                     match button {
                         MouseButton::Left => {
@@ -3513,6 +3530,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                 .source_context_menu_action_at_point(&layout, &self.model, point)
                             {
                                 self.emit_model_action(action);
+                                action_emitted = true;
                                 source_menu_state_changed |=
                                     self.shell_state.close_source_context_menu();
                                 handled = true;
@@ -3548,6 +3566,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     } else {
                                         self.emit_model_action(action);
                                     }
+                                    action_emitted = true;
                                     self.volume_drag_active = true;
                                     handled = true;
                                 } else if let Some(action) = action_from_pointer_with_motion(
@@ -3558,20 +3577,8 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     point,
                                     self.modifiers,
                                 ) {
-                                    let waveform_drag_mode = waveform_drag_mode_for_action(&action);
-                                    let map_drag_sample_id = match &action {
-                                        UiAction::FocusMapSample { sample_id } => {
-                                            Some(sample_id.clone())
-                                        }
-                                        _ => None,
-                                    };
-                                    self.update_text_target_after_action(&action);
-                                    self.emit_model_action(action);
-                                    self.waveform_drag_mode = waveform_drag_mode;
-                                    if map_drag_start {
-                                        self.map_focus_drag_active = true;
-                                        self.last_emitted_map_drag_sample_id = map_drag_sample_id;
-                                    }
+                                    action_emitted =
+                                        self.handle_pointer_press_action(action, map_drag_start);
                                     handled = true;
                                 } else if self.shell_state.handle_primary_click(&layout, point)
                                     && let Some(column) = layout.column_at_point(point)
@@ -3579,6 +3586,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     self.emit_model_action(UiAction::SelectColumn {
                                         index: column,
                                     });
+                                    action_emitted = true;
                                     handled = true;
                                 }
                             }
@@ -3589,6 +3597,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                 .source_context_menu_action_at_point(&layout, &self.model, point)
                             {
                                 self.emit_model_action(action);
+                                action_emitted = true;
                                 source_menu_state_changed |=
                                     self.shell_state.close_source_context_menu();
                                 handled = true;
@@ -3600,6 +3609,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                 self.shell_state
                                     .open_source_context_menu_for_row(index, point);
                                 source_menu_state_changed = true;
+                                action_emitted = true;
                                 handled = true;
                             } else {
                                 source_menu_state_changed |=
@@ -3617,8 +3627,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     point,
                                     self.modifiers,
                                 );
-                                self.waveform_drag_mode = waveform_drag_mode_for_action(&action);
-                                self.emit_model_action(action);
+                                action_emitted = self.handle_pointer_press_action(action, false);
                                 handled = true;
                             }
                         }
@@ -3626,7 +3635,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     }
                     if source_menu_state_changed {
                         self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
-                    } else if handled {
+                    } else if action_emitted && handled {
                         if !self.frame_state.has_pending_rebuild() {
                             self.apply_invalidation_scope(
                                 RuntimeInvalidationScope::OverlayStateOnly,

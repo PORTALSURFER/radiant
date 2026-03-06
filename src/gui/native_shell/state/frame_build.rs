@@ -1368,10 +1368,7 @@ impl NativeShellState {
             let search_text = if model.browser.search_query.is_empty() {
                 model.browser_chrome.search_placeholder.clone()
             } else {
-                format!(
-                    "{}: {}",
-                    model.browser_chrome.search_prefix_label, model.browser.search_query
-                )
+                model.browser.search_query.clone()
             };
             if toolbar.search_field.width() > 1.0 {
                 emit_text(

@@ -802,12 +802,7 @@ mod tests {
                 .iter()
                 .any(|run| run.text.contains("col: 2/3"))
         );
-        assert!(
-            frame
-                .text_runs
-                .iter()
-                .any(|run| run.text.contains("Find: kick"))
-        );
+        assert!(frame.text_runs.iter().any(|run| run.text == "kick"));
         assert!(
             frame
                 .text_runs

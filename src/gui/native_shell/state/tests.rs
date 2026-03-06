@@ -178,6 +178,30 @@ fn sidebar_sections_remain_stable_in_cramped_viewports() {
 }
 
 #[test]
+fn waveform_deck_backplate_renders_inside_waveform_card() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let frame = state.build_frame(&layout, &model);
+    let backplate = waveform_deck_backplate_rect(layout.waveform_card, style.sizing);
+    assert_rect_inside(layout.waveform_card, backplate);
+    assert!(backplate.contains(layout.waveform_plot.min));
+    assert!(backplate.contains(Point::new(
+        layout.waveform_plot.max.x - 1.0,
+        layout.waveform_plot.max.y - 1.0,
+    )));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == backplate
+                    && *color == blend_color(style.surface_overlay, style.bg_secondary, 0.38)
+        )
+    }));
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

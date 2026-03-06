@@ -2491,6 +2491,72 @@ fn source_row_selected_fill_is_translucent_overlay() {
 }
 
 #[test]
+fn browser_row_selected_fill_uses_lighter_neutral_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "selected row", 1, true, false));
+
+    let selected_row = rendered_browser_rows(&layout, &model, &style)[0].rect;
+    let frame = state.build_frame(&layout, &model);
+    let row_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == selected_row => Some(rect.color),
+            _ => None,
+        })
+        .expect("selected browser row should emit a fill rectangle");
+
+    assert_eq!(row_color, selected_browser_row_fill(&style));
+}
+
+#[test]
+fn browser_row_selected_state_does_not_draw_mint_border() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "selected row", 1, true, false));
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let stroke = browser_row_border_stroke(&layout);
+    let border_rect = browser_row_border_rect(row.rect, stroke);
+    let mint_border = blend_color(
+        style.accent_mint,
+        style.text_primary,
+        style.state_selected_blend,
+    );
+    let has_mint_top_border =
+        state
+            .build_frame(&layout, &model)
+            .primitives
+            .iter()
+            .any(|primitive| match primitive {
+                Primitive::Rect(rect) => {
+                    rect.color == mint_border
+                        && rect.rect.min.x == border_rect.min.x
+                        && rect.rect.max.x == border_rect.max.x
+                        && rect.rect.min.y == border_rect.min.y
+                        && rect.rect.max.y == border_rect.min.y + stroke
+                }
+                _ => false,
+            });
+
+    assert!(
+        !has_mint_top_border,
+        "selected browser rows should rely on fill instead of mint borders"
+    );
+}
+
+#[test]
 /// Source context menu hit testing should emit reload for the targeted row.
 fn source_context_menu_hit_test_emits_reload_action_for_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

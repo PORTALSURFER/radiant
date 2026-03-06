@@ -256,11 +256,7 @@ impl NativeShellState {
                             focus_fill_emphasis,
                         )
                     } else if row.selected {
-                        translucent_overlay_color(
-                            style.bg_tertiary,
-                            style.grid_soft,
-                            style.state_selected_blend,
-                        )
+                        selected_browser_row_fill(style)
                     } else if row.visible_row % 2 == 0 {
                         blend_color(style.surface_base, style.bg_secondary, 0.20)
                     } else {
@@ -273,11 +269,7 @@ impl NativeShellState {
                             motion_wave * style.state_focus_pulse_blend,
                         )
                     } else if row.selected {
-                        blend_color(
-                            style.accent_mint,
-                            style.text_primary,
-                            motion_wave * style.state_selected_blend,
-                        )
+                        style.border
                     } else {
                         style.border
                     };
@@ -288,7 +280,7 @@ impl NativeShellState {
                             motion_wave * focus_text_emphasis,
                         )
                     } else if row.selected {
-                        style.accent_mint
+                        style.text_primary
                     } else {
                         style.text_primary
                     };
@@ -1903,6 +1895,14 @@ impl NativeShellState {
                                 ),
                             }),
                         );
+                    } else if row.selected {
+                        emit_primitive(
+                            primitives,
+                            Primitive::Rect(FillRect {
+                                rect: row.rect,
+                                color: selected_browser_row_fill(style),
+                            }),
+                        );
                     }
                     push_browser_row_border(
                         primitives,
@@ -1914,11 +1914,7 @@ impl NativeShellState {
                                 style.state_focus_pulse_blend,
                             )
                         } else {
-                            blend_color(
-                                style.accent_mint,
-                                style.text_primary,
-                                style.state_selected_blend,
-                            )
+                            style.border
                         },
                         row_border_stroke,
                         Some(row.rect.max.y) == last_row_max_y,

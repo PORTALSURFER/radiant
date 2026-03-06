@@ -246,6 +246,15 @@ pub(super) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
     )
 }
 
+/// Return the lighter neutral fill used for selected browser rows.
+pub(super) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
+    translucent_overlay_color(
+        style.bg_tertiary,
+        style.text_primary,
+        (style.state_selected_blend + 0.04).clamp(0.12, 0.24),
+    )
+}
+
 pub(super) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {

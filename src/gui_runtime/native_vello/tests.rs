@@ -772,6 +772,27 @@ fn key_bindings_handle_selection_modifiers() {
 }
 
 #[test]
+fn key_bindings_route_arrow_navigation_to_folder_tree_when_folder_focused() {
+    let model = AppModel {
+        focus_context: crate::app::FocusContextModel::SourceFolders,
+        ..AppModel::default()
+    };
+
+    assert_eq!(
+        action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &model),
+        Some(UiAction::MoveFolderFocus { delta: -1 })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowDown, ModifiersState::default(), &model),
+        Some(UiAction::MoveFolderFocus { delta: 1 })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowDown, ModifiersState::SHIFT, &model),
+        Some(UiAction::MoveFolderFocus { delta: 1 })
+    );
+}
+
+#[test]
 fn browser_row_click_modifiers_route_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();

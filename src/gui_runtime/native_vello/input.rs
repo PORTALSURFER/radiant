@@ -95,7 +95,12 @@ pub(super) fn action_from_key(
         KeyCode::ArrowLeft => Some(UiAction::MoveColumn { delta: -1 }),
         KeyCode::ArrowRight => Some(UiAction::MoveColumn { delta: 1 }),
         KeyCode::ArrowUp => {
-            if shift && command {
+            if matches!(
+                model.focus_context,
+                crate::app::FocusContextModel::SourceFolders
+            ) {
+                Some(UiAction::MoveFolderFocus { delta: -1 })
+            } else if shift && command {
                 Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: -1 })
             } else if shift {
                 Some(UiAction::ExtendBrowserSelectionFromFocus { delta: -1 })
@@ -104,7 +109,12 @@ pub(super) fn action_from_key(
             }
         }
         KeyCode::ArrowDown => {
-            if shift && command {
+            if matches!(
+                model.focus_context,
+                crate::app::FocusContextModel::SourceFolders
+            ) {
+                Some(UiAction::MoveFolderFocus { delta: 1 })
+            } else if shift && command {
                 Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
             } else if shift {
                 Some(UiAction::ExtendBrowserSelectionFromFocus { delta: 1 })

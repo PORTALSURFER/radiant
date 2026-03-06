@@ -140,6 +140,22 @@ pub struct FolderActionsModel {
     pub can_clear_recovery_log: bool,
 }
 
+/// Logical focus buckets projected into the native runtime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FocusContextModel {
+    /// No UI surface currently owns keyboard focus.
+    #[default]
+    None,
+    /// The waveform viewer handles navigation and shortcuts.
+    Waveform,
+    /// The sample browser handles row navigation and browser shortcuts.
+    SampleBrowser,
+    /// The folder tree handles folder navigation and folder shortcuts.
+    SourceFolders,
+    /// The source list handles source-row navigation and shortcuts.
+    SourcesList,
+}
+
 /// Delete-recovery status for staged folder delete recovery in the sidebar.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct FolderRecoveryModel {
@@ -682,6 +698,8 @@ pub struct AppModel {
     pub waveform_chrome: WaveformChromeModel,
     /// Update surface summary consumed by the native top bar.
     pub update: UpdatePanelModel,
+    /// Current keyboard focus bucket used for contextual native key routing.
+    pub focus_context: FocusContextModel,
 }
 
 impl Default for AppModel {
@@ -725,6 +743,7 @@ impl Default for AppModel {
             waveform: WaveformPanelModel::default(),
             waveform_chrome: WaveformChromeModel::default(),
             update: UpdatePanelModel::default(),
+            focus_context: FocusContextModel::None,
         }
     }
 }

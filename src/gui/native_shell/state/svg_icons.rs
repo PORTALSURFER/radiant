@@ -1,9 +1,10 @@
 //! Minimal SVG icon parser/rasterizer for waveform toolbar glyphs.
 //!
 //! The native shell paint model is backend-neutral and currently supports
-//! rectangles/circles/images/text primitives. This module keeps icon assets in
-//! inline SVG form and rasterizes them into RGBA images so toolbar controls can
-//! render iconography without adding a new primitive kind.
+//! rectangles/circles/images/text primitives. This module loads toolbar glyph
+//! definitions from asset-backed SVG files and rasterizes them into RGBA images
+//! so toolbar controls can render iconography without adding a new primitive
+//! kind.
 
 use super::*;
 use std::sync::Arc;
@@ -89,7 +90,7 @@ pub(super) fn emit_toolbar_svg_icon(
 }
 
 fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> Option<ImageRgba> {
-    let svg = icon_svg(icon);
+    let svg = icon_svg_asset(icon);
     let document = parse_svg_document(svg)?;
     let mut pixels = vec![0_u8; side.saturating_mul(side).saturating_mul(4)];
     let sample_offsets = [
@@ -246,40 +247,40 @@ fn point_in_polygon(x: f32, y: f32, points: &[(f32, f32)]) -> bool {
     inside
 }
 
-fn icon_svg(icon: WaveformToolbarIcon) -> &'static str {
+fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
     match icon {
         WaveformToolbarIcon::Mono => {
-            r#"<svg viewBox="0 0 16 16"><rect x="6.5" y="3" width="3" height="10"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/mono.svg")
         }
         WaveformToolbarIcon::Stereo => {
-            r#"<svg viewBox="0 0 16 16"><rect x="3.5" y="3" width="3" height="10"/><rect x="9.5" y="3" width="3" height="10"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/stereo.svg")
         }
         WaveformToolbarIcon::Normalize => {
-            r#"<svg viewBox="0 0 16 16"><polygon points="3,12 3,4 5.5,4 8.5,9 8.5,4 11,4 11,12 8.5,12 5.5,7 5.5,12"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/normalize.svg")
         }
         WaveformToolbarIcon::BpmSnap => {
-            r#"<svg viewBox="0 0 16 16"><polygon points="8,2 5,6 11,6"/><rect x="6" y="6" width="4" height="7"/><rect x="4" y="13" width="8" height="1.5"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/bpm_snap.svg")
         }
         WaveformToolbarIcon::TransientSnap => {
-            r#"<svg viewBox="0 0 16 16"><polygon points="9,2 5,9 8,9 7,14 11,7 8,7"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/transient_snap.svg")
         }
         WaveformToolbarIcon::ShowTransients => {
-            r#"<svg viewBox="0 0 16 16"><polygon points="2,8 5,5 11,5 14,8 11,11 5,11"/><circle cx="8" cy="8" r="2"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/show_transients.svg")
         }
         WaveformToolbarIcon::Slice => {
-            r#"<svg viewBox="0 0 16 16"><rect x="3" y="4" width="10" height="1.5"/><rect x="3" y="7.25" width="10" height="1.5"/><rect x="3" y="10.5" width="10" height="1.5"/><polygon points="9,3 12.5,6.5 11.2,7.8 7.7,4.3"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/slice.svg")
         }
         WaveformToolbarIcon::Play => {
-            r#"<svg viewBox="0 0 16 16"><polygon points="4,3 13,8 4,13"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/play.svg")
         }
         WaveformToolbarIcon::Stop => {
-            r#"<svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/stop.svg")
         }
         WaveformToolbarIcon::Record => {
-            r#"<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/record.svg")
         }
         WaveformToolbarIcon::Loop => {
-            r#"<svg viewBox="0 0 16 16"><rect x="6" y="2.5" width="4" height="2"/><polygon points="10,1.5 13.5,3.5 10,5.5"/><rect x="10" y="4.5" width="2" height="4"/><rect x="8" y="10.5" width="4" height="2"/><rect x="4" y="10.5" width="4" height="2"/><rect x="4" y="8.5" width="2" height="2"/><rect x="4" y="4.5" width="2" height="4"/><rect x="6" y="4.5" width="2" height="2"/><polygon points="6,9.5 2.5,11.5 6,13.5"/></svg>"#
+            include_str!("../../../../assets/icons/waveform_toolbar/loop.svg")
         }
     }
 }
@@ -345,5 +346,27 @@ mod tests {
             toolbar_icon_for_button(&stereo_button),
             Some(WaveformToolbarIcon::Stereo)
         );
+    }
+
+    #[test]
+    fn asset_backed_svg_icons_parse_successfully() {
+        for icon in [
+            WaveformToolbarIcon::Mono,
+            WaveformToolbarIcon::Stereo,
+            WaveformToolbarIcon::Normalize,
+            WaveformToolbarIcon::BpmSnap,
+            WaveformToolbarIcon::TransientSnap,
+            WaveformToolbarIcon::ShowTransients,
+            WaveformToolbarIcon::Slice,
+            WaveformToolbarIcon::Loop,
+            WaveformToolbarIcon::Stop,
+            WaveformToolbarIcon::Play,
+            WaveformToolbarIcon::Record,
+        ] {
+            assert!(
+                parse_svg_document(icon_svg_asset(icon)).is_some(),
+                "svg asset for {icon:?} should parse"
+            );
+        }
     }
 }

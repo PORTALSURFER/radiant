@@ -1883,7 +1883,7 @@ impl NativeShellState {
                             style.border
                         },
                         row_border_stroke,
-                        Some(row.rect.max.y) == last_row_max_y,
+                        row.focused || Some(row.rect.max.y) == last_row_max_y,
                     );
                     if row.focused {
                         let mut label_position = row_text_layout.sample_label.min;

@@ -2604,6 +2604,49 @@ fn browser_row_selected_state_does_not_draw_mint_border() {
 }
 
 #[test]
+fn browser_row_focused_state_draws_bottom_focus_border() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "focused row", 1, false, true));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "next row", 1, false, false));
+    state.sync_from_model(&model);
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let stroke = browser_row_border_stroke(&layout);
+    let border_rect = browser_row_border_rect(row.rect, stroke);
+    let focus_border = blend_color(
+        style.accent_warning,
+        style.text_primary,
+        style.state_focus_pulse_blend,
+    );
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+    let has_focus_bottom_border = frame.primitives.iter().any(|primitive| match primitive {
+        Primitive::Rect(rect) => {
+            rect.color == focus_border
+                && rect.rect.min.x == border_rect.min.x
+                && rect.rect.max.x == border_rect.max.x
+                && rect.rect.min.y == border_rect.max.y - stroke
+                && rect.rect.max.y == border_rect.max.y
+        }
+        _ => false,
+    });
+
+    assert!(
+        has_focus_bottom_border,
+        "focused browser rows should render a full border highlight"
+    );
+}
+
+#[test]
 /// Source context menu hit testing should emit reload for the targeted row.
 fn source_context_menu_hit_test_emits_reload_action_for_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

@@ -390,7 +390,7 @@ impl StyleTokens {
                 min_viewport_width: 620.0,
                 min_viewport_height: 400.0,
                 frame_inset: 0.0,
-                panel_gap: 1.0,
+                panel_gap: 0.0,
                 top_bar_height: 18.0,
                 top_bar_title_row_height: 18.0,
                 top_bar_title_row_min_height: 18.0,
@@ -490,7 +490,7 @@ impl StyleTokens {
 
         if layout_tier == LayoutScaleTier::Compact {
             tokens.sizing.frame_inset = 0.0;
-            tokens.sizing.panel_gap = 1.0;
+            tokens.sizing.panel_gap = 0.0;
             tokens.sizing.top_bar_height = 20.0;
             tokens.sizing.top_bar_title_row_height = 20.0;
             tokens.sizing.top_bar_title_row_min_height = 20.0;
@@ -591,7 +591,7 @@ impl StyleTokens {
         if layout_tier == LayoutScaleTier::Wide {
             // Keep wide tier dense to preserve the classic Sempal table-first feel.
             tokens.sizing.frame_inset = 0.0;
-            tokens.sizing.panel_gap = 1.0;
+            tokens.sizing.panel_gap = 0.0;
             tokens.sizing.top_bar_height = 19.0;
             tokens.sizing.top_bar_title_row_height = 19.0;
             tokens.sizing.top_bar_title_row_min_height = 19.0;
@@ -790,7 +790,7 @@ impl SizingTokens {
         self.lamp_radius_base *= scale;
         self.lamp_radius_amp *= scale;
         self.frame_inset = 0.0;
-        self.panel_gap = 1.0;
+        self.panel_gap = 0.0;
         self
     }
 }

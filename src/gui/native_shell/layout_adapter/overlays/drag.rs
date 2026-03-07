@@ -22,7 +22,7 @@ pub(super) fn compute_drag_overlay_rect(
     let width = (content.width() * 0.72).clamp(260.0, 520.0);
     let height = sizing.drag_overlay_height.max(0.0);
     let min_y = content.min.y + sizing.overlay_padding.max(0.0);
-    let max_y = status_bar.min.y - 1.0;
+    let max_y = content.max.y.min(status_bar.min.y - 1.0);
     if max_y <= min_y || width <= 0.0 || height <= 0.0 {
         return shared::empty_rect(content);
     }

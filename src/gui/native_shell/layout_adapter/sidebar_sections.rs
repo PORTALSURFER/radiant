@@ -1,16 +1,7 @@
 //! Slotized source/folder section partitioning for the sidebar rows band.
 
 use super::super::style::SizingTokens;
-use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
-};
-use crate::gui::types::{Point, Rect, Vector2};
-
-const SIDEBAR_ROWS_SECTIONS_ROOT_ID: u64 = 640;
-const SIDEBAR_ROWS_SOURCE_ID: u64 = 641;
-const SIDEBAR_ROWS_FOLDER_HEADER_ID: u64 = 642;
-const SIDEBAR_ROWS_FOLDER_CONTENT_ID: u64 = 643;
+use crate::gui::types::{Point, Rect};
 
 /// Slot-resolved source/folder section rectangles inside the sidebar rows band.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -25,6 +16,15 @@ pub(crate) struct SidebarRowSections {
 pub(crate) struct SidebarRowCounts {
     pub source_rows: usize,
     pub folder_rows: usize,
+}
+
+/// Resolved section heights used to partition `layout.sidebar_rows`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SidebarSectionHeights {
+    source_rows: f32,
+    section_gap: f32,
+    folder_header: f32,
+    folder_rows: f32,
 }
 
 /// Compute source/folder sections inside `layout.sidebar_rows`.
@@ -46,6 +46,44 @@ pub(crate) fn compute_sidebar_row_sections(
             folder_rows: empty,
         };
     }
+    let heights = resolve_section_heights(section_bounds.height(), sizing, counts);
+    let source_rows = rect_from_top(section_bounds, section_bounds.min.y, heights.source_rows);
+    let folder_header_top = (source_rows.max.y + heights.section_gap).min(section_bounds.max.y);
+    let folder_header = rect_from_top(section_bounds, folder_header_top, heights.folder_header);
+    let folder_rows = rect_from_top(section_bounds, folder_header.max.y, heights.folder_rows);
+    SidebarRowSections {
+        source_rows: clamp_rect_to_bounds(source_rows, section_bounds),
+        folder_header: clamp_rect_to_bounds(folder_header, section_bounds),
+        folder_rows: clamp_rect_to_bounds(folder_rows, section_bounds),
+    }
+}
+
+fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
+    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
+    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
+    if max.x < min.x || max.y < min.y {
+        return Rect::from_min_max(bounds.min, bounds.min);
+    }
+    Rect::from_min_max(min, max)
+}
+
+fn inset_vertical(rect: Rect, top: f32, bottom: f32) -> Rect {
+    let top = top.max(0.0);
+    let bottom = bottom.max(0.0);
+    let max_inset = (rect.height() * 0.5).max(0.0);
+    let top = top.min(max_inset);
+    let bottom = bottom.min(max_inset);
+    Rect::from_min_max(
+        Point::new(rect.min.x, (rect.min.y + top).min(rect.max.y)),
+        Point::new(rect.max.x, (rect.max.y - bottom).max(rect.min.y)),
+    )
+}
+
+fn resolve_section_heights(
+    available_height: f32,
+    sizing: SizingTokens,
+    counts: SidebarRowCounts,
+) -> SidebarSectionHeights {
     let source_demand_height = stack_height(
         counts.source_rows,
         sizing.source_row_height,
@@ -77,123 +115,68 @@ pub(crate) fn compute_sidebar_row_sections(
     );
     let header_height = sizing
         .folder_header_block_height
-        .min(section_bounds.height());
-    let available_height = section_bounds.height();
+        .min(available_height.max(0.0));
     let mut section_gap = if counts.source_rows > 0 {
         sizing.sidebar_section_gap
     } else {
         0.0
     };
     let minimum_height = source_min_height + section_gap + header_height + folder_min_height;
-    let (source_height, folder_height) = if minimum_height <= available_height {
+    if minimum_height <= available_height {
         let remaining = available_height - minimum_height;
         let source_extra_cap = (source_demand_height - source_min_height).max(0.0);
         let folder_extra_cap = (folder_demand_height - folder_min_height).max(0.0);
         let (source_extra, folder_extra) =
             distribute_extra_height(remaining, source_extra_cap, folder_extra_cap);
-        (
-            source_min_height + source_extra,
-            folder_min_height + folder_extra,
-        )
-    } else {
-        let compact_source_height = stack_height(
-            counts.source_rows.min(1),
-            sizing.source_row_height,
-            sizing.source_row_gap,
-        );
-        let compact_folder_height = stack_height(
-            counts.folder_rows.min(1),
-            sizing.folder_row_height,
-            sizing.folder_row_gap,
-        );
-        section_gap = if counts.source_rows > 0 {
-            sizing.sidebar_section_gap.min(2.0)
-        } else {
-            0.0
+        return SidebarSectionHeights {
+            source_rows: source_min_height + source_extra,
+            section_gap,
+            folder_header: header_height,
+            folder_rows: folder_min_height + folder_extra,
         };
-        let compact_minimum =
-            compact_source_height + section_gap + header_height + compact_folder_height;
-        if compact_minimum <= available_height {
-            (
-                compact_source_height,
-                (available_height - compact_source_height - section_gap - header_height).max(0.0),
-            )
-        } else {
-            section_gap = 0.0;
-            (0.0, (available_height - header_height).max(0.0))
-        }
-    };
-    let sections_tree = LayoutNode::container(
-        SIDEBAR_ROWS_SECTIONS_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Column,
-            align_main: MainAlign::Start,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![
-            fixed_height_child(SIDEBAR_ROWS_SOURCE_ID, source_height, section_gap),
-            fixed_height_child(SIDEBAR_ROWS_FOLDER_HEADER_ID, header_height, 0.0),
-            fixed_height_child(SIDEBAR_ROWS_FOLDER_CONTENT_ID, folder_height, 0.0),
-        ],
+    }
+
+    let compact_source_height = stack_height(
+        counts.source_rows.min(1),
+        sizing.source_row_height,
+        sizing.source_row_gap,
     );
-    let output = layout_tree(&sections_tree, section_bounds);
-    SidebarRowSections {
-        source_rows: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_ROWS_SOURCE_ID, section_bounds),
-            section_bounds,
-        ),
-        folder_header: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_ROWS_FOLDER_HEADER_ID, empty),
-            section_bounds,
-        ),
-        folder_rows: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_ROWS_FOLDER_CONTENT_ID, empty),
-            section_bounds,
-        ),
+    section_gap = if counts.source_rows > 0 {
+        sizing.sidebar_section_gap.min(2.0)
+    } else {
+        0.0
+    };
+    let compact_folder_height = stack_height(
+        counts.folder_rows.min(1),
+        sizing.folder_row_height,
+        sizing.folder_row_gap,
+    );
+    let compact_minimum =
+        compact_source_height + section_gap + header_height + compact_folder_height;
+    if compact_minimum <= available_height {
+        return SidebarSectionHeights {
+            source_rows: compact_source_height,
+            section_gap,
+            folder_header: header_height,
+            folder_rows: (available_height - compact_source_height - section_gap - header_height)
+                .max(0.0),
+        };
+    }
+
+    SidebarSectionHeights {
+        source_rows: 0.0,
+        section_gap: 0.0,
+        folder_header: header_height,
+        folder_rows: (available_height - header_height).max(0.0),
     }
 }
 
-fn fixed_height_child(node_id: u64, height: f32, bottom_margin: f32) -> SlotChild {
-    SlotChild {
-        slot: SlotParams {
-            size_main: SizeModeMain::Fixed(height.max(0.0)),
-            size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, 0.0, height.max(0.0)),
-            margin: Insets {
-                bottom: bottom_margin.max(0.0),
-                ..Insets::default()
-            },
-            align_cross_override: None,
-            allow_fixed_compress: true,
-        },
-        child: LayoutNode::widget(node_id, Vector2::new(1.0, height.max(1.0))),
-    }
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn inset_vertical(rect: Rect, top: f32, bottom: f32) -> Rect {
-    let top = top.max(0.0);
-    let bottom = bottom.max(0.0);
-    let max_inset = (rect.height() * 0.5).max(0.0);
-    let top = top.min(max_inset);
-    let bottom = bottom.min(max_inset);
+fn rect_from_top(bounds: Rect, top: f32, height: f32) -> Rect {
+    let min_y = top.clamp(bounds.min.y, bounds.max.y);
+    let max_y = (min_y + height.max(0.0)).min(bounds.max.y);
     Rect::from_min_max(
-        Point::new(rect.min.x, (rect.min.y + top).min(rect.max.y)),
-        Point::new(rect.max.x, (rect.max.y - bottom).max(rect.min.y)),
+        Point::new(bounds.min.x, min_y),
+        Point::new(bounds.max.x, max_y),
     )
 }
 

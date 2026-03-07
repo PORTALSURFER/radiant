@@ -257,10 +257,8 @@ impl NativeShellState {
                         )
                     } else if row.selected {
                         selected_browser_row_fill(style)
-                    } else if row.visible_row % 2 == 0 {
-                        blend_color(style.surface_base, style.bg_secondary, 0.20)
                     } else {
-                        blend_color(style.surface_base, style.bg_secondary, 0.10)
+                        browser_row_stripe_fill(style, row.visible_row)
                     };
                     let row_border = if row.focused {
                         blend_color(
@@ -448,29 +446,48 @@ impl NativeShellState {
             }
         }
 
-        push_border(
+        push_border_sides(
             primitives,
             layout.top_bar,
             style.border,
             sizing.border_width,
+            BorderSides::ALL,
         );
-        push_border(
+        push_border_sides(
             primitives,
             layout.sidebar,
             style.border,
             sizing.border_width,
+            BorderSides {
+                top: false,
+                bottom: false,
+                left: true,
+                right: true,
+            },
         );
-        push_border(
+        push_border_sides(
             primitives,
             layout.waveform_card,
             style.border,
             sizing.border_width,
+            BorderSides {
+                top: false,
+                bottom: true,
+                left: false,
+                right: true,
+            },
         );
-        push_border(
+        push_border_sides(
             primitives,
             layout.browser_panel,
             style.border,
             sizing.border_width,
+            BorderSides {
+                top: false,
+                bottom: false,
+                left: false,
+                right: true,
+            },
         );
         push_border(
             primitives,
@@ -478,11 +495,17 @@ impl NativeShellState {
             style.border,
             sizing.border_width,
         );
-        push_border(
+        push_border_sides(
             primitives,
             layout.status_bar,
             style.border,
             sizing.border_width,
+            BorderSides {
+                top: true,
+                bottom: true,
+                left: true,
+                right: true,
+            },
         );
 
         if build_global_static {

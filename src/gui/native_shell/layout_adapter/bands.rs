@@ -210,7 +210,9 @@ pub(crate) fn compute_browser_band_sections_with_layout_engine(
 /// Build browser tabs/toolbar/header/rows/footer tree for persistent runtime caching.
 pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens) -> LayoutNode {
     let panel_height = browser_panel.height();
-    let gap = sizing.text_row_gap.max(0.0);
+    // Browser bands are framed sections, so they should meet directly with no
+    // spacer gutter between them.
+    let gap = 0.0;
     let tabs_height = sizing
         .browser_tabs_height
         .max(sizing.browser_tabs_min_height)

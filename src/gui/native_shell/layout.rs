@@ -134,31 +134,87 @@ impl ShellLayout {
         let sections =
             runtime.compute_shell_sections(Vector2::new(viewport_width, viewport_height), style);
         let root_rect = sections.root;
-        let top_bar = sections.top_bar;
+        let top_bar = Rect::from_min_max(
+            root_rect.min,
+            Point::new(root_rect.max.x, root_rect.min.y + sizing.top_bar_height),
+        );
         let top_bar_bands = compute_top_bar_band_sections(top_bar, sizing);
         let top_bar_title_row = top_bar_bands.top_bar_title_row;
         let top_bar_controls_row = top_bar_bands.top_bar_controls_row;
         let top_bar_title_cluster = top_bar_bands.top_bar_title_cluster;
         let top_bar_action_cluster = top_bar_bands.top_bar_action_cluster;
-        let status_bar = sections.status_bar;
+        let status_bar = Rect::from_min_max(
+            Point::new(root_rect.min.x, root_rect.max.y - sizing.status_bar_height),
+            root_rect.max,
+        );
         let status_segments = compute_status_bar_segments(status_bar, sizing);
         let status_left_segment = status_segments.left;
         let status_center_segment = status_segments.center;
         let status_right_segment = status_segments.right;
-        let sidebar = sections.sidebar;
+        let body_min_y = top_bar.max.y;
+        let body_max_y = status_bar.min.y;
+        let sidebar = Rect::from_min_max(
+            Point::new(sections.sidebar.min.x, body_min_y),
+            Point::new(sections.sidebar.max.x, body_max_y),
+        );
         let sidebar_bands = runtime.compute_sidebar_band_sections(sidebar, sizing);
         let sidebar_header = sidebar_bands.sidebar_header;
-        let sidebar_rows = sidebar_bands.sidebar_rows;
         let sidebar_footer = sidebar_bands.sidebar_footer;
-        let content = sections.content;
-        let waveform_card = sections.waveform_card;
-        let browser_panel = sections.browser_panel;
+        let sidebar_rows = Rect::from_min_max(
+            Point::new(
+                sidebar_bands.sidebar_rows.min.x,
+                sidebar_header.max.y.min(sidebar_footer.min.y),
+            ),
+            Point::new(
+                sidebar_bands.sidebar_rows.max.x,
+                sidebar_footer
+                    .min
+                    .y
+                    .max(sidebar_header.max.y.min(sidebar_footer.min.y)),
+            ),
+        );
+        let content = Rect::from_min_max(
+            Point::new(sidebar.max.x, body_min_y),
+            Point::new(root_rect.max.x, body_max_y),
+        );
+        let waveform_card = Rect::from_min_max(
+            Point::new(content.min.x, content.min.y),
+            Point::new(
+                content.max.x,
+                sections.waveform_card.max.y.min(content.max.y),
+            ),
+        );
+        let browser_panel =
+            Rect::from_min_max(Point::new(content.min.x, waveform_card.max.y), content.max);
         let browser_bands = runtime.compute_browser_band_sections(browser_panel, sizing);
         let browser_tabs = browser_bands.browser_tabs;
-        let browser_toolbar = browser_bands.browser_toolbar;
-        let browser_table_header = browser_bands.browser_table_header;
-        let browser_rows = browser_bands.browser_rows;
         let browser_footer = browser_bands.browser_footer;
+        let browser_toolbar = Rect::from_min_max(
+            Point::new(browser_bands.browser_toolbar.min.x, browser_tabs.max.y),
+            Point::new(
+                browser_bands.browser_toolbar.max.x,
+                (browser_tabs.max.y + browser_bands.browser_toolbar.height())
+                    .min(browser_footer.min.y),
+            ),
+        );
+        let browser_table_header = Rect::from_min_max(
+            Point::new(
+                browser_bands.browser_table_header.min.x,
+                browser_toolbar.max.y,
+            ),
+            Point::new(
+                browser_bands.browser_table_header.max.x,
+                (browser_toolbar.max.y + browser_bands.browser_table_header.height())
+                    .min(browser_footer.min.y),
+            ),
+        );
+        let browser_rows = Rect::from_min_max(
+            Point::new(browser_bands.browser_rows.min.x, browser_table_header.max.y),
+            Point::new(
+                browser_bands.browser_rows.max.x,
+                browser_footer.min.y.max(browser_table_header.max.y),
+            ),
+        );
 
         // Keep legacy triage partitions as invisible compatibility geometry for
         // routing actions that still speak in triage-column terms.

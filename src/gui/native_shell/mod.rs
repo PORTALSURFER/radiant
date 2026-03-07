@@ -186,8 +186,10 @@ mod tests {
         let layout = ShellLayout::build(viewport);
         let snapshot = layout.contract_snapshot(&style);
 
-        assert!((155.0..=220.0).contains(&snapshot.sidebar_width));
-        assert!((150.0..=280.0).contains(&snapshot.waveform_height));
+        assert!(snapshot.sidebar_width >= style.sizing.sidebar_min_width - 1.0);
+        assert!(snapshot.sidebar_width <= style.sizing.sidebar_max_width + 1.0);
+        assert!(snapshot.waveform_height >= style.sizing.waveform_min_height - 1.0);
+        assert!(snapshot.waveform_height <= style.sizing.waveform_max_height + 1.0);
         assert!(snapshot.browser_row_capacity >= 22);
         assert!(snapshot.top_bar_height <= 34.0);
         assert!(snapshot.status_bar_height <= 20.0);
@@ -266,6 +268,17 @@ mod tests {
             assert!(layout.column_rows[index].min.x >= layout.columns[index].min.x);
             assert!(layout.column_rows[index].max.x <= layout.columns[index].max.x);
         }
+    }
+
+    #[test]
+    fn major_panels_share_edges_without_gap() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert_eq!(layout.top_bar.max.y, layout.sidebar.min.y);
+        assert_eq!(layout.top_bar.max.y, layout.content.min.y);
+        assert_eq!(layout.sidebar.max.x, layout.content.min.x);
+        assert_eq!(layout.waveform_card.max.y, layout.browser_panel.min.y);
+        assert_eq!(layout.sidebar.max.y, layout.status_bar.min.y);
+        assert_eq!(layout.browser_panel.max.y, layout.status_bar.min.y);
     }
 
     #[test]
@@ -789,7 +802,7 @@ mod tests {
             frame
                 .text_runs
                 .iter()
-                .any(|run| run.text.contains("Order: List order"))
+                .any(|run| run.text.contains("36 items"))
         );
         assert!(
             frame

@@ -234,6 +234,15 @@ pub(super) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
     )
 }
 
+/// Return the alternating neutral fill used for non-selected browser rows.
+pub(super) fn browser_row_stripe_fill(style: &StyleTokens, visible_row: usize) -> Rgba8 {
+    if visible_row % 2 == 0 {
+        blend_color(style.surface_base, style.bg_tertiary, 0.14)
+    } else {
+        blend_color(style.surface_base, style.bg_secondary, 0.10)
+    }
+}
+
 /// Return the lighter neutral fill used for selected browser rows.
 pub(super) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(

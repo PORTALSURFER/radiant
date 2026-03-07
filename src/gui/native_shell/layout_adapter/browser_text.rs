@@ -72,10 +72,17 @@ pub(crate) fn compute_browser_table_columns(
         ],
     );
     let output = layout_tree(&tree, rect);
-    let sample = clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_SAMPLE_ID, empty), rect);
+    let index = clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty), rect);
+    let raw_sample =
+        clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_SAMPLE_ID, empty), rect);
+    let sample_min_x = raw_sample.min.x.max(index.max.x);
+    let sample = Rect::from_min_max(
+        Point::new(sample_min_x, raw_sample.min.y),
+        Point::new(raw_sample.max.x.max(sample_min_x), raw_sample.max.y),
+    );
     let collapsed_bucket = Rect::from_min_max(sample.max, sample.max);
     BrowserTableColumns {
-        index: clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty), rect),
+        index,
         sample,
         bucket: collapsed_bucket,
     }

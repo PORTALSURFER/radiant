@@ -91,11 +91,7 @@ pub(crate) fn build_sidebar_bands_tree(sidebar: Rect, sizing: SizingTokens) -> L
             ..ContainerPolicy::default()
         },
         vec![
-            fixed_height_child(
-                SIDEBAR_HEADER_ID,
-                header_height,
-                sizing.header_to_rows_gap.max(0.0),
-            ),
+            fixed_height_child(SIDEBAR_HEADER_ID, header_height, 0.0),
             SlotChild {
                 slot: SlotParams::fill(),
                 child: LayoutNode::widget(SIDEBAR_ROWS_ID, Vector2::new(1.0, 1.0)),

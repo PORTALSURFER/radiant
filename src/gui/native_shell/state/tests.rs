@@ -466,6 +466,65 @@ fn source_header_add_button_hover_sets_motion_overlay_fingerprint() {
 }
 
 #[test]
+fn browser_search_field_hover_sets_motion_overlay_fingerprint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let style = style_for_layout(&layout);
+    let (_, _, toolbar) = state.cached_browser_action_hit_test(&layout, &style, &model);
+    let point = Point::new(
+        (toolbar.search_field.min.x + toolbar.search_field.max.x) * 0.5,
+        (toolbar.search_field.min.y + toolbar.search_field.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let fingerprint = state.chrome_motion_overlay_fingerprint();
+    assert!(fingerprint.hovered_browser_search_field);
+}
+
+#[test]
+fn browser_search_field_motion_overlay_uses_hover_fill() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = populated_sidebar_model();
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut state = NativeShellState::new();
+    let (_, _, toolbar) = state.cached_browser_action_hit_test(&layout, &style, &model);
+    let point = Point::new(
+        (toolbar.search_field.min.x + toolbar.search_field.max.x) * 0.5,
+        (toolbar.search_field.min.y + toolbar.search_field.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(FillRect { rect, color }) if *rect == toolbar.search_field => {
+                Some(*color)
+            }
+            _ => None,
+        })
+        .expect("hovered browser search field should emit a motion overlay fill");
+
+    assert_eq!(
+        overlay_color,
+        browser_search_field_hover_fill(&style, interaction_wave(0.0))
+    );
+}
+
+#[test]
 fn source_header_add_button_click_sets_flash_in_chrome_motion_fingerprint() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = populated_sidebar_model();

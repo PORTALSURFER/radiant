@@ -74,6 +74,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
+    hovered_browser_search_field: bool,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
@@ -353,6 +354,8 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub transport_running: bool,
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
+    /// Whether the browser search field is hovered.
+    pub hovered_browser_search_field: bool,
     /// Whether the source-add button is hovered.
     pub hovered_source_add_button: bool,
     /// Hovered waveform-toolbar icon/button target.
@@ -631,6 +634,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
+            hovered_browser_search_field: false,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
             hovered_waveform_toolbar_hint: None,
@@ -793,6 +797,7 @@ impl NativeShellState {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
             hovered_source_add_button: self.hovered_source_add_button,
+            hovered_browser_search_field: self.hovered_browser_search_field,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             flashed_source_add_button: self.source_add_button_flash_ticks > 0,
             source_add_button_flash_ticks: self.source_add_button_flash_ticks,
@@ -838,6 +843,8 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_browser_search_field =
+            self.resolve_hovered_browser_search_field(layout, model, point);
         let next_hovered_folder_row =
             self.resolve_hovered_folder_row(layout, model, point, next_hover);
         let next_hovered_source_add_button =
@@ -849,6 +856,8 @@ impl NativeShellState {
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let browser_search_field_changed =
+            next_hovered_browser_search_field != self.hovered_browser_search_field;
         let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
         let source_add_button_changed =
             next_hovered_source_add_button != self.hovered_source_add_button;
@@ -860,6 +869,7 @@ impl NativeShellState {
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
             && !browser_row_changed
+            && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
             && !waveform_toolbar_hint_changed
@@ -870,6 +880,7 @@ impl NativeShellState {
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;
         self.hovered_source_add_button = next_hovered_source_add_button;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
@@ -878,6 +889,7 @@ impl NativeShellState {
         if waveform_hover_changed
             && !hover_changed
             && !browser_row_changed
+            && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
             && !waveform_toolbar_hint_changed
@@ -918,6 +930,17 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let rows = self.cached_folder_row_rects(layout, &style, model);
         compute_row_index_at_point(rows, point)
+    }
+
+    fn resolve_hovered_browser_search_field(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
     }
 
     fn resolve_hovered_source_add_button(
@@ -1802,6 +1825,22 @@ impl NativeShellState {
             self.waveform_toolbar_flash.map(|flash| flash.hint),
             motion_wave,
         );
+        if let Some(search_field_rect) = self
+            .browser_toolbar_layout
+            .as_ref()
+            .map(|toolbar| toolbar.search_field)
+            .filter(|rect| rect.width() > 1.0)
+        {
+            if self.hovered_browser_search_field {
+                render_browser_search_field_hover_overlay(
+                    primitives,
+                    style,
+                    sizing,
+                    search_field_rect,
+                    motion_wave,
+                );
+            }
+        }
         if let Some(button_rect) = source_add_button_rect(layout.sidebar_header, sizing) {
             let hovered = self.hovered_source_add_button;
             let flashed = self.source_add_button_flash_ticks > 0;
@@ -2758,6 +2797,44 @@ fn source_add_button_fill(
     } else {
         idle
     }
+}
+
+fn render_browser_search_field_hover_overlay(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    search_field_rect: Rect,
+    motion_wave: f32,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: search_field_rect,
+            color: browser_search_field_hover_fill(style, motion_wave),
+        }),
+    );
+    push_border(
+        primitives,
+        search_field_rect,
+        browser_search_field_hover_border(style, motion_wave),
+        sizing.border_width,
+    );
+}
+
+fn browser_search_field_hover_fill(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
+    translucent_overlay_color(
+        style.surface_base,
+        style.bg_tertiary,
+        0.22 + (motion_wave * 0.04),
+    )
+}
+
+fn browser_search_field_hover_border(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
+    blend_color(
+        style.border_emphasis,
+        style.text_primary,
+        0.48 + (motion_wave * 0.06),
+    )
 }
 
 fn source_add_button_border(

@@ -2536,7 +2536,11 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetNormalizedAuditionEnabled {
                 enabled: !model.waveform_normalized_audition_enabled,
             }),
-            style.highlight_cyan,
+            if model.waveform_normalized_audition_enabled {
+                style.highlight_cyan
+            } else {
+                style.text_muted
+            },
         ),
         (
             "BPM Value",

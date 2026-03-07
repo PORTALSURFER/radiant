@@ -2894,7 +2894,7 @@ fn waveform_toolbar_visual_color(
         idle_color
     };
     let hover_color = if hovered {
-        blend_color(active_color, style.text_primary, 0.36)
+        blend_color(active_color, base_color, 0.74)
     } else {
         active_color
     };

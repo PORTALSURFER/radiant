@@ -352,6 +352,21 @@ fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
 }
 
 #[test]
+fn waveform_toolbar_hover_uses_theme_highlight_color() {
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let expected = blend_color(
+        blend_color(style.text_muted, style.highlight_cyan, 0.16),
+        style.highlight_cyan,
+        0.74,
+    );
+
+    assert_eq!(
+        waveform_toolbar_visual_color(&style, style.highlight_cyan, true, false, true, false, 0.0,),
+        expected
+    );
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

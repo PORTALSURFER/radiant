@@ -1813,6 +1813,21 @@ impl NativeShellState {
             model,
             Some(waveform_toolbar_left - sizing.action_button_gap),
         );
+        if self.waveform_bpm_input_active {
+            if let Some(bpm_input_rect) = waveform_toolbar_buttons
+                .iter()
+                .find(|button| button.label == "BPM Value")
+                .map(|button| button.rect)
+            {
+                render_waveform_bpm_input_focus_overlay(
+                    primitives,
+                    style,
+                    sizing,
+                    bpm_input_rect,
+                    motion_wave,
+                );
+            }
+        }
         render_waveform_toolbar_buttons(
             primitives,
             text_runs,
@@ -2845,6 +2860,28 @@ fn render_browser_search_field_hover_overlay(
     );
 }
 
+fn render_waveform_bpm_input_focus_overlay(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    input_rect: Rect,
+    motion_wave: f32,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: input_rect,
+            color: waveform_bpm_input_focus_fill(style, motion_wave),
+        }),
+    );
+    push_border(
+        primitives,
+        input_rect,
+        waveform_bpm_input_focus_border(style, motion_wave),
+        sizing.border_width,
+    );
+}
+
 fn browser_search_field_hover_fill(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
     translucent_overlay_color(
         style.surface_base,
@@ -2858,6 +2895,22 @@ fn browser_search_field_hover_border(style: &StyleTokens, motion_wave: f32) -> R
         style.border_emphasis,
         style.text_primary,
         0.48 + (motion_wave * 0.06),
+    )
+}
+
+fn waveform_bpm_input_focus_fill(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
+    translucent_overlay_color(
+        style.surface_base,
+        style.highlight_orange_soft,
+        0.24 + (motion_wave * 0.05),
+    )
+}
+
+fn waveform_bpm_input_focus_border(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
+    blend_color(
+        style.border_emphasis,
+        style.highlight_orange,
+        0.58 + (motion_wave * 0.08),
     )
 }
 

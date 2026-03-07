@@ -432,6 +432,35 @@ fn waveform_toolbar_normalized_audition_button_uses_highlight_when_enabled() {
 }
 
 #[test]
+fn waveform_bpm_input_focus_overlay_uses_active_input_chrome() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let motion = NativeMotionModel::from_app_model(&AppModel::default());
+    let mut state = NativeShellState::new();
+    state.set_waveform_bpm_editor_state(true, Some(String::from("128.0")));
+    let bpm_rect = state
+        .waveform_toolbar_button_rect(&layout, &AppModel::default(), "BPM Value")
+        .expect("bpm value waveform toolbar widget should be present");
+
+    let mut frame = NativeViewFrame::default();
+    state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(FillRect { rect, color }) if *rect == bpm_rect => Some(*color),
+            _ => None,
+        })
+        .expect("active bpm input should emit a focus overlay fill");
+
+    assert_eq!(
+        overlay_color,
+        waveform_bpm_input_focus_fill(&style, interaction_wave(0.0))
+    );
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

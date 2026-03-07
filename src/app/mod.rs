@@ -604,6 +604,21 @@ pub struct ProgressOverlayModel {
     pub cancel_requested: bool,
 }
 
+/// Options-panel state projected into the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct OptionsPanelModel {
+    /// Whether the panel is currently visible.
+    pub visible: bool,
+    /// Whether input monitoring is enabled.
+    pub input_monitoring_enabled: bool,
+    /// Whether rating advances browser focus.
+    pub advance_after_rating_enabled: bool,
+    /// Whether destructive edits skip confirmation.
+    pub destructive_yolo_mode_enabled: bool,
+    /// Whether waveform scrolling is inverted.
+    pub invert_waveform_scroll_enabled: bool,
+}
+
 /// Prompt types that can block interaction in the native shell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConfirmPromptKind {
@@ -670,6 +685,8 @@ pub struct AppModel {
     pub status: StatusBarModel,
     /// Browser action availability for native action surfaces.
     pub browser_actions: BrowserActionsModel,
+    /// Options-panel overlay projection.
+    pub options_panel: OptionsPanelModel,
     /// Progress overlay projection.
     pub progress_overlay: ProgressOverlayModel,
     /// Modal confirm prompt projection.
@@ -715,6 +732,7 @@ impl Default for AppModel {
                 right: String::from("col: 2/3"),
             },
             browser_actions: BrowserActionsModel::default(),
+            options_panel: OptionsPanelModel::default(),
             progress_overlay: ProgressOverlayModel::default(),
             confirm_prompt: ConfirmPromptModel::default(),
             drag_overlay: DragOverlayModel::default(),
@@ -779,8 +797,12 @@ pub enum UiAction {
     FocusBrowserSearch,
     /// Clear browser-search focus while preserving the current query text.
     BlurBrowserSearch,
+    /// Open the source-add file dialog.
+    OpenAddSourceDialog,
     /// Open the native options menu.
     OpenOptionsMenu,
+    /// Close the native options panel.
+    CloseOptionsPanel,
     /// Focus the source-folder search field.
     FocusFolderSearch,
     /// Set folder search query.
@@ -920,6 +942,26 @@ pub enum UiAction {
     CancelPrompt,
     /// Request cancellation of the active progress operation.
     CancelProgress,
+    /// Enable/disable input monitoring.
+    SetInputMonitoringEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable rating-based browser auto-advance.
+    SetAdvanceAfterRatingEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable destructive edit confirmations.
+    SetDestructiveYoloMode {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable inverted waveform scrolling.
+    SetInvertWaveformScroll {
+        /// Target enabled state.
+        enabled: bool,
+    },
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
     /// Set waveform channel view mode.

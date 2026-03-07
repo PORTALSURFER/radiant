@@ -1,4 +1,4 @@
-//! Minimal SVG icon parser/rasterizer for waveform toolbar glyphs.
+//! Minimal SVG icon parser/rasterizer for native shell glyphs.
 //!
 //! The native shell paint model is backend-neutral and currently supports
 //! rectangles/circles/images/text primitives. This module loads toolbar glyph
@@ -9,7 +9,7 @@
 use super::*;
 use std::sync::Arc;
 
-/// Icon identifiers used by waveform toolbar transport controls.
+/// Icon identifiers used by native shell controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformToolbarIcon {
     /// Mono channel-view icon.
@@ -34,6 +34,8 @@ pub(super) enum WaveformToolbarIcon {
     Play,
     /// Record icon placeholder.
     Record,
+    /// Status-bar options button icon.
+    Cog,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -282,6 +284,7 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
         WaveformToolbarIcon::Loop => {
             include_str!("../../../../assets/icons/waveform_toolbar/loop.svg")
         }
+        WaveformToolbarIcon::Cog => include_str!("../../../../assets/icons/ui/cog.svg"),
     }
 }
 

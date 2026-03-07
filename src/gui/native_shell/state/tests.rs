@@ -252,8 +252,20 @@ fn chrome_motion_status_overlay_preserves_status_bar_border_lines() {
     let mut model = AppModel::default();
     model.status.right = String::from("2/3");
     let motion = NativeMotionModel::from_app_model(&model);
-    let overlay_rect =
-        status_motion_overlay_rect(layout.status_right_segment, style.sizing.border_width);
+    let options_button = state.status_options_button_rect(&layout);
+    let overlay_segment = if let Some(button_rect) = options_button {
+        Rect::from_min_max(
+            layout.status_right_segment.min,
+            Point::new(
+                (button_rect.min.x - style.sizing.text_inset_x.max(3.0))
+                    .max(layout.status_right_segment.min.x),
+                layout.status_right_segment.max.y,
+            ),
+        )
+    } else {
+        layout.status_right_segment
+    };
+    let overlay_rect = status_motion_overlay_rect(overlay_segment, style.sizing.border_width);
 
     let mut frame = NativeViewFrame::default();
     state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
@@ -547,7 +559,7 @@ fn source_header_add_button_click_maps_to_add_source_action() {
     let action = state
         .source_action_at_point(&layout, &model, point)
         .expect("source add button click should produce action");
-    assert_eq!(action, UiAction::OpenOptionsMenu);
+    assert_eq!(action, UiAction::OpenAddSourceDialog);
 }
 
 #[test]
@@ -648,7 +660,7 @@ fn source_header_add_button_click_sets_flash_in_chrome_motion_fingerprint() {
 
     assert_eq!(
         state.source_action_at_point(&layout, &model, point),
-        Some(UiAction::OpenOptionsMenu)
+        Some(UiAction::OpenAddSourceDialog)
     );
 
     let fingerprint = state.chrome_motion_overlay_fingerprint();
@@ -835,11 +847,9 @@ fn top_bar_controls_fit_inside_control_row() {
         if !controls.active {
             continue;
         }
-        assert_rect_inside(layout.top_bar_title_cluster, controls.options_label);
         assert_rect_inside(layout.top_bar_title_cluster, controls.volume_meter);
         assert_rect_inside(layout.top_bar_title_cluster, controls.volume_value);
         assert_rect_inside(layout.top_bar_title_cluster, controls.volume_label);
-        assert!(controls.options_label.max.x <= controls.volume_meter.min.x);
         assert!(controls.volume_meter.max.x <= controls.volume_value.min.x);
         assert!(controls.volume_value.max.x <= controls.volume_label.min.x);
     }
@@ -3320,19 +3330,39 @@ fn top_bar_volume_click_maps_to_set_volume_action() {
 }
 
 #[test]
-fn top_bar_options_click_maps_to_open_options_menu_action() {
+fn status_options_click_maps_to_open_options_menu_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let state = NativeShellState::new();
-    let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
-    assert!(controls.active);
+    let mut state = NativeShellState::new();
+    let model = AppModel::default();
+    let button = state
+        .status_options_button_rect(&layout)
+        .expect("status options button should render");
     let point = Point::new(
-        controls.options_label.min.x + (controls.options_label.width() * 0.5),
-        controls.options_label.min.y + (controls.options_label.height() * 0.5),
+        button.min.x + (button.width() * 0.5),
+        button.min.y + (button.height() * 0.5),
     );
     let action = state
-        .top_bar_options_action_at_point(&layout, point)
+        .status_options_action_at_point(&layout, &model, point)
         .expect("options click should produce action");
     assert_eq!(action, UiAction::OpenOptionsMenu);
+}
+
+#[test]
+fn options_panel_contains_points_inside_panel() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let point = Point::new(
+        layout.status_bar.max.x - 40.0,
+        layout.status_bar.min.y - 40.0,
+    );
+    assert!(state.options_panel_contains_point(&layout, &model, point));
 }
 
 #[test]

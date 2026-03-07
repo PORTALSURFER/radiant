@@ -1971,30 +1971,17 @@ fn top_bar_volume_meter_click_routes_set_volume_action() {
 }
 
 #[test]
-fn top_bar_options_click_routes_open_options_menu_action() {
+fn status_options_click_routes_open_options_menu_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = AppModel::default();
-    let y = layout.top_bar_controls_row.min.y + (layout.top_bar_controls_row.height() * 0.5);
-    let mut first_hit_x = None;
-    let mut last_hit_x = None;
-    let mut x = layout.top_bar.min.x;
-    while x <= layout.top_bar.max.x {
-        let point = Point::new(x, y);
-        if shell_state
-            .top_bar_options_action_at_point(&layout, point)
-            .is_some()
-        {
-            if first_hit_x.is_none() {
-                first_hit_x = Some(x);
-            }
-            last_hit_x = Some(x);
-        }
-        x += 2.0;
-    }
-    let options_min_x = first_hit_x.expect("options point should be discoverable");
-    let options_max_x = last_hit_x.expect("options span should be discoverable");
-    let point = Point::new((options_min_x + options_max_x) * 0.5, y);
+    let button = shell_state
+        .status_options_button_rect(&layout)
+        .expect("status options button should render");
+    let point = Point::new(
+        (button.min.x + button.max.x) * 0.5,
+        (button.min.y + button.max.y) * 0.5,
+    );
     assert_eq!(
         action_from_pointer(
             &layout,

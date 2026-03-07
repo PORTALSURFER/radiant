@@ -38,11 +38,12 @@ use std::{
 
 mod browser_rows;
 mod frame_build;
+mod options_panel;
 mod overlays;
 mod svg_icons;
 mod waveform_segments;
 
-use self::{browser_rows::*, overlays::*, svg_icons::*, waveform_segments::*};
+use self::{browser_rows::*, options_panel::*, overlays::*, svg_icons::*, waveform_segments::*};
 
 /// Maximum retained entries for browser-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
@@ -77,9 +78,11 @@ pub(crate) struct NativeShellState {
     hovered_browser_search_field: bool,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
+    hovered_status_options_button: bool,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_toolbar_flash: Option<WaveformToolbarFlash>,
     source_add_button_flash_ticks: u8,
+    status_options_button_flash_ticks: u8,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     waveform_bpm_input_active: bool,
     waveform_bpm_input_display: Option<String>,
@@ -242,6 +245,7 @@ struct NativeAnimationReasons {
     playhead_trail_active: bool,
     waveform_toolbar_flash_active: bool,
     source_add_button_flash_active: bool,
+    status_options_button_flash_active: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -356,12 +360,18 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub hovered_browser_search_field: bool,
     /// Whether the source-add button is hovered.
     pub hovered_source_add_button: bool,
+    /// Whether the status-bar options button is hovered.
+    pub hovered_status_options_button: bool,
     /// Hovered waveform-toolbar icon/button target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Whether the source-add button is currently click-flashed.
     pub flashed_source_add_button: bool,
     /// Remaining flash ticks for source-add-button click feedback.
     pub source_add_button_flash_ticks: u8,
+    /// Whether the status-bar options button is currently click-flashed.
+    pub flashed_status_options_button: bool,
+    /// Remaining flash ticks for status options button click feedback.
+    pub status_options_button_flash_ticks: u8,
     /// Click-flashed waveform-toolbar icon/button target.
     pub flashed_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Remaining flash ticks for waveform-toolbar click feedback.
@@ -560,6 +570,7 @@ impl NativeAnimationReasons {
             || self.playhead_trail_active
             || self.waveform_toolbar_flash_active
             || self.source_add_button_flash_active
+            || self.status_options_button_flash_active
     }
 }
 
@@ -635,9 +646,11 @@ impl NativeShellState {
             hovered_browser_search_field: false,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
+            hovered_status_options_button: false,
             hovered_waveform_toolbar_hint: None,
             waveform_toolbar_flash: None,
             source_add_button_flash_ticks: 0,
+            status_options_button_flash_ticks: 0,
             hovered_waveform_resize_edge: None,
             waveform_bpm_input_active: false,
             waveform_bpm_input_display: None,
@@ -682,6 +695,7 @@ impl NativeShellState {
             playhead_trail_active: !self.playhead_trail_samples.is_empty(),
             waveform_toolbar_flash_active: self.waveform_toolbar_flash.is_some(),
             source_add_button_flash_active: self.source_add_button_flash_ticks > 0,
+            status_options_button_flash_active: self.status_options_button_flash_ticks > 0,
         }
     }
 
@@ -756,6 +770,10 @@ impl NativeShellState {
         self.source_add_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
     }
 
+    fn trigger_status_options_button_flash(&mut self) {
+        self.status_options_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
+    }
+
     /// Return the current state-overlay fingerprint.
     pub(crate) fn state_overlay_fingerprint(&self) -> StateOverlayFingerprint {
         StateOverlayFingerprint {
@@ -795,10 +813,13 @@ impl NativeShellState {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
             hovered_source_add_button: self.hovered_source_add_button,
+            hovered_status_options_button: self.hovered_status_options_button,
             hovered_browser_search_field: self.hovered_browser_search_field,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             flashed_source_add_button: self.source_add_button_flash_ticks > 0,
             source_add_button_flash_ticks: self.source_add_button_flash_ticks,
+            flashed_status_options_button: self.status_options_button_flash_ticks > 0,
+            status_options_button_flash_ticks: self.status_options_button_flash_ticks,
             flashed_waveform_toolbar_hint: self.waveform_toolbar_flash.map(|flash| flash.hint),
             waveform_toolbar_flash_ticks: self
                 .waveform_toolbar_flash
@@ -829,6 +850,8 @@ impl NativeShellState {
             self.waveform_toolbar_flash = (flash.ticks_remaining > 0).then_some(flash);
         }
         self.source_add_button_flash_ticks = self.source_add_button_flash_ticks.saturating_sub(1);
+        self.status_options_button_flash_ticks =
+            self.status_options_button_flash_ticks.saturating_sub(1);
     }
 
     /// Handle pointer movement and classify which overlay bucket changed.
@@ -847,6 +870,8 @@ impl NativeShellState {
             self.resolve_hovered_folder_row(layout, model, point, next_hover);
         let next_hovered_source_add_button =
             self.resolve_hovered_source_add_button(layout, point, next_hover);
+        let next_hovered_status_options_button =
+            self.resolve_hovered_status_options_button(layout, point, next_hover);
         let next_hovered_waveform_toolbar_hint =
             self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
         let next_hovered_waveform_resize_edge =
@@ -859,6 +884,8 @@ impl NativeShellState {
         let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
         let source_add_button_changed =
             next_hovered_source_add_button != self.hovered_source_add_button;
+        let status_options_button_changed =
+            next_hovered_status_options_button != self.hovered_status_options_button;
         let waveform_toolbar_hint_changed =
             next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
         let waveform_resize_edge_changed =
@@ -870,6 +897,7 @@ impl NativeShellState {
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
+            && !status_options_button_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
             && !waveform_hover_changed
@@ -881,6 +909,7 @@ impl NativeShellState {
         self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;
         self.hovered_source_add_button = next_hovered_source_add_button;
+        self.hovered_status_options_button = next_hovered_status_options_button;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
         self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
         self.waveform_hover_x = next_waveform_hover_x;
@@ -890,6 +919,7 @@ impl NativeShellState {
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
+            && !status_options_button_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
         {
@@ -951,6 +981,19 @@ impl NativeShellState {
             return false;
         }
         source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+            .is_some_and(|rect| rect.contains(point))
+    }
+
+    fn resolve_hovered_status_options_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::StatusBar) {
+            return false;
+        }
+        status_options_button_rect(layout.status_right_segment, style_for_layout(layout).sizing)
             .is_some_and(|rect| rect.contains(point))
     }
 
@@ -1143,6 +1186,43 @@ impl NativeShellState {
         source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
     }
 
+    /// Return the status-bar options button rect in tests.
+    #[cfg(test)]
+    pub(crate) fn status_options_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
+        status_options_button_rect(layout.status_right_segment, style_for_layout(layout).sizing)
+    }
+
+    /// Return whether a point falls inside the visible options panel.
+    #[cfg(test)]
+    pub(crate) fn options_panel_contains_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+    }
+
+    /// Return whether a point falls inside the visible options panel.
+    pub(crate) fn options_panel_contains_point_live(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+    }
+
+    /// Resolve a click inside the visible options panel.
+    pub(crate) fn options_panel_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        options_panel_action_at_point(layout, &style_for_layout(layout), model, point)
+    }
+
     /// Return a source-context-menu button rect for one action in tests.
     #[cfg(test)]
     pub(crate) fn source_context_menu_button_rect(
@@ -1210,7 +1290,7 @@ impl NativeShellState {
             .is_some_and(|rect| rect.contains(point))
         {
             self.trigger_source_add_button_flash();
-            return Some(UiAction::OpenOptionsMenu);
+            return Some(UiAction::OpenAddSourceDialog);
         }
         source_action_buttons(layout, &style, model)
             .into_iter()
@@ -1311,17 +1391,28 @@ impl NativeShellState {
         resolved.and_then(|(_, action)| action)
     }
 
-    /// Resolve a click inside the top-bar options label to a native options action.
-    pub(crate) fn top_bar_options_action_at_point(
-        &self,
+    /// Resolve a click inside the status-bar options button to a native options action.
+    pub(crate) fn status_options_action_at_point(
+        &mut self,
         layout: &ShellLayout,
+        model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
-        if !controls.active || !controls.options_label.contains(point) {
+        let Some(button_rect) = status_options_button_rect(
+            layout.status_right_segment,
+            style_for_layout(layout).sizing,
+        ) else {
+            return None;
+        };
+        if !button_rect.contains(point) {
             return None;
         }
-        Some(UiAction::OpenOptionsMenu)
+        self.trigger_status_options_button_flash();
+        Some(if model.options_panel.visible {
+            UiAction::CloseOptionsPanel
+        } else {
+            UiAction::OpenOptionsMenu
+        })
     }
 
     /// Resolve a click inside the top-bar volume meter to a volume action.
@@ -1856,6 +1947,21 @@ impl NativeShellState {
                 );
             }
         }
+        if let Some(button_rect) = status_options_button_rect(layout.status_right_segment, sizing) {
+            let hovered = self.hovered_status_options_button;
+            let flashed = self.status_options_button_flash_ticks > 0;
+            if hovered || flashed {
+                render_status_options_button(
+                    primitives,
+                    style,
+                    sizing,
+                    button_rect,
+                    hovered,
+                    flashed,
+                    motion_wave,
+                );
+            }
+        }
 
         let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let (samples_fill, map_fill) = if !model.map_active {
@@ -1904,6 +2010,7 @@ impl NativeShellState {
             layout,
             style,
             &model.status_right,
+            status_options_button_rect(layout.status_right_segment, sizing),
         );
 
         frame.clear_color = style.clear_color;
@@ -1946,13 +2053,25 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         status_right: &str,
+        options_button_rect: Option<Rect>,
     ) {
         if status_right.is_empty() {
             return;
         }
         let sizing = style.sizing;
-        let background_rect =
-            status_motion_overlay_rect(layout.status_right_segment, sizing.border_width);
+        let text_segment = if let Some(button_rect) = options_button_rect {
+            Rect::from_min_max(
+                layout.status_right_segment.min,
+                Point::new(
+                    (button_rect.min.x - sizing.text_inset_x.max(3.0))
+                        .max(layout.status_right_segment.min.x),
+                    layout.status_right_segment.max.y,
+                ),
+            )
+        } else {
+            layout.status_right_segment
+        };
+        let background_rect = status_motion_overlay_rect(text_segment, sizing.border_width);
         if background_rect.width() > 0.0 && background_rect.height() > 0.0 {
             emit_primitive(
                 primitives,
@@ -1963,7 +2082,7 @@ impl NativeShellState {
             );
         }
         let status_text_rect =
-            compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
+            status_right_text_rect(layout.status_right_segment, sizing, options_button_rect);
         emit_text(
             text_runs,
             TextRun {

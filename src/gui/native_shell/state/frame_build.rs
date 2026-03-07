@@ -577,17 +577,6 @@ impl NativeShellState {
                 emit_text(
                     text_runs,
                     TextRun {
-                        text: String::from("Options"),
-                        position: top_controls_text.options_label.min,
-                        font_size: sizing.font_meta,
-                        color: style.text_primary,
-                        max_width: Some(top_controls_text.options_label.width().max(24.0)),
-                        align: TextAlign::Left,
-                    },
-                );
-                emit_text(
-                    text_runs,
-                    TextRun {
                         text: format!("{volume_level:.2}"),
                         position: top_controls_text.volume_value.min,
                         font_size: sizing.font_meta,
@@ -1549,6 +1538,8 @@ impl NativeShellState {
             } else {
                 model.status.right.clone()
             };
+            let options_button_rect =
+                status_options_button_rect(layout.status_right_segment, sizing);
             let status_left_text_rect = compute_status_text_line_rect(
                 layout.status_left_segment,
                 sizing,
@@ -1559,11 +1550,8 @@ impl NativeShellState {
                 sizing,
                 sizing.font_status,
             );
-            let status_right_text_rect = compute_status_text_line_rect(
-                layout.status_right_segment,
-                sizing,
-                sizing.font_status,
-            );
+            let status_right_text_rect =
+                status_right_text_rect(layout.status_right_segment, sizing, options_button_rect);
             emit_text(
                 text_runs,
                 TextRun {
@@ -1609,9 +1597,21 @@ impl NativeShellState {
                     align: TextAlign::Right,
                 },
             );
+            if let Some(button_rect) = options_button_rect {
+                render_status_options_button(
+                    primitives,
+                    style,
+                    sizing,
+                    button_rect,
+                    false,
+                    false,
+                    0.0,
+                );
+            }
         }
 
         if include_overlays {
+            render_options_panel(primitives, text_runs, layout, style, model);
             render_progress_overlay(primitives, text_runs, layout, style, model);
             render_confirm_prompt(primitives, text_runs, layout, style, model);
             render_drag_overlay(primitives, text_runs, layout, style, model);

@@ -89,6 +89,9 @@ pub(super) fn action_from_key(
             _ => None,
         };
     }
+    if model.options_panel.visible {
+        return None;
+    }
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
     match key {
@@ -199,7 +202,16 @@ pub(super) fn action_from_pointer_with_motion(
     if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.top_bar_options_action_at_point(layout, point) {
+    if let Some(action) = shell_state.options_panel_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if model.options_panel.visible {
+        if shell_state.options_panel_contains_point_live(layout, model, point) {
+            return None;
+        }
+        return Some(UiAction::CloseOptionsPanel);
+    }
+    if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
         return Some(action);
     }
     if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {

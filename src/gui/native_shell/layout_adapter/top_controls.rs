@@ -9,7 +9,6 @@ use crate::gui::types::{Point, Rect, Vector2};
 
 const TOP_CONTROLS_ROOT_ID: u64 = 200;
 const TOP_CONTROLS_ROW_ID: u64 = 201;
-const TOP_CONTROLS_OPTIONS_ID: u64 = 202;
 const TOP_CONTROLS_METER_ID: u64 = 203;
 const TOP_CONTROLS_VALUE_ID: u64 = 204;
 const TOP_CONTROLS_LABEL_ID: u64 = 205;
@@ -34,16 +33,15 @@ pub(crate) fn compute_top_bar_controls_sections(
         return inactive_top_controls(row);
     }
     let horizontal_inset = sizing.text_inset_x + sizing.header_label_gutter;
-    let options_width = 64.0_f32.min((row.width() * 0.35).max(24.0));
     let meter_width = sizing
         .top_volume_meter_width
-        .min((row.width() * 0.45).max(26.0))
+        .min((row.width() * 0.58).max(26.0))
         .max(26.0);
-    let value_width = 44.0_f32.min((row.width() * 0.2).max(20.0));
+    let value_width = 44.0_f32.min((row.width() * 0.22).max(20.0));
     let label_width = 28.0_f32.min((row.width() * 0.12).max(16.0));
     let gap = sizing.action_button_gap.max(2.0);
     let available_width = row.width() - (horizontal_inset * 2.0);
-    let total_width = options_width + gap + meter_width + gap + value_width + gap + label_width;
+    let total_width = meter_width + gap + value_width + gap + label_width;
     if available_width <= 12.0 || total_width > available_width {
         return inactive_top_controls(row);
     }
@@ -76,7 +74,6 @@ pub(crate) fn compute_top_bar_controls_sections(
                     ..ContainerPolicy::default()
                 },
                 vec![
-                    fixed_slot_child(TOP_CONTROLS_OPTIONS_ID, options_width, 0.0),
                     fixed_slot_child(TOP_CONTROLS_METER_ID, meter_width, meter_height),
                     fixed_slot_child(TOP_CONTROLS_VALUE_ID, value_width, 0.0),
                     fixed_slot_child(TOP_CONTROLS_LABEL_ID, label_width, 0.0),
@@ -86,14 +83,6 @@ pub(crate) fn compute_top_bar_controls_sections(
     );
     let output = layout_tree(&controls_tree, row);
     let empty = Rect::from_min_max(row.min, row.min);
-    let options_label = clamp_rect_to_bounds(
-        output
-            .rects
-            .get(&TOP_CONTROLS_OPTIONS_ID)
-            .copied()
-            .unwrap_or(empty),
-        row,
-    );
     let volume_meter = clamp_rect_to_bounds(
         output
             .rects
@@ -118,16 +107,12 @@ pub(crate) fn compute_top_bar_controls_sections(
             .unwrap_or(empty),
         row,
     );
-    if options_label.width() <= 0.0
-        || volume_meter.width() <= 0.0
-        || volume_value.width() <= 0.0
-        || volume_label.width() <= 0.0
-    {
+    if volume_meter.width() <= 0.0 || volume_value.width() <= 0.0 || volume_label.width() <= 0.0 {
         return inactive_top_controls(row);
     }
     TopBarControlsSections {
         active: true,
-        options_label,
+        options_label: empty,
         volume_meter,
         volume_value,
         volume_label,

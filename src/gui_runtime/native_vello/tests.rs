@@ -4,6 +4,7 @@ use crate::app::{
     WaveformPanelModel,
 };
 use crate::gui::types::Vector2;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -258,6 +259,64 @@ fn static_segment_graph_diff_skips_when_fingerprints_match_and_clean() {
     for segment in StaticFrameSegment::ALL {
         assert!(!second_plan.should_rebuild(segment));
     }
+}
+
+#[test]
+fn cached_image_upload_blob_reuses_existing_entry_without_growing_cache() {
+    let mut cache = HashMap::new();
+    let mut cache_order = VecDeque::new();
+    let pixels: Arc<[u8]> = Arc::from(vec![1u8; 16]);
+
+    let _first = NativeVelloRunner::<PreviewBridge>::cached_image_upload_blob(
+        &mut cache,
+        &mut cache_order,
+        &pixels,
+        2,
+        2,
+    );
+    let _second = NativeVelloRunner::<PreviewBridge>::cached_image_upload_blob(
+        &mut cache,
+        &mut cache_order,
+        &pixels,
+        2,
+        2,
+    );
+
+    assert_eq!(cache.len(), 1);
+    assert_eq!(cache_order.len(), 1);
+}
+
+#[test]
+fn cached_image_upload_blob_evicts_oldest_entry_instead_of_clearing_all() {
+    let mut cache = HashMap::new();
+    let mut cache_order = VecDeque::new();
+    let mut first_key = None;
+    let mut newest_key = None;
+
+    for index in 0..=IMAGE_UPLOAD_BLOB_CACHE_LIMIT {
+        let pixels: Arc<[u8]> = Arc::from(vec![index as u8; 16]);
+        let key = ImageUploadBlobCacheKey {
+            pixels_ptr: pixels.as_ptr() as usize,
+            width: 2,
+            height: 2,
+        };
+        if index == 0 {
+            first_key = Some(key);
+        }
+        newest_key = Some(key);
+        let _ = NativeVelloRunner::<PreviewBridge>::cached_image_upload_blob(
+            &mut cache,
+            &mut cache_order,
+            &pixels,
+            2,
+            2,
+        );
+    }
+
+    assert_eq!(cache.len(), IMAGE_UPLOAD_BLOB_CACHE_LIMIT);
+    assert!(!cache.contains_key(&first_key.expect("expected oldest cache key")));
+    assert!(cache.contains_key(&newest_key.expect("expected newest cache key")));
+    assert_eq!(cache_order.len(), IMAGE_UPLOAD_BLOB_CACHE_LIMIT);
 }
 
 #[test]
@@ -983,9 +1042,12 @@ fn clicking_browser_search_field_focuses_text_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = AppModel::default();
+    let search_field = shell_state
+        .browser_search_field_rect(&layout, &model)
+        .expect("browser search field should be present");
     let point = Point::new(
-        layout.browser_toolbar.min.x + 24.0,
-        layout.browser_toolbar.min.y + (layout.browser_toolbar.height() * 0.5),
+        (search_field.min.x + search_field.max.x) * 0.5,
+        (search_field.min.y + search_field.max.y) * 0.5,
     );
 
     assert_eq!(

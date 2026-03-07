@@ -1299,6 +1299,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     chrome_motion_overlay_scene: Scene,
     /// Retained blobs for repeated image draw payload uploads.
     image_upload_blob_cache: HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
+    /// Recency queue for bounded retained image-upload blob eviction.
+    image_upload_blob_cache_order: VecDeque<ImageUploadBlobCacheKey>,
     /// Last state-overlay fingerprint used for cache-skip checks.
     state_overlay_fingerprint: Option<StateOverlayCacheFingerprint>,
     /// Last waveform-motion fingerprint used for cache-skip checks.
@@ -1451,6 +1453,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             waveform_motion_overlay_scene: Scene::new(),
             chrome_motion_overlay_scene: Scene::new(),
             image_upload_blob_cache: HashMap::new(),
+            image_upload_blob_cache_order: VecDeque::new(),
             state_overlay_fingerprint: None,
             waveform_motion_overlay_fingerprint: None,
             chrome_motion_overlay_fingerprint: None,
@@ -1994,7 +1997,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Resolve a retained image-upload blob for one RGBA payload.
     fn cached_image_upload_blob(
         cache: &mut HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
-        pixels: Arc<[u8]>,
+        cache_order: &mut VecDeque<ImageUploadBlobCacheKey>,
+        pixels: &Arc<[u8]>,
         width: u32,
         height: u32,
     ) -> Blob<u8> {
@@ -2004,13 +2008,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             height,
         };
         if let Some(blob) = cache.get(&key) {
+            touch_image_upload_blob_cache_key(cache_order, key);
             return blob.clone();
         }
-        if cache.len() >= IMAGE_UPLOAD_BLOB_CACHE_LIMIT {
-            cache.clear();
+        while cache.len() >= IMAGE_UPLOAD_BLOB_CACHE_LIMIT {
+            let Some(stale_key) = cache_order.pop_front() else {
+                cache.clear();
+                break;
+            };
+            cache.remove(&stale_key);
         }
-        let blob = Blob::new(Arc::new(SharedPixelBytes(pixels)));
+        let blob = Blob::new(Arc::new(SharedPixelBytes(Arc::clone(pixels))));
         cache.insert(key, blob.clone());
+        cache_order.push_back(key);
         blob
     }
 
@@ -2019,6 +2029,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         scene: &mut Scene,
         text_renderer: &mut NativeTextRenderer,
         image_upload_blob_cache: &mut HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
+        image_upload_blob_cache_order: &mut VecDeque<ImageUploadBlobCacheKey>,
     ) {
         scene.reset();
         for primitive in frame.primitives.iter() {
@@ -2060,7 +2071,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     }
                     let blob = Self::cached_image_upload_blob(
                         image_upload_blob_cache,
-                        draw.image.pixels.clone(),
+                        image_upload_blob_cache_order,
+                        &draw.image.pixels,
                         width,
                         height,
                     );
@@ -2576,6 +2588,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 &mut entry.scene,
                 &mut self.text_renderer,
                 &mut self.image_upload_blob_cache,
+                &mut self.image_upload_blob_cache_order,
             );
             encode_duration += segment_encode_start.elapsed();
             self.static_segment_graph
@@ -2758,6 +2771,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &mut self.static_scene,
                     &mut self.text_renderer,
                     &mut self.image_upload_blob_cache,
+                    &mut self.image_upload_blob_cache_order,
                 );
                 let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
                 self.profiler.add_encode_static(encode_duration);
@@ -2793,6 +2807,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 &mut self.state_overlay_scene,
                 &mut self.text_renderer,
                 &mut self.image_upload_blob_cache,
+                &mut self.image_upload_blob_cache_order,
             );
             let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             self.profiler.add_encode_state_overlay(encode_duration);
@@ -2875,6 +2890,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &mut self.waveform_motion_overlay_scene,
                     &mut self.text_renderer,
                     &mut self.image_upload_blob_cache,
+                    &mut self.image_upload_blob_cache_order,
                 );
                 encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             }
@@ -2897,6 +2913,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     &mut self.chrome_motion_overlay_scene,
                     &mut self.text_renderer,
                     &mut self.image_upload_blob_cache,
+                    &mut self.image_upload_blob_cache_order,
                 );
                 encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
             }
@@ -3912,6 +3929,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
         true
     }
+}
+
+fn touch_image_upload_blob_cache_key(
+    cache_order: &mut VecDeque<ImageUploadBlobCacheKey>,
+    key: ImageUploadBlobCacheKey,
+) {
+    if let Some(position) = cache_order.iter().position(|existing| *existing == key) {
+        let _ = cache_order.remove(position);
+    }
+    cache_order.push_back(key);
 }
 
 fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {

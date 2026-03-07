@@ -1154,6 +1154,34 @@ fn browser_rows_do_not_draw_extra_left_frame_edge_when_unfocused() {
 }
 
 #[test]
+fn browser_table_header_does_not_draw_extra_left_frame_edge() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel::default();
+    let stroke = style.sizing.border_width.max(1.0);
+    let has_left_border = state
+        .build_frame(&layout, &model)
+        .primitives
+        .iter()
+        .any(|primitive| match primitive {
+            Primitive::Rect(rect) => {
+                rect.color == style.border
+                    && rect.rect.min.x == layout.browser_table_header.min.x
+                    && rect.rect.max.x == layout.browser_table_header.min.x + stroke
+                    && rect.rect.min.y == layout.browser_table_header.min.y
+                    && rect.rect.max.y == layout.browser_table_header.max.y
+            }
+            _ => false,
+        });
+
+    assert!(
+        !has_left_border,
+        "browser table header should share the outer sidebar/content seam instead of repainting its own left edge"
+    );
+}
+
+#[test]
 fn missing_browser_rows_render_red_exclamation_marker() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

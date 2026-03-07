@@ -487,11 +487,17 @@ impl NativeShellState {
                 right: true,
             },
         );
-        push_border(
+        push_border_sides(
             primitives,
             layout.browser_table_header,
             style.border,
             sizing.border_width,
+            BorderSides {
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+            },
         );
         push_border_sides(
             primitives,

@@ -8,7 +8,7 @@
     "b": 37,
     "a": 255
   },
-  "primitive_count": 467,
+  "primitive_count": 465,
   "text_run_count": 98,
   "primitives": [
     {
@@ -39860,36 +39860,6 @@
         "y": 335.94,
         "width": 1213.0,
         "height": 1.06
-      },
-      "color": {
-        "r": 75,
-        "g": 74,
-        "b": 72,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 227.0,
-        "y": 319.0,
-        "width": 1.06,
-        "height": 18.0
-      },
-      "color": {
-        "r": 75,
-        "g": 74,
-        "b": 72,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 1438.94,
-        "y": 319.0,
-        "width": 1.06,
-        "height": 18.0
       },
       "color": {
         "r": 75,

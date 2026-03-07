@@ -335,6 +335,7 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
 fn startup_fast_path_defers_model_and_overlay_pulls() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
     runner.frame_state.mark_layout_dirty();
     runner.frame_state.mark_model_dirty();
 
@@ -393,9 +394,21 @@ fn startup_fast_path_rebuild_uses_placeholder_scene_before_first_present() {
 }
 
 #[test]
+fn startup_defaults_match_platform_startup_strategy() {
+    let runner = NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    assert!(!runner.startup_window_visible);
+    assert_eq!(
+        runner.startup_model_pull_pending,
+        NativeVelloRunner::<RecordingBridge>::startup_should_defer_first_model_pull()
+    );
+}
+
+#[test]
 fn complete_first_present_schedules_deferred_model_pull() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
     assert!(runner.startup_model_pull_pending);
     assert!(!runner.startup_deferred_model_refresh_pending);
     assert!(!runner.first_frame_presented);
@@ -417,6 +430,7 @@ fn complete_first_present_schedules_deferred_model_pull() {
 fn startup_window_reveals_after_deferred_model_refresh_present() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
 
     runner.complete_first_present();
     assert!(!runner.startup_window_visible);
@@ -445,6 +459,7 @@ fn startup_window_reveals_on_first_present_without_deferred_pull() {
 fn startup_window_force_reveal_fallback_unblocks_hidden_stalls() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
     runner.complete_first_present();
 
     assert!(runner.startup_deferred_model_refresh_pending);
@@ -455,6 +470,21 @@ fn startup_window_force_reveal_fallback_unblocks_hidden_stalls() {
 
     assert!(runner.startup_window_visible);
     assert!(runner.startup_deferred_model_refresh_pending);
+    assert_eq!(runner.startup_reveal_deadline, None);
+}
+
+#[test]
+fn startup_window_reveals_after_first_scene_when_deferred_pull_is_disabled() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = false;
+    runner.startup_deferred_model_refresh_pending = false;
+    runner.first_frame_presented = false;
+    runner.startup_window_visible = false;
+
+    runner.maybe_reveal_startup_window_after_first_scene_ready();
+
+    assert!(runner.startup_window_visible);
     assert_eq!(runner.startup_reveal_deadline, None);
 }
 
@@ -1710,7 +1740,7 @@ fn waveform_click_over_edit_fade_handle_routes_fade_action() {
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     model.waveform.edit_fade_in_end_milli = Some(300);
     model.waveform.edit_fade_out_start_milli = Some(700);
-    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let y = layout.waveform_plot.min.y + 3.5;
     let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
     let point = Point::new(fade_in_x + 1.0, y);
     let position_milli = waveform_position_milli_from_point(&layout, &model, point);
@@ -1734,7 +1764,7 @@ fn waveform_right_click_over_edit_fade_handle_routes_edit_fade_action() {
     model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     model.waveform.edit_fade_in_end_milli = Some(300);
     model.waveform.edit_fade_out_start_milli = Some(700);
-    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let y = layout.waveform_plot.min.y + 3.5;
     let fade_in_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3);
     let point = Point::new(fade_in_x + 1.0, y);
     let position_milli = waveform_position_milli_from_point(&layout, &model, point);

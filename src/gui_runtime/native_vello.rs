@@ -1369,9 +1369,14 @@ struct NativeVelloRunner<B: NativeAppBridge> {
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
-    /// Keep hidden-launch startup sequencing off on Windows to avoid hidden-window
-    /// redraw stalls that can block first reveal.
+    /// Keep the native window hidden until startup sequencing decides reveal timing.
     fn startup_should_launch_hidden() -> bool {
+        true
+    }
+
+    /// Defer the first full model pull only on platforms that can reliably
+    /// present while hidden.
+    fn startup_should_defer_first_model_pull() -> bool {
         !cfg!(target_os = "windows")
     }
 
@@ -1479,8 +1484,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             window_event_count: 0,
             redraw_count: 0,
             first_frame_presented: false,
-            startup_window_visible: !Self::startup_should_launch_hidden(),
-            startup_model_pull_pending: true,
+            startup_window_visible: false,
+            startup_model_pull_pending: Self::startup_should_defer_first_model_pull(),
             startup_deferred_model_refresh_pending: false,
             startup_reveal_deadline: None,
             startup_timing: StartupTimingProfile::new(),
@@ -1540,7 +1545,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.startup_timing.mark_window_created();
         info!("radiant native vello: window created");
-        if Self::startup_should_launch_hidden() {
+        if self.startup_model_pull_pending {
             self.startup_reveal_deadline = Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
         }
         let mut render_ctx = RenderContext::new();
@@ -1645,6 +1650,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.rebuild_scene_if_needed();
         self.startup_timing.mark_first_scene_ready();
+        self.maybe_reveal_startup_window_after_first_scene_ready();
         self.last_redraw = Instant::now();
     }
 
@@ -2365,6 +2371,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         }
         if self.startup_model_pull_pending || self.startup_deferred_model_refresh_pending {
+            return;
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.set_visible(true);
+        }
+        self.startup_window_visible = true;
+        self.startup_reveal_deadline = None;
+    }
+
+    /// Reveal the window once the first full scene is ready on eager startup paths.
+    fn maybe_reveal_startup_window_after_first_scene_ready(&mut self) {
+        if self.startup_window_visible
+            || self.first_frame_presented
+            || self.startup_model_pull_pending
+            || self.startup_deferred_model_refresh_pending
+        {
             return;
         }
         if let Some(window) = self.window.as_ref() {

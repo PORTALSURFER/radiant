@@ -2611,7 +2611,7 @@ fn waveform_toolbar_buttons(
                 enabled: !model.waveform_normalized_audition_enabled,
             }),
             if model.waveform_normalized_audition_enabled {
-                style.highlight_cyan
+                style.accent_warning
             } else {
                 style.text_muted
             },
@@ -2635,7 +2635,7 @@ fn waveform_toolbar_buttons(
                 enabled: !model.waveform_bpm_snap_enabled,
             }),
             if model.waveform_bpm_snap_enabled {
-                style.highlight_orange
+                style.accent_warning
             } else {
                 style.text_muted
             },
@@ -2649,7 +2649,11 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientSnapEnabled {
                 enabled: !model.waveform_transient_snap_enabled,
             }),
-            style.highlight_orange,
+            if model.waveform_transient_snap_enabled {
+                style.accent_warning
+            } else {
+                style.text_muted
+            },
         ),
         (
             "Show Tr",
@@ -2660,7 +2664,11 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetTransientMarkersEnabled {
                 enabled: !model.waveform_transient_markers_enabled,
             }),
-            style.highlight_blue_soft,
+            if model.waveform_transient_markers_enabled {
+                style.accent_warning
+            } else {
+                style.text_muted
+            },
         ),
         (
             "Slice",
@@ -2671,7 +2679,11 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetSliceModeEnabled {
                 enabled: !model.waveform_slice_mode_enabled,
             }),
-            style.highlight_cyan_soft,
+            if model.waveform_slice_mode_enabled {
+                style.accent_warning
+            } else {
+                style.text_muted
+            },
         ),
         (
             "Loop",
@@ -2680,7 +2692,11 @@ fn waveform_toolbar_buttons(
             true,
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
-            style.highlight_blue,
+            if model.waveform_loop_enabled {
+                style.accent_warning
+            } else {
+                style.text_muted
+            },
         ),
         (
             "Stop",

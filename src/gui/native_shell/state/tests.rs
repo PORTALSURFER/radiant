@@ -429,7 +429,7 @@ fn waveform_toolbar_bpm_snap_button_uses_highlight_when_enabled() {
         .iter()
         .find(|button| button.label == "BPM Snap")
         .expect("bpm snap toolbar button should be present");
-    assert_eq!(bpm_snap_on.text_color, style.highlight_orange);
+    assert_eq!(bpm_snap_on.text_color, style.accent_warning);
 }
 
 #[test]
@@ -462,7 +462,34 @@ fn waveform_toolbar_normalized_audition_button_uses_highlight_when_enabled() {
         .iter()
         .find(|button| button.label == "Norm")
         .expect("normalized audition toolbar button should be present");
-    assert_eq!(normalized_on.text_color, style.highlight_cyan);
+    assert_eq!(normalized_on.text_color, style.accent_warning);
+}
+
+#[test]
+fn waveform_toolbar_toggle_buttons_share_warning_accent_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform_chrome.transient_snap_enabled = true;
+    model.waveform_chrome.transient_markers_enabled = true;
+    model.waveform_chrome.slice_mode_enabled = true;
+    model.waveform.loop_enabled = true;
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+
+    for label in ["Tr Snap", "Show Tr", "Slice", "Loop"] {
+        let button = buttons
+            .iter()
+            .find(|button| button.label == label)
+            .unwrap_or_else(|| panic!("{label} toolbar button should be present"));
+        assert_eq!(button.text_color, style.accent_warning);
+    }
 }
 
 #[test]

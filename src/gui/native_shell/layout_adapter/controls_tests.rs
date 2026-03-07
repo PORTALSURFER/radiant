@@ -72,6 +72,13 @@ fn toolbar_search_field_uses_ratio_width_inside_full_host() {
     assert!(sections.search_field.width() >= style.sizing.browser_search_field_min_width);
     assert!(sections.search_field.width() < toolbar.width() - (style.sizing.text_inset_x * 2.0));
     assert!(sections.search_field.width() <= host_width * 0.26);
+    assert!(
+        sections
+            .rating_filter_chips
+            .iter()
+            .filter(|rect| rect.width() > 1.0)
+            .all(|rect| (rect.width() - rect.height()).abs() <= 0.01)
+    );
 }
 
 #[test]

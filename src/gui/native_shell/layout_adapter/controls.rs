@@ -230,9 +230,22 @@ fn compute_rating_filter_chip_rects(
     );
     let mut chips = [empty; 7];
     for (index, rect) in rects.into_iter().take(7).enumerate() {
-        chips[index] = rect;
+        chips[index] = center_square_rect(rect, chip_side);
     }
     chips
+}
+
+fn center_square_rect(rect: Rect, side: f32) -> Rect {
+    if rect.width() <= 0.0 || rect.height() <= 0.0 || side <= 0.0 {
+        return rect;
+    }
+    let clamped_side = side.min(rect.width()).min(rect.height());
+    let min_x = rect.min.x + ((rect.width() - clamped_side) * 0.5);
+    let min_y = rect.min.y + ((rect.height() - clamped_side) * 0.5);
+    Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + clamped_side, min_y + clamped_side),
+    )
 }
 
 fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {

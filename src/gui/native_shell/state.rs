@@ -82,6 +82,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
+    hovered_browser_rating_filter_level: Option<i8>,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
     hovered_folder_row_index: Option<usize>,
@@ -367,6 +368,8 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub transport_running: bool,
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
+    /// Hovered browser rating-filter chip level, if any.
+    pub hovered_browser_rating_filter_level: Option<i8>,
     /// Whether the browser search field is hovered.
     pub hovered_browser_search_field: bool,
     /// Whether the source-add button is hovered.
@@ -656,6 +659,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
+            hovered_browser_rating_filter_level: None,
             hovered_browser_search_field: false,
             browser_search_editor_visual: None,
             hovered_folder_row_index: None,
@@ -838,6 +842,7 @@ impl NativeShellState {
         ChromeMotionOverlayFingerprint {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
+            hovered_browser_rating_filter_level: self.hovered_browser_rating_filter_level,
             hovered_source_add_button: self.hovered_source_add_button,
             hovered_status_options_button: self.hovered_status_options_button,
             hovered_browser_search_field: self.hovered_browser_search_field,
@@ -893,6 +898,8 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_browser_rating_filter_level =
+            self.resolve_hovered_browser_rating_filter_level(layout, model, point);
         let next_hovered_browser_search_field =
             self.resolve_hovered_browser_search_field(layout, model, point);
         let next_hovered_folder_row =
@@ -908,6 +915,8 @@ impl NativeShellState {
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let browser_rating_filter_changed =
+            next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
         let browser_search_field_changed =
             next_hovered_browser_search_field != self.hovered_browser_search_field;
         let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
@@ -923,6 +932,7 @@ impl NativeShellState {
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
             && !browser_row_changed
+            && !browser_rating_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
@@ -935,6 +945,7 @@ impl NativeShellState {
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
         self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;
         self.hovered_source_add_button = next_hovered_source_add_button;
@@ -945,6 +956,7 @@ impl NativeShellState {
         if waveform_hover_changed
             && !hover_changed
             && !browser_row_changed
+            && !browser_rating_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
@@ -998,6 +1010,17 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
+    }
+
+    fn resolve_hovered_browser_rating_filter_level(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<i8> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
     }
 
     fn resolve_hovered_source_add_button(
@@ -2057,6 +2080,23 @@ impl NativeShellState {
                 );
             }
         }
+        if let Some((chip_rect, rating_level)) =
+            self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
+                let hovered_level = self.hovered_browser_rating_filter_level?;
+                let index = browser_rating_filter_chip_index(hovered_level)?;
+                let chip_rect = toolbar.rating_filter_chips[index];
+                (chip_rect.width() > 1.0).then_some((chip_rect, hovered_level))
+            })
+        {
+            render_browser_rating_filter_chip_hover_overlay(
+                primitives,
+                style,
+                sizing,
+                chip_rect,
+                rating_level,
+                motion_wave,
+            );
+        }
         if let Some(button_rect) = source_add_button_rect(layout.sidebar_header, sizing) {
             let hovered = self.hovered_source_add_button;
             let flashed = self.source_add_button_flash_ticks > 0;
@@ -2645,7 +2685,6 @@ fn browser_toolbar_layout(
     }
 }
 
-#[cfg(test)]
 fn browser_rating_filter_chip_index(level: i8) -> Option<usize> {
     BROWSER_RATING_FILTER_LEVELS
         .iter()
@@ -3034,6 +3073,29 @@ fn render_browser_search_field_hover_overlay(
     );
 }
 
+fn render_browser_rating_filter_chip_hover_overlay(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    chip_rect: Rect,
+    rating_level: i8,
+    motion_wave: f32,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: chip_rect,
+            color: browser_rating_filter_chip_hover_fill(style, rating_level, motion_wave),
+        }),
+    );
+    push_border(
+        primitives,
+        chip_rect,
+        browser_rating_filter_chip_hover_border(style, rating_level, motion_wave),
+        sizing.border_width,
+    );
+}
+
 fn render_waveform_bpm_input_focus_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
@@ -3064,12 +3126,47 @@ fn browser_search_field_hover_fill(style: &StyleTokens, motion_wave: f32) -> Rgb
     )
 }
 
+fn browser_rating_filter_chip_hover_fill(
+    style: &StyleTokens,
+    rating_level: i8,
+    motion_wave: f32,
+) -> Rgba8 {
+    let tint = if rating_level < 0 {
+        style.accent_trash
+    } else if rating_level > 0 {
+        style.accent_mint
+    } else {
+        style.highlight_orange_soft
+    };
+    let amount = 0.2 + (motion_wave * 0.04);
+    translucent_overlay_color(
+        browser_rating_filter_chip_fill(style, rating_level, false),
+        tint,
+        amount,
+    )
+}
+
 fn browser_search_field_hover_border(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
     blend_color(
         style.border_emphasis,
         style.text_primary,
         0.48 + (motion_wave * 0.06),
     )
+}
+
+fn browser_rating_filter_chip_hover_border(
+    style: &StyleTokens,
+    rating_level: i8,
+    motion_wave: f32,
+) -> Rgba8 {
+    let tint = if rating_level < 0 {
+        style.accent_trash
+    } else if rating_level > 0 {
+        style.accent_mint
+    } else {
+        style.highlight_orange
+    };
+    blend_color(style.border_emphasis, tint, 0.52 + (motion_wave * 0.08))
 }
 
 fn waveform_bpm_input_focus_fill(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
@@ -3300,11 +3397,11 @@ pub(super) fn browser_rating_filter_chip_fill(
         style.text_primary
     };
     let amount = if active {
-        0.62
+        0.78
     } else if rating_level == 0 {
-        0.22
+        0.14
     } else {
-        0.32
+        0.18
     };
     blend_color(style.surface_base, tint, amount)
 }
@@ -3316,14 +3413,14 @@ pub(super) fn browser_rating_filter_chip_border(
 ) -> Rgba8 {
     if active {
         if rating_level < 0 {
-            blend_color(style.accent_trash, style.text_primary, 0.28)
+            blend_color(style.accent_trash, style.text_primary, 0.08)
         } else if rating_level > 0 {
-            blend_color(style.accent_mint, style.text_primary, 0.28)
+            blend_color(style.accent_mint, style.text_primary, 0.08)
         } else {
-            blend_color(style.text_primary, style.border_emphasis, 0.38)
+            blend_color(style.text_primary, style.border_emphasis, 0.7)
         }
     } else {
-        style.border
+        blend_color(style.border, style.surface_overlay, 0.25)
     }
 }
 

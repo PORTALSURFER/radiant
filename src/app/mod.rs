@@ -863,6 +863,9 @@ pub enum UiAction {
     /// Clear staged delete recovery log entries.
     ClearFolderDeleteRecoveryLog,
     /// Move browser focus by a row delta in the visible list.
+    ///
+    /// Hosts should treat this as lightweight preview navigation so held-arrow
+    /// or wheel stepping can stay responsive across large browser lists.
     MoveBrowserFocus {
         /// Signed visible-row delta for browser focus movement.
         delta: i8,

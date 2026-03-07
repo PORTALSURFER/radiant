@@ -239,8 +239,60 @@ fn touching_major_panels_render_single_seam_borders() {
             )
         })
         .count();
+    let status_bar_bottom_seam = Rect::from_min_max(
+        Point::new(layout.status_bar.min.x, layout.status_bar.max.y - stroke),
+        Point::new(layout.status_bar.max.x, layout.status_bar.max.y),
+    );
+    let status_bar_bottom_matches = frame
+        .primitives
+        .iter()
+        .filter(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, color })
+                    if *rect == status_bar_bottom_seam && *color == style.border
+            )
+        })
+        .count();
     assert_eq!(top_body_matches, 1);
     assert_eq!(sidebar_content_matches, 1);
+    assert_eq!(status_bar_bottom_matches, 0);
+}
+
+#[test]
+fn chrome_motion_status_overlay_preserves_status_bar_border_lines() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.status.right = String::from("2/3");
+    let motion = NativeMotionModel::from_app_model(&model);
+    let overlay_rect =
+        status_motion_overlay_rect(layout.status_right_segment, style.sizing.border_width);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    assert!(
+        frame.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, color })
+                    if *rect == overlay_rect && *color == style.surface_raised
+            )
+        }),
+        "status motion overlay should repaint only the inset text background"
+    );
+    assert!(
+        frame.primitives.iter().all(|primitive| {
+            !matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, color })
+                    if *rect == layout.status_right_segment && *color == style.surface_raised
+            )
+        }),
+        "status motion overlay should not cover the full status segment and erase border lines"
+    );
 }
 
 #[test]

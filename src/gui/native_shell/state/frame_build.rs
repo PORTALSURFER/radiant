@@ -502,7 +502,7 @@ impl NativeShellState {
             sizing.border_width,
             BorderSides {
                 top: true,
-                bottom: true,
+                bottom: false,
                 left: true,
                 right: true,
             },

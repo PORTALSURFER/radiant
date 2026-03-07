@@ -1852,14 +1852,18 @@ impl NativeShellState {
         if status_right.is_empty() {
             return;
         }
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: layout.status_right_segment,
-                color: style.surface_raised,
-            }),
-        );
         let sizing = style.sizing;
+        let background_rect =
+            status_motion_overlay_rect(layout.status_right_segment, sizing.border_width);
+        if background_rect.width() > 0.0 && background_rect.height() > 0.0 {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: background_rect,
+                    color: style.surface_raised,
+                }),
+            );
+        }
         let status_text_rect =
             compute_status_text_line_rect(layout.status_right_segment, sizing, sizing.font_status);
         emit_text(
@@ -1985,6 +1989,19 @@ impl NativeShellState {
         }
         &self.waveform_toolbar_buttons
     }
+}
+
+fn status_motion_overlay_rect(segment: Rect, stroke: f32) -> Rect {
+    let inset = stroke.max(1.0);
+    let min = Point::new(
+        (segment.min.x + inset).min(segment.max.x),
+        (segment.min.y + inset).min(segment.max.y),
+    );
+    let max = Point::new(
+        (segment.max.x - inset).max(min.x),
+        (segment.max.y - inset).max(min.y),
+    );
+    Rect::from_min_max(min, max)
 }
 
 fn browser_action_hit_test_cache_key(

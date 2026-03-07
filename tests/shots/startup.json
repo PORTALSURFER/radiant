@@ -8,7 +8,7 @@
     "b": 37,
     "a": 255
   },
-  "primitive_count": 291,
+  "primitive_count": 290,
   "text_run_count": 47,
   "primitives": [
     {
@@ -16230,21 +16230,6 @@
       "rect": {
         "x": 0.0,
         "y": 703.04,
-        "width": 1280.0,
-        "height": 1.06
-      },
-      "color": {
-        "r": 75,
-        "g": 74,
-        "b": 72,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 0.0,
-        "y": 718.94,
         "width": 1280.0,
         "height": 1.06
       },

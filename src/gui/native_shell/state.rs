@@ -65,6 +65,8 @@ const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
 const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
 /// Number of animation ticks used for one waveform-toolbar click flash.
 const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
+/// Number of animation ticks used for the sidebar source-add button click flash.
+const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -73,8 +75,10 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_folder_row_index: Option<usize>,
+    hovered_source_add_button: bool,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_toolbar_flash: Option<WaveformToolbarFlash>,
+    source_add_button_flash_ticks: u8,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     waveform_bpm_input_active: bool,
     waveform_bpm_input_display: Option<String>,
@@ -236,6 +240,7 @@ struct NativeAnimationReasons {
     startup_frame_tick: bool,
     playhead_trail_active: bool,
     waveform_toolbar_flash_active: bool,
+    source_add_button_flash_active: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -348,8 +353,14 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub transport_running: bool,
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
+    /// Whether the source-add button is hovered.
+    pub hovered_source_add_button: bool,
     /// Hovered waveform-toolbar icon/button target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Whether the source-add button is currently click-flashed.
+    pub flashed_source_add_button: bool,
+    /// Remaining flash ticks for source-add-button click feedback.
+    pub source_add_button_flash_ticks: u8,
     /// Click-flashed waveform-toolbar icon/button target.
     pub flashed_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Remaining flash ticks for waveform-toolbar click feedback.
@@ -547,6 +558,7 @@ impl NativeAnimationReasons {
             || self.startup_frame_tick
             || self.playhead_trail_active
             || self.waveform_toolbar_flash_active
+            || self.source_add_button_flash_active
     }
 }
 
@@ -620,8 +632,10 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_folder_row_index: None,
+            hovered_source_add_button: false,
             hovered_waveform_toolbar_hint: None,
             waveform_toolbar_flash: None,
+            source_add_button_flash_ticks: 0,
             hovered_waveform_resize_edge: None,
             waveform_bpm_input_active: false,
             waveform_bpm_input_display: None,
@@ -665,6 +679,7 @@ impl NativeShellState {
             startup_frame_tick: self.startup_frame_ticks > 0,
             playhead_trail_active: !self.playhead_trail_samples.is_empty(),
             waveform_toolbar_flash_active: self.waveform_toolbar_flash.is_some(),
+            source_add_button_flash_active: self.source_add_button_flash_ticks > 0,
         }
     }
 
@@ -735,6 +750,10 @@ impl NativeShellState {
         });
     }
 
+    fn trigger_source_add_button_flash(&mut self) {
+        self.source_add_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
+    }
+
     /// Return the current state-overlay fingerprint.
     pub(crate) fn state_overlay_fingerprint(&self) -> StateOverlayFingerprint {
         StateOverlayFingerprint {
@@ -773,7 +792,10 @@ impl NativeShellState {
         ChromeMotionOverlayFingerprint {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
+            hovered_source_add_button: self.hovered_source_add_button,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
+            flashed_source_add_button: self.source_add_button_flash_ticks > 0,
+            source_add_button_flash_ticks: self.source_add_button_flash_ticks,
             flashed_waveform_toolbar_hint: self.waveform_toolbar_flash.map(|flash| flash.hint),
             waveform_toolbar_flash_ticks: self
                 .waveform_toolbar_flash
@@ -803,6 +825,7 @@ impl NativeShellState {
             flash.ticks_remaining = flash.ticks_remaining.saturating_sub(1);
             self.waveform_toolbar_flash = (flash.ticks_remaining > 0).then_some(flash);
         }
+        self.source_add_button_flash_ticks = self.source_add_button_flash_ticks.saturating_sub(1);
     }
 
     /// Handle pointer movement and classify which overlay bucket changed.
@@ -817,6 +840,8 @@ impl NativeShellState {
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
         let next_hovered_folder_row =
             self.resolve_hovered_folder_row(layout, model, point, next_hover);
+        let next_hovered_source_add_button =
+            self.resolve_hovered_source_add_button(layout, point, next_hover);
         let next_hovered_waveform_toolbar_hint =
             self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
         let next_hovered_waveform_resize_edge =
@@ -825,6 +850,8 @@ impl NativeShellState {
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
         let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
+        let source_add_button_changed =
+            next_hovered_source_add_button != self.hovered_source_add_button;
         let waveform_toolbar_hint_changed =
             next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
         let waveform_resize_edge_changed =
@@ -834,6 +861,7 @@ impl NativeShellState {
         if !hover_changed
             && !browser_row_changed
             && !folder_row_changed
+            && !source_add_button_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
             && !waveform_hover_changed
@@ -843,6 +871,7 @@ impl NativeShellState {
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.hovered_folder_row_index = next_hovered_folder_row;
+        self.hovered_source_add_button = next_hovered_source_add_button;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
         self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
         self.waveform_hover_x = next_waveform_hover_x;
@@ -850,6 +879,7 @@ impl NativeShellState {
             && !hover_changed
             && !browser_row_changed
             && !folder_row_changed
+            && !source_add_button_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
         {
@@ -888,6 +918,19 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let rows = self.cached_folder_row_rects(layout, &style, model);
         compute_row_index_at_point(rows, point)
+    }
+
+    fn resolve_hovered_source_add_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return false;
+        }
+        source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+            .is_some_and(|rect| rect.contains(point))
     }
 
     fn resolve_hovered_waveform_toolbar_hint(
@@ -1136,7 +1179,7 @@ impl NativeShellState {
 
     /// Resolve a source-management action button click into a native UI action.
     pub(crate) fn source_action_at_point(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
@@ -1145,6 +1188,7 @@ impl NativeShellState {
         if source_add_button_rect(layout.sidebar_header, style.sizing)
             .is_some_and(|rect| rect.contains(point))
         {
+            self.trigger_source_add_button_flash();
             return Some(UiAction::OpenOptionsMenu);
         }
         source_action_buttons(layout, &style, model)
@@ -1758,6 +1802,22 @@ impl NativeShellState {
             self.waveform_toolbar_flash.map(|flash| flash.hint),
             motion_wave,
         );
+        if let Some(button_rect) = source_add_button_rect(layout.sidebar_header, sizing) {
+            let hovered = self.hovered_source_add_button;
+            let flashed = self.source_add_button_flash_ticks > 0;
+            if hovered || flashed {
+                render_source_add_button_overlay(
+                    primitives,
+                    text_runs,
+                    style,
+                    sizing,
+                    button_rect,
+                    hovered,
+                    flashed,
+                    motion_wave,
+                );
+            }
+        }
 
         let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
         let (samples_fill, map_fill) = if !model.map_active {
@@ -2644,6 +2704,97 @@ fn render_waveform_toolbar_buttons(
                 align: TextAlign::Center,
             },
         );
+    }
+}
+
+fn render_source_add_button_overlay(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    button_rect: Rect,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) {
+    let fill = source_add_button_fill(style, hovered, flashed, motion_wave);
+    let border = source_add_button_border(style, hovered, flashed, motion_wave);
+    let icon_color = source_add_button_icon_color(style, hovered, flashed, motion_wave);
+    let label_rect = compute_action_button_text_rect(button_rect, sizing);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: button_rect,
+            color: fill,
+        }),
+    );
+    push_border(primitives, button_rect, border, sizing.border_width);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: String::from("+"),
+            position: label_rect.min,
+            font_size: sizing.font_meta,
+            color: icon_color,
+            max_width: Some(label_rect.width().max(8.0)),
+            align: TextAlign::Center,
+        },
+    );
+}
+
+fn source_add_button_fill(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = style.surface_overlay;
+    let hover = blend_color(idle, style.accent_mint, 0.14 + (motion_wave * 0.04));
+    let flash = blend_color(hover, style.text_primary, 0.16);
+    if flashed {
+        flash
+    } else if hovered {
+        hover
+    } else {
+        idle
+    }
+}
+
+fn source_add_button_border(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = blend_color(
+        style.border_emphasis,
+        style.text_primary,
+        style.state_hover_soft,
+    );
+    let hover = blend_color(idle, style.accent_mint, 0.34 + (motion_wave * 0.08));
+    if flashed {
+        blend_color(hover, style.text_primary, 0.38)
+    } else if hovered {
+        hover
+    } else {
+        idle
+    }
+}
+
+fn source_add_button_icon_color(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = style.accent_mint;
+    let hover = blend_color(idle, style.text_primary, 0.24 + (motion_wave * 0.06));
+    if flashed {
+        blend_color(hover, style.text_primary, 0.4)
+    } else if hovered {
+        hover
+    } else {
+        idle
     }
 }
 

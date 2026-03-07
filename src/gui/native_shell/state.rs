@@ -2554,7 +2554,11 @@ fn waveform_toolbar_buttons(
             Some(UiAction::SetBpmSnapEnabled {
                 enabled: !model.waveform_bpm_snap_enabled,
             }),
-            style.highlight_blue,
+            if model.waveform_bpm_snap_enabled {
+                style.highlight_orange
+            } else {
+                style.text_muted
+            },
         ),
         (
             "Tr Snap",

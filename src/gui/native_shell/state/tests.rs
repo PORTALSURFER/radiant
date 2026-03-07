@@ -367,6 +367,39 @@ fn waveform_toolbar_hover_uses_theme_highlight_color() {
 }
 
 #[test]
+fn waveform_toolbar_bpm_snap_button_uses_highlight_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    let buttons_off = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let bpm_snap_off = buttons_off
+        .iter()
+        .find(|button| button.label == "BPM Snap")
+        .expect("bpm snap toolbar button should be present");
+    assert_eq!(bpm_snap_off.text_color, style.text_muted);
+
+    model.waveform_chrome.bpm_snap_enabled = true;
+    let buttons_on = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let bpm_snap_on = buttons_on
+        .iter()
+        .find(|button| button.label == "BPM Snap")
+        .expect("bpm snap toolbar button should be present");
+    assert_eq!(bpm_snap_on.text_color, style.highlight_orange);
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

@@ -1028,6 +1028,31 @@ fn browser_search_editor_supports_copy_paste_and_delete_selection() {
 }
 
 #[test]
+fn waveform_bpm_editor_supports_copy_paste_and_delete_selection() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.text_input_target = TextInputTarget::WaveformBpm;
+    runner.waveform_bpm_input_buffer = Some(String::from("120.0"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("120.0"));
+
+    assert!(runner.select_all_text());
+    assert!(runner.copy_selected_text());
+    assert_eq!(runner.clipboard_fallback_text, "120.0");
+
+    assert!(runner.write_clipboard_text("98.5"));
+    assert!(runner.paste_text());
+    assert_eq!(runner.waveform_bpm_input_buffer.as_deref(), Some("98.5"));
+    assert_eq!(
+        runner.bridge.actions.last(),
+        Some(&UiAction::SetWaveformBpmValue { value_tenths: 985 })
+    );
+
+    assert!(runner.select_all_text());
+    assert!(runner.delete_text_forward());
+    assert_eq!(runner.waveform_bpm_input_buffer.as_deref(), Some(""));
+}
+
+#[test]
 fn space_key_maps_to_replay_from_last_start() {
     let model = AppModel::default();
     assert_eq!(

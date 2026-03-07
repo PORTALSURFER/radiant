@@ -170,6 +170,7 @@ impl NativeShellState {
                 self.hovered_waveform_toolbar_hint,
                 self.waveform_toolbar_flash.map(|flash| flash.hint),
                 motion_wave,
+                self.waveform_bpm_editor_visual.is_some(),
             );
         }
 

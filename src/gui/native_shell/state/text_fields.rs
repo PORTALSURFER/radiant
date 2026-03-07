@@ -13,6 +13,71 @@ pub(crate) struct TextFieldVisualState {
     pub(crate) selection_offsets: Option<(f32, f32)>,
 }
 
+/// Render one active shell text field fill, selection, text, and caret.
+pub(crate) fn render_active_text_field(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    field_rect: Rect,
+    text_rect: Rect,
+    visual: &TextFieldVisualState,
+    fill_color: Rgba8,
+    border_color: Rgba8,
+    selection_color: Rgba8,
+    caret_color: Rgba8,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: field_rect,
+            color: fill_color,
+        }),
+    );
+    push_border(primitives, field_rect, border_color, sizing.border_width);
+    if let Some((start, end)) = visual.selection_offsets
+        && end > start
+    {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(text_rect.min.x + start, text_rect.min.y),
+                    Point::new(text_rect.min.x + end, text_rect.max.y),
+                ),
+                color: selection_color,
+            }),
+        );
+    }
+    if !visual.text.is_empty() {
+        emit_text(
+            text_runs,
+            TextRun {
+                text: visual.text.clone(),
+                position: text_rect.min,
+                font_size: sizing.font_meta,
+                color: style.text_primary,
+                max_width: Some(text_rect.width().max(24.0)),
+                align: TextAlign::Left,
+            },
+        );
+    }
+    let caret_rect = Rect::from_min_max(
+        Point::new(text_rect.min.x + visual.caret_offset, text_rect.min.y),
+        Point::new(
+            text_rect.min.x + visual.caret_offset + sizing.border_width.max(1.0),
+            text_rect.max.y,
+        ),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: caret_rect,
+            color: caret_color,
+        }),
+    );
+}
+
 /// Render the active browser-search editor fill, selection, text, and caret.
 pub(crate) fn render_active_browser_search_editor(
     primitives: &mut impl PrimitiveSink,
@@ -23,62 +88,43 @@ pub(crate) fn render_active_browser_search_editor(
     search_text_rect: Rect,
     visual: &TextFieldVisualState,
 ) {
-    emit_primitive(
+    render_active_text_field(
         primitives,
-        Primitive::Rect(FillRect {
-            rect: search_field_rect,
-            color: browser_search_field_active_fill(style),
-        }),
-    );
-    push_border(
-        primitives,
+        text_runs,
+        style,
+        sizing,
         search_field_rect,
+        search_text_rect,
+        visual,
+        browser_search_field_active_fill(style),
         browser_search_field_active_border(style),
-        sizing.border_width,
+        browser_search_selection_fill(style),
+        browser_search_caret_color(style),
     );
-    if let Some((start, end)) = visual.selection_offsets
-        && end > start
-    {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(search_text_rect.min.x + start, search_text_rect.min.y),
-                    Point::new(search_text_rect.min.x + end, search_text_rect.max.y),
-                ),
-                color: browser_search_selection_fill(style),
-            }),
-        );
-    }
-    if !visual.text.is_empty() {
-        emit_text(
-            text_runs,
-            TextRun {
-                text: visual.text.clone(),
-                position: search_text_rect.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(search_text_rect.width().max(24.0)),
-                align: TextAlign::Left,
-            },
-        );
-    }
-    let caret_rect = Rect::from_min_max(
-        Point::new(
-            search_text_rect.min.x + visual.caret_offset,
-            search_text_rect.min.y,
-        ),
-        Point::new(
-            search_text_rect.min.x + visual.caret_offset + sizing.border_width.max(1.0),
-            search_text_rect.max.y,
-        ),
-    );
-    emit_primitive(
+}
+
+/// Render the active waveform-BPM editor fill, selection, text, and caret.
+pub(crate) fn render_active_waveform_bpm_editor(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    input_rect: Rect,
+    input_text_rect: Rect,
+    visual: &TextFieldVisualState,
+) {
+    render_active_text_field(
         primitives,
-        Primitive::Rect(FillRect {
-            rect: caret_rect,
-            color: browser_search_caret_color(style),
-        }),
+        text_runs,
+        style,
+        sizing,
+        input_rect,
+        input_text_rect,
+        visual,
+        browser_search_field_active_fill(style),
+        browser_search_field_active_border(style),
+        browser_search_selection_fill(style),
+        browser_search_caret_color(style),
     );
 }
 

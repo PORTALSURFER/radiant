@@ -1345,7 +1345,6 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     text_editor_state: Option<SingleLineTextEditorState>,
     text_input_drag_active: bool,
     waveform_bpm_input_buffer: Option<String>,
-    waveform_bpm_input_select_all: bool,
     clipboard: Option<arboard::Clipboard>,
     clipboard_fallback_text: String,
     last_redraw: Instant,
@@ -1487,7 +1486,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             text_editor_state: None,
             text_input_drag_active: false,
             waveform_bpm_input_buffer: None,
-            waveform_bpm_input_select_all: false,
             clipboard: None,
             clipboard_fallback_text: String::new(),
             last_redraw: Instant::now(),
@@ -3186,22 +3184,35 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if self.text_input_target == TextInputTarget::PromptInput {
             self.text_input_target = TextInputTarget::None;
         }
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            self.text_input_buffer = None;
-            self.text_editor_state = None;
-        } else if self.text_input_target != TextInputTarget::None {
-            if self.text_input_buffer.is_none() {
-                self.text_input_buffer = Some(match self.text_input_target {
-                    TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
-                    TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
-                    TextInputTarget::PromptInput => self
-                        .model
-                        .confirm_prompt
-                        .input_value
-                        .clone()
-                        .unwrap_or_default(),
-                    TextInputTarget::None | TextInputTarget::WaveformBpm => String::new(),
-                });
+        if self.text_input_target != TextInputTarget::None {
+            match self.text_input_target {
+                TextInputTarget::BrowserSearch
+                | TextInputTarget::FolderSearch
+                | TextInputTarget::PromptInput => {
+                    if self.text_input_buffer.is_none() {
+                        self.text_input_buffer = Some(match self.text_input_target {
+                            TextInputTarget::BrowserSearch => {
+                                self.model.browser.search_query.clone()
+                            }
+                            TextInputTarget::FolderSearch => {
+                                self.model.sources.folder_search_query.clone()
+                            }
+                            TextInputTarget::PromptInput => self
+                                .model
+                                .confirm_prompt
+                                .input_value
+                                .clone()
+                                .unwrap_or_default(),
+                            TextInputTarget::None | TextInputTarget::WaveformBpm => String::new(),
+                        });
+                    }
+                }
+                TextInputTarget::WaveformBpm => {
+                    if self.waveform_bpm_input_buffer.is_none() {
+                        self.waveform_bpm_input_buffer = Some(self.waveform_bpm_text_from_model());
+                    }
+                }
+                TextInputTarget::None => {}
             }
             let current_text = self.current_text_value().unwrap_or_default();
             let mut editor = self
@@ -3217,7 +3228,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if self.text_input_target != TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_buffer = None;
-            self.waveform_bpm_input_select_all = false;
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
@@ -3284,39 +3294,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if appended.is_empty() {
             return false;
         }
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            return self.append_waveform_bpm_text(&appended);
-        }
         let Some(value) = self.current_text_value() else {
             return false;
         };
         let Some(editor) = self.text_editor_state.as_mut() else {
             return false;
         };
-        let next = editor.replace_selection(&value, &appended);
-        self.set_text_value(next)
-    }
-
-    fn append_waveform_bpm_text(&mut self, appended: &str) -> bool {
-        let mut value = self.current_text_value().unwrap_or_default();
-        if self.waveform_bpm_input_select_all {
-            value.clear();
-            self.waveform_bpm_input_select_all = false;
-        }
-        let mut accepted = false;
-        for ch in appended.chars() {
-            if ch.is_ascii_digit() {
-                value.push(ch);
-                accepted = true;
-            } else if ch == '.' && !value.contains('.') {
-                value.push(ch);
-                accepted = true;
-            }
-        }
-        if !accepted {
+        let sanitized = if self.text_input_target == TextInputTarget::WaveformBpm {
+            sanitize_waveform_bpm_insert(&value, editor.selection_range(), &appended)
+        } else {
+            appended
+        };
+        if sanitized.is_empty() {
             return false;
         }
-        self.set_text_value(value)
+        let next = editor.replace_selection(&value, &sanitized);
+        self.set_text_value(next)
     }
 
     fn waveform_bpm_text_from_model(&self) -> String {
@@ -3329,15 +3322,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn activate_waveform_bpm_input(&mut self) {
-        if self.text_input_target == TextInputTarget::WaveformBpm
-            && self.waveform_bpm_input_buffer.is_some()
-            && self.waveform_bpm_input_select_all
-        {
-            return;
-        }
         self.text_input_target = TextInputTarget::WaveformBpm;
-        self.waveform_bpm_input_buffer = Some(self.waveform_bpm_text_from_model());
-        self.waveform_bpm_input_select_all = true;
+        let text = self
+            .waveform_bpm_input_buffer
+            .clone()
+            .unwrap_or_else(|| self.waveform_bpm_text_from_model());
+        self.waveform_bpm_input_buffer = Some(text.clone());
+        let mut editor = SingleLineTextEditorState::collapsed_at_end(&text);
+        editor.select_all(&text);
+        self.text_editor_state = Some(editor);
         self.sync_waveform_bpm_editor_state();
         self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
     }
@@ -3361,7 +3354,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.text_input_buffer = Some(current_text.clone());
         self.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end(&current_text));
         self.waveform_bpm_input_buffer = None;
-        self.waveform_bpm_input_select_all = false;
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
     }
@@ -3371,7 +3363,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let was_waveform_bpm = self.text_input_target == TextInputTarget::WaveformBpm;
         if self.text_input_target == TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_buffer = None;
-            self.waveform_bpm_input_select_all = false;
         }
         self.text_input_target = TextInputTarget::None;
         self.text_input_buffer = None;
@@ -3396,13 +3387,45 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .and_then(|value| parse_waveform_bpm_input(&value))
             .unwrap_or(120.0);
         let next = (current + (f32::from(delta_tenths) / 10.0)).max(1.0);
-        self.waveform_bpm_input_buffer = Some(format!("{next:.1}"));
-        self.waveform_bpm_input_select_all = true;
+        let next_text = format!("{next:.1}");
+        self.waveform_bpm_input_buffer = Some(next_text.clone());
+        let mut editor = SingleLineTextEditorState::collapsed_at_end(&next_text);
+        editor.select_all(&next_text);
+        self.text_editor_state = Some(editor);
         self.sync_waveform_bpm_editor_state();
         self.emit_model_action(UiAction::SetWaveformBpmValue {
             value_tenths: bpm_tenths_from_value(next),
         });
         true
+    }
+
+    fn build_active_text_field_visual_state(
+        &mut self,
+        text_rect: UiRect,
+    ) -> Option<TextFieldVisualState> {
+        let text = self.current_text_value().unwrap_or_default();
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return None;
+        };
+        let mut editor = self
+            .text_editor_state
+            .take()
+            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        let layout_state = build_text_field_layout(
+            &mut self.text_renderer,
+            &mut editor,
+            &text,
+            StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
+                .sizing
+                .font_meta,
+            text_rect.width(),
+        );
+        self.text_editor_state = Some(editor);
+        Some(TextFieldVisualState {
+            text: layout_state.visible_text,
+            caret_offset: layout_state.caret_offset,
+            selection_offsets: layout_state.selection_offsets,
+        })
     }
 
     fn sync_waveform_bpm_editor_state(&mut self) {
@@ -3414,8 +3437,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else {
             None
         };
+        let visual = if active {
+            let layout = self.shell_layout.as_ref().cloned();
+            layout
+                .and_then(|layout| {
+                    self.shell_state
+                        .waveform_bpm_text_rect(&layout, &self.model)
+                })
+                .and_then(|text_rect| self.build_active_text_field_visual_state(text_rect))
+        } else {
+            None
+        };
         self.shell_state
-            .set_waveform_bpm_editor_state(active, display);
+            .set_waveform_bpm_editor_state(active, display, visual);
     }
 
     fn sync_browser_search_editor_state(&mut self) {
@@ -3434,27 +3468,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.shell_state.set_browser_search_editor_state(None);
             return;
         };
-        let text = self.current_text_value().unwrap_or_default();
-        let mut editor = self
-            .text_editor_state
-            .take()
-            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
-        let layout_state = build_text_field_layout(
-            &mut self.text_renderer,
-            &mut editor,
-            &text,
-            StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
-                .sizing
-                .font_meta,
-            text_rect.width(),
-        );
-        self.text_editor_state = Some(editor);
-        self.shell_state
-            .set_browser_search_editor_state(Some(TextFieldVisualState {
-                text: layout_state.visible_text,
-                caret_offset: layout_state.caret_offset,
-                selection_offsets: layout_state.selection_offsets,
-            }));
+        let visual = self.build_active_text_field_visual_state(text_rect);
+        self.shell_state.set_browser_search_editor_state(visual);
     }
 
     fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
@@ -3563,21 +3578,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn backspace_text(&mut self) -> bool {
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            let Some(mut value) = self.current_text_value() else {
-                return false;
-            };
-            if self.waveform_bpm_input_select_all {
-                self.waveform_bpm_input_select_all = false;
-                value.clear();
-                return self.set_text_value(value);
-            }
-            if value.pop().is_none() {
-                return false;
-            }
-            self.waveform_bpm_input_select_all = false;
-            return self.set_text_value(value);
-        }
         let Some(value) = self.current_text_value() else {
             return false;
         };
@@ -3591,17 +3591,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn delete_text_forward(&mut self) -> bool {
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            let Some(mut value) = self.current_text_value() else {
-                return false;
-            };
-            if self.waveform_bpm_input_select_all {
-                self.waveform_bpm_input_select_all = false;
-                value.clear();
-                return self.set_text_value(value);
-            }
-            return false;
-        }
         let Some(value) = self.current_text_value() else {
             return false;
         };
@@ -3615,9 +3604,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn move_text_cursor(&mut self, key: KeyCode, extend_selection: bool) -> bool {
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            return false;
-        }
         let Some(text) = self.current_text_value() else {
             return false;
         };
@@ -3632,17 +3618,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             _ => false,
         };
         if moved {
-            self.sync_browser_search_editor_state();
+            if self.text_input_target == TextInputTarget::WaveformBpm {
+                self.sync_waveform_bpm_editor_state();
+            } else {
+                self.sync_browser_search_editor_state();
+            }
         }
         moved
     }
 
     fn select_all_text(&mut self) -> bool {
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            self.waveform_bpm_input_select_all = true;
-            self.sync_waveform_bpm_editor_state();
-            return true;
-        }
         let Some(text) = self.current_text_value() else {
             return false;
         };
@@ -3650,14 +3635,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return false;
         };
         editor.select_all(&text);
-        self.sync_browser_search_editor_state();
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            self.sync_waveform_bpm_editor_state();
+        } else {
+            self.sync_browser_search_editor_state();
+        }
         true
     }
 
     fn copy_selected_text(&mut self) -> bool {
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            return self.write_clipboard_text(&self.current_text_value().unwrap_or_default());
-        }
         let Some(text) = self.current_text_value() else {
             return false;
         };
@@ -3673,10 +3659,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn cut_selected_text(&mut self) -> bool {
         if !self.copy_selected_text() {
             return false;
-        }
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            self.waveform_bpm_input_select_all = false;
-            return self.set_text_value(String::new());
         }
         let Some(text) = self.current_text_value() else {
             return false;
@@ -3716,7 +3698,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if self.text_input_target != TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_buffer = None;
-            self.waveform_bpm_input_select_all = false;
         }
         if self.text_input_target == TextInputTarget::None {
             self.text_input_buffer = None;
@@ -3791,6 +3772,35 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         ))
     }
 
+    fn waveform_bpm_click_byte_index(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<usize> {
+        let text_rect = self
+            .shell_state
+            .waveform_bpm_text_rect(layout, &self.model)?;
+        let text = self
+            .current_text_value()
+            .unwrap_or_else(|| self.waveform_bpm_text_from_model());
+        let font_size = self.cached_style_for_layout(layout).sizing.font_meta;
+        let mut editor = self
+            .text_editor_state
+            .clone()
+            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        let layout_state = build_text_field_layout(
+            &mut self.text_renderer,
+            &mut editor,
+            &text,
+            font_size,
+            text_rect.width(),
+        );
+        Some(byte_index_for_local_x(
+            &layout_state,
+            (point.x - text_rect.min.x).clamp(0.0, text_rect.width()),
+        ))
+    }
+
     fn handle_browser_search_pointer_press(
         &mut self,
         layout: &ShellLayout,
@@ -3826,25 +3836,79 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    fn handle_waveform_bpm_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        extend_selection: bool,
+    ) -> bool {
+        let Some(field_rect) = self
+            .shell_state
+            .waveform_bpm_input_rect(layout, &self.model)
+        else {
+            return false;
+        };
+        if !field_rect.contains(point) {
+            return false;
+        }
+        if self.text_input_target != TextInputTarget::WaveformBpm {
+            self.activate_waveform_bpm_input();
+        }
+        let Some(byte_index) = self.waveform_bpm_click_byte_index(layout, point) else {
+            return false;
+        };
+        let text = self
+            .current_text_value()
+            .unwrap_or_else(|| self.waveform_bpm_text_from_model());
+        let editor = self
+            .text_editor_state
+            .get_or_insert_with(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        editor.set_cursor(&text, byte_index, extend_selection);
+        self.text_input_drag_active = true;
+        self.sync_waveform_bpm_editor_state();
+        self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        true
+    }
+
     fn process_text_input_drag(&mut self, point: Point) -> bool {
-        if !self.text_input_drag_active || self.text_input_target != TextInputTarget::BrowserSearch
-        {
+        if !self.text_input_drag_active {
             return false;
         }
         let Some(layout) = self.shell_layout.as_ref().cloned() else {
             return false;
         };
-        let Some(byte_index) = self.browser_search_click_byte_index(&layout, point) else {
-            return false;
+        let (byte_index, text) = match self.text_input_target {
+            TextInputTarget::BrowserSearch => {
+                let Some(byte_index) = self.browser_search_click_byte_index(&layout, point) else {
+                    return false;
+                };
+                (
+                    byte_index,
+                    self.current_text_value()
+                        .unwrap_or_else(|| self.model.browser.search_query.clone()),
+                )
+            }
+            TextInputTarget::WaveformBpm => {
+                let Some(byte_index) = self.waveform_bpm_click_byte_index(&layout, point) else {
+                    return false;
+                };
+                (
+                    byte_index,
+                    self.current_text_value()
+                        .unwrap_or_else(|| self.waveform_bpm_text_from_model()),
+                )
+            }
+            _ => return false,
         };
-        let text = self
-            .current_text_value()
-            .unwrap_or_else(|| self.model.browser.search_query.clone());
         let Some(editor) = self.text_editor_state.as_mut() else {
             return false;
         };
         editor.set_cursor(&text, byte_index, true);
-        self.sync_browser_search_editor_state();
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            self.sync_waveform_bpm_editor_state();
+        } else {
+            self.sync_browser_search_editor_state();
+        }
         self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
         true
     }
@@ -3860,6 +3924,26 @@ fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
         return None;
     }
     Some(number.to_string())
+}
+
+fn sanitize_waveform_bpm_insert(
+    current: &str,
+    selection_range: (usize, usize),
+    inserted: &str,
+) -> String {
+    let (selection_start, selection_end) = selection_range;
+    let mut sanitized = String::with_capacity(inserted.len());
+    let mut has_decimal =
+        current[..selection_start].contains('.') || current[selection_end..].contains('.');
+    for ch in inserted.chars() {
+        if ch.is_ascii_digit() {
+            sanitized.push(ch);
+        } else if ch == '.' && !has_decimal {
+            sanitized.push(ch);
+            has_decimal = true;
+        }
+    }
+    sanitized
 }
 
 fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
@@ -4030,8 +4114,12 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     self.modifiers.shift_key(),
                                 ) {
                                     handled = true;
-                                } else if self.text_input_target != TextInputTarget::None {
-                                    self.deactivate_text_input_target();
+                                } else if self.handle_waveform_bpm_pointer_press(
+                                    &layout,
+                                    point,
+                                    self.modifiers.shift_key(),
+                                ) {
+                                    handled = true;
                                 }
                             }
                             if !handled {
@@ -4057,17 +4145,11 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                                 .unwrap_or(""),
                                         ));
                                     self.waveform_bpm_input_buffer = None;
-                                    self.waveform_bpm_input_select_all = false;
                                     self.sync_waveform_bpm_editor_state();
                                     self.sync_browser_search_editor_state();
                                     handled = true;
-                                } else if self.shell_state.waveform_bpm_input_at_point(
-                                    &layout,
-                                    &self.model,
-                                    point,
-                                ) {
-                                    self.activate_waveform_bpm_input();
-                                    handled = true;
+                                } else if self.text_input_target != TextInputTarget::None {
+                                    self.deactivate_text_input_target();
                                 } else if let Some(action) = self
                                     .shell_state
                                     .top_bar_volume_action_at_point(&layout, point)

@@ -92,6 +92,7 @@ pub(crate) struct NativeShellState {
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     waveform_bpm_input_active: bool,
     waveform_bpm_input_display: Option<String>,
+    waveform_bpm_editor_visual: Option<TextFieldVisualState>,
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
     playhead_trail_samples: Vec<PlayheadTrailSample>,
@@ -384,6 +385,8 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub flashed_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Remaining flash ticks for waveform-toolbar click feedback.
     pub waveform_toolbar_flash_ticks: u8,
+    /// Active waveform-BPM editor visual signature.
+    pub waveform_bpm_editor_signature: u64,
     /// Quantized pulse animation phase.
     pub pulse_phase_bits: u32,
 }
@@ -663,6 +666,7 @@ impl NativeShellState {
             hovered_waveform_resize_edge: None,
             waveform_bpm_input_active: false,
             waveform_bpm_input_display: None,
+            waveform_bpm_editor_visual: None,
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
             playhead_trail_samples: Vec::new(),
@@ -757,14 +761,17 @@ impl NativeShellState {
         &mut self,
         active: bool,
         display_text: Option<String>,
+        visual: Option<TextFieldVisualState>,
     ) {
         if self.waveform_bpm_input_active == active
             && self.waveform_bpm_input_display == display_text
+            && self.waveform_bpm_editor_visual == visual
         {
             return;
         }
         self.waveform_bpm_input_active = active;
         self.waveform_bpm_input_display = display_text;
+        self.waveform_bpm_editor_visual = visual;
         self.waveform_toolbar_hit_test_cache_key = None;
     }
 
@@ -841,6 +848,9 @@ impl NativeShellState {
             waveform_toolbar_flash_ticks: self
                 .waveform_toolbar_flash
                 .map_or(0, |flash| flash.ticks_remaining),
+            waveform_bpm_editor_signature: text_field_visual_signature(
+                self.waveform_bpm_editor_visual.as_ref(),
+            ),
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
@@ -1544,6 +1554,34 @@ impl NativeShellState {
         hit
     }
 
+    /// Return the waveform BPM input rect when the toolbar is available.
+    pub(crate) fn waveform_bpm_input_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        let style = style_for_layout(layout);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.label == "BPM Value" && button.enabled)
+            .map(|button| button.rect)
+    }
+
+    /// Return the waveform BPM text rect used for rendering inside the field.
+    pub(crate) fn waveform_bpm_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        let style = style_for_layout(layout);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.label == "BPM Value" && button.enabled)
+            .map(|button| compute_action_button_text_rect(button.rect, style.sizing))
+    }
+
     /// Return the browser-search field rect when the toolbar is available.
     pub(crate) fn browser_search_field_rect(
         &mut self,
@@ -1944,13 +1982,30 @@ impl NativeShellState {
                 .find(|button| button.label == "BPM Value")
                 .map(|button| button.rect)
             {
-                render_waveform_bpm_input_focus_overlay(
-                    primitives,
-                    style,
-                    sizing,
-                    bpm_input_rect,
-                    motion_wave,
-                );
+                if let Some(visual) = self.waveform_bpm_editor_visual.as_ref() {
+                    let bpm_text_rect = waveform_toolbar_buttons
+                        .iter()
+                        .find(|button| button.label == "BPM Value")
+                        .map(|button| compute_action_button_text_rect(button.rect, sizing))
+                        .unwrap_or(bpm_input_rect);
+                    render_active_waveform_bpm_editor(
+                        primitives,
+                        text_runs,
+                        style,
+                        sizing,
+                        bpm_input_rect,
+                        bpm_text_rect,
+                        visual,
+                    );
+                } else {
+                    render_waveform_bpm_input_focus_overlay(
+                        primitives,
+                        style,
+                        sizing,
+                        bpm_input_rect,
+                        motion_wave,
+                    );
+                }
             }
         }
         render_waveform_toolbar_buttons(
@@ -1962,6 +2017,7 @@ impl NativeShellState {
             self.hovered_waveform_toolbar_hint,
             self.waveform_toolbar_flash.map(|flash| flash.hint),
             motion_wave,
+            self.waveform_bpm_editor_visual.is_some(),
         );
         if let Some(search_field_rect) = self
             .browser_toolbar_layout
@@ -2813,8 +2869,12 @@ fn render_waveform_toolbar_buttons(
     hovered_hint: Option<WaveformToolbarHoverHint>,
     flashed_hint: Option<WaveformToolbarHoverHint>,
     motion_wave: f32,
+    hide_active_bpm_value_text: bool,
 ) {
     for button in buttons {
+        if hide_active_bpm_value_text && button.label == "BPM Value" {
+            continue;
+        }
         let label_rect = compute_action_button_text_rect(button.rect, sizing);
         let button_hint = waveform_toolbar_hover_hint(button.label);
         let is_hovered = button_hint.is_some() && button_hint == hovered_hint;

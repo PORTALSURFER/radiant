@@ -415,8 +415,8 @@ impl StyleTokens {
                 browser_footer_height: 14.5,
                 browser_footer_min_height: 14.0,
                 browser_footer_max_height: 28.0,
-                browser_search_field_min_width: 124.0,
-                browser_search_field_ratio: 0.46,
+                browser_search_field_min_width: 96.0,
+                browser_search_field_ratio: 0.23,
                 browser_index_col_width: 32.0,
                 browser_bucket_col_width: 78.0,
                 panel_inset: 4.0,
@@ -511,8 +511,8 @@ impl StyleTokens {
             tokens.sizing.browser_toolbar_height = 19.0;
             tokens.sizing.browser_table_header_height = 18.0;
             tokens.sizing.browser_footer_height = 16.0;
-            tokens.sizing.browser_search_field_min_width = 108.0;
-            tokens.sizing.browser_search_field_ratio = 0.44;
+            tokens.sizing.browser_search_field_min_width = 88.0;
+            tokens.sizing.browser_search_field_ratio = 0.22;
             tokens.sizing.browser_index_col_width = 38.0;
             tokens.sizing.browser_bucket_col_width = 76.0;
             tokens.sizing.browser_row_gap = 0.0;
@@ -612,8 +612,8 @@ impl StyleTokens {
             tokens.sizing.browser_toolbar_height = 19.0;
             tokens.sizing.browser_table_header_height = 18.0;
             tokens.sizing.browser_footer_height = 16.0;
-            tokens.sizing.browser_search_field_min_width = 140.0;
-            tokens.sizing.browser_search_field_ratio = 0.47;
+            tokens.sizing.browser_search_field_min_width = 108.0;
+            tokens.sizing.browser_search_field_ratio = 0.24;
             tokens.sizing.browser_index_col_width = 36.0;
             tokens.sizing.browser_bucket_col_width = 84.0;
             tokens.sizing.browser_row_gap = 0.0;

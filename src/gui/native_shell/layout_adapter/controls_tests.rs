@@ -50,12 +50,14 @@ fn toolbar_search_field_uses_ratio_width_inside_full_host() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let toolbar = Rect::from_min_max(Point::new(300.0, 200.0), Point::new(1180.0, 220.0));
     let sections = compute_browser_toolbar_sections(toolbar, style.sizing, None);
+    let host_width = toolbar.width() - (style.sizing.text_inset_x * 2.0);
     assert_eq!(
         sections.search_field.min.x,
         toolbar.min.x + style.sizing.text_inset_x
     );
     assert!(sections.search_field.width() >= style.sizing.browser_search_field_min_width);
     assert!(sections.search_field.width() < toolbar.width() - (style.sizing.text_inset_x * 2.0));
+    assert!(sections.search_field.width() <= host_width * 0.26);
 }
 
 #[test]

@@ -72,6 +72,7 @@ pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
+    hovered_folder_row_index: Option<usize>,
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_toolbar_flash: Option<WaveformToolbarFlash>,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
@@ -305,6 +306,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered folder row by rendered sidebar row index.
+    pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Whether focused selection emphasis is active.
@@ -616,6 +619,7 @@ impl NativeShellState {
             selected_column: 1,
             hovered: None,
             hovered_browser_visible_row: None,
+            hovered_folder_row_index: None,
             hovered_waveform_toolbar_hint: None,
             waveform_toolbar_flash: None,
             hovered_waveform_resize_edge: None,
@@ -678,6 +682,12 @@ impl NativeShellState {
             self.hovered_browser_visible_row = None;
         }
         if self
+            .hovered_folder_row_index
+            .is_some_and(|row_index| row_index >= model.sources.folder_rows.len())
+        {
+            self.hovered_folder_row_index = None;
+        }
+        if self
             .source_context_menu
             .is_some_and(|menu| menu.row_index >= model.sources.rows.len())
         {
@@ -731,6 +741,7 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             has_focus_emphasis: self.has_focus_emphasis,
         }
@@ -804,6 +815,8 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_folder_row =
+            self.resolve_hovered_folder_row(layout, model, point, next_hover);
         let next_hovered_waveform_toolbar_hint =
             self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
         let next_hovered_waveform_resize_edge =
@@ -811,6 +824,7 @@ impl NativeShellState {
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
         let waveform_toolbar_hint_changed =
             next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
         let waveform_resize_edge_changed =
@@ -819,6 +833,7 @@ impl NativeShellState {
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
             && !browser_row_changed
+            && !folder_row_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
             && !waveform_hover_changed
@@ -827,12 +842,14 @@ impl NativeShellState {
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_folder_row_index = next_hovered_folder_row;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
         self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
         self.waveform_hover_x = next_waveform_hover_x;
         if waveform_hover_changed
             && !hover_changed
             && !browser_row_changed
+            && !folder_row_changed
             && !waveform_toolbar_hint_changed
             && !waveform_resize_edge_changed
         {
@@ -856,6 +873,21 @@ impl NativeShellState {
         let rows = self.cached_browser_rows(layout, &style, model);
         row_index_for_visible_rows(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
+    }
+
+    fn resolve_hovered_folder_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_folder_row_rects(layout, &style, model);
+        compute_row_index_at_point(rows, point)
     }
 
     fn resolve_hovered_waveform_toolbar_hint(

@@ -1727,6 +1727,18 @@ impl NativeShellState {
                 );
             }
         }
+        if let Some(hovered_folder_row_index) = self.hovered_folder_row_index {
+            let folder_row_rects = self.cached_folder_row_rects(layout, style, model);
+            if let Some(row_rect) = folder_row_rects.get(hovered_folder_row_index) {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: *row_rect,
+                        color: subtle_item_hover_fill(style),
+                    }),
+                );
+            }
+        }
 
         if self.has_focus_emphasis {
             {

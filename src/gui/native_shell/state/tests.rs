@@ -1271,6 +1271,44 @@ fn browser_row_hovered_overlay_uses_hover_fill() {
 }
 
 #[test]
+fn folder_row_hovered_overlay_uses_hover_fill() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = populated_sidebar_model();
+
+    let rendered_rows = rendered_folder_row_rects(&layout, &style, &model);
+    let hover_row = rendered_rows[0];
+    let cursor = Point::new(
+        hover_row.min.x + 4.0,
+        (hover_row.min.y + hover_row.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, cursor),
+        CursorMoveEffect::None
+    );
+
+    let fingerprint = state.state_overlay_fingerprint();
+    assert_eq!(fingerprint.hovered, Some(ShellNodeKind::Sidebar));
+    assert_eq!(fingerprint.hovered_folder_row_index, Some(0));
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    let expected_hover = subtle_item_hover_fill(&style);
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == hover_row => Some(rect.color),
+            _ => None,
+        })
+        .expect("hovered folder row should emit a fill rectangle");
+
+    assert_eq!(overlay_color, expected_hover);
+}
+
+#[test]
 fn cursor_move_tracks_waveform_hover_position_inside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

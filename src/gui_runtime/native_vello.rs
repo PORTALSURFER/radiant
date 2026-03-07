@@ -2189,15 +2189,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Repeats stay intentionally narrow to preserve existing single-fire behavior
     /// for actions like toggles/prompts while allowing rapid sample stepping.
     fn allows_key_repeat(&self, key: KeyCode) -> bool {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            if self.modifiers.control_key()
+                || self.modifiers.super_key()
+                || self.modifiers.alt_key()
+            {
+                return false;
+            }
+            return matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown);
+        }
         if self.modifiers.shift_key()
             || self.modifiers.control_key()
             || self.modifiers.super_key()
             || self.modifiers.alt_key()
         {
             return false;
-        }
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            return matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown);
         }
         if self.text_input_target != TextInputTarget::None {
             return false;
@@ -3289,15 +3295,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
-    fn step_waveform_bpm_input(&mut self, delta: i8) -> bool {
-        if self.text_input_target != TextInputTarget::WaveformBpm || delta == 0 {
+    fn step_waveform_bpm_input(&mut self, delta_tenths: i16) -> bool {
+        if self.text_input_target != TextInputTarget::WaveformBpm || delta_tenths == 0 {
             return false;
         }
         let current = self
             .current_text_value()
             .and_then(|value| parse_waveform_bpm_input(&value))
             .unwrap_or(120.0);
-        let next = (current + f32::from(delta)).max(1.0);
+        let next = (current + (f32::from(delta_tenths) / 10.0)).max(1.0);
         self.waveform_bpm_input_buffer = Some(format!("{next:.1}"));
         self.waveform_bpm_input_select_all = true;
         self.sync_waveform_bpm_editor_state();
@@ -3819,8 +3825,20 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     }
                     if !handled && let Some(key) = key {
                         handled = match key {
-                            KeyCode::ArrowUp => self.step_waveform_bpm_input(1),
-                            KeyCode::ArrowDown => self.step_waveform_bpm_input(-1),
+                            KeyCode::ArrowUp => {
+                                self.step_waveform_bpm_input(if self.modifiers.shift_key() {
+                                    1
+                                } else {
+                                    10
+                                })
+                            }
+                            KeyCode::ArrowDown => {
+                                self.step_waveform_bpm_input(if self.modifiers.shift_key() {
+                                    -1
+                                } else {
+                                    -10
+                                })
+                            }
                             _ => false,
                         };
                     }

@@ -264,10 +264,8 @@ pub(crate) enum CursorMoveEffect {
 /// Stable hover-target identifier for waveform-toolbar tooltip hints.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WaveformToolbarHoverHint {
-    /// Mono channel-view toggle.
-    Mono,
-    /// Split-stereo channel-view toggle.
-    Stereo,
+    /// Channel-view toggle that swaps between mono and split stereo.
+    ChannelView,
     /// Normalized audition toggle.
     NormalizedAudition,
     /// Current playback BPM value display.
@@ -2196,8 +2194,7 @@ fn text_signature(value: Option<&str>) -> u64 {
 
 fn waveform_toolbar_hover_hint(label: &str) -> Option<WaveformToolbarHoverHint> {
     match label {
-        "Mono" => Some(WaveformToolbarHoverHint::Mono),
-        "Stereo" => Some(WaveformToolbarHoverHint::Stereo),
+        "Channel" => Some(WaveformToolbarHoverHint::ChannelView),
         "Norm" => Some(WaveformToolbarHoverHint::NormalizedAudition),
         "BPM Value" => Some(WaveformToolbarHoverHint::BpmValue),
         "BPM Snap" => Some(WaveformToolbarHoverHint::BpmSnap),
@@ -2513,23 +2510,25 @@ fn waveform_toolbar_buttons(
     let bpm_value_label = waveform_toolbar_bpm_value_label(model, bpm_input_display);
     let specs = vec![
         (
-            "Mono",
+            "Channel",
+            Some(
+                if model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo {
+                    WaveformToolbarIcon::Stereo
+                } else {
+                    WaveformToolbarIcon::Mono
+                },
+            ),
             None,
             true,
-            model.waveform_channel_view == crate::app::WaveformChannelViewModel::Mono,
-            Some(UiAction::SetWaveformChannelView { stereo: false }),
-            style.text_muted,
-        ),
-        (
-            "Stereo",
-            None,
-            true,
-            model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo,
-            Some(UiAction::SetWaveformChannelView { stereo: true }),
-            style.text_muted,
+            false,
+            Some(UiAction::SetWaveformChannelView {
+                stereo: model.waveform_channel_view != crate::app::WaveformChannelViewModel::Stereo,
+            }),
+            style.text_primary,
         ),
         (
             "Norm",
+            Some(WaveformToolbarIcon::Normalize),
             None,
             true,
             model.waveform_normalized_audition_enabled,
@@ -2544,6 +2543,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "BPM Value",
+            None,
             Some(bpm_value_label),
             true,
             bpm_input_active,
@@ -2552,6 +2552,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "BPM Snap",
+            Some(WaveformToolbarIcon::BpmSnap),
             None,
             true,
             model.waveform_bpm_snap_enabled,
@@ -2566,6 +2567,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Tr Snap",
+            Some(WaveformToolbarIcon::TransientSnap),
             None,
             true,
             model.waveform_transient_snap_enabled,
@@ -2576,6 +2578,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Show Tr",
+            Some(WaveformToolbarIcon::ShowTransients),
             None,
             true,
             model.waveform_transient_markers_enabled,
@@ -2586,6 +2589,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Slice",
+            Some(WaveformToolbarIcon::Slice),
             None,
             true,
             model.waveform_slice_mode_enabled,
@@ -2596,6 +2600,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Loop",
+            Some(WaveformToolbarIcon::Loop),
             None,
             true,
             model.waveform_loop_enabled,
@@ -2604,6 +2609,7 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Stop",
+            Some(WaveformToolbarIcon::Stop),
             None,
             true,
             !model.transport_running,
@@ -2612,17 +2618,26 @@ fn waveform_toolbar_buttons(
         ),
         (
             "Play",
+            Some(WaveformToolbarIcon::Play),
             None,
             true,
             model.transport_running,
             Some(UiAction::ToggleTransport),
             style.highlight_cyan,
         ),
-        ("Rec", None, false, false, None, style.highlight_blue_soft),
+        (
+            "Rec",
+            Some(WaveformToolbarIcon::Record),
+            None,
+            false,
+            false,
+            None,
+            style.highlight_blue_soft,
+        ),
     ];
     let label_strings: Vec<String> = specs
         .iter()
-        .map(|(label, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
+        .map(|(label, _, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
         .collect();
     let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
     let cluster = Rect::from_min_max(
@@ -2639,10 +2654,11 @@ fn waveform_toolbar_buttons(
         .into_iter()
         .zip(specs.into_iter().skip(start_index))
         .map(
-            |(rect, (label, display_text, enabled, active, action, text_color))| {
+            |(rect, (label, icon, display_text, enabled, active, action, text_color))| {
                 WaveformToolbarButton {
                     rect,
                     label,
+                    icon,
                     display_text,
                     enabled,
                     active,

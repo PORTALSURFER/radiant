@@ -286,8 +286,7 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
     let state = NativeShellState::new();
     let model = AppModel::default();
     let labels = [
-        "Mono", "Stereo", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Stop",
-        "Play", "Rec",
+        "Channel", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Stop", "Play", "Rec",
     ];
     let widths: Vec<u32> = labels
         .iter()
@@ -311,7 +310,7 @@ fn waveform_toolbar_renders_without_per_button_rect_chrome() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut state = NativeShellState::new();
-    let button_rects = ["Mono", "Stereo", "Play"]
+    let button_rects = ["Channel", "Play"]
         .into_iter()
         .map(|label| {
             state
@@ -1749,29 +1748,59 @@ fn cursor_move_effect_classifies_waveform_toolbar_hover_changes_as_general_overl
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut state = NativeShellState::new();
-    let mono_rect = state
-        .waveform_toolbar_button_rect(&layout, &model, "Mono")
-        .expect("mono button should be present");
-    let stereo_rect = state
-        .waveform_toolbar_button_rect(&layout, &model, "Stereo")
-        .expect("stereo button should be present");
-    let mono = Point::new(
-        (mono_rect.min.x + mono_rect.max.x) * 0.5,
-        (mono_rect.min.y + mono_rect.max.y) * 0.5,
-    );
-    let stereo = Point::new(
-        (stereo_rect.min.x + stereo_rect.max.x) * 0.5,
-        (stereo_rect.min.y + stereo_rect.max.y) * 0.5,
+    let channel_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Channel")
+        .expect("channel button should be present");
+    let channel = Point::new(
+        (channel_rect.min.x + channel_rect.max.x) * 0.5,
+        (channel_rect.min.y + channel_rect.max.y) * 0.5,
     );
 
     assert_eq!(
-        state.handle_cursor_move_effect(&layout, &model, mono),
+        state.handle_cursor_move_effect(&layout, &model, channel),
         CursorMoveEffect::GeneralOverlay
     );
+}
+
+#[test]
+fn waveform_toolbar_channel_button_toggles_channel_view_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    let mono_buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let mono_button = mono_buttons
+        .iter()
+        .find(|button| button.label == "Channel")
+        .expect("channel toolbar button should be present");
     assert_eq!(
-        state.handle_cursor_move_effect(&layout, &model, stereo),
-        CursorMoveEffect::GeneralOverlay
+        mono_button.action,
+        Some(UiAction::SetWaveformChannelView { stereo: true })
     );
+    assert_eq!(mono_button.icon, Some(WaveformToolbarIcon::Mono));
+
+    model.waveform_chrome.channel_view = crate::app::WaveformChannelViewModel::Stereo;
+    let stereo_buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let stereo_button = stereo_buttons
+        .iter()
+        .find(|button| button.label == "Channel")
+        .expect("channel toolbar button should be present");
+    assert_eq!(
+        stereo_button.action,
+        Some(UiAction::SetWaveformChannelView { stereo: false })
+    );
+    assert_eq!(stereo_button.icon, Some(WaveformToolbarIcon::Stereo));
 }
 
 #[test]
@@ -1780,15 +1809,15 @@ fn state_overlay_renders_waveform_toolbar_hover_tooltip_text() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let model = AppModel::default();
     let mut state = NativeShellState::new();
-    let mono_rect = state
-        .waveform_toolbar_button_rect(&layout, &model, "Mono")
-        .expect("mono button should be present");
-    let mono = Point::new(
-        (mono_rect.min.x + mono_rect.max.x) * 0.5,
-        (mono_rect.min.y + mono_rect.max.y) * 0.5,
+    let channel_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Channel")
+        .expect("channel button should be present");
+    let channel = Point::new(
+        (channel_rect.min.x + channel_rect.max.x) * 0.5,
+        (channel_rect.min.y + channel_rect.max.y) * 0.5,
     );
     assert_eq!(
-        state.handle_cursor_move_effect(&layout, &model, mono),
+        state.handle_cursor_move_effect(&layout, &model, channel),
         CursorMoveEffect::GeneralOverlay
     );
 
@@ -1799,7 +1828,7 @@ fn state_overlay_renders_waveform_toolbar_hover_tooltip_text() {
         frame
             .text_runs
             .iter()
-            .any(|run| run.text.contains("View waveform in mono"))
+            .any(|run| run.text.contains("Switch waveform view to split stereo"))
     );
 }
 

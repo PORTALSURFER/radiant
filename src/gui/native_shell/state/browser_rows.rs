@@ -1,5 +1,6 @@
 //! Browser-row caches, windowing, truncation, and row-hit helpers for native shell state.
 
+use super::svg_icons::WaveformToolbarIcon;
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -88,6 +89,7 @@ pub(super) struct BrowserColumnChip {
 pub(super) struct WaveformToolbarButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
+    pub(super) icon: Option<WaveformToolbarIcon>,
     pub(super) display_text: Option<String>,
     pub(super) enabled: bool,
     pub(super) active: bool,

@@ -64,20 +64,7 @@ enum SvgShape {
 pub(super) fn toolbar_icon_for_button(
     button: &WaveformToolbarButton,
 ) -> Option<WaveformToolbarIcon> {
-    match button.label {
-        "Mono" => Some(WaveformToolbarIcon::Mono),
-        "Stereo" => Some(WaveformToolbarIcon::Stereo),
-        "Norm" => Some(WaveformToolbarIcon::Normalize),
-        "BPM Snap" => Some(WaveformToolbarIcon::BpmSnap),
-        "Tr Snap" => Some(WaveformToolbarIcon::TransientSnap),
-        "Show Tr" => Some(WaveformToolbarIcon::ShowTransients),
-        "Slice" => Some(WaveformToolbarIcon::Slice),
-        "Loop" => Some(WaveformToolbarIcon::Loop),
-        "Stop" => Some(WaveformToolbarIcon::Stop),
-        "Play" => Some(WaveformToolbarIcon::Play),
-        "Rec" => Some(WaveformToolbarIcon::Record),
-        _ => None,
-    }
+    button.icon
 }
 
 /// Emit one SVG-backed toolbar icon into the primitive list.
@@ -307,6 +294,7 @@ mod tests {
         WaveformToolbarButton {
             rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(18.0, 18.0)),
             label,
+            icon: toolbar_icon_for_label(label),
             display_text: None,
             enabled: true,
             active,
@@ -317,6 +305,15 @@ mod tests {
                 b: 255,
                 a: 255,
             },
+        }
+    }
+
+    fn toolbar_icon_for_label(label: &'static str) -> Option<WaveformToolbarIcon> {
+        match label {
+            "Channel Mono" => Some(WaveformToolbarIcon::Mono),
+            "Channel Stereo" => Some(WaveformToolbarIcon::Stereo),
+            "Play" => Some(WaveformToolbarIcon::Play),
+            _ => None,
         }
     }
 
@@ -332,6 +329,21 @@ mod tests {
         assert_eq!(
             toolbar_icon_for_button(&running_button),
             Some(WaveformToolbarIcon::Play)
+        );
+    }
+
+    #[test]
+    fn channel_button_swaps_icons_between_mono_and_stereo_states() {
+        let mono_button = waveform_toolbar_button("Channel Mono", false);
+        let stereo_button = waveform_toolbar_button("Channel Stereo", false);
+
+        assert_eq!(
+            toolbar_icon_for_button(&mono_button),
+            Some(WaveformToolbarIcon::Mono)
+        );
+        assert_eq!(
+            toolbar_icon_for_button(&stereo_button),
+            Some(WaveformToolbarIcon::Stereo)
         );
     }
 }

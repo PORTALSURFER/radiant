@@ -2265,8 +2265,13 @@ fn push_waveform_toolbar_hover_tooltip(
 
 fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppModel) -> String {
     match hint {
-        WaveformToolbarHoverHint::Mono => String::from("View waveform in mono"),
-        WaveformToolbarHoverHint::Stereo => String::from("View waveform in split stereo"),
+        WaveformToolbarHoverHint::ChannelView => {
+            if model.waveform_chrome.channel_view == crate::app::WaveformChannelViewModel::Stereo {
+                String::from("Switch waveform view to mono")
+            } else {
+                String::from("Switch waveform view to split stereo")
+            }
+        }
         WaveformToolbarHoverHint::NormalizedAudition => {
             if model.waveform_chrome.normalized_audition_enabled {
                 String::from("Disable normalized audition")

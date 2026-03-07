@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::{
     BrowserPanelModel, ColumnModel, MapPanelModel, MapPointModel, SourcesPanelModel,
-    UpdatePanelModel, UpdateStatusModel, WaveformPanelModel,
+    WaveformPanelModel,
 };
 use crate::gui::types::Vector2;
 use std::sync::{
@@ -1927,38 +1927,6 @@ fn map_point_click_routes_to_focus_map_sample() {
         Some(UiAction::FocusMapSample {
             sample_id: String::from("source::kick.wav")
         })
-    );
-}
-
-#[test]
-fn update_button_click_routes_update_check_action() {
-    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let mut shell_state = NativeShellState::new();
-    let model = AppModel {
-        update: UpdatePanelModel {
-            status: UpdateStatusModel::Idle,
-            status_label: String::from("Updates: idle"),
-            action_hint_label: String::from("Action: check"),
-            release_notes_label: String::new(),
-            available_tag: None,
-            available_url: None,
-            last_error: None,
-        },
-        ..AppModel::default()
-    };
-    let button_point = Point::new(
-        layout.top_bar_action_cluster.max.x - 18.0,
-        layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
-    );
-    assert_eq!(
-        action_from_pointer(
-            &layout,
-            &model,
-            &mut shell_state,
-            button_point,
-            ModifiersState::default(),
-        ),
-        Some(UiAction::CheckForUpdates)
     );
 }
 

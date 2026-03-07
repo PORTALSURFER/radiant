@@ -3285,32 +3285,6 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
 }
 
 #[test]
-fn top_bar_update_prefers_projected_status_and_hint_copy() {
-    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let mut state = NativeShellState::new();
-    let mut model = AppModel::default();
-    model.update.status = crate::app::UpdateStatusModel::Available;
-    model.update.status_label = String::from("Update available: v20.1.0");
-    model.update.action_hint_label = String::from("Actions: open | install | dismiss");
-    model.update.release_notes_label = String::from("Release: v20.1.0 (2026-02-01)");
-    model.update.available_url = Some(String::from("https://example.invalid/release"));
-
-    let frame = state.build_frame(&layout, &model);
-    assert!(
-        frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.starts_with("Update"))
-    );
-    let controls_run = frame
-        .text_runs
-        .iter()
-        .find(|run| run.text.starts_with("Update"))
-        .expect("projected update status should be present");
-    assert_text_run_inside_band(controls_run, layout.top_bar_title_row);
-}
-
-#[test]
 fn tick_with_style_uses_tier_motion_speed_tokens() {
     let mut model = AppModel::default();
     model.transport_running = true;

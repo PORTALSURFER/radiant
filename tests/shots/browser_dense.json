@@ -8,8 +8,8 @@
     "b": 37,
     "a": 255
   },
-  "primitive_count": 537,
-  "text_run_count": 122,
+  "primitive_count": 532,
+  "text_run_count": 120,
   "primitives": [
     {
       "kind": "rect",
@@ -18113,81 +18113,6 @@
     {
       "kind": "rect",
       "rect": {
-        "x": 1549.0,
-        "y": 0.53,
-        "width": 41.7,
-        "height": 17.47
-      },
-      "color": {
-        "r": 43,
-        "g": 42,
-        "b": 40,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 1549.0,
-        "y": 0.53,
-        "width": 41.7,
-        "height": 1.06
-      },
-      "color": {
-        "r": 133,
-        "g": 132,
-        "b": 129,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 1549.0,
-        "y": 16.94,
-        "width": 41.7,
-        "height": 1.06
-      },
-      "color": {
-        "r": 133,
-        "g": 132,
-        "b": 129,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 1549.0,
-        "y": 0.53,
-        "width": 1.06,
-        "height": 17.47
-      },
-      "color": {
-        "r": 133,
-        "g": 132,
-        "b": 129,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
-        "x": 1589.64,
-        "y": 0.53,
-        "width": 1.06,
-        "height": 17.47
-      },
-      "color": {
-        "r": 133,
-        "g": 132,
-        "b": 129,
-        "a": 255
-      }
-    },
-    {
-      "kind": "rect",
-      "rect": {
         "x": 206.7,
         "y": 27.08,
         "width": 15.0,
@@ -22158,38 +22083,6 @@
       },
       "max_width": 28.0,
       "align": "left"
-    },
-    {
-      "text": "Updates: idle | Action: check",
-      "position": {
-        "x": 1323.0,
-        "y": 4.0
-      },
-      "font_size": 9.116,
-      "color": {
-        "r": 185,
-        "g": 180,
-        "b": 166,
-        "a": 255
-      },
-      "max_width": 220.0,
-      "align": "left"
-    },
-    {
-      "text": "Check",
-      "position": {
-        "x": 1554.3,
-        "y": 3.18
-      },
-      "font_size": 9.116,
-      "color": {
-        "r": 238,
-        "g": 234,
-        "b": 224,
-        "a": 255
-      },
-      "max_width": 30.7,
-      "align": "center"
     },
     {
       "text": "Sources",

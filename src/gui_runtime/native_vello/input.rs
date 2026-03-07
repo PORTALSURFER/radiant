@@ -205,9 +205,6 @@ pub(super) fn action_from_pointer_with_motion(
     if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.update_action_at_point(layout, model, point) {
-        return Some(action);
-    }
     if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
         return Some(action);
     }

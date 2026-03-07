@@ -19,8 +19,8 @@ use super::{
         compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_top_bar_controls_sections,
         compute_top_bar_controls_text_layout, compute_top_bar_title_text_rect,
-        compute_top_bar_update_text_layout, compute_update_action_button_rects,
-        compute_waveform_annotation_rects, compute_waveform_header_text_layout,
+        compute_update_action_button_rects, compute_waveform_annotation_rects,
+        compute_waveform_header_text_layout,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -1311,20 +1311,6 @@ impl NativeShellState {
         resolved.and_then(|(_, action)| action)
     }
 
-    /// Resolve a top-bar update action button click.
-    pub(crate) fn update_action_at_point(
-        &self,
-        layout: &ShellLayout,
-        model: &AppModel,
-        point: Point,
-    ) -> Option<UiAction> {
-        let style = style_for_layout(layout);
-        update_action_buttons(layout, &style, model)
-            .into_iter()
-            .find(|button| button.enabled && button.rect.contains(point))
-            .map(|button| button.action)
-    }
-
     /// Resolve a click inside the top-bar options label to a native options action.
     pub(crate) fn top_bar_options_action_at_point(
         &self,
@@ -2388,99 +2374,6 @@ fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) 
         }
     }
     best.map(|(_, sample_id)| sample_id.to_string())
-}
-
-fn update_status_text(model: &AppModel) -> String {
-    if !model.update.status_label.is_empty() {
-        return model.update.status_label.clone();
-    }
-    match model.update.status {
-        crate::app::UpdateStatusModel::Idle => String::from("Updates: idle"),
-        crate::app::UpdateStatusModel::Checking => String::from("Checking updates..."),
-        crate::app::UpdateStatusModel::Available => model
-            .update
-            .available_tag
-            .as_deref()
-            .map(|tag| format!("Update available: {tag}"))
-            .unwrap_or_else(|| String::from("Update available")),
-        crate::app::UpdateStatusModel::Error => model
-            .update
-            .last_error
-            .as_deref()
-            .map(|err| format!("Update check failed: {err}"))
-            .unwrap_or_else(|| String::from("Update check failed")),
-    }
-}
-
-fn update_hint_text(model: &AppModel) -> String {
-    if !model.update.action_hint_label.is_empty() {
-        return model.update.action_hint_label.clone();
-    }
-    match model.update.status {
-        crate::app::UpdateStatusModel::Idle => String::from("Action: check"),
-        crate::app::UpdateStatusModel::Checking => String::from("Action: waiting"),
-        crate::app::UpdateStatusModel::Available => {
-            if model.update.available_url.is_some() {
-                String::from("Actions: open | install | dismiss")
-            } else {
-                String::from("Action: dismiss")
-            }
-        }
-        crate::app::UpdateStatusModel::Error => String::from("Action: retry"),
-    }
-}
-
-fn update_notes_text(model: &AppModel) -> String {
-    if !model.update.release_notes_label.is_empty() {
-        return model.update.release_notes_label.clone();
-    }
-    String::new()
-}
-
-fn update_action_buttons(
-    layout: &ShellLayout,
-    style: &StyleTokens,
-    model: &AppModel,
-) -> Vec<ActionButton> {
-    let specs: Vec<(&'static str, bool, UiAction)> = match model.update.status {
-        crate::app::UpdateStatusModel::Idle => {
-            vec![("Check", true, UiAction::CheckForUpdates)]
-        }
-        crate::app::UpdateStatusModel::Checking => Vec::new(),
-        crate::app::UpdateStatusModel::Available => {
-            let has_url = model.update.available_url.is_some();
-            vec![
-                ("Open", has_url, UiAction::OpenUpdateLink),
-                ("Install", has_url, UiAction::InstallUpdate),
-                ("Dismiss", true, UiAction::DismissUpdate),
-            ]
-        }
-        crate::app::UpdateStatusModel::Error => {
-            vec![("Retry", true, UiAction::CheckForUpdates)]
-        }
-    };
-    if specs.is_empty() {
-        return Vec::new();
-    }
-    let labels: Vec<&str> = specs.iter().map(|(label, _, _)| *label).collect();
-    let rects = compute_update_action_button_rects(
-        layout.top_bar_title_row,
-        layout.top_bar_action_cluster,
-        style.sizing,
-        &labels,
-    );
-    let start_index = specs.len().saturating_sub(rects.len());
-    rects
-        .into_iter()
-        .zip(specs.into_iter().skip(start_index))
-        .map(|(rect, (label, enabled, action))| ActionButton {
-            rect,
-            label,
-            enabled,
-            action,
-            text_color: style.text_primary,
-        })
-        .collect()
 }
 
 fn browser_toolbar_layout(

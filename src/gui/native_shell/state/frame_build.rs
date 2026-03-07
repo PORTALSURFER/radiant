@@ -1171,6 +1171,26 @@ impl NativeShellState {
                 },
             );
             let toolbar = browser_toolbar_layout(layout, style, &browser_buttons);
+            for (index, rect) in toolbar.rating_filter_chips.iter().copied().enumerate() {
+                if rect.width() <= 1.0 {
+                    continue;
+                }
+                let level = BROWSER_RATING_FILTER_LEVELS[index];
+                let active = model.browser.active_rating_filters[index];
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect,
+                        color: browser_rating_filter_chip_fill(style, level, active),
+                    }),
+                );
+                push_border(
+                    primitives,
+                    rect,
+                    browser_rating_filter_chip_border(style, level, active),
+                    sizing.border_width,
+                );
+            }
             if toolbar.search_field.width() > 1.0 {
                 emit_primitive(
                     primitives,

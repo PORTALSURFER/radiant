@@ -106,6 +106,7 @@ pub(super) struct SidebarSections {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarLayout {
+    pub(super) rating_filter_chips: [Rect; 7],
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,
     pub(super) sort_chip: Rect,

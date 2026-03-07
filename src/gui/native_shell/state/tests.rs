@@ -808,6 +808,27 @@ fn browser_search_state_overlay_renders_active_editor_selection_and_caret() {
 }
 
 #[test]
+fn browser_rating_filter_chip_uses_active_fill_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.browser.active_rating_filters[6] = true;
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_rating_filter_chip_rect(&layout, &model, 3)
+        .expect("keep-3 chip should render");
+
+    let frame = state.build_frame(&layout, &model);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == chip && *color == browser_rating_filter_chip_fill(&style, 3, true)
+        )
+    }));
+}
+
+#[test]
 fn source_header_add_button_click_sets_flash_in_chrome_motion_fingerprint() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = populated_sidebar_model();
@@ -968,7 +989,14 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let buttons = browser_action_buttons(&layout, &style, &model);
     let controls = browser_toolbar_layout(&layout, &style, &buttons);
     assert!(buttons.is_empty());
+    assert!(
+        controls
+            .rating_filter_chips
+            .iter()
+            .all(|chip| chip.width() > 1.0)
+    );
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
+    assert!(controls.rating_filter_chips[6].max.x <= controls.search_field.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);

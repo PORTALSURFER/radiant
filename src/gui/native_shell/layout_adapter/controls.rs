@@ -14,11 +14,13 @@ const SIDEBAR_BUTTON_ROW_ID: u64 = 770;
 const SIDEBAR_BUTTON_SPACER_ID: u64 = 771;
 const SIDEBAR_BUTTON_BASE_ID: u64 = 780;
 const TOOLBAR_SECTION_ROW_ID: u64 = 800;
-const TOOLBAR_SEARCH_ID: u64 = 801;
+const TOOLBAR_FILTER_ID: u64 = 801;
+const TOOLBAR_FILTER_CHIP_BASE_ID: u64 = 820;
 
 /// Slot-resolved browser toolbar sections for search and chip controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserToolbarSections {
+    pub rating_filter_chips: [Rect; 7],
     pub search_field: Rect,
     pub activity_chip: Rect,
     pub sort_chip: Rect,
@@ -126,8 +128,10 @@ pub(crate) fn compute_browser_toolbar_sections(
 ) -> BrowserToolbarSections {
     let empty = empty_rect(toolbar);
     let empty_chips = [empty; 3];
+    let empty_filter_chips = [empty; 7];
     if toolbar.width() <= 0.0 || toolbar.height() <= 0.0 {
         return BrowserToolbarSections {
+            rating_filter_chips: empty_filter_chips,
             search_field: empty,
             activity_chip: empty,
             sort_chip: empty,
@@ -144,6 +148,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     );
     if host.width() <= 1.0 || host.height() <= 0.0 {
         return BrowserToolbarSections {
+            rating_filter_chips: empty_filter_chips,
             search_field: empty,
             activity_chip: empty,
             sort_chip: empty,
@@ -155,15 +160,28 @@ pub(crate) fn compute_browser_toolbar_sections(
     let available = (left_max - left_min).max(0.0);
     if available <= 1.0 {
         return BrowserToolbarSections {
+            rating_filter_chips: empty_filter_chips,
             search_field: empty,
             activity_chip: empty,
             sort_chip: empty,
             triage_chips: empty_chips,
         };
     }
-    let search_width = (host.width() * sizing.browser_search_field_ratio)
+    let filter_gap = sizing.border_width.max(1.0) + 1.0;
+    let max_filter_side = (host.height() - (sizing.text_inset_y * 2.0))
+        .floor()
+        .clamp(6.0, 14.0);
+    let min_search_width = sizing.browser_search_field_min_width.min(available);
+    let available_for_filters = (available - min_search_width - gap).max(0.0);
+    let filter_side = ((available_for_filters - (filter_gap * 6.0)) / 7.0)
+        .floor()
+        .clamp(6.0, max_filter_side);
+    let filter_total_width = ((filter_side * 7.0) + (filter_gap * 6.0)).min(available);
+    let remaining_after_filters = (available - filter_total_width - gap).max(0.0);
+    let search_width = ((host.width() * sizing.browser_search_field_ratio)
         .max(sizing.browser_search_field_min_width)
-        .min(available);
+        .min(remaining_after_filters))
+    .max(0.0);
     let bounds = Rect::from_min_max(
         Point::new(left_min, host.min.y),
         Point::new(left_max, host.max.y),
@@ -171,17 +189,50 @@ pub(crate) fn compute_browser_toolbar_sections(
     let rects = layout_left_aligned_fixed_widths(
         bounds,
         gap,
-        &[search_width],
+        &[filter_total_width, search_width],
         TOOLBAR_SECTION_ROW_ID,
-        TOOLBAR_SEARCH_ID,
+        TOOLBAR_FILTER_ID,
     );
-    let search_field = rects.first().copied().unwrap_or(empty);
+    let filter_strip = rects.first().copied().unwrap_or(empty);
+    let search_field = rects.get(1).copied().unwrap_or(empty);
+    let rating_filter_chips = compute_rating_filter_chip_rects(
+        filter_strip,
+        filter_side,
+        filter_gap,
+        TOOLBAR_FILTER_CHIP_BASE_ID,
+    );
     BrowserToolbarSections {
+        rating_filter_chips,
         search_field,
         activity_chip: empty,
         sort_chip: empty,
         triage_chips: empty_chips,
     }
+}
+
+fn compute_rating_filter_chip_rects(
+    strip: Rect,
+    chip_side: f32,
+    gap: f32,
+    first_chip_id: u64,
+) -> [Rect; 7] {
+    let empty = empty_rect(strip);
+    if strip.width() <= 1.0 || strip.height() <= 0.0 || chip_side <= 0.0 {
+        return [empty; 7];
+    }
+    let widths = [chip_side; 7];
+    let rects = layout_left_aligned_fixed_widths(
+        strip,
+        gap,
+        &widths,
+        TOOLBAR_FILTER_ID + 10,
+        first_chip_id,
+    );
+    let mut chips = [empty; 7];
+    for (index, rect) in rects.into_iter().take(7).enumerate() {
+        chips[index] = rect;
+    }
+    chips
 }
 
 fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {

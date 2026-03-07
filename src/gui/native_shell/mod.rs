@@ -372,13 +372,34 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let model = crate::app::AppModel::default();
+        let search_field = state
+            .browser_search_field_rect(&layout, &model)
+            .expect("browser search field should be present");
         let point = Point::new(
-            layout.browser_toolbar.min.x + 32.0,
-            (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
+            (search_field.min.x + search_field.max.x) * 0.5,
+            (search_field.min.y + search_field.max.y) * 0.5,
         );
         assert_eq!(
             state.browser_action_at_point(&layout, &model, point),
             Some(crate::app::UiAction::FocusBrowserSearch)
+        );
+    }
+
+    #[test]
+    fn toolbar_hit_test_toggles_browser_rating_filter_chip() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let model = crate::app::AppModel::default();
+        let chip = state
+            .browser_rating_filter_chip_rect(&layout, &model, 3)
+            .expect("keep-3 rating filter chip should be present");
+        let point = Point::new(
+            (chip.min.x + chip.max.x) * 0.5,
+            (chip.min.y + chip.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.browser_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::ToggleBrowserRatingFilter { level: 3 })
         );
     }
 

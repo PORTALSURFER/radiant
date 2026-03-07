@@ -73,6 +73,8 @@ const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
 const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for the sidebar source-add button click flash.
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
+/// Rating-filter chip levels shown left-to-right in the browser toolbar.
+const BROWSER_RATING_FILTER_LEVELS: [i8; 7] = [-3, -2, -1, 0, 1, 2, 3];
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -1350,6 +1352,11 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        if let Some(level) =
+            browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+        {
+            return Some(UiAction::ToggleBrowserRatingFilter { level });
+        }
         if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
             return Some(UiAction::FocusBrowserSearch);
         }
@@ -1591,6 +1598,21 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         (toolbar.search_field.width() > 1.0).then_some(toolbar.search_field)
+    }
+
+    #[cfg(test)]
+    /// Return one browser rating-filter chip rect for the given signed level.
+    pub(crate) fn browser_rating_filter_chip_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        level: i8,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let index = browser_rating_filter_chip_index(level)?;
+        let rect = toolbar.rating_filter_chips[index];
+        (rect.width() > 1.0).then_some(rect)
     }
 
     /// Return the browser-search text rect used for rendering inside the field.
@@ -2344,6 +2366,7 @@ fn browser_action_model_signature(model: &AppModel) -> u64 {
     model.browser_actions.can_rename.hash(&mut hasher);
     model.browser_actions.can_tag.hash(&mut hasher);
     model.browser_actions.can_delete.hash(&mut hasher);
+    model.browser.active_rating_filters.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);
     for index in 0..3 {
         if let Some(column) = model.columns.get(index) {
@@ -2614,11 +2637,26 @@ fn browser_toolbar_layout(
     let sections =
         compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing, action_left);
     BrowserToolbarLayout {
+        rating_filter_chips: sections.rating_filter_chips,
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,
         sort_chip: sections.sort_chip,
         triage_chips: sections.triage_chips,
     }
+}
+
+#[cfg(test)]
+fn browser_rating_filter_chip_index(level: i8) -> Option<usize> {
+    BROWSER_RATING_FILTER_LEVELS
+        .iter()
+        .position(|chip| *chip == level)
+}
+
+fn browser_rating_filter_level_at_point(chips: [Rect; 7], point: Point) -> Option<i8> {
+    chips
+        .iter()
+        .position(|rect| rect.width() > 1.0 && rect.contains(point))
+        .map(|index| BROWSER_RATING_FILTER_LEVELS[index])
 }
 
 fn browser_column_chips(
@@ -3246,6 +3284,46 @@ pub(super) fn browser_rating_indicator_color(style: &StyleTokens, rating_level: 
         style.accent_trash
     } else {
         style.accent_mint
+    }
+}
+
+pub(super) fn browser_rating_filter_chip_fill(
+    style: &StyleTokens,
+    rating_level: i8,
+    active: bool,
+) -> Rgba8 {
+    let tint = if rating_level < 0 {
+        style.accent_trash
+    } else if rating_level > 0 {
+        style.accent_mint
+    } else {
+        style.text_primary
+    };
+    let amount = if active {
+        0.62
+    } else if rating_level == 0 {
+        0.22
+    } else {
+        0.32
+    };
+    blend_color(style.surface_base, tint, amount)
+}
+
+pub(super) fn browser_rating_filter_chip_border(
+    style: &StyleTokens,
+    rating_level: i8,
+    active: bool,
+) -> Rgba8 {
+    if active {
+        if rating_level < 0 {
+            blend_color(style.accent_trash, style.text_primary, 0.28)
+        } else if rating_level > 0 {
+            blend_color(style.accent_mint, style.text_primary, 0.28)
+        } else {
+            blend_color(style.text_primary, style.border_emphasis, 0.38)
+        }
+    } else {
+        style.border
     }
 }
 

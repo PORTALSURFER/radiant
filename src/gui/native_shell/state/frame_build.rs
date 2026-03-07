@@ -293,7 +293,12 @@ impl NativeShellState {
                         row_border_rect,
                         row_border,
                         row_border_stroke,
-                        Some(row.rect.max.y) == last_row_max_y,
+                        BorderSides {
+                            top: true,
+                            bottom: row.focused || Some(row.rect.max.y) == last_row_max_y,
+                            left: row.focused,
+                            right: row.focused,
+                        },
                     );
                     let chip_rect = row_text_layout.bucket_chip;
                     let chip_color = match row.column {
@@ -1888,7 +1893,12 @@ impl NativeShellState {
                             style.border
                         },
                         row_border_stroke,
-                        row.focused || Some(row.rect.max.y) == last_row_max_y,
+                        BorderSides {
+                            top: true,
+                            bottom: row.focused || Some(row.rect.max.y) == last_row_max_y,
+                            left: row.focused,
+                            right: row.focused,
+                        },
                     );
                     if row.focused {
                         let mut label_position = row_text_layout.sample_label.min;
@@ -2063,20 +2073,22 @@ fn push_browser_row_border(
     rect: Rect,
     color: Rgba8,
     stroke: f32,
-    include_bottom: bool,
+    sides: BorderSides,
 ) {
     let stroke = stroke.max(1.0);
     if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
         return;
     }
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
-            color,
-        }),
-    );
-    if include_bottom {
+    if sides.top {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
+                color,
+            }),
+        );
+    }
+    if sides.bottom {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -2085,20 +2097,24 @@ fn push_browser_row_border(
             }),
         );
     }
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
-            color,
-        }),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
-            color,
-        }),
-    );
+    if sides.left {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
+                color,
+            }),
+        );
+    }
+    if sides.right {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
+                color,
+            }),
+        );
+    }
 }
 
 fn render_source_context_menu(

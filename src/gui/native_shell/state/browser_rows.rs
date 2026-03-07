@@ -225,12 +225,24 @@ pub(super) fn translucent_overlay_color(base: Rgba8, tint: Rgba8, amount: f32) -
     color
 }
 
-/// Return a subtle whitish row-hover fill used across item lists.
+/// Return a subtle whitish row-hover fill used across non-browser item lists.
 pub(super) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
         (style.state_hover_soft * 0.95).clamp(0.12, 0.26),
+    )
+}
+
+/// Return the stronger hover fill used for sample-browser rows.
+///
+/// The browser hover needs to read clearly against alternating row fills, so it
+/// intentionally uses roughly double the shared item-list hover intensity.
+pub(super) fn browser_row_hover_fill(style: &StyleTokens) -> Rgba8 {
+    translucent_overlay_color(
+        style.bg_tertiary,
+        style.text_primary,
+        (style.state_hover_soft * 1.9).clamp(0.24, 0.52),
     )
 }
 

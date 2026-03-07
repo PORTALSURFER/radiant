@@ -1726,7 +1726,7 @@ impl NativeShellState {
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: row.rect,
-                        color: subtle_item_hover_fill(style),
+                        color: browser_row_hover_fill(style),
                     }),
                 );
             }

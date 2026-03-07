@@ -86,7 +86,7 @@ impl NativeShellState {
             primitives,
             Primitive::Rect(FillRect {
                 rect: layout.browser_toolbar,
-                color: style.surface_base,
+                color: style.surface_overlay,
             }),
         );
         emit_primitive(
@@ -1258,7 +1258,7 @@ impl NativeShellState {
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: toolbar.search_field,
-                        color: style.surface_overlay,
+                        color: style.surface_base,
                     }),
                 );
                 push_border(

@@ -135,9 +135,23 @@ pub(crate) fn compute_browser_toolbar_sections(
         };
     }
     let gap = sizing.action_button_gap.max(1.0);
-    let left_min = toolbar.min.x + sizing.text_inset_x;
-    let action_left = action_cluster_left.unwrap_or(toolbar.max.x - sizing.text_inset_x);
-    let left_max = (action_left - gap).max(left_min);
+    let action_left = action_cluster_left
+        .unwrap_or(toolbar.max.x)
+        .min(toolbar.max.x);
+    let host = Rect::from_min_max(
+        toolbar.min,
+        Point::new(action_left.max(toolbar.min.x), toolbar.max.y),
+    );
+    if host.width() <= 1.0 || host.height() <= 0.0 {
+        return BrowserToolbarSections {
+            search_field: empty,
+            activity_chip: empty,
+            sort_chip: empty,
+            triage_chips: empty_chips,
+        };
+    }
+    let left_min = host.min.x + sizing.text_inset_x;
+    let left_max = (host.max.x - sizing.text_inset_x).max(left_min);
     let available = (left_max - left_min).max(0.0);
     if available <= 1.0 {
         return BrowserToolbarSections {
@@ -147,14 +161,17 @@ pub(crate) fn compute_browser_toolbar_sections(
             triage_chips: empty_chips,
         };
     }
+    let search_width = (host.width() * sizing.browser_search_field_ratio)
+        .max(sizing.browser_search_field_min_width)
+        .min(available);
     let bounds = Rect::from_min_max(
-        Point::new(left_min, toolbar.min.y),
-        Point::new(left_max, toolbar.max.y),
+        Point::new(left_min, host.min.y),
+        Point::new(left_max, host.max.y),
     );
     let rects = layout_left_aligned_fixed_widths(
         bounds,
         gap,
-        &[available],
+        &[search_width],
         TOOLBAR_SECTION_ROW_ID,
         TOOLBAR_SEARCH_ID,
     );

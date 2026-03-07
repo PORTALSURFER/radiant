@@ -382,6 +382,18 @@ mod tests {
     }
 
     #[test]
+    fn toolbar_hit_test_ignores_empty_right_host_area() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let model = crate::app::AppModel::default();
+        let point = Point::new(
+            layout.browser_toolbar.max.x - 12.0,
+            (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
+        );
+        assert_eq!(state.browser_action_at_point(&layout, &model, point), None);
+    }
+
+    #[test]
     fn browser_toolbar_exposes_no_column_chip_hit_targets() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let state = NativeShellState::new();

@@ -34,6 +34,7 @@ fn toolbar_sections_stay_left_of_action_cluster() {
     let sections = compute_browser_toolbar_sections(toolbar, style.sizing, Some(980.0));
     assert!(sections.search_field.min.x >= toolbar.min.x);
     assert!(sections.search_field.max.x <= 980.0);
+    assert!(sections.search_field.width() < toolbar.width());
     assert!(sections.activity_chip.width() <= 0.0);
     assert!(sections.sort_chip.width() <= 0.0);
     assert!(
@@ -42,6 +43,19 @@ fn toolbar_sections_stay_left_of_action_cluster() {
             .into_iter()
             .all(|chip| chip.width() <= 0.0)
     );
+}
+
+#[test]
+fn toolbar_search_field_uses_ratio_width_inside_full_host() {
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let toolbar = Rect::from_min_max(Point::new(300.0, 200.0), Point::new(1180.0, 220.0));
+    let sections = compute_browser_toolbar_sections(toolbar, style.sizing, None);
+    assert_eq!(
+        sections.search_field.min.x,
+        toolbar.min.x + style.sizing.text_inset_x
+    );
+    assert!(sections.search_field.width() >= style.sizing.browser_search_field_min_width);
+    assert!(sections.search_field.width() < toolbar.width() - (style.sizing.text_inset_x * 2.0));
 }
 
 #[test]

@@ -627,6 +627,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let controls = browser_toolbar_layout(&layout, &style, &buttons);
     assert!(buttons.is_empty());
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
+    assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);
     assert!(
@@ -635,6 +636,22 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
             .into_iter()
             .all(|chip| chip.width() <= 0.0)
     );
+}
+
+#[test]
+fn browser_toolbar_right_side_does_not_hit_search_field() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = AppModel::default();
+    let style = style_for_layout(&layout);
+    let buttons = browser_action_buttons(&layout, &style, &model);
+    let controls = browser_toolbar_layout(&layout, &style, &buttons);
+    let point = Point::new(
+        (controls.search_field.max.x + layout.browser_toolbar.max.x) * 0.5,
+        (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
+    );
+    assert!(point.x > controls.search_field.max.x);
+    assert_eq!(state.browser_action_at_point(&layout, &model, point), None);
 }
 
 #[test]

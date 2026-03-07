@@ -1381,10 +1381,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
-    /// Defer the first full model pull only on platforms that can reliably
-    /// present while hidden.
+    /// Use eager full-scene startup by default and reserve deferred placeholder
+    /// startup for explicit fallback paths only.
     fn startup_should_defer_first_model_pull() -> bool {
-        !cfg!(target_os = "windows")
+        false
     }
 
     /// Resolve a deterministic startup clear color used before style/layout are ready.
@@ -1557,9 +1557,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.startup_timing.mark_window_created();
         info!("radiant native vello: window created");
-        if self.startup_model_pull_pending {
-            self.startup_reveal_deadline = Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
-        }
+        self.arm_startup_reveal_deadline(Instant::now());
         let mut render_ctx = RenderContext::new();
         let size = window.inner_size();
         let width = size.width.max(1);
@@ -1666,7 +1664,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_redraw = Instant::now();
     }
 
-    /// Keep startup first-frame work minimal by deferring model/overlay pulls.
+    /// Keep startup first-frame work minimal when the deferred fallback path is armed.
     ///
     /// This preserves static scene rebuild work (for deterministic first paint)
     /// while skipping model and overlay pulls until first present completes.
@@ -1715,7 +1713,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .unwrap_or_else(|| Self::build_style_for_layout(layout))
     }
 
-    /// Build one minimal branded startup scene while full model pull is deferred.
+    /// Arm the hidden-startup reveal timeout so redraw stalls cannot deadlock launch.
+    fn arm_startup_reveal_deadline(&mut self, now: Instant) {
+        if Self::startup_should_launch_hidden() && !self.startup_window_visible {
+            self.startup_reveal_deadline = Some(now + STARTUP_REVEAL_STALL_TIMEOUT);
+        }
+    }
+
+    /// Build one minimal branded startup scene for deferred-startup fallback.
     fn build_startup_placeholder_scene(&mut self, layout: &ShellLayout, style: &StyleTokens) {
         let root = layout.root.rect;
         let panel_width = (root.width() * 0.36).clamp(220.0, 420.0);
@@ -2456,8 +2461,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.startup_model_pull_pending = false;
                 self.startup_deferred_model_refresh_pending = true;
                 if !self.startup_window_visible {
-                    self.startup_reveal_deadline =
-                        Some(Instant::now() + STARTUP_REVEAL_STALL_TIMEOUT);
+                    self.arm_startup_reveal_deadline(Instant::now());
                 }
                 self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
             }

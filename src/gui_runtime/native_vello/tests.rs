@@ -391,7 +391,7 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
 }
 
 #[test]
-fn startup_fast_path_defers_model_and_overlay_pulls() {
+fn deferred_startup_fallback_defers_model_and_overlay_pulls() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.startup_model_pull_pending = true;
@@ -427,7 +427,7 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
 }
 
 #[test]
-fn startup_fast_path_rebuild_uses_placeholder_scene_before_first_present() {
+fn deferred_startup_fallback_rebuild_uses_placeholder_scene_before_first_present() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -453,14 +453,48 @@ fn startup_fast_path_rebuild_uses_placeholder_scene_before_first_present() {
 }
 
 #[test]
+fn startup_default_rebuild_skips_placeholder_scene_before_first_present() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+    runner.shell_layout = Some(layout);
+    runner.style_cache = Some(style);
+    runner.frame_state.scene_dirty = true;
+    runner.frame_state.model_dirty = false;
+    runner.frame_state.state_overlay_dirty = false;
+    runner.frame_state.motion_overlay_dirty = false;
+    runner.startup_model_pull_pending = false;
+    runner.first_frame_presented = false;
+
+    runner.rebuild_scene_if_needed();
+
+    assert!(
+        !runner
+            .frame_cache
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Starting audio engine"))
+    );
+}
+
+#[test]
 fn startup_defaults_match_platform_startup_strategy() {
     let runner = NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
 
     assert!(!runner.startup_window_visible);
-    assert_eq!(
-        runner.startup_model_pull_pending,
-        NativeVelloRunner::<RecordingBridge>::startup_should_defer_first_model_pull()
-    );
+    assert!(!runner.startup_model_pull_pending);
+    assert!(!NativeVelloRunner::<RecordingBridge>::startup_should_defer_first_model_pull());
+}
+
+#[test]
+fn hidden_startup_arms_reveal_deadline_before_first_present() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    runner.arm_startup_reveal_deadline(Instant::now());
+
+    assert!(runner.startup_reveal_deadline.is_some());
 }
 
 #[test]

@@ -67,6 +67,8 @@ pub enum KeyCode {
     T,
     /// Latin letter U.
     U,
+    /// Latin letter V.
+    V,
     /// Space key.
     Space,
     /// Latin letter W.
@@ -85,6 +87,10 @@ pub enum KeyCode {
     ArrowUp,
     /// Down arrow key.
     ArrowDown,
+    /// Home key.
+    Home,
+    /// End key.
+    End,
 }
 
 /// Convert a `winit` physical key code into the local backend-agnostic key representation.
@@ -126,6 +132,7 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::Backslash => KeyCode::Backslash,
         WinitKeyCode::KeyT => KeyCode::T,
         WinitKeyCode::KeyU => KeyCode::U,
+        WinitKeyCode::KeyV => KeyCode::V,
         WinitKeyCode::Space => KeyCode::Space,
         WinitKeyCode::KeyW => KeyCode::W,
         WinitKeyCode::KeyX => KeyCode::X,
@@ -135,6 +142,8 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::ArrowRight => KeyCode::ArrowRight,
         WinitKeyCode::ArrowUp => KeyCode::ArrowUp,
         WinitKeyCode::ArrowDown => KeyCode::ArrowDown,
+        WinitKeyCode::Home => KeyCode::Home,
+        WinitKeyCode::End => KeyCode::End,
         _ => return None,
     })
 }
@@ -151,10 +160,12 @@ mod tests {
             Some(KeyCode::Num1)
         );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
+        assert_eq!(key_code_from_winit(WinitKeyCode::KeyV), Some(KeyCode::V));
         assert_eq!(
             key_code_from_winit(WinitKeyCode::ArrowLeft),
             Some(KeyCode::ArrowLeft)
         );
+        assert_eq!(key_code_from_winit(WinitKeyCode::Home), Some(KeyCode::Home));
         assert_eq!(
             key_code_from_winit(WinitKeyCode::NumpadEnter),
             Some(KeyCode::Enter)

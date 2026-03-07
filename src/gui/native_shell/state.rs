@@ -41,9 +41,14 @@ mod frame_build;
 mod options_panel;
 mod overlays;
 mod svg_icons;
+mod text_fields;
 mod waveform_segments;
 
-use self::{browser_rows::*, options_panel::*, overlays::*, svg_icons::*, waveform_segments::*};
+pub(crate) use self::text_fields::TextFieldVisualState;
+use self::{
+    browser_rows::*, options_panel::*, overlays::*, svg_icons::*, text_fields::*,
+    waveform_segments::*,
+};
 
 /// Maximum retained entries for browser-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
@@ -76,6 +81,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_browser_search_field: bool,
+    browser_search_editor_visual: Option<TextFieldVisualState>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -318,6 +324,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Active browser-search editor visual signature.
+    pub browser_search_editor_signature: u64,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }
@@ -644,6 +652,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_browser_search_field: false,
+            browser_search_editor_visual: None,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
             hovered_status_options_button: false,
@@ -759,6 +768,11 @@ impl NativeShellState {
         self.waveform_toolbar_hit_test_cache_key = None;
     }
 
+    /// Update the active browser-search editor visuals shown in state overlays.
+    pub(crate) fn set_browser_search_editor_state(&mut self, visual: Option<TextFieldVisualState>) {
+        self.browser_search_editor_visual = visual;
+    }
+
     fn trigger_waveform_toolbar_flash(&mut self, hint: WaveformToolbarHoverHint) {
         self.waveform_toolbar_flash = Some(WaveformToolbarFlash {
             hint,
@@ -782,6 +796,9 @@ impl NativeShellState {
             hovered_browser_visible_row: self.hovered_browser_visible_row,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
+            browser_search_editor_signature: text_field_visual_signature(
+                self.browser_search_editor_visual.as_ref(),
+            ),
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }
@@ -1527,6 +1544,37 @@ impl NativeShellState {
         hit
     }
 
+    /// Return the browser-search field rect when the toolbar is available.
+    pub(crate) fn browser_search_field_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        (toolbar.search_field.width() > 1.0).then_some(toolbar.search_field)
+    }
+
+    /// Return the browser-search text rect used for rendering inside the field.
+    pub(crate) fn browser_search_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        if toolbar.search_field.width() <= 1.0 {
+            return None;
+        }
+        let toolbar_text_layout = compute_browser_toolbar_text_layout(
+            toolbar.search_field,
+            toolbar.activity_chip,
+            toolbar.sort_chip,
+            style.sizing,
+        );
+        Some(toolbar_text_layout.search_label)
+    }
+
     /// Resolve a progress-overlay cancel click.
     pub(crate) fn progress_action_at_point(
         &self,
@@ -1921,7 +1969,7 @@ impl NativeShellState {
             .map(|toolbar| toolbar.search_field)
             .filter(|rect| rect.width() > 1.0)
         {
-            if self.hovered_browser_search_field {
+            if self.hovered_browser_search_field && self.browser_search_editor_visual.is_none() {
                 render_browser_search_field_hover_overlay(
                     primitives,
                     style,

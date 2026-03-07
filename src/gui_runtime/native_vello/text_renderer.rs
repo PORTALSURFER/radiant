@@ -10,8 +10,15 @@ pub(super) struct GlyphLayout {
 
 #[derive(Clone, Debug)]
 pub(super) struct TextLayout {
-    width: f32,
-    glyphs: Vec<GlyphLayout>,
+    pub(super) width: f32,
+    pub(super) glyphs: Vec<GlyphLayout>,
+    pub(super) cursor_stops: Vec<TextCursorStop>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TextCursorStop {
+    pub(super) byte_index: usize,
+    pub(super) x: f32,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -105,6 +112,11 @@ impl NativeTextRenderer {
                 .brush(color_from_rgba(run.color))
                 .draw(Fill::NonZero, glyph_iter);
         }
+    }
+
+    pub(super) fn layout_text(&mut self, text: &str, font_size: f32) -> Option<&TextLayout> {
+        let font = self.loaded_font.as_ref()?.font.clone();
+        self.layout_for(&font, text, font_size)
     }
 
     pub(super) fn layout_for<'a>(
@@ -217,24 +229,45 @@ impl NativeTextRenderer {
 
         let mut x = 0.0_f32;
         let mut glyphs = Vec::with_capacity(text.len());
-        for ch in text.chars() {
+        let mut cursor_stops = Vec::with_capacity(text.chars().count() + 1);
+        cursor_stops.push(TextCursorStop {
+            byte_index: 0,
+            x: 0.0,
+        });
+        for (byte_index, ch) in text.char_indices() {
             if ch == '\n' || ch == '\r' {
                 break;
             }
             if ch == '\t' {
                 x += font_size * 2.0;
+                cursor_stops.push(TextCursorStop {
+                    byte_index: byte_index + ch.len_utf8(),
+                    x,
+                });
                 continue;
             }
             if ch == ' ' {
                 x += font_size * 0.33;
+                cursor_stops.push(TextCursorStop {
+                    byte_index: byte_index + ch.len_utf8(),
+                    x,
+                });
                 continue;
             }
             if ch.is_control() {
+                cursor_stops.push(TextCursorStop {
+                    byte_index: byte_index + ch.len_utf8(),
+                    x,
+                });
                 continue;
             }
             let glyph_id = charmap.map(ch).or(fallback_glyph);
             let Some(glyph_id) = glyph_id else {
                 x += font_size * 0.5;
+                cursor_stops.push(TextCursorStop {
+                    byte_index: byte_index + ch.len_utf8(),
+                    x,
+                });
                 continue;
             };
             glyphs.push(GlyphLayout {
@@ -246,9 +279,30 @@ impl NativeTextRenderer {
                 .unwrap_or(font_size * 0.55)
                 .max(0.0);
             x += advance;
+            cursor_stops.push(TextCursorStop {
+                byte_index: byte_index + ch.len_utf8(),
+                x,
+            });
         }
 
-        Some(TextLayout { width: x, glyphs })
+        Some(TextLayout {
+            width: x,
+            glyphs,
+            cursor_stops,
+        })
+    }
+}
+
+impl TextLayout {
+    pub(super) fn empty_for(text: &str) -> Self {
+        Self {
+            width: 0.0,
+            glyphs: Vec::new(),
+            cursor_stops: vec![TextCursorStop {
+                byte_index: text.len(),
+                x: 0.0,
+            }],
+        }
     }
 }
 

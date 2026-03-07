@@ -1272,12 +1272,13 @@ impl NativeShellState {
                 toolbar.sort_chip,
                 sizing,
             );
+            let search_editor_active = self.browser_search_editor_visual.is_some();
             let search_text = if model.browser.search_query.is_empty() {
                 model.browser_chrome.search_placeholder.clone()
             } else {
                 model.browser.search_query.clone()
             };
-            if toolbar.search_field.width() > 1.0 {
+            if toolbar.search_field.width() > 1.0 && !search_editor_active {
                 emit_text(
                     text_runs,
                     TextRun {
@@ -1633,6 +1634,22 @@ impl NativeShellState {
         let text_runs = &mut frame.text_runs;
 
         push_waveform_toolbar_hover_tooltip(primitives, text_runs, layout, style, model, self);
+        if let Some(visual) = self.browser_search_editor_visual.clone()
+            && let (Some(search_field_rect), Some(search_text_rect)) = (
+                self.browser_search_field_rect(layout, model),
+                self.browser_search_text_rect(layout, model),
+            )
+        {
+            render_active_browser_search_editor(
+                primitives,
+                text_runs,
+                style,
+                sizing,
+                search_field_rect,
+                search_text_rect,
+                &visual,
+            );
+        }
         if let Some(hovered_visible_row) = self.hovered_browser_visible_row {
             let browser_rows = self.cached_browser_rows(layout, style, model);
             if let Some(row) = browser_rows

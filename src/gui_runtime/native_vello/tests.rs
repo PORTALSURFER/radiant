@@ -1001,6 +1001,33 @@ fn clicking_browser_search_field_focuses_text_input() {
 }
 
 #[test]
+fn browser_search_editor_supports_copy_paste_and_delete_selection() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_buffer = Some(String::from("kick"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("kick"));
+
+    assert!(runner.select_all_text());
+    assert!(runner.copy_selected_text());
+    assert_eq!(runner.clipboard_fallback_text, "kick");
+
+    assert!(runner.write_clipboard_text("snare"));
+    assert!(runner.paste_text());
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("snare"));
+    assert_eq!(
+        runner.bridge.actions.last(),
+        Some(&UiAction::SetBrowserSearch {
+            query: String::from("snare"),
+        })
+    );
+
+    assert!(runner.select_all_text());
+    assert!(runner.delete_text_forward());
+    assert_eq!(runner.text_input_buffer.as_deref(), Some(""));
+}
+
+#[test]
 fn space_key_maps_to_replay_from_last_start() {
     let model = AppModel::default();
     assert_eq!(

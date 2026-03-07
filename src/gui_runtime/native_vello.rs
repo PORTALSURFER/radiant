@@ -11,7 +11,7 @@ use crate::gui::{
         ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, NativeViewFrame,
         Primitive, ShellLayout, ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind,
         StateOverlayFingerprint, StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign,
-        TextRun, WaveformMotionOverlayFingerprint,
+        TextFieldVisualState, TextRun, WaveformMotionOverlayFingerprint,
     },
     repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
@@ -49,9 +49,10 @@ use winit::{
 
 mod input;
 mod scene_rebuild;
+mod text_edit;
 mod text_renderer;
 
-use self::{input::*, scene_rebuild::*, text_renderer::*};
+use self::{input::*, scene_rebuild::*, text_edit::*, text_renderer::*};
 
 #[cfg(feature = "gui-performance")]
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
@@ -1340,8 +1341,13 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
     text_input_target: TextInputTarget,
+    text_input_buffer: Option<String>,
+    text_editor_state: Option<SingleLineTextEditorState>,
+    text_input_drag_active: bool,
     waveform_bpm_input_buffer: Option<String>,
     waveform_bpm_input_select_all: bool,
+    clipboard: Option<arboard::Clipboard>,
+    clipboard_fallback_text: String,
     last_redraw: Instant,
     resumed_count: u32,
     window_event_count: u32,
@@ -1477,8 +1483,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
             text_input_target: TextInputTarget::None,
+            text_input_buffer: None,
+            text_editor_state: None,
+            text_input_drag_active: false,
             waveform_bpm_input_buffer: None,
             waveform_bpm_input_select_all: false,
+            clipboard: None,
+            clipboard_fallback_text: String::new(),
             last_redraw: Instant::now(),
             resumed_count: 0,
             window_event_count: 0,
@@ -3175,19 +3186,58 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if self.text_input_target == TextInputTarget::PromptInput {
             self.text_input_target = TextInputTarget::None;
         }
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            self.text_input_buffer = None;
+            self.text_editor_state = None;
+        } else if self.text_input_target != TextInputTarget::None {
+            if self.text_input_buffer.is_none() {
+                self.text_input_buffer = Some(match self.text_input_target {
+                    TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
+                    TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
+                    TextInputTarget::PromptInput => self
+                        .model
+                        .confirm_prompt
+                        .input_value
+                        .clone()
+                        .unwrap_or_default(),
+                    TextInputTarget::None | TextInputTarget::WaveformBpm => String::new(),
+                });
+            }
+            let current_text = self.current_text_value().unwrap_or_default();
+            let mut editor = self
+                .text_editor_state
+                .take()
+                .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&current_text));
+            editor.clamp_to_text(&current_text);
+            self.text_editor_state = Some(editor);
+        } else {
+            self.text_input_buffer = None;
+            self.text_editor_state = None;
+            self.text_input_drag_active = false;
+        }
         if self.text_input_target != TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_buffer = None;
             self.waveform_bpm_input_select_all = false;
         }
         self.sync_waveform_bpm_editor_state();
+        self.sync_browser_search_editor_state();
     }
 
     fn current_text_value(&self) -> Option<String> {
         match self.text_input_target {
             TextInputTarget::None => None,
-            TextInputTarget::BrowserSearch => Some(self.model.browser.search_query.clone()),
-            TextInputTarget::FolderSearch => Some(self.model.sources.folder_search_query.clone()),
-            TextInputTarget::PromptInput => self.model.confirm_prompt.input_value.clone(),
+            TextInputTarget::BrowserSearch
+            | TextInputTarget::FolderSearch
+            | TextInputTarget::PromptInput => self.text_input_buffer.clone().or_else(|| match self
+                .text_input_target
+            {
+                TextInputTarget::BrowserSearch => Some(self.model.browser.search_query.clone()),
+                TextInputTarget::FolderSearch => {
+                    Some(self.model.sources.folder_search_query.clone())
+                }
+                TextInputTarget::PromptInput => self.model.confirm_prompt.input_value.clone(),
+                TextInputTarget::None | TextInputTarget::WaveformBpm => None,
+            }),
             TextInputTarget::WaveformBpm => Some(
                 self.waveform_bpm_input_buffer
                     .clone()
@@ -3199,9 +3249,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn set_text_value(&mut self, value: String) -> bool {
         let action = match self.text_input_target {
             TextInputTarget::None => return false,
-            TextInputTarget::BrowserSearch => UiAction::SetBrowserSearch { query: value },
-            TextInputTarget::FolderSearch => UiAction::SetFolderSearch { query: value },
-            TextInputTarget::PromptInput => UiAction::SetPromptInput { value },
+            TextInputTarget::BrowserSearch => {
+                self.text_input_buffer = Some(value.clone());
+                UiAction::SetBrowserSearch { query: value }
+            }
+            TextInputTarget::FolderSearch => {
+                self.text_input_buffer = Some(value.clone());
+                UiAction::SetFolderSearch { query: value }
+            }
+            TextInputTarget::PromptInput => {
+                self.text_input_buffer = Some(value.clone());
+                UiAction::SetPromptInput { value }
+            }
             TextInputTarget::WaveformBpm => {
                 self.waveform_bpm_input_buffer = Some(value.clone());
                 self.sync_waveform_bpm_editor_state();
@@ -3216,21 +3275,26 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
         };
         self.emit_model_action(action);
+        self.sync_browser_search_editor_state();
         true
     }
 
     fn append_text(&mut self, appended: &str) -> bool {
+        let appended = sanitize_single_line_insert(appended);
         if appended.is_empty() {
             return false;
         }
         if self.text_input_target == TextInputTarget::WaveformBpm {
-            return self.append_waveform_bpm_text(appended);
+            return self.append_waveform_bpm_text(&appended);
         }
-        let Some(mut value) = self.current_text_value() else {
+        let Some(value) = self.current_text_value() else {
             return false;
         };
-        value.push_str(appended);
-        self.set_text_value(value)
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        let next = editor.replace_selection(&value, &appended);
+        self.set_text_value(next)
     }
 
     fn append_waveform_bpm_text(&mut self, appended: &str) -> bool {
@@ -3278,6 +3342,30 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
     }
 
+    fn activate_text_input_target(&mut self, target: TextInputTarget) {
+        if matches!(target, TextInputTarget::None | TextInputTarget::WaveformBpm) {
+            return;
+        }
+        let current_text = match target {
+            TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
+            TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
+            TextInputTarget::PromptInput => self
+                .model
+                .confirm_prompt
+                .input_value
+                .clone()
+                .unwrap_or_default(),
+            TextInputTarget::None | TextInputTarget::WaveformBpm => String::new(),
+        };
+        self.text_input_target = target;
+        self.text_input_buffer = Some(current_text.clone());
+        self.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end(&current_text));
+        self.waveform_bpm_input_buffer = None;
+        self.waveform_bpm_input_select_all = false;
+        self.sync_waveform_bpm_editor_state();
+        self.sync_browser_search_editor_state();
+    }
+
     fn deactivate_text_input_target(&mut self) {
         let previous_target = self.text_input_target;
         let was_waveform_bpm = self.text_input_target == TextInputTarget::WaveformBpm;
@@ -3286,7 +3374,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.waveform_bpm_input_select_all = false;
         }
         self.text_input_target = TextInputTarget::None;
+        self.text_input_buffer = None;
+        self.text_editor_state = None;
+        self.text_input_drag_active = false;
         self.sync_waveform_bpm_editor_state();
+        self.sync_browser_search_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
             self.emit_model_action(UiAction::BlurBrowserSearch);
         }
@@ -3324,6 +3416,45 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.shell_state
             .set_waveform_bpm_editor_state(active, display);
+    }
+
+    fn sync_browser_search_editor_state(&mut self) {
+        if self.text_input_target != TextInputTarget::BrowserSearch {
+            self.shell_state.set_browser_search_editor_state(None);
+            return;
+        }
+        let Some(layout) = self.shell_layout.as_ref().cloned() else {
+            self.shell_state.set_browser_search_editor_state(None);
+            return;
+        };
+        let Some(text_rect) = self
+            .shell_state
+            .browser_search_text_rect(&layout, &self.model)
+        else {
+            self.shell_state.set_browser_search_editor_state(None);
+            return;
+        };
+        let text = self.current_text_value().unwrap_or_default();
+        let mut editor = self
+            .text_editor_state
+            .take()
+            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        let layout_state = build_text_field_layout(
+            &mut self.text_renderer,
+            &mut editor,
+            &text,
+            StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
+                .sizing
+                .font_meta,
+            text_rect.width(),
+        );
+        self.text_editor_state = Some(editor);
+        self.shell_state
+            .set_browser_search_editor_state(Some(TextFieldVisualState {
+                text: layout_state.visible_text,
+                caret_offset: layout_state.caret_offset,
+                selection_offsets: layout_state.selection_offsets,
+            }));
     }
 
     fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
@@ -3432,32 +3563,154 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn backspace_text(&mut self) -> bool {
-        let Some(mut value) = self.current_text_value() else {
-            return false;
-        };
-        if self.text_input_target == TextInputTarget::WaveformBpm
-            && self.waveform_bpm_input_select_all
-        {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            let Some(mut value) = self.current_text_value() else {
+                return false;
+            };
+            if self.waveform_bpm_input_select_all {
+                self.waveform_bpm_input_select_all = false;
+                value.clear();
+                return self.set_text_value(value);
+            }
+            if value.pop().is_none() {
+                return false;
+            }
             self.waveform_bpm_input_select_all = false;
-            value.clear();
             return self.set_text_value(value);
         }
-        if value.pop().is_none() {
+        let Some(value) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        let Some(next) = editor.backspace(&value) else {
+            return false;
+        };
+        self.set_text_value(next)
+    }
+
+    fn delete_text_forward(&mut self) -> bool {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            let Some(mut value) = self.current_text_value() else {
+                return false;
+            };
+            if self.waveform_bpm_input_select_all {
+                self.waveform_bpm_input_select_all = false;
+                value.clear();
+                return self.set_text_value(value);
+            }
+            return false;
+        }
+        let Some(value) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        let Some(next) = editor.delete_forward(&value) else {
+            return false;
+        };
+        self.set_text_value(next)
+    }
+
+    fn move_text_cursor(&mut self, key: KeyCode, extend_selection: bool) -> bool {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            return false;
+        }
+        let Some(text) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        let moved = match key {
+            KeyCode::ArrowLeft => editor.move_left(&text, extend_selection),
+            KeyCode::ArrowRight => editor.move_right(&text, extend_selection),
+            KeyCode::Home => editor.move_home(&text, extend_selection),
+            KeyCode::End => editor.move_end(&text, extend_selection),
+            _ => false,
+        };
+        if moved {
+            self.sync_browser_search_editor_state();
+        }
+        moved
+    }
+
+    fn select_all_text(&mut self) -> bool {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            self.waveform_bpm_input_select_all = true;
+            self.sync_waveform_bpm_editor_state();
+            return true;
+        }
+        let Some(text) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        editor.select_all(&text);
+        self.sync_browser_search_editor_state();
+        true
+    }
+
+    fn copy_selected_text(&mut self) -> bool {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            return self.write_clipboard_text(&self.current_text_value().unwrap_or_default());
+        }
+        let Some(text) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_ref() else {
+            return false;
+        };
+        let Some(selected) = editor.selected_text(&text) else {
+            return false;
+        };
+        self.write_clipboard_text(&selected)
+    }
+
+    fn cut_selected_text(&mut self) -> bool {
+        if !self.copy_selected_text() {
             return false;
         }
         if self.text_input_target == TextInputTarget::WaveformBpm {
             self.waveform_bpm_input_select_all = false;
+            return self.set_text_value(String::new());
         }
-        self.set_text_value(value)
+        let Some(text) = self.current_text_value() else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        if !editor.has_selection() {
+            return false;
+        }
+        let next = editor.replace_selection(&text, "");
+        self.set_text_value(next)
+    }
+
+    fn paste_text(&mut self) -> bool {
+        let Some(text) = self.read_clipboard_text() else {
+            return false;
+        };
+        self.append_text(&text)
     }
 
     fn update_text_target_after_action(&mut self, action: &UiAction) {
         match action {
-            UiAction::FocusBrowserSearch => self.text_input_target = TextInputTarget::BrowserSearch,
+            UiAction::FocusBrowserSearch => {
+                self.activate_text_input_target(TextInputTarget::BrowserSearch)
+            }
             UiAction::BlurBrowserSearch => self.text_input_target = TextInputTarget::None,
-            UiAction::FocusFolderSearch => self.text_input_target = TextInputTarget::FolderSearch,
+            UiAction::FocusFolderSearch => {
+                self.activate_text_input_target(TextInputTarget::FolderSearch)
+            }
             UiAction::ConfirmPrompt | UiAction::CancelPrompt => {
                 self.text_input_target = TextInputTarget::None;
+                self.text_input_buffer = None;
+                self.text_editor_state = None;
             }
             _ => {}
         }
@@ -3465,7 +3718,135 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.waveform_bpm_input_buffer = None;
             self.waveform_bpm_input_select_all = false;
         }
+        if self.text_input_target == TextInputTarget::None {
+            self.text_input_buffer = None;
+            self.text_editor_state = None;
+            self.text_input_drag_active = false;
+            self.shell_state.set_browser_search_editor_state(None);
+        }
         self.sync_waveform_bpm_editor_state();
+        self.sync_browser_search_editor_state();
+    }
+
+    fn read_clipboard_text(&mut self) -> Option<String> {
+        if let Some(clipboard) = self.clipboard.as_mut()
+            && let Ok(text) = clipboard.get_text()
+        {
+            self.clipboard_fallback_text = text.clone();
+            return Some(text);
+        }
+        if self.clipboard.is_none()
+            && let Ok(mut clipboard) = arboard::Clipboard::new()
+            && let Ok(text) = clipboard.get_text()
+        {
+            self.clipboard_fallback_text = text.clone();
+            self.clipboard = Some(clipboard);
+            return Some(text);
+        }
+        (!self.clipboard_fallback_text.is_empty()).then(|| self.clipboard_fallback_text.clone())
+    }
+
+    fn write_clipboard_text(&mut self, text: &str) -> bool {
+        self.clipboard_fallback_text = text.to_string();
+        if let Some(clipboard) = self.clipboard.as_mut()
+            && clipboard.set_text(text.to_string()).is_ok()
+        {
+            return true;
+        }
+        if self.clipboard.is_none()
+            && let Ok(mut clipboard) = arboard::Clipboard::new()
+        {
+            let _ = clipboard.set_text(text.to_string());
+            self.clipboard = Some(clipboard);
+        }
+        true
+    }
+
+    fn browser_search_click_byte_index(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<usize> {
+        let text_rect = self
+            .shell_state
+            .browser_search_text_rect(layout, &self.model)?;
+        let text = self
+            .current_text_value()
+            .unwrap_or_else(|| self.model.browser.search_query.clone());
+        let font_size = self.cached_style_for_layout(layout).sizing.font_meta;
+        let mut editor = self
+            .text_editor_state
+            .clone()
+            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        let layout_state = build_text_field_layout(
+            &mut self.text_renderer,
+            &mut editor,
+            &text,
+            font_size,
+            text_rect.width(),
+        );
+        Some(byte_index_for_local_x(
+            &layout_state,
+            (point.x - text_rect.min.x).clamp(0.0, text_rect.width()),
+        ))
+    }
+
+    fn handle_browser_search_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        extend_selection: bool,
+    ) -> bool {
+        let Some(field_rect) = self
+            .shell_state
+            .browser_search_field_rect(layout, &self.model)
+        else {
+            return false;
+        };
+        if !field_rect.contains(point) {
+            return false;
+        }
+        if self.text_input_target != TextInputTarget::BrowserSearch {
+            self.emit_model_action(UiAction::FocusBrowserSearch);
+            self.activate_text_input_target(TextInputTarget::BrowserSearch);
+        }
+        let Some(byte_index) = self.browser_search_click_byte_index(layout, point) else {
+            return false;
+        };
+        let text = self
+            .current_text_value()
+            .unwrap_or_else(|| self.model.browser.search_query.clone());
+        let editor = self
+            .text_editor_state
+            .get_or_insert_with(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        editor.set_cursor(&text, byte_index, extend_selection);
+        self.text_input_drag_active = true;
+        self.sync_browser_search_editor_state();
+        self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        true
+    }
+
+    fn process_text_input_drag(&mut self, point: Point) -> bool {
+        if !self.text_input_drag_active || self.text_input_target != TextInputTarget::BrowserSearch
+        {
+            return false;
+        }
+        let Some(layout) = self.shell_layout.as_ref().cloned() else {
+            return false;
+        };
+        let Some(byte_index) = self.browser_search_click_byte_index(&layout, point) else {
+            return false;
+        };
+        let text = self
+            .current_text_value()
+            .unwrap_or_else(|| self.model.browser.search_query.clone());
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        editor.set_cursor(&text, byte_index, true);
+        self.sync_browser_search_editor_state();
+        self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        true
     }
 }
 
@@ -3584,6 +3965,13 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     let _ = self.process_selection_drag_immediately(point);
                 } else if !self.volume_drag_active && self.map_focus_drag_active {
                     let _ = self.process_map_focus_drag_immediately(point);
+                } else if !self.volume_drag_active && self.text_input_drag_active {
+                    if !self.process_text_input_drag(point) {
+                        let (processed, _) = self.process_cursor_move_immediately(point);
+                        if !processed {
+                            self.queue_cursor(point);
+                        }
+                    }
                 } else if !self.volume_drag_active {
                     let (processed, _) = self.process_cursor_move_immediately(point);
                     if !processed {
@@ -3620,7 +4008,6 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     let mut source_menu_state_changed = false;
                     match button {
                         MouseButton::Left => {
-                            self.deactivate_text_input_target();
                             let map_drag_start =
                                 self.model.map.active && layout.browser_rows.contains(point);
                             if let Some(action) = self
@@ -3637,15 +4024,42 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     self.shell_state.close_source_context_menu();
                             }
                             if !handled {
+                                if self.handle_browser_search_pointer_press(
+                                    &layout,
+                                    point,
+                                    self.modifiers.shift_key(),
+                                ) {
+                                    handled = true;
+                                } else if self.text_input_target != TextInputTarget::None {
+                                    self.deactivate_text_input_target();
+                                }
+                            }
+                            if !handled {
                                 if self.shell_state.prompt_input_at_point(
                                     &layout,
                                     &self.model,
                                     point,
                                 ) {
                                     self.text_input_target = TextInputTarget::PromptInput;
+                                    self.text_input_buffer = Some(
+                                        self.model
+                                            .confirm_prompt
+                                            .input_value
+                                            .clone()
+                                            .unwrap_or_default(),
+                                    );
+                                    self.text_editor_state =
+                                        Some(SingleLineTextEditorState::collapsed_at_end(
+                                            self.model
+                                                .confirm_prompt
+                                                .input_value
+                                                .as_deref()
+                                                .unwrap_or(""),
+                                        ));
                                     self.waveform_bpm_input_buffer = None;
                                     self.waveform_bpm_input_select_all = false;
                                     self.sync_waveform_bpm_editor_state();
+                                    self.sync_browser_search_editor_state();
                                     handled = true;
                                 } else if self.shell_state.waveform_bpm_input_at_point(
                                     &layout,
@@ -3747,6 +4161,7 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 state: ElementState::Released,
                 ..
             } if matches!(button, MouseButton::Left | MouseButton::Right) => {
+                self.text_input_drag_active = false;
                 self.finish_volume_drag(Some(button));
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -3811,6 +4226,9 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     if !handled && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
                         handled = self.backspace_text();
                     }
+                    if !handled && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
+                        handled = self.delete_text_forward();
+                    }
                     if !handled
                         && matches!(event.logical_key, Key::Named(NamedKey::Enter))
                         && matches!(
@@ -3844,6 +4262,26 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     }
                     if !handled
                         && self.text_input_target != TextInputTarget::None
+                        && let Some(key) = key
+                    {
+                        handled = self.move_text_cursor(key, self.modifiers.shift_key());
+                    }
+                    if !handled
+                        && self.text_input_target != TextInputTarget::None
+                        && (self.modifiers.control_key() || self.modifiers.super_key())
+                        && !self.modifiers.alt_key()
+                        && let Some(key) = key
+                    {
+                        handled = match key {
+                            KeyCode::A => self.select_all_text(),
+                            KeyCode::C => self.copy_selected_text(),
+                            KeyCode::V => self.paste_text(),
+                            KeyCode::X => self.cut_selected_text(),
+                            _ => false,
+                        };
+                    }
+                    if !handled
+                        && self.text_input_target != TextInputTarget::None
                         && !self.modifiers.control_key()
                         && !self.modifiers.super_key()
                         && !self.modifiers.alt_key()
@@ -3854,7 +4292,10 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                             handled = self.append_text(&appended);
                         }
                     }
-                    if !handled && let Some(key) = key {
+                    if !handled
+                        && self.text_input_target == TextInputTarget::None
+                        && let Some(key) = key
+                    {
                         handled = if self.model.confirm_prompt.visible {
                             false
                         } else {

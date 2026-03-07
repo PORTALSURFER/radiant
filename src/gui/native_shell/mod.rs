@@ -282,6 +282,27 @@ mod tests {
     }
 
     #[test]
+    fn browser_bands_fill_browser_panel_width_without_inner_gutters() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        assert_eq!(layout.browser_tabs.min.x, layout.browser_panel.min.x);
+        assert_eq!(layout.browser_tabs.max.x, layout.browser_panel.max.x);
+        assert_eq!(layout.browser_toolbar.min.x, layout.browser_panel.min.x);
+        assert_eq!(layout.browser_toolbar.max.x, layout.browser_panel.max.x);
+        assert_eq!(
+            layout.browser_table_header.min.x,
+            layout.browser_panel.min.x
+        );
+        assert_eq!(
+            layout.browser_table_header.max.x,
+            layout.browser_panel.max.x
+        );
+        assert_eq!(layout.browser_rows.min.x, layout.browser_panel.min.x);
+        assert_eq!(layout.browser_rows.max.x, layout.browser_panel.max.x);
+        assert_eq!(layout.browser_footer.min.x, layout.browser_panel.min.x);
+        assert_eq!(layout.browser_footer.max.x, layout.browser_panel.max.x);
+    }
+
+    #[test]
     fn top_bar_clusters_stay_ordered_and_inside_bar() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         assert!(layout.top_bar_title_cluster.min.x >= layout.top_bar.min.x);

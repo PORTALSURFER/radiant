@@ -238,12 +238,7 @@ pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens
         BROWSER_BANDS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.panel_inset,
-                right: sizing.panel_inset,
-                top: 0.0,
-                bottom: 0.0,
-            },
+            padding: Insets::default(),
             align_cross: CrossAlign::Stretch,
             ..ContainerPolicy::default()
         },

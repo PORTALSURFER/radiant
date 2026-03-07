@@ -357,18 +357,29 @@ impl NativeShellState {
                         label_max_width =
                             (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
                     }
+                    let inline_tag_reserved_width =
+                        browser_inline_tag_reserved_width(&row.bucket_label, sizing);
+                    let rating_reserved_width =
+                        browser_rating_indicator_reserved_width(row.rating_level, sizing);
                     let rating_indicator_layout = browser_rating_indicator_layout(
-                        row_text_layout.sample_label,
+                        BrowserRatingIndicatorAnchor {
+                            sample_label: row_text_layout.sample_label,
+                            label_origin_x: label_position.x,
+                            label_rendered_width: browser_approx_text_width(
+                                &row.label,
+                                sizing.font_body,
+                            )
+                            .min(label_max_width.max(0.0)),
+                            right_limit_x: row_text_layout.sample_label.max.x
+                                - inline_tag_reserved_width,
+                        },
                         row.rating_level,
                         sizing,
                     );
-                    let inline_tag_reserved_width =
-                        browser_inline_tag_reserved_width(&row.bucket_label, sizing);
                     if let Some(indicators) = rating_indicator_layout {
-                        label_max_width = (label_max_width
-                            - browser_rating_indicator_reserved_width(row.rating_level, sizing)
-                            - inline_tag_reserved_width)
-                            .max(4.0);
+                        label_max_width =
+                            (label_max_width - rating_reserved_width - inline_tag_reserved_width)
+                                .max(4.0);
                         for rect in indicators.rects.into_iter().take(indicators.count) {
                             emit_primitive(
                                 primitives,
@@ -399,12 +410,10 @@ impl NativeShellState {
                         },
                     );
                     if !row.bucket_label.is_empty() {
-                        let rating_reserved_width =
-                            browser_rating_indicator_reserved_width(row.rating_level, sizing);
                         let chip_rects = browser_inline_tag_chip_rects(
                             row_text_layout.sample_label,
                             &row.bucket_label,
-                            rating_reserved_width,
+                            0.0,
                             sizing,
                         );
                         for (chip_rect, chip_label) in chip_rects

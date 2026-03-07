@@ -2737,6 +2737,14 @@ pub(super) struct BrowserRatingIndicatorLayout {
     pub(super) count: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct BrowserRatingIndicatorAnchor {
+    pub(super) sample_label: Rect,
+    pub(super) label_origin_x: f32,
+    pub(super) label_rendered_width: f32,
+    pub(super) right_limit_x: f32,
+}
+
 pub(super) fn browser_rating_indicator_reserved_width(
     rating_level: i8,
     sizing: SizingTokens,
@@ -2752,11 +2760,12 @@ pub(super) fn browser_rating_indicator_reserved_width(
 }
 
 pub(super) fn browser_rating_indicator_layout(
-    sample_label: Rect,
+    anchor: BrowserRatingIndicatorAnchor,
     rating_level: i8,
     sizing: SizingTokens,
 ) -> Option<BrowserRatingIndicatorLayout> {
     let count = rating_level.unsigned_abs().min(3) as usize;
+    let sample_label = anchor.sample_label;
     if count == 0 || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
         return None;
     }
@@ -2765,7 +2774,14 @@ pub(super) fn browser_rating_indicator_layout(
         .min(sample_label.height().max(1.0));
     let gap = browser_rating_indicator_gap(sizing);
     let total_width = (count as f32 * side) + ((count.saturating_sub(1)) as f32 * gap);
-    let start_x = (sample_label.max.x - total_width).max(sample_label.min.x);
+    let ideal_start_x = anchor.label_origin_x
+        + anchor.label_rendered_width.max(0.0)
+        + browser_rating_indicator_text_gap(sizing);
+    let right_limit_x = anchor
+        .right_limit_x
+        .clamp(sample_label.min.x, sample_label.max.x);
+    let max_start_x = (right_limit_x - total_width).max(sample_label.min.x);
+    let start_x = ideal_start_x.clamp(sample_label.min.x, max_start_x);
     let min_y = sample_label.min.y + ((sample_label.height() - side) * 0.5).floor();
     let max_y = (min_y + side).min(sample_label.max.y);
     let mut rects = [Rect::from_min_max(sample_label.min, sample_label.min); 3];
@@ -2847,7 +2863,7 @@ pub(super) fn browser_inline_tag_chip_width(text: &str, sizing: SizingTokens) ->
 pub(super) fn browser_inline_tag_chip_rects(
     sample_label: Rect,
     text: &str,
-    rating_reserved_width: f32,
+    trailing_reserved_width: f32,
     sizing: SizingTokens,
 ) -> Vec<Rect> {
     if text.is_empty() || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
@@ -2863,7 +2879,7 @@ pub(super) fn browser_inline_tag_chip_rects(
         .map(|label| browser_inline_tag_chip_width(label, sizing))
         .sum::<f32>()
         + (labels.len().saturating_sub(1) as f32 * chip_gap);
-    let right_edge = (sample_label.max.x - rating_reserved_width).max(sample_label.min.x);
+    let right_edge = (sample_label.max.x - trailing_reserved_width).max(sample_label.min.x);
     let start_x = (right_edge - total_width).max(sample_label.min.x);
     let chip_height = browser_inline_tag_chip_height(sample_label, sizing);
     let min_y = sample_label.min.y + ((sample_label.height() - chip_height) * 0.5).floor();

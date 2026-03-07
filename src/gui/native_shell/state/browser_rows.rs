@@ -269,7 +269,7 @@ pub(super) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
 
 pub(super) fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> String {
     let max_width = max_width.max(0.0);
-    let approx_char_width = (font_size * 0.56).max(1.0);
+    let approx_char_width = browser_approx_text_width("W", font_size).max(1.0);
     let max_chars = (max_width / approx_char_width).floor() as usize;
     if max_chars == 0 {
         return String::new();
@@ -296,6 +296,12 @@ pub(super) fn truncate_to_width(text: &str, max_width: f32, font_size: f32) -> S
     output.truncate(new_len);
     output.push_str("...");
     output
+}
+
+/// Approximate one-line browser text width using the shell's truncation heuristic.
+pub(super) fn browser_approx_text_width(text: &str, font_size: f32) -> f32 {
+    let approx_char_width = (font_size * 0.56).max(1.0);
+    text.chars().count() as f32 * approx_char_width
 }
 
 pub(super) fn row_index_for_visible_rows(

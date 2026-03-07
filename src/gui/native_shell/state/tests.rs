@@ -463,10 +463,28 @@ fn browser_rating_indicator_layout_stays_inside_sample_label() {
     let sizing = style.sizing;
     let row_rect = Rect::from_min_max(Point::new(80.0, 120.0), Point::new(520.0, 156.0));
     let row_text = compute_browser_row_text_layout(row_rect, sizing);
-    let keep = browser_rating_indicator_layout(row_text.sample_label, 3, sizing)
-        .expect("keep indicators should render");
-    let trash = browser_rating_indicator_layout(row_text.sample_label, -2, sizing)
-        .expect("trash indicators should render");
+    let keep = browser_rating_indicator_layout(
+        BrowserRatingIndicatorAnchor {
+            sample_label: row_text.sample_label,
+            label_origin_x: row_text.sample_label.min.x,
+            label_rendered_width: 42.0,
+            right_limit_x: row_text.sample_label.max.x,
+        },
+        3,
+        sizing,
+    )
+    .expect("keep indicators should render");
+    let trash = browser_rating_indicator_layout(
+        BrowserRatingIndicatorAnchor {
+            sample_label: row_text.sample_label,
+            label_origin_x: row_text.sample_label.min.x,
+            label_rendered_width: 42.0,
+            right_limit_x: row_text.sample_label.max.x,
+        },
+        -2,
+        sizing,
+    )
+    .expect("trash indicators should render");
     assert_eq!(keep.count, 3);
     assert_eq!(trash.count, 2);
     for rect in keep.rects.iter().take(keep.count) {
@@ -480,6 +498,35 @@ fn browser_rating_indicator_layout_stays_inside_sample_label() {
         browser_rating_indicator_color(&style, -2),
         style.accent_trash
     );
+}
+
+#[test]
+fn browser_rating_indicator_layout_trails_rendered_label() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let sizing = style.sizing;
+    let row_rect = Rect::from_min_max(Point::new(80.0, 120.0), Point::new(520.0, 156.0));
+    let row_text = compute_browser_row_text_layout(row_rect, sizing);
+    let label_origin_x = row_text.sample_label.min.x + 18.0;
+    let label_rendered_width = 64.0;
+    let right_limit_x = row_text.sample_label.max.x - 48.0;
+    let indicators = browser_rating_indicator_layout(
+        BrowserRatingIndicatorAnchor {
+            sample_label: row_text.sample_label,
+            label_origin_x,
+            label_rendered_width,
+            right_limit_x,
+        },
+        2,
+        sizing,
+    )
+    .expect("rating indicators should render");
+    let expected_min_x =
+        label_origin_x + label_rendered_width + browser_rating_indicator_text_gap(sizing);
+    let first_rect = indicators.rects[0];
+    let last_rect = indicators.rects[indicators.count - 1];
+    assert!(first_rect.min.x >= expected_min_x);
+    assert!(last_rect.max.x <= right_limit_x);
 }
 
 #[test]
@@ -807,7 +854,7 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
     let expected_chip_rects = browser_inline_tag_chip_rects(
         row_text_layout.sample_label,
         &row.bucket_label,
-        browser_rating_indicator_reserved_width(row.rating_level, style.sizing),
+        0.0,
         style.sizing,
     );
     assert_eq!(expected_chip_rects.len(), 3);

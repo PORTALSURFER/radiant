@@ -2698,7 +2698,7 @@ fn waveform_toolbar_buttons(
             true,
             model.transport_running,
             Some(UiAction::ToggleTransport),
-            style.highlight_cyan,
+            style.accent_warning,
         ),
         (
             "Rec",
@@ -3024,19 +3024,24 @@ fn waveform_toolbar_visual_color(
     if !enabled {
         return blend_color(style.text_muted, style.bg_tertiary, 0.42);
     }
-    let idle_color = blend_color(style.text_muted, base_color, 0.16);
+    let idle_color = blend_color(style.text_muted, style.bg_tertiary, 0.26);
     let active_color = if active {
-        blend_color(base_color, style.text_primary, 0.14 + (motion_wave * 0.08))
+        blend_color(base_color, style.text_primary, 0.08 + (motion_wave * 0.06))
     } else {
         idle_color
     };
     let hover_color = if hovered {
-        blend_color(active_color, base_color, 0.74)
+        let hover_emphasis = if active { 0.28 } else { 0.82 };
+        blend_color(
+            active_color,
+            base_color,
+            hover_emphasis + (motion_wave * 0.06),
+        )
     } else {
         active_color
     };
     if flashed {
-        blend_color(hover_color, style.text_primary, 0.58)
+        blend_color(hover_color, style.text_primary, 0.42)
     } else {
         hover_color
     }

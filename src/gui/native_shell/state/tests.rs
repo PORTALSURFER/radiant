@@ -366,15 +366,37 @@ fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
 fn waveform_toolbar_hover_uses_theme_highlight_color() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let expected = blend_color(
-        blend_color(style.text_muted, style.highlight_cyan, 0.16),
+        blend_color(style.text_muted, style.bg_tertiary, 0.26),
         style.highlight_cyan,
-        0.74,
+        0.82,
     );
 
     assert_eq!(
         waveform_toolbar_visual_color(&style, style.highlight_cyan, true, false, true, false, 0.0,),
         expected
     );
+}
+
+#[test]
+fn waveform_toolbar_play_button_uses_transport_accent_when_running() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.transport_running = true;
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let play = buttons
+        .iter()
+        .find(|button| button.label == "Play")
+        .expect("play toolbar button should be present");
+
+    assert_eq!(play.text_color, style.accent_warning);
 }
 
 #[test]

@@ -230,7 +230,7 @@ pub(super) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
-        (style.state_hover_soft * 0.8).clamp(0.10, 0.22),
+        (style.state_hover_soft * 0.95).clamp(0.12, 0.26),
     )
 }
 

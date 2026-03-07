@@ -427,7 +427,7 @@ impl StyleTokens {
                 source_row_height: 16.0,
                 source_rows_max: 12,
                 source_rows_min_when_split: 3,
-                folder_row_gap: 1.0,
+                folder_row_gap: 0.0,
                 folder_row_height: 15.4,
                 folder_rows_max: 20,
                 folder_rows_min: 4,
@@ -521,7 +521,7 @@ impl StyleTokens {
             tokens.sizing.source_row_height = 15.8;
             tokens.sizing.source_rows_max = 9;
             tokens.sizing.source_rows_min_when_split = 2;
-            tokens.sizing.folder_row_gap = 2.0;
+            tokens.sizing.folder_row_gap = 0.0;
             tokens.sizing.folder_row_height = 14.8;
             tokens.sizing.folder_rows_max = 14;
             tokens.sizing.folder_rows_min = 3;
@@ -622,7 +622,7 @@ impl StyleTokens {
             tokens.sizing.source_row_height = 16.9;
             tokens.sizing.source_rows_max = 13;
             tokens.sizing.source_rows_min_when_split = 4;
-            tokens.sizing.folder_row_gap = 1.4;
+            tokens.sizing.folder_row_gap = 0.0;
             tokens.sizing.folder_row_height = 16.2;
             tokens.sizing.folder_rows_max = 22;
             tokens.sizing.folder_rows_min = 5;

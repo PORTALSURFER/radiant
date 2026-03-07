@@ -704,6 +704,35 @@ mod tests {
     }
 
     #[test]
+    fn folder_rows_fill_sidebar_width_and_touch_without_gap() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        for index in 0..3 {
+            model
+                .sources
+                .folder_rows
+                .push(crate::app::FolderRowModel::new(
+                    format!("Folder {index}"),
+                    String::new(),
+                    0,
+                    false,
+                    index == 1,
+                    false,
+                    true,
+                    true,
+                ));
+        }
+
+        let folder_rects = state.rendered_folder_row_rects(&layout, &model);
+        assert_eq!(folder_rects.len(), 3);
+        assert_eq!(folder_rects[0].min.x, layout.sidebar_rows.min.x);
+        assert_eq!(folder_rects[0].max.x, layout.sidebar_rows.max.x);
+        assert_eq!(folder_rects[0].max.y, folder_rects[1].min.y);
+        assert_eq!(folder_rects[1].max.y, folder_rects[2].min.y);
+    }
+
+    #[test]
     fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
         let mut state = NativeShellState::new();
         let mut model = crate::app::AppModel::default();

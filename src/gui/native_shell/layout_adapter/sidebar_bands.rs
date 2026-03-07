@@ -54,10 +54,7 @@ pub(crate) fn compute_sidebar_band_sections_with_layout_engine(
     let section_tree = build_sidebar_bands_tree(sidebar, sizing);
     let output =
         engine.layout_with_state(&section_tree, sidebar, state, LayoutDebugOptions::default());
-    let sidebar_rows = inset_horizontal(
-        rect_for(&output.rects, SIDEBAR_ROWS_ID, empty),
-        sizing.panel_inset,
-    );
+    let sidebar_rows = rect_for(&output.rects, SIDEBAR_ROWS_ID, empty);
     SidebarBandSections {
         sidebar_header: clamp_rect_to_bounds(
             rect_for(&output.rects, SIDEBAR_HEADER_ID, empty),
@@ -133,13 +130,4 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
         return Rect::from_min_max(bounds.min, bounds.min);
     }
     Rect::from_min_max(min, max)
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let max_inset = (rect.width() * 0.5).max(0.0);
-    let inset = inset.min(max_inset).max(0.0);
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
 }

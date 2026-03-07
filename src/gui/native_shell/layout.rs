@@ -235,14 +235,13 @@ impl ShellLayout {
         }
 
         let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
-        let waveform_inset = waveform_card.inset(sizing.panel_inset);
         let waveform_body_top = waveform_header
             .max
             .y
-            .clamp(waveform_inset.min.y, waveform_inset.max.y);
+            .clamp(waveform_card.min.y, waveform_card.max.y);
         let waveform_plot = Rect::from_min_max(
-            Point::new(waveform_inset.min.x, waveform_body_top),
-            waveform_inset.max,
+            Point::new(waveform_card.min.x, waveform_body_top),
+            waveform_card.max,
         );
 
         let mut column_headers = [Rect::default(), Rect::default(), Rect::default()];

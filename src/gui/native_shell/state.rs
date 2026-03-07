@@ -3076,25 +3076,6 @@ fn browser_inline_tag_chip_gap(sizing: SizingTokens) -> f32 {
     sizing.border_width.max(1.0) + 2.0
 }
 
-/// Return the inset backplate rect used to visually lift the waveform deck.
-pub(super) fn waveform_deck_backplate_rect(card_rect: Rect, sizing: SizingTokens) -> Rect {
-    if card_rect.width() <= 0.0 || card_rect.height() <= 0.0 {
-        return Rect::from_min_max(card_rect.min, card_rect.min);
-    }
-    let inset = (sizing.panel_inset * 0.55)
-        .round()
-        .clamp(sizing.border_width + 1.0, 10.0);
-    let min = Point::new(
-        (card_rect.min.x + inset).min(card_rect.max.x),
-        (card_rect.min.y + inset).min(card_rect.max.y),
-    );
-    let max = Point::new(
-        (card_rect.max.x - inset).max(min.x),
-        (card_rect.max.y - inset).max(min.y),
-    );
-    Rect::from_min_max(min, max)
-}
-
 fn source_add_button_rect(header_rect: Rect, sizing: SizingTokens) -> Option<Rect> {
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return None;

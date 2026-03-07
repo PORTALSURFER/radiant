@@ -61,22 +61,6 @@ impl NativeShellState {
                 color: style.surface_raised,
             }),
         );
-        let waveform_deck_backplate = waveform_deck_backplate_rect(layout.waveform_card, sizing);
-        if waveform_deck_backplate.width() > 0.0 && waveform_deck_backplate.height() > 0.0 {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: waveform_deck_backplate,
-                    color: blend_color(style.surface_overlay, style.bg_secondary, 0.38),
-                }),
-            );
-            push_border(
-                primitives,
-                waveform_deck_backplate,
-                blend_color(style.border_emphasis, style.bg_tertiary, 0.32),
-                sizing.border_width,
-            );
-        }
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {

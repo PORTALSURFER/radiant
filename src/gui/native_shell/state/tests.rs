@@ -178,27 +178,12 @@ fn sidebar_sections_remain_stable_in_cramped_viewports() {
 }
 
 #[test]
-fn waveform_deck_backplate_renders_inside_waveform_card() {
+fn waveform_plot_fills_waveform_card_body_without_inner_inset() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let style = style_for_layout(&layout);
-    let model = AppModel::default();
-    let mut state = NativeShellState::new();
-    let frame = state.build_frame(&layout, &model);
-    let backplate = waveform_deck_backplate_rect(layout.waveform_card, style.sizing);
-    assert_rect_inside(layout.waveform_card, backplate);
-    assert!(backplate.contains(layout.waveform_plot.min));
-    assert!(backplate.contains(Point::new(
-        layout.waveform_plot.max.x - 1.0,
-        layout.waveform_plot.max.y - 1.0,
-    )));
-    assert!(frame.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(FillRect { rect, color })
-                if *rect == backplate
-                    && *color == blend_color(style.surface_overlay, style.bg_secondary, 0.38)
-        )
-    }));
+    assert_eq!(layout.waveform_plot.min.x, layout.waveform_card.min.x);
+    assert_eq!(layout.waveform_plot.max.x, layout.waveform_card.max.x);
+    assert_eq!(layout.waveform_plot.max.y, layout.waveform_card.max.y);
+    assert_eq!(layout.waveform_plot.min.y, layout.waveform_header.max.y);
 }
 
 #[test]

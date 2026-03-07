@@ -29,10 +29,8 @@ pub(super) enum WaveformToolbarIcon {
     Loop,
     /// Stop transport icon.
     Stop,
-    /// Play/pause toggle icon.
+    /// Play transport icon used in both idle and running states.
     Play,
-    /// Pause icon used while transport is running.
-    Pause,
     /// Record icon placeholder.
     Record,
 }
@@ -76,13 +74,7 @@ pub(super) fn toolbar_icon_for_button(
         "Slice" => Some(WaveformToolbarIcon::Slice),
         "Loop" => Some(WaveformToolbarIcon::Loop),
         "Stop" => Some(WaveformToolbarIcon::Stop),
-        "Play" => {
-            if button.active {
-                Some(WaveformToolbarIcon::Pause)
-            } else {
-                Some(WaveformToolbarIcon::Play)
-            }
-        }
+        "Play" => Some(WaveformToolbarIcon::Play),
         "Rec" => Some(WaveformToolbarIcon::Record),
         _ => None,
     }
@@ -293,9 +285,6 @@ fn icon_svg(icon: WaveformToolbarIcon) -> &'static str {
         WaveformToolbarIcon::Play => {
             r#"<svg viewBox="0 0 16 16"><polygon points="4,3 13,8 4,13"/></svg>"#
         }
-        WaveformToolbarIcon::Pause => {
-            r#"<svg viewBox="0 0 16 16"><rect x="4.5" y="3.5" width="3" height="9"/><rect x="8.5" y="3.5" width="3" height="9"/></svg>"#
-        }
         WaveformToolbarIcon::Stop => {
             r#"<svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8"/></svg>"#
         }
@@ -305,5 +294,44 @@ fn icon_svg(icon: WaveformToolbarIcon) -> &'static str {
         WaveformToolbarIcon::Loop => {
             r#"<svg viewBox="0 0 16 16"><rect x="6" y="2.5" width="4" height="2"/><polygon points="10,1.5 13.5,3.5 10,5.5"/><rect x="10" y="4.5" width="2" height="4"/><rect x="8" y="10.5" width="4" height="2"/><rect x="4" y="10.5" width="4" height="2"/><rect x="4" y="8.5" width="2" height="2"/><rect x="4" y="4.5" width="2" height="4"/><rect x="6" y="4.5" width="2" height="2"/><polygon points="6,9.5 2.5,11.5 6,13.5"/></svg>"#
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::UiAction;
+    use crate::gui::types::{Point, Rect, Rgba8};
+
+    fn waveform_toolbar_button(label: &'static str, active: bool) -> WaveformToolbarButton {
+        WaveformToolbarButton {
+            rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(18.0, 18.0)),
+            label,
+            display_text: None,
+            enabled: true,
+            active,
+            action: Some(UiAction::ToggleTransport),
+            text_color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        }
+    }
+
+    #[test]
+    fn play_button_keeps_play_icon_while_transport_is_running() {
+        let idle_button = waveform_toolbar_button("Play", false);
+        let running_button = waveform_toolbar_button("Play", true);
+
+        assert_eq!(
+            toolbar_icon_for_button(&idle_button),
+            Some(WaveformToolbarIcon::Play)
+        );
+        assert_eq!(
+            toolbar_icon_for_button(&running_button),
+            Some(WaveformToolbarIcon::Play)
+        );
     }
 }

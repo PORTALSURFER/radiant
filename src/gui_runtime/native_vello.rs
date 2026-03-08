@@ -3544,7 +3544,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveform { .. }
-            | UiAction::ReplayFromLastStart
+            | UiAction::PlayFromStart
+            | UiAction::PlayFromCurrentPlayhead
             | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
             UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
@@ -3560,7 +3561,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 Some(InteractionProfileKind::MapPanProxy)
             }
             UiAction::SeekWaveform { .. }
-            | UiAction::ReplayFromLastStart
+            | UiAction::PlayFromStart
+            | UiAction::PlayFromCurrentPlayhead
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformBpmValue { .. }

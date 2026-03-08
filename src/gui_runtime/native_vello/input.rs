@@ -161,7 +161,13 @@ pub(super) fn action_from_key(
         KeyCode::Quote => Some(UiAction::FocusFolderSearch),
         KeyCode::R => Some(UiAction::Redo),
         KeyCode::S => Some(UiAction::FocusSourcesPanel),
-        KeyCode::Space => Some(UiAction::ReplayFromLastStart),
+        KeyCode::Space => {
+            if command {
+                Some(UiAction::PlayFromCurrentPlayhead)
+            } else {
+                Some(UiAction::PlayFromStart)
+            }
+        }
         KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
         KeyCode::U => Some(UiAction::Undo),
         KeyCode::W => Some(UiAction::FocusWaveformPanel),

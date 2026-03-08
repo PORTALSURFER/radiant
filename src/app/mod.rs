@@ -783,8 +783,10 @@ pub enum UiAction {
     },
     /// Toggle transport playback state.
     ToggleTransport,
-    /// Start playback from the saved play-start marker (or cursor fallback).
-    ReplayFromLastStart,
+    /// Start playback from the beginning of the active sample.
+    PlayFromStart,
+    /// Start playback from the current playhead or cursor position.
+    PlayFromCurrentPlayhead,
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
     HandleEscape,
     /// Focus the browser/list panel.

@@ -1149,11 +1149,20 @@ fn waveform_bpm_editor_supports_copy_paste_and_delete_selection() {
 }
 
 #[test]
-fn space_key_maps_to_replay_from_last_start() {
+fn space_key_maps_to_play_from_start() {
     let model = AppModel::default();
     assert_eq!(
         action_from_key(KeyCode::Space, ModifiersState::default(), &model),
-        Some(UiAction::ReplayFromLastStart)
+        Some(UiAction::PlayFromStart)
+    );
+}
+
+#[test]
+fn ctrl_space_key_maps_to_play_from_current_playhead() {
+    let model = AppModel::default();
+    assert_eq!(
+        action_from_key(KeyCode::Space, ModifiersState::CONTROL, &model),
+        Some(UiAction::PlayFromCurrentPlayhead)
     );
 }
 

@@ -1114,10 +1114,6 @@ impl NativeShellState {
                     true
                 }
             }
-            KeyCode::Enter => {
-                self.transport_running = !self.transport_running;
-                true
-            }
             _ => false,
         }
     }

@@ -341,17 +341,13 @@ pub enum MapRenderModeModel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MapPointModel {
     /// Stable sample id used to route click actions back to the host.
-    pub sample_id: String,
+    pub sample_id: Arc<str>,
     /// X position normalized to milli-units (`0..=1000`) across map bounds.
     pub x_milli: u16,
     /// Y position normalized to milli-units (`0..=1000`) across map bounds.
     pub y_milli: u16,
     /// Optional cluster id for color grouping.
     pub cluster_id: Option<i32>,
-    /// Whether this point is currently selected in map state.
-    pub selected: bool,
-    /// Whether this point corresponds to the focused browser sample.
-    pub focused: bool,
 }
 
 /// Summary of map state consumed by the native shell map tab.
@@ -375,8 +371,12 @@ pub struct MapPanelModel {
     pub error: Option<String>,
     /// Current map render mode.
     pub render_mode: MapRenderModeModel,
+    /// Sample id currently selected in map state, when any.
+    pub selected_sample_id: Option<String>,
+    /// Sample id currently focused from the browser list, when any.
+    pub focused_sample_id: Option<String>,
     /// Points available for rendering in normalized map space.
-    pub points: Vec<MapPointModel>,
+    pub points: Arc<[MapPointModel]>,
 }
 
 /// Triage targets used by native browser action surfaces.

@@ -1427,14 +1427,14 @@ fn static_segments_include_map_panel_when_map_tab_is_active() {
     let mut model = browser_model_with_rows(120, 40);
     model.map.active = true;
     model.map.summary = String::from("Map summary");
-    model.map.points.push(crate::app::MapPointModel {
-        sample_id: String::from("kick"),
+    model.map.selected_sample_id = Some(String::from("kick"));
+    model.map.focused_sample_id = Some(String::from("kick"));
+    model.map.points = std::sync::Arc::from(vec![crate::app::MapPointModel {
+        sample_id: std::sync::Arc::<str>::from("kick"),
         x_milli: 512,
         y_milli: 480,
         cluster_id: Some(1),
-        selected: true,
-        focused: true,
-    });
+    }]);
     let mut segments = StaticFrameSegments::default();
     for segment in StaticFrameSegment::ALL {
         state.build_static_segment_with_style_into(

@@ -207,13 +207,13 @@ impl NativeShellState {
                     style.border_emphasis,
                     sizing.border_width,
                 );
-                for point in &model.map.points {
+                for point in model.map.points.iter() {
                     let center =
                         compute_browser_map_point_center(canvas, point.x_milli, point.y_milli);
-                    let color = map_point_color(style, point);
-                    let radius = if point.focused {
+                    let color = map_point_color(style, model, point);
+                    let radius = if map_point_is_focused(model, point) {
                         4.5
-                    } else if point.selected {
+                    } else if map_point_is_selected(model, point) {
                         3.8
                     } else {
                         2.6

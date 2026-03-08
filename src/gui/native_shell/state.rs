@@ -2611,11 +2611,23 @@ fn waveform_hover_marker_rect(
     ))
 }
 
-fn map_point_color(style: &StyleTokens, point: &crate::app::MapPointModel) -> Rgba8 {
-    if point.focused {
+fn map_point_is_selected(model: &AppModel, point: &crate::app::MapPointModel) -> bool {
+    model.map.selected_sample_id.as_deref() == Some(point.sample_id.as_ref())
+}
+
+fn map_point_is_focused(model: &AppModel, point: &crate::app::MapPointModel) -> bool {
+    model.map.focused_sample_id.as_deref() == Some(point.sample_id.as_ref())
+}
+
+fn map_point_color(
+    style: &StyleTokens,
+    model: &AppModel,
+    point: &crate::app::MapPointModel,
+) -> Rgba8 {
+    if map_point_is_focused(model, point) {
         return style.accent_warning;
     }
-    if point.selected {
+    if map_point_is_selected(model, point) {
         return style.accent_mint;
     }
     match point.cluster_id.map(|id| id.rem_euclid(5)) {
@@ -2639,11 +2651,11 @@ fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) 
     }
 
     let mut best: Option<(f32, &str)> = None;
-    for map_point in &model.map.points {
+    for map_point in model.map.points.iter() {
         let center = compute_browser_map_point_center(canvas, map_point.x_milli, map_point.y_milli);
-        let radius = if map_point.focused {
+        let radius = if map_point_is_focused(model, map_point) {
             7.0
-        } else if map_point.selected {
+        } else if map_point_is_selected(model, map_point) {
             6.0
         } else {
             5.0
@@ -2656,7 +2668,7 @@ fn map_sample_id_at_point(layout: &ShellLayout, model: &AppModel, point: Point) 
         }
         match best {
             Some((best_distance_sq, _)) if distance_sq >= best_distance_sq => {}
-            _ => best = Some((distance_sq, map_point.sample_id.as_str())),
+            _ => best = Some((distance_sq, map_point.sample_id.as_ref())),
         }
     }
     best.map(|(_, sample_id)| sample_id.to_string())

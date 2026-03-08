@@ -9,6 +9,10 @@
 use super::*;
 use std::sync::Arc;
 
+mod parser;
+
+use parser::{parse_svg_document, point_in_svg_shapes};
+
 /// Icon identifiers used by native shell controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformToolbarIcon {
@@ -36,31 +40,6 @@ pub(super) enum WaveformToolbarIcon {
     Record,
     /// Status-bar options button icon.
     Cog,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct SvgDocument {
-    view_box_min_x: f32,
-    view_box_min_y: f32,
-    view_box_width: f32,
-    view_box_height: f32,
-    shapes: Vec<SvgShape>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum SvgShape {
-    Rect {
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-    },
-    Circle {
-        cx: f32,
-        cy: f32,
-        radius: f32,
-    },
-    Polygon(Vec<(f32, f32)>),
 }
 
 /// Return a toolbar icon for one waveform toolbar button.
@@ -129,126 +108,6 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
 
     ImageRgba::new(side, side, pixels)
 }
-
-fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
-    let view_box = extract_attr(svg, "viewBox")?;
-    let view_box_values: Vec<f32> = view_box
-        .split_whitespace()
-        .map(|value| value.parse::<f32>().ok())
-        .collect::<Option<Vec<_>>>()?;
-    if view_box_values.len() != 4 {
-        return None;
-    }
-
-    let mut shapes = Vec::new();
-    for raw in svg.split('<').skip(1) {
-        let end_index = raw.find('>')?;
-        let tag = raw[..end_index].trim().trim_end_matches('/').trim();
-        if tag.starts_with("rect ") {
-            shapes.push(SvgShape::Rect {
-                x: parse_attr_f32(tag, "x")?,
-                y: parse_attr_f32(tag, "y")?,
-                width: parse_attr_f32(tag, "width")?,
-                height: parse_attr_f32(tag, "height")?,
-            });
-        } else if tag.starts_with("circle ") {
-            shapes.push(SvgShape::Circle {
-                cx: parse_attr_f32(tag, "cx")?,
-                cy: parse_attr_f32(tag, "cy")?,
-                radius: parse_attr_f32(tag, "r")?,
-            });
-        } else if tag.starts_with("polygon ") {
-            let points = parse_points(extract_attr(tag, "points")?)?;
-            shapes.push(SvgShape::Polygon(points));
-        }
-    }
-
-    Some(SvgDocument {
-        view_box_min_x: view_box_values[0],
-        view_box_min_y: view_box_values[1],
-        view_box_width: view_box_values[2],
-        view_box_height: view_box_values[3],
-        shapes,
-    })
-}
-
-fn parse_attr_f32(tag: &str, attr: &str) -> Option<f32> {
-    extract_attr(tag, attr)?.parse::<f32>().ok()
-}
-
-fn extract_attr<'a>(text: &'a str, attr: &str) -> Option<&'a str> {
-    let needle = format!(r#"{attr}=""#);
-    let start = text.find(&needle)? + needle.len();
-    let end = start + text[start..].find('"')?;
-    Some(&text[start..end])
-}
-
-fn parse_points(points: &str) -> Option<Vec<(f32, f32)>> {
-    let mut coords = Vec::new();
-    let mut token = String::new();
-    for ch in points.chars() {
-        if ch == ',' || ch.is_ascii_whitespace() {
-            if !token.is_empty() {
-                coords.push(token.parse::<f32>().ok()?);
-                token.clear();
-            }
-        } else {
-            token.push(ch);
-        }
-    }
-    if !token.is_empty() {
-        coords.push(token.parse::<f32>().ok()?);
-    }
-    if coords.len() < 6 || coords.len() % 2 != 0 {
-        return None;
-    }
-    let mut output = Vec::with_capacity(coords.len() / 2);
-    for pair in coords.chunks_exact(2) {
-        output.push((pair[0], pair[1]));
-    }
-    Some(output)
-}
-
-fn point_in_svg_shapes(x: f32, y: f32, shapes: &[SvgShape]) -> bool {
-    shapes.iter().any(|shape| point_in_svg_shape(x, y, shape))
-}
-
-fn point_in_svg_shape(x: f32, y: f32, shape: &SvgShape) -> bool {
-    match shape {
-        SvgShape::Rect {
-            x: rect_x,
-            y: rect_y,
-            width,
-            height,
-        } => x >= *rect_x && x <= rect_x + width && y >= *rect_y && y <= rect_y + height,
-        SvgShape::Circle { cx, cy, radius } => {
-            let dx = x - cx;
-            let dy = y - cy;
-            (dx * dx) + (dy * dy) <= radius * radius
-        }
-        SvgShape::Polygon(points) => point_in_polygon(x, y, points),
-    }
-}
-
-fn point_in_polygon(x: f32, y: f32, points: &[(f32, f32)]) -> bool {
-    let mut inside = false;
-    let mut previous = points[points.len() - 1];
-    for current in points {
-        let (x0, y0) = previous;
-        let (x1, y1) = *current;
-        let crosses = (y0 > y) != (y1 > y);
-        if crosses {
-            let t = (y - y0) / (y1 - y0);
-            let x_intersect = x0 + (t * (x1 - x0));
-            if x < x_intersect {
-                inside = !inside;
-            }
-        }
-        previous = *current;
-    }
-    inside
-}
-
 fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
     match icon {
         WaveformToolbarIcon::Mono => {
@@ -366,9 +225,11 @@ mod tests {
             WaveformToolbarIcon::Play,
             WaveformToolbarIcon::Record,
         ] {
+            let document = parse_svg_document(icon_svg_asset(icon));
+            assert!(document.is_some(), "svg asset for {icon:?} should parse");
             assert!(
-                parse_svg_document(icon_svg_asset(icon)).is_some(),
-                "svg asset for {icon:?} should parse"
+                !document.expect("document should exist").shapes.is_empty(),
+                "svg asset for {icon:?} should yield visible shapes"
             );
         }
     }

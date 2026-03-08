@@ -2084,12 +2084,17 @@ impl NativeShellState {
                 (chip_rect.width() > 1.0).then_some((chip_rect, hovered_level))
             })
         {
+            let active = browser_rating_filter_chip_index(rating_level)
+                .and_then(|index| model.active_rating_filters.get(index))
+                .copied()
+                .unwrap_or(false);
             render_browser_rating_filter_chip_hover_overlay(
                 primitives,
                 style,
                 sizing,
                 chip_rect,
                 rating_level,
+                active,
                 motion_wave,
             );
         }
@@ -3087,19 +3092,20 @@ fn render_browser_rating_filter_chip_hover_overlay(
     sizing: SizingTokens,
     chip_rect: Rect,
     rating_level: i8,
+    active: bool,
     motion_wave: f32,
 ) {
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
             rect: chip_rect,
-            color: browser_rating_filter_chip_hover_fill(style, rating_level, motion_wave),
+            color: browser_rating_filter_chip_hover_fill(style, rating_level, active, motion_wave),
         }),
     );
     push_border(
         primitives,
         chip_rect,
-        browser_rating_filter_chip_hover_border(style, rating_level, motion_wave),
+        browser_rating_filter_chip_hover_border(style, rating_level, active, motion_wave),
         sizing.border_width,
     );
 }
@@ -3137,6 +3143,7 @@ fn browser_search_field_hover_fill(style: &StyleTokens, motion_wave: f32) -> Rgb
 fn browser_rating_filter_chip_hover_fill(
     style: &StyleTokens,
     rating_level: i8,
+    active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
@@ -3146,9 +3153,9 @@ fn browser_rating_filter_chip_hover_fill(
     } else {
         style.highlight_orange_soft
     };
-    let amount = 0.2 + (motion_wave * 0.04);
+    let amount = if active { 0.34 } else { 0.2 } + (motion_wave * 0.04);
     translucent_overlay_color(
-        browser_rating_filter_chip_fill(style, rating_level, false),
+        browser_rating_filter_chip_fill(style, rating_level, active),
         tint,
         amount,
     )
@@ -3165,6 +3172,7 @@ fn browser_search_field_hover_border(style: &StyleTokens, motion_wave: f32) -> R
 fn browser_rating_filter_chip_hover_border(
     style: &StyleTokens,
     rating_level: i8,
+    active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
@@ -3174,7 +3182,11 @@ fn browser_rating_filter_chip_hover_border(
     } else {
         style.highlight_orange
     };
-    blend_color(style.border_emphasis, tint, 0.52 + (motion_wave * 0.08))
+    blend_color(
+        browser_rating_filter_chip_border(style, rating_level, active),
+        tint,
+        0.52 + (motion_wave * 0.08),
+    )
 }
 
 fn waveform_bpm_input_focus_fill(style: &StyleTokens, motion_wave: f32) -> Rgba8 {
@@ -3401,17 +3413,27 @@ pub(super) fn browser_rating_filter_chip_fill(
         style.accent_trash
     } else if rating_level > 0 {
         style.accent_mint
+    } else if active {
+        style.highlight_orange
     } else {
         style.text_primary
     };
     let amount = if active {
-        0.78
+        0.9
     } else if rating_level == 0 {
         0.14
     } else {
         0.18
     };
-    blend_color(style.surface_base, tint, amount)
+    blend_color(
+        if active {
+            style.surface_overlay
+        } else {
+            style.surface_base
+        },
+        tint,
+        amount,
+    )
 }
 
 pub(super) fn browser_rating_filter_chip_border(
@@ -3421,11 +3443,11 @@ pub(super) fn browser_rating_filter_chip_border(
 ) -> Rgba8 {
     if active {
         if rating_level < 0 {
-            blend_color(style.accent_trash, style.text_primary, 0.08)
+            blend_color(style.accent_trash, style.text_primary, 0.24)
         } else if rating_level > 0 {
-            blend_color(style.accent_mint, style.text_primary, 0.08)
+            blend_color(style.accent_mint, style.text_primary, 0.24)
         } else {
-            blend_color(style.text_primary, style.border_emphasis, 0.7)
+            blend_color(style.highlight_orange, style.text_primary, 0.22)
         }
     } else {
         blend_color(style.border, style.surface_overlay, 0.25)

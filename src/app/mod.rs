@@ -1316,6 +1316,8 @@ pub struct NativeMotionModel {
     pub transport_running: bool,
     /// Whether map mode is active for tab overlay tinting.
     pub map_active: bool,
+    /// Active browser rating-filter chip states for levels `-3..=3`.
+    pub active_rating_filters: [bool; 7],
     /// Waveform selected playback window in normalized milliseconds.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit-selection window in normalized milliseconds.
@@ -1382,6 +1384,7 @@ impl NativeMotionModel {
         Self {
             transport_running: model.transport_running,
             map_active: model.map.active,
+            active_rating_filters: model.browser.active_rating_filters,
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,

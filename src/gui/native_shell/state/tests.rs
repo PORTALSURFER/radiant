@@ -809,7 +809,7 @@ fn browser_rating_filter_chip_motion_overlay_uses_hover_fill() {
 
     assert_eq!(
         overlay_color,
-        browser_rating_filter_chip_hover_fill(&style, 3, interaction_wave(0.0))
+        browser_rating_filter_chip_hover_fill(&style, 3, false, interaction_wave(0.0))
     );
 }
 
@@ -886,6 +886,45 @@ fn browser_rating_filter_chip_uses_active_fill_when_enabled() {
                 if *rect == chip && *color == browser_rating_filter_chip_fill(&style, 3, true)
         )
     }));
+}
+
+#[test]
+fn browser_rating_filter_chip_hover_preserves_active_fill_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.browser.active_rating_filters[6] = true;
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_rating_filter_chip_rect(&layout, &model, 3)
+        .expect("keep-3 chip should render");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(FillRect { rect, color }) if *rect == chip => Some(*color),
+            _ => None,
+        })
+        .expect("hovered active browser rating chip should emit a motion overlay fill");
+
+    assert_eq!(
+        overlay_color,
+        browser_rating_filter_chip_hover_fill(&style, 3, true, interaction_wave(0.0))
+    );
 }
 
 #[test]

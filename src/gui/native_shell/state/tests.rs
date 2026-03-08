@@ -1217,6 +1217,37 @@ fn browser_virtualization_clamps_tail_without_dropping_last_row() {
 }
 
 #[test]
+fn browser_virtualization_keeps_host_window_start_for_prewindowed_rows() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let row_capacity = browser_rows_capacity(layout.browser_rows, style.sizing);
+    let host_window_start = 100usize;
+    let projected_rows = row_capacity.saturating_add(12);
+    let focused_visible_row = host_window_start + (projected_rows / 2);
+    let mut model = AppModel::default();
+    for offset in 0..projected_rows {
+        let visible_row = host_window_start + offset;
+        model.browser.rows.push(BrowserRowModel::new(
+            visible_row,
+            format!("row_{visible_row:04}"),
+            1,
+            false,
+            visible_row == focused_visible_row,
+        ));
+    }
+    model.browser.visible_count = 5_000;
+    model.browser.selected_visible_row = Some(focused_visible_row);
+    model.browser.anchor_visible_row = Some(focused_visible_row);
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+
+    assert_eq!(
+        rendered.first().map(|row| row.visible_row),
+        Some(host_window_start)
+    );
+}
+
+#[test]
 fn browser_virtualization_hit_test_is_stable_across_viewport_tiers() {
     let mut state = NativeShellState::new();
     for viewport in [

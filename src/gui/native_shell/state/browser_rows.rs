@@ -588,6 +588,7 @@ pub(super) fn browser_rows_window_bounds(
     let window_start = browser_window_start(
         &model.browser.rows,
         window_len,
+        model.browser.visible_count,
         model.browser.selected_visible_row,
         model.browser.anchor_visible_row,
     );
@@ -612,10 +613,17 @@ pub(super) fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
 pub(super) fn browser_window_start(
     rows: &[BrowserRowModel],
     window_len: usize,
+    visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
 ) -> usize {
     if rows.len() <= window_len {
+        return 0;
+    }
+    // Hosts like Sempal can pre-window a larger browser dataset before handing
+    // Radiant the current row slice. Preserve that host-selected top row rather
+    // than recentering again inside the reduced subset after pointer focus.
+    if rows.len() < visible_count {
         return 0;
     }
     let focus_index = selected_visible_row

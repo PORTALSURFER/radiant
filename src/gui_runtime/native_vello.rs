@@ -1321,7 +1321,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     style_cache: Option<StyleTokens>,
     frame_state: NativeVelloFrameState,
     layout_runtime: ShellLayoutRuntime,
-    shell_layout: Option<ShellLayout>,
+    shell_layout: Option<Arc<ShellLayout>>,
     shell_state: NativeShellState,
     clear_color: Rgba8,
     cursor_icon: CursorIcon,
@@ -1682,16 +1682,28 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let viewport = Vector2::new(surface.config.width as f32, surface.config.height as f32);
         let style = StyleTokens::for_viewport_with_scale(viewport.x, self.ui_scale_factor());
         self.style_cache = Some(style);
-        self.shell_layout = Some(ShellLayout::build_with_style_and_runtime(
+        self.shell_layout = Some(Arc::new(ShellLayout::build_with_style_and_runtime(
             viewport,
             &style,
             &mut self.layout_runtime,
-        ));
+        )));
         self.static_segment_graph.clear();
         self.frame_state.clear_layout_dirty();
         if let Some(point) = self.pending_cursor.take() {
             let _ = self.process_cursor_move_immediately(point);
         }
+    }
+
+    /// Borrow the retained shell layout while mutating runtime state without
+    /// cloning the full layout payload.
+    fn with_shell_layout<T>(
+        &mut self,
+        work: impl FnOnce(&mut Self, &ShellLayout) -> T,
+    ) -> Option<T> {
+        let layout = self.shell_layout.take()?;
+        let result = work(self, layout.as_ref());
+        self.shell_layout = Some(layout);
+        Some(result)
     }
 
     fn request_redraw_if_needed(&mut self) {
@@ -1812,11 +1824,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             && !model_refresh_requested
             && static_rebuild_requested
         {
-            let Some(layout) = self.shell_layout.as_ref().cloned() else {
+            let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
                 return;
             };
-            let style = self.cached_style_for_layout(&layout);
-            self.build_startup_placeholder_scene(&layout, &style);
+            let style = self.cached_style_for_layout(layout.as_ref());
+            self.build_startup_placeholder_scene(layout.as_ref(), &style);
             return;
         }
         if static_rebuild_requested {
@@ -2118,7 +2130,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     /// Resolve waveform-resize hover cursor state for the current pointer.
     fn update_waveform_resize_cursor(&mut self, point: Point) {
-        let icon = if let Some(layout) = self.shell_layout.as_ref().cloned() {
+        let icon = if let Some(layout) = self.shell_layout.as_deref() {
             if waveform_selection_drag_handle_hovered(&layout, &self.model, point) {
                 CursorIcon::Grab
             } else if waveform_resize_handle_hovered(&layout, &self.model, point) {
@@ -2728,15 +2740,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
             }
         }
-        let Some(layout) = self.shell_layout.as_ref().cloned() else {
+        let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
             return;
         };
+        let layout = layout.as_ref();
         let (layout_width_bits, layout_height_bits, layout_scale_bits) = (
             layout.root.rect.width().to_bits(),
             layout.root.rect.height().to_bits(),
             layout.ui_scale.to_bits(),
         );
-        let style = self.cached_style_for_layout(&layout);
+        let style = self.cached_style_for_layout(layout);
         if rebuild_static {
             if self.incremental_frame_pipeline {
                 let mut force_rebuild = !model_refresh_requested;
@@ -2750,7 +2763,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     self.missing_segment_revision_fallback_applied = true;
                 }
                 let (build_duration, encode_duration) = self.rebuild_static_segment_scenes(
-                    &layout,
+                    layout,
                     &style,
                     bridge_dirty_segments,
                     self.segment_revisions,
@@ -2761,7 +2774,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             } else {
                 let build_start = self.profiler.now_if_enabled();
                 self.shell_state.build_frame_with_style_into_static(
-                    &layout,
+                    layout,
                     &style,
                     &self.model,
                     &mut self.frame_cache,
@@ -2798,7 +2811,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if rebuild_state_overlay {
             let build_start = self.profiler.now_if_enabled();
             self.shell_state.build_state_overlay_into(
-                &layout,
+                layout,
                 &style,
                 &self.model,
                 &mut self.state_overlay_frame_cache,
@@ -2882,7 +2895,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .expect("motion model should exist before waveform-motion build");
                 let build_start = self.profiler.now_if_enabled();
                 self.shell_state.build_waveform_motion_overlay_into(
-                    &layout,
+                    layout,
                     &style,
                     motion_model,
                     &mut self.waveform_motion_overlay_frame_cache,
@@ -2905,7 +2918,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .expect("motion model should exist before chrome-motion build");
                 let build_start = self.profiler.now_if_enabled();
                 self.shell_state.build_chrome_motion_overlay_into(
-                    &layout,
+                    layout,
                     &style,
                     motion_model,
                     &mut self.chrome_motion_overlay_frame_cache,
@@ -3422,12 +3435,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn build_active_text_field_visual_state(
         &mut self,
+        layout: &ShellLayout,
         text_rect: UiRect,
     ) -> Option<TextFieldVisualState> {
         let text = self.current_text_value().unwrap_or_default();
-        let Some(layout) = self.shell_layout.as_ref() else {
-            return None;
-        };
         let mut editor = self
             .text_editor_state
             .take()
@@ -3459,13 +3470,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             None
         };
         let visual = if active {
-            let layout = self.shell_layout.as_ref().cloned();
-            layout
-                .and_then(|layout| {
-                    self.shell_state
-                        .waveform_bpm_text_rect(&layout, &self.model)
-                })
-                .and_then(|text_rect| self.build_active_text_field_visual_state(text_rect))
+            self.with_shell_layout(|this, layout| {
+                this.shell_state
+                    .waveform_bpm_text_rect(layout, &this.model)
+                    .and_then(|text_rect| {
+                        this.build_active_text_field_visual_state(layout, text_rect)
+                    })
+            })
+            .flatten()
         } else {
             None
         };
@@ -3478,18 +3490,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.shell_state.set_browser_search_editor_state(None);
             return;
         }
-        let Some(layout) = self.shell_layout.as_ref().cloned() else {
+        let Some(visual) = self.with_shell_layout(|this, layout| {
+            this.shell_state
+                .browser_search_text_rect(layout, &this.model)
+                .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
+        }) else {
             self.shell_state.set_browser_search_editor_state(None);
             return;
         };
-        let Some(text_rect) = self
-            .shell_state
-            .browser_search_text_rect(&layout, &self.model)
-        else {
-            self.shell_state.set_browser_search_editor_state(None);
-            return;
-        };
-        let visual = self.build_active_text_field_visual_state(text_rect);
         self.shell_state.set_browser_search_editor_state(visual);
     }
 
@@ -3895,31 +3903,29 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if !self.text_input_drag_active {
             return false;
         }
-        let Some(layout) = self.shell_layout.as_ref().cloned() else {
+        let Some((byte_index, text)) = self
+            .with_shell_layout(|this, layout| match this.text_input_target {
+                TextInputTarget::BrowserSearch => {
+                    let byte_index = this.browser_search_click_byte_index(layout, point)?;
+                    Some((
+                        byte_index,
+                        this.current_text_value()
+                            .unwrap_or_else(|| this.model.browser.search_query.clone()),
+                    ))
+                }
+                TextInputTarget::WaveformBpm => {
+                    let byte_index = this.waveform_bpm_click_byte_index(layout, point)?;
+                    Some((
+                        byte_index,
+                        this.current_text_value()
+                            .unwrap_or_else(|| this.waveform_bpm_text_from_model()),
+                    ))
+                }
+                _ => None,
+            })
+            .flatten()
+        else {
             return false;
-        };
-        let (byte_index, text) = match self.text_input_target {
-            TextInputTarget::BrowserSearch => {
-                let Some(byte_index) = self.browser_search_click_byte_index(&layout, point) else {
-                    return false;
-                };
-                (
-                    byte_index,
-                    self.current_text_value()
-                        .unwrap_or_else(|| self.model.browser.search_query.clone()),
-                )
-            }
-            TextInputTarget::WaveformBpm => {
-                let Some(byte_index) = self.waveform_bpm_click_byte_index(&layout, point) else {
-                    return false;
-                };
-                (
-                    byte_index,
-                    self.current_text_value()
-                        .unwrap_or_else(|| self.waveform_bpm_text_from_model()),
-                )
-            }
-            _ => return false,
         };
         let Some(editor) = self.text_editor_state.as_mut() else {
             return false;
@@ -4107,166 +4113,170 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 if self.window.is_none() {
                     return;
                 }
-                if let (Some(point), Some(layout)) =
-                    (self.last_cursor, self.shell_layout.as_ref().cloned())
-                {
-                    self.pending_volume_milli = None;
-                    self.volume_drag_active = false;
-                    self.last_emitted_volume_milli = None;
-                    self.waveform_drag_mode = None;
-                    self.selection_drag_active = false;
-                    self.last_emitted_waveform_drag_action = None;
-                    self.map_focus_drag_active = false;
-                    self.last_emitted_map_drag_sample_id = None;
-                    let mut handled = false;
-                    let mut action_emitted = false;
-                    let mut source_menu_state_changed = false;
-                    match button {
-                        MouseButton::Left => {
-                            let map_drag_start =
-                                self.model.map.active && layout.browser_rows.contains(point);
-                            if let Some(action) = self
-                                .shell_state
-                                .source_context_menu_action_at_point(&layout, &self.model, point)
-                            {
-                                self.emit_model_action(action);
-                                action_emitted = true;
-                                source_menu_state_changed |=
-                                    self.shell_state.close_source_context_menu();
-                                handled = true;
-                            } else {
-                                source_menu_state_changed |=
-                                    self.shell_state.close_source_context_menu();
-                            }
-                            if !handled {
-                                if self.handle_browser_search_pointer_press(
-                                    &layout,
-                                    point,
-                                    self.modifiers.shift_key(),
-                                ) {
+                if let Some(point) = self.last_cursor {
+                    let _ = self.with_shell_layout(|this, layout| {
+                        this.pending_volume_milli = None;
+                        this.volume_drag_active = false;
+                        this.last_emitted_volume_milli = None;
+                        this.waveform_drag_mode = None;
+                        this.selection_drag_active = false;
+                        this.last_emitted_waveform_drag_action = None;
+                        this.map_focus_drag_active = false;
+                        this.last_emitted_map_drag_sample_id = None;
+                        let mut handled = false;
+                        let mut action_emitted = false;
+                        let mut source_menu_state_changed = false;
+                        match button {
+                            MouseButton::Left => {
+                                let map_drag_start =
+                                    this.model.map.active && layout.browser_rows.contains(point);
+                                if let Some(action) = this
+                                    .shell_state
+                                    .source_context_menu_action_at_point(layout, &this.model, point)
+                                {
+                                    this.emit_model_action(action);
+                                    action_emitted = true;
+                                    source_menu_state_changed |=
+                                        this.shell_state.close_source_context_menu();
                                     handled = true;
-                                } else if self.handle_waveform_bpm_pointer_press(
-                                    &layout,
-                                    point,
-                                    self.modifiers.shift_key(),
-                                ) {
-                                    handled = true;
+                                } else {
+                                    source_menu_state_changed |=
+                                        this.shell_state.close_source_context_menu();
                                 }
-                            }
-                            if !handled {
-                                if self.shell_state.prompt_input_at_point(
-                                    &layout,
-                                    &self.model,
-                                    point,
-                                ) {
-                                    self.text_input_target = TextInputTarget::PromptInput;
-                                    self.text_input_buffer = Some(
-                                        self.model
-                                            .confirm_prompt
-                                            .input_value
-                                            .clone()
-                                            .unwrap_or_default(),
-                                    );
-                                    self.text_editor_state =
-                                        Some(SingleLineTextEditorState::collapsed_at_end(
-                                            self.model
+                                if !handled {
+                                    if this.handle_browser_search_pointer_press(
+                                        layout,
+                                        point,
+                                        this.modifiers.shift_key(),
+                                    ) {
+                                        handled = true;
+                                    } else if this.handle_waveform_bpm_pointer_press(
+                                        layout,
+                                        point,
+                                        this.modifiers.shift_key(),
+                                    ) {
+                                        handled = true;
+                                    }
+                                }
+                                if !handled {
+                                    if this.shell_state.prompt_input_at_point(
+                                        layout,
+                                        &this.model,
+                                        point,
+                                    ) {
+                                        this.text_input_target = TextInputTarget::PromptInput;
+                                        this.text_input_buffer = Some(
+                                            this.model
                                                 .confirm_prompt
                                                 .input_value
-                                                .as_deref()
-                                                .unwrap_or(""),
-                                        ));
-                                    self.waveform_bpm_input_buffer = None;
-                                    self.sync_waveform_bpm_editor_state();
-                                    self.sync_browser_search_editor_state();
-                                    handled = true;
-                                } else if self.text_input_target != TextInputTarget::None {
-                                    self.deactivate_text_input_target();
-                                } else if let Some(action) = self
-                                    .shell_state
-                                    .top_bar_volume_action_at_point(&layout, point)
-                                {
-                                    if let UiAction::SetVolume { value_milli } = action {
-                                        self.last_emitted_volume_milli = Some(value_milli);
-                                        self.emit_volume_milli_immediately(value_milli);
-                                    } else {
-                                        self.emit_model_action(action);
+                                                .clone()
+                                                .unwrap_or_default(),
+                                        );
+                                        this.text_editor_state =
+                                            Some(SingleLineTextEditorState::collapsed_at_end(
+                                                this.model
+                                                    .confirm_prompt
+                                                    .input_value
+                                                    .as_deref()
+                                                    .unwrap_or(""),
+                                            ));
+                                        this.waveform_bpm_input_buffer = None;
+                                        this.sync_waveform_bpm_editor_state();
+                                        this.sync_browser_search_editor_state();
+                                        handled = true;
+                                    } else if this.text_input_target != TextInputTarget::None {
+                                        this.deactivate_text_input_target();
+                                    } else if let Some(action) = this
+                                        .shell_state
+                                        .top_bar_volume_action_at_point(layout, point)
+                                    {
+                                        if let UiAction::SetVolume { value_milli } = action {
+                                            this.last_emitted_volume_milli = Some(value_milli);
+                                            this.emit_volume_milli_immediately(value_milli);
+                                        } else {
+                                            this.emit_model_action(action);
+                                        }
+                                        action_emitted = true;
+                                        this.volume_drag_active = true;
+                                        handled = true;
+                                    } else if let Some(action) = action_from_pointer_with_motion(
+                                        layout,
+                                        &this.model,
+                                        this.motion_model.as_ref(),
+                                        &mut this.shell_state,
+                                        point,
+                                        this.modifiers,
+                                    ) {
+                                        action_emitted = this
+                                            .handle_pointer_press_action(action, map_drag_start);
+                                        handled = true;
+                                    } else if this.shell_state.handle_primary_click(layout, point)
+                                        && let Some(column) = layout.column_at_point(point)
+                                    {
+                                        this.emit_model_action(UiAction::SelectColumn {
+                                            index: column,
+                                        });
+                                        action_emitted = true;
+                                        handled = true;
                                     }
-                                    action_emitted = true;
-                                    self.volume_drag_active = true;
-                                    handled = true;
-                                } else if let Some(action) = action_from_pointer_with_motion(
-                                    &layout,
-                                    &self.model,
-                                    self.motion_model.as_ref(),
-                                    &mut self.shell_state,
-                                    point,
-                                    self.modifiers,
-                                ) {
-                                    action_emitted =
-                                        self.handle_pointer_press_action(action, map_drag_start);
-                                    handled = true;
-                                } else if self.shell_state.handle_primary_click(&layout, point)
-                                    && let Some(column) = layout.column_at_point(point)
+                                }
+                            }
+                            MouseButton::Right => {
+                                if let Some(action) = this
+                                    .shell_state
+                                    .source_context_menu_action_at_point(layout, &this.model, point)
                                 {
-                                    self.emit_model_action(UiAction::SelectColumn {
-                                        index: column,
-                                    });
+                                    this.emit_model_action(action);
                                     action_emitted = true;
+                                    source_menu_state_changed |=
+                                        this.shell_state.close_source_context_menu();
+                                    handled = true;
+                                } else if let Some(index) =
+                                    this.shell_state
+                                        .source_row_at_point(layout, &this.model, point)
+                                {
+                                    this.emit_model_action(UiAction::SelectSourceRow { index });
+                                    this.shell_state
+                                        .open_source_context_menu_for_row(index, point);
+                                    source_menu_state_changed = true;
+                                    action_emitted = true;
+                                    handled = true;
+                                } else {
+                                    source_menu_state_changed |=
+                                        this.shell_state.close_source_context_menu();
+                                }
+                                if !handled
+                                    && matches!(
+                                        layout.hit_test(point),
+                                        Some(ShellNodeKind::WaveformCard)
+                                    )
+                                {
+                                    let action = waveform_edit_action_from_pointer(
+                                        layout,
+                                        &this.model,
+                                        point,
+                                        this.modifiers,
+                                    );
+                                    action_emitted =
+                                        this.handle_pointer_press_action(action, false);
                                     handled = true;
                                 }
                             }
+                            _ => {}
                         }
-                        MouseButton::Right => {
-                            if let Some(action) = self
-                                .shell_state
-                                .source_context_menu_action_at_point(&layout, &self.model, point)
-                            {
-                                self.emit_model_action(action);
-                                action_emitted = true;
-                                source_menu_state_changed |=
-                                    self.shell_state.close_source_context_menu();
-                                handled = true;
-                            } else if let Some(index) =
-                                self.shell_state
-                                    .source_row_at_point(&layout, &self.model, point)
-                            {
-                                self.emit_model_action(UiAction::SelectSourceRow { index });
-                                self.shell_state
-                                    .open_source_context_menu_for_row(index, point);
-                                source_menu_state_changed = true;
-                                action_emitted = true;
-                                handled = true;
-                            } else {
-                                source_menu_state_changed |=
-                                    self.shell_state.close_source_context_menu();
-                            }
-                            if !handled
-                                && matches!(
-                                    layout.hit_test(point),
-                                    Some(ShellNodeKind::WaveformCard)
-                                )
-                            {
-                                let action = waveform_edit_action_from_pointer(
-                                    &layout,
-                                    &self.model,
-                                    point,
-                                    self.modifiers,
-                                );
-                                action_emitted = self.handle_pointer_press_action(action, false);
-                                handled = true;
-                            }
-                        }
-                        _ => {}
-                    }
-                    if source_menu_state_changed {
-                        self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
-                    } else if action_emitted && handled {
-                        if !self.frame_state.has_pending_rebuild() {
-                            self.apply_invalidation_scope(
+                        if source_menu_state_changed {
+                            this.apply_invalidation_scope(
+                                RuntimeInvalidationScope::StaticAndOverlays,
+                            );
+                        } else if action_emitted
+                            && handled
+                            && !this.frame_state.has_pending_rebuild()
+                        {
+                            this.apply_invalidation_scope(
                                 RuntimeInvalidationScope::OverlayStateOnly,
                             );
                         }
-                    }
+                    });
                 }
             }
             WindowEvent::MouseInput {
@@ -4278,12 +4288,12 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 self.finish_volume_drag(Some(button));
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if let Some(layout) = self.shell_layout.as_ref().cloned() {
-                    let waveform_zoom_action = self.last_cursor.and_then(|point| {
-                        waveform_wheel_zoom_action(&layout, &self.model, point, delta)
+                let _ = self.with_shell_layout(|this, layout| {
+                    let waveform_zoom_action = this.last_cursor.and_then(|point| {
+                        waveform_wheel_zoom_action(layout, &this.model, point, delta)
                     });
                     let waveform_zoom_emitted = if let Some(action) = waveform_zoom_action {
-                        self.emit_model_action_with_profile(
+                        this.emit_model_action_with_profile(
                             action,
                             Some(InteractionProfileKind::Waveform),
                         );
@@ -4296,18 +4306,18 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                             (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
                             (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
                         );
-                        let point = self
+                        let point = this
                             .last_cursor
                             .filter(|point| layout.browser_panel.contains(*point))
                             .unwrap_or(fallback_point);
-                        let style = self.cached_style_for_layout(&layout);
+                        let style = this.cached_style_for_layout(layout);
                         if let Some(delta) =
-                            browser_wheel_row_delta(&layout, &self.model, point, &style, delta)
+                            browser_wheel_row_delta(layout, &this.model, point, &style, delta)
                         {
-                            let _ = self.process_wheel_rows_immediately(delta);
+                            let _ = this.process_wheel_rows_immediately(delta);
                         }
                     }
-                }
+                });
             }
             WindowEvent::ModifiersChanged(modifiers) => {
                 self.modifiers = modifiers.state();

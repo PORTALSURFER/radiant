@@ -432,7 +432,7 @@ fn deferred_startup_fallback_rebuild_uses_placeholder_scene_before_first_present
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
-    runner.shell_layout = Some(layout.clone());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.style_cache = Some(style);
     runner.frame_state.scene_dirty = true;
     runner.frame_state.model_dirty = false;
@@ -458,7 +458,7 @@ fn startup_default_rebuild_skips_placeholder_scene_before_first_present() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
-    runner.shell_layout = Some(layout);
+    runner.shell_layout = Some(Arc::new(layout));
     runner.style_cache = Some(style);
     runner.frame_state.scene_dirty = true;
     runner.frame_state.model_dirty = false;
@@ -617,7 +617,7 @@ fn process_cursor_move_waveform_hover_only_marks_motion_overlay_dirty() {
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.7),
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
-    runner.shell_layout = Some(layout.clone());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
 
     let _ = runner.process_cursor_move_immediately(first);
     let _ = runner.frame_state.take_state_overlay();
@@ -668,7 +668,7 @@ fn rebuild_scene_processes_waveform_hover_motion_overlay_without_model_motion_ch
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
-    runner.shell_layout = Some(layout.clone());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.motion_model = Some(NativeMotionModel::from_app_model(&runner.model));
     runner.frame_state.model_dirty = false;
     runner.frame_state.scene_dirty = false;
@@ -728,7 +728,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
     let position_milli = waveform_position_milli_from_point(&layout, &runner.model, point);
-    runner.shell_layout = Some(layout);
+    runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(point);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
         anchor_milli: position_milli,

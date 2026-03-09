@@ -144,9 +144,15 @@ pub(super) fn action_from_key(
         KeyCode::I => Some(UiAction::StartBrowserRename),
         KeyCode::L => Some(UiAction::ToggleLoopPlayback),
         KeyCode::M => Some(UiAction::ZoomWaveformToSelection),
-        KeyCode::N => Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Neutral,
-        }),
+        KeyCode::N => match model.focus_context {
+            crate::app::FocusContextModel::Waveform => {
+                Some(UiAction::NormalizeWaveformSelectionOrSample)
+            }
+            crate::app::FocusContextModel::SampleBrowser | crate::app::FocusContextModel::None => {
+                Some(UiAction::NormalizeFocusedBrowserSample)
+            }
+            _ => None,
+        },
         KeyCode::OpenBracket => Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Trash,
         }),

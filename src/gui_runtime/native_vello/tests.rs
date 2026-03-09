@@ -835,7 +835,8 @@ fn key_bindings_emit_rating_and_waveform_actions() {
 
 #[test]
 fn key_bindings_emit_browser_actions() {
-    let model = AppModel::default();
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::SampleBrowser;
     assert_eq!(
         action_from_key(KeyCode::D, ModifiersState::default(), &model),
         Some(UiAction::DeleteBrowserSelection)
@@ -846,15 +847,23 @@ fn key_bindings_emit_browser_actions() {
     );
     assert_eq!(
         action_from_key(KeyCode::N, ModifiersState::default(), &model),
-        Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Neutral
-        })
+        Some(UiAction::NormalizeFocusedBrowserSample)
     );
     assert_eq!(
         action_from_key(KeyCode::X, ModifiersState::default(), &model),
         Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Trash
         })
+    );
+}
+
+#[test]
+fn key_bindings_map_n_to_waveform_normalize_when_waveform_is_focused() {
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::Waveform;
+    assert_eq!(
+        action_from_key(KeyCode::N, ModifiersState::default(), &model),
+        Some(UiAction::NormalizeWaveformSelectionOrSample)
     );
 }
 

@@ -963,6 +963,10 @@ pub enum UiAction {
     },
     /// Delete focused/selected browser rows.
     DeleteBrowserSelection,
+    /// Normalize the focused browser sample in-place.
+    NormalizeFocusedBrowserSample,
+    /// Normalize the waveform selection, or the loaded sample when no selection is active.
+    NormalizeWaveformSelectionOrSample,
     /// Confirm the currently visible modal prompt.
     ConfirmPrompt,
     /// Cancel the currently visible modal prompt.

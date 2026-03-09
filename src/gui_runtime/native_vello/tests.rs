@@ -880,6 +880,20 @@ fn key_bindings_emit_folder_actions() {
 }
 
 #[test]
+fn key_bindings_map_u_to_undo_and_shift_u_to_redo() {
+    let model = AppModel::default();
+
+    assert_eq!(
+        action_from_key(KeyCode::U, ModifiersState::default(), &model),
+        Some(UiAction::Undo)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::U, ModifiersState::SHIFT, &model),
+        Some(UiAction::Redo)
+    );
+}
+
+#[test]
 fn prompt_visible_routes_enter_and_cancel_keys() {
     let mut model = AppModel::default();
     model.confirm_prompt.visible = true;

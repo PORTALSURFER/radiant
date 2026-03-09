@@ -169,7 +169,11 @@ pub(super) fn action_from_key(
             }
         }
         KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
-        KeyCode::U => Some(UiAction::Undo),
+        KeyCode::U => Some(if shift {
+            UiAction::Redo
+        } else {
+            UiAction::Undo
+        }),
         KeyCode::W => Some(UiAction::FocusWaveformPanel),
         KeyCode::X => Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Trash,

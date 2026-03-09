@@ -1248,6 +1248,47 @@ fn browser_virtualization_keeps_host_window_start_for_prewindowed_rows() {
 }
 
 #[test]
+fn browser_virtualization_scrolls_down_for_bottom_rows_in_prewindowed_slice() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let row_capacity = browser_rows_capacity(layout.browser_rows, style.sizing);
+    let host_window_start = 100usize;
+    let projected_rows = row_capacity.saturating_add(12);
+
+    let build_model = |focused_visible_row: usize| {
+        let mut model = AppModel::default();
+        for offset in 0..projected_rows {
+            let visible_row = host_window_start + offset;
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:04}"),
+                1,
+                false,
+                visible_row == focused_visible_row,
+            ));
+        }
+        model.browser.visible_count = 5_000;
+        model.browser.selected_visible_row = Some(focused_visible_row);
+        model.browser.anchor_visible_row = Some(focused_visible_row);
+        model
+    };
+
+    let bottom_focus = host_window_start + row_capacity.saturating_sub(1);
+    let mut state = NativeShellState::new();
+    let bottom_model = build_model(bottom_focus);
+    let scrolled_start = state
+        .browser_view_start_visible_row(&layout, &bottom_model)
+        .expect("browser viewport should resolve a visible start");
+    assert!(scrolled_start > host_window_start);
+
+    let interior_model = build_model(scrolled_start + 5);
+    let preserved_start = state
+        .browser_view_start_visible_row(&layout, &interior_model)
+        .expect("browser viewport should stay resolved after scrolling");
+    assert_eq!(preserved_start, scrolled_start);
+}
+
+#[test]
 fn browser_virtualization_hit_test_is_stable_across_viewport_tiers() {
     let mut state = NativeShellState::new();
     for viewport in [

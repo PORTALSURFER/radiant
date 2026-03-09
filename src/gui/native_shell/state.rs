@@ -109,6 +109,7 @@ pub(crate) struct NativeShellState {
     folder_row_rects: Vec<Rect>,
     folder_row_cache_key: Option<SidebarRowsCacheKey>,
     browser_rows: Vec<CachedBrowserRow>,
+    browser_rows_window_start: usize,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
     browser_action_buttons: Vec<ActionButton>,
     browser_column_chips: Vec<BrowserColumnChip>,
@@ -686,6 +687,7 @@ impl NativeShellState {
             folder_row_rects: Vec::new(),
             folder_row_cache_key: None,
             browser_rows: Vec::new(),
+            browser_rows_window_start: 0,
             browser_rows_cache_key: None,
             browser_action_buttons: Vec::new(),
             browser_column_chips: Vec::new(),
@@ -2312,7 +2314,9 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> &[CachedBrowserRow] {
-        let cache_key = browser_rows_cache_key(layout, style, model);
+        let (window_start, _) =
+            browser_rows_window_bounds(layout, model, style.sizing, self.browser_rows_window_start);
+        let cache_key = browser_rows_cache_key(layout, style, model, window_start);
         let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
         if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
             self.browser_row_truncation_cache.clear();
@@ -2320,14 +2324,21 @@ impl NativeShellState {
         }
         self.browser_row_truncation_frame_counts = BrowserRowTruncationFrameCounts::default();
         if self.browser_rows_cache_key != Some(cache_key) {
-            self.browser_rows = rendered_browser_rows_cached(
+            let (rows, resolved_window_start) = rendered_browser_rows_cached_with_window_start(
                 layout,
                 model,
                 style,
                 &mut self.browser_row_truncation_cache,
                 &mut self.browser_row_truncation_frame_counts,
+                self.browser_rows_window_start,
             );
-            self.browser_rows_cache_key = Some(cache_key);
+            let resolved_cache_key =
+                browser_rows_cache_key(layout, style, model, resolved_window_start);
+            self.browser_rows = rows;
+            self.browser_rows_window_start = resolved_window_start;
+            self.browser_rows_cache_key = Some(resolved_cache_key);
+        } else {
+            self.browser_rows_window_start = window_start;
         }
         &self.browser_rows
     }

@@ -119,6 +119,9 @@ pub(super) struct BrowserScrollbarLayout {
     pub(super) thumb: Rect,
 }
 
+/// Number of visible rows kept between focus and the viewport edge before scrolling.
+const BROWSER_VIEW_EDGE_MARGIN_ROWS: usize = 3;
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TopBarControlsLayout {
     pub(super) active: bool,
@@ -374,6 +377,7 @@ pub(super) fn browser_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    window_start: usize,
 ) -> BrowserRowsCacheKey {
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
@@ -390,7 +394,8 @@ pub(super) fn browser_rows_cache_key(
         .find(|row| row.selected)
         .map(|row| row.visible_row as u32)
         .unwrap_or(u32::MAX);
-    let (window_start, window_end) = browser_rows_window_bounds(layout, model, sizing);
+    let window_end = (window_start + browser_rows_capacity(layout.browser_rows, sizing))
+        .min(model.browser.rows.len());
     let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
     BrowserRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),
@@ -457,6 +462,7 @@ pub(super) fn rendered_browser_rows(
         style,
         &mut truncation_cache,
         &mut frame_counts,
+        0,
     )
 }
 
@@ -467,13 +473,35 @@ pub(super) fn rendered_browser_rows_cached(
     style: &StyleTokens,
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
+    current_window_start: usize,
 ) -> Vec<CachedBrowserRow> {
+    rendered_browser_rows_cached_with_window_start(
+        layout,
+        model,
+        style,
+        truncation_cache,
+        frame_counts,
+        current_window_start,
+    )
+    .0
+}
+
+/// Build rendered browser rows and return the resolved viewport start used.
+pub(super) fn rendered_browser_rows_cached_with_window_start(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+    truncation_cache: &mut BrowserRowTruncationCache,
+    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    current_window_start: usize,
+) -> (Vec<CachedBrowserRow>, usize) {
     let sizing = style.sizing;
     if model.map.active || model.browser.rows.is_empty() {
-        return Vec::new();
+        return (Vec::new(), 0);
     }
 
-    let (window_start, window_end) = browser_rows_window_bounds(layout, model, sizing);
+    let (window_start, window_end) =
+        browser_rows_window_bounds(layout, model, sizing, current_window_start);
     let window = &model.browser.rows[window_start..window_end];
     let row_rects = build_stacked_rows(
         layout.browser_rows,
@@ -529,7 +557,7 @@ pub(super) fn rendered_browser_rows_cached(
             rect,
         });
     }
-    rendered
+    (rendered, window_start)
 }
 
 /// Cap inline browser metadata width so the primary sample label keeps most of the row.
@@ -637,6 +665,7 @@ pub(super) fn browser_rows_window_bounds(
     layout: &ShellLayout,
     model: &AppModel,
     sizing: SizingTokens,
+    current_window_start: usize,
 ) -> (usize, usize) {
     if model.map.active || model.browser.rows.is_empty() {
         return (0, 0);
@@ -648,6 +677,7 @@ pub(super) fn browser_rows_window_bounds(
         model.browser.visible_count,
         model.browser.selected_visible_row,
         model.browser.anchor_visible_row,
+        current_window_start,
     );
     let window_end = (window_start + window_len).min(model.browser.rows.len());
     (window_start, window_end)
@@ -673,14 +703,9 @@ pub(super) fn browser_window_start(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
+    current_window_start: usize,
 ) -> usize {
     if rows.len() <= window_len {
-        return 0;
-    }
-    // Hosts like Sempal can pre-window a larger browser dataset before handing
-    // Radiant the current row slice. Preserve that host-selected top row rather
-    // than recentering again inside the reduced subset after pointer focus.
-    if rows.len() < visible_count {
         return 0;
     }
     let focus_index = selected_visible_row
@@ -692,7 +717,37 @@ pub(super) fn browser_window_start(
         .or_else(|| rows.iter().position(|row| row.focused))
         .or_else(|| rows.iter().position(|row| row.selected))
         .unwrap_or(0);
+    if rows.len() < visible_count {
+        return browser_prewindowed_start(
+            focus_index,
+            window_len,
+            rows.len() - window_len,
+            current_window_start,
+        );
+    }
     let half = window_len / 2;
     let max_start = rows.len() - window_len;
     focus_index.saturating_sub(half).min(max_start)
+}
+
+/// Resolve one viewport start inside a host-prewindowed browser slice.
+fn browser_prewindowed_start(
+    focus_index: usize,
+    window_len: usize,
+    max_start: usize,
+    current_window_start: usize,
+) -> usize {
+    let edge_margin = BROWSER_VIEW_EDGE_MARGIN_ROWS.min(window_len.saturating_sub(1) / 2);
+    let mut window_start = current_window_start.min(max_start);
+    let window_end = window_start + window_len;
+    let top_guard = window_start + edge_margin;
+    let bottom_guard = window_end.saturating_sub(edge_margin);
+    if focus_index < top_guard {
+        window_start = focus_index.saturating_sub(edge_margin);
+    } else if focus_index >= bottom_guard {
+        window_start = focus_index
+            .saturating_add(edge_margin + 1)
+            .saturating_sub(window_len);
+    }
+    window_start.min(max_start)
 }

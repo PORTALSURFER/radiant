@@ -234,7 +234,7 @@ impl NativeShellState {
                     let row_border_stroke = browser_row_border_stroke(layout);
                     let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
                     let row_columns = row_text_layout.columns;
-                    let row_fill = if row.focused {
+                    let base_fill = if row.focused {
                         translucent_overlay_color(
                             style.bg_tertiary,
                             style.grid_strong,
@@ -244,6 +244,11 @@ impl NativeShellState {
                         selected_browser_row_fill(style)
                     } else {
                         browser_row_stripe_fill(style, row.visible_row)
+                    };
+                    let row_fill = if row.locked {
+                        locked_browser_row_fill(style, base_fill)
+                    } else {
+                        base_fill
                     };
                     let row_border = if row.focused {
                         blend_color(
@@ -1853,7 +1858,11 @@ impl NativeShellState {
                             primitives,
                             Primitive::Rect(FillRect {
                                 rect: row.rect,
-                                color: selected_browser_row_fill(style),
+                                color: if row.locked {
+                                    locked_browser_row_fill(style, selected_browser_row_fill(style))
+                                } else {
+                                    selected_browser_row_fill(style)
+                                },
                             }),
                         );
                     }

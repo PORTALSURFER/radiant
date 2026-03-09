@@ -13,6 +13,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,
+    pub(super) locked: bool,
     pub(super) rect: Rect,
 }
 
@@ -273,6 +274,15 @@ pub(super) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
         style.bg_tertiary,
         style.text_primary,
         (style.state_selected_blend + 0.04).clamp(0.12, 0.24),
+    )
+}
+
+/// Blend a subtle mint tint over an existing browser-row base fill for locked samples.
+pub(super) fn locked_browser_row_fill(style: &StyleTokens, base: Rgba8) -> Rgba8 {
+    translucent_overlay_color(
+        base,
+        style.accent_mint,
+        (style.state_selected_blend * 0.55).clamp(0.10, 0.16),
     )
 }
 
@@ -554,6 +564,7 @@ pub(super) fn rendered_browser_rows_cached_with_window_start(
             selected: row.selected,
             focused: row.focused,
             missing: row.missing,
+            locked: row.locked,
             rect,
         });
     }
@@ -693,6 +704,7 @@ pub(super) fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
         row.bucket_label.hash(&mut hasher);
         row.column.hash(&mut hasher);
         row.rating_level.hash(&mut hasher);
+        row.locked.hash(&mut hasher);
     }
     hasher.finish()
 }

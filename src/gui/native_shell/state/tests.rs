@@ -69,6 +69,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
             selected: false,
             focused: false,
             missing: false,
+            locked: false,
             rect,
         })
         .collect()
@@ -3465,6 +3466,45 @@ fn browser_row_selected_fill_uses_lighter_neutral_overlay() {
         .expect("selected browser row should emit a fill rectangle");
 
     assert_eq!(row_color, selected_browser_row_fill(&style));
+}
+
+#[test]
+fn browser_row_locked_fill_tints_selected_row_mint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "locked row", 1, true, false).with_locked(true));
+
+    let selected_row = rendered_browser_rows(&layout, &model, &style)[0].rect;
+    let frame = state.build_frame(&layout, &model);
+    let row_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == selected_row => Some(rect.color),
+            _ => None,
+        })
+        .expect("locked browser row should emit a fill rectangle");
+
+    assert_eq!(
+        row_color,
+        locked_browser_row_fill(&style, selected_browser_row_fill(&style))
+    );
+}
+
+#[test]
+fn browser_row_text_revision_changes_when_locked_state_changes() {
+    let unlocked = [BrowserRowModel::new(0, "row", 1, false, false)];
+    let locked = [BrowserRowModel::new(0, "row", 1, false, false).with_locked(true)];
+
+    assert_ne!(
+        browser_row_text_revision(&unlocked),
+        browser_row_text_revision(&locked)
+    );
 }
 
 #[test]

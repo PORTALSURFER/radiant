@@ -211,6 +211,8 @@ pub struct BrowserRowModel {
     pub focused: bool,
     /// Whether the backing sample file is missing on disk.
     pub missing: bool,
+    /// Whether the backing sample is marked as a confirmed keep lock.
+    pub locked: bool,
 }
 
 impl BrowserRowModel {
@@ -231,6 +233,7 @@ impl BrowserRowModel {
             selected,
             focused,
             missing: false,
+            locked: false,
         }
     }
 
@@ -249,6 +252,12 @@ impl BrowserRowModel {
     /// Mark whether the backing sample file is missing on disk.
     pub fn with_missing(mut self, missing: bool) -> Self {
         self.missing = missing;
+        self
+    }
+
+    /// Mark whether the backing sample should render with the keep-lock highlight.
+    pub fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
         self
     }
 }

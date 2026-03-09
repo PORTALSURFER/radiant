@@ -533,11 +533,6 @@ impl NativeShellState {
                 }),
             );
 
-            let _top_title_rect = compute_top_bar_title_text_rect(
-                layout.top_bar_title_cluster,
-                layout.top_bar_title_row,
-                sizing,
-            );
             let top_controls = top_bar_controls_layout(layout, sizing);
             if top_controls.active {
                 let top_controls_text = compute_top_bar_controls_text_layout(

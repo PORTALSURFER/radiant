@@ -806,7 +806,8 @@ fn waveform_bpm_input_shift_arrow_steps_by_tenth() {
 
 #[test]
 fn key_bindings_emit_rating_and_waveform_actions() {
-    let model = AppModel::default();
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::Waveform;
     assert_eq!(
         action_from_key(KeyCode::OpenBracket, ModifiersState::default(), &model),
         Some(UiAction::TagBrowserSelection {
@@ -825,7 +826,15 @@ fn key_bindings_emit_rating_and_waveform_actions() {
     );
     assert_eq!(
         action_from_key(KeyCode::C, ModifiersState::default(), &model),
-        Some(UiAction::ClearWaveformSelection)
+        Some(UiAction::CropWaveformSelection)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::C, ModifiersState::SHIFT, &model),
+        Some(UiAction::CropWaveformSelectionToNewSample)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::T, ModifiersState::default(), &model),
+        Some(UiAction::TrimWaveformSelection)
     );
     assert_eq!(
         action_from_key(KeyCode::Slash, ModifiersState::default(), &model),
@@ -854,6 +863,14 @@ fn key_bindings_emit_browser_actions() {
         Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Trash
         })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::C, ModifiersState::default(), &model),
+        None
+    );
+    assert_eq!(
+        action_from_key(KeyCode::T, ModifiersState::default(), &model),
+        None
     );
 }
 

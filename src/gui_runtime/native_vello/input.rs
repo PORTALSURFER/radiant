@@ -130,7 +130,13 @@ pub(super) fn action_from_key(
         KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
         KeyCode::A => Some(UiAction::SelectAllBrowserRows),
         KeyCode::B => Some(UiAction::StartNewFolder),
-        KeyCode::C => Some(UiAction::ClearWaveformSelection),
+        KeyCode::C => match model.focus_context {
+            crate::app::FocusContextModel::Waveform if shift => {
+                Some(UiAction::CropWaveformSelectionToNewSample)
+            }
+            crate::app::FocusContextModel::Waveform => Some(UiAction::CropWaveformSelection),
+            _ => None,
+        },
         KeyCode::D => Some(UiAction::DeleteBrowserSelection),
         KeyCode::Enter => {
             if matches!(model.focus_context, crate::app::FocusContextModel::Waveform) {
@@ -174,7 +180,10 @@ pub(super) fn action_from_key(
                 Some(UiAction::PlayFromStart)
             }
         }
-        KeyCode::T => Some(UiAction::ToggleFocusedBrowserRowSelection),
+        KeyCode::T => match model.focus_context {
+            crate::app::FocusContextModel::Waveform => Some(UiAction::TrimWaveformSelection),
+            _ => None,
+        },
         KeyCode::U => Some(if shift {
             UiAction::Redo
         } else {

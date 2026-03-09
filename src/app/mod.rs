@@ -967,6 +967,12 @@ pub enum UiAction {
     NormalizeFocusedBrowserSample,
     /// Normalize the waveform selection, or the loaded sample when no selection is active.
     NormalizeWaveformSelectionOrSample,
+    /// Crop the waveform file down to the active selection.
+    CropWaveformSelection,
+    /// Write the active waveform selection to a new sibling sample file.
+    CropWaveformSelectionToNewSample,
+    /// Trim the active waveform selection out of the loaded file.
+    TrimWaveformSelection,
     /// Confirm the currently visible modal prompt.
     ConfirmPrompt,
     /// Cancel the currently visible modal prompt.

@@ -93,6 +93,12 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserViewStart {
+            visible_row: 4
+        }),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
             value_milli: 250
         }),
@@ -386,7 +392,7 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::MoveBrowserFocus { delta: 3 }]
+        vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
     );
 }
 
@@ -2196,6 +2202,15 @@ fn browser_wheel_delta_is_bounded_and_directional() {
         ),
         Some(-2)
     );
+}
+
+#[test]
+fn browser_view_start_after_wheel_clamps_to_visible_bounds() {
+    assert_eq!(browser_view_start_after_wheel(10, 40, -3), Some(7));
+    assert_eq!(browser_view_start_after_wheel(0, 40, -3), Some(0));
+    assert_eq!(browser_view_start_after_wheel(38, 40, 5), Some(39));
+    assert_eq!(browser_view_start_after_wheel(4, 0, 2), None);
+    assert_eq!(browser_view_start_after_wheel(4, 20, 0), None);
 }
 
 #[test]

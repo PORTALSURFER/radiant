@@ -872,6 +872,12 @@ pub enum UiAction {
         /// Signed visible-row delta for browser focus movement.
         delta: i8,
     },
+    /// Scroll the browser viewport to a specific visible-row start without
+    /// changing the current focus or multi-selection state.
+    SetBrowserViewStart {
+        /// Target top visible row index for the browser viewport.
+        visible_row: usize,
+    },
     /// Focus a browser row by visible index.
     FocusBrowserRow {
         /// Target visible row index in the browser list.

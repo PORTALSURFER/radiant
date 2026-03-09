@@ -113,6 +113,12 @@ pub(super) struct BrowserToolbarLayout {
     pub(super) triage_chips: [Rect; 3],
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct BrowserScrollbarLayout {
+    pub(super) track: Rect,
+    pub(super) thumb: Rect,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TopBarControlsLayout {
     pub(super) active: bool,
@@ -573,6 +579,57 @@ pub(super) fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens)
     geometric_capacity
         .max(1)
         .min(sizing.browser_rows_max_per_column.max(1))
+}
+
+/// Compute visual scrollbar geometry for one overflowing browser row viewport.
+pub(super) fn browser_scrollbar_layout(
+    browser_rows_rect: Rect,
+    rows: &[CachedBrowserRow],
+    visible_count: usize,
+    sizing: SizingTokens,
+) -> Option<BrowserScrollbarLayout> {
+    if rows.is_empty() || visible_count <= rows.len() {
+        return None;
+    }
+    let viewport_start = rows
+        .first()?
+        .visible_row
+        .min(visible_count.saturating_sub(1));
+    let viewport_len = rows.len().min(visible_count);
+    let track_inset_x = sizing.text_inset_x.clamp(2.0, 6.0);
+    let track_inset_y = (sizing.border_width + 2.0).clamp(2.0, 6.0);
+    let track_width = (sizing.border_width + 4.0).clamp(4.0, 8.0);
+    let track_max_x = browser_rows_rect.max.x - track_inset_x;
+    let track_min_x = (track_max_x - track_width).max(browser_rows_rect.min.x);
+    let track_min_y = (browser_rows_rect.min.y + track_inset_y).min(browser_rows_rect.max.y);
+    let track_max_y = (browser_rows_rect.max.y - track_inset_y).max(track_min_y + 1.0);
+    let track = Rect::from_min_max(
+        Point::new(track_min_x.round(), track_min_y.round()),
+        Point::new(track_max_x.round(), track_max_y.round()),
+    );
+    if track.height() <= 1.0 {
+        return None;
+    }
+
+    let min_thumb_height = (sizing.browser_row_height * 0.85).round().clamp(18.0, 32.0);
+    let thumb_height = (track.height() * (viewport_len as f32 / visible_count as f32))
+        .round()
+        .clamp(min_thumb_height, track.height());
+    let travel = (track.height() - thumb_height).max(0.0);
+    let max_viewport_start = visible_count.saturating_sub(viewport_len);
+    let start_ratio = if max_viewport_start == 0 {
+        0.0
+    } else {
+        viewport_start.min(max_viewport_start) as f32 / max_viewport_start as f32
+    };
+    let thumb_min_y = (track.min.y + (travel * start_ratio)).round();
+    let thumb_max_y = (thumb_min_y + thumb_height).min(track.max.y);
+    let thumb = Rect::from_min_max(
+        Point::new(track.min.x, thumb_min_y),
+        Point::new(track.max.x, thumb_max_y.max(thumb_min_y + 1.0)),
+    );
+
+    Some(BrowserScrollbarLayout { track, thumb })
 }
 
 /// Resolve browser row-window bounds in model-row index space.

@@ -1066,6 +1066,20 @@ pub(super) fn browser_wheel_row_delta(
     Some(clamped as i8)
 }
 
+/// Clamp one wheel-derived browser viewport move to the current visible-row range.
+pub(super) fn browser_view_start_after_wheel(
+    current_view_start: usize,
+    visible_count: usize,
+    steps: i8,
+) -> Option<usize> {
+    if visible_count == 0 || steps == 0 {
+        return None;
+    }
+    let max_start = visible_count.saturating_sub(1);
+    let target = (current_view_start as isize + steps as isize).clamp(0, max_start as isize);
+    Some(target as usize)
+}
+
 /// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.
 pub(super) fn waveform_wheel_zoom_action(
     layout: &ShellLayout,

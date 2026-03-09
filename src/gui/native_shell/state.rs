@@ -1361,6 +1361,18 @@ impl NativeShellState {
             .map(|index| rows[index].visible_row)
     }
 
+    /// Return the current top visible browser row for the rendered viewport.
+    pub(crate) fn browser_view_start_visible_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<usize> {
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
+            .first()
+            .map(|row| row.visible_row)
+    }
+
     /// Resolve a browser action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
         &mut self,

@@ -2208,15 +2208,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         (true, handled)
     }
 
-    /// Emit one wheel-derived browser-focus action immediately.
+    /// Emit one wheel-derived browser viewport-scroll action immediately.
     ///
     /// Returns whether an action was emitted.
-    fn process_wheel_rows_immediately(&mut self, steps: i8) -> bool {
-        if steps == 0 {
-            return false;
-        }
+    fn process_wheel_rows_immediately(&mut self, visible_row: usize) -> bool {
         self.emit_model_action_with_profile(
-            UiAction::MoveBrowserFocus { delta: steps },
+            UiAction::SetBrowserViewStart { visible_row },
             Some(InteractionProfileKind::Wheel),
         );
         true
@@ -3514,6 +3511,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FocusFolderRow { .. }
             | UiAction::MoveFolderFocus { .. }
             | UiAction::MoveBrowserFocus { .. }
+            | UiAction::SetBrowserViewStart { .. }
             | UiAction::FocusBrowserRow { .. }
             | UiAction::ToggleBrowserRowSelection { .. }
             | UiAction::ExtendBrowserSelectionToRow { .. }
@@ -4316,7 +4314,18 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         if let Some(delta) =
                             browser_wheel_row_delta(layout, &this.model, point, &style, delta)
                         {
-                            let _ = this.process_wheel_rows_immediately(delta);
+                            let current_view_start = this
+                                .shell_state
+                                .browser_view_start_visible_row(layout, &this.model)
+                                .or(this.model.browser.selected_visible_row)
+                                .unwrap_or(0);
+                            if let Some(visible_row) = browser_view_start_after_wheel(
+                                current_view_start,
+                                this.model.browser.visible_count,
+                                delta,
+                            ) {
+                                let _ = this.process_wheel_rows_immediately(visible_row);
+                            }
                         }
                     }
                 });

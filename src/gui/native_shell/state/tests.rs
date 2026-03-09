@@ -1576,6 +1576,56 @@ fn browser_rows_use_alternating_fill_stripes_for_readability() {
 }
 
 #[test]
+fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+
+    let top_model = browser_model_with_rows(500, 12);
+    let top_rows = rendered_browser_rows(&layout, &top_model, &style);
+    let top_scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &top_rows,
+        top_model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+
+    let lower_model = browser_model_with_rows(500, 420);
+    let lower_rows = rendered_browser_rows(&layout, &lower_model, &style);
+    let lower_scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &lower_rows,
+        lower_model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+
+    assert_rect_inside(layout.browser_rows, top_scrollbar.track);
+    assert_rect_inside(layout.browser_rows, top_scrollbar.thumb);
+    assert!(top_scrollbar.thumb.height() < top_scrollbar.track.height());
+    assert!(lower_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
+
+    let mut state = NativeShellState::new();
+    let frame = state.build_frame(&layout, &lower_model);
+    let track_color = blend_color(style.border, style.bg_secondary, 0.22);
+    let thumb_color = blend_color(style.text_muted, style.text_primary, 0.32);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == lower_scrollbar.track && rect.color == track_color
+        )
+    }));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == lower_scrollbar.thumb && rect.color == thumb_color
+        )
+    }));
+}
+
+#[test]
 fn browser_rows_share_single_pixel_separator_between_adjacent_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

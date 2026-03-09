@@ -442,6 +442,27 @@ impl NativeShellState {
                         }
                     }
                 }
+                if let Some(scrollbar) = browser_scrollbar_layout(
+                    layout.browser_rows,
+                    &browser_rows,
+                    model.browser.visible_count,
+                    sizing,
+                ) {
+                    emit_primitive(
+                        primitives,
+                        Primitive::Rect(FillRect {
+                            rect: scrollbar.track,
+                            color: blend_color(style.border, style.bg_secondary, 0.22),
+                        }),
+                    );
+                    emit_primitive(
+                        primitives,
+                        Primitive::Rect(FillRect {
+                            rect: scrollbar.thumb,
+                            color: blend_color(style.text_muted, style.text_primary, 0.32),
+                        }),
+                    );
+                }
             }
         }
 

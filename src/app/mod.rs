@@ -269,6 +269,10 @@ pub struct BrowserPanelModel {
     pub visible_count: usize,
     /// Focused visible row index, if any.
     pub selected_visible_row: Option<usize>,
+    /// Whether selection-driven browser autoscroll is currently enabled.
+    pub autoscroll: bool,
+    /// Requested top visible-row index for manual browser viewport scrolling.
+    pub view_start_row: usize,
     /// Number of rows currently in multi-selection.
     pub selected_path_count: usize,
     /// Active browser search query.

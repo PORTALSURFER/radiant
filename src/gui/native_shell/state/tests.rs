@@ -1819,6 +1819,48 @@ fn browser_scrollbar_thumb_reaches_track_end_at_bottom() {
 }
 
 #[test]
+fn prewindowed_browser_scrollbar_uses_manual_view_start_at_bottom() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let viewport_len = browser_rows_capacity(layout.browser_rows, style.sizing);
+    let visible_count = 1_506usize;
+    let host_window_len = 256usize;
+    let render_window_start = visible_count - host_window_len;
+    let requested_view_start = visible_count - viewport_len;
+
+    let mut model = AppModel::default();
+    model.browser.visible_count = visible_count;
+    model.browser.autoscroll = false;
+    model.browser.view_start_row = requested_view_start;
+    model.browser.selected_visible_row = Some(render_window_start + 32);
+    model.browser.anchor_visible_row = Some(render_window_start + 30);
+    for visible_row in render_window_start..visible_count {
+        model.browser.rows.push(BrowserRowModel::new(
+            visible_row,
+            format!("row_{visible_row:04}"),
+            1,
+            false,
+            visible_row == render_window_start + 32,
+        ));
+    }
+
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("prewindowed browser list should render a scrollbar");
+
+    assert_eq!(
+        rows.first().map(|row| row.visible_row),
+        Some(requested_view_start)
+    );
+    assert_eq!(scrollbar.thumb.max.y, scrollbar.track.max.y);
+}
+
+#[test]
 fn top_bar_omits_status_indicator_dot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

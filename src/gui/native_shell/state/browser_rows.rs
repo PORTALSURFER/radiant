@@ -752,6 +752,8 @@ pub(super) fn browser_rows_window_bounds(
         model.browser.selected_visible_row,
         model.browser.anchor_visible_row,
         current_window_start,
+        model.browser.autoscroll,
+        model.browser.view_start_row,
     );
     let window_end = (window_start + window_len).min(model.browser.rows.len());
     (window_start, window_end)
@@ -779,6 +781,8 @@ pub(super) fn browser_window_start(
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
     current_window_start: usize,
+    autoscroll: bool,
+    view_start_row: usize,
 ) -> usize {
     if rows.len() <= window_len {
         return 0;
@@ -793,6 +797,12 @@ pub(super) fn browser_window_start(
         .or_else(|| rows.iter().position(|row| row.selected))
         .unwrap_or(0);
     if rows.len() < visible_count {
+        if !autoscroll {
+            let slice_start = rows.first().map(|row| row.visible_row).unwrap_or(0);
+            return view_start_row
+                .saturating_sub(slice_start)
+                .min(rows.len() - window_len);
+        }
         return browser_prewindowed_start(
             focus_index,
             window_len,

@@ -3695,6 +3695,7 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
         model.waveform.playhead_milli = Some(playhead);
         let motion = NativeMotionModel::from_app_model(&model);
         state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+        state.tick_with_style(1.0 / 60.0, &style);
     }
 
     let playhead_rect = compute_waveform_annotation_rects(
@@ -3709,7 +3710,7 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
     .playhead
     .expect("playhead marker");
 
-    let widest_trail_rect = frame
+    let trail_bounds = frame
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
@@ -3719,18 +3720,60 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
                     && rect.color.a > 0
                     && rect.color != style.accent_copper =>
             {
-                Some(rect.rect.width())
+                Some((rect.rect.min.x, rect.rect.max.x))
             }
             _ => None,
         })
-        .fold(0.0f32, f32::max);
+        .fold(None::<(f32, f32)>, |bounds, (min_x, max_x)| {
+            Some(match bounds {
+                Some((current_min, current_max)) => {
+                    (current_min.min(min_x), current_max.max(max_x))
+                }
+                None => (min_x, max_x),
+            })
+        })
+        .expect("fast motion should emit trail spans");
+    let trail_span_width = trail_bounds.1 - trail_bounds.0;
 
     assert!(
-        widest_trail_rect > playhead_rect.width() * 4.0,
-        "expected fast trail to render as a continuous span, got width {} vs marker {}",
-        widest_trail_rect,
+        trail_span_width > playhead_rect.width() * 40.0,
+        "expected fast trail coverage to span a large contiguous range, got width {} vs marker {}",
+        trail_span_width,
         playhead_rect.width()
     );
+}
+
+#[test]
+fn waveform_motion_overlay_interpolates_fast_trail_alpha_gradient() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.transport_running = true;
+    let mut frame = NativeViewFrame::default();
+
+    model.waveform.playhead_milli = Some(120);
+    let first = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &first, &mut frame);
+    state.tick_with_style(1.0 / 60.0, &style);
+
+    model.waveform.playhead_milli = Some(220);
+    let second = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &second, &mut frame);
+
+    let trail_alphas = state
+        .playhead_trail_lines(state.playhead_trail_elapsed_seconds)
+        .into_iter()
+        .map(|line| (line.alpha * 1000.0).round() as u16)
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert!(
+        trail_alphas.len() >= 6,
+        "expected multiple alpha steps for fast playhead motion, got {:?}",
+        trail_alphas
+    );
+    assert!(trail_alphas.first().copied().unwrap_or_default() < 100);
+    assert_eq!(trail_alphas.last().copied(), Some(1000));
 }
 
 #[test]

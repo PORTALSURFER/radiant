@@ -61,15 +61,17 @@ const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
     a: 255,
 };
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
-const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 192;
+const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 768;
 /// Number of seconds used to fade one retained playhead ghost line.
 ///
 /// Time-based aging avoids visible fade quantization when redraw cadence varies.
 const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
 /// Maximum inserted in-between samples per motion frame for smooth trails.
-const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
+const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
 /// Largest contiguous frame delta treated as normal transport motion.
 const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
+/// Minimum synthetic time delta used when motion redraws arrive in the same tick.
+const PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS: f32 = 1.0 / 240.0;
 /// Number of animation ticks used for one waveform-toolbar click flash.
 const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for the sidebar source-add button click flash.
@@ -1994,15 +1996,26 @@ impl NativeShellState {
         let previous_ratio = previous as f32 / 1_000_000.0;
         let current_ratio = Self::unwrap_playhead_ratio(previous_ratio, current, delta);
         let delta_ratio = current_ratio - previous_ratio;
-        let pixel_step_ratio = (1.0 / waveform_plot.width().max(1.0)).clamp(0.0005, 0.05);
-        let steps = ((delta_ratio.abs() / pixel_step_ratio).ceil() as usize)
+        let previous_capture_seconds = self
+            .playhead_trail_samples
+            .last()
+            .map(|sample| sample.captured_at_seconds)
+            .unwrap_or(captured_at_seconds - PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS);
+        let capture_delta_seconds = (captured_at_seconds - previous_capture_seconds)
+            .max(PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS);
+        let pixel_step_ratio = (0.5 / waveform_plot.width().max(1.0)).clamp(0.00025, 0.02);
+        let steps_by_pixel = (delta_ratio.abs() / pixel_step_ratio).ceil() as usize;
+        let steps_by_time =
+            (capture_delta_seconds / PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS).ceil() as usize;
+        let steps = steps_by_pixel
+            .max(steps_by_time)
             .clamp(1, PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS);
-        for step in 0..steps {
+        for step in 1..=steps {
             let progress = step as f32 / steps as f32;
             let ratio = (previous_ratio + (delta_ratio * progress)).rem_euclid(1.0);
             self.playhead_trail_samples.push(PlayheadTrailSample {
                 ratio,
-                captured_at_seconds,
+                captured_at_seconds: previous_capture_seconds + (capture_delta_seconds * progress),
             });
         }
     }
@@ -2033,14 +2046,26 @@ impl NativeShellState {
     }
 
     /// Project retained trail samples into drawable ghost-line primitives.
+    ///
+    /// Alpha is normalized across the currently retained trail so fast motion
+    /// still renders a full head-to-tail fade instead of large equal-opacity slabs.
     fn playhead_trail_lines(&self, now_seconds: f32) -> Vec<PlayheadTrailLine> {
-        self.playhead_trail_samples
+        let retained = self
+            .playhead_trail_samples
             .iter()
             .filter_map(|sample| {
                 let age_seconds = (now_seconds - sample.captured_at_seconds)
                     .clamp(0.0, PLAYHEAD_TRAIL_FADE_SECONDS);
-                let remaining = 1.0 - (age_seconds / PLAYHEAD_TRAIL_FADE_SECONDS);
-                let alpha = (0.34 * remaining.powf(1.8)).clamp(0.0, 1.0);
+                (age_seconds < PLAYHEAD_TRAIL_FADE_SECONDS).then_some(*sample)
+            })
+            .collect::<Vec<_>>();
+        let last_index = retained.len().saturating_sub(1).max(1) as f32;
+        retained
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, sample)| {
+                let progress = index as f32 / last_index;
+                let alpha = progress.powf(1.35).clamp(0.0, 1.0);
                 (alpha > 0.01).then_some(PlayheadTrailLine {
                     ratio: sample.ratio,
                     alpha,

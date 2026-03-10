@@ -19,6 +19,8 @@ const SELECTION_DRAG_HANDLE_SIZE: f32 = 12.0;
 const SELECTION_SHIFT_HANDLE_WIDTH: f32 = 14.0;
 /// Height in logical pixels for bottom-center selection shift handles.
 const SELECTION_SHIFT_HANDLE_HEIGHT: f32 = 7.0;
+/// Maximum number of gradient slices used for one fast playhead trail segment.
+const PLAYHEAD_TRAIL_MAX_GRADIENT_SLICES: usize = 96;
 
 /// One retained ghost line for the dynamic playhead trail.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -870,24 +872,15 @@ fn emit_waveform_playhead_trail(
         };
         let alpha = line.alpha.clamp(0.0, 1.0);
         if let Some(first_rect) = previous_rect {
-            let amount = previous_alpha.max(alpha).clamp(0.0, 1.0);
-            if amount > 0.0 {
-                let span_rect = Rect::from_min_max(
-                    Point::new(first_rect.min.x.min(rect.min.x), waveform_plot.min.y),
-                    Point::new(first_rect.max.x.max(rect.max.x), waveform_plot.max.y),
-                );
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: span_rect,
-                        color: translucent_overlay_color(
-                            style.surface_overlay,
-                            style.accent_copper,
-                            amount,
-                        ),
-                    }),
-                );
-            }
+            emit_waveform_playhead_trail_segment(
+                primitives,
+                waveform_plot,
+                style,
+                first_rect,
+                previous_alpha,
+                rect,
+                alpha,
+            );
         } else if alpha > 0.0 {
             emit_primitive(
                 primitives,
@@ -904,6 +897,55 @@ fn emit_waveform_playhead_trail(
         previous_rect = Some(rect);
         previous_alpha = alpha;
     }
+}
+
+/// Emit one playhead-trail segment with an alpha gradient between consecutive samples.
+fn emit_waveform_playhead_trail_segment(
+    primitives: &mut impl PrimitiveSink,
+    waveform_plot: Rect,
+    style: &StyleTokens,
+    start_rect: Rect,
+    start_alpha: f32,
+    end_rect: Rect,
+    end_alpha: f32,
+) {
+    let span_width = (start_rect.min.x - end_rect.min.x)
+        .abs()
+        .max((start_rect.max.x - end_rect.max.x).abs());
+    let slice_width = start_rect.width().max(end_rect.width()).max(1.0);
+    let slices = ((span_width / slice_width.max(1.0)).ceil() as usize)
+        .clamp(1, PLAYHEAD_TRAIL_MAX_GRADIENT_SLICES);
+    for slice in 0..slices {
+        let progress_start = slice as f32 / slices as f32;
+        let progress_end = (slice + 1) as f32 / slices as f32;
+        let progress_mid = (progress_start + progress_end) * 0.5;
+        let alpha = (start_alpha + ((end_alpha - start_alpha) * progress_mid)).clamp(0.0, 1.0);
+        if alpha <= 0.0 {
+            continue;
+        }
+        let slice_rect = Rect::from_min_max(
+            Point::new(
+                lerp(start_rect.min.x, end_rect.min.x, progress_start),
+                waveform_plot.min.y,
+            ),
+            Point::new(
+                lerp(start_rect.max.x, end_rect.max.x, progress_end),
+                waveform_plot.max.y,
+            ),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: slice_rect,
+                color: translucent_overlay_color(style.surface_overlay, style.accent_copper, alpha),
+            }),
+        );
+    }
+}
+
+/// Linearly interpolate between two x coordinates.
+fn lerp(start: f32, end: f32, progress: f32) -> f32 {
+    start + ((end - start) * progress.clamp(0.0, 1.0))
 }
 
 /// Project an absolute waveform ratio into the current view window.

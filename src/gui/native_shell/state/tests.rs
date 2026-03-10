@@ -1416,6 +1416,7 @@ fn browser_virtualization_scrolls_down_for_bottom_rows_in_prewindowed_slice() {
         model.browser.visible_count = 5_000;
         model.browser.selected_visible_row = Some(focused_visible_row);
         model.browser.anchor_visible_row = Some(focused_visible_row);
+        model.browser.autoscroll = true;
         model
     };
 

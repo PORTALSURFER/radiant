@@ -155,7 +155,7 @@ impl NativeTextRenderer {
         };
         self.layout_cache_order.push_back(key.clone());
         let cached_layout = self.layout_cache.entry(key).or_insert(layout);
-        return Some(cached_layout);
+        Some(cached_layout)
     }
 
     pub(super) fn take_layout_profile_counters(&mut self) -> (u64, u64, u64, u64, u64, u64) {

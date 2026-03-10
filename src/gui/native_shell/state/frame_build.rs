@@ -106,30 +106,7 @@ impl NativeShellState {
 
         let waveform_inner = layout.waveform_plot;
         if build_waveform_overlay {
-            let scan_step = sizing.waveform_scan_step;
-            let mut x = waveform_inner.min.x;
-            while x < waveform_inner.max.x {
-                let strong = ((x - waveform_inner.min.x) / scan_step).floor() as i32 % 4 == 0;
-                let line_color = if strong {
-                    style.grid_strong
-                } else {
-                    style.grid_soft
-                };
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: Rect::from_min_max(
-                            Point::new(x, waveform_inner.min.y),
-                            Point::new(
-                                (x + sizing.border_width).min(waveform_inner.max.x),
-                                waveform_inner.max.y,
-                            ),
-                        ),
-                        color: line_color,
-                    }),
-                );
-                x += scan_step;
-            }
+            emit_waveform_bpm_grid(primitives, waveform_inner, model, style);
             push_waveform_image(
                 primitives,
                 waveform_inner,
@@ -2032,6 +2009,57 @@ impl NativeShellState {
         render_drag_overlay(primitives, text_runs, layout, style, model);
 
         frame.clear_color = style.clear_color;
+    }
+}
+
+/// Render BPM-aligned waveform grid lines when beat snapping is enabled.
+fn emit_waveform_bpm_grid(
+    primitives: &mut impl PrimitiveSink,
+    waveform_plot: Rect,
+    model: &AppModel,
+    style: &StyleTokens,
+) {
+    if !model.waveform_chrome.bpm_snap_enabled {
+        return;
+    }
+    let Some(step_micros) = model.waveform.beat_step_micros.filter(|step| *step > 0) else {
+        return;
+    };
+    let view_start = u64::from(model.waveform.view_start_milli) * 1000;
+    let view_end = u64::from(model.waveform.view_end_milli) * 1000;
+    if view_end <= view_start || waveform_plot.width() <= 0.0 {
+        return;
+    }
+    let step_micros = u64::from(step_micros);
+    let first_beat_index = view_start.div_ceil(step_micros);
+    let view_width = (view_end - view_start) as f32;
+    let mut beat_index = first_beat_index;
+    let mut beat_micros = beat_index.saturating_mul(step_micros);
+    while beat_micros <= view_end {
+        let ratio = (beat_micros.saturating_sub(view_start)) as f32 / view_width;
+        let x = (waveform_plot.min.x + (waveform_plot.width() * ratio))
+            .round()
+            .clamp(waveform_plot.min.x, waveform_plot.max.x);
+        let line_color = if beat_index % 4 == 0 {
+            style.grid_strong
+        } else {
+            style.grid_soft
+        };
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(x, waveform_plot.min.y),
+                    Point::new(
+                        (x + style.sizing.border_width).min(waveform_plot.max.x),
+                        waveform_plot.max.y,
+                    ),
+                ),
+                color: line_color,
+            }),
+        );
+        beat_index = beat_index.saturating_add(1);
+        beat_micros = beat_micros.saturating_add(step_micros);
     }
 }
 

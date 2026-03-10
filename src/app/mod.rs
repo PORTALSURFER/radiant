@@ -468,6 +468,8 @@ pub struct WaveformPanelModel {
     pub view_start_milli: u16,
     /// Visible view end in normalized milli-units.
     pub view_end_milli: u16,
+    /// Beat spacing in normalized micro-units when BPM/grid data is available.
+    pub beat_step_micros: Option<u32>,
     /// Whether loop playback is enabled.
     pub loop_enabled: bool,
     /// Optional tempo label rendered in waveform metadata.
@@ -499,6 +501,7 @@ impl Default for WaveformPanelModel {
             edit_fade_out_curve_milli: None,
             view_start_milli: 0,
             view_end_milli: 1000,
+            beat_step_micros: None,
             loop_enabled: false,
             tempo_label: None,
             zoom_label: None,

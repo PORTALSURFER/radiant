@@ -70,7 +70,7 @@ const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
 ///
 /// The active playhead line itself remains fully opaque; only the ghost trail fades from
 /// this half-strength head value down to zero.
-const PLAYHEAD_TRAIL_HEAD_ALPHA: f32 = 0.5;
+const PLAYHEAD_TRAIL_HEAD_ALPHA: f32 = 0.2;
 /// Maximum inserted in-between samples per motion frame for smooth trails.
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
 /// Largest contiguous frame delta treated as normal transport motion.

@@ -2040,18 +2040,14 @@ fn emit_waveform_bpm_grid(
         let x = (waveform_plot.min.x + (waveform_plot.width() * ratio))
             .round()
             .clamp(waveform_plot.min.x, waveform_plot.max.x);
-        let line_color = if beat_index % 4 == 0 {
-            style.grid_strong
-        } else {
-            style.grid_soft
-        };
+        let (line_color, line_width) = waveform_bpm_grid_line_style(style, beat_index);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect: Rect::from_min_max(
                     Point::new(x, waveform_plot.min.y),
                     Point::new(
-                        (x + style.sizing.border_width).min(waveform_plot.max.x),
+                        (x + line_width).min(waveform_plot.max.x),
                         waveform_plot.max.y,
                     ),
                 ),
@@ -2060,6 +2056,18 @@ fn emit_waveform_bpm_grid(
         );
         beat_index = beat_index.saturating_add(1);
         beat_micros = beat_micros.saturating_add(step_micros);
+    }
+}
+
+/// Resolve the per-beat grid line styling for BPM-aligned waveform overlays.
+fn waveform_bpm_grid_line_style(style: &StyleTokens, beat_index: u64) -> (Rgba8, f32) {
+    if beat_index.is_multiple_of(4) {
+        (style.grid_strong, style.sizing.border_width.max(2.0))
+    } else {
+        (
+            blend_color(style.grid_soft, style.text_muted, 0.32),
+            style.sizing.border_width.max(1.0),
+        )
     }
 }
 

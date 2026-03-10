@@ -481,7 +481,10 @@ pub struct WaveformPanelModel {
     pub view_start_micros: u32,
     /// Visible view end in normalized micro-units (`0..=1_000_000`).
     pub view_end_micros: u32,
-    /// Beat spacing in normalized micro-units when BPM/grid data is available.
+    /// Quarter-note beat spacing in normalized micro-units when BPM/grid data is available.
+    ///
+    /// Native waveform renderers use this to draw a minor line on every beat
+    /// and can accent every fourth beat as a bar boundary.
     pub beat_step_micros: Option<u32>,
     /// Whether loop playback is enabled.
     pub loop_enabled: bool,

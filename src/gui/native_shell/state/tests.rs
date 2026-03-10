@@ -1899,8 +1899,9 @@ fn waveform_bpm_grid_lines_render_only_when_snap_enabled_and_align_to_beats() {
     let mut model = AppModel::default();
     model.waveform.view_start_milli = 125;
     model.waveform.view_end_milli = 875;
-    model.waveform.beat_step_micros = Some(250_000);
+    model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = false;
+    let beat_line_color = blend_color(style.grid_soft, style.text_muted, 0.32);
 
     let frame_without_snap = state.build_frame(&layout, &model);
     assert!(
@@ -1910,7 +1911,7 @@ fn waveform_bpm_grid_lines_render_only_when_snap_enabled_and_align_to_beats() {
                 Primitive::Rect(rect)
                     if rect.rect.min.y == layout.waveform_plot.min.y
                         && rect.rect.max.y == layout.waveform_plot.max.y
-                        && (rect.color == style.grid_soft || rect.color == style.grid_strong)
+                        && (rect.color == beat_line_color || rect.color == style.grid_strong)
             )
         }),
         "waveform beat grid should stay hidden when BPM snap is disabled"
@@ -1918,29 +1919,41 @@ fn waveform_bpm_grid_lines_render_only_when_snap_enabled_and_align_to_beats() {
 
     model.waveform_chrome.bpm_snap_enabled = true;
     let frame_with_snap = state.build_frame(&layout, &model);
-    let expected_xs = [0.25_f32, 0.5, 0.75]
+    let expected_soft_xs = [0.125_f32, 0.25, 0.375, 0.625, 0.75, 0.875]
         .into_iter()
-        .map(|beat| {
-            let ratio = (beat - 0.125) / 0.75;
-            (layout.waveform_plot.min.x + (layout.waveform_plot.width() * ratio)).round()
-        })
+        .map(|beat| beat_grid_x(layout.waveform_plot, 0.125, 0.875, beat))
         .collect::<Vec<_>>();
-    let actual_xs = frame_with_snap
+    let expected_strong_xs = vec![beat_grid_x(layout.waveform_plot, 0.125, 0.875, 0.5)];
+    let (actual_soft_xs, actual_strong_xs): (Vec<_>, Vec<_>) = frame_with_snap
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
             Primitive::Rect(rect)
                 if rect.rect.min.y == layout.waveform_plot.min.y
                     && rect.rect.max.y == layout.waveform_plot.max.y
-                    && (rect.color == style.grid_soft || rect.color == style.grid_strong) =>
+                    && (rect.color == beat_line_color || rect.color == style.grid_strong) =>
             {
-                Some(rect.rect.min.x)
+                Some((rect.color, rect.rect.min.x))
             }
             _ => None,
         })
+        .partition(|(color, _)| *color == beat_line_color);
+    let actual_soft_xs = actual_soft_xs
+        .into_iter()
+        .map(|(_, x)| x)
+        .collect::<Vec<_>>();
+    let actual_strong_xs = actual_strong_xs
+        .into_iter()
+        .map(|(_, x)| x)
         .collect::<Vec<_>>();
 
-    assert_eq!(actual_xs, expected_xs);
+    assert_eq!(actual_soft_xs, expected_soft_xs);
+    assert_eq!(actual_strong_xs, expected_strong_xs);
+}
+
+fn beat_grid_x(waveform_plot: Rect, view_start: f32, view_end: f32, beat: f32) -> f32 {
+    let ratio = (beat - view_start) / (view_end - view_start);
+    (waveform_plot.min.x + (waveform_plot.width() * ratio)).round()
 }
 
 #[test]

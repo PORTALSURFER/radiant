@@ -540,25 +540,6 @@ impl NativeShellState {
         );
 
         if build_global_static {
-            let lamp_radius = sizing.lamp_radius_base
-                + (((self.pulse_phase.sin() + 1.0) * 0.5) * sizing.lamp_radius_amp);
-            let lamp_color = if self.transport_running {
-                style.accent_mint
-            } else {
-                style.accent_copper
-            };
-            emit_primitive(
-                primitives,
-                Primitive::Circle(FillCircle {
-                    center: Point::new(
-                        layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
-                        layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
-                    ),
-                    radius: lamp_radius,
-                    color: lamp_color,
-                }),
-            );
-
             let top_controls = top_bar_controls_layout(layout, sizing);
             if top_controls.active {
                 let top_controls_text = compute_top_bar_controls_text_layout(

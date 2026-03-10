@@ -1736,6 +1736,37 @@ fn browser_row_hit_test_ignores_scrollbar_gutter() {
 }
 
 #[test]
+fn top_bar_omits_status_indicator_dot() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.transport_running = true;
+
+    let frame = state.build_frame(&layout, &model);
+
+    assert!(
+        !frame
+            .primitives
+            .iter()
+            .any(|primitive| matches!(primitive, Primitive::Circle(_))),
+        "top-right status dot should not be rendered"
+    );
+
+    let style = style_for_layout(&layout);
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut overlay = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut overlay);
+
+    assert!(
+        !overlay
+            .primitives
+            .iter()
+            .any(|primitive| matches!(primitive, Primitive::Circle(_))),
+        "motion overlay should not reintroduce the top-right status dot"
+    );
+}
+
+#[test]
 fn browser_rows_share_single_pixel_separator_between_adjacent_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

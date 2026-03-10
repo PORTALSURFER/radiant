@@ -1997,24 +1997,6 @@ impl NativeShellState {
         let primitives = &mut frame.primitives;
         let text_runs = &mut frame.text_runs;
 
-        let lamp_radius = sizing.lamp_radius_base + (motion_wave * sizing.lamp_radius_amp);
-        let lamp_color = if self.transport_running {
-            style.accent_mint
-        } else {
-            style.accent_copper
-        };
-        emit_primitive(
-            primitives,
-            Primitive::Circle(FillCircle {
-                center: Point::new(
-                    layout.top_bar.max.x - (sizing.text_inset_x + 14.0),
-                    layout.top_bar_title_row.min.y + (layout.top_bar_title_row.height() * 0.5),
-                ),
-                radius: lamp_radius,
-                color: lamp_color,
-            }),
-        );
-
         let waveform_toolbar_buttons = waveform_toolbar_buttons(
             layout,
             style,

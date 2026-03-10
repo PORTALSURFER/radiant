@@ -1315,6 +1315,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         Some(UiAction::SetWaveformSelectionRange {
             start_milli: 500,
             end_milli: 500,
+            preserve_view_edge: false,
         })
     );
 
@@ -1342,6 +1343,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         Some(UiAction::SetWaveformSelectionRange {
             start_milli: 120,
             end_milli: 500,
+            preserve_view_edge: false,
         })
     );
 
@@ -1405,6 +1407,7 @@ fn waveform_right_click_maps_to_edit_selection_action() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 500,
             end_milli: 500,
+            preserve_view_edge: false,
         }
     );
 }
@@ -1431,6 +1434,7 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
         Some(UiAction::SetWaveformSelectionRange {
             start_milli: 800,
             end_milli: position_milli,
+            preserve_view_edge: false,
         })
     );
 }
@@ -1476,6 +1480,7 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 800,
             end_milli: position_milli,
+            preserve_view_edge: false,
         }
     );
 }
@@ -1620,6 +1625,7 @@ fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
         Some(UiAction::SetWaveformEditSelectionRange {
             start_milli: 800,
             end_milli: position_milli,
+            preserve_view_edge: false,
         })
     );
 }
@@ -1658,6 +1664,7 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRange {
             start_milli: 125,
             end_milli: 250,
+            preserve_view_edge: false,
         }),
         Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
     );
@@ -1684,6 +1691,7 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditSelectionRange {
             start_milli: 90,
             end_milli: 320,
+            preserve_view_edge: false,
         }),
         Some(WaveformPointerDragMode::EditSelection { anchor_milli: 90 })
     );
@@ -1769,6 +1777,7 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
         &UiAction::SetWaveformSelectionRange {
             start_milli: 125,
             end_milli: 250,
+            preserve_view_edge: false,
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
@@ -1788,6 +1797,7 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
         &UiAction::SetWaveformEditSelectionRange {
             start_milli: 90,
             end_milli: 320,
+            preserve_view_edge: false,
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
@@ -1834,6 +1844,7 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
         UiAction::SetWaveformSelectionRange {
             start_milli: 250,
             end_milli: 250,
+            preserve_view_edge: false,
         },
         false,
     );
@@ -1855,6 +1866,7 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 400,
             end_milli: 400,
+            preserve_view_edge: false,
         },
         false,
     );
@@ -2003,6 +2015,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         UiAction::SetWaveformSelectionRange {
             start_milli: 200,
             end_milli: 1000,
+            preserve_view_edge: true,
         }
     );
     assert_eq!(
@@ -2031,6 +2044,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         UiAction::SetWaveformSelectionRange {
             start_milli: 800,
             end_milli: 1000,
+            preserve_view_edge: false,
         }
     );
     assert_eq!(
@@ -2043,6 +2057,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 300,
             end_milli: 1000,
+            preserve_view_edge: true,
         }
     );
     assert_eq!(
@@ -2059,6 +2074,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: 0,
             end_milli: 300,
+            preserve_view_edge: false,
         }
     );
     assert_eq!(
@@ -2520,6 +2536,7 @@ fn waveform_bottom_click_without_edit_fade_does_not_hit_top_handle() {
         UiAction::SetWaveformEditSelectionRange {
             start_milli: position_milli,
             end_milli: position_milli,
+            preserve_view_edge: false,
         }
     );
 }

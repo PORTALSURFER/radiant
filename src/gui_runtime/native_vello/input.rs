@@ -383,11 +383,13 @@ pub(super) fn waveform_action_from_pointer(
         UiAction::SetWaveformSelectionRange {
             start_milli: waveform_anchor_milli(model),
             end_milli: position_milli,
+            preserve_view_edge: false,
         }
     } else {
         UiAction::SetWaveformSelectionRange {
             start_milli: position_milli,
             end_milli: position_milli,
+            preserve_view_edge: false,
         }
     }
 }
@@ -505,6 +507,7 @@ fn waveform_selection_resize_action_from_pointer(
             UiAction::SetWaveformSelectionRange {
                 start_milli: selection_end,
                 end_milli: position_milli,
+                preserve_view_edge: false,
             }
         });
     }
@@ -517,6 +520,7 @@ fn waveform_selection_resize_action_from_pointer(
         UiAction::SetWaveformSelectionRange {
             start_milli: selection_start,
             end_milli: position_milli,
+            preserve_view_edge: false,
         }
     })
 }
@@ -546,6 +550,7 @@ pub(super) fn waveform_edit_action_from_pointer(
     UiAction::SetWaveformEditSelectionRange {
         start_milli: position_milli,
         end_milli: position_milli,
+        preserve_view_edge: false,
     }
 }
 
@@ -557,6 +562,7 @@ pub(super) fn waveform_drag_action_for_mode(
     mode: WaveformPointerDragMode,
 ) -> UiAction {
     let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
     match mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveform { position_milli },
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor { position_milli },
@@ -564,6 +570,7 @@ pub(super) fn waveform_drag_action_for_mode(
             UiAction::SetWaveformSelectionRange {
                 start_milli: anchor_milli,
                 end_milli: position_milli,
+                preserve_view_edge,
             }
         }
         WaveformPointerDragMode::SelectionSmartScale { anchor_milli } => {
@@ -582,12 +589,14 @@ pub(super) fn waveform_drag_action_for_mode(
             UiAction::SetWaveformSelectionRange {
                 start_milli,
                 end_milli,
+                preserve_view_edge: false,
             }
         }
         WaveformPointerDragMode::EditSelection { anchor_milli } => {
             UiAction::SetWaveformEditSelectionRange {
                 start_milli: anchor_milli,
                 end_milli: position_milli,
+                preserve_view_edge,
             }
         }
         WaveformPointerDragMode::EditSelectionShift {
@@ -600,6 +609,7 @@ pub(super) fn waveform_drag_action_for_mode(
             UiAction::SetWaveformEditSelectionRange {
                 start_milli,
                 end_milli,
+                preserve_view_edge: false,
             }
         }
         WaveformPointerDragMode::EditFadeInEnd => {
@@ -734,6 +744,11 @@ pub(super) fn waveform_ratio_from_point(layout: &ShellLayout, point: Point) -> f
     let width = inner.width().max(1.0);
     let clamped_x = point.x.clamp(inner.min.x, inner.max.x);
     ((clamped_x - inner.min.x) / width).clamp(0.0, 1.0)
+}
+
+/// Return whether the pointer lies horizontally outside the waveform plot.
+fn waveform_point_is_outside_plot_x(layout: &ShellLayout, point: Point) -> bool {
+    point.x < layout.waveform_plot.min.x || point.x > layout.waveform_plot.max.x
 }
 
 pub(super) fn ratio_to_milli(ratio: f32) -> u16 {
@@ -926,11 +941,13 @@ fn waveform_edit_resize_action_from_pointer(
         return Some(UiAction::SetWaveformEditSelectionRange {
             start_milli: selection_end,
             end_milli: position_milli,
+            preserve_view_edge: false,
         });
     }
     Some(UiAction::SetWaveformEditSelectionRange {
         start_milli: selection_start,
         end_milli: position_milli,
+        preserve_view_edge: false,
     })
 }
 

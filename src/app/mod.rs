@@ -1069,6 +1069,9 @@ pub enum UiAction {
         start_milli: u16,
         /// Selection end position in normalized milli-units.
         end_milli: u16,
+        /// When true, keep an out-of-bounds drag clamped to the current viewport edge
+        /// instead of BPM-snapping that edge back inward.
+        preserve_view_edge: bool,
     },
     /// Set waveform selection bounds without BPM snapping and recalculate BPM for a 4-beat span.
     SetWaveformSelectionRangeSmartScale {
@@ -1083,6 +1086,9 @@ pub enum UiAction {
         start_milli: u16,
         /// Edit-selection end position in normalized milli-units.
         end_milli: u16,
+        /// When true, keep an out-of-bounds drag clamped to the current viewport edge
+        /// instead of BPM-snapping that edge back inward.
+        preserve_view_edge: bool,
     },
     /// Set the edit fade-in end handle in normalized milli space (`0..=1000`).
     SetWaveformEditFadeInEnd {

@@ -1648,6 +1648,11 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
 
     let top_model = browser_model_with_rows(500, 12);
     let top_rows = rendered_browser_rows(&layout, &top_model, &style);
+    let top_content_rect = browser_rows_content_rect(
+        layout.browser_rows,
+        top_model.browser.visible_count,
+        style.sizing,
+    );
     let top_scrollbar = browser_scrollbar_layout(
         layout.browser_rows,
         &top_rows,
@@ -1658,6 +1663,11 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
 
     let lower_model = browser_model_with_rows(500, 420);
     let lower_rows = rendered_browser_rows(&layout, &lower_model, &style);
+    let lower_content_rect = browser_rows_content_rect(
+        layout.browser_rows,
+        lower_model.browser.visible_count,
+        style.sizing,
+    );
     let lower_scrollbar = browser_scrollbar_layout(
         layout.browser_rows,
         &lower_rows,
@@ -1668,6 +1678,18 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
 
     assert_rect_inside(layout.browser_rows, top_scrollbar.track);
     assert_rect_inside(layout.browser_rows, top_scrollbar.thumb);
+    assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
+    assert!(lower_content_rect.max.x < lower_scrollbar.track.min.x);
+    assert!(
+        top_rows
+            .iter()
+            .all(|row| row.rect.max.x <= top_content_rect.max.x)
+    );
+    assert!(
+        lower_rows
+            .iter()
+            .all(|row| row.rect.max.x <= lower_content_rect.max.x)
+    );
     assert!(top_scrollbar.thumb.height() < top_scrollbar.track.height());
     assert!(lower_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
 
@@ -1689,6 +1711,28 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
                 if rect.rect == lower_scrollbar.thumb && rect.color == thumb_color
         )
     }));
+}
+
+#[test]
+fn browser_row_hit_test_ignores_scrollbar_gutter() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(500, 120);
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+    let point = Point::new(
+        (scrollbar.thumb.min.x + scrollbar.thumb.max.x) * 0.5,
+        (scrollbar.thumb.min.y + scrollbar.thumb.max.y) * 0.5,
+    );
+
+    let mut state = NativeShellState::new();
+    assert_eq!(state.browser_row_at_point(&layout, &model, point), None);
 }
 
 #[test]

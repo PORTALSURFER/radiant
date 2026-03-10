@@ -122,6 +122,8 @@ pub(super) struct BrowserScrollbarLayout {
 
 /// Number of visible rows kept between focus and the viewport edge before scrolling.
 const BROWSER_VIEW_EDGE_MARGIN_ROWS: usize = 3;
+/// Horizontal gap left between browser rows and the visual scrollbar lane.
+const BROWSER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TopBarControlsLayout {
@@ -392,6 +394,8 @@ pub(super) fn browser_rows_cache_key(
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
     let row_capacity = browser_rows_capacity(layout.browser_rows, sizing) as u32;
+    let content_rect =
+        browser_rows_content_rect(layout.browser_rows, model.browser.visible_count, sizing);
     let selected_visible_row = model.browser.selected_visible_row.unwrap_or(usize::MAX);
     let anchor_visible_row = model.browser.anchor_visible_row.unwrap_or(usize::MAX);
     let focused_visible_row = rows
@@ -412,10 +416,10 @@ pub(super) fn browser_rows_cache_key(
         root_min_y: f32_to_bits(layout.root.rect.min.y),
         root_max_x: f32_to_bits(layout.root.rect.max.x),
         root_max_y: f32_to_bits(layout.root.rect.max.y),
-        browser_rows_min_x: f32_to_bits(layout.browser_rows.min.x),
-        browser_rows_min_y: f32_to_bits(layout.browser_rows.min.y),
-        browser_rows_max_x: f32_to_bits(layout.browser_rows.max.x),
-        browser_rows_max_y: f32_to_bits(layout.browser_rows.max.y),
+        browser_rows_min_x: f32_to_bits(content_rect.min.x),
+        browser_rows_min_y: f32_to_bits(content_rect.min.y),
+        browser_rows_max_x: f32_to_bits(content_rect.max.x),
+        browser_rows_max_y: f32_to_bits(content_rect.max.y),
         browser_row_height: f32_to_bits(sizing.browser_row_height),
         browser_row_gap: f32_to_bits(sizing.browser_row_gap),
         browser_rows_max_per_column: usize_to_u32(sizing.browser_rows_max_per_column),
@@ -439,11 +443,16 @@ pub(super) fn browser_row_truncation_cache_key(
     style: &StyleTokens,
     rows_key: BrowserRowsCacheKey,
 ) -> BrowserRowTruncationCacheKey {
+    let content_rect = browser_rows_content_rect(
+        layout.browser_rows,
+        rows_key.visible_count as usize,
+        style.sizing,
+    );
     BrowserRowTruncationCacheKey {
-        browser_rows_min_x: f32_to_bits(layout.browser_rows.min.x),
-        browser_rows_min_y: f32_to_bits(layout.browser_rows.min.y),
-        browser_rows_max_x: f32_to_bits(layout.browser_rows.max.x),
-        browser_rows_max_y: f32_to_bits(layout.browser_rows.max.y),
+        browser_rows_min_x: f32_to_bits(content_rect.min.x),
+        browser_rows_min_y: f32_to_bits(content_rect.min.y),
+        browser_rows_max_x: f32_to_bits(content_rect.max.x),
+        browser_rows_max_y: f32_to_bits(content_rect.max.y),
         font_body_bits: f32_to_bits(style.sizing.font_body),
         font_meta_bits: f32_to_bits(style.sizing.font_meta),
         ui_scale: f32_to_bits(layout.ui_scale),
@@ -513,8 +522,10 @@ pub(super) fn rendered_browser_rows_cached_with_window_start(
     let (window_start, window_end) =
         browser_rows_window_bounds(layout, model, sizing, current_window_start);
     let window = &model.browser.rows[window_start..window_end];
+    let content_rect =
+        browser_rows_content_rect(layout.browser_rows, model.browser.visible_count, sizing);
     let row_rects = build_stacked_rows(
-        layout.browser_rows,
+        content_rect,
         window.len(),
         sizing.browser_row_gap,
         sizing.browser_row_height,
@@ -620,6 +631,35 @@ pub(super) fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens)
         .min(sizing.browser_rows_max_per_column.max(1))
 }
 
+/// Resolve the track metrics used by the browser scrollbar lane.
+fn browser_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
+    let track_inset_x = sizing.text_inset_x.clamp(2.0, 6.0);
+    let track_inset_y = (sizing.border_width + 2.0).clamp(2.0, 6.0);
+    let track_width = (sizing.border_width + 4.0).clamp(4.0, 8.0);
+    (track_inset_x, track_inset_y, track_width)
+}
+
+/// Return the browser-row content rect after reserving the scrollbar lane.
+pub(super) fn browser_rows_content_rect(
+    browser_rows_rect: Rect,
+    visible_count: usize,
+    sizing: SizingTokens,
+) -> Rect {
+    let row_capacity = browser_rows_capacity(browser_rows_rect, sizing);
+    if visible_count <= row_capacity {
+        return browser_rows_rect;
+    }
+    let (track_inset_x, _, track_width) = browser_scrollbar_track_metrics(sizing);
+    let reserved_width = track_inset_x + track_width + BROWSER_SCROLLBAR_CONTENT_GAP;
+    let content_max_x = (browser_rows_rect.max.x - reserved_width)
+        .round()
+        .max(browser_rows_rect.min.x + 1.0);
+    Rect::from_min_max(
+        browser_rows_rect.min,
+        Point::new(content_max_x, browser_rows_rect.max.y),
+    )
+}
+
 /// Compute visual scrollbar geometry for one overflowing browser row viewport.
 pub(super) fn browser_scrollbar_layout(
     browser_rows_rect: Rect,
@@ -635,9 +675,7 @@ pub(super) fn browser_scrollbar_layout(
         .visible_row
         .min(visible_count.saturating_sub(1));
     let viewport_len = rows.len().min(visible_count);
-    let track_inset_x = sizing.text_inset_x.clamp(2.0, 6.0);
-    let track_inset_y = (sizing.border_width + 2.0).clamp(2.0, 6.0);
-    let track_width = (sizing.border_width + 4.0).clamp(4.0, 8.0);
+    let (track_inset_x, track_inset_y, track_width) = browser_scrollbar_track_metrics(sizing);
     let track_max_x = browser_rows_rect.max.x - track_inset_x;
     let track_min_x = (track_max_x - track_width).max(browser_rows_rect.min.x);
     let track_min_y = (browser_rows_rect.min.y + track_inset_y).min(browser_rows_rect.max.y);

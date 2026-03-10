@@ -535,7 +535,7 @@ pub(super) fn rendered_browser_rows_cached_with_window_start(
     for (row, rect) in window.iter().zip(row_rects) {
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
         let rating_reserved_width =
-            browser_rating_indicator_reserved_width(row.rating_level, sizing);
+            browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing);
         let bucket_label_width = browser_inline_tag_max_width(
             row_text_layout.sample_label.width(),
             rating_reserved_width,

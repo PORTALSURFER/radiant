@@ -1113,6 +1113,7 @@ fn browser_rating_indicator_layout_stays_inside_sample_label() {
             right_limit_x: row_text.sample_label.max.x,
         },
         3,
+        false,
         sizing,
     )
     .expect("keep indicators should render");
@@ -1124,6 +1125,7 @@ fn browser_rating_indicator_layout_stays_inside_sample_label() {
             right_limit_x: row_text.sample_label.max.x,
         },
         -2,
+        false,
         sizing,
     )
     .expect("trash indicators should render");
@@ -1160,6 +1162,7 @@ fn browser_rating_indicator_layout_trails_rendered_label() {
             right_limit_x,
         },
         2,
+        false,
         sizing,
     )
     .expect("rating indicators should render");
@@ -1169,6 +1172,34 @@ fn browser_rating_indicator_layout_trails_rendered_label() {
     let last_rect = indicators.rects[indicators.count - 1];
     assert!(first_rect.min.x >= expected_min_x);
     assert!(last_rect.max.x <= right_limit_x);
+}
+
+#[test]
+fn locked_keep_rating_indicator_uses_single_wide_rect() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let sizing = style.sizing;
+    let row_rect = Rect::from_min_max(Point::new(80.0, 120.0), Point::new(520.0, 156.0));
+    let row_text = compute_browser_row_text_layout(row_rect, sizing);
+    let indicators = browser_rating_indicator_layout(
+        BrowserRatingIndicatorAnchor {
+            sample_label: row_text.sample_label,
+            label_origin_x: row_text.sample_label.min.x,
+            label_rendered_width: 42.0,
+            right_limit_x: row_text.sample_label.max.x,
+        },
+        3,
+        true,
+        sizing,
+    )
+    .expect("locked keep indicator should render");
+
+    assert_eq!(indicators.count, 1);
+    assert!(indicators.rects[0].width() > indicators.rects[0].height());
+    assert_eq!(
+        browser_rating_indicator_reserved_width(3, true, sizing),
+        indicators.rects[0].width() + browser_rating_indicator_text_gap(sizing)
+    );
 }
 
 #[test]

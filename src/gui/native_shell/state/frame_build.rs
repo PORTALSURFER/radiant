@@ -331,8 +331,11 @@ impl NativeShellState {
                     }
                     let inline_tag_reserved_width =
                         browser_inline_tag_reserved_width(&row.bucket_label, sizing);
-                    let rating_reserved_width =
-                        browser_rating_indicator_reserved_width(row.rating_level, sizing);
+                    let rating_reserved_width = browser_rating_indicator_reserved_width(
+                        row.rating_level,
+                        row.locked,
+                        sizing,
+                    );
                     let rating_indicator_layout = browser_rating_indicator_layout(
                         BrowserRatingIndicatorAnchor {
                             sample_label: row_text_layout.sample_label,
@@ -346,6 +349,7 @@ impl NativeShellState {
                                 - inline_tag_reserved_width,
                         },
                         row.rating_level,
+                        row.locked,
                         sizing,
                     );
                     if let Some(indicators) = rating_indicator_layout {
@@ -1921,7 +1925,11 @@ impl NativeShellState {
                         let inline_tag_reserved_width =
                             browser_inline_tag_reserved_width(&row.bucket_label, sizing);
                         let mut label_max_width = (row_text_layout.sample_label.width()
-                            - browser_rating_indicator_reserved_width(row.rating_level, sizing)
+                            - browser_rating_indicator_reserved_width(
+                                row.rating_level,
+                                row.locked,
+                                sizing,
+                            )
                             - inline_tag_reserved_width)
                             .max(20.0);
                         if row.missing {

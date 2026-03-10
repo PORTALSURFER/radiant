@@ -228,7 +228,7 @@ pub(super) fn render_options_panel(
     }
 }
 
-fn options_panel_button_defs(model: &AppModel) -> [(&'static str, UiAction); 5] {
+fn options_panel_button_defs(model: &AppModel) -> [(&'static str, UiAction); 7] {
     [
         (
             "Input Monitor",
@@ -254,6 +254,8 @@ fn options_panel_button_defs(model: &AppModel) -> [(&'static str, UiAction); 5] 
                 enabled: !model.options_panel.invert_waveform_scroll_enabled,
             },
         ),
+        ("Set Trash Folder", UiAction::PickTrashFolder),
+        ("Open Trash Folder", UiAction::OpenTrashFolder),
         ("Close", UiAction::CloseOptionsPanel),
     ]
 }
@@ -266,6 +268,14 @@ fn options_panel_button_text(label: &str, model: &AppModel) -> String {
         }
         "YOLO Edits" => on_off_text(label, model.options_panel.destructive_yolo_mode_enabled),
         "Invert Scroll" => on_off_text(label, model.options_panel.invert_waveform_scroll_enabled),
+        "Set Trash Folder" => format!(
+            "Trash Folder: {}",
+            model
+                .options_panel
+                .trash_folder_label
+                .as_deref()
+                .unwrap_or("Not set")
+        ),
         _ => String::from(label),
     }
 }

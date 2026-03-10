@@ -4390,6 +4390,50 @@ fn options_panel_contains_points_inside_panel() {
 }
 
 #[test]
+fn options_panel_trash_folder_buttons_emit_expected_actions() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            trash_folder_label: Some(String::from("trash_bin")),
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+    let set_button = panel
+        .buttons
+        .iter()
+        .find(|button| button.action == UiAction::PickTrashFolder)
+        .expect("set trash folder button should be present");
+    let set_point = Point::new(
+        (set_button.rect.min.x + set_button.rect.max.x) * 0.5,
+        (set_button.rect.min.y + set_button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, set_point),
+        Some(UiAction::PickTrashFolder)
+    );
+
+    let open_button = panel
+        .buttons
+        .iter()
+        .find(|button| button.action == UiAction::OpenTrashFolder)
+        .expect("open trash folder button should be present");
+    let open_point = Point::new(
+        (open_button.rect.min.x + open_button.rect.max.x) * 0.5,
+        (open_button.rect.min.y + open_button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, open_point),
+        Some(UiAction::OpenTrashFolder)
+    );
+}
+
+#[test]
 fn top_bar_volume_drag_clamps_beyond_meter_bounds() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();

@@ -650,6 +650,8 @@ pub struct OptionsPanelModel {
     pub destructive_yolo_mode_enabled: bool,
     /// Whether waveform scrolling is inverted.
     pub invert_waveform_scroll_enabled: bool,
+    /// Short display label for the configured trash folder, when available.
+    pub trash_folder_label: Option<String>,
 }
 
 /// Prompt types that can block interaction in the native shell.
@@ -838,6 +840,10 @@ pub enum UiAction {
     OpenOptionsMenu,
     /// Close the native options panel.
     CloseOptionsPanel,
+    /// Open a folder picker for the configured trash destination.
+    PickTrashFolder,
+    /// Open the configured trash folder in the OS file explorer.
+    OpenTrashFolder,
     /// Focus the source-folder search field.
     FocusFolderSearch,
     /// Set folder search query.

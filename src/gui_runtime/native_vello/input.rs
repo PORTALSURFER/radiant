@@ -13,6 +13,11 @@ pub(super) enum WaveformPointerDragMode {
         /// Fixed anchor milli captured at drag start.
         anchor_milli: u16,
     },
+    /// Drag resizes a playback selection without snapping and recomputes BPM from a 4-beat span.
+    SelectionSmartScale {
+        /// Fixed anchor milli captured at drag start.
+        anchor_milli: u16,
+    },
     /// Drag shifts the playback selection while preserving its width.
     SelectionShift {
         /// Pointer milli captured at drag start.
@@ -356,9 +361,18 @@ pub(super) fn waveform_action_from_pointer(
         return action;
     }
     if !command
+        && alt
+        && !shift
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, true)
+    {
+        return action;
+    }
+    if !command
         && !alt
         && !shift
-        && let Some(action) = waveform_selection_resize_action_from_pointer(layout, model, point)
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, false)
     {
         return action;
     }
@@ -390,7 +404,8 @@ pub(super) fn waveform_resize_handle_hovered(
         || waveform_edit_selection_shift_action_from_pointer(layout, model, point).is_some()
         || waveform_edit_resize_action_from_pointer(layout, model, point).is_some()
         || waveform_edit_fade_handle_action_from_pointer(layout, model, point).is_some()
-        || waveform_selection_resize_action_from_pointer(layout, model, point).is_some()
+        || waveform_selection_resize_action_from_pointer(layout, model, point, false).is_some()
+        || waveform_selection_resize_action_from_pointer(layout, model, point, true).is_some()
 }
 
 /// Resolve one selection-drag action when the pointer lands on the playback-selection handle.
@@ -456,6 +471,7 @@ fn waveform_selection_resize_action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
+    smart_scale: bool,
 ) -> Option<UiAction> {
     let selection = model.waveform.selection_milli?;
     if !layout.waveform_plot.contains(point) {
@@ -481,14 +497,28 @@ fn waveform_selection_resize_action_from_pointer(
     }
     let position_milli = waveform_position_milli_from_point(layout, model, point);
     if left_hit && (!right_hit || left_distance <= right_distance) {
-        return Some(UiAction::SetWaveformSelectionRange {
-            start_milli: selection_end,
-            end_milli: position_milli,
+        return Some(if smart_scale {
+            UiAction::SetWaveformSelectionRangeSmartScale {
+                start_milli: selection_end,
+                end_milli: position_milli,
+            }
+        } else {
+            UiAction::SetWaveformSelectionRange {
+                start_milli: selection_end,
+                end_milli: position_milli,
+            }
         });
     }
-    Some(UiAction::SetWaveformSelectionRange {
-        start_milli: selection_start,
-        end_milli: position_milli,
+    Some(if smart_scale {
+        UiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli: selection_start,
+            end_milli: position_milli,
+        }
+    } else {
+        UiAction::SetWaveformSelectionRange {
+            start_milli: selection_start,
+            end_milli: position_milli,
+        }
     })
 }
 
@@ -533,6 +563,12 @@ pub(super) fn waveform_drag_action_for_mode(
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor { position_milli },
         WaveformPointerDragMode::Selection { anchor_milli } => {
             UiAction::SetWaveformSelectionRange {
+                start_milli: anchor_milli,
+                end_milli: position_milli,
+            }
+        }
+        WaveformPointerDragMode::SelectionSmartScale { anchor_milli } => {
+            UiAction::SetWaveformSelectionRangeSmartScale {
                 start_milli: anchor_milli,
                 end_milli: position_milli,
             }
@@ -595,6 +631,11 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
         UiAction::SetWaveformSelectionRange { start_milli, .. } => {
             Some(WaveformPointerDragMode::Selection {
+                anchor_milli: *start_milli,
+            })
+        }
+        UiAction::SetWaveformSelectionRangeSmartScale { start_milli, .. } => {
+            Some(WaveformPointerDragMode::SelectionSmartScale {
                 anchor_milli: *start_milli,
             })
         }
@@ -663,6 +704,7 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
     !matches!(
         action,
         UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::BeginWaveformSelectionShift { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::BeginWaveformEditSelectionShift { .. }

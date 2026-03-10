@@ -1369,6 +1369,32 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
 }
 
 #[test]
+fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x + 2.0, y);
+    let position_milli = waveform_position_milli_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::ALT,
+        ),
+        Some(UiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli: 800,
+            end_milli: position_milli,
+        })
+    );
+}
+
+#[test]
 fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
@@ -1569,6 +1595,13 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRangeSmartScale {
+            start_milli: 125,
+            end_milli: 250,
+        }),
+        Some(WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 125 })
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::BeginWaveformSelectionShift {
             pointer_milli: 400,
             start_milli: 125,
@@ -1642,6 +1675,9 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         WaveformPointerDragMode::Selection { anchor_milli: 250 }
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
+        WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 250 }
+    ));
+    assert!(!waveform_drag_mode_is_edit_fade(
         WaveformPointerDragMode::EditSelectionShift {
             pointer_milli: 400,
             start_milli: 200,
@@ -1664,6 +1700,12 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformSelectionRange {
+            start_milli: 125,
+            end_milli: 250,
+        }
+    ));
+    assert!(!waveform_press_action_emits_immediately(
+        &UiAction::SetWaveformSelectionRangeSmartScale {
             start_milli: 125,
             end_milli: 250,
         }
@@ -1892,6 +1934,18 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::Selection { anchor_milli: 200 }
         ),
         UiAction::SetWaveformSelectionRange {
+            start_milli: 200,
+            end_milli: 1000,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 200 }
+        ),
+        UiAction::SetWaveformSelectionRangeSmartScale {
             start_milli: 200,
             end_milli: 1000,
         }

@@ -1070,6 +1070,13 @@ pub enum UiAction {
         /// Selection end position in normalized milli-units.
         end_milli: u16,
     },
+    /// Set waveform selection bounds without BPM snapping and recalculate BPM for a 4-beat span.
+    SetWaveformSelectionRangeSmartScale {
+        /// Selection anchor/start position in normalized milli-units.
+        start_milli: u16,
+        /// Selection dragged edge position in normalized milli-units.
+        end_milli: u16,
+    },
     /// Set waveform edit-selection bounds in normalized milli space (`0..=1000`).
     SetWaveformEditSelectionRange {
         /// Edit-selection start position in normalized milli-units.

@@ -1062,6 +1062,16 @@ fn key_bindings_emit_folder_actions() {
 }
 
 #[test]
+fn key_bindings_map_z_to_waveform_zoom_when_waveform_is_focused() {
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::Waveform;
+    assert_eq!(
+        action_from_key(KeyCode::Z, ModifiersState::default(), &model),
+        Some(UiAction::ZoomWaveformToSelection)
+    );
+}
+
+#[test]
 fn key_bindings_map_u_to_undo_and_shift_u_to_redo() {
     let model = AppModel::default();
 

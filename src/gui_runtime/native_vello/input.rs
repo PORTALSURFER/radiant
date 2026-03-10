@@ -202,7 +202,10 @@ pub(super) fn action_from_key(
         KeyCode::Y => Some(UiAction::TagBrowserSelection {
             target: crate::app::BrowserTagTarget::Keep,
         }),
-        KeyCode::Z => Some(UiAction::StartFolderRename),
+        KeyCode::Z => match model.focus_context {
+            crate::app::FocusContextModel::Waveform => Some(UiAction::ZoomWaveformToSelection),
+            _ => Some(UiAction::StartFolderRename),
+        },
         _ => None,
     }
 }

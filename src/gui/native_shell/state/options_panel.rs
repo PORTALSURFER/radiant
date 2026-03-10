@@ -1,4 +1,4 @@
-//! Status-bar options button and options-panel helpers for the native shell.
+//! Top-right options button and options-panel helpers for the native shell.
 
 use super::*;
 
@@ -67,13 +67,15 @@ pub(super) fn options_panel_layout(
         + (button_height * definitions.len() as f32)
         + (button_gap * definitions.len().saturating_sub(1) as f32)
         + panel_padding;
-    let max_x = layout.status_bar.max.x - sizing.panel_inset.max(6.0);
-    let min_x = (max_x - panel_width).max(layout.content.min.x + sizing.panel_inset.max(6.0));
-    let max_y = layout.status_bar.min.y - sizing.panel_inset.max(6.0);
-    let min_y = (max_y - panel_height).max(layout.top_bar.max.y + sizing.panel_inset.max(6.0));
+    let inset = sizing.panel_inset.max(6.0);
+    let max_x = layout.top_bar.max.x - inset;
+    let min_x = (max_x - panel_width).max(layout.content.min.x + inset);
+    let min_y = layout.top_bar.max.y + inset;
+    let max_y = (min_y + panel_height).min(layout.status_bar.min.y - inset);
+    let min_y = (max_y - panel_height).max(layout.top_bar.max.y + inset);
     let panel_rect = Rect::from_min_max(
         Point::new(min_x, min_y),
-        Point::new(min_x + panel_width, min_y + panel_height),
+        Point::new(min_x + panel_width, max_y),
     );
     let title_rect = Rect::from_min_max(
         Point::new(

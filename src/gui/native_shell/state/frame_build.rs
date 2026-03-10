@@ -577,6 +577,19 @@ impl NativeShellState {
                     },
                 );
             }
+            if let Some(button_rect) =
+                status_options_button_rect(layout.top_bar_action_cluster, sizing)
+            {
+                render_status_options_button(
+                    primitives,
+                    style,
+                    sizing,
+                    button_rect,
+                    self.hovered_status_options_button,
+                    self.status_options_button_flash_ticks > 0,
+                    motion_wave,
+                );
+            }
         }
         if build_browser_frame {
             for button in &browser_buttons {
@@ -1548,8 +1561,6 @@ impl NativeShellState {
             };
             let inline_progress_active =
                 model.progress_overlay.visible && !model.progress_overlay.modal;
-            let options_button_rect =
-                status_options_button_rect(layout.status_right_segment, sizing);
             let status_left_text_rect = compute_status_text_line_rect(
                 layout.status_left_segment,
                 sizing,
@@ -1561,7 +1572,7 @@ impl NativeShellState {
                 sizing.font_status,
             );
             let status_right_text_rect =
-                status_right_text_rect(layout.status_right_segment, sizing, options_button_rect);
+                status_right_text_rect(layout.status_right_segment, sizing, None);
             emit_text(
                 text_runs,
                 TextRun {
@@ -1662,17 +1673,6 @@ impl NativeShellState {
                     align: TextAlign::Right,
                 },
             );
-            if let Some(button_rect) = options_button_rect {
-                render_status_options_button(
-                    primitives,
-                    style,
-                    sizing,
-                    button_rect,
-                    false,
-                    false,
-                    0.0,
-                );
-            }
         }
 
         if include_overlays {

@@ -1047,11 +1047,14 @@ impl NativeShellState {
         point: Point,
         hover: Option<ShellNodeKind>,
     ) -> bool {
-        if hover != Some(ShellNodeKind::StatusBar) {
+        if hover != Some(ShellNodeKind::TopBar) {
             return false;
         }
-        status_options_button_rect(layout.status_right_segment, style_for_layout(layout).sizing)
-            .is_some_and(|rect| rect.contains(point))
+        status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        )
+        .is_some_and(|rect| rect.contains(point))
     }
 
     fn resolve_hovered_waveform_toolbar_hint(
@@ -1239,10 +1242,13 @@ impl NativeShellState {
         source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
     }
 
-    /// Return the status-bar options button rect in tests.
+    /// Return the top-right options button rect in tests.
     #[cfg(test)]
     pub(crate) fn status_options_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
-        status_options_button_rect(layout.status_right_segment, style_for_layout(layout).sizing)
+        status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        )
     }
 
     /// Return whether a point falls inside the visible options panel.
@@ -1529,7 +1535,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         let Some(button_rect) = status_options_button_rect(
-            layout.status_right_segment,
+            layout.top_bar_action_cluster,
             style_for_layout(layout).sizing,
         ) else {
             return None;
@@ -2174,7 +2180,8 @@ impl NativeShellState {
                 );
             }
         }
-        if let Some(button_rect) = status_options_button_rect(layout.status_right_segment, sizing) {
+        if let Some(button_rect) = status_options_button_rect(layout.top_bar_action_cluster, sizing)
+        {
             let hovered = self.hovered_status_options_button;
             let flashed = self.status_options_button_flash_ticks > 0;
             if hovered || flashed {
@@ -2237,7 +2244,7 @@ impl NativeShellState {
             layout,
             style,
             &model.status_right,
-            status_options_button_rect(layout.status_right_segment, sizing),
+            None,
         );
 
         frame.clear_color = style.clear_color;

@@ -253,19 +253,7 @@ fn chrome_motion_status_overlay_preserves_status_bar_border_lines() {
     let mut model = AppModel::default();
     model.status.right = String::from("2/3");
     let motion = NativeMotionModel::from_app_model(&model);
-    let options_button = state.status_options_button_rect(&layout);
-    let overlay_segment = if let Some(button_rect) = options_button {
-        Rect::from_min_max(
-            layout.status_right_segment.min,
-            Point::new(
-                (button_rect.min.x - style.sizing.text_inset_x.max(3.0))
-                    .max(layout.status_right_segment.min.x),
-                layout.status_right_segment.max.y,
-            ),
-        )
-    } else {
-        layout.status_right_segment
-    };
+    let overlay_segment = layout.status_right_segment;
     let overlay_rect = status_motion_overlay_rect(overlay_segment, style.sizing.border_width);
 
     let mut frame = NativeViewFrame::default();
@@ -4517,10 +4505,7 @@ fn options_panel_contains_points_inside_panel() {
         },
         ..AppModel::default()
     };
-    let point = Point::new(
-        layout.status_bar.max.x - 40.0,
-        layout.status_bar.min.y - 40.0,
-    );
+    let point = Point::new(layout.top_bar.max.x - 40.0, layout.top_bar.max.y + 40.0);
     assert!(state.options_panel_contains_point(&layout, &model, point));
 }
 

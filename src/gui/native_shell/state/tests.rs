@@ -1423,15 +1423,11 @@ fn browser_virtualization_scrolls_down_for_bottom_rows_in_prewindowed_slice() {
     let bottom_focus = host_window_start + row_capacity.saturating_sub(1);
     let mut state = NativeShellState::new();
     let bottom_model = build_model(bottom_focus);
-    let scrolled_start = state
-        .browser_view_start_visible_row(&layout, &bottom_model)
-        .expect("browser viewport should resolve a visible start");
+    let scrolled_start = bottom_model.browser.view_start_row;
     assert!(scrolled_start > host_window_start);
 
     let interior_model = build_model(scrolled_start + 5);
-    let preserved_start = state
-        .browser_view_start_visible_row(&layout, &interior_model)
-        .expect("browser viewport should stay resolved after scrolling");
+    let preserved_start = interior_model.browser.view_start_row;
     assert_eq!(preserved_start, scrolled_start);
 }
 
@@ -4196,6 +4192,88 @@ fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
         })
         .count();
     assert_eq!(trail_after_jump, 0);
+}
+
+#[test]
+fn waveform_motion_overlay_clears_trail_when_view_window_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let mut frame = NativeViewFrame::default();
+    model.transport_running = true;
+    model.waveform.playhead_milli = Some(200);
+    let first = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &first, &mut frame);
+    model.waveform.playhead_milli = Some(240);
+    let second = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &second, &mut frame);
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+    let trail_before_view_change = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert!(
+        trail_before_view_change > 0,
+        "expected baseline running trail before panning"
+    );
+
+    model.waveform.view_start_milli = 200;
+    model.waveform.view_end_milli = 600;
+    model.waveform.view_start_micros = 200_000;
+    model.waveform.view_end_micros = 600_000;
+    let panned = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &panned, &mut frame);
+
+    let panned_playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("panned playhead marker");
+    let trail_after_view_change = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == panned_playhead_rect.min.y
+                    && rect.rect.max.y == panned_playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert_eq!(trail_after_view_change, 0);
 }
 
 #[test]

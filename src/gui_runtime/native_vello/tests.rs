@@ -2649,11 +2649,12 @@ fn browser_wheel_delta_is_bounded_and_directional() {
 
 #[test]
 fn browser_view_start_after_wheel_clamps_to_visible_bounds() {
-    assert_eq!(browser_view_start_after_wheel(10, 40, -3), Some(7));
-    assert_eq!(browser_view_start_after_wheel(0, 40, -3), Some(0));
-    assert_eq!(browser_view_start_after_wheel(38, 40, 5), Some(39));
-    assert_eq!(browser_view_start_after_wheel(4, 0, 2), None);
-    assert_eq!(browser_view_start_after_wheel(4, 20, 0), None);
+    assert_eq!(browser_view_start_after_wheel(10, 40, 12, -3), Some(7));
+    assert_eq!(browser_view_start_after_wheel(0, 40, 12, -3), Some(0));
+    assert_eq!(browser_view_start_after_wheel(27, 40, 12, 5), Some(28));
+    assert_eq!(browser_view_start_after_wheel(4, 0, 12, 2), None);
+    assert_eq!(browser_view_start_after_wheel(4, 20, 0, 2), None);
+    assert_eq!(browser_view_start_after_wheel(4, 20, 12, 0), None);
 }
 
 #[test]

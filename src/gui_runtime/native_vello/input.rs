@@ -1243,12 +1243,13 @@ pub(super) fn browser_wheel_row_delta(
 pub(super) fn browser_view_start_after_wheel(
     current_view_start: usize,
     visible_count: usize,
+    viewport_len: usize,
     steps: i8,
 ) -> Option<usize> {
-    if visible_count == 0 || steps == 0 {
+    if visible_count == 0 || viewport_len == 0 || steps == 0 {
         return None;
     }
-    let max_start = visible_count.saturating_sub(1);
+    let max_start = visible_count.saturating_sub(viewport_len.min(visible_count));
     let target = (current_view_start as isize + steps as isize).clamp(0, max_start as isize);
     Some(target as usize)
 }

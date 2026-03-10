@@ -4577,14 +4577,13 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         if let Some(delta) =
                             browser_wheel_row_delta(layout, &this.model, point, &style, delta)
                         {
-                            let current_view_start = this
-                                .shell_state
-                                .browser_view_start_visible_row(layout, &this.model)
-                                .or(this.model.browser.selected_visible_row)
-                                .unwrap_or(0);
+                            let viewport_len =
+                                this.shell_state.browser_viewport_len(layout, &this.model);
+                            let current_view_start = this.model.browser.view_start_row;
                             if let Some(visible_row) = browser_view_start_after_wheel(
                                 current_view_start,
                                 this.model.browser.visible_count,
+                                viewport_len,
                                 delta,
                             ) {
                                 let _ = this.process_wheel_rows_immediately(visible_row);

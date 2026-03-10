@@ -106,6 +106,7 @@ pub(crate) struct NativeShellState {
     waveform_bpm_editor_visual: Option<TextFieldVisualState>,
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
+    last_waveform_view_window: Option<(u32, u32)>,
     playhead_trail_samples: Vec<PlayheadTrailSample>,
     playhead_trail_elapsed_seconds: f32,
     transport_running: bool,
@@ -684,6 +685,7 @@ impl NativeShellState {
             waveform_bpm_editor_visual: None,
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
+            last_waveform_view_window: None,
             playhead_trail_samples: Vec::new(),
             playhead_trail_elapsed_seconds: 0.0,
             transport_running: true,
@@ -1380,16 +1382,12 @@ impl NativeShellState {
             .map(|index| rows[index].visible_row)
     }
 
-    /// Return the current top visible browser row for the rendered viewport.
-    pub(crate) fn browser_view_start_visible_row(
-        &mut self,
-        layout: &ShellLayout,
-        model: &AppModel,
-    ) -> Option<usize> {
+    /// Return the current rendered browser viewport length.
+    pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
         let style = style_for_layout(layout);
         self.cached_browser_rows(layout, &style, model)
-            .first()
-            .map(|row| row.visible_row)
+            .len()
+            .min(model.browser.visible_count)
     }
 
     /// Return the pointer's offset within the browser scrollbar thumb when hovered.
@@ -1996,12 +1994,21 @@ impl NativeShellState {
         let now_seconds = self.playhead_trail_elapsed_seconds;
         let previous = self.last_waveform_playhead_micros;
         let current = Self::playhead_position_micros(model);
+        let view_window = (
+            model.waveform_view_start_micros,
+            model.waveform_view_end_micros,
+        );
+        let view_changed = self.last_waveform_view_window.replace(view_window) != Some(view_window);
         self.last_waveform_playhead_micros = current;
         if current.is_none() {
             self.playhead_trail_samples.clear();
             return Vec::new();
         }
         if !model.transport_running {
+            self.playhead_trail_samples.clear();
+            return Vec::new();
+        }
+        if view_changed {
             self.playhead_trail_samples.clear();
             return Vec::new();
         }

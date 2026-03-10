@@ -546,6 +546,12 @@ pub(super) fn waveform_edit_action_from_pointer(
     if let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point) {
         return action;
     }
+    if layout.waveform_plot.contains(point)
+        && model.waveform.edit_selection_milli.is_some()
+        && !waveform_edit_selection_contains_point(layout, model, point)
+    {
+        return UiAction::ClearWaveformEditSelection;
+    }
     let position_milli = waveform_position_milli_from_point(layout, model, point);
     UiAction::SetWaveformEditSelectionRange {
         start_milli: position_milli,
@@ -949,6 +955,30 @@ fn waveform_edit_resize_action_from_pointer(
         end_milli: position_milli,
         preserve_view_edge: false,
     })
+}
+
+/// Return whether a waveform point lands inside the current edit-selection body.
+fn waveform_edit_selection_contains_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> bool {
+    let selection = match model.waveform.edit_selection_milli {
+        Some(selection) if layout.waveform_plot.contains(point) => selection,
+        _ => return false,
+    };
+    let selection_start = selection.start_milli.min(selection.end_milli);
+    let selection_end = selection.start_milli.max(selection.end_milli);
+    if selection_end <= selection_start {
+        return false;
+    }
+    let start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
+    let end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    UiRect::from_min_max(
+        Point::new(start_x.min(end_x), layout.waveform_plot.min.y),
+        Point::new(start_x.max(end_x), layout.waveform_plot.max.y),
+    )
+    .contains(point)
 }
 
 /// Return the expanded hit rect for the playback-selection drag handle.

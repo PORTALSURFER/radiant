@@ -1486,6 +1486,23 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
 }
 
 #[test]
+fn waveform_right_click_outside_edit_selection_clears_it() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        y,
+    );
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
+        UiAction::ClearWaveformEditSelection
+    );
+}
+
+#[test]
 fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();

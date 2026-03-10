@@ -521,6 +521,81 @@ fn waveform_toolbar_toggle_buttons_share_warning_accent_when_enabled() {
 }
 
 #[test]
+fn folder_rows_use_single_pixel_shared_separator() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.sources.folder_rows.push(FolderRowModel::new(
+        "folder_a",
+        String::new(),
+        0,
+        false,
+        false,
+        false,
+        true,
+        true,
+    ));
+    model.sources.folder_rows.push(FolderRowModel::new(
+        "folder_b",
+        String::new(),
+        0,
+        false,
+        false,
+        false,
+        true,
+        true,
+    ));
+
+    let folder_rows = rendered_folder_row_rects(&layout, &style, &model);
+    assert!(folder_rows.len() >= 2, "expected at least two folder rows");
+    let shared_boundary_y = folder_rows[1].min.y;
+    let stroke = style.sizing.border_width.max(1.0);
+
+    let mut state = NativeShellState::new();
+    let frame = state.build_frame(&layout, &model);
+
+    let top_separator_count = frame
+        .primitives
+        .iter()
+        .filter(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, color })
+                    if *color == style.border
+                        && rect.min.x == folder_rows[0].min.x
+                        && rect.max.x == folder_rows[0].max.x
+                        && rect.min.y == shared_boundary_y
+                        && rect.max.y == shared_boundary_y + stroke
+            )
+        })
+        .count();
+    let lower_stacked_separator_count = frame
+        .primitives
+        .iter()
+        .filter(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, color })
+                    if *color == style.border
+                        && rect.min.x == folder_rows[0].min.x
+                        && rect.max.x == folder_rows[0].max.x
+                        && rect.min.y == shared_boundary_y - stroke
+                        && rect.max.y == shared_boundary_y
+            )
+        })
+        .count();
+
+    assert_eq!(
+        top_separator_count, 1,
+        "expected one shared folder-row separator"
+    );
+    assert_eq!(
+        lower_stacked_separator_count, 0,
+        "folder rows should not stack a second border under the shared separator"
+    );
+}
+
+#[test]
 fn waveform_bpm_input_focus_overlay_uses_active_input_chrome() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

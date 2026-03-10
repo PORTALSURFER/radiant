@@ -867,6 +867,7 @@ impl NativeShellState {
                         );
                     }
                 }
+                let last_folder_row_max_y = folder_row_rects.last().map(|rect| rect.max.y);
                 for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
                     let row_rect = *row_rect;
                     let row = &model.sources.folder_rows[row_index];
@@ -894,7 +895,7 @@ impl NativeShellState {
                             color: row_fill,
                         }),
                     );
-                    push_border(
+                    push_browser_row_border(
                         primitives,
                         row_rect,
                         if row.focused {
@@ -916,6 +917,12 @@ impl NativeShellState {
                             sizing.focus_stroke_width
                         } else {
                             sizing.border_width
+                        },
+                        BorderSides {
+                            top: true,
+                            bottom: row.focused || Some(row_rect.max.y) == last_folder_row_max_y,
+                            left: row.focused,
+                            right: row.focused,
                         },
                     );
                     let glyph = if row.is_root {
@@ -1708,6 +1715,7 @@ impl NativeShellState {
 
             {
                 let folder_row_rects = self.cached_folder_row_rects(layout, style, model);
+                let last_folder_row_max_y = folder_row_rects.last().map(|rect| rect.max.y);
                 for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
                     let Some(row) = model.sources.folder_rows.get(row_index) else {
                         continue;
@@ -1729,7 +1737,7 @@ impl NativeShellState {
                         );
                     }
                     if row.focused || row.selected {
-                        push_border(
+                        push_browser_row_border(
                             primitives,
                             *row_rect,
                             if row.focused {
@@ -1749,6 +1757,13 @@ impl NativeShellState {
                                 sizing.focus_stroke_width
                             } else {
                                 sizing.border_width
+                            },
+                            BorderSides {
+                                top: true,
+                                bottom: row.focused
+                                    || Some(row_rect.max.y) == last_folder_row_max_y,
+                                left: row.focused,
+                                right: row.focused,
                             },
                         );
                     }

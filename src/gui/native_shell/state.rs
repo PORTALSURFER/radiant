@@ -1739,6 +1739,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         if !model.progress_overlay.visible
+            || !model.progress_overlay.modal
             || !model.progress_overlay.cancelable
             || model.progress_overlay.cancel_requested
         {

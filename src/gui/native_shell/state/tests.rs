@@ -4569,6 +4569,94 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
 }
 
 #[test]
+fn non_modal_progress_renders_status_bar_indicator_without_overlay_dialog() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        progress_overlay: crate::app::ProgressOverlayModel {
+            visible: true,
+            modal: false,
+            title: String::from("Normalizing sample"),
+            detail: Some(String::from("kick.wav")),
+            completed: 2,
+            total: 5,
+            cancelable: true,
+            cancel_requested: false,
+        },
+        ..AppModel::default()
+    };
+
+    let frame = state.build_frame_with_style(&layout, &style, &model);
+    let overlay_rect = compute_progress_overlay_visual_layout(
+        layout.root.rect,
+        layout.content,
+        style.sizing,
+        false,
+        0.4,
+    )
+    .sections
+    .dialog;
+
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("job active")),
+        "status bar should announce an active job"
+    );
+    assert!(
+        frame.text_runs.iter().any(|run| run.text == "2/5"),
+        "status bar should show progress counts"
+    );
+    assert!(
+        frame.primitives.iter().any(|primitive| matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect.min.x >= layout.status_center_segment.min.x
+                    && rect.rect.max.x <= layout.status_center_segment.max.x
+                    && rect.color == style.accent_mint
+        )),
+        "status bar should render an inline progress fill"
+    );
+    assert!(
+        !frame.primitives.iter().any(|primitive| matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == overlay_rect && rect.color == style.surface_overlay
+        )),
+        "non-modal jobs should not render the floating overlay dialog"
+    );
+}
+
+#[test]
+fn non_modal_progress_does_not_expose_cancel_hit_target() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let state = NativeShellState::new();
+    let model = AppModel {
+        progress_overlay: crate::app::ProgressOverlayModel {
+            visible: true,
+            modal: false,
+            title: String::from("Normalizing"),
+            completed: 0,
+            total: 1,
+            cancelable: true,
+            cancel_requested: false,
+            ..crate::app::ProgressOverlayModel::default()
+        },
+        ..AppModel::default()
+    };
+    let cancel_button = progress_cancel_button(&layout, &style, false);
+    let point = Point::new(
+        (cancel_button.min.x + cancel_button.max.x) * 0.5,
+        (cancel_button.min.y + cancel_button.max.y) * 0.5,
+    );
+
+    assert_eq!(state.progress_action_at_point(&layout, &model, point), None);
+}
+
+#[test]
 fn state_overlay_renders_options_panel_when_visible() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

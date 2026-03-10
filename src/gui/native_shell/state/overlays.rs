@@ -60,7 +60,7 @@ pub(super) fn render_progress_overlay(
     style: &StyleTokens,
     model: &AppModel,
 ) {
-    if !model.progress_overlay.visible {
+    if !model.progress_overlay.visible || !model.progress_overlay.modal {
         return;
     }
     let sizing = style.sizing;

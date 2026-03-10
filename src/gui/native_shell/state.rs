@@ -62,8 +62,10 @@ const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
 };
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
 const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 192;
-/// Number of overlay frames used to fade one playhead ghost line.
-const PLAYHEAD_TRAIL_FADE_FRAMES: u64 = 72;
+/// Number of seconds used to fade one retained playhead ghost line.
+///
+/// Time-based aging avoids visible fade quantization when redraw cadence varies.
+const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
 /// Maximum inserted in-between samples per motion frame for smooth trails.
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 24;
 /// Largest contiguous frame delta treated as normal transport motion.
@@ -98,7 +100,7 @@ pub(crate) struct NativeShellState {
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
     playhead_trail_samples: Vec<PlayheadTrailSample>,
-    playhead_trail_frame_index: u64,
+    playhead_trail_elapsed_seconds: f32,
     transport_running: bool,
     has_focus_emphasis: bool,
     startup_frame_ticks: u8,
@@ -244,8 +246,8 @@ struct SourceContextMenuState {
 struct PlayheadTrailSample {
     /// Normalized x-position in `0.0..=1.0`.
     ratio: f32,
-    /// Overlay frame index when this sample was captured.
-    frame_index: u64,
+    /// Monotonic animation clock value when this sample was captured.
+    captured_at_seconds: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -676,7 +678,7 @@ impl NativeShellState {
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
             playhead_trail_samples: Vec::new(),
-            playhead_trail_frame_index: 0,
+            playhead_trail_elapsed_seconds: 0.0,
             transport_running: true,
             has_focus_emphasis: false,
             startup_frame_ticks: 2,
@@ -871,6 +873,8 @@ impl NativeShellState {
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.
     pub(crate) fn tick_with_style(&mut self, delta_seconds: f32, style: &StyleTokens) {
+        self.playhead_trail_elapsed_seconds =
+            (self.playhead_trail_elapsed_seconds + delta_seconds.max(0.0)).max(0.0);
         if self.needs_animation() {
             let speed = if self.transport_running {
                 style.motion_speed_transport
@@ -1887,8 +1891,7 @@ impl NativeShellState {
         waveform_plot: Rect,
         model: &NativeMotionModel,
     ) -> Vec<PlayheadTrailLine> {
-        self.playhead_trail_frame_index = self.playhead_trail_frame_index.saturating_add(1);
-        let frame_index = self.playhead_trail_frame_index;
+        let now_seconds = self.playhead_trail_elapsed_seconds;
         let previous = self.last_waveform_playhead_micros;
         let current = Self::playhead_position_micros(model);
         self.last_waveform_playhead_micros = current;
@@ -1905,10 +1908,10 @@ impl NativeShellState {
             true,
             previous,
             current,
-            frame_index,
+            now_seconds,
         );
-        self.prune_playhead_trail_samples(frame_index);
-        self.playhead_trail_lines(frame_index)
+        self.prune_playhead_trail_samples(now_seconds);
+        self.playhead_trail_lines(now_seconds)
     }
 
     /// Resolve normalized playhead position using micro precision when available.
@@ -1941,7 +1944,7 @@ impl NativeShellState {
         transport_running: bool,
         previous: Option<u32>,
         current: Option<u32>,
-        frame_index: u64,
+        captured_at_seconds: f32,
     ) {
         if !transport_running {
             return;
@@ -1966,8 +1969,10 @@ impl NativeShellState {
         for step in 0..steps {
             let progress = step as f32 / steps as f32;
             let ratio = (previous_ratio + (delta_ratio * progress)).rem_euclid(1.0);
-            self.playhead_trail_samples
-                .push(PlayheadTrailSample { ratio, frame_index });
+            self.playhead_trail_samples.push(PlayheadTrailSample {
+                ratio,
+                captured_at_seconds,
+            });
         }
     }
 
@@ -1983,9 +1988,9 @@ impl NativeShellState {
     }
 
     /// Remove expired and overflowed trail samples from retained state.
-    fn prune_playhead_trail_samples(&mut self, frame_index: u64) {
+    fn prune_playhead_trail_samples(&mut self, now_seconds: f32) {
         self.playhead_trail_samples.retain(|sample| {
-            frame_index.saturating_sub(sample.frame_index) <= PLAYHEAD_TRAIL_FADE_FRAMES
+            (now_seconds - sample.captured_at_seconds).max(0.0) <= PLAYHEAD_TRAIL_FADE_SECONDS
         });
         let overflow = self
             .playhead_trail_samples
@@ -1997,14 +2002,13 @@ impl NativeShellState {
     }
 
     /// Project retained trail samples into drawable ghost-line primitives.
-    fn playhead_trail_lines(&self, frame_index: u64) -> Vec<PlayheadTrailLine> {
+    fn playhead_trail_lines(&self, now_seconds: f32) -> Vec<PlayheadTrailLine> {
         self.playhead_trail_samples
             .iter()
             .filter_map(|sample| {
-                let age = frame_index
-                    .saturating_sub(sample.frame_index)
-                    .min(PLAYHEAD_TRAIL_FADE_FRAMES);
-                let remaining = 1.0 - (age as f32 / PLAYHEAD_TRAIL_FADE_FRAMES as f32);
+                let age_seconds = (now_seconds - sample.captured_at_seconds)
+                    .clamp(0.0, PLAYHEAD_TRAIL_FADE_SECONDS);
+                let remaining = 1.0 - (age_seconds / PLAYHEAD_TRAIL_FADE_SECONDS);
                 let alpha = (0.34 * remaining.powf(1.8)).clamp(0.0, 1.0);
                 (alpha > 0.01).then_some(PlayheadTrailLine {
                     ratio: sample.ratio,

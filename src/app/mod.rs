@@ -440,6 +440,11 @@ pub struct WaveformPanelModel {
     pub cursor_milli: Option<u16>,
     /// Playhead position in normalized milli-units.
     pub playhead_milli: Option<u16>,
+    /// Playhead position in normalized micro-units (`0..=1_000_000`).
+    ///
+    /// This preserves sub-milli transport precision for smooth playhead motion
+    /// during animation-only redraws and full-model fallback rebuilds.
+    pub playhead_micros: Option<u32>,
     /// Current waveform selection bounds.
     pub selection_milli: Option<NormalizedRangeModel>,
     /// Current waveform edit-selection bounds (right-click paint range).
@@ -468,6 +473,10 @@ pub struct WaveformPanelModel {
     pub view_start_milli: u16,
     /// Visible view end in normalized milli-units.
     pub view_end_milli: u16,
+    /// Visible view start in normalized micro-units (`0..=1_000_000`).
+    pub view_start_micros: u32,
+    /// Visible view end in normalized micro-units (`0..=1_000_000`).
+    pub view_end_micros: u32,
     /// Beat spacing in normalized micro-units when BPM/grid data is available.
     pub beat_step_micros: Option<u32>,
     /// Whether loop playback is enabled.
@@ -491,6 +500,7 @@ impl Default for WaveformPanelModel {
             loaded_label: None,
             cursor_milli: None,
             playhead_milli: None,
+            playhead_micros: None,
             selection_milli: None,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
@@ -501,6 +511,8 @@ impl Default for WaveformPanelModel {
             edit_fade_out_curve_milli: None,
             view_start_milli: 0,
             view_end_milli: 1000,
+            view_start_micros: 0,
+            view_end_micros: 1_000_000,
             beat_step_micros: None,
             loop_enabled: false,
             tempo_label: None,
@@ -1393,6 +1405,10 @@ pub struct NativeMotionModel {
     pub waveform_view_start_milli: u16,
     /// Current waveform view end in normalized milliseconds.
     pub waveform_view_end_milli: u16,
+    /// Current waveform view start in normalized micro-units (`0..=1_000_000`).
+    pub waveform_view_start_micros: u32,
+    /// Current waveform view end in normalized micro-units (`0..=1_000_000`).
+    pub waveform_view_end_micros: u32,
     /// Human-readable tempo metadata.
     pub waveform_tempo_label: Option<String>,
     /// Human-readable zoom metadata.
@@ -1439,12 +1455,16 @@ impl NativeMotionModel {
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
-            waveform_playhead_micros: model
-                .waveform
-                .playhead_milli
-                .map(|milli| u32::from(milli).saturating_mul(1000)),
+            waveform_playhead_micros: model.waveform.playhead_micros.or_else(|| {
+                model
+                    .waveform
+                    .playhead_milli
+                    .map(|milli| u32::from(milli) * 1000)
+            }),
             waveform_view_start_milli: model.waveform.view_start_milli,
             waveform_view_end_milli: model.waveform.view_end_milli,
+            waveform_view_start_micros: model.waveform.view_start_micros,
+            waveform_view_end_micros: model.waveform.view_end_micros,
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
             waveform_loaded_label: model.waveform.loaded_label.clone(),

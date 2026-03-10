@@ -3501,6 +3501,45 @@ fn waveform_motion_overlay_omits_playhead_trail_when_playhead_is_stationary() {
 }
 
 #[test]
+fn playhead_marker_rect_uses_micro_precision_view_bounds() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.waveform.playhead_milli = Some(500);
+    model.waveform.playhead_micros = Some(500_450);
+    model.waveform.view_start_milli = 500;
+    model.waveform.view_end_milli = 501;
+    model.waveform.view_start_micros = 500_400;
+    model.waveform.view_end_micros = 501_400;
+
+    let precise_motion = NativeMotionModel::from_app_model(&model);
+    let precise_rect = playhead_marker_rect(
+        layout.waveform_plot,
+        StyleTokens::for_viewport_width(1280.0).sizing.border_width,
+        &precise_motion,
+    )
+    .expect("precise playhead rect");
+
+    let mut quantized_motion = precise_motion.clone();
+    quantized_motion.waveform_view_start_micros =
+        u32::from(quantized_motion.waveform_view_start_milli) * 1000;
+    quantized_motion.waveform_view_end_micros =
+        u32::from(quantized_motion.waveform_view_end_milli) * 1000;
+    let quantized_rect = playhead_marker_rect(
+        layout.waveform_plot,
+        StyleTokens::for_viewport_width(1280.0).sizing.border_width,
+        &quantized_motion,
+    )
+    .expect("quantized playhead rect");
+
+    assert!(
+        (precise_rect.min.x - quantized_rect.min.x).abs() > 10.0,
+        "expected micro-precision view bounds to materially change playhead x; precise={} quantized={}",
+        precise_rect.min.x,
+        quantized_rect.min.x
+    );
+}
+
+#[test]
 fn waveform_motion_overlay_draws_backward_playhead_trail() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
@@ -3629,6 +3668,70 @@ fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
         })
         .count();
     assert_eq!(cleared_trail_rect_count, 0);
+}
+
+#[test]
+fn waveform_motion_overlay_fades_playhead_trail_by_elapsed_time() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let mut frame = NativeViewFrame::default();
+    model.transport_running = true;
+    for playhead in [700u16, 718, 736, 754] {
+        model.waveform.playhead_milli = Some(playhead);
+        let motion = NativeMotionModel::from_app_model(&model);
+        state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+    }
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+    let trail_before_fade = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert!(trail_before_fade > 0, "expected baseline running trail");
+
+    state.tick_with_style(PLAYHEAD_TRAIL_FADE_SECONDS + 0.05, &style);
+    let motion = NativeMotionModel::from_app_model(&model);
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let trail_after_fade = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(())
+            }
+            _ => None,
+        })
+        .count();
+    assert_eq!(trail_after_fade, 0);
 }
 
 #[test]

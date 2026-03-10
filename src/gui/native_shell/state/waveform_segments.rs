@@ -221,8 +221,8 @@ pub(super) fn push_waveform_playhead_overlay(
             style,
             style.sizing.border_width,
             playhead_trail_lines,
-            model.waveform_view_start_milli,
-            model.waveform_view_end_milli,
+            model.waveform_view_start_micros,
+            model.waveform_view_end_micros,
         );
         emit_primitive(
             primitives,
@@ -399,7 +399,7 @@ fn centered_resize_edge_rect(
 }
 
 /// Resolve the active playhead marker rectangle, preferring high-precision micros.
-fn playhead_marker_rect(
+pub(super) fn playhead_marker_rect(
     waveform_plot: Rect,
     border_width: f32,
     model: &NativeMotionModel,
@@ -409,8 +409,8 @@ fn playhead_marker_rect(
             waveform_plot,
             border_width,
             (playhead_micros as f32 / 1_000_000.0).clamp(0.0, 1.0),
-            model.waveform_view_start_milli,
-            model.waveform_view_end_milli,
+            model.waveform_view_start_micros,
+            model.waveform_view_end_micros,
         );
     }
     model.waveform_playhead_milli.and_then(|playhead_milli| {
@@ -418,8 +418,8 @@ fn playhead_marker_rect(
             waveform_plot,
             border_width,
             (f32::from(playhead_milli) / 1000.0).clamp(0.0, 1.0),
-            model.waveform_view_start_milli,
-            model.waveform_view_end_milli,
+            model.waveform_view_start_micros,
+            model.waveform_view_end_micros,
         )
     })
 }
@@ -429,11 +429,11 @@ fn marker_rect_for_absolute_ratio(
     waveform_plot: Rect,
     border_width: f32,
     absolute_ratio: f32,
-    view_start_milli: u16,
-    view_end_milli: u16,
+    view_start_micros: u32,
+    view_end_micros: u32,
 ) -> Option<Rect> {
     let view_ratio =
-        ratio_in_view_window(absolute_ratio, view_start_milli, view_end_milli).clamp(0.0, 1.0);
+        ratio_in_view_window(absolute_ratio, view_start_micros, view_end_micros).clamp(0.0, 1.0);
     marker_rect_for_ratio(waveform_plot, border_width, view_ratio)
 }
 
@@ -851,16 +851,16 @@ fn emit_waveform_playhead_trail(
     style: &StyleTokens,
     border_width: f32,
     trail_lines: &[PlayheadTrailLine],
-    view_start_milli: u16,
-    view_end_milli: u16,
+    view_start_micros: u32,
+    view_end_micros: u32,
 ) {
     for line in trail_lines {
         let Some(rect) = marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
             line.ratio,
-            view_start_milli,
-            view_end_milli,
+            view_start_micros,
+            view_end_micros,
         ) else {
             continue;
         };
@@ -883,11 +883,12 @@ fn emit_waveform_playhead_trail(
 }
 
 /// Project an absolute waveform ratio into the current view window.
-fn ratio_in_view_window(absolute_ratio: f32, view_start_milli: u16, view_end_milli: u16) -> f32 {
-    let start_milli = view_start_milli.min(1000);
-    let end_milli = view_end_milli.min(1000).max(start_milli);
-    let start_ratio = f32::from(start_milli) / 1000.0;
-    let width_ratio = (f32::from(end_milli.saturating_sub(start_milli)) / 1000.0).max(f32::EPSILON);
+fn ratio_in_view_window(absolute_ratio: f32, view_start_micros: u32, view_end_micros: u32) -> f32 {
+    let start_micros = view_start_micros.min(1_000_000);
+    let end_micros = view_end_micros.min(1_000_000).max(start_micros);
+    let start_ratio = start_micros as f32 / 1_000_000.0;
+    let width_ratio =
+        ((end_micros.saturating_sub(start_micros)) as f32 / 1_000_000.0).max(f32::EPSILON);
     (absolute_ratio.clamp(0.0, 1.0) - start_ratio) / width_ratio
 }
 

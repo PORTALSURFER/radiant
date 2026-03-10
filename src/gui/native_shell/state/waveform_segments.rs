@@ -5,12 +5,8 @@ use super::*;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
-/// Width in logical pixels for the top edit-fade grab tab.
-const EDIT_FADE_HANDLE_TAB_WIDTH: f32 = 12.0;
-/// Height in logical pixels for the top edit-fade grab tab.
-const EDIT_FADE_HANDLE_TAB_HEIGHT: f32 = 7.0;
-/// Height in logical pixels for the bottom edit-fade grab tab.
-const EDIT_FADE_HANDLE_BOTTOM_TAB_HEIGHT: f32 = 7.0;
+/// Width/height in logical pixels for square edit-fade grab tabs.
+const EDIT_FADE_HANDLE_TAB_SIZE: f32 = 10.0;
 /// Width in logical pixels for hovered waveform resize-edge highlights.
 const RESIZE_EDGE_HIGHLIGHT_WIDTH: f32 = 4.0;
 /// Fraction of waveform height used by centered waveform resize-edge targets.
@@ -626,6 +622,7 @@ fn emit_edit_fade_overlays(
     emit_edit_fade_handle(
         primitives,
         style,
+        waveform_plot,
         edit_selection_rect,
         fade_in_x,
         accent_blue,
@@ -643,6 +640,7 @@ fn emit_edit_fade_overlays(
     emit_edit_fade_handle(
         primitives,
         style,
+        waveform_plot,
         edit_selection_rect,
         fade_out_x,
         accent_blue,
@@ -663,11 +661,17 @@ fn emit_edit_fade_overlays(
 fn emit_edit_fade_handle(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
+    waveform_plot: Rect,
     edit_selection_rect: Rect,
     x: f32,
     accent_blue: Rgba8,
 ) {
-    let tab = edit_fade_handle_tab_rect(edit_selection_rect, x, style.sizing.border_width);
+    let tab = edit_fade_handle_tab_rect(
+        waveform_plot,
+        edit_selection_rect,
+        x,
+        style.sizing.border_width,
+    );
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -730,21 +734,22 @@ fn emit_edit_fade_bottom_handle(
     );
 }
 
-/// Resolve the visible top grab-tab for one edit-fade handle.
-fn edit_fade_handle_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f32) -> Rect {
-    let width = EDIT_FADE_HANDLE_TAB_WIDTH
+/// Resolve the visible square top grab-tab for one edit-fade handle.
+fn edit_fade_handle_tab_rect(
+    waveform_plot: Rect,
+    edit_selection_rect: Rect,
+    x: f32,
+    border_width: f32,
+) -> Rect {
+    let size = EDIT_FADE_HANDLE_TAB_SIZE
         .max(EDIT_FADE_HANDLE_WIDTH)
         .max(border_width + 2.0)
-        .min(edit_selection_rect.width().max(1.0));
-    let height = EDIT_FADE_HANDLE_TAB_HEIGHT
-        .max(border_width + 2.0)
-        .min(edit_selection_rect.height().max(1.0));
-    let half = width * 0.5;
-    let left = (x - half).clamp(edit_selection_rect.min.x, edit_selection_rect.max.x - 1.0);
-    let right = (left + width)
-        .min(edit_selection_rect.max.x)
-        .max(left + 1.0);
-    let bottom = (edit_selection_rect.min.y + height)
+        .min(edit_selection_rect.height().max(1.0))
+        .min(waveform_plot.width().max(1.0));
+    let half = size * 0.5;
+    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - size.max(1.0));
+    let right = (left + size).min(waveform_plot.max.x).max(left + 1.0);
+    let bottom = (edit_selection_rect.min.y + size)
         .min(edit_selection_rect.max.y)
         .max(edit_selection_rect.min.y + 1.0);
     Rect::from_min_max(
@@ -753,24 +758,21 @@ fn edit_fade_handle_tab_rect(edit_selection_rect: Rect, x: f32, border_width: f3
     )
 }
 
-/// Resolve the visible bottom grab-tab for one mute-boundary edit-fade handle.
+/// Resolve the visible square bottom grab-tab for one mute-boundary edit-fade handle.
 fn edit_fade_handle_bottom_tab_rect(
     waveform_plot: Rect,
     edit_selection_rect: Rect,
     x: f32,
     border_width: f32,
 ) -> Rect {
-    let width = EDIT_FADE_HANDLE_TAB_WIDTH
+    let size = EDIT_FADE_HANDLE_TAB_SIZE
         .max(EDIT_FADE_HANDLE_WIDTH)
         .max(border_width + 2.0)
-        .min(edit_selection_rect.width().max(1.0));
-    let height = EDIT_FADE_HANDLE_BOTTOM_TAB_HEIGHT
-        .max(border_width + 2.0)
         .min(edit_selection_rect.height().max(1.0));
-    let half = width * 0.5;
-    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - 1.0);
-    let right = (left + width).min(waveform_plot.max.x).max(left + 1.0);
-    let top = (edit_selection_rect.max.y - height)
+    let half = size * 0.5;
+    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - size.max(1.0));
+    let right = (left + size).min(waveform_plot.max.x).max(left + 1.0);
+    let top = (edit_selection_rect.max.y - size)
         .max(edit_selection_rect.min.y)
         .min(edit_selection_rect.max.y - 1.0);
     Rect::from_min_max(

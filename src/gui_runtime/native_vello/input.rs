@@ -57,8 +57,7 @@ pub(super) enum WaveformPointerDragMode {
 
 /// Half-width in pixels used for fade-handle hit testing.
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
-const WAVEFORM_EDIT_FADE_TOP_TAB_WIDTH: f32 = 12.0;
-const WAVEFORM_EDIT_FADE_TOP_TAB_HEIGHT: f32 = 7.0;
+const WAVEFORM_EDIT_FADE_TOP_TAB_SIZE: f32 = 10.0;
 /// Half-width in pixels used for waveform edge-resize hit testing.
 const WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Fraction of waveform height used by centered resize-edge hit regions.
@@ -812,9 +811,11 @@ fn waveform_edit_fade_handle_action_from_pointer(
     let fade_out_mute_x =
         waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
     let in_top_hit =
-        waveform_edit_fade_top_handle_hit_rect(selection_rect, fade_in_x).contains(point);
+        waveform_edit_fade_top_handle_hit_rect(layout.waveform_plot, selection_rect, fade_in_x)
+            .contains(point);
     let out_top_hit =
-        waveform_edit_fade_top_handle_hit_rect(selection_rect, fade_out_x).contains(point);
+        waveform_edit_fade_top_handle_hit_rect(layout.waveform_plot, selection_rect, fade_out_x)
+            .contains(point);
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
     let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
     let in_bottom_hit = has_fade_in && bottom_half && (point.x - fade_in_mute_x).abs() <= threshold;
@@ -1025,16 +1026,20 @@ fn waveform_selection_shift_handle_rect(selection_rect: UiRect) -> UiRect {
     )
 }
 
-/// Return the visible top-tab hit rect for one edit-fade handle.
-fn waveform_edit_fade_top_handle_hit_rect(selection_rect: UiRect, x: f32) -> UiRect {
-    let width = WAVEFORM_EDIT_FADE_TOP_TAB_WIDTH
+/// Return the visible square top-tab hit rect for one edit-fade handle.
+fn waveform_edit_fade_top_handle_hit_rect(
+    waveform_plot: UiRect,
+    selection_rect: UiRect,
+    x: f32,
+) -> UiRect {
+    let size = WAVEFORM_EDIT_FADE_TOP_TAB_SIZE
         .max(WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH)
-        .min(selection_rect.width().max(1.0));
-    let height = WAVEFORM_EDIT_FADE_TOP_TAB_HEIGHT.min(selection_rect.height().max(1.0));
-    let half = width * 0.5;
-    let left = (x - half).clamp(selection_rect.min.x, selection_rect.max.x - 1.0);
-    let right = (left + width).min(selection_rect.max.x).max(left + 1.0);
-    let bottom = (selection_rect.min.y + height)
+        .min(selection_rect.height().max(1.0))
+        .min(waveform_plot.width().max(1.0));
+    let half = size * 0.5;
+    let left = (x - half).clamp(waveform_plot.min.x, waveform_plot.max.x - size.max(1.0));
+    let right = (left + size).min(waveform_plot.max.x).max(left + 1.0);
+    let bottom = (selection_rect.min.y + size)
         .min(selection_rect.max.y)
         .max(selection_rect.min.y + 1.0);
     UiRect::from_min_max(

@@ -414,25 +414,49 @@ pub struct BrowserActionsModel {
     pub can_tag: bool,
 }
 
-/// Normalized range in milli-units (`0..=1000`) for deterministic UI contracts.
+/// Normalized range with deterministic milli and micro projections.
+///
+/// The native shell keeps milli fields for coarse equality checks and legacy
+/// tests, while the micro fields preserve enough precision for smooth waveform
+/// selection, edit-selection, and fade-handle motion at deep zoom levels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NormalizedRangeModel {
     /// Start position in normalized milli-units.
     pub start_milli: u16,
     /// End position in normalized milli-units.
     pub end_milli: u16,
+    /// Start position in normalized micro-units (`0..=1_000_000`).
+    pub start_micros: u32,
+    /// End position in normalized micro-units (`0..=1_000_000`).
+    pub end_micros: u32,
 }
 
 impl NormalizedRangeModel {
     /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
     pub fn new(start_milli: u16, end_milli: u16) -> Self {
-        let start = start_milli.min(1000);
-        let end = end_milli.min(1000);
+        Self::from_micros(
+            u32::from(start_milli.min(1000)) * 1000,
+            u32::from(end_milli.min(1000)) * 1000,
+        )
+    }
+
+    /// Build a normalized range from micro precision while preserving ordered milli mirrors.
+    pub fn from_micros(start_micros: u32, end_micros: u32) -> Self {
+        let start = start_micros.min(1_000_000);
+        let end = end_micros.min(1_000_000);
+        let ordered_start = start.min(end);
+        let ordered_end = end.max(start);
         Self {
-            start_milli: start.min(end),
-            end_milli: end.max(start),
+            start_milli: micros_to_milli(ordered_start),
+            end_milli: micros_to_milli(ordered_end),
+            start_micros: ordered_start,
+            end_micros: ordered_end,
         }
     }
+}
+
+fn micros_to_milli(value_micros: u32) -> u16 {
+    ((value_micros.min(1_000_000) + 500) / 1000) as u16
 }
 
 /// Waveform preview metadata consumed by the native shell.
@@ -457,20 +481,28 @@ pub struct WaveformPanelModel {
     ///
     /// When absent, the fade-in handle defaults to the edit-selection start edge.
     pub edit_fade_in_end_milli: Option<u16>,
+    /// End position for the edit fade-in region in normalized micro-units.
+    pub edit_fade_in_end_micros: Option<u32>,
     /// Start position for the edit fade-in mute region in normalized milli-units.
     ///
     /// When absent, the bottom fade-in handle defaults to the edit-selection start edge.
     pub edit_fade_in_mute_start_milli: Option<u16>,
+    /// Start position for the edit fade-in mute region in normalized micro-units.
+    pub edit_fade_in_mute_start_micros: Option<u32>,
     /// Fade-in curve tension in normalized milli-units (`0..=1000`).
     pub edit_fade_in_curve_milli: Option<u16>,
     /// Start position for the edit fade-out region in normalized milli-units.
     ///
     /// When absent, the fade-out handle defaults to the edit-selection end edge.
     pub edit_fade_out_start_milli: Option<u16>,
+    /// Start position for the edit fade-out region in normalized micro-units.
+    pub edit_fade_out_start_micros: Option<u32>,
     /// End position for the edit fade-out mute region in normalized milli-units.
     ///
     /// When absent, the bottom fade-out handle defaults to the edit-selection end edge.
     pub edit_fade_out_mute_end_milli: Option<u16>,
+    /// End position for the edit fade-out mute region in normalized micro-units.
+    pub edit_fade_out_mute_end_micros: Option<u32>,
     /// Fade-out curve tension in normalized milli-units (`0..=1000`).
     pub edit_fade_out_curve_milli: Option<u16>,
     /// Visible view start in normalized milli-units.
@@ -511,10 +543,14 @@ impl Default for WaveformPanelModel {
             selection_milli: None,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
+            edit_fade_in_end_micros: None,
             edit_fade_in_mute_start_milli: None,
+            edit_fade_in_mute_start_micros: None,
             edit_fade_in_curve_milli: None,
             edit_fade_out_start_milli: None,
+            edit_fade_out_start_micros: None,
             edit_fade_out_mute_end_milli: None,
+            edit_fade_out_mute_end_micros: None,
             edit_fade_out_curve_milli: None,
             view_start_milli: 0,
             view_end_milli: 1000,
@@ -1088,57 +1124,57 @@ pub enum UiAction {
         /// Normalized milli cursor position (`0..=1000`).
         position_milli: u16,
     },
-    /// Set waveform selection bounds in normalized milli space (`0..=1000`).
+    /// Set waveform selection bounds in normalized micro space (`0..=1_000_000`).
     SetWaveformSelectionRange {
-        /// Selection start position in normalized milli-units.
-        start_milli: u16,
-        /// Selection end position in normalized milli-units.
-        end_milli: u16,
+        /// Selection start position in normalized micro-units.
+        start_micros: u32,
+        /// Selection end position in normalized micro-units.
+        end_micros: u32,
         /// When true, keep an out-of-bounds drag clamped to the current viewport edge
         /// instead of BPM-snapping that edge back inward.
         preserve_view_edge: bool,
     },
     /// Set waveform selection bounds without BPM snapping and recalculate BPM for a 4-beat span.
     SetWaveformSelectionRangeSmartScale {
-        /// Selection anchor/start position in normalized milli-units.
-        start_milli: u16,
-        /// Selection dragged edge position in normalized milli-units.
-        end_milli: u16,
+        /// Selection anchor/start position in normalized micro-units.
+        start_micros: u32,
+        /// Selection dragged edge position in normalized micro-units.
+        end_micros: u32,
     },
-    /// Set waveform edit-selection bounds in normalized milli space (`0..=1000`).
+    /// Set waveform edit-selection bounds in normalized micro space (`0..=1_000_000`).
     SetWaveformEditSelectionRange {
-        /// Edit-selection start position in normalized milli-units.
-        start_milli: u16,
-        /// Edit-selection end position in normalized milli-units.
-        end_milli: u16,
+        /// Edit-selection start position in normalized micro-units.
+        start_micros: u32,
+        /// Edit-selection end position in normalized micro-units.
+        end_micros: u32,
         /// When true, keep an out-of-bounds drag clamped to the current viewport edge
         /// instead of BPM-snapping that edge back inward.
         preserve_view_edge: bool,
     },
-    /// Set the edit fade-in end handle in normalized milli space (`0..=1000`).
+    /// Set the edit fade-in end handle in normalized micro space (`0..=1_000_000`).
     SetWaveformEditFadeInEnd {
-        /// Fade-in end handle position in normalized milli-units.
-        position_milli: u16,
+        /// Fade-in end handle position in normalized micro-units.
+        position_micros: u32,
     },
-    /// Set the edit fade-in mute start handle in normalized milli space (`0..=1000`).
+    /// Set the edit fade-in mute start handle in normalized micro space (`0..=1_000_000`).
     SetWaveformEditFadeInMuteStart {
-        /// Fade-in mute-start handle position in normalized milli-units.
-        position_milli: u16,
+        /// Fade-in mute-start handle position in normalized micro-units.
+        position_micros: u32,
     },
     /// Set the edit fade-in curve tension in normalized milli space (`0..=1000`).
     SetWaveformEditFadeInCurve {
         /// Fade-in curve value in normalized milli-units.
         curve_milli: u16,
     },
-    /// Set the edit fade-out start handle in normalized milli space (`0..=1000`).
+    /// Set the edit fade-out start handle in normalized micro space (`0..=1_000_000`).
     SetWaveformEditFadeOutStart {
-        /// Fade-out start handle position in normalized milli-units.
-        position_milli: u16,
+        /// Fade-out start handle position in normalized micro-units.
+        position_micros: u32,
     },
-    /// Set the edit fade-out mute end handle in normalized milli space (`0..=1000`).
+    /// Set the edit fade-out mute end handle in normalized micro space (`0..=1_000_000`).
     SetWaveformEditFadeOutMuteEnd {
-        /// Fade-out mute-end handle position in normalized milli-units.
-        position_milli: u16,
+        /// Fade-out mute-end handle position in normalized micro-units.
+        position_micros: u32,
     },
     /// Set the edit fade-out curve tension in normalized milli space (`0..=1000`).
     SetWaveformEditFadeOutCurve {
@@ -1171,21 +1207,21 @@ pub enum UiAction {
     FinishWaveformSelectionDrag,
     /// Arm a playback-selection translate gesture from the bottom-center handle.
     BeginWaveformSelectionShift {
-        /// Pointer milli position captured at press time.
-        pointer_milli: u16,
+        /// Pointer micro position captured at press time.
+        pointer_micros: u32,
         /// Selection start preserved across the translate gesture.
-        start_milli: u16,
+        start_micros: u32,
         /// Selection end preserved across the translate gesture.
-        end_milli: u16,
+        end_micros: u32,
     },
     /// Arm an edit-selection translate gesture from the bottom-center handle.
     BeginWaveformEditSelectionShift {
-        /// Pointer milli position captured at press time.
-        pointer_milli: u16,
+        /// Pointer micro position captured at press time.
+        pointer_micros: u32,
         /// Edit-selection start preserved across the translate gesture.
-        start_milli: u16,
+        start_micros: u32,
         /// Edit-selection end preserved across the translate gesture.
-        end_milli: u16,
+        end_micros: u32,
     },
     /// Clear active waveform selection.
     ClearWaveformSelection,
@@ -1386,20 +1422,28 @@ pub struct NativeMotionModel {
     pub map_active: bool,
     /// Active browser rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
     pub active_rating_filters: [bool; 8],
-    /// Waveform selected playback window in normalized milliseconds.
+    /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
-    /// Waveform edit-selection window in normalized milliseconds.
+    /// Waveform edit-selection window with milli and micro precision.
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit fade-in end handle in normalized milliseconds.
     pub waveform_edit_fade_in_end_milli: Option<u16>,
+    /// Waveform edit fade-in end handle in normalized micro-units.
+    pub waveform_edit_fade_in_end_micros: Option<u32>,
     /// Waveform edit fade-in mute-start handle in normalized milliseconds.
     pub waveform_edit_fade_in_mute_start_milli: Option<u16>,
+    /// Waveform edit fade-in mute-start handle in normalized micro-units.
+    pub waveform_edit_fade_in_mute_start_micros: Option<u32>,
     /// Waveform edit fade-in curve tension in normalized milliseconds.
     pub waveform_edit_fade_in_curve_milli: Option<u16>,
     /// Waveform edit fade-out start handle in normalized milliseconds.
     pub waveform_edit_fade_out_start_milli: Option<u16>,
+    /// Waveform edit fade-out start handle in normalized micro-units.
+    pub waveform_edit_fade_out_start_micros: Option<u32>,
     /// Waveform edit fade-out mute-end handle in normalized milliseconds.
     pub waveform_edit_fade_out_mute_end_milli: Option<u16>,
+    /// Waveform edit fade-out mute-end handle in normalized micro-units.
+    pub waveform_edit_fade_out_mute_end_micros: Option<u32>,
     /// Waveform edit fade-out curve tension in normalized milliseconds.
     pub waveform_edit_fade_out_curve_milli: Option<u16>,
     /// Whether loop playback is enabled for the active waveform selection.
@@ -1460,10 +1504,14 @@ impl NativeMotionModel {
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,
             waveform_edit_fade_in_mute_start_milli: model.waveform.edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: model.waveform.edit_fade_in_mute_start_micros,
             waveform_edit_fade_in_curve_milli: model.waveform.edit_fade_in_curve_milli,
             waveform_edit_fade_out_start_milli: model.waveform.edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: model.waveform.edit_fade_out_start_micros,
             waveform_edit_fade_out_mute_end_milli: model.waveform.edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: model.waveform.edit_fade_out_mute_end_micros,
             waveform_edit_fade_out_curve_milli: model.waveform.edit_fade_out_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,

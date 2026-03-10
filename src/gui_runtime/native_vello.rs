@@ -968,6 +968,8 @@ fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u16(&mut state, selection.start_milli);
         fingerprint_mix_u16(&mut state, selection.end_milli);
+        fingerprint_mix_u32(&mut state, selection.start_micros);
+        fingerprint_mix_u32(&mut state, selection.end_micros);
     } else {
         fingerprint_mix_bool(&mut state, false);
     }
@@ -975,14 +977,20 @@ fn waveform_motion_overlay_model_signature(model: &NativeMotionModel) -> u64 {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u16(&mut state, edit_selection.start_milli);
         fingerprint_mix_u16(&mut state, edit_selection.end_milli);
+        fingerprint_mix_u32(&mut state, edit_selection.start_micros);
+        fingerprint_mix_u32(&mut state, edit_selection.end_micros);
     } else {
         fingerprint_mix_bool(&mut state, false);
     }
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
+    fingerprint_mix_option_u32(&mut state, model.waveform_edit_fade_in_end_micros);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_mute_start_milli);
+    fingerprint_mix_option_u32(&mut state, model.waveform_edit_fade_in_mute_start_micros);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_curve_milli);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_start_milli);
+    fingerprint_mix_option_u32(&mut state, model.waveform_edit_fade_out_start_micros);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_mute_end_milli);
+    fingerprint_mix_option_u32(&mut state, model.waveform_edit_fade_out_mute_end_micros);
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_out_curve_milli);
     fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_option_u16(&mut state, model.waveform_cursor_milli);

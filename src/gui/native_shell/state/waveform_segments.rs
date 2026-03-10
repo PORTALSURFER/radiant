@@ -121,8 +121,8 @@ pub(super) fn push_waveform_playhead_overlay(
         model.waveform_selection_milli,
         model.waveform_cursor_milli,
         None,
-        model.waveform_view_start_milli,
-        model.waveform_view_end_milli,
+        model.waveform_view_start_micros,
+        model.waveform_view_end_micros,
     );
     let playhead_rect =
         playhead_marker_rect(layout.waveform_plot, style.sizing.border_width, model);
@@ -162,8 +162,8 @@ pub(super) fn push_waveform_playhead_overlay(
             Some(edit_selection),
             None,
             None,
-            model.waveform_view_start_milli,
-            model.waveform_view_end_milli,
+            model.waveform_view_start_micros,
+            model.waveform_view_end_micros,
         )
         .selection;
         if let Some(rect) = edit_selection_rect {
@@ -187,13 +187,17 @@ pub(super) fn push_waveform_playhead_overlay(
                 rect,
                 edit_selection,
                 model.waveform_edit_fade_in_end_milli,
+                model.waveform_edit_fade_in_end_micros,
                 model.waveform_edit_fade_in_mute_start_milli,
+                model.waveform_edit_fade_in_mute_start_micros,
                 model.waveform_edit_fade_in_curve_milli,
                 model.waveform_edit_fade_out_start_milli,
+                model.waveform_edit_fade_out_start_micros,
                 model.waveform_edit_fade_out_mute_end_milli,
+                model.waveform_edit_fade_out_mute_end_micros,
                 model.waveform_edit_fade_out_curve_milli,
-                model.waveform_view_start_milli,
-                model.waveform_view_end_milli,
+                model.waveform_view_start_micros,
+                model.waveform_view_end_micros,
                 edit_selection_blue,
             );
             emit_hovered_edit_resize_edge(
@@ -504,51 +508,58 @@ fn emit_edit_fade_overlays(
     edit_selection_rect: Rect,
     edit_selection: crate::app::NormalizedRangeModel,
     fade_in_end_milli: Option<u16>,
+    fade_in_end_micros: Option<u32>,
     fade_in_mute_start_milli: Option<u16>,
+    fade_in_mute_start_micros: Option<u32>,
     fade_in_curve_milli: Option<u16>,
     fade_out_start_milli: Option<u16>,
+    fade_out_start_micros: Option<u32>,
     fade_out_mute_end_milli: Option<u16>,
+    fade_out_mute_end_micros: Option<u32>,
     fade_out_curve_milli: Option<u16>,
-    view_start_milli: u16,
-    view_end_milli: u16,
+    view_start_micros: u32,
+    view_end_micros: u32,
     accent_blue: Rgba8,
 ) {
-    let selection_start = edit_selection.start_milli.min(edit_selection.end_milli);
-    let selection_end = edit_selection.start_milli.max(edit_selection.end_milli);
+    let selection_start = edit_selection.start_micros.min(edit_selection.end_micros);
+    let selection_end = edit_selection.start_micros.max(edit_selection.end_micros);
     if selection_end <= selection_start {
         return;
     }
-    let fade_in_end = fade_in_end_milli
+    let fade_in_end = fade_in_end_micros
+        .or_else(|| fade_in_end_milli.map(|value| u32::from(value) * 1000))
         .unwrap_or(selection_start)
         .clamp(selection_start, selection_end);
-    let fade_out_start = fade_out_start_milli
+    let fade_out_start = fade_out_start_micros
+        .or_else(|| fade_out_start_milli.map(|value| u32::from(value) * 1000))
         .unwrap_or(selection_end)
         .clamp(selection_start, selection_end);
 
-    let view_width = f32::from(view_end_milli.saturating_sub(view_start_milli)).max(1.0);
+    let view_width = (view_end_micros.saturating_sub(view_start_micros)).max(1) as f32;
     if waveform_plot.width() <= 0.0 {
         return;
     }
 
-    let x_for_milli = |milli: u16| {
-        let in_view =
-            ((f32::from(milli) - f32::from(view_start_milli)) / view_width).clamp(0.0, 1.0);
+    let x_for_micros = |micros: u32| {
+        let in_view = (((micros as f32) - (view_start_micros as f32)) / view_width).clamp(0.0, 1.0);
         waveform_plot.min.x + (waveform_plot.width() * in_view)
     };
-    let fade_in_mute_start = fade_in_mute_start_milli
+    let fade_in_mute_start = fade_in_mute_start_micros
+        .or_else(|| fade_in_mute_start_milli.map(|value| u32::from(value) * 1000))
         .unwrap_or(selection_start)
         .min(selection_start);
-    let fade_in_x = x_for_milli(fade_in_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_in_x = x_for_micros(fade_in_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
     let has_fade_in = fade_in_end > selection_start;
     let fade_in_mute_x =
-        x_for_milli(fade_in_mute_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
-    let fade_out_x = x_for_milli(fade_out_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
-    let fade_out_mute_end = fade_out_mute_end_milli
+        x_for_micros(fade_in_mute_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_out_x = x_for_micros(fade_out_start).clamp(waveform_plot.min.x, waveform_plot.max.x);
+    let fade_out_mute_end = fade_out_mute_end_micros
+        .or_else(|| fade_out_mute_end_milli.map(|value| u32::from(value) * 1000))
         .unwrap_or(selection_end)
         .max(selection_end);
     let has_fade_out = fade_out_start < selection_end;
     let fade_out_mute_x =
-        x_for_milli(fade_out_mute_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
+        x_for_micros(fade_out_mute_end).clamp(waveform_plot.min.x, waveform_plot.max.x);
 
     if fade_in_x > edit_selection_rect.min.x {
         emit_primitive(

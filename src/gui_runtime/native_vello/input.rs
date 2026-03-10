@@ -8,38 +8,38 @@ pub(super) enum WaveformPointerDragMode {
     Seek,
     /// Drag updates cursor position.
     Cursor,
-    /// Drag extends playback selection from a fixed anchor milli value.
+    /// Drag extends playback selection from a fixed anchor micro value.
     Selection {
-        /// Fixed anchor milli captured at drag start.
-        anchor_milli: u16,
+        /// Fixed anchor micro position captured at drag start.
+        anchor_micros: u32,
     },
     /// Drag resizes a playback selection without snapping and recomputes BPM from a 4-beat span.
     SelectionSmartScale {
-        /// Fixed anchor milli captured at drag start.
-        anchor_milli: u16,
+        /// Fixed anchor micro position captured at drag start.
+        anchor_micros: u32,
     },
     /// Drag shifts the playback selection while preserving its width.
     SelectionShift {
-        /// Pointer milli captured at drag start.
-        pointer_milli: u16,
-        /// Original playback-selection start milli.
-        start_milli: u16,
-        /// Original playback-selection end milli.
-        end_milli: u16,
+        /// Pointer micro position captured at drag start.
+        pointer_micros: u32,
+        /// Original playback-selection start micro position.
+        start_micros: u32,
+        /// Original playback-selection end micro position.
+        end_micros: u32,
     },
-    /// Drag extends edit selection from a fixed anchor milli value.
+    /// Drag extends edit selection from a fixed anchor micro value.
     EditSelection {
-        /// Fixed anchor milli captured at drag start.
-        anchor_milli: u16,
+        /// Fixed anchor micro position captured at drag start.
+        anchor_micros: u32,
     },
     /// Drag shifts the edit selection while preserving its width.
     EditSelectionShift {
-        /// Pointer milli captured at drag start.
-        pointer_milli: u16,
-        /// Original edit-selection start milli.
-        start_milli: u16,
-        /// Original edit-selection end milli.
-        end_milli: u16,
+        /// Pointer micro position captured at drag start.
+        pointer_micros: u32,
+        /// Original edit-selection start micro position.
+        start_micros: u32,
+        /// Original edit-selection end micro position.
+        end_micros: u32,
     },
     /// Drag updates the edit fade-in end handle.
     EditFadeInEnd,
@@ -383,14 +383,14 @@ pub(super) fn waveform_action_from_pointer(
         UiAction::SeekWaveform { position_milli }
     } else if shift {
         UiAction::SetWaveformSelectionRange {
-            start_milli: waveform_anchor_milli(model),
-            end_milli: position_milli,
+            start_micros: waveform_anchor_micros(model),
+            end_micros: micros_from_milli(position_milli),
             preserve_view_edge: false,
         }
     } else {
         UiAction::SetWaveformSelectionRange {
-            start_milli: position_milli,
-            end_milli: position_milli,
+            start_micros: micros_from_milli(position_milli),
+            end_micros: micros_from_milli(position_milli),
             preserve_view_edge: false,
         }
     }
@@ -436,9 +436,9 @@ fn waveform_selection_shift_action_from_pointer(
     waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
         rect.contains(point)
             .then_some(UiAction::BeginWaveformSelectionShift {
-                pointer_milli: waveform_position_milli_from_point(layout, model, point),
-                start_milli: selection.start_milli,
-                end_milli: selection.end_milli,
+                pointer_micros: waveform_position_micros_from_point(layout, model, point),
+                start_micros: selection.start_micros,
+                end_micros: selection.end_micros,
             })
     })
 }
@@ -453,9 +453,9 @@ fn waveform_edit_selection_shift_action_from_pointer(
     waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
         rect.contains(point)
             .then_some(UiAction::BeginWaveformEditSelectionShift {
-                pointer_milli: waveform_position_milli_from_point(layout, model, point),
-                start_milli: selection.start_milli,
-                end_milli: selection.end_milli,
+                pointer_micros: waveform_position_micros_from_point(layout, model, point),
+                start_micros: selection.start_micros,
+                end_micros: selection.end_micros,
             })
     })
 }
@@ -480,13 +480,13 @@ fn waveform_selection_resize_action_from_pointer(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
-    let selection_start = selection.start_milli.min(selection.end_milli);
-    let selection_end = selection.start_milli.max(selection.end_milli);
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
     if selection_end <= selection_start {
         return None;
     }
-    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
-    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let selection_start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
     let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
     if point.y < handle_top || point.y > handle_bottom {
         return None;
@@ -498,30 +498,30 @@ fn waveform_selection_resize_action_from_pointer(
     if !left_hit && !right_hit {
         return None;
     }
-    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     if left_hit && (!right_hit || left_distance <= right_distance) {
         return Some(if smart_scale {
             UiAction::SetWaveformSelectionRangeSmartScale {
-                start_milli: selection_end,
-                end_milli: position_milli,
+                start_micros: selection.end_micros,
+                end_micros: position_micros,
             }
         } else {
             UiAction::SetWaveformSelectionRange {
-                start_milli: selection_end,
-                end_milli: position_milli,
+                start_micros: selection.end_micros,
+                end_micros: position_micros,
                 preserve_view_edge: false,
             }
         });
     }
     Some(if smart_scale {
         UiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: selection_start,
-            end_milli: position_milli,
+            start_micros: selection.start_micros,
+            end_micros: position_micros,
         }
     } else {
         UiAction::SetWaveformSelectionRange {
-            start_milli: selection_start,
-            end_milli: position_milli,
+            start_micros: selection.start_micros,
+            end_micros: position_micros,
             preserve_view_edge: false,
         }
     })
@@ -554,10 +554,10 @@ pub(super) fn waveform_edit_action_from_pointer(
     {
         return UiAction::ClearWaveformEditSelection;
     }
-    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     UiAction::SetWaveformEditSelectionRange {
-        start_milli: position_milli,
-        end_milli: position_milli,
+        start_micros: position_micros,
+        end_micros: position_micros,
         preserve_view_edge: false,
     }
 }
@@ -569,71 +569,87 @@ pub(super) fn waveform_drag_action_for_mode(
     point: Point,
     mode: WaveformPointerDragMode,
 ) -> UiAction {
-    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
     match mode {
-        WaveformPointerDragMode::Seek => UiAction::SeekWaveform { position_milli },
-        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor { position_milli },
-        WaveformPointerDragMode::Selection { anchor_milli } => {
+        WaveformPointerDragMode::Seek => UiAction::SeekWaveform {
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
+                layout, model, point,
+            )),
+        },
+        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor {
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
+                layout, model, point,
+            )),
+        },
+        WaveformPointerDragMode::Selection { anchor_micros } => {
             UiAction::SetWaveformSelectionRange {
-                start_milli: anchor_milli,
-                end_milli: position_milli,
+                start_micros: anchor_micros,
+                end_micros: position_micros,
                 preserve_view_edge,
             }
         }
-        WaveformPointerDragMode::SelectionSmartScale { anchor_milli } => {
+        WaveformPointerDragMode::SelectionSmartScale { anchor_micros } => {
             UiAction::SetWaveformSelectionRangeSmartScale {
-                start_milli: anchor_milli,
-                end_milli: position_milli,
+                start_micros: anchor_micros,
+                end_micros: position_micros,
             }
         }
         WaveformPointerDragMode::SelectionShift {
-            pointer_milli,
-            start_milli,
-            end_milli,
+            pointer_micros,
+            start_micros,
+            end_micros,
         } => {
-            let (start_milli, end_milli) =
-                shift_waveform_range_milli(pointer_milli, position_milli, start_milli, end_milli);
+            let (start_micros, end_micros) = shift_waveform_range_micros(
+                pointer_micros,
+                position_micros,
+                start_micros,
+                end_micros,
+            );
             UiAction::SetWaveformSelectionRange {
-                start_milli,
-                end_milli,
+                start_micros,
+                end_micros,
                 preserve_view_edge: false,
             }
         }
-        WaveformPointerDragMode::EditSelection { anchor_milli } => {
+        WaveformPointerDragMode::EditSelection { anchor_micros } => {
             UiAction::SetWaveformEditSelectionRange {
-                start_milli: anchor_milli,
-                end_milli: position_milli,
+                start_micros: anchor_micros,
+                end_micros: position_micros,
                 preserve_view_edge,
             }
         }
         WaveformPointerDragMode::EditSelectionShift {
-            pointer_milli,
-            start_milli,
-            end_milli,
+            pointer_micros,
+            start_micros,
+            end_micros,
         } => {
-            let (start_milli, end_milli) =
-                shift_waveform_range_milli(pointer_milli, position_milli, start_milli, end_milli);
+            let (start_micros, end_micros) = shift_waveform_range_micros(
+                pointer_micros,
+                position_micros,
+                start_micros,
+                end_micros,
+            );
             UiAction::SetWaveformEditSelectionRange {
-                start_milli,
-                end_milli,
+                start_micros,
+                end_micros,
                 preserve_view_edge: false,
             }
         }
         WaveformPointerDragMode::EditFadeInEnd => {
-            UiAction::SetWaveformEditFadeInEnd { position_milli }
+            UiAction::SetWaveformEditFadeInEnd { position_micros }
         }
         WaveformPointerDragMode::EditFadeInMuteStart => {
-            UiAction::SetWaveformEditFadeInMuteStart { position_milli }
+            UiAction::SetWaveformEditFadeInMuteStart { position_micros }
         }
         WaveformPointerDragMode::EditFadeInCurve => UiAction::SetWaveformEditFadeInCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
         },
         WaveformPointerDragMode::EditFadeOutStart => {
-            UiAction::SetWaveformEditFadeOutStart { position_milli }
+            UiAction::SetWaveformEditFadeOutStart { position_micros }
         }
         WaveformPointerDragMode::EditFadeOutMuteEnd => {
-            UiAction::SetWaveformEditFadeOutMuteEnd { position_milli }
+            UiAction::SetWaveformEditFadeOutMuteEnd { position_micros }
         }
         WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
@@ -653,8 +669,8 @@ pub(super) fn waveform_drag_exceeds_click_slop(
     mode: WaveformPointerDragMode,
 ) -> bool {
     match mode {
-        WaveformPointerDragMode::Selection { anchor_milli } => {
-            let anchor_x = waveform_x_for_milli(layout.waveform_plot, model, anchor_milli);
+        WaveformPointerDragMode::Selection { anchor_micros } => {
+            let anchor_x = waveform_x_for_micros(layout.waveform_plot, model, anchor_micros);
             (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
         }
         _ => true,
@@ -666,38 +682,38 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
     match action {
         UiAction::SeekWaveform { .. } => Some(WaveformPointerDragMode::Seek),
         UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
-        UiAction::SetWaveformSelectionRange { start_milli, .. } => {
+        UiAction::SetWaveformSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::Selection {
-                anchor_milli: *start_milli,
+                anchor_micros: *start_micros,
             })
         }
-        UiAction::SetWaveformSelectionRangeSmartScale { start_milli, .. } => {
+        UiAction::SetWaveformSelectionRangeSmartScale { start_micros, .. } => {
             Some(WaveformPointerDragMode::SelectionSmartScale {
-                anchor_milli: *start_milli,
+                anchor_micros: *start_micros,
             })
         }
         UiAction::BeginWaveformSelectionShift {
-            pointer_milli,
-            start_milli,
-            end_milli,
+            pointer_micros,
+            start_micros,
+            end_micros,
         } => Some(WaveformPointerDragMode::SelectionShift {
-            pointer_milli: *pointer_milli,
-            start_milli: *start_milli,
-            end_milli: *end_milli,
+            pointer_micros: *pointer_micros,
+            start_micros: *start_micros,
+            end_micros: *end_micros,
         }),
-        UiAction::SetWaveformEditSelectionRange { start_milli, .. } => {
+        UiAction::SetWaveformEditSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::EditSelection {
-                anchor_milli: *start_milli,
+                anchor_micros: *start_micros,
             })
         }
         UiAction::BeginWaveformEditSelectionShift {
-            pointer_milli,
-            start_milli,
-            end_milli,
+            pointer_micros,
+            start_micros,
+            end_micros,
         } => Some(WaveformPointerDragMode::EditSelectionShift {
-            pointer_milli: *pointer_milli,
-            start_milli: *start_milli,
-            end_milli: *end_milli,
+            pointer_micros: *pointer_micros,
+            start_micros: *start_micros,
+            end_micros: *end_micros,
         }),
         UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
         UiAction::SetWaveformEditFadeInMuteStart { .. } => {
@@ -760,10 +776,23 @@ pub(super) fn waveform_position_milli_from_point(
     model: &AppModel,
     point: Point,
 ) -> u16 {
+    ratio_to_milli(normalized_waveform_position_ratio(layout, model, point))
+}
+
+/// Resolve normalized waveform micro position from an arbitrary pointer point.
+pub(super) fn waveform_position_micros_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> u32 {
+    ratio_to_micros(normalized_waveform_position_ratio(layout, model, point))
+}
+
+/// Resolve the absolute waveform ratio under one pointer point.
+fn normalized_waveform_position_ratio(layout: &ShellLayout, model: &AppModel, point: Point) -> f32 {
     let view = normalized_waveform_view(model);
     let ratio_in_view = waveform_ratio_from_point(layout, point);
-    let absolute_ratio = view.start + (view.width * ratio_in_view);
-    ratio_to_milli(absolute_ratio)
+    (view.start + (view.width * ratio_in_view)).clamp(0.0, 1.0)
 }
 
 /// Resolve pointer x-position as a normalized ratio within the current plot.
@@ -788,13 +817,17 @@ pub(super) fn ratio_to_micros(ratio: f32) -> u32 {
     (ratio.clamp(0.0, 1.0) * WAVEFORM_ANCHOR_RATIO_MICROS_SCALE as f32).round() as u32
 }
 
-pub(super) fn waveform_anchor_milli(model: &AppModel) -> u16 {
+fn micros_from_milli(value: u16) -> u32 {
+    u32::from(value.min(1000)) * 1000
+}
+
+pub(super) fn waveform_anchor_micros(model: &AppModel) -> u32 {
     model
         .waveform
         .selection_milli
-        .map(|selection| selection.start_milli)
-        .or(model.waveform.cursor_milli)
-        .or(model.waveform.playhead_milli)
+        .map(|selection| selection.start_micros)
+        .or(model.waveform.cursor_milli.map(micros_from_milli))
+        .or(model.waveform.playhead_milli.map(micros_from_milli))
         .unwrap_or(0)
 }
 
@@ -808,35 +841,35 @@ fn waveform_edit_fade_handle_action_from_pointer(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
-    let selection_start = selection.start_milli.min(selection.end_milli);
-    let selection_end = selection.start_milli.max(selection.end_milli);
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
     if selection_end <= selection_start {
         return None;
     }
-    let fade_in_end_milli = model
+    let fade_in_end_micros = model
         .waveform
-        .edit_fade_in_end_milli
+        .edit_fade_in_end_micros
         .unwrap_or(selection_start)
         .clamp(selection_start, selection_end);
-    let has_fade_in = fade_in_end_milli > selection_start;
-    let fade_in_mute_start_milli = model
+    let has_fade_in = fade_in_end_micros > selection_start;
+    let fade_in_mute_start_micros = model
         .waveform
-        .edit_fade_in_mute_start_milli
+        .edit_fade_in_mute_start_micros
         .unwrap_or(selection_start)
         .min(selection_start);
-    let fade_out_start_milli = model
+    let fade_out_start_micros = model
         .waveform
-        .edit_fade_out_start_milli
+        .edit_fade_out_start_micros
         .unwrap_or(selection_end)
         .clamp(selection_start, selection_end);
-    let has_fade_out = fade_out_start_milli < selection_end;
-    let fade_out_mute_end_milli = model
+    let has_fade_out = fade_out_start_micros < selection_end;
+    let fade_out_mute_end_micros = model
         .waveform
-        .edit_fade_out_mute_end_milli
+        .edit_fade_out_mute_end_micros
         .unwrap_or(selection_end)
         .max(selection_end);
-    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
-    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let selection_start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
     let selection_rect = UiRect::from_min_max(
         Point::new(
             selection_start_x.min(selection_end_x),
@@ -847,12 +880,12 @@ fn waveform_edit_fade_handle_action_from_pointer(
             layout.waveform_plot.max.y,
         ),
     );
-    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
+    let fade_in_x = waveform_x_for_micros(layout.waveform_plot, model, fade_in_end_micros);
     let fade_in_mute_x =
-        waveform_x_for_milli(layout.waveform_plot, model, fade_in_mute_start_milli);
-    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
+        waveform_x_for_micros(layout.waveform_plot, model, fade_in_mute_start_micros);
+    let fade_out_x = waveform_x_for_micros(layout.waveform_plot, model, fade_out_start_micros);
     let fade_out_mute_x =
-        waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
+        waveform_x_for_micros(layout.waveform_plot, model, fade_out_mute_end_micros);
     let in_top_hit =
         waveform_edit_fade_top_handle_hit_rect(layout.waveform_plot, selection_rect, fade_in_x)
             .contains(point);
@@ -867,15 +900,15 @@ fn waveform_edit_fade_handle_action_from_pointer(
     if !in_top_hit && !out_top_hit && !in_bottom_hit && !out_bottom_hit {
         return None;
     }
-    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     if in_bottom_hit && (!out_bottom_hit || point.x <= (fade_in_mute_x + fade_out_mute_x) * 0.5) {
-        Some(UiAction::SetWaveformEditFadeInMuteStart { position_milli })
+        Some(UiAction::SetWaveformEditFadeInMuteStart { position_micros })
     } else if out_bottom_hit {
-        Some(UiAction::SetWaveformEditFadeOutMuteEnd { position_milli })
+        Some(UiAction::SetWaveformEditFadeOutMuteEnd { position_micros })
     } else if in_top_hit && (!out_top_hit || point.x <= (fade_in_x + fade_out_x) * 0.5) {
-        Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
+        Some(UiAction::SetWaveformEditFadeInEnd { position_micros })
     } else {
-        Some(UiAction::SetWaveformEditFadeOutStart { position_milli })
+        Some(UiAction::SetWaveformEditFadeOutStart { position_micros })
     }
 }
 /// Resolve one edit-fade curve action when Alt is held over a fade region or handle.
@@ -888,39 +921,39 @@ fn waveform_edit_fade_curve_action_from_pointer(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
-    let selection_start = selection.start_milli.min(selection.end_milli);
-    let selection_end = selection.start_milli.max(selection.end_milli);
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
     if selection_end <= selection_start {
         return None;
     }
-    let fade_in_end_milli = model
+    let fade_in_end_micros = model
         .waveform
-        .edit_fade_in_end_milli
-        .unwrap_or(selection.start_milli)
+        .edit_fade_in_end_micros
+        .unwrap_or(selection.start_micros)
         .clamp(selection_start, selection_end);
-    let fade_in_mute_start_milli = model
+    let fade_in_mute_start_micros = model
         .waveform
-        .edit_fade_in_mute_start_milli
+        .edit_fade_in_mute_start_micros
         .unwrap_or(selection_start)
         .min(selection_start);
-    let fade_out_start_milli = model
+    let fade_out_start_micros = model
         .waveform
-        .edit_fade_out_start_milli
-        .unwrap_or(selection.end_milli)
+        .edit_fade_out_start_micros
+        .unwrap_or(selection.end_micros)
         .clamp(selection_start, selection_end);
-    let fade_out_mute_end_milli = model
+    let fade_out_mute_end_micros = model
         .waveform
-        .edit_fade_out_mute_end_milli
+        .edit_fade_out_mute_end_micros
         .unwrap_or(selection_end)
         .max(selection_end);
     let fade_in_mute_x =
-        waveform_x_for_milli(layout.waveform_plot, model, fade_in_mute_start_milli);
-    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
-    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
-    let fade_in_x = waveform_x_for_milli(layout.waveform_plot, model, fade_in_end_milli);
-    let fade_out_x = waveform_x_for_milli(layout.waveform_plot, model, fade_out_start_milli);
+        waveform_x_for_micros(layout.waveform_plot, model, fade_in_mute_start_micros);
+    let selection_start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
+    let fade_in_x = waveform_x_for_micros(layout.waveform_plot, model, fade_in_end_micros);
+    let fade_out_x = waveform_x_for_micros(layout.waveform_plot, model, fade_out_start_micros);
     let fade_out_mute_x =
-        waveform_x_for_milli(layout.waveform_plot, model, fade_out_mute_end_milli);
+        waveform_x_for_micros(layout.waveform_plot, model, fade_out_mute_end_micros);
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
     let in_region_hit = point.x >= fade_in_mute_x - threshold && point.x <= fade_in_x + threshold;
     let out_region_hit =
@@ -946,13 +979,13 @@ fn waveform_edit_resize_action_from_pointer(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
-    let selection_start = selection.start_milli.min(selection.end_milli);
-    let selection_end = selection.start_milli.max(selection.end_milli);
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
     if selection_end <= selection_start {
         return None;
     }
-    let selection_start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
-    let selection_end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let selection_start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
     let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
     if point.y < handle_top || point.y > handle_bottom {
         return None;
@@ -964,17 +997,17 @@ fn waveform_edit_resize_action_from_pointer(
     if !left_hit && !right_hit {
         return None;
     }
-    let position_milli = waveform_position_milli_from_point(layout, model, point);
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     if left_hit && (!right_hit || left_distance <= right_distance) {
         return Some(UiAction::SetWaveformEditSelectionRange {
-            start_milli: selection_end,
-            end_milli: position_milli,
+            start_micros: selection.end_micros,
+            end_micros: position_micros,
             preserve_view_edge: false,
         });
     }
     Some(UiAction::SetWaveformEditSelectionRange {
-        start_milli: selection_start,
-        end_milli: position_milli,
+        start_micros: selection.start_micros,
+        end_micros: position_micros,
         preserve_view_edge: false,
     })
 }
@@ -989,13 +1022,13 @@ fn waveform_edit_selection_contains_point(
         Some(selection) if layout.waveform_plot.contains(point) => selection,
         _ => return false,
     };
-    let selection_start = selection.start_milli.min(selection.end_milli);
-    let selection_end = selection.start_milli.max(selection.end_milli);
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
     if selection_end <= selection_start {
         return false;
     }
-    let start_x = waveform_x_for_milli(layout.waveform_plot, model, selection_start);
-    let end_x = waveform_x_for_milli(layout.waveform_plot, model, selection_end);
+    let start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
     UiRect::from_min_max(
         Point::new(start_x.min(end_x), layout.waveform_plot.min.y),
         Point::new(start_x.max(end_x), layout.waveform_plot.max.y),
@@ -1009,13 +1042,13 @@ fn waveform_selection_drag_handle_hit_rect(
     model: &AppModel,
 ) -> Option<UiRect> {
     let selection = model.waveform.selection_milli?;
-    let start_milli = selection.start_milli.min(selection.end_milli);
-    let end_milli = selection.start_milli.max(selection.end_milli);
-    if end_milli <= start_milli {
+    let start_micros = selection.start_micros.min(selection.end_micros);
+    let end_micros = selection.start_micros.max(selection.end_micros);
+    if end_micros <= start_micros {
         return None;
     }
-    let start_x = waveform_x_for_milli(layout.waveform_plot, model, start_milli);
-    let end_x = waveform_x_for_milli(layout.waveform_plot, model, end_milli);
+    let start_x = waveform_x_for_micros(layout.waveform_plot, model, start_micros);
+    let end_x = waveform_x_for_micros(layout.waveform_plot, model, end_micros);
     let selection_rect = UiRect::from_min_max(
         Point::new(start_x.min(end_x), layout.waveform_plot.min.y),
         Point::new(start_x.max(end_x), layout.waveform_plot.max.y),
@@ -1038,18 +1071,18 @@ fn waveform_selection_shift_handle_hit_rect(
     model: &AppModel,
     selection: crate::app::NormalizedRangeModel,
 ) -> Option<UiRect> {
-    let start_milli = selection.start_milli.min(selection.end_milli);
-    let end_milli = selection.start_milli.max(selection.end_milli);
-    if end_milli <= start_milli {
+    let start_micros = selection.start_micros.min(selection.end_micros);
+    let end_micros = selection.start_micros.max(selection.end_micros);
+    if end_micros <= start_micros {
         return None;
     }
     let selection_rect = UiRect::from_min_max(
         Point::new(
-            waveform_x_for_milli(layout.waveform_plot, model, start_milli),
+            waveform_x_for_micros(layout.waveform_plot, model, start_micros),
             layout.waveform_plot.min.y,
         ),
         Point::new(
-            waveform_x_for_milli(layout.waveform_plot, model, end_milli),
+            waveform_x_for_micros(layout.waveform_plot, model, end_micros),
             layout.waveform_plot.max.y,
         ),
     );
@@ -1116,29 +1149,29 @@ fn waveform_edit_fade_top_handle_hit_rect(
         Point::new(right, bottom),
     )
 }
-/// Shift one milli-based waveform range while preserving width and clamping to bounds.
-fn shift_waveform_range_milli(
-    pointer_milli: u16,
-    position_milli: u16,
-    start_milli: u16,
-    end_milli: u16,
-) -> (u16, u16) {
-    let original_start = i32::from(start_milli.min(end_milli));
-    let original_end = i32::from(start_milli.max(end_milli));
+/// Shift one micro-based waveform range while preserving width and clamping to bounds.
+fn shift_waveform_range_micros(
+    pointer_micros: u32,
+    position_micros: u32,
+    start_micros: u32,
+    end_micros: u32,
+) -> (u32, u32) {
+    let original_start = i64::from(start_micros.min(end_micros));
+    let original_end = i64::from(start_micros.max(end_micros));
     let width = original_end - original_start;
     if width <= 0 {
-        return (start_milli, end_milli);
+        return (start_micros, end_micros);
     }
-    let delta = i32::from(position_milli) - i32::from(pointer_milli);
-    let shifted_start = (original_start + delta).clamp(0, 1000 - width);
+    let delta = i64::from(position_micros) - i64::from(pointer_micros);
+    let shifted_start = (original_start + delta).clamp(0, 1_000_000 - width);
     let shifted_end = shifted_start + width;
-    (shifted_start as u16, shifted_end as u16)
+    (shifted_start as u32, shifted_end as u32)
 }
 
-/// Convert a normalized waveform milli position into plot-space x.
-fn waveform_x_for_milli(plot: UiRect, model: &AppModel, milli: u16) -> f32 {
+/// Convert a normalized waveform micro position into plot-space x.
+fn waveform_x_for_micros(plot: UiRect, model: &AppModel, micros: u32) -> f32 {
     let view = normalized_waveform_view(model);
-    let absolute_ratio = f32::from(milli.min(1000)) / 1000.0;
+    let absolute_ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
     let ratio_in_view = if view.width <= f32::EPSILON {
         0.0
     } else {
@@ -1250,10 +1283,14 @@ pub(super) fn waveform_wheel_zoom_action(
 
 /// Normalized waveform viewport bounds (`0..=1`) resolved from panel milli fields.
 fn normalized_waveform_view(model: &AppModel) -> WaveformNormalizedView {
-    let start_milli = model.waveform.view_start_milli.min(1000);
-    let end_milli = model.waveform.view_end_milli.min(1000).max(start_milli);
-    let start = f32::from(start_milli) / 1000.0;
-    let end = f32::from(end_milli) / 1000.0;
+    let start_micros = model.waveform.view_start_micros.min(1_000_000);
+    let end_micros = model
+        .waveform
+        .view_end_micros
+        .min(1_000_000)
+        .max(start_micros);
+    let start = start_micros as f32 / 1_000_000.0;
+    let end = end_micros as f32 / 1_000_000.0;
     let width = (end - start).max(0.0);
     WaveformNormalizedView { start, width }
 }

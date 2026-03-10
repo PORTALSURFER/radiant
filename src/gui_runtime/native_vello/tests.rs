@@ -11,6 +11,10 @@ use std::sync::{
 };
 use winit::event::{MouseButton, MouseScrollDelta};
 
+fn milli(value: impl Into<i64>) -> u32 {
+    value.into() as u32 * 1000
+}
+
 #[derive(Default)]
 struct RecordingBridge {
     actions: Vec<UiAction>,
@@ -840,7 +844,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(point);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
-        anchor_milli: position_milli,
+        anchor_micros: milli(position_milli),
     });
     runner.last_emitted_waveform_drag_action = None;
 
@@ -863,9 +867,9 @@ fn process_waveform_drag_immediately_ignores_tiny_selection_wobble() {
         layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
-    let anchor_milli = waveform_position_milli_from_point(&layout, &runner.model, anchor);
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
     runner.shell_layout = Some(Arc::new(layout));
-    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_milli });
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_micros });
 
     let handled = runner.process_waveform_drag_immediately(Point::new(anchor.x + 2.0, anchor.y));
 
@@ -884,11 +888,11 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
     let release = Point::new(anchor.x + 2.0, anchor.y);
-    let anchor_milli = waveform_position_milli_from_point(&layout, &runner.model, anchor);
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
     let release_milli = waveform_position_milli_from_point(&layout, &runner.model, release);
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(release);
-    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_milli });
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_micros });
     runner.last_emitted_waveform_drag_action = None;
 
     runner.finish_volume_drag(Some(MouseButton::Left));
@@ -1398,8 +1402,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             ModifiersState::default(),
         ),
         Some(UiAction::SetWaveformSelectionRange {
-            start_milli: 500,
-            end_milli: 500,
+            start_micros: milli(500),
+            end_micros: milli(500),
             preserve_view_edge: false,
         })
     );
@@ -1426,8 +1430,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             ModifiersState::SHIFT,
         ),
         Some(UiAction::SetWaveformSelectionRange {
-            start_milli: 120,
-            end_milli: 500,
+            start_micros: milli(120),
+            end_micros: milli(500),
             preserve_view_edge: false,
         })
     );
@@ -1490,8 +1494,8 @@ fn waveform_right_click_maps_to_edit_selection_action() {
             ModifiersState::default()
         ),
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: 500,
-            end_milli: 500,
+            start_micros: milli(500),
+            end_micros: milli(500),
             preserve_view_edge: false,
         }
     );
@@ -1517,8 +1521,8 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
             ModifiersState::default(),
         ),
         Some(UiAction::SetWaveformSelectionRange {
-            start_milli: 800,
-            end_milli: position_milli,
+            start_micros: milli(800),
+            end_micros: milli(position_milli),
             preserve_view_edge: false,
         })
     );
@@ -1544,8 +1548,8 @@ fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
             ModifiersState::ALT,
         ),
         Some(UiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 800,
-            end_milli: position_milli,
+            start_micros: milli(800),
+            end_micros: milli(position_milli),
         })
     );
 }
@@ -1563,8 +1567,8 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: 800,
-            end_milli: position_milli,
+            start_micros: milli(800),
+            end_micros: milli(position_milli),
             preserve_view_edge: false,
         }
     );
@@ -1670,9 +1674,9 @@ fn waveform_left_click_on_selection_shift_handle_starts_shift_gesture() {
             ModifiersState::default(),
         ),
         Some(UiAction::BeginWaveformSelectionShift {
-            pointer_milli: waveform_position_milli_from_point(&layout, &model, point),
-            start_milli: 200,
-            end_milli: 800,
+            pointer_micros: milli(waveform_position_milli_from_point(&layout, &model, point)),
+            start_micros: milli(200),
+            end_micros: milli(800),
         })
     );
 }
@@ -1697,9 +1701,9 @@ fn waveform_left_click_on_edit_selection_shift_handle_starts_shift_gesture() {
             ModifiersState::default(),
         ),
         Some(UiAction::BeginWaveformEditSelectionShift {
-            pointer_milli: waveform_position_milli_from_point(&layout, &model, point),
-            start_milli: 300,
-            end_milli: 700,
+            pointer_micros: milli(waveform_position_milli_from_point(&layout, &model, point)),
+            start_micros: milli(300),
+            end_micros: milli(700),
         })
     );
 }
@@ -1725,8 +1729,8 @@ fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
             ModifiersState::default(),
         ),
         Some(UiAction::SetWaveformEditSelectionRange {
-            start_milli: 800,
-            end_milli: position_milli,
+            start_micros: milli(800),
+            end_micros: milli(position_milli),
             preserve_view_edge: false,
         })
     );
@@ -1735,16 +1739,16 @@ fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
 #[test]
 fn waveform_anchor_prefers_selection_then_cursor_then_playhead() {
     let mut model = AppModel::default();
-    assert_eq!(waveform_anchor_milli(&model), 0);
+    assert_eq!(waveform_anchor_micros(&model), 0);
 
     model.waveform.playhead_milli = Some(333);
-    assert_eq!(waveform_anchor_milli(&model), 333);
+    assert_eq!(waveform_anchor_micros(&model), milli(333));
 
     model.waveform.cursor_milli = Some(222);
-    assert_eq!(waveform_anchor_milli(&model), 222);
+    assert_eq!(waveform_anchor_micros(&model), milli(222));
 
     model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(111, 444));
-    assert_eq!(waveform_anchor_milli(&model), 111);
+    assert_eq!(waveform_anchor_micros(&model), milli(111));
 }
 
 #[test]
@@ -1764,60 +1768,66 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRange {
-            start_milli: 125,
-            end_milli: 250,
+            start_micros: milli(125),
+            end_micros: milli(250),
             preserve_view_edge: false,
         }),
-        Some(WaveformPointerDragMode::Selection { anchor_milli: 125 })
+        Some(WaveformPointerDragMode::Selection {
+            anchor_micros: milli(125)
+        })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 125,
-            end_milli: 250,
+            start_micros: milli(125),
+            end_micros: milli(250),
         }),
-        Some(WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 125 })
+        Some(WaveformPointerDragMode::SelectionSmartScale {
+            anchor_micros: milli(125)
+        })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::BeginWaveformSelectionShift {
-            pointer_milli: 400,
-            start_milli: 125,
-            end_milli: 250,
+            pointer_micros: milli(400),
+            start_micros: milli(125),
+            end_micros: milli(250),
         }),
         Some(WaveformPointerDragMode::SelectionShift {
-            pointer_milli: 400,
-            start_milli: 125,
-            end_milli: 250,
+            pointer_micros: milli(400),
+            start_micros: milli(125),
+            end_micros: milli(250),
         })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditSelectionRange {
-            start_milli: 90,
-            end_milli: 320,
+            start_micros: milli(90),
+            end_micros: milli(320),
             preserve_view_edge: false,
         }),
-        Some(WaveformPointerDragMode::EditSelection { anchor_milli: 90 })
+        Some(WaveformPointerDragMode::EditSelection {
+            anchor_micros: milli(90)
+        })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::BeginWaveformEditSelectionShift {
-            pointer_milli: 410,
-            start_milli: 90,
-            end_milli: 320,
+            pointer_micros: milli(410),
+            start_micros: milli(90),
+            end_micros: milli(320),
         }),
         Some(WaveformPointerDragMode::EditSelectionShift {
-            pointer_milli: 410,
-            start_milli: 90,
-            end_milli: 320,
+            pointer_micros: milli(410),
+            start_micros: milli(90),
+            end_micros: milli(320),
         })
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInEnd {
-            position_milli: 200,
+            position_micros: milli(200),
         }),
         Some(WaveformPointerDragMode::EditFadeInEnd)
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeInMuteStart {
-            position_milli: 150,
+            position_micros: milli(150),
         }),
         Some(WaveformPointerDragMode::EditFadeInMuteStart)
     );
@@ -1827,13 +1837,13 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutStart {
-            position_milli: 800,
+            position_micros: milli(800),
         }),
         Some(WaveformPointerDragMode::EditFadeOutStart)
     );
     assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformEditFadeOutMuteEnd {
-            position_milli: 850,
+            position_micros: milli(850),
         }),
         Some(WaveformPointerDragMode::EditFadeOutMuteEnd)
     );
@@ -1849,16 +1859,20 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         WaveformPointerDragMode::EditFadeOutMuteEnd
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
-        WaveformPointerDragMode::Selection { anchor_milli: 250 }
+        WaveformPointerDragMode::Selection {
+            anchor_micros: milli(250)
+        }
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
-        WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 250 }
+        WaveformPointerDragMode::SelectionSmartScale {
+            anchor_micros: milli(250)
+        }
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
         WaveformPointerDragMode::EditSelectionShift {
-            pointer_milli: 400,
-            start_milli: 200,
-            end_milli: 600,
+            pointer_micros: milli(400),
+            start_micros: milli(200),
+            end_micros: milli(600),
         }
     ));
 }
@@ -1877,46 +1891,46 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformSelectionRange {
-            start_milli: 125,
-            end_milli: 250,
+            start_micros: milli(125),
+            end_micros: milli(250),
             preserve_view_edge: false,
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 125,
-            end_milli: 250,
+            start_micros: milli(125),
+            end_micros: milli(250),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::BeginWaveformSelectionShift {
-            pointer_milli: 300,
-            start_milli: 125,
-            end_milli: 250,
+            pointer_micros: milli(300),
+            start_micros: milli(125),
+            end_micros: milli(250),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditSelectionRange {
-            start_milli: 90,
-            end_milli: 320,
+            start_micros: milli(90),
+            end_micros: milli(320),
             preserve_view_edge: false,
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::BeginWaveformEditSelectionShift {
-            pointer_milli: 310,
-            start_milli: 90,
-            end_milli: 320,
+            pointer_micros: milli(310),
+            start_micros: milli(90),
+            end_micros: milli(320),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeInEnd {
-            position_milli: 200,
+            position_micros: milli(200),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeInMuteStart {
-            position_milli: 150,
+            position_micros: milli(150),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
@@ -1924,12 +1938,12 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeOutStart {
-            position_milli: 800,
+            position_micros: milli(800),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformEditFadeOutMuteEnd {
-            position_milli: 850,
+            position_micros: milli(850),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(
@@ -1944,8 +1958,8 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::SetWaveformSelectionRange {
-            start_milli: 250,
-            end_milli: 250,
+            start_micros: milli(250),
+            end_micros: milli(250),
             preserve_view_edge: false,
         },
         false,
@@ -1955,7 +1969,9 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
     assert!(runner.bridge.actions.is_empty());
     assert_eq!(
         runner.waveform_drag_mode,
-        Some(WaveformPointerDragMode::Selection { anchor_milli: 250 })
+        Some(WaveformPointerDragMode::Selection {
+            anchor_micros: milli(250)
+        })
     );
 }
 
@@ -1966,8 +1982,8 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: 400,
-            end_milli: 400,
+            start_micros: milli(400),
+            end_micros: milli(400),
             preserve_view_edge: false,
         },
         false,
@@ -1977,7 +1993,9 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
     assert!(runner.bridge.actions.is_empty());
     assert_eq!(
         runner.waveform_drag_mode,
-        Some(WaveformPointerDragMode::EditSelection { anchor_milli: 400 })
+        Some(WaveformPointerDragMode::EditSelection {
+            anchor_micros: milli(400)
+        })
     );
 }
 
@@ -1988,9 +2006,9 @@ fn handle_pointer_press_action_arms_selection_shift_without_emitting() {
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::BeginWaveformSelectionShift {
-            pointer_milli: 400,
-            start_milli: 200,
-            end_milli: 600,
+            pointer_micros: milli(400),
+            start_micros: milli(200),
+            end_micros: milli(600),
         },
         false,
     );
@@ -2000,9 +2018,9 @@ fn handle_pointer_press_action_arms_selection_shift_without_emitting() {
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::SelectionShift {
-            pointer_milli: 400,
-            start_milli: 200,
-            end_milli: 600,
+            pointer_micros: milli(400),
+            start_micros: milli(200),
+            end_micros: milli(600),
         })
     );
 }
@@ -2014,9 +2032,9 @@ fn handle_pointer_press_action_arms_edit_selection_shift_without_emitting() {
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::BeginWaveformEditSelectionShift {
-            pointer_milli: 420,
-            start_milli: 250,
-            end_milli: 650,
+            pointer_micros: milli(420),
+            start_micros: milli(250),
+            end_micros: milli(650),
         },
         false,
     );
@@ -2026,9 +2044,9 @@ fn handle_pointer_press_action_arms_edit_selection_shift_without_emitting() {
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::EditSelectionShift {
-            pointer_milli: 420,
-            start_milli: 250,
-            end_milli: 650,
+            pointer_micros: milli(420),
+            start_micros: milli(250),
+            end_micros: milli(650),
         })
     );
 }
@@ -2063,7 +2081,7 @@ fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() 
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::EditFadeOutMuteEnd);
     runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformEditFadeOutMuteEnd {
-        position_milli: 500,
+        position_micros: milli(500),
     });
 
     runner.finish_volume_drag(Some(MouseButton::Left));
@@ -2112,11 +2130,13 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
-            WaveformPointerDragMode::Selection { anchor_milli: 200 }
+            WaveformPointerDragMode::Selection {
+                anchor_micros: milli(200)
+            }
         ),
         UiAction::SetWaveformSelectionRange {
-            start_milli: 200,
-            end_milli: 1000,
+            start_micros: milli(200),
+            end_micros: milli(1000),
             preserve_view_edge: true,
         }
     );
@@ -2125,11 +2145,13 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
-            WaveformPointerDragMode::SelectionSmartScale { anchor_milli: 200 }
+            WaveformPointerDragMode::SelectionSmartScale {
+                anchor_micros: milli(200)
+            }
         ),
         UiAction::SetWaveformSelectionRangeSmartScale {
-            start_milli: 200,
-            end_milli: 1000,
+            start_micros: milli(200),
+            end_micros: milli(1000),
         }
     );
     assert_eq!(
@@ -2138,14 +2160,14 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &model,
             right,
             WaveformPointerDragMode::SelectionShift {
-                pointer_milli: 300,
-                start_milli: 200,
-                end_milli: 400,
+                pointer_micros: milli(300),
+                start_micros: milli(200),
+                end_micros: milli(400),
             }
         ),
         UiAction::SetWaveformSelectionRange {
-            start_milli: 800,
-            end_milli: 1000,
+            start_micros: milli(800),
+            end_micros: milli(1000),
             preserve_view_edge: false,
         }
     );
@@ -2154,11 +2176,13 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
-            WaveformPointerDragMode::EditSelection { anchor_milli: 300 }
+            WaveformPointerDragMode::EditSelection {
+                anchor_micros: milli(300)
+            }
         ),
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: 300,
-            end_milli: 1000,
+            start_micros: milli(300),
+            end_micros: milli(1000),
             preserve_view_edge: true,
         }
     );
@@ -2168,14 +2192,14 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &model,
             left,
             WaveformPointerDragMode::EditSelectionShift {
-                pointer_milli: 550,
-                start_milli: 400,
-                end_milli: 700,
+                pointer_micros: milli(550),
+                start_micros: milli(400),
+                end_micros: milli(700),
             }
         ),
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: 0,
-            end_milli: 300,
+            start_micros: milli(0),
+            end_micros: milli(300),
             preserve_view_edge: false,
         }
     );
@@ -2186,7 +2210,9 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             left,
             WaveformPointerDragMode::EditFadeInEnd
         ),
-        UiAction::SetWaveformEditFadeInEnd { position_milli: 0 }
+        UiAction::SetWaveformEditFadeInEnd {
+            position_micros: milli(0)
+        }
     );
     assert_eq!(
         waveform_drag_action_for_mode(
@@ -2195,7 +2221,9 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             left,
             WaveformPointerDragMode::EditFadeInMuteStart
         ),
-        UiAction::SetWaveformEditFadeInMuteStart { position_milli: 0 }
+        UiAction::SetWaveformEditFadeInMuteStart {
+            position_micros: milli(0)
+        }
     );
     assert_eq!(
         waveform_drag_action_for_mode(
@@ -2214,7 +2242,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::EditFadeOutStart
         ),
         UiAction::SetWaveformEditFadeOutStart {
-            position_milli: 1000
+            position_micros: milli(1000)
         }
     );
     assert_eq!(
@@ -2225,7 +2253,7 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::EditFadeOutMuteEnd
         ),
         UiAction::SetWaveformEditFadeOutMuteEnd {
-            position_milli: 1000
+            position_micros: milli(1000)
         }
     );
     assert_eq!(
@@ -2260,7 +2288,9 @@ fn waveform_click_over_edit_fade_handle_routes_fade_action() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetWaveformEditFadeInEnd { position_milli })
+        Some(UiAction::SetWaveformEditFadeInEnd {
+            position_micros: milli(position_milli),
+        })
     );
 }
 
@@ -2278,7 +2308,9 @@ fn waveform_right_click_over_edit_fade_handle_routes_edit_fade_action() {
 
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
-        UiAction::SetWaveformEditFadeInEnd { position_milli }
+        UiAction::SetWaveformEditFadeInEnd {
+            position_micros: milli(position_milli),
+        }
     );
 }
 
@@ -2298,7 +2330,9 @@ fn waveform_bottom_click_over_edit_fade_handle_routes_mute_action() {
 
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
-        UiAction::SetWaveformEditFadeInMuteStart { position_milli }
+        UiAction::SetWaveformEditFadeInMuteStart {
+            position_micros: milli(position_milli),
+        }
     );
 }
 
@@ -2636,8 +2670,8 @@ fn waveform_bottom_click_without_edit_fade_does_not_hit_top_handle() {
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::default()),
         UiAction::SetWaveformEditSelectionRange {
-            start_milli: position_milli,
-            end_milli: position_milli,
+            start_micros: milli(position_milli),
+            end_micros: milli(position_milli),
             preserve_view_edge: false,
         }
     );

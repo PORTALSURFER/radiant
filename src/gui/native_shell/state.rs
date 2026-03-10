@@ -2671,17 +2671,17 @@ fn hovered_resize_edge_for_range(
     range: Option<crate::app::NormalizedRangeModel>,
 ) -> Option<bool> {
     let range = range?;
-    let start_milli = range.start_milli.min(range.end_milli);
-    let end_milli = range.start_milli.max(range.end_milli);
-    if end_milli <= start_milli {
+    let start_micros = range.start_micros.min(range.end_micros);
+    let end_micros = range.start_micros.max(range.end_micros);
+    if end_micros <= start_micros {
         return None;
     }
     let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
     if point.y < handle_top || point.y > handle_bottom {
         return None;
     }
-    let start_x = waveform_x_for_milli(layout.waveform_plot, model, start_milli);
-    let end_x = waveform_x_for_milli(layout.waveform_plot, model, end_milli);
+    let start_x = waveform_x_for_micros(layout.waveform_plot, model, start_micros);
+    let end_x = waveform_x_for_micros(layout.waveform_plot, model, end_micros);
     let threshold = 7.0;
     let start_distance = (point.x - start_x).abs();
     let end_distance = (point.x - end_x).abs();
@@ -2691,12 +2691,12 @@ fn hovered_resize_edge_for_range(
     Some(start_distance <= end_distance)
 }
 
-/// Convert one normalized waveform milli position into plot-space x.
-fn waveform_x_for_milli(plot: Rect, model: &AppModel, milli: u16) -> f32 {
-    let view_start = f32::from(model.waveform.view_start_milli.min(1000)) / 1000.0;
-    let view_end = f32::from(model.waveform.view_end_milli.min(1000)) / 1000.0;
+/// Convert one normalized waveform micro position into plot-space x.
+fn waveform_x_for_micros(plot: Rect, model: &AppModel, micros: u32) -> f32 {
+    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
+    let view_end = model.waveform.view_end_micros.min(1_000_000) as f32 / 1_000_000.0;
     let view_width = (view_end - view_start).max(f32::EPSILON);
-    let absolute_ratio = f32::from(milli.min(1000)) / 1000.0;
+    let absolute_ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
     let ratio_in_view = ((absolute_ratio - view_start) / view_width).clamp(0.0, 1.0);
     plot.min.x + (plot.width() * ratio_in_view)
 }

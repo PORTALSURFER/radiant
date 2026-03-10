@@ -124,6 +124,13 @@ fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
     )
 }
 
+/// Active browser-scrollbar thumb drag state while the primary pointer is held.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BrowserScrollbarDragState {
+    /// Pointer offset from the top edge of the thumb captured at drag start.
+    thumb_pointer_offset_y: f32,
+}
+
 #[derive(Clone)]
 struct EventLoopProxyRepaintSignal {
     proxy: EventLoopProxy<RuntimeUserEvent>,
@@ -1339,6 +1346,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     map_focus_drag_active: bool,
     /// Last map sample id emitted during active map focus drag.
     last_emitted_map_drag_sample_id: Option<String>,
+    /// Active browser-scrollbar thumb drag state for primary pointer movement.
+    browser_scrollbar_drag: Option<BrowserScrollbarDragState>,
+    /// Last emitted browser viewport start during an active scrollbar drag.
+    last_emitted_browser_view_start: Option<usize>,
     volume_drag_active: bool,
     last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
@@ -1481,6 +1492,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             last_emitted_waveform_drag_action: None,
             map_focus_drag_active: false,
             last_emitted_map_drag_sample_id: None,
+            browser_scrollbar_drag: None,
+            last_emitted_browser_view_start: None,
             volume_drag_active: false,
             last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
@@ -2219,6 +2232,30 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Emit one browser-scrollbar drag viewport update immediately.
+    fn process_browser_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(drag) = self.browser_scrollbar_drag else {
+            return false;
+        };
+        let Some(visible_row) = self.shell_state.browser_scrollbar_view_start_for_drag(
+            layout,
+            &self.model,
+            point.y,
+            drag.thumb_pointer_offset_y,
+        ) else {
+            return false;
+        };
+        if self.last_emitted_browser_view_start == Some(visible_row) {
+            return true;
+        }
+        self.last_emitted_browser_view_start = Some(visible_row);
+        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+        true
+    }
+
     /// Return whether one held-key repeat should be processed for navigation.
     ///
     /// Repeats stay intentionally narrow to preserve existing single-fire behavior
@@ -2395,6 +2432,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
         self.last_emitted_map_drag_sample_id = None;
+        self.browser_scrollbar_drag = None;
+        self.last_emitted_browser_view_start = None;
         if seek_on_waveform_click_release
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {
@@ -4081,12 +4120,23 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     } else {
                         self.emit_model_action(action);
                     }
+                } else if !self.volume_drag_active && self.browser_scrollbar_drag.is_some() {
+                    let _ = self.process_browser_scrollbar_drag_immediately(point);
                 }
-                if !self.volume_drag_active && self.waveform_drag_mode.is_some() {
+                if !self.volume_drag_active
+                    && self.browser_scrollbar_drag.is_none()
+                    && self.waveform_drag_mode.is_some()
+                {
                     let _ = self.process_waveform_drag_immediately(point);
-                } else if !self.volume_drag_active && self.selection_drag_active {
+                } else if !self.volume_drag_active
+                    && self.browser_scrollbar_drag.is_none()
+                    && self.selection_drag_active
+                {
                     let _ = self.process_selection_drag_immediately(point);
-                } else if !self.volume_drag_active && self.map_focus_drag_active {
+                } else if !self.volume_drag_active
+                    && self.browser_scrollbar_drag.is_none()
+                    && self.map_focus_drag_active
+                {
                     let _ = self.process_map_focus_drag_immediately(point);
                 } else if !self.volume_drag_active && self.text_input_drag_active {
                     if !self.process_text_input_drag(point) {
@@ -4125,6 +4175,8 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         this.last_emitted_waveform_drag_action = None;
                         this.map_focus_drag_active = false;
                         this.last_emitted_map_drag_sample_id = None;
+                        this.browser_scrollbar_drag = None;
+                        this.last_emitted_browser_view_start = None;
                         let mut handled = false;
                         let mut action_emitted = false;
                         let mut source_menu_state_changed = false;
@@ -4200,6 +4252,18 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                         }
                                         action_emitted = true;
                                         this.volume_drag_active = true;
+                                        handled = true;
+                                    } else if let Some(thumb_pointer_offset_y) =
+                                        this.shell_state.browser_scrollbar_thumb_offset_at_point(
+                                            layout,
+                                            &this.model,
+                                            point,
+                                        )
+                                    {
+                                        this.browser_scrollbar_drag =
+                                            Some(BrowserScrollbarDragState {
+                                                thumb_pointer_offset_y,
+                                            });
                                         handled = true;
                                     } else if let Some(action) = action_from_pointer_with_motion(
                                         layout,

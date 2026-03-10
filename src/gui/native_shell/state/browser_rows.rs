@@ -709,6 +709,29 @@ pub(super) fn browser_scrollbar_layout(
     Some(BrowserScrollbarLayout { track, thumb })
 }
 
+/// Resolve the browser viewport start row for a dragged scrollbar thumb position.
+pub(super) fn browser_scrollbar_view_start_for_pointer(
+    scrollbar: BrowserScrollbarLayout,
+    viewport_len: usize,
+    visible_count: usize,
+    pointer_y: f32,
+    thumb_pointer_offset_y: f32,
+) -> Option<usize> {
+    if viewport_len == 0 || visible_count <= viewport_len {
+        return None;
+    }
+    let max_viewport_start = visible_count.saturating_sub(viewport_len);
+    let thumb_height = scrollbar.thumb.height().max(1.0);
+    let travel = (scrollbar.track.height() - thumb_height).max(0.0);
+    if travel <= f32::EPSILON || max_viewport_start == 0 {
+        return Some(0);
+    }
+    let thumb_min_y = (pointer_y - thumb_pointer_offset_y)
+        .clamp(scrollbar.track.min.y, scrollbar.track.max.y - thumb_height);
+    let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
+    Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
+}
+
 /// Resolve browser row-window bounds in model-row index space.
 pub(super) fn browser_rows_window_bounds(
     layout: &ShellLayout,

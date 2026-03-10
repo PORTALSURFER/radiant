@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::{
-    BrowserPanelModel, ColumnModel, MapPanelModel, MapPointModel, SourcesPanelModel,
-    WaveformPanelModel,
+    BrowserPanelModel, BrowserRowModel, ColumnModel, MapPanelModel, MapPointModel,
+    SourcesPanelModel, WaveformPanelModel,
 };
 use crate::gui::types::Vector2;
 use std::collections::{HashMap, VecDeque};
@@ -24,6 +24,23 @@ impl NativeAppBridge for RecordingBridge {
     fn reduce_action(&mut self, action: UiAction) {
         self.actions.push(action);
     }
+}
+
+fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
+    let mut model = AppModel::default();
+    for visible_row in 0..total {
+        model.browser.rows.push(BrowserRowModel::new(
+            visible_row,
+            format!("row_{visible_row:04}"),
+            1,
+            false,
+            visible_row == focused_visible_row,
+        ));
+    }
+    model.browser.visible_count = model.browser.rows.len();
+    model.browser.selected_visible_row = Some(focused_visible_row);
+    model.browser.anchor_visible_row = Some(focused_visible_row.saturating_sub(2));
+    model
 }
 
 #[test]
@@ -393,6 +410,56 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
+    );
+}
+
+#[test]
+fn browser_scrollbar_drag_emit_updates_action_queue() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = browser_model_with_rows(500, 120);
+    let mut shell_state = NativeShellState::new();
+    let thumb_point = ((layout.browser_rows.max.x as i32 - 16)..=layout.browser_rows.max.x as i32)
+        .rev()
+        .find_map(|x| {
+            (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
+                let point = Point::new(x as f32, y as f32);
+                shell_state
+                    .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+                    .map(|_| point)
+            })
+        })
+        .expect("overflowing browser list should expose a hittable scrollbar thumb");
+    let thumb_pointer_offset_y = shell_state
+        .browser_scrollbar_thumb_offset_at_point(&layout, &model, thumb_point)
+        .expect("thumb center should be hittable");
+    let expected_visible_row = shell_state
+        .browser_scrollbar_view_start_for_drag(
+            &layout,
+            &model,
+            layout.browser_rows.max.y,
+            thumb_pointer_offset_y,
+        )
+        .expect("dragging the thumb should resolve a view start");
+
+    runner.model = Arc::new(model);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.shell_state = shell_state;
+    runner.browser_scrollbar_drag = Some(BrowserScrollbarDragState {
+        thumb_pointer_offset_y,
+    });
+
+    let drag_point = Point::new(
+        thumb_point.x,
+        runner.shell_layout.as_ref().unwrap().browser_rows.max.y,
+    );
+    assert!(runner.process_browser_scrollbar_drag_immediately(drag_point));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetBrowserViewStart {
+            visible_row: expected_visible_row
+        }]
     );
 }
 

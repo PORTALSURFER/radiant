@@ -1736,6 +1736,70 @@ fn browser_row_hit_test_ignores_scrollbar_gutter() {
 }
 
 #[test]
+fn browser_scrollbar_thumb_hit_test_returns_drag_offset() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(500, 120);
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+    let point = Point::new(
+        (scrollbar.thumb.min.x + scrollbar.thumb.max.x) * 0.5,
+        (scrollbar.thumb.min.y + scrollbar.thumb.max.y) * 0.5,
+    );
+
+    let mut state = NativeShellState::new();
+    let offset = state
+        .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+        .expect("thumb center should be hittable");
+    assert!((offset - (scrollbar.thumb.height() * 0.5)).abs() <= 0.001);
+}
+
+#[test]
+fn browser_scrollbar_drag_mapping_clamps_to_visible_bounds() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(500, 120);
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+    let viewport_len = rows.len();
+    let thumb_offset = scrollbar.thumb.height() * 0.5;
+    let max_viewport_start = model.browser.visible_count.saturating_sub(viewport_len);
+
+    assert_eq!(
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            scrollbar.track.min.y - 40.0,
+            thumb_offset,
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            scrollbar.track.max.y + 40.0,
+            thumb_offset,
+        ),
+        Some(max_viewport_start)
+    );
+}
+
+#[test]
 fn top_bar_omits_status_indicator_dot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

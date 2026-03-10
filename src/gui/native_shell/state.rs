@@ -1375,6 +1375,38 @@ impl NativeShellState {
             .map(|row| row.visible_row)
     }
 
+    /// Return the pointer's offset within the browser scrollbar thumb when hovered.
+    pub(crate) fn browser_scrollbar_thumb_offset_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<f32> {
+        let (scrollbar, _) = self.cached_browser_scrollbar(layout, model)?;
+        scrollbar
+            .thumb
+            .contains(point)
+            .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
+    }
+
+    /// Resolve the browser viewport start row for an active scrollbar-thumb drag.
+    pub(crate) fn browser_scrollbar_view_start_for_drag(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pointer_y: f32,
+        thumb_pointer_offset_y: f32,
+    ) -> Option<usize> {
+        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            pointer_y,
+            thumb_pointer_offset_y,
+        )
+    }
+
     /// Resolve a browser action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
         &mut self,
@@ -2327,6 +2359,23 @@ impl NativeShellState {
             self.browser_rows_window_start = window_start;
         }
         &self.browser_rows
+    }
+
+    fn cached_browser_scrollbar(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<(BrowserScrollbarLayout, usize)> {
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        let viewport_len = rows.len().min(model.browser.visible_count);
+        let scrollbar = browser_scrollbar_layout(
+            layout.browser_rows,
+            rows,
+            model.browser.visible_count,
+            style.sizing,
+        )?;
+        Some((scrollbar, viewport_len))
     }
 
     fn cached_browser_action_hit_test(

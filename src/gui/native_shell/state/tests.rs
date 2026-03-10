@@ -4434,6 +4434,25 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
 }
 
 #[test]
+fn state_overlay_renders_options_panel_when_visible() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    assert!(overlay.text_runs.iter().any(|run| run.text == "Options"));
+}
+
+#[test]
 fn top_bar_volume_drag_clamps_beyond_meter_bounds() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();

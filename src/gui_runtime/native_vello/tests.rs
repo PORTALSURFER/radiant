@@ -819,6 +819,55 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
 }
 
 #[test]
+fn process_waveform_drag_immediately_ignores_tiny_selection_wobble() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let anchor = Point::new(
+        layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
+        layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+    );
+    let anchor_milli = waveform_position_milli_from_point(&layout, &runner.model, anchor);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_milli });
+
+    let handled = runner.process_waveform_drag_immediately(Point::new(anchor.x + 2.0, anchor.y));
+
+    assert!(!handled);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(runner.last_emitted_waveform_drag_action, None);
+}
+
+#[test]
+fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let anchor = Point::new(
+        layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
+        layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+    );
+    let release = Point::new(anchor.x + 2.0, anchor.y);
+    let anchor_milli = waveform_position_milli_from_point(&layout, &runner.model, anchor);
+    let release_milli = waveform_position_milli_from_point(&layout, &runner.model, release);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.last_cursor = Some(release);
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_milli });
+    runner.last_emitted_waveform_drag_action = None;
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SeekWaveform {
+            position_milli: release_milli
+        }]
+    );
+    assert_eq!(runner.waveform_drag_mode, None);
+    assert_eq!(runner.last_emitted_waveform_drag_action, None);
+}
+
+#[test]
 fn key_repeat_is_limited_to_plain_browser_arrow_navigation() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

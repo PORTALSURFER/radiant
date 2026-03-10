@@ -58,6 +58,8 @@ pub(super) enum WaveformPointerDragMode {
 /// Half-width in pixels used for fade-handle hit testing.
 const WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH: f32 = 7.0;
 const WAVEFORM_EDIT_FADE_TOP_TAB_SIZE: f32 = 10.0;
+/// Horizontal drag distance required before a new playback selection counts as intentional.
+const WAVEFORM_SELECTION_CLICK_SLOP_PX: f32 = 3.0;
 /// Half-width in pixels used for waveform edge-resize hit testing.
 const WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH: f32 = 7.0;
 /// Fraction of waveform height used by centered resize-edge hit regions.
@@ -636,6 +638,26 @@ pub(super) fn waveform_drag_action_for_mode(
         WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
         },
+    }
+}
+
+/// Return whether an armed waveform drag moved far enough to emit selection updates.
+///
+/// New playback-selection drags use a small horizontal click-slop so minor
+/// pointer wobble still behaves like a click/seek instead of creating a
+/// micro-selection.
+pub(super) fn waveform_drag_exceeds_click_slop(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> bool {
+    match mode {
+        WaveformPointerDragMode::Selection { anchor_milli } => {
+            let anchor_x = waveform_x_for_milli(layout.waveform_plot, model, anchor_milli);
+            (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
+        }
+        _ => true,
     }
 }
 

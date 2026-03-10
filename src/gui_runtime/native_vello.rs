@@ -2304,6 +2304,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(mode) = self.waveform_drag_mode else {
             return false;
         };
+        if self.last_emitted_waveform_drag_action.is_none()
+            && !waveform_drag_exceeds_click_slop(layout, &self.model, point, mode)
+        {
+            return false;
+        }
         let action = waveform_drag_action_for_mode(layout, &self.model, point, mode);
         self.emit_waveform_drag_action_immediately(action);
         true
@@ -2400,12 +2405,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let seek_on_waveform_click_release = if matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
         {
-            if let Some(WaveformPointerDragMode::Selection { anchor_milli }) =
-                self.waveform_drag_mode
+            if let Some(mode @ WaveformPointerDragMode::Selection { .. }) = self.waveform_drag_mode
             {
                 if let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
                 {
-                    waveform_position_milli_from_point(layout, &self.model, point) == anchor_milli
+                    !waveform_drag_exceeds_click_slop(layout, &self.model, point, mode)
                 } else {
                     false
                 }

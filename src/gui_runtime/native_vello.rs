@@ -2258,6 +2258,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Emit one browser-scrollbar track-click viewport update immediately.
+    fn process_browser_scrollbar_track_click_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(visible_row) =
+            self.shell_state
+                .browser_scrollbar_view_start_at_point(layout, &self.model, point)
+        else {
+            return false;
+        };
+        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+        true
+    }
+
     /// Return whether one held-key repeat should be processed for navigation.
     ///
     /// Repeats stay intentionally narrow to preserve existing single-fire behavior
@@ -4271,6 +4286,11 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                                 thumb_pointer_offset_y,
                                             });
                                         handled = true;
+                                    } else if this
+                                        .process_browser_scrollbar_track_click_immediately(point)
+                                    {
+                                        handled = true;
+                                        action_emitted = true;
                                     } else if let Some(action) = action_from_pointer_with_motion(
                                         layout,
                                         &this.model,

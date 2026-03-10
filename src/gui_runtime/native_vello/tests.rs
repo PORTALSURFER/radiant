@@ -464,6 +464,42 @@ fn browser_scrollbar_drag_emit_updates_action_queue() {
 }
 
 #[test]
+fn browser_scrollbar_track_click_emit_updates_action_queue() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = browser_model_with_rows(500, 120);
+    let mut shell_state = NativeShellState::new();
+    let thumb_point = ((layout.browser_rows.max.x as i32 - 16)..=layout.browser_rows.max.x as i32)
+        .rev()
+        .find_map(|x| {
+            (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
+                let point = Point::new(x as f32, y as f32);
+                shell_state
+                    .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+                    .map(|_| point)
+            })
+        })
+        .expect("overflowing browser list should expose a hittable scrollbar thumb");
+    let track_point = Point::new(thumb_point.x, layout.browser_rows.max.y - 24.0);
+    let expected_visible_row = shell_state
+        .browser_scrollbar_view_start_at_point(&layout, &model, track_point)
+        .expect("track click should resolve a view start");
+
+    runner.model = Arc::new(model);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.shell_state = shell_state;
+
+    assert!(runner.process_browser_scrollbar_track_click_immediately(track_point));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetBrowserViewStart {
+            visible_row: expected_visible_row
+        }]
+    );
+}
+
+#[test]
 fn deferred_startup_fallback_defers_model_and_overlay_pulls() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

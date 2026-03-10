@@ -1411,6 +1411,30 @@ impl NativeShellState {
         )
     }
 
+    /// Resolve the browser viewport start for a click inside the scrollbar track.
+    ///
+    /// Track clicks jump the thumb so its center aligns with the clicked
+    /// location, matching the visual expectation that the handle should move to
+    /// the requested position immediately.
+    pub(crate) fn browser_scrollbar_view_start_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+            return None;
+        }
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            point.y,
+            scrollbar.thumb.height() * 0.5,
+        )
+    }
+
     /// Resolve a browser action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
         &mut self,

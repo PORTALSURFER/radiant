@@ -1800,6 +1800,39 @@ fn browser_scrollbar_drag_mapping_clamps_to_visible_bounds() {
 }
 
 #[test]
+fn browser_scrollbar_track_click_maps_to_centered_view_start() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(500, 120);
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+    let point = Point::new(
+        (scrollbar.track.min.x + scrollbar.track.max.x) * 0.5,
+        scrollbar.track.max.y - 24.0,
+    );
+    let expected_visible_row = browser_scrollbar_view_start_for_pointer(
+        scrollbar,
+        rows.len(),
+        model.browser.visible_count,
+        point.y,
+        scrollbar.thumb.height() * 0.5,
+    )
+    .expect("track click should map to a visible row");
+
+    let mut state = NativeShellState::new();
+    assert_eq!(
+        state.browser_scrollbar_view_start_at_point(&layout, &model, point),
+        Some(expected_visible_row)
+    );
+}
+
+#[test]
 fn browser_scrollbar_thumb_reaches_track_end_at_bottom() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

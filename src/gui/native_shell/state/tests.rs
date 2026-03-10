@@ -3774,7 +3774,7 @@ fn waveform_motion_overlay_interpolates_fast_trail_alpha_gradient() {
         trail_alphas
     );
     assert!(trail_alphas.first().copied().unwrap_or_default() < 100);
-    assert_eq!(trail_alphas.last().copied(), Some(1000));
+    assert_eq!(trail_alphas.last().copied(), Some(500));
 }
 
 #[test]

@@ -66,6 +66,11 @@ const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 768;
 ///
 /// Time-based aging avoids visible fade quantization when redraw cadence varies.
 const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
+/// Maximum opacity used for the newest retained trail sample behind the live playhead.
+///
+/// The active playhead line itself remains fully opaque; only the ghost trail fades from
+/// this half-strength head value down to zero.
+const PLAYHEAD_TRAIL_HEAD_ALPHA: f32 = 0.5;
 /// Maximum inserted in-between samples per motion frame for smooth trails.
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
 /// Largest contiguous frame delta treated as normal transport motion.
@@ -2047,8 +2052,9 @@ impl NativeShellState {
 
     /// Project retained trail samples into drawable ghost-line primitives.
     ///
-    /// Alpha is normalized across the currently retained trail so fast motion
-    /// still renders a full head-to-tail fade instead of large equal-opacity slabs.
+    /// Alpha is normalized across the currently retained trail so fast motion still renders
+    /// a full head-to-tail fade instead of large equal-opacity slabs, while the trail itself
+    /// starts below the fully opaque playhead marker.
     fn playhead_trail_lines(&self, now_seconds: f32) -> Vec<PlayheadTrailLine> {
         let retained = self
             .playhead_trail_samples
@@ -2065,7 +2071,7 @@ impl NativeShellState {
             .enumerate()
             .filter_map(|(index, sample)| {
                 let progress = index as f32 / last_index;
-                let alpha = progress.powf(1.35).clamp(0.0, 1.0);
+                let alpha = (progress.powf(1.35) * PLAYHEAD_TRAIL_HEAD_ALPHA).clamp(0.0, 1.0);
                 (alpha > 0.01).then_some(PlayheadTrailLine {
                     ratio: sample.ratio,
                     alpha,

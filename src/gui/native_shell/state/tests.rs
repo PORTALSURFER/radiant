@@ -1421,7 +1421,6 @@ fn browser_virtualization_scrolls_down_for_bottom_rows_in_prewindowed_slice() {
     };
 
     let bottom_focus = host_window_start + row_capacity.saturating_sub(1);
-    let mut state = NativeShellState::new();
     let bottom_model = build_model(bottom_focus);
     let scrolled_start = bottom_model.browser.view_start_row;
     assert!(scrolled_start > host_window_start);
@@ -1876,6 +1875,28 @@ fn browser_scrollbar_thumb_hit_test_returns_drag_offset() {
         .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
         .expect("thumb center should be hittable");
     assert!((offset - (scrollbar.thumb.height() * 0.5)).abs() <= 0.001);
+}
+
+#[test]
+fn browser_scrollbar_thumb_hit_test_allows_small_pointer_slop() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(500, 120);
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let scrollbar = browser_scrollbar_layout(
+        layout.browser_rows,
+        &rows,
+        model.browser.visible_count,
+        style.sizing,
+    )
+    .expect("overflowing browser list should render a scrollbar");
+    let point = Point::new(scrollbar.track.min.x - 2.0, scrollbar.thumb.min.y - 2.0);
+
+    let mut state = NativeShellState::new();
+    let offset = state
+        .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+        .expect("small thumb-adjacent slop should still arm dragging");
+    assert_eq!(offset, 0.0);
 }
 
 #[test]

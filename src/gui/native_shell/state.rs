@@ -83,6 +83,8 @@ const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
+/// Additional hit slop for the narrow browser scrollbar thumb.
+const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -1398,8 +1400,17 @@ impl NativeShellState {
         point: Point,
     ) -> Option<f32> {
         let (scrollbar, _) = self.cached_browser_scrollbar(layout, model)?;
-        scrollbar
-            .thumb
+        let hit_rect = Rect::from_min_max(
+            Point::new(
+                scrollbar.track.min.x - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.min.y - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+            ),
+            Point::new(
+                scrollbar.track.max.x + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.max.y + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+            ),
+        );
+        hit_rect
             .contains(point)
             .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
     }

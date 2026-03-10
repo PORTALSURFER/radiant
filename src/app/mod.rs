@@ -273,8 +273,8 @@ pub struct BrowserPanelModel {
     pub selected_path_count: usize,
     /// Active browser search query.
     pub search_query: String,
-    /// Active rating-filter chip states for levels `-3..=3`.
-    pub active_rating_filters: [bool; 7],
+    /// Active rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
+    pub active_rating_filters: [bool; 8],
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
@@ -930,7 +930,7 @@ pub enum UiAction {
         /// Full browser-search query text.
         query: String,
     },
-    /// Toggle one browser rating-filter chip for level `-3..=3`.
+    /// Toggle one browser rating-filter chip for level `-3..=3`, or `4` for locked keeps.
     ToggleBrowserRatingFilter {
         /// Signed rating level associated with the clicked filter chip.
         level: i8,
@@ -1341,8 +1341,8 @@ pub struct NativeMotionModel {
     pub transport_running: bool,
     /// Whether map mode is active for tab overlay tinting.
     pub map_active: bool,
-    /// Active browser rating-filter chip states for levels `-3..=3`.
-    pub active_rating_filters: [bool; 7],
+    /// Active browser rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
+    pub active_rating_filters: [bool; 8],
     /// Waveform selected playback window in normalized milliseconds.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit-selection window in normalized milliseconds.

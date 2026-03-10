@@ -890,6 +890,27 @@ fn browser_rating_filter_chip_uses_active_fill_when_enabled() {
 }
 
 #[test]
+fn locked_browser_rating_filter_chip_uses_active_fill_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.browser.active_rating_filters[7] = true;
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_rating_filter_chip_rect(&layout, &model, 4)
+        .expect("locked keep chip should render");
+
+    let frame = state.build_frame(&layout, &model);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == chip && *color == browser_rating_filter_chip_fill(&style, 4, true)
+        )
+    }));
+}
+
+#[test]
 fn browser_rating_filter_chip_hover_preserves_active_fill_when_enabled() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
@@ -1096,7 +1117,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
             .all(|chip| chip.width() > 1.0)
     );
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
-    assert!(controls.rating_filter_chips[6].max.x <= controls.search_field.min.x);
+    assert!(controls.rating_filter_chips[7].max.x <= controls.search_field.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);

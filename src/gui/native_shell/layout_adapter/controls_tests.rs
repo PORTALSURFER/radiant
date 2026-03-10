@@ -79,6 +79,14 @@ fn toolbar_search_field_uses_ratio_width_inside_full_host() {
             .filter(|rect| rect.width() > 1.0)
             .all(|rect| (rect.width() - rect.height()).abs() <= 0.01)
     );
+    assert_eq!(
+        sections
+            .rating_filter_chips
+            .iter()
+            .filter(|rect| rect.width() > 1.0)
+            .count(),
+        8
+    );
 }
 
 #[test]

@@ -73,7 +73,7 @@ const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for the sidebar source-add button click flash.
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
-const BROWSER_RATING_FILTER_LEVELS: [i8; 7] = [-3, -2, -1, 0, 1, 2, 3];
+const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 
 /// Mutable interaction + animation state for the native shell.
 #[derive(Clone, Debug, PartialEq)]
@@ -2726,7 +2726,7 @@ fn browser_rating_filter_chip_index(level: i8) -> Option<usize> {
         .position(|chip| *chip == level)
 }
 
-fn browser_rating_filter_level_at_point(chips: [Rect; 7], point: Point) -> Option<i8> {
+fn browser_rating_filter_level_at_point(chips: [Rect; 8], point: Point) -> Option<i8> {
     chips
         .iter()
         .position(|rect| rect.width() > 1.0 && rect.contains(point))
@@ -3433,6 +3433,8 @@ pub(super) fn browser_rating_filter_chip_fill(
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
         style.accent_trash
+    } else if rating_level == 4 {
+        blend_color(style.accent_mint, style.text_primary, 0.28)
     } else if rating_level > 0 {
         style.accent_mint
     } else if active {
@@ -3466,6 +3468,8 @@ pub(super) fn browser_rating_filter_chip_border(
     if active {
         if rating_level < 0 {
             blend_color(style.accent_trash, style.text_primary, 0.24)
+        } else if rating_level == 4 {
+            blend_color(style.accent_mint, style.text_primary, 0.44)
         } else if rating_level > 0 {
             blend_color(style.accent_mint, style.text_primary, 0.24)
         } else {

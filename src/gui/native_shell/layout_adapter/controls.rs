@@ -16,11 +16,12 @@ const SIDEBAR_BUTTON_BASE_ID: u64 = 780;
 const TOOLBAR_SECTION_ROW_ID: u64 = 800;
 const TOOLBAR_FILTER_ID: u64 = 801;
 const TOOLBAR_FILTER_CHIP_BASE_ID: u64 = 820;
+const RATING_FILTER_CHIP_COUNT: usize = 8;
 
 /// Slot-resolved browser toolbar sections for search and chip controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserToolbarSections {
-    pub rating_filter_chips: [Rect; 7],
+    pub rating_filter_chips: [Rect; 8],
     pub search_field: Rect,
     pub activity_chip: Rect,
     pub sort_chip: Rect,
@@ -128,7 +129,7 @@ pub(crate) fn compute_browser_toolbar_sections(
 ) -> BrowserToolbarSections {
     let empty = empty_rect(toolbar);
     let empty_chips = [empty; 3];
-    let empty_filter_chips = [empty; 7];
+    let empty_filter_chips = [empty; RATING_FILTER_CHIP_COUNT];
     if toolbar.width() <= 0.0 || toolbar.height() <= 0.0 {
         return BrowserToolbarSections {
             rating_filter_chips: empty_filter_chips,
@@ -173,10 +174,14 @@ pub(crate) fn compute_browser_toolbar_sections(
         .clamp(6.0, 14.0);
     let min_search_width = sizing.browser_search_field_min_width.min(available);
     let available_for_filters = (available - min_search_width - gap).max(0.0);
-    let filter_side = ((available_for_filters - (filter_gap * 6.0)) / 7.0)
+    let filter_side = ((available_for_filters
+        - (filter_gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32)))
+        / RATING_FILTER_CHIP_COUNT as f32)
         .floor()
         .clamp(6.0, max_filter_side);
-    let filter_total_width = ((filter_side * 7.0) + (filter_gap * 6.0)).min(available);
+    let filter_total_width = ((filter_side * RATING_FILTER_CHIP_COUNT as f32)
+        + (filter_gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32)))
+        .min(available);
     let remaining_after_filters = (available - filter_total_width - gap).max(0.0);
     let search_width = ((host.width() * sizing.browser_search_field_ratio)
         .max(sizing.browser_search_field_min_width)
@@ -215,12 +220,12 @@ fn compute_rating_filter_chip_rects(
     chip_side: f32,
     gap: f32,
     first_chip_id: u64,
-) -> [Rect; 7] {
+) -> [Rect; 8] {
     let empty = empty_rect(strip);
     if strip.width() <= 1.0 || strip.height() <= 0.0 || chip_side <= 0.0 {
-        return [empty; 7];
+        return [empty; RATING_FILTER_CHIP_COUNT];
     }
-    let widths = [chip_side; 7];
+    let widths = [chip_side; RATING_FILTER_CHIP_COUNT];
     let rects = layout_left_aligned_fixed_widths(
         strip,
         gap,
@@ -228,8 +233,8 @@ fn compute_rating_filter_chip_rects(
         TOOLBAR_FILTER_ID + 10,
         first_chip_id,
     );
-    let mut chips = [empty; 7];
-    for (index, rect) in rects.into_iter().take(7).enumerate() {
+    let mut chips = [empty; RATING_FILTER_CHIP_COUNT];
+    for (index, rect) in rects.into_iter().take(RATING_FILTER_CHIP_COUNT).enumerate() {
         chips[index] = center_square_rect(rect, chip_side);
     }
     chips

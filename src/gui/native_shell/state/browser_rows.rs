@@ -634,7 +634,9 @@ pub(super) fn browser_rows_capacity(table_rows_rect: Rect, sizing: SizingTokens)
 /// Resolve the track metrics used by the browser scrollbar lane.
 fn browser_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
     let track_inset_x = sizing.text_inset_x.clamp(2.0, 6.0);
-    let track_inset_y = (sizing.border_width + 2.0).clamp(2.0, 6.0);
+    // Let the thumb travel across the full browser-row lane so dragging to the
+    // bottom visually reaches the end of the scrollbar area.
+    let track_inset_y = 0.0;
     let track_width = (sizing.border_width + 4.0).clamp(4.0, 8.0);
     (track_inset_x, track_inset_y, track_width)
 }

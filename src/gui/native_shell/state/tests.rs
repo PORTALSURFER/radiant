@@ -3517,6 +3517,56 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.transport_running = true;
+    let mut frame = NativeViewFrame::default();
+    for playhead in [120u16, 220] {
+        model.waveform.playhead_milli = Some(playhead);
+        let motion = NativeMotionModel::from_app_model(&model);
+        state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+    }
+
+    let playhead_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        None,
+        None,
+        model.waveform.playhead_milli,
+        model.waveform.view_start_milli,
+        model.waveform.view_end_milli,
+    )
+    .playhead
+    .expect("playhead marker");
+
+    let widest_trail_rect = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect.min.y == playhead_rect.min.y
+                    && rect.rect.max.y == playhead_rect.max.y
+                    && rect.color.a > 0
+                    && rect.color != style.accent_copper =>
+            {
+                Some(rect.rect.width())
+            }
+            _ => None,
+        })
+        .fold(0.0f32, f32::max);
+
+    assert!(
+        widest_trail_rect > playhead_rect.width() * 4.0,
+        "expected fast trail to render as a continuous span, got width {} vs marker {}",
+        widest_trail_rect,
+        playhead_rect.width()
+    );
+}
+
+#[test]
 fn waveform_motion_overlay_omits_playhead_trail_when_playhead_is_stationary() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

@@ -1381,13 +1381,17 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
+        alt_down: bool,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         if let Some(level) =
             browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
         {
-            return Some(UiAction::ToggleBrowserRatingFilter { level });
+            return Some(UiAction::ToggleBrowserRatingFilter {
+                level,
+                invert: alt_down,
+            });
         }
         if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
             return Some(UiAction::FocusBrowserSearch);

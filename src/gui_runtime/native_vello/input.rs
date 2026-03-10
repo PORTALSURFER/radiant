@@ -248,7 +248,9 @@ pub(super) fn action_from_pointer_with_motion(
     if let Some(action) = shell_state.map_sample_action_at_point(layout, model, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.browser_action_at_point(layout, model, point) {
+    if let Some(action) =
+        shell_state.browser_action_at_point(layout, model, point, modifiers.alt_key())
+    {
         return Some(action);
     }
     if let Some(action) = shell_state.source_action_at_point(layout, model, point) {

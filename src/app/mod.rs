@@ -934,6 +934,8 @@ pub enum UiAction {
     ToggleBrowserRatingFilter {
         /// Signed rating level associated with the clicked filter chip.
         level: i8,
+        /// Whether the click should invert into the opposite rated bucket.
+        invert: bool,
     },
     /// Set active browser tab (`map = true` selects map; otherwise list).
     SetBrowserTab {

@@ -1293,6 +1293,34 @@ fn waveform_click_modifiers_route_expected_actions() {
 }
 
 #[test]
+fn browser_toolbar_alt_click_maps_to_inverted_rating_filter_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut shell_state = NativeShellState::new();
+    let chip = shell_state
+        .browser_rating_filter_chip_rect(&layout, &model, 4)
+        .expect("locked keep rating filter chip should exist");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::ALT,
+        ),
+        Some(UiAction::ToggleBrowserRatingFilter {
+            level: 4,
+            invert: true,
+        })
+    );
+}
+
+#[test]
 fn waveform_right_click_maps_to_edit_selection_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let point = Point::new(

@@ -380,7 +380,7 @@ mod tests {
             (search_field.min.y + search_field.max.y) * 0.5,
         );
         assert_eq!(
-            state.browser_action_at_point(&layout, &model, point),
+            state.browser_action_at_point(&layout, &model, point, false),
             Some(crate::app::UiAction::FocusBrowserSearch)
         );
     }
@@ -398,8 +398,32 @@ mod tests {
             (chip.min.y + chip.max.y) * 0.5,
         );
         assert_eq!(
-            state.browser_action_at_point(&layout, &model, point),
-            Some(crate::app::UiAction::ToggleBrowserRatingFilter { level: 3 })
+            state.browser_action_at_point(&layout, &model, point, false),
+            Some(crate::app::UiAction::ToggleBrowserRatingFilter {
+                level: 3,
+                invert: false,
+            })
+        );
+    }
+
+    #[test]
+    fn toolbar_hit_test_alt_click_inverts_browser_rating_filter_chip() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let model = crate::app::AppModel::default();
+        let chip = state
+            .browser_rating_filter_chip_rect(&layout, &model, 4)
+            .expect("locked keep rating filter chip should be present");
+        let point = Point::new(
+            (chip.min.x + chip.max.x) * 0.5,
+            (chip.min.y + chip.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.browser_action_at_point(&layout, &model, point, true),
+            Some(crate::app::UiAction::ToggleBrowserRatingFilter {
+                level: 4,
+                invert: true,
+            })
         );
     }
 
@@ -412,7 +436,10 @@ mod tests {
             layout.browser_toolbar.max.x - 12.0,
             (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
         );
-        assert_eq!(state.browser_action_at_point(&layout, &model, point), None);
+        assert_eq!(
+            state.browser_action_at_point(&layout, &model, point, false),
+            None
+        );
     }
 
     #[test]

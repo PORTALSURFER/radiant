@@ -1142,7 +1142,10 @@ fn browser_toolbar_right_side_does_not_hit_search_field() {
         (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
     );
     assert!(point.x > controls.search_field.max.x);
-    assert_eq!(state.browser_action_at_point(&layout, &model, point), None);
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        None
+    );
 }
 
 #[test]

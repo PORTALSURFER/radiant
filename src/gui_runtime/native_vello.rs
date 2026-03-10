@@ -131,6 +131,24 @@ struct BrowserScrollbarDragState {
     thumb_pointer_offset_y: f32,
 }
 
+/// Active waveform-scrollbar thumb drag state while the primary pointer is held.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WaveformScrollbarDragState {
+    /// Pointer offset from the left edge of the thumb captured at drag start.
+    thumb_pointer_offset_x: f32,
+}
+
+/// Active middle-button waveform pan drag state.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WaveformPanDragState {
+    /// Pointer x-coordinate captured at the start of the pan gesture.
+    origin_x: f32,
+    /// Waveform viewport start preserved across the pan gesture.
+    view_start_micros: u32,
+    /// Waveform viewport end preserved across the pan gesture.
+    view_end_micros: u32,
+}
+
 #[derive(Clone)]
 struct EventLoopProxyRepaintSignal {
     proxy: EventLoopProxy<RuntimeUserEvent>,
@@ -1360,6 +1378,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     browser_scrollbar_drag: Option<BrowserScrollbarDragState>,
     /// Last emitted browser viewport start during an active scrollbar drag.
     last_emitted_browser_view_start: Option<usize>,
+    /// Active waveform-scrollbar thumb drag state for primary pointer movement.
+    waveform_scrollbar_drag: Option<WaveformScrollbarDragState>,
+    /// Active middle-button waveform pan drag state.
+    waveform_pan_drag: Option<WaveformPanDragState>,
+    /// Last emitted waveform viewport center during active drag gestures.
+    last_emitted_waveform_view_center: Option<u32>,
     volume_drag_active: bool,
     last_emitted_volume_milli: Option<u16>,
     modifiers: ModifiersState,
@@ -1504,6 +1528,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             last_emitted_map_drag_sample_id: None,
             browser_scrollbar_drag: None,
             last_emitted_browser_view_start: None,
+            waveform_scrollbar_drag: None,
+            waveform_pan_drag: None,
+            last_emitted_waveform_view_center: None,
             volume_drag_active: false,
             last_emitted_volume_milli: None,
             modifiers: ModifiersState::default(),
@@ -2281,6 +2308,84 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Emit one waveform-scrollbar drag viewport update immediately.
+    fn process_waveform_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(drag) = self.waveform_scrollbar_drag else {
+            return false;
+        };
+        let Some(center_micros) = self.shell_state.waveform_scrollbar_view_center_for_drag(
+            layout,
+            &self.model,
+            point.x,
+            drag.thumb_pointer_offset_x,
+        ) else {
+            return false;
+        };
+        if self.last_emitted_waveform_view_center == Some(center_micros) {
+            return true;
+        }
+        self.last_emitted_waveform_view_center = Some(center_micros);
+        self.emit_model_action_with_profile(
+            UiAction::SetWaveformViewCenter { center_micros },
+            Some(InteractionProfileKind::Waveform),
+        );
+        true
+    }
+
+    /// Emit one waveform-scrollbar track-click viewport update immediately.
+    fn process_waveform_scrollbar_track_click_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(center_micros) =
+            self.shell_state
+                .waveform_scrollbar_view_center_at_point(layout, &self.model, point)
+        else {
+            return false;
+        };
+        self.last_emitted_waveform_view_center = Some(center_micros);
+        self.emit_model_action_with_profile(
+            UiAction::SetWaveformViewCenter { center_micros },
+            Some(InteractionProfileKind::Waveform),
+        );
+        true
+    }
+
+    /// Emit one middle-button waveform pan viewport update immediately.
+    fn process_waveform_pan_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(drag) = self.waveform_pan_drag else {
+            return false;
+        };
+        let plot_width = layout.waveform_plot.width().max(1.0);
+        let span = drag
+            .view_end_micros
+            .min(1_000_000)
+            .saturating_sub(drag.view_start_micros.min(1_000_000))
+            .max(1);
+        let max_view_start = 1_000_000u32.saturating_sub(span);
+        let delta_ratio = (point.x - drag.origin_x) / plot_width;
+        let delta_micros = delta_ratio * span as f32;
+        let next_start = (drag.view_start_micros as f32 - delta_micros)
+            .clamp(0.0, max_view_start as f32)
+            .round() as u32;
+        let center_micros = (next_start + (span / 2)).min(1_000_000);
+        if self.last_emitted_waveform_view_center == Some(center_micros) {
+            return true;
+        }
+        self.last_emitted_waveform_view_center = Some(center_micros);
+        self.emit_model_action_with_profile(
+            UiAction::SetWaveformViewCenter { center_micros },
+            Some(InteractionProfileKind::Waveform),
+        );
+        true
+    }
+
     /// Return whether one held-key repeat should be processed for navigation.
     ///
     /// Repeats stay intentionally narrow to preserve existing single-fire behavior
@@ -2463,6 +2568,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.last_emitted_map_drag_sample_id = None;
         self.browser_scrollbar_drag = None;
         self.last_emitted_browser_view_start = None;
+        self.waveform_scrollbar_drag = None;
+        self.waveform_pan_drag = None;
+        self.last_emitted_waveform_view_center = None;
         if seek_on_waveform_click_release
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {
@@ -3615,6 +3723,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::PlayFromCurrentPlayhead
             | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
             UiAction::ZoomWaveform { .. }
+            | UiAction::SetWaveformViewCenter { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::StaticAndOverlays,
             _ => RuntimeInvalidationScope::StaticAndOverlays,
@@ -3631,6 +3740,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead
             | UiAction::SetWaveformCursor { .. }
+            | UiAction::SetWaveformViewCenter { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::SetWaveformBpmValue { .. }
@@ -4151,19 +4261,29 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                     }
                 } else if !self.volume_drag_active && self.browser_scrollbar_drag.is_some() {
                     let _ = self.process_browser_scrollbar_drag_immediately(point);
+                } else if !self.volume_drag_active && self.waveform_scrollbar_drag.is_some() {
+                    let _ = self.process_waveform_scrollbar_drag_immediately(point);
+                } else if !self.volume_drag_active && self.waveform_pan_drag.is_some() {
+                    let _ = self.process_waveform_pan_drag_immediately(point);
                 }
                 if !self.volume_drag_active
                     && self.browser_scrollbar_drag.is_none()
+                    && self.waveform_scrollbar_drag.is_none()
+                    && self.waveform_pan_drag.is_none()
                     && self.waveform_drag_mode.is_some()
                 {
                     let _ = self.process_waveform_drag_immediately(point);
                 } else if !self.volume_drag_active
                     && self.browser_scrollbar_drag.is_none()
+                    && self.waveform_scrollbar_drag.is_none()
+                    && self.waveform_pan_drag.is_none()
                     && self.selection_drag_active
                 {
                     let _ = self.process_selection_drag_immediately(point);
                 } else if !self.volume_drag_active
                     && self.browser_scrollbar_drag.is_none()
+                    && self.waveform_scrollbar_drag.is_none()
+                    && self.waveform_pan_drag.is_none()
                     && self.map_focus_drag_active
                 {
                     let _ = self.process_map_focus_drag_immediately(point);
@@ -4190,7 +4310,11 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 button,
                 state: ElementState::Pressed,
                 ..
-            } if matches!(button, MouseButton::Left | MouseButton::Right) => {
+            } if matches!(
+                button,
+                MouseButton::Left | MouseButton::Right | MouseButton::Middle
+            ) =>
+            {
                 if self.window.is_none() {
                     return;
                 }
@@ -4206,6 +4330,9 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                         this.last_emitted_map_drag_sample_id = None;
                         this.browser_scrollbar_drag = None;
                         this.last_emitted_browser_view_start = None;
+                        this.waveform_scrollbar_drag = None;
+                        this.waveform_pan_drag = None;
+                        this.last_emitted_waveform_view_center = None;
                         let mut handled = false;
                         let mut action_emitted = false;
                         let mut source_menu_state_changed = false;
@@ -4294,6 +4421,23 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                                 thumb_pointer_offset_y,
                                             });
                                         handled = true;
+                                    } else if let Some(thumb_pointer_offset_x) =
+                                        this.shell_state.waveform_scrollbar_thumb_offset_at_point(
+                                            layout,
+                                            &this.model,
+                                            point,
+                                        )
+                                    {
+                                        this.waveform_scrollbar_drag =
+                                            Some(WaveformScrollbarDragState {
+                                                thumb_pointer_offset_x,
+                                            });
+                                        handled = true;
+                                    } else if this
+                                        .process_waveform_scrollbar_track_click_immediately(point)
+                                    {
+                                        handled = true;
+                                        action_emitted = true;
                                     } else if this
                                         .process_browser_scrollbar_track_click_immediately(point)
                                     {
@@ -4362,6 +4506,16 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                                     handled = true;
                                 }
                             }
+                            MouseButton::Middle => {
+                                if layout.waveform_plot.contains(point) {
+                                    this.waveform_pan_drag = Some(WaveformPanDragState {
+                                        origin_x: point.x,
+                                        view_start_micros: this.model.waveform.view_start_micros,
+                                        view_end_micros: this.model.waveform.view_end_micros,
+                                    });
+                                    handled = true;
+                                }
+                            }
                             _ => {}
                         }
                         if source_menu_state_changed {
@@ -4383,8 +4537,17 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 button,
                 state: ElementState::Released,
                 ..
-            } if matches!(button, MouseButton::Left | MouseButton::Right) => {
+            } if matches!(
+                button,
+                MouseButton::Left | MouseButton::Right | MouseButton::Middle
+            ) =>
+            {
                 self.text_input_drag_active = false;
+                self.browser_scrollbar_drag = None;
+                self.waveform_scrollbar_drag = None;
+                self.waveform_pan_drag = None;
+                self.last_emitted_browser_view_start = None;
+                self.last_emitted_waveform_view_center = None;
                 self.finish_volume_drag(Some(button));
             }
             WindowEvent::MouseWheel { delta, .. } => {

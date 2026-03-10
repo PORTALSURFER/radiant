@@ -1448,6 +1448,70 @@ impl NativeShellState {
         )
     }
 
+    /// Return the pointer's offset within the waveform scrollbar thumb when hovered.
+    pub(crate) fn waveform_scrollbar_thumb_offset_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<f32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        scrollbar
+            .thumb
+            .contains(point)
+            .then_some((point.x - scrollbar.thumb.min.x).clamp(0.0, scrollbar.thumb.width()))
+    }
+
+    /// Resolve the waveform viewport center for an active scrollbar-thumb drag.
+    pub(crate) fn waveform_scrollbar_view_center_for_drag(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pointer_x: f32,
+        thumb_pointer_offset_x: f32,
+    ) -> Option<u32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        waveform_scrollbar_center_for_pointer(
+            scrollbar,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+            pointer_x,
+            thumb_pointer_offset_x,
+        )
+    }
+
+    /// Resolve the waveform viewport center for a click inside the scrollbar track.
+    pub(crate) fn waveform_scrollbar_view_center_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<u32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+            return None;
+        }
+        waveform_scrollbar_center_for_pointer(
+            scrollbar,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+            point.x,
+            scrollbar.thumb.width() * 0.5,
+        )
+    }
+
     /// Resolve a browser action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
         &mut self,

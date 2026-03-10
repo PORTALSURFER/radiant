@@ -1227,6 +1227,11 @@ pub enum UiAction {
     ClearWaveformSelection,
     /// Clear active waveform edit selection.
     ClearWaveformEditSelection,
+    /// Scroll the waveform viewport to a normalized center position in micros.
+    SetWaveformViewCenter {
+        /// Target center point within the full waveform (`0..=1_000_000`).
+        center_micros: u32,
+    },
     /// Zoom waveform view by discrete steps.
     ZoomWaveform {
         /// When true, zooms in; otherwise zooms out.

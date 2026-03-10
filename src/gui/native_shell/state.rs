@@ -2814,6 +2814,22 @@ fn waveform_toolbar_buttons(
     bpm_input_display: Option<&str>,
 ) -> Vec<WaveformToolbarButton> {
     let bpm_value_label = waveform_toolbar_bpm_value_label(model, bpm_input_display);
+    let (transport_label, transport_icon, transport_action, transport_color) =
+        if model.transport_running {
+            (
+                "Stop",
+                Some(WaveformToolbarIcon::Stop),
+                Some(UiAction::HandleEscape),
+                style.highlight_orange_soft,
+            )
+        } else {
+            (
+                "Play",
+                Some(WaveformToolbarIcon::Play),
+                Some(UiAction::ToggleTransport),
+                style.accent_warning,
+            )
+        };
     let specs = vec![
         (
             "Channel",
@@ -2930,22 +2946,13 @@ fn waveform_toolbar_buttons(
             },
         ),
         (
-            "Stop",
-            Some(WaveformToolbarIcon::Stop),
-            None,
-            true,
-            !model.transport_running,
-            Some(UiAction::HandleEscape),
-            style.highlight_orange_soft,
-        ),
-        (
-            "Play",
-            Some(WaveformToolbarIcon::Play),
+            transport_label,
+            transport_icon,
             None,
             true,
             model.transport_running,
-            Some(UiAction::ToggleTransport),
-            style.accent_warning,
+            transport_action,
+            transport_color,
         ),
         (
             "Rec",

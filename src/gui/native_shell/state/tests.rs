@@ -297,9 +297,10 @@ fn chrome_motion_status_overlay_preserves_status_bar_border_lines() {
 fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let model = AppModel::default();
+    let mut model = AppModel::default();
+    model.transport_running = false;
     let labels = [
-        "Channel", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Stop", "Play", "Rec",
+        "Channel", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Play", "Rec",
     ];
     let widths: Vec<u32> = labels
         .iter()
@@ -321,7 +322,8 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
 #[test]
 fn waveform_toolbar_renders_without_per_button_rect_chrome() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let model = AppModel::default();
+    let mut model = AppModel::default();
+    model.transport_running = false;
     let mut state = NativeShellState::new();
     let button_rects = ["Channel", "Play"]
         .into_iter()
@@ -343,7 +345,8 @@ fn waveform_toolbar_renders_without_per_button_rect_chrome() {
 fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = AppModel::default();
+    let mut model = AppModel::default();
+    model.transport_running = false;
     let play = state
         .waveform_toolbar_button_rect(&layout, &model, "Play")
         .expect("play waveform toolbar button should be present");
@@ -379,11 +382,11 @@ fn waveform_toolbar_hover_uses_theme_highlight_color() {
 }
 
 #[test]
-fn waveform_toolbar_play_button_uses_transport_accent_when_running() {
+fn waveform_toolbar_play_button_uses_transport_accent_when_idle() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.transport_running = true;
+    model.transport_running = false;
 
     let buttons = waveform_toolbar_buttons(
         &layout,
@@ -398,6 +401,30 @@ fn waveform_toolbar_play_button_uses_transport_accent_when_running() {
         .expect("play toolbar button should be present");
 
     assert_eq!(play.text_color, style.accent_warning);
+}
+
+#[test]
+fn waveform_toolbar_stop_button_uses_stop_icon_and_escape_when_running() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.transport_running = true;
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let stop = buttons
+        .iter()
+        .find(|button| button.label == "Stop")
+        .expect("stop toolbar button should be present while transport runs");
+
+    assert_eq!(stop.icon, Some(WaveformToolbarIcon::Stop));
+    assert_eq!(stop.action, Some(UiAction::HandleEscape));
+    assert_eq!(stop.text_color, style.highlight_orange_soft);
 }
 
 #[test]

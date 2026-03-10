@@ -176,14 +176,15 @@ mod tests {
             "Channel Mono" => Some(WaveformToolbarIcon::Mono),
             "Channel Stereo" => Some(WaveformToolbarIcon::Stereo),
             "Play" => Some(WaveformToolbarIcon::Play),
+            "Stop" => Some(WaveformToolbarIcon::Stop),
             _ => None,
         }
     }
 
     #[test]
-    fn play_button_keeps_play_icon_while_transport_is_running() {
+    fn transport_button_swaps_between_play_and_stop_icons() {
         let idle_button = waveform_toolbar_button("Play", false);
-        let running_button = waveform_toolbar_button("Play", true);
+        let running_button = waveform_toolbar_button("Stop", true);
 
         assert_eq!(
             toolbar_icon_for_button(&idle_button),
@@ -191,7 +192,7 @@ mod tests {
         );
         assert_eq!(
             toolbar_icon_for_button(&running_button),
-            Some(WaveformToolbarIcon::Play)
+            Some(WaveformToolbarIcon::Stop)
         );
     }
 

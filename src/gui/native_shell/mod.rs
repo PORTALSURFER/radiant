@@ -455,7 +455,8 @@ mod tests {
     fn waveform_toolbar_hit_test_emits_transport_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
-        let model = crate::app::AppModel::default();
+        let mut model = crate::app::AppModel::default();
+        model.transport_running = false;
         let play = state
             .waveform_toolbar_button_rect(&layout, &model, "Play")
             .expect("play waveform toolbar button should be present");
@@ -466,6 +467,25 @@ mod tests {
         assert_eq!(
             state.waveform_toolbar_action_at_point(&layout, &model, point),
             Some(crate::app::UiAction::ToggleTransport)
+        );
+    }
+
+    #[test]
+    fn waveform_toolbar_hit_test_emits_stop_action_when_transport_running() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut state = NativeShellState::new();
+        let mut model = crate::app::AppModel::default();
+        model.transport_running = true;
+        let stop = state
+            .waveform_toolbar_button_rect(&layout, &model, "Stop")
+            .expect("stop waveform toolbar button should be present");
+        let point = Point::new(
+            (stop.min.x + stop.max.x) * 0.5,
+            (stop.min.y + stop.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.waveform_toolbar_action_at_point(&layout, &model, point),
+            Some(crate::app::UiAction::HandleEscape)
         );
     }
 

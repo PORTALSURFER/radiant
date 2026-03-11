@@ -53,3 +53,61 @@ pub(super) fn render_waveform_static(
         state.waveform_bpm_editor_visual.is_some(),
     );
 }
+
+/// Render BPM-aligned waveform grid lines when beat snapping is enabled.
+pub(super) fn emit_waveform_bpm_grid(
+    primitives: &mut impl PrimitiveSink,
+    waveform_plot: Rect,
+    model: &AppModel,
+    style: &StyleTokens,
+) {
+    if !model.waveform_chrome.bpm_snap_enabled {
+        return;
+    }
+    let Some(step_micros) = model.waveform.beat_step_micros.filter(|step| *step > 0) else {
+        return;
+    };
+    let view_start = u64::from(model.waveform.view_start_milli) * 1000;
+    let view_end = u64::from(model.waveform.view_end_milli) * 1000;
+    if view_end <= view_start || waveform_plot.width() <= 0.0 {
+        return;
+    }
+    let step_micros = u64::from(step_micros);
+    let first_beat_index = view_start.div_ceil(step_micros);
+    let view_width = (view_end - view_start) as f32;
+    let mut beat_index = first_beat_index;
+    let mut beat_micros = beat_index.saturating_mul(step_micros);
+    while beat_micros <= view_end {
+        let ratio = (beat_micros.saturating_sub(view_start)) as f32 / view_width;
+        let x = (waveform_plot.min.x + (waveform_plot.width() * ratio))
+            .round()
+            .clamp(waveform_plot.min.x, waveform_plot.max.x);
+        let (line_color, line_width) = waveform_bpm_grid_line_style(style, beat_index);
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(x, waveform_plot.min.y),
+                    Point::new(
+                        (x + line_width).min(waveform_plot.max.x),
+                        waveform_plot.max.y,
+                    ),
+                ),
+                color: line_color,
+            }),
+        );
+        beat_index = beat_index.saturating_add(1);
+        beat_micros = beat_micros.saturating_add(step_micros);
+    }
+}
+
+fn waveform_bpm_grid_line_style(style: &StyleTokens, beat_index: u64) -> (Rgba8, f32) {
+    if beat_index.is_multiple_of(4) {
+        (style.grid_strong, style.sizing.border_width.max(2.0))
+    } else {
+        (
+            blend_color(style.grid_soft, style.text_muted, 0.32),
+            style.sizing.border_width.max(1.0),
+        )
+    }
+}

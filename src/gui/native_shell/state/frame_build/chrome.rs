@@ -446,7 +446,7 @@ pub(super) fn render_sidebar(
                     color: row_fill,
                 }),
             );
-            super::push_browser_row_border(
+            push_browser_row_border(
                 primitives,
                 row_rect,
                 if row.focused {

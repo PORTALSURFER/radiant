@@ -69,7 +69,7 @@ pub(super) fn render_browser_rows_window(
                 }),
             );
         }
-        super::push_browser_row_border(
+        push_browser_row_border(
             primitives,
             row_border_rect,
             row_border,

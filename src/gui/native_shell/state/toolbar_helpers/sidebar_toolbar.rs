@@ -1,0 +1,287 @@
+//! Sidebar action, source-add, and context-menu helper geometry.
+
+use super::super::*;
+
+pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    button_rect: Rect,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) {
+    let fill = source_add_button_fill(style, hovered, flashed, motion_wave);
+    let border = source_add_button_border(style, hovered, flashed, motion_wave);
+    let icon_color = source_add_button_icon_color(style, hovered, flashed, motion_wave);
+    let label_rect = compute_action_button_text_rect(button_rect, sizing);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: button_rect,
+            color: fill,
+        }),
+    );
+    push_border(primitives, button_rect, border, sizing.border_width);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: String::from("+"),
+            position: label_rect.min,
+            font_size: sizing.font_meta,
+            color: icon_color,
+            max_width: Some(label_rect.width().max(8.0)),
+            align: TextAlign::Center,
+        },
+    );
+}
+
+pub(in crate::gui::native_shell::state) fn source_add_button_fill(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = style.surface_overlay;
+    let hover = blend_color(idle, style.accent_mint, 0.14 + (motion_wave * 0.04));
+    let flash = blend_color(hover, style.text_primary, 0.16);
+    if flashed {
+        flash
+    } else if hovered {
+        hover
+    } else {
+        idle
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn source_add_button_border(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = blend_color(
+        style.border_emphasis,
+        style.text_primary,
+        style.state_hover_soft,
+    );
+    let hover = blend_color(idle, style.accent_mint, 0.34 + (motion_wave * 0.08));
+    if flashed {
+        blend_color(hover, style.text_primary, 0.38)
+    } else if hovered {
+        hover
+    } else {
+        idle
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn source_add_button_icon_color(
+    style: &StyleTokens,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    let idle = style.accent_mint;
+    let hover = blend_color(idle, style.text_primary, 0.24 + (motion_wave * 0.06));
+    if flashed {
+        blend_color(hover, style.text_primary, 0.4)
+    } else if hovered {
+        hover
+    } else {
+        idle
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn source_add_button_rect(
+    header_rect: Rect,
+    sizing: SizingTokens,
+) -> Option<Rect> {
+    if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
+        return None;
+    }
+    let side = (sizing.font_header + (sizing.text_inset_y * 1.5))
+        .round()
+        .clamp(12.0, header_rect.height().max(12.0));
+    if header_rect.width() < side + (sizing.text_inset_x * 2.0) {
+        return None;
+    }
+    let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
+    let min_x = (max_x - side).max(header_rect.min.x);
+    let min_y = header_rect.min.y + ((header_rect.height() - side) * 0.5).floor();
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, (min_y + side).min(header_rect.max.y)),
+    ))
+}
+
+pub(in crate::gui::native_shell::state) fn sidebar_sections(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> SidebarSections {
+    let resolved = compute_sidebar_row_sections(
+        layout.sidebar_rows,
+        style.sizing,
+        SidebarRowCounts {
+            source_rows: rendered_source_rows(style, model),
+            folder_rows: rendered_folder_rows(style, model),
+        },
+    );
+    SidebarSections {
+        source_rows: resolved.source_rows,
+        folder_header: resolved.folder_header,
+        folder_rows: resolved.folder_rows,
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn source_action_buttons(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> Vec<ActionButton> {
+    let definitions = [
+        (
+            "New",
+            model.sources.folder_actions.can_create_folder,
+            UiAction::StartNewFolder,
+            style.text_primary,
+        ),
+        (
+            "Root",
+            model.sources.folder_actions.can_create_folder_at_root,
+            UiAction::StartNewFolderAtRoot,
+            style.text_muted,
+        ),
+        (
+            "Rename",
+            model.sources.folder_actions.can_rename_folder,
+            UiAction::StartFolderRename,
+            style.accent_warning,
+        ),
+        (
+            "Delete",
+            model.sources.folder_actions.can_delete_folder,
+            UiAction::DeleteFocusedFolder,
+            style.accent_copper,
+        ),
+        (
+            "Recovery",
+            model.sources.folder_actions.can_clear_recovery_log,
+            UiAction::ClearFolderDeleteRecoveryLog,
+            style.accent_mint,
+        ),
+    ];
+    let rects =
+        compute_sidebar_action_button_rects(layout.sidebar_footer, style.sizing, definitions.len());
+    let start_index = definitions.len().saturating_sub(rects.len());
+    rects
+        .into_iter()
+        .zip(definitions.into_iter().skip(start_index))
+        .map(
+            |(rect, (label, enabled, action, text_color))| ActionButton {
+                rect,
+                label,
+                enabled,
+                action,
+                text_color,
+            },
+        )
+        .collect()
+}
+
+/// Build source context-menu panel geometry and action buttons.
+pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    menu: Option<SourceContextMenuState>,
+) -> Option<(Rect, Vec<ActionButton>)> {
+    let menu = menu?;
+    if menu.row_index >= model.sources.rows.len() {
+        return None;
+    }
+    let source_index = menu.row_index;
+    let definitions = [
+        (
+            "Reload",
+            true,
+            UiAction::ReloadSourceRow {
+                index: source_index,
+            },
+            style.text_primary,
+        ),
+        (
+            "Hard sync",
+            true,
+            UiAction::HardSyncSourceRow {
+                index: source_index,
+            },
+            style.accent_warning,
+        ),
+        (
+            "Open folder",
+            true,
+            UiAction::OpenSourceFolderRow {
+                index: source_index,
+            },
+            style.accent_mint,
+        ),
+        (
+            "Remove source",
+            true,
+            UiAction::RemoveSourceRow {
+                index: source_index,
+            },
+            style.accent_copper,
+        ),
+        (
+            "Remove dead links",
+            true,
+            UiAction::RemoveDeadLinksForSourceRow {
+                index: source_index,
+            },
+            style.accent_copper,
+        ),
+    ];
+    let sizing = style.sizing;
+    let panel_padding = sizing.panel_inset.max(4.0);
+    let button_width = sizing.sidebar_action_button_width.max(168.0);
+    let button_height = sizing.sidebar_action_button_height.max(18.0);
+    let button_gap = sizing.sidebar_action_button_gap.max(2.0);
+    let button_count = definitions.len();
+    let panel_width = button_width + panel_padding * 2.0;
+    let panel_height = (button_height * button_count as f32)
+        + (button_gap * button_count.saturating_sub(1) as f32)
+        + panel_padding * 2.0;
+    let min_x = layout.sidebar.min.x + sizing.panel_inset;
+    let max_x = (layout.sidebar.max.x - sizing.panel_inset - panel_width).max(min_x);
+    let min_y = layout.sidebar.min.y + sizing.panel_inset;
+    let max_y = (layout.sidebar.max.y - sizing.panel_inset - panel_height).max(min_y);
+    let panel_min = Point::new(
+        menu.anchor.x.clamp(min_x, max_x),
+        menu.anchor.y.clamp(min_y, max_y),
+    );
+    let panel_rect = Rect::from_min_max(
+        panel_min,
+        Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
+    );
+    let mut buttons = Vec::with_capacity(button_count);
+    let button_x = panel_rect.min.x + panel_padding;
+    let mut button_y = panel_rect.min.y + panel_padding;
+    for (label, enabled, action, text_color) in definitions {
+        let rect = Rect::from_min_max(
+            Point::new(button_x, button_y),
+            Point::new(button_x + button_width, button_y + button_height),
+        );
+        buttons.push(ActionButton {
+            rect,
+            label,
+            enabled,
+            action,
+            text_color,
+        });
+        button_y += button_height + button_gap;
+    }
+    Some((panel_rect, buttons))
+}

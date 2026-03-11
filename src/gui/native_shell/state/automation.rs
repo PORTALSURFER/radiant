@@ -3,7 +3,7 @@
 use super::*;
 use crate::app::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
-    GuiAutomationSnapshot,
+    GuiAutomationSnapshot, NormalizedRangeModel, UpdateStatusModel,
 };
 use std::collections::BTreeMap;
 
@@ -90,6 +90,11 @@ impl NativeShellState {
                 })],
             ));
         }
+        children.push(update_panel_automation(
+            layout,
+            model,
+            &style_for_layout(layout),
+        ));
         AutomationNodeSnapshot {
             id: node_id("shell.top_bar"),
             role: AutomationRole::Panel,
@@ -264,6 +269,29 @@ impl NativeShellState {
                 ("loop_enabled", bool_text(model.waveform.loop_enabled)),
                 ("tempo_label", model.waveform.tempo_label.as_deref().unwrap_or("")),
                 ("zoom_label", model.waveform.zoom_label.as_deref().unwrap_or("")),
+                (
+                    "cursor_milli",
+                    &model
+                        .waveform
+                        .cursor_milli
+                        .map(|value| value.to_string())
+                        .unwrap_or_default(),
+                ),
+                (
+                    "selection_micros",
+                    &model
+                        .waveform
+                        .selection_milli
+                        .map(selection_micros_text)
+                        .unwrap_or_default(),
+                ),
+                (
+                    "view_micros",
+                    &format!(
+                        "{}-{}",
+                        model.waveform.view_start_micros, model.waveform.view_end_micros
+                    ),
+                ),
             ]),
             children: Vec::new(),
         });
@@ -360,6 +388,18 @@ impl NativeShellState {
             metadata: metadata(&[
                 ("active_tab", model.browser.active_tab_label.as_deref().unwrap_or("")),
                 ("search_query", model.browser.search_query.as_str()),
+                (
+                    "focused_sample_label",
+                    model.browser.focused_sample_label.as_deref().unwrap_or(""),
+                ),
+                (
+                    "selected_visible_row",
+                    &model
+                        .browser
+                        .selected_visible_row
+                        .map(|value| value.to_string())
+                        .unwrap_or_default(),
+                ),
             ]),
             children,
         }
@@ -431,6 +471,57 @@ impl NativeShellState {
             ]),
             children: Vec::new(),
         }
+    }
+}
+
+fn update_panel_automation(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> AutomationNodeSnapshot {
+    let button_specs = update_button_specs(model);
+    let labels: Vec<_> = button_specs.iter().map(|spec| spec.label).collect();
+    let button_rects = compute_update_action_button_rects(
+        layout.top_bar,
+        layout.top_bar_action_cluster,
+        style.sizing,
+        &labels,
+    );
+    let mut children = Vec::new();
+    for (spec, rect) in button_specs.into_iter().zip(button_rects) {
+        children.push(simple_node(
+            format!("shell.top_bar.update.{}", spec.node_slug),
+            AutomationRole::Button,
+            Some(String::from(spec.label)),
+            rect,
+            None,
+            spec.enabled,
+            false,
+            vec![String::from(spec.action_id)],
+        ));
+    }
+    AutomationNodeSnapshot {
+        id: node_id("shell.top_bar.update_panel"),
+        role: AutomationRole::Group,
+        label: Some(String::from("Updates")),
+        bounds: bounds(layout.top_bar_action_cluster),
+        value: Some(model.update.status_label.clone()),
+        enabled: true,
+        selected: !children.is_empty(),
+        available_actions: children
+            .iter()
+            .flat_map(|child| child.available_actions.clone())
+            .collect(),
+        metadata: metadata(&[
+            ("status", update_status_text(model.update.status)),
+            ("status_label", model.update.status_label.as_str()),
+            ("action_hint", model.update.action_hint_label.as_str()),
+            ("release_notes", model.update.release_notes_label.as_str()),
+            ("available_tag", model.update.available_tag.as_deref().unwrap_or("")),
+            ("available_url", model.update.available_url.as_deref().unwrap_or("")),
+            ("last_error", model.update.last_error.as_deref().unwrap_or("")),
+        ]),
+        children,
     }
 }
 
@@ -681,6 +772,68 @@ fn metadata(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
 
 fn bool_text(value: bool) -> &'static str {
     if value { "true" } else { "false" }
+}
+
+fn update_status_text(status: UpdateStatusModel) -> &'static str {
+    match status {
+        UpdateStatusModel::Idle => "idle",
+        UpdateStatusModel::Checking => "checking",
+        UpdateStatusModel::Available => "available",
+        UpdateStatusModel::Error => "error",
+    }
+}
+
+fn selection_micros_text(range: NormalizedRangeModel) -> String {
+    format!("{}-{}", range.start_micros, range.end_micros)
+}
+
+struct UpdateButtonSpec<'a> {
+    label: &'a str,
+    node_slug: &'a str,
+    action_id: &'a str,
+    enabled: bool,
+}
+
+fn update_button_specs(model: &AppModel) -> Vec<UpdateButtonSpec<'static>> {
+    match model.update.status {
+        UpdateStatusModel::Idle => vec![UpdateButtonSpec {
+            label: "Check",
+            node_slug: "check",
+            action_id: "check_for_updates",
+            enabled: true,
+        }],
+        UpdateStatusModel::Checking => Vec::new(),
+        UpdateStatusModel::Available => {
+            let mut buttons = Vec::new();
+            if model.update.available_url.is_some() {
+                buttons.push(UpdateButtonSpec {
+                    label: "Open",
+                    node_slug: "open",
+                    action_id: "open_update_link",
+                    enabled: true,
+                });
+                buttons.push(UpdateButtonSpec {
+                    label: "Install",
+                    node_slug: "install",
+                    action_id: "install_update",
+                    enabled: true,
+                });
+            }
+            buttons.push(UpdateButtonSpec {
+                label: "Dismiss",
+                node_slug: "dismiss",
+                action_id: "dismiss_update",
+                enabled: true,
+            });
+            buttons
+        }
+        UpdateStatusModel::Error => vec![UpdateButtonSpec {
+            label: "Retry",
+            node_slug: "check",
+            action_id: "check_for_updates",
+            enabled: true,
+        }],
+    }
 }
 
 fn slug(label: &str) -> String {

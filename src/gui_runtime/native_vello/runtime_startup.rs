@@ -158,6 +158,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let mut attrs = Window::default_attributes()
             .with_title(self.options.title.clone())
             .with_maximized(self.options.maximized)
+            .with_decorations(self.options.decorations)
             .with_visible(!Self::startup_should_launch_hidden());
         if let Some([w, h]) = self.options.inner_size {
             attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));

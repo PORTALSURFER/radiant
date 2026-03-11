@@ -34,6 +34,8 @@ pub struct NativeRunOptions {
     pub min_inner_size: Option<[f32; 2]>,
     /// Whether the window starts maximized.
     pub maximized: bool,
+    /// Whether native window decorations remain enabled.
+    pub decorations: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
@@ -47,6 +49,7 @@ impl Default for NativeRunOptions {
             inner_size: None,
             min_inner_size: None,
             maximized: false,
+            decorations: true,
             icon: None,
             target_fps: 120,
         }

@@ -32,6 +32,7 @@
 //! - [`NativeAppBridge`](crate::app::NativeAppBridge) defines the host/runtime integration boundary.
 
 mod actions;
+mod automation;
 mod bridge;
 mod browser;
 mod declarative;
@@ -42,6 +43,10 @@ mod sources;
 mod waveform;
 
 pub use actions::{BrowserTagTarget, UiAction};
+pub use automation::{
+    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
+    GuiAutomationSnapshot,
+};
 pub use bridge::NativeAppBridge;
 pub use browser::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel, MapPanelModel,

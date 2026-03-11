@@ -36,6 +36,7 @@ use std::{
 };
 
 mod browser_rows;
+mod automation;
 mod cache;
 mod cache_types;
 mod frame_build;

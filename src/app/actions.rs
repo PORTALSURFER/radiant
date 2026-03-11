@@ -1,7 +1,9 @@
 //! User-intent actions emitted by the `radiant` runtime.
 
+use serde::{Deserialize, Serialize};
+
 /// Triage targets used by native browser action surfaces.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BrowserTagTarget {
     /// Move selected/focused rows to trash.
     Trash,
@@ -12,7 +14,7 @@ pub enum BrowserTagTarget {
 }
 
 /// Action emitted by the native runtime input layer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiAction {
     /// Select a target triage/browser column.
     SelectColumn {

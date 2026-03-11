@@ -2,6 +2,874 @@
 
 use super::*;
 
+impl NativeShellState {
+    /// Handle pointer movement and classify which overlay bucket changed.
+    pub(crate) fn handle_cursor_move_effect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> CursorMoveEffect {
+        let next_hover = layout.hit_test(point);
+        let next_hovered_browser_row =
+            self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_browser_rating_filter_level =
+            self.resolve_hovered_browser_rating_filter_level(layout, model, point);
+        let next_hovered_browser_search_field =
+            self.resolve_hovered_browser_search_field(layout, model, point);
+        let next_hovered_folder_row =
+            self.resolve_hovered_folder_row(layout, model, point, next_hover);
+        let next_hovered_source_add_button =
+            self.resolve_hovered_source_add_button(layout, point, next_hover);
+        let next_hovered_status_options_button =
+            self.resolve_hovered_status_options_button(layout, point, next_hover);
+        let next_hovered_waveform_toolbar_hint =
+            self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
+        let next_hovered_waveform_resize_edge =
+            hovered_waveform_resize_edge_for_point(layout, model, point, next_hover);
+        let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
+        let hover_changed = next_hover != self.hovered;
+        let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let browser_rating_filter_changed =
+            next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
+        let browser_search_field_changed =
+            next_hovered_browser_search_field != self.hovered_browser_search_field;
+        let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
+        let source_add_button_changed =
+            next_hovered_source_add_button != self.hovered_source_add_button;
+        let status_options_button_changed =
+            next_hovered_status_options_button != self.hovered_status_options_button;
+        let waveform_toolbar_hint_changed =
+            next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
+        let waveform_resize_edge_changed =
+            next_hovered_waveform_resize_edge != self.hovered_waveform_resize_edge;
+        let waveform_hover_changed =
+            next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
+        if !hover_changed
+            && !browser_row_changed
+            && !browser_rating_filter_changed
+            && !browser_search_field_changed
+            && !folder_row_changed
+            && !source_add_button_changed
+            && !status_options_button_changed
+            && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
+            && !waveform_hover_changed
+        {
+            return CursorMoveEffect::None;
+        }
+        self.hovered = next_hover;
+        self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
+        self.hovered_browser_search_field = next_hovered_browser_search_field;
+        self.hovered_folder_row_index = next_hovered_folder_row;
+        self.hovered_source_add_button = next_hovered_source_add_button;
+        self.hovered_status_options_button = next_hovered_status_options_button;
+        self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
+        self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
+        self.waveform_hover_x = next_waveform_hover_x;
+        if waveform_hover_changed
+            && !hover_changed
+            && !browser_row_changed
+            && !browser_rating_filter_changed
+            && !browser_search_field_changed
+            && !folder_row_changed
+            && !source_add_button_changed
+            && !status_options_button_changed
+            && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
+        {
+            CursorMoveEffect::WaveformHoverOnly
+        } else {
+            CursorMoveEffect::GeneralOverlay
+        }
+    }
+
+    fn resolve_hovered_browser_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        row_index_for_visible_rows(rows, point, layout.browser_rows)
+            .map(|index| rows[index].visible_row)
+    }
+
+    fn resolve_hovered_folder_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_folder_row_rects(layout, &style, model);
+        compute_row_index_at_point(rows, point)
+    }
+
+    fn resolve_hovered_browser_search_field(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
+    }
+
+    fn resolve_hovered_browser_rating_filter_level(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<i8> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+    }
+
+    fn resolve_hovered_source_add_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return false;
+        }
+        source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+            .is_some_and(|rect| rect.contains(point))
+    }
+
+    fn resolve_hovered_status_options_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::TopBar) {
+            return false;
+        }
+        status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        )
+        .is_some_and(|rect| rect.contains(point))
+    }
+
+    fn resolve_hovered_waveform_toolbar_hint(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<WaveformToolbarHoverHint> {
+        if hover != Some(ShellNodeKind::WaveformCard) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.rect.contains(point))
+            .and_then(|button| waveform_toolbar_hover_hint(button.label))
+    }
+
+    /// Resolve a rendered source-row index for a point within the sidebar.
+    pub(crate) fn source_row_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        let style = style_for_layout(layout);
+        let source_rows = self.cached_source_row_rects(layout, &style, model);
+        compute_row_index_at_point(source_rows, point)
+    }
+
+    /// Resolve a rendered folder-row index for a point within the sidebar.
+    pub(crate) fn folder_row_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        let style = style_for_layout(layout);
+        let folder_rows = self.cached_folder_row_rects(layout, &style, model);
+        compute_row_index_at_point(folder_rows, point)
+    }
+
+    /// Resolve one source context-menu action at a pointer location.
+    pub(crate) fn source_context_menu_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)?;
+        buttons
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action.clone())
+    }
+
+    /// Return `true` when a point lands inside the visible source context menu panel.
+    #[cfg(test)]
+    pub(crate) fn source_context_menu_contains_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let Some((panel_rect, _)) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)
+        else {
+            return false;
+        };
+        panel_rect.contains(point)
+    }
+
+    /// Return rendered source-row rectangles for geometry tests.
+    #[cfg(test)]
+    pub(crate) fn rendered_source_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Vec<Rect> {
+        let style = style_for_layout(layout);
+        self.cached_source_row_rects(layout, &style, model).to_vec()
+    }
+
+    /// Return rendered folder-row rectangles for geometry tests.
+    #[cfg(test)]
+    pub(crate) fn rendered_folder_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Vec<Rect> {
+        let style = style_for_layout(layout);
+        self.cached_folder_row_rects(layout, &style, model).to_vec()
+    }
+
+    /// Return a source-action button rect for the provided action in tests.
+    #[cfg(test)]
+    pub(crate) fn source_action_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        source_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.action == action)
+            .map(|button| button.rect)
+    }
+
+    /// Return the sidebar-header add-source button rect in tests.
+    #[cfg(test)]
+    pub(crate) fn source_add_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
+        source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+    }
+
+    /// Return the top-right options button rect in tests.
+    #[cfg(test)]
+    pub(crate) fn status_options_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
+        status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        )
+    }
+
+    /// Return whether a point falls inside the visible options panel.
+    #[cfg(test)]
+    pub(crate) fn options_panel_contains_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+    }
+
+    /// Return whether a point falls inside the visible options panel.
+    pub(crate) fn options_panel_contains_point_live(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+    }
+
+    /// Resolve a click inside the visible options panel.
+    pub(crate) fn options_panel_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        options_panel_action_at_point(layout, &style_for_layout(layout), model, point)
+    }
+
+    /// Return a source-context-menu button rect for one action in tests.
+    #[cfg(test)]
+    pub(crate) fn source_context_menu_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            source_context_menu_spec(layout, &style, model, self.source_context_menu)?;
+        buttons
+            .into_iter()
+            .find(|button| button.action == action)
+            .map(|button| button.rect)
+    }
+
+    /// Return a browser column-chip rect for one column index in tests.
+    #[cfg(test)]
+    pub(crate) fn browser_column_chip_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        column: usize,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let buttons = browser_action_buttons(layout, &style, model);
+        browser_column_chips(layout, &style, model, &buttons)
+            .into_iter()
+            .find(|chip| chip.column == column)
+            .map(|chip| chip.rect)
+    }
+
+    /// Return a waveform-toolbar button rect for one control label in tests.
+    #[cfg(test)]
+    pub(crate) fn waveform_toolbar_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        label: &'static str,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        waveform_toolbar_buttons(
+            layout,
+            &style,
+            &motion_model,
+            self.waveform_bpm_input_active,
+            self.waveform_bpm_input_display.as_deref(),
+        )
+        .into_iter()
+        .find(|button| button.label == label)
+        .map(|button| button.rect)
+    }
+
+    /// Resolve a source-management action button click into a native UI action.
+    pub(crate) fn source_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        if source_add_button_rect(layout.sidebar_header, style.sizing)
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.trigger_source_add_button_flash();
+            return Some(UiAction::OpenAddSourceDialog);
+        }
+        source_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action)
+    }
+
+    /// Resolve a rendered browser visible-row index for a point in the triage pane.
+    pub(crate) fn browser_row_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        if model.map.active {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        row_index_for_visible_rows(rows, point, layout.browser_rows)
+            .map(|index| rows[index].visible_row)
+    }
+
+    /// Return the current rendered browser viewport length.
+    pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
+            .len()
+            .min(model.browser.visible_count)
+    }
+
+    /// Return the pointer's offset within the browser scrollbar thumb when hovered.
+    pub(crate) fn browser_scrollbar_thumb_offset_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<f32> {
+        let (scrollbar, _) = self.cached_browser_scrollbar(layout, model)?;
+        let hit_rect = Rect::from_min_max(
+            Point::new(
+                scrollbar.track.min.x - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.min.y - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+            ),
+            Point::new(
+                scrollbar.track.max.x + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.max.y + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+            ),
+        );
+        hit_rect
+            .contains(point)
+            .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
+    }
+
+    /// Resolve the browser viewport start row for an active scrollbar-thumb drag.
+    pub(crate) fn browser_scrollbar_view_start_for_drag(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pointer_y: f32,
+        thumb_pointer_offset_y: f32,
+    ) -> Option<usize> {
+        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            pointer_y,
+            thumb_pointer_offset_y,
+        )
+    }
+
+    /// Resolve the browser viewport start for a click inside the scrollbar track.
+    ///
+    /// Track clicks jump the thumb so its center aligns with the clicked
+    /// location, matching the visual expectation that the handle should move to
+    /// the requested position immediately.
+    pub(crate) fn browser_scrollbar_view_start_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+            return None;
+        }
+        browser_scrollbar_view_start_for_pointer(
+            scrollbar,
+            viewport_len,
+            model.browser.visible_count,
+            point.y,
+            scrollbar.thumb.height() * 0.5,
+        )
+    }
+
+    /// Return the pointer's offset within the waveform scrollbar thumb when hovered.
+    pub(crate) fn waveform_scrollbar_thumb_offset_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<f32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        scrollbar
+            .thumb
+            .contains(point)
+            .then_some((point.x - scrollbar.thumb.min.x).clamp(0.0, scrollbar.thumb.width()))
+    }
+
+    /// Resolve the waveform viewport center for an active scrollbar-thumb drag.
+    pub(crate) fn waveform_scrollbar_view_center_for_drag(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pointer_x: f32,
+        thumb_pointer_offset_x: f32,
+    ) -> Option<u32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        waveform_scrollbar_center_for_pointer(
+            scrollbar,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+            pointer_x,
+            thumb_pointer_offset_x,
+        )
+    }
+
+    /// Resolve the waveform viewport center for a click inside the scrollbar track.
+    pub(crate) fn waveform_scrollbar_view_center_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<u32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_plot,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+            return None;
+        }
+        waveform_scrollbar_center_for_pointer(
+            scrollbar,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+            point.x,
+            scrollbar.thumb.width() * 0.5,
+        )
+    }
+
+    /// Resolve a browser action-strip click into a native UI action.
+    pub(crate) fn browser_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        alt_down: bool,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        if let Some(level) =
+            browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+        {
+            return Some(UiAction::ToggleBrowserRatingFilter {
+                level,
+                invert: alt_down,
+            });
+        }
+        if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
+            return Some(UiAction::FocusBrowserSearch);
+        }
+        if let Some(action) = chips
+            .into_iter()
+            .find(|chip| chip.rect.contains(point))
+            .map(|chip| UiAction::SelectColumn { index: chip.column })
+        {
+            return Some(action);
+        }
+        buttons
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action.clone())
+    }
+
+    /// Resolve a browser tab click into a list/map tab selection action.
+    pub(crate) fn browser_tab_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let tabs: BrowserTabsRects =
+            compute_browser_tabs_rects(layout.browser_tabs, style_for_layout(layout).sizing);
+        if tabs.samples.contains(point) {
+            return Some(UiAction::SetBrowserTab { map: false });
+        }
+        if tabs.map.contains(point) {
+            return Some(UiAction::SetBrowserTab { map: true });
+        }
+        None
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.waveform_toolbar_action_at_point_with_motion(layout, &motion_model, point)
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point_with_motion(
+        &mut self,
+        layout: &ShellLayout,
+        motion_model: &NativeMotionModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let resolved = self
+            .cached_waveform_toolbar_buttons(layout, &style, motion_model)
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| {
+                (
+                    waveform_toolbar_hover_hint(button.label),
+                    button.action.clone(),
+                )
+            });
+        if let Some((Some(hint), _)) = resolved.as_ref() {
+            self.trigger_waveform_toolbar_flash(*hint);
+        }
+        resolved.and_then(|(_, action)| action)
+    }
+
+    /// Resolve a click inside the status-bar options button to a native options action.
+    pub(crate) fn status_options_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let Some(button_rect) = status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        ) else {
+            return None;
+        };
+        if !button_rect.contains(point) {
+            return None;
+        }
+        self.trigger_status_options_button_flash();
+        Some(if model.options_panel.visible {
+            UiAction::CloseOptionsPanel
+        } else {
+            UiAction::OpenOptionsMenu
+        })
+    }
+
+    /// Resolve a click inside the top-bar volume meter to a volume action.
+    pub(crate) fn top_bar_volume_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
+        if !controls.active || !controls.volume_meter.contains(point) {
+            return None;
+        }
+        Some(volume_action_for_meter(controls.volume_meter, point))
+    }
+
+    /// Resolve a drag point against the top-bar volume meter.
+    ///
+    /// The x-position is clamped to the meter width so dragging beyond the
+    /// edges still emits a stable `SetVolume` action.
+    pub(crate) fn top_bar_volume_drag_action(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> Option<UiAction> {
+        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
+        if !controls.active {
+            return None;
+        }
+        Some(volume_action_for_meter(controls.volume_meter, point))
+    }
+
+    /// Resolve a map-point click to a sample-id action when map tab is active.
+    pub(crate) fn map_sample_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        if !model.map.active {
+            return None;
+        }
+        map_sample_id_at_point(layout, model, point)
+            .map(|sample_id| UiAction::FocusMapSample { sample_id })
+    }
+
+    /// Resolve a modal confirm prompt button click into confirm/cancel actions.
+    pub(crate) fn prompt_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        if !model.confirm_prompt.visible {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let (confirm_button, cancel_button) = prompt_buttons(layout, &style);
+        if confirm_button.contains(point) {
+            if prompt_has_validation_error(model) {
+                return None;
+            }
+            return Some(UiAction::ConfirmPrompt);
+        }
+        if cancel_button.contains(point) {
+            return Some(UiAction::CancelPrompt);
+        }
+        None
+    }
+
+    /// Return whether a point falls inside the active prompt text input rect.
+    pub(crate) fn prompt_input_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        if !model.confirm_prompt.visible {
+            return false;
+        }
+        let style = style_for_layout(layout);
+        prompt_input_rect(layout, &style, model).is_some_and(|rect| rect.contains(point))
+    }
+
+    /// Return whether a point falls inside the waveform BPM text-input widget.
+    pub(crate) fn waveform_bpm_input_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.waveform_bpm_input_at_point_with_motion(layout, &motion_model, point)
+    }
+
+    /// Return whether a point falls inside the waveform BPM text-input widget.
+    pub(crate) fn waveform_bpm_input_at_point_with_motion(
+        &mut self,
+        layout: &ShellLayout,
+        motion_model: &NativeMotionModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let hit = self
+            .cached_waveform_toolbar_buttons(layout, &style, motion_model)
+            .iter()
+            .any(|button| {
+                button.label == "BPM Value" && button.enabled && button.rect.contains(point)
+            });
+        if hit {
+            self.trigger_waveform_toolbar_flash(WaveformToolbarHoverHint::BpmValue);
+        }
+        hit
+    }
+
+    /// Return the waveform BPM input rect when the toolbar is available.
+    pub(crate) fn waveform_bpm_input_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        let style = style_for_layout(layout);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.label == "BPM Value" && button.enabled)
+            .map(|button| button.rect)
+    }
+
+    /// Return the waveform BPM text rect used for rendering inside the field.
+    pub(crate) fn waveform_bpm_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        let style = style_for_layout(layout);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.label == "BPM Value" && button.enabled)
+            .map(|button| compute_action_button_text_rect(button.rect, style.sizing))
+    }
+
+    /// Return the browser-search field rect when the toolbar is available.
+    pub(crate) fn browser_search_field_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        (toolbar.search_field.width() > 1.0).then_some(toolbar.search_field)
+    }
+
+    /// Return one browser rating-filter chip rect for the given signed level.
+    #[cfg(test)]
+    pub(crate) fn browser_rating_filter_chip_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        level: i8,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let index = browser_rating_filter_chip_index(level)?;
+        let rect = toolbar.rating_filter_chips[index];
+        (rect.width() > 1.0).then_some(rect)
+    }
+
+    /// Return the browser-search text rect used for rendering inside the field.
+    pub(crate) fn browser_search_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        if toolbar.search_field.width() <= 1.0 {
+            return None;
+        }
+        let toolbar_text_layout = compute_browser_toolbar_text_layout(
+            toolbar.search_field,
+            toolbar.activity_chip,
+            toolbar.sort_chip,
+            style.sizing,
+        );
+        Some(toolbar_text_layout.search_label)
+    }
+
+    /// Resolve a progress-overlay cancel click.
+    pub(crate) fn progress_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        if !model.progress_overlay.visible
+            || !model.progress_overlay.modal
+            || !model.progress_overlay.cancelable
+            || model.progress_overlay.cancel_requested
+        {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        progress_cancel_button(layout, &style, model.progress_overlay.modal)
+            .contains(point)
+            .then_some(UiAction::CancelProgress)
+    }
+}
+
 pub(super) fn browser_action_hit_test_cache_key(
     layout: &ShellLayout,
     model: &AppModel,

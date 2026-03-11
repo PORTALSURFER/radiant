@@ -11,7 +11,7 @@ use super::constraints::Constraints;
 use super::model::{
     CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, VirtualizationAxis,
 };
-use super::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};
+use super::tree::{ContainerNode, LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeSet, HashMap};
 
@@ -20,31 +20,6 @@ pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
     LayoutDiagnosticCode, LayoutOutput, LayoutState, OverflowInfo, VirtualWindowInfo,
 };
-
-/// Paint context consumed by widget paint implementations.
-#[allow(dead_code)]
-#[derive(Default)]
-pub struct PaintContext;
-
-/// Public widget layout contract.
-#[allow(dead_code)]
-pub trait Widget {
-    /// Return the preferred size for the provided constraints.
-    fn measure(&self, constraints: Constraints) -> Vector2;
-
-    /// Paint the widget in the assigned rectangle.
-    fn paint(&self, rect: Rect, ctx: &mut PaintContext);
-}
-
-/// Public container layout contract.
-#[allow(dead_code)]
-pub trait Container {
-    /// Measure this container from its children and incoming constraints.
-    fn measure(&self, children: &[SlotChild], constraints: Constraints) -> Vector2;
-
-    /// Layout this container's children into `rect`.
-    fn layout(&self, children: &[SlotChild], rect: Rect) -> Vec<(NodeId, Rect)>;
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct ConstraintKey {
@@ -345,7 +320,7 @@ pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
 }
 
 /// Measure and layout a strict slot tree with stateful container input.
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn layout_tree_with_state(
     root: &LayoutNode,
     root_rect: Rect,

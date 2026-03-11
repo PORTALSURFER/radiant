@@ -1,5 +1,4 @@
 //! Backend-neutral geometry and image buffer types.
-#![allow(dead_code)]
 use std::sync::Arc;
 
 /// 2D point in logical UI coordinates.
@@ -67,14 +66,6 @@ impl Rect {
             && point.x <= self.max.x
             && point.y >= self.min.y
             && point.y <= self.max.y
-    }
-
-    /// Return an inset rectangle.
-    pub(crate) fn inset(self, amount: f32) -> Self {
-        Self {
-            min: Point::new(self.min.x + amount, self.min.y + amount),
-            max: Point::new(self.max.x - amount, self.max.y - amount),
-        }
     }
 }
 

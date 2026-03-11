@@ -1673,7 +1673,7 @@ impl NativeShellState {
     }
 
     /// Build a native frame from state + layout + style tokens.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn build_frame_with_style(
         &mut self,
         layout: &ShellLayout,
@@ -1690,7 +1690,7 @@ impl NativeShellState {
     }
 
     /// Build a native frame from state + layout + style tokens into reusable buffers.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn build_frame_with_style_into(
         &mut self,
         layout: &ShellLayout,
@@ -2220,7 +2220,7 @@ impl NativeShellState {
     }
 
     /// Build a native frame using default style tokens.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn build_frame(
         &mut self,
         layout: &ShellLayout,

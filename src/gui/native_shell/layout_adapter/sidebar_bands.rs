@@ -21,21 +21,6 @@ pub(crate) struct SidebarBandSections {
     pub sidebar_footer: Rect,
 }
 
-/// Compute sidebar header/rows/footer bands from a strict slot tree.
-#[allow(dead_code)]
-pub(crate) fn compute_sidebar_band_sections(
-    sidebar: Rect,
-    sizing: SizingTokens,
-) -> SidebarBandSections {
-    let mut engine = LayoutEngine::default();
-    compute_sidebar_band_sections_with_layout_engine(
-        sidebar,
-        sizing,
-        &mut engine,
-        &LayoutState::default(),
-    )
-}
-
 /// Compute sidebar band sections with a caller-provided persistent layout engine.
 pub(crate) fn compute_sidebar_band_sections_with_layout_engine(
     sidebar: Rect,

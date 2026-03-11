@@ -1,4 +1,8 @@
 //! Slot and container policy definitions for the slot-based layout engine.
+//!
+//! The native shell currently instantiates only a subset of these policies, but
+//! the wider enum surface remains intentional because layout-core tests and
+//! declarative adapters exercise a broader configuration space.
 
 use super::constraints::Constraints;
 

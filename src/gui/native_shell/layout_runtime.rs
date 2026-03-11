@@ -28,8 +28,9 @@ pub(crate) enum ShellLayoutTreeKind {
 /// Dirty mark class applied to a cached shell layout tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ShellLayoutDirtyKind {
-    /// Geometry-only dirty marker.
-    #[allow(dead_code)]
+    /// Geometry-only dirty marker retained for layout-cache parity tests and
+    /// future geometry-only invalidation callers.
+    #[cfg_attr(not(test), allow(dead_code))]
     Layout,
     /// Intrinsic measure dirty marker.
     Measure,

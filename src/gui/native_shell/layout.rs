@@ -83,7 +83,7 @@ pub(crate) struct ShellLayout {
 
 /// Derived metrics used to validate layout parity contracts.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(not(test), allow(dead_code))]
+#[cfg(test)]
 pub(crate) struct LayoutContractSnapshot {
     /// Effective viewport width after layout clamping.
     pub viewport_width: f32,
@@ -103,14 +103,14 @@ pub(crate) struct LayoutContractSnapshot {
 
 impl ShellLayout {
     /// Build shell layout for the provided logical viewport dimensions.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn build(viewport: Vector2) -> Self {
         let style = StyleTokens::for_viewport_width(viewport.x);
         Self::build_with_style(viewport, &style)
     }
 
     /// Build shell layout for the provided viewport and style token set.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn build_with_style(viewport: Vector2, style: &StyleTokens) -> Self {
         let mut runtime = ShellLayoutRuntime::default();
         Self::build_with_style_and_runtime(viewport, style, &mut runtime)
@@ -369,7 +369,7 @@ impl ShellLayout {
     }
 
     /// Build a compact metric snapshot used by parity/layout contract tests.
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(test)]
     pub(crate) fn contract_snapshot(&self, style: &StyleTokens) -> LayoutContractSnapshot {
         let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
         LayoutContractSnapshot {

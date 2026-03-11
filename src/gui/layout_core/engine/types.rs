@@ -124,7 +124,7 @@ impl Default for LayoutDebugOptions {
 
 impl LayoutDebugOptions {
     /// Enable all debug primitive categories.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn all_enabled() -> Self {
         Self {
             enabled: true,

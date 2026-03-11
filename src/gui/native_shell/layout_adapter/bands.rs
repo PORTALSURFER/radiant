@@ -144,21 +144,6 @@ pub(crate) fn compute_top_bar_band_sections(
     }
 }
 
-/// Compute browser tabs/toolbar/header/rows/footer from a strict slot tree.
-#[allow(dead_code)]
-pub(crate) fn compute_browser_band_sections(
-    browser_panel: Rect,
-    sizing: SizingTokens,
-) -> BrowserBandSections {
-    let mut engine = LayoutEngine::default();
-    compute_browser_band_sections_with_layout_engine(
-        browser_panel,
-        sizing,
-        &mut engine,
-        &LayoutState::default(),
-    )
-}
-
 /// Compute browser band sections with a caller-provided persistent layout engine.
 pub(crate) fn compute_browser_band_sections_with_layout_engine(
     browser_panel: Rect,

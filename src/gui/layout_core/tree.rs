@@ -70,16 +70,6 @@ impl LayoutNode {
         })
     }
 
-    /// Convenience constructor for a leaf widget node with a state version.
-    #[allow(dead_code)]
-    pub fn widget_with_version(id: NodeId, intrinsic: Vector2, state_version: u64) -> Self {
-        Self::Widget(WidgetNode {
-            id,
-            intrinsic,
-            state_version,
-        })
-    }
-
     /// Convenience constructor for a container node.
     pub fn container(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
         Self::Container(ContainerNode {

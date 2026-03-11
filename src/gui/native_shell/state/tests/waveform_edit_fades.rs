@@ -21,8 +21,8 @@ fn waveform_motion_overlay_hides_edit_fade_vertical_bars() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -86,8 +86,8 @@ fn waveform_motion_overlay_draws_edit_fade_top_grab_tabs() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -142,8 +142,8 @@ fn waveform_motion_overlay_draws_square_edit_fade_top_grab_tabs() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -210,8 +210,8 @@ fn waveform_motion_overlay_draws_edit_fade_bottom_grab_tabs() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -267,8 +267,8 @@ fn waveform_motion_overlay_draws_square_edit_fade_bottom_grab_tabs() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -334,8 +334,8 @@ fn waveform_motion_overlay_draws_edit_fade_curve_trace() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");

@@ -19,8 +19,8 @@ fn waveform_motion_overlay_omits_edit_resize_handles_until_hovered() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -84,8 +84,8 @@ fn waveform_motion_overlay_highlights_hovered_edit_resize_edge() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -128,8 +128,8 @@ fn waveform_motion_overlay_draws_loop_range_bar_when_loop_enabled() {
         Some(play_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("play selection rect");
@@ -182,8 +182,8 @@ fn waveform_motion_overlay_hides_edit_fade_bottom_grab_tabs_without_fades() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");

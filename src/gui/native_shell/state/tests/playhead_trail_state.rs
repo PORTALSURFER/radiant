@@ -20,8 +20,8 @@ fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -56,8 +56,8 @@ fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -99,8 +99,8 @@ fn waveform_motion_overlay_fades_playhead_trail_by_elapsed_time() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -164,8 +164,8 @@ fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -195,8 +195,8 @@ fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("jumped playhead marker");
@@ -239,8 +239,8 @@ fn waveform_motion_overlay_clears_trail_when_view_window_changes() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -277,8 +277,8 @@ fn waveform_motion_overlay_clears_trail_when_view_window_changes() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("panned playhead marker");
@@ -319,8 +319,8 @@ fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped_without_h
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");

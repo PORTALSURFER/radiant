@@ -27,8 +27,8 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
         Some(play_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("play selection rect");
@@ -38,8 +38,8 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
         Some(edit_selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -90,8 +90,8 @@ fn waveform_motion_overlay_omits_selection_resize_handles_until_hovered() {
         Some(selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("selection rect");
@@ -154,8 +154,8 @@ fn waveform_motion_overlay_draws_selection_drag_handle() {
         Some(selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("selection rect");
@@ -217,8 +217,8 @@ fn waveform_motion_overlay_draws_edit_selection_shift_handle() {
         Some(selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("edit selection rect");
@@ -264,8 +264,8 @@ fn waveform_motion_overlay_highlights_hovered_selection_resize_edge() {
         Some(selection),
         None,
         None,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .selection
     .expect("selection rect");

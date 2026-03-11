@@ -20,8 +20,8 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -69,8 +69,8 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -161,8 +161,8 @@ fn waveform_motion_overlay_omits_playhead_trail_when_playhead_is_stationary() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");
@@ -248,8 +248,8 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
         None,
         None,
         model.waveform.playhead_milli,
-        model.waveform.view_start_milli,
-        model.waveform.view_end_milli,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
     )
     .playhead
     .expect("playhead marker");

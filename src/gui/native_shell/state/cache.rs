@@ -37,8 +37,7 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> &[CachedBrowserRow] {
-        let (window_start, _) =
-            browser_rows_window_bounds(layout, model, style.sizing, self.browser_rows_window_start);
+        let (window_start, _) = browser_rows_window_bounds(layout, model, style.sizing);
         let cache_key = browser_rows_cache_key(layout, style, model, window_start);
         let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
         if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
@@ -53,7 +52,6 @@ impl NativeShellState {
                 style,
                 &mut self.browser_row_truncation_cache,
                 &mut self.browser_row_truncation_frame_counts,
-                self.browser_rows_window_start,
             );
             let resolved_cache_key =
                 browser_rows_cache_key(layout, style, model, resolved_window_start);

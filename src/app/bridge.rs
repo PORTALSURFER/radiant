@@ -1,0 +1,98 @@
+//! Host bridge traits exposed by the `radiant` app contract.
+
+use super::{
+    AppModel, DirtySegments, FrameBuildResult, NativeMotionModel, SegmentRevisions, UiAction,
+};
+use std::sync::Arc;
+
+/// Host bridge consumed by the native runtime.
+pub trait NativeAppBridge {
+    /// Project the latest app model snapshot before frame build.
+    ///
+    /// This is the declarative render projection entrypoint:
+    /// host state in, immutable view-model snapshot out.
+    fn project_model(&mut self) -> Arc<AppModel>;
+
+    /// Pull the latest app model snapshot before frame build.
+    ///
+    /// This compatibility shim unwraps the projected arc when callers need
+    /// owned model values.
+    fn pull_model(&mut self) -> AppModel {
+        Arc::unwrap_or_clone(self.project_model())
+    }
+
+    /// Pull the latest app model snapshot as a shared immutable `Arc`.
+    ///
+    /// Runtimes can use this to avoid full-model cloning on retained cache hits
+    /// when hosts already store projected models behind shared ownership.
+    fn pull_model_arc(&mut self) -> Arc<AppModel> {
+        self.project_model()
+    }
+
+    /// Project motion-sensitive fields only; this allows renderers to avoid
+    /// full-model work on animation-only ticks.
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        None
+    }
+
+    /// Pull motion-sensitive fields only; this allows renderers to avoid
+    /// full-model work on animation-only ticks.
+    fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+        self.project_motion_model()
+    }
+
+    /// Return and clear dirty projection segments produced by the latest `pull_model`.
+    ///
+    /// Implementations that do not track segment deltas may return
+    /// [`DirtySegments::all`] to preserve conservative full-rebuild behavior.
+    fn take_dirty_segments(&mut self) -> DirtySegments {
+        DirtySegments::all()
+    }
+
+    /// Return static-segment revisions produced by the latest `pull_model`.
+    ///
+    /// Bridges that do not track segment revisions may return
+    /// [`SegmentRevisions::default`] and runtimes should fall back to conservative
+    /// behavior.
+    fn take_segment_revisions(&mut self) -> SegmentRevisions {
+        SegmentRevisions::default()
+    }
+
+    /// Reduce one UI action into host state.
+    fn reduce_action(&mut self, _action: UiAction) {}
+
+    /// Install a runtime repaint signal used by background workers.
+    ///
+    /// Hosts that run background jobs can store this callback and forward it into
+    /// worker systems so asynchronous completions can wake the UI runtime.
+    fn install_repaint_signal(&mut self, _signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {}
+
+    /// Handle a user action emitted by runtime input processing.
+    ///
+    /// Compatibility shim that forwards to [`NativeAppBridge::reduce_action`].
+    fn on_action(&mut self, action: UiAction) {
+        self.reduce_action(action);
+    }
+
+    /// Observe one built frame result for diagnostics or telemetry.
+    fn observe_frame_result(&mut self, _result: FrameBuildResult) {}
+
+    /// Observe a built frame result for diagnostics or telemetry.
+    ///
+    /// Compatibility shim that forwards to
+    /// [`NativeAppBridge::observe_frame_result`].
+    fn on_frame_result(&mut self, result: FrameBuildResult) {
+        self.observe_frame_result(result);
+    }
+
+    /// Lifecycle hook fired when the runtime is shutting down.
+    fn on_runtime_exit(&mut self) {}
+
+    /// Lifecycle hook fired when the runtime is shutting down.
+    ///
+    /// Compatibility shim that forwards to
+    /// [`NativeAppBridge::on_runtime_exit`].
+    fn on_exit(&mut self) {
+        self.on_runtime_exit();
+    }
+}

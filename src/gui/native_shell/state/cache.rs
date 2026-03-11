@@ -1,0 +1,138 @@
+//! Retained geometry and hit-test cache accessors for the native shell.
+
+use super::*;
+
+impl NativeShellState {
+    pub(super) fn cached_source_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[Rect] {
+        let cache_key = sidebar_rows_cache_key(layout, style, model);
+        if self.source_row_cache_key != Some(cache_key) {
+            self.source_row_rects = rendered_source_row_rects(layout, style, model);
+            self.source_row_cache_key = Some(cache_key);
+        }
+        &self.source_row_rects
+    }
+
+    pub(super) fn cached_folder_row_rects(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[Rect] {
+        let cache_key = sidebar_rows_cache_key(layout, style, model);
+        if self.folder_row_cache_key != Some(cache_key) {
+            self.folder_row_rects = rendered_folder_row_rects(layout, style, model);
+            self.folder_row_cache_key = Some(cache_key);
+        }
+        &self.folder_row_rects
+    }
+
+    pub(super) fn cached_browser_rows(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> &[CachedBrowserRow] {
+        let (window_start, _) =
+            browser_rows_window_bounds(layout, model, style.sizing, self.browser_rows_window_start);
+        let cache_key = browser_rows_cache_key(layout, style, model, window_start);
+        let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
+        if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
+            self.browser_row_truncation_cache.clear();
+            self.browser_row_truncation_cache_key = Some(truncation_cache_key);
+        }
+        self.browser_row_truncation_frame_counts = BrowserRowTruncationFrameCounts::default();
+        if self.browser_rows_cache_key != Some(cache_key) {
+            let (rows, resolved_window_start) = rendered_browser_rows_cached_with_window_start(
+                layout,
+                model,
+                style,
+                &mut self.browser_row_truncation_cache,
+                &mut self.browser_row_truncation_frame_counts,
+                self.browser_rows_window_start,
+            );
+            let resolved_cache_key =
+                browser_rows_cache_key(layout, style, model, resolved_window_start);
+            self.browser_rows = rows;
+            self.browser_rows_window_start = resolved_window_start;
+            self.browser_rows_cache_key = Some(resolved_cache_key);
+        } else {
+            self.browser_rows_window_start = window_start;
+        }
+        &self.browser_rows
+    }
+
+    pub(super) fn cached_browser_scrollbar(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<(BrowserScrollbarLayout, usize)> {
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        let viewport_len = rows.len().min(model.browser.visible_count);
+        let scrollbar = browser_scrollbar_layout(
+            layout.browser_rows,
+            rows,
+            model.browser.visible_count,
+            style.sizing,
+        )?;
+        Some((scrollbar, viewport_len))
+    }
+
+    pub(super) fn cached_browser_action_hit_test(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> (&[ActionButton], &[BrowserColumnChip], BrowserToolbarLayout) {
+        let cache_key = browser_action_hit_test_cache_key(layout, model);
+        if self.browser_action_hit_test_cache_key != Some(cache_key) {
+            self.browser_action_buttons = browser_action_buttons(layout, style, model);
+            self.browser_column_chips =
+                browser_column_chips(layout, style, model, &self.browser_action_buttons);
+            self.browser_toolbar_layout = Some(browser_toolbar_layout(
+                layout,
+                style,
+                &self.browser_action_buttons,
+            ));
+            self.browser_action_hit_test_cache_key = Some(cache_key);
+        }
+        let toolbar = self
+            .browser_toolbar_layout
+            .unwrap_or_else(|| browser_toolbar_layout(layout, style, &self.browser_action_buttons));
+        (
+            &self.browser_action_buttons,
+            &self.browser_column_chips,
+            toolbar,
+        )
+    }
+
+    pub(super) fn cached_waveform_toolbar_buttons(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &NativeMotionModel,
+    ) -> &[WaveformToolbarButton] {
+        let cache_key = waveform_toolbar_hit_test_cache_key(
+            layout,
+            model,
+            self.waveform_bpm_input_active,
+            self.waveform_bpm_input_display.as_deref(),
+        );
+        if self.waveform_toolbar_hit_test_cache_key != Some(cache_key) {
+            self.waveform_toolbar_buttons = waveform_toolbar_buttons(
+                layout,
+                style,
+                model,
+                self.waveform_bpm_input_active,
+                self.waveform_bpm_input_display.as_deref(),
+            );
+            self.waveform_toolbar_hit_test_cache_key = Some(cache_key);
+        }
+        &self.waveform_toolbar_buttons
+    }
+}

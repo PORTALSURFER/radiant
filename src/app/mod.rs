@@ -1,10 +1,10 @@
 //! App-facing contracts between the `radiant` runtime and a host application.
 //!
-//! The host provides one immutable [`AppModel`] snapshot per frame.
+//! The host provides one immutable [`AppModel`](crate::app::AppModel) snapshot per frame.
 //! `radiant` consumes that snapshot to:
 //! 1. derive a frame from the retained shell model,
 //! 2. run input hit-testing and command handling,
-//! 3. emit [`UiAction`] values describing intent.
+//! 3. emit [`UiAction`](crate::app::UiAction) values describing intent.
 //!
 //! Each action is routed back through the host bridge so state updates remain
 //! in application code. This keeps GUI-specific input handling and event propagation
@@ -26,10 +26,10 @@
 //! ## Boundary layout
 //! The public contract is grouped by responsibility:
 //! - shell/source/browser/map/waveform models describe immutable render state.
-//! - [`UiAction`] describes user intent emitted by the runtime.
-//! - [`NativeMotionModel`] exposes motion-only projection for retained overlays.
-//! - [`DirtySegments`] and [`SegmentRevisions`] describe incremental rebuild hints.
-//! - [`NativeAppBridge`] defines the host/runtime integration boundary.
+//! - [`UiAction`](crate::app::UiAction) describes user intent emitted by the runtime.
+//! - [`NativeMotionModel`](crate::app::NativeMotionModel) exposes motion-only projection for retained overlays.
+//! - [`DirtySegments`](crate::app::DirtySegments) and [`SegmentRevisions`](crate::app::SegmentRevisions) describe incremental rebuild hints.
+//! - [`NativeAppBridge`](crate::app::NativeAppBridge) defines the host/runtime integration boundary.
 
 mod actions;
 mod bridge;

@@ -1,0 +1,243 @@
+use super::*;
+
+#[test]
+fn handle_pointer_press_action_arms_edit_selection_shift_without_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformEditSelectionShift {
+            pointer_micros: milli(420),
+            start_micros: milli(250),
+            end_micros: milli(650),
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_micros: milli(420),
+            start_micros: milli(250),
+            end_micros: milli(650),
+        })
+    );
+}
+
+#[test]
+fn handle_pointer_press_action_starts_selection_drag_immediately() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::StartWaveformSelectionDrag {
+            pointer_x: 320,
+            pointer_y: 240,
+        },
+        false,
+    );
+
+    assert!(emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::StartWaveformSelectionDrag {
+            pointer_x: 320,
+            pointer_y: 240,
+        }]
+    );
+    assert!(runner.selection_drag_active);
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::EditFadeOutMuteEnd);
+    runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformEditFadeOutMuteEnd {
+        position_micros: milli(500),
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformEditFadeDrag]
+    );
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_selection_drag_for_active_selection_export() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.selection_drag_active = true;
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformSelectionDrag]
+    );
+    assert!(!runner.selection_drag_active);
+}
+
+#[test]
+/// Drag waveform actions should clamp pointer positions and preserve anchors or widths.
+fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let model = AppModel::default();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let left = Point::new(layout.waveform_plot.min.x - 200.0, y);
+    let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
+    assert_eq!(
+        waveform_drag_action_for_mode(&layout, &model, left, WaveformPointerDragMode::Seek),
+        UiAction::SeekWaveform { position_milli: 0 }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(&layout, &model, right, WaveformPointerDragMode::Cursor),
+        UiAction::SetWaveformCursor {
+            position_milli: 1000
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::Selection {
+                anchor_micros: milli(200)
+            }
+        ),
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(200),
+            end_micros: milli(1000),
+            preserve_view_edge: true,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::SelectionSmartScale {
+                anchor_micros: milli(200)
+            }
+        ),
+        UiAction::SetWaveformSelectionRangeSmartScale {
+            start_micros: milli(200),
+            end_micros: milli(1000),
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::SelectionShift {
+                pointer_micros: milli(300),
+                start_micros: milli(200),
+                end_micros: milli(400),
+            }
+        ),
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(800),
+            end_micros: milli(1000),
+            preserve_view_edge: false,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::EditSelection {
+                anchor_micros: milli(300)
+            }
+        ),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: milli(300),
+            end_micros: milli(1000),
+            preserve_view_edge: true,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::EditSelectionShift {
+                pointer_micros: milli(550),
+                start_micros: milli(400),
+                end_micros: milli(700),
+            }
+        ),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: milli(0),
+            end_micros: milli(300),
+            preserve_view_edge: false,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::EditFadeInEnd
+        ),
+        UiAction::SetWaveformEditFadeInEnd {
+            position_micros: milli(0)
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::EditFadeInMuteStart
+        ),
+        UiAction::SetWaveformEditFadeInMuteStart {
+            position_micros: milli(0)
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            Point::new(layout.waveform_plot.min.x, layout.waveform_plot.min.y),
+            WaveformPointerDragMode::EditFadeInCurve
+        ),
+        UiAction::SetWaveformEditFadeInCurve { curve_milli: 1000 }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::EditFadeOutStart
+        ),
+        UiAction::SetWaveformEditFadeOutStart {
+            position_micros: milli(1000)
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::EditFadeOutMuteEnd
+        ),
+        UiAction::SetWaveformEditFadeOutMuteEnd {
+            position_micros: milli(1000)
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            Point::new(layout.waveform_plot.max.x, layout.waveform_plot.max.y),
+            WaveformPointerDragMode::EditFadeOutCurve
+        ),
+        UiAction::SetWaveformEditFadeOutCurve { curve_milli: 0 }
+    );
+}

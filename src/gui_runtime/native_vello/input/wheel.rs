@@ -1,0 +1,85 @@
+//! Wheel-to-action mapping for browser scrolling and waveform zoom.
+
+use super::*;
+
+pub(super) fn browser_wheel_row_delta(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    style: &StyleTokens,
+    delta: MouseScrollDelta,
+) -> Option<i8> {
+    if model.map.active || !layout.browser_panel.contains(point) {
+        return None;
+    }
+    let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
+    let raw = match delta {
+        MouseScrollDelta::LineDelta(_, y) => -y,
+        MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
+    };
+    if raw == 0.0 {
+        return None;
+    }
+    let mut steps = raw.round();
+    if steps.abs() < 1.0 {
+        steps = raw.signum();
+        if steps == 0.0 {
+            return None;
+        }
+    }
+    if steps == 0.0 {
+        return None;
+    }
+    let clamped = if steps > 1.0 {
+        steps.min(i8::MAX as f32)
+    } else {
+        steps.max(i8::MIN as f32)
+    };
+    Some(clamped as i8)
+}
+
+/// Clamp one wheel-derived browser viewport move to the current visible-row range.
+pub(super) fn browser_view_start_after_wheel(
+    current_view_start: usize,
+    visible_count: usize,
+    viewport_len: usize,
+    steps: i8,
+) -> Option<usize> {
+    if visible_count == 0 || viewport_len == 0 || steps == 0 {
+        return None;
+    }
+    let max_start = visible_count.saturating_sub(viewport_len.min(visible_count));
+    let target = (current_view_start as isize + steps as isize).clamp(0, max_start as isize);
+    Some(target as usize)
+}
+
+/// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.
+pub(super) fn waveform_wheel_zoom_action(
+    layout: &ShellLayout,
+    _model: &AppModel,
+    point: Point,
+    delta: MouseScrollDelta,
+) -> Option<UiAction> {
+    if !layout.waveform_card.contains(point) {
+        return None;
+    }
+    let raw = match delta {
+        MouseScrollDelta::LineDelta(_, y) => y,
+        MouseScrollDelta::PixelDelta(position) => {
+            (position.y as f32) / WAVEFORM_WHEEL_ZOOM_PIXEL_STEP
+        }
+    };
+    if raw.abs() <= f32::EPSILON {
+        return None;
+    }
+    let zoom_in = raw > 0.0;
+    let mut steps = raw.abs().round();
+    if steps < 1.0 {
+        steps = 1.0;
+    }
+    Some(UiAction::ZoomWaveform {
+        zoom_in,
+        steps: steps.min(u8::MAX as f32) as u8,
+        anchor_ratio_micros: Some(ratio_to_micros(waveform_ratio_from_point(layout, point))),
+    })
+}

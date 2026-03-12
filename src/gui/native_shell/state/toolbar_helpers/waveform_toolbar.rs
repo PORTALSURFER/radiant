@@ -218,22 +218,8 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_bpm_value_label(
     model
         .waveform_tempo_label
         .as_deref()
-        .and_then(parse_waveform_tempo_number_text)
+        .and_then(crate::app::parse_waveform_tempo_number_text)
         .unwrap_or_else(|| String::from("120.0"))
-}
-
-pub(in crate::gui::native_shell::state) fn parse_waveform_tempo_number_text(
-    label: &str,
-) -> Option<String> {
-    let number = label.split_ascii_whitespace().next()?.trim();
-    if number.is_empty() {
-        return None;
-    }
-    let parsed = number.parse::<f32>().ok()?;
-    if !parsed.is_finite() || parsed <= 0.0 {
-        return None;
-    }
-    Some(number.to_string())
 }
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_left_edge(

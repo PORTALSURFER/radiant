@@ -1,17 +1,5 @@
 use super::*;
 
-pub(super) fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
-    let number = label.split_ascii_whitespace().next()?.trim();
-    if number.is_empty() {
-        return None;
-    }
-    let parsed = number.parse::<f32>().ok()?;
-    if !parsed.is_finite() || parsed <= 0.0 {
-        return None;
-    }
-    Some(number.to_string())
-}
-
 pub(super) fn sanitize_waveform_bpm_insert(
     current: &str,
     selection_range: (usize, usize),
@@ -53,6 +41,188 @@ pub(super) fn bpm_tenths_from_value(value: f32) -> u16 {
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    fn text_value_for_input_target(&self, target: TextInputTarget) -> Option<String> {
+        match target {
+            TextInputTarget::None => None,
+            TextInputTarget::BrowserSearch => Some(
+                self.current_text_value()
+                    .unwrap_or_else(|| self.model.browser.search_query.clone()),
+            ),
+            TextInputTarget::WaveformBpm => Some(
+                self.current_text_value()
+                    .unwrap_or_else(|| self.waveform_bpm_text_from_model()),
+            ),
+            TextInputTarget::FolderSearch | TextInputTarget::PromptInput => None,
+        }
+    }
+
+    fn text_input_rect_for_target(
+        &mut self,
+        layout: &ShellLayout,
+        target: TextInputTarget,
+    ) -> Option<UiRect> {
+        match target {
+            TextInputTarget::BrowserSearch => self
+                .shell_state
+                .browser_search_text_rect(layout, &self.model),
+            TextInputTarget::WaveformBpm => {
+                self.shell_state.waveform_bpm_text_rect(layout, &self.model)
+            }
+            TextInputTarget::None
+            | TextInputTarget::FolderSearch
+            | TextInputTarget::PromptInput => None,
+        }
+    }
+
+    fn text_click_byte_index(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        target: TextInputTarget,
+    ) -> Option<usize> {
+        let text_rect = self.text_input_rect_for_target(layout, target)?;
+        let text = self.text_value_for_input_target(target)?;
+        let font_size = self.cached_style_for_layout(layout).sizing.font_meta;
+        let mut editor = self
+            .text_editor_state
+            .clone()
+            .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        let layout_state = build_text_field_layout(
+            &mut self.text_renderer,
+            &mut editor,
+            &text,
+            font_size,
+            text_rect.width(),
+        );
+        Some(byte_index_for_local_x(
+            &layout_state,
+            (point.x - text_rect.min.x).clamp(0.0, text_rect.width()),
+        ))
+    }
+
+    fn sync_text_editor_visual_state_for_target(&mut self, target: TextInputTarget) {
+        match target {
+            TextInputTarget::BrowserSearch => self.sync_browser_search_editor_state(),
+            TextInputTarget::WaveformBpm => self.sync_waveform_bpm_editor_state(),
+            TextInputTarget::None
+            | TextInputTarget::FolderSearch
+            | TextInputTarget::PromptInput => {}
+        }
+    }
+
+    fn activate_pointer_text_input_target(&mut self, target: TextInputTarget) {
+        match target {
+            TextInputTarget::BrowserSearch => {
+                if self.text_input_target != TextInputTarget::BrowserSearch {
+                    self.emit_model_action(UiAction::FocusBrowserSearch);
+                    self.activate_text_input_target(TextInputTarget::BrowserSearch);
+                }
+            }
+            TextInputTarget::WaveformBpm => {
+                if self.text_input_target != TextInputTarget::WaveformBpm {
+                    self.activate_waveform_bpm_input();
+                }
+            }
+            TextInputTarget::None
+            | TextInputTarget::FolderSearch
+            | TextInputTarget::PromptInput => {}
+        }
+    }
+
+    fn handle_text_input_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        field_rect: UiRect,
+        point: Point,
+        extend_selection: bool,
+        target: TextInputTarget,
+    ) -> bool {
+        if !field_rect.contains(point) {
+            return false;
+        }
+        self.activate_pointer_text_input_target(target);
+        let Some(byte_index) = self.text_click_byte_index(layout, point, target) else {
+            return false;
+        };
+        let Some(text) = self.text_value_for_input_target(target) else {
+            return false;
+        };
+        let editor = self
+            .text_editor_state
+            .get_or_insert_with(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        editor.set_cursor(&text, byte_index, extend_selection);
+        self.text_input_drag_active = true;
+        self.sync_text_editor_visual_state_for_target(target);
+        self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        true
+    }
+
+    pub(super) fn handle_browser_search_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        extend_selection: bool,
+    ) -> bool {
+        let Some(field_rect) = self
+            .shell_state
+            .browser_search_field_rect(layout, &self.model)
+        else {
+            return false;
+        };
+        self.handle_text_input_pointer_press(
+            layout,
+            field_rect,
+            point,
+            extend_selection,
+            TextInputTarget::BrowserSearch,
+        )
+    }
+
+    pub(super) fn handle_waveform_bpm_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        extend_selection: bool,
+    ) -> bool {
+        let Some(field_rect) = self
+            .shell_state
+            .waveform_bpm_input_rect(layout, &self.model)
+        else {
+            return false;
+        };
+        self.handle_text_input_pointer_press(
+            layout,
+            field_rect,
+            point,
+            extend_selection,
+            TextInputTarget::WaveformBpm,
+        )
+    }
+
+    pub(super) fn process_text_input_drag(&mut self, point: Point) -> bool {
+        if !self.text_input_drag_active {
+            return false;
+        }
+        let target = self.text_input_target;
+        let Some((byte_index, text)) = self
+            .with_shell_layout(|this, layout| {
+                let byte_index = this.text_click_byte_index(layout, point, target)?;
+                let text = this.text_value_for_input_target(target)?;
+                Some((byte_index, text))
+            })
+            .flatten()
+        else {
+            return false;
+        };
+        let Some(editor) = self.text_editor_state.as_mut() else {
+            return false;
+        };
+        editor.set_cursor(&text, byte_index, true);
+        self.sync_text_editor_visual_state_for_target(target);
+        self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        true
+    }
+
     pub(super) fn sync_text_input_target(&mut self) {
         if self.model.confirm_prompt.visible && self.model.confirm_prompt.input_value.is_some() {
             self.text_input_target = super::TextInputTarget::PromptInput;
@@ -200,7 +370,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .waveform
             .tempo_label
             .as_deref()
-            .and_then(parse_waveform_tempo_number_text)
+            .and_then(crate::app::parse_waveform_tempo_number_text)
             .unwrap_or_else(|| String::from("120.0"))
     }
 }

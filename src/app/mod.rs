@@ -41,6 +41,7 @@ mod motion;
 mod shell;
 mod sources;
 mod waveform;
+mod waveform_tempo;
 
 pub use actions::{BrowserTagTarget, UiAction};
 pub use automation::{
@@ -66,3 +67,4 @@ pub use sources::{
 pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
 };
+pub use waveform_tempo::parse_waveform_tempo_number_text;

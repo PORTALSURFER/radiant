@@ -1,4 +1,4 @@
-//! `radiant`: reusable GUI primitives and runtimes for Sempal.
+//! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
 //! The crate is organized as a thin runtime boundary:
 //! - `app`: model/action contracts emitted and consumed by the host.

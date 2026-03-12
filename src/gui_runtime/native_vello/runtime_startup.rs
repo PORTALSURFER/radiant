@@ -365,7 +365,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
-    /// Build one minimal branded startup scene for deferred-startup fallback.
+    /// Build one minimal host-titled startup scene for deferred-startup fallback.
     pub(super) fn build_startup_placeholder_scene(
         &mut self,
         layout: &ShellLayout,
@@ -384,8 +384,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             panel.min,
             Point::new(panel.max.x, panel.min.y + accent_height),
         );
+        let title_text = if self.options.title.trim().is_empty() {
+            String::from(crate::app::DEFAULT_APP_TITLE)
+        } else {
+            self.options.title.clone()
+        };
         let title = TextRun {
-            text: String::from("Sempal"),
+            text: title_text,
             position: Point::new(panel.min.x + 12.0, panel.min.y + 10.0),
             font_size: style.sizing.font_header.max(12.0),
             color: style.text_primary,
@@ -393,7 +398,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             align: TextAlign::Center,
         };
         let subtitle = TextRun {
-            text: String::from("Starting audio engine..."),
+            text: String::from("Starting interface..."),
             position: Point::new(panel.min.x + 12.0, panel.min.y + panel_height * 0.48),
             font_size: style.sizing.font_meta.max(10.0),
             color: style.text_muted,

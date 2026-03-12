@@ -34,7 +34,7 @@ mod tests {
 
     fn canonical_shell_model() -> crate::app::AppModel {
         let mut model = crate::app::AppModel::default();
-        model.title = String::from("Sempal Native");
+        model.title = String::from("Radiant Native");
         model.backend_label = String::from("radiant/native_vello");
         model.transport_running = true;
         model.status.left = String::from("Indexing complete");

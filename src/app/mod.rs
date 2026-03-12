@@ -56,8 +56,8 @@ pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
 pub use motion::NativeMotionModel;
 pub use shell::{
-    AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
-    ProgressOverlayModel, StatusBarModel, UpdatePanelModel, UpdateStatusModel,
+    AppModel, ConfirmPromptKind, ConfirmPromptModel, DEFAULT_APP_TITLE, DragOverlayModel,
+    OptionsPanelModel, ProgressOverlayModel, StatusBarModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use sources::{
     ColumnModel, FocusContextModel, FolderActionsModel, FolderRecoveryModel, FolderRowModel,

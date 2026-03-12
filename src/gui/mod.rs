@@ -1,9 +1,9 @@
-//! Backend-agnostic GUI primitives used during the renderer migration.
+//! Backend-agnostic GUI primitives for host applications.
 //!
 //! Architectural guarantees:
 //! - This module owns input normalization, hit testing policy, and the retained
 //!   update model interface used by application code.
-//! - The host (Sempal) supplies domain actions and state; `radiant` owns
+//! - The host application supplies domain actions and state; `radiant` owns
 //!   layout, repaint invalidation, and scene reconciliation.
 //! - Rendering orchestration is performed by `radiant` runtimes in `gui_runtime`.
 //!
@@ -21,7 +21,7 @@
 pub mod input;
 /// Strict slot-based layout core used by retained containers.
 pub(crate) mod layout_core;
-/// Native shell layout + scene model used by the experimental Vello backend.
+/// Native shell layout + scene model used by the Vello backend.
 pub(crate) mod native_shell;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.
 pub mod repaint;

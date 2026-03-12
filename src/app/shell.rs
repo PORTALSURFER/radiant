@@ -6,6 +6,10 @@ use super::{
     WaveformPanelModel,
 };
 
+/// Host-neutral fallback title used when the embedding application does not
+/// provide product branding explicitly.
+pub const DEFAULT_APP_TITLE: &str = "Radiant";
+
 /// Structured footer status content for left/center/right status segments.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct StatusBarModel {
@@ -191,7 +195,7 @@ pub struct AppModel {
 impl Default for AppModel {
     fn default() -> Self {
         Self {
-            title: String::from("Sempal"),
+            title: String::from(DEFAULT_APP_TITLE),
             backend_label: String::from("backend: native_vello"),
             sources_label: String::from("Sources"),
             status_text: String::new(),

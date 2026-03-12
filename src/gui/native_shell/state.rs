@@ -35,8 +35,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-mod browser_rows;
 mod automation;
+mod browser_rows;
 mod cache;
 mod cache_types;
 mod frame_build;

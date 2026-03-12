@@ -45,7 +45,7 @@ pub struct NativeRunOptions {
 impl Default for NativeRunOptions {
     fn default() -> Self {
         Self {
-            title: String::from("Sempal"),
+            title: String::from(crate::app::DEFAULT_APP_TITLE),
             inner_size: None,
             min_inner_size: None,
             maximized: false,

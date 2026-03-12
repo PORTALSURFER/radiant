@@ -32,7 +32,7 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
             .frame_cache
             .text_runs
             .iter()
-            .any(|run| run.text == "Sempal")
+            .any(|run| run.text == crate::app::DEFAULT_APP_TITLE)
     );
 }
 
@@ -58,7 +58,7 @@ fn deferred_startup_fallback_rebuild_uses_placeholder_scene_before_first_present
             .frame_cache
             .text_runs
             .iter()
-            .any(|run| run.text.contains("Starting audio engine"))
+            .any(|run| run.text.contains("Starting interface"))
     );
 }
 
@@ -84,7 +84,7 @@ fn startup_default_rebuild_skips_placeholder_scene_before_first_present() {
             .frame_cache
             .text_runs
             .iter()
-            .any(|run| run.text.contains("Starting audio engine"))
+            .any(|run| run.text.contains("Starting interface"))
     );
 }
 

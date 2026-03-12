@@ -1,6 +1,6 @@
 //! Keyboard input primitives used by hotkeys and future GUI backends.
 
-/// Backend-agnostic key code values used by sempal hotkeys.
+/// Backend-agnostic key code values used by host hotkeys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum KeyCode {
     /// Number row 0.

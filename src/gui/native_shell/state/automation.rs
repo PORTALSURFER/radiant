@@ -15,10 +15,10 @@ impl NativeShellState {
         model: &AppModel,
     ) -> GuiAutomationSnapshot {
         let style = style_for_layout(layout);
-        let viewport_width = u32::try_from(layout.root.rect.width().round().max(1.0) as i64)
-            .unwrap_or(1);
-        let viewport_height = u32::try_from(layout.root.rect.height().round().max(1.0) as i64)
-            .unwrap_or(1);
+        let viewport_width =
+            u32::try_from(layout.root.rect.width().round().max(1.0) as i64).unwrap_or(1);
+        let viewport_height =
+            u32::try_from(layout.root.rect.height().round().max(1.0) as i64).unwrap_or(1);
         GuiAutomationSnapshot {
             schema_version: 1,
             viewport_width,
@@ -26,7 +26,11 @@ impl NativeShellState {
             root: AutomationNodeSnapshot {
                 id: node_id("shell.root"),
                 role: AutomationRole::Root,
-                label: Some(String::from("Sempal shell")),
+                label: Some(if model.title.trim().is_empty() {
+                    String::from("Radiant shell")
+                } else {
+                    format!("{} shell", model.title)
+                }),
                 bounds: bounds(layout.root.rect),
                 value: None,
                 enabled: true,
@@ -267,8 +271,14 @@ impl NativeShellState {
             ],
             metadata: metadata(&[
                 ("loop_enabled", bool_text(model.waveform.loop_enabled)),
-                ("tempo_label", model.waveform.tempo_label.as_deref().unwrap_or("")),
-                ("zoom_label", model.waveform.zoom_label.as_deref().unwrap_or("")),
+                (
+                    "tempo_label",
+                    model.waveform.tempo_label.as_deref().unwrap_or(""),
+                ),
+                (
+                    "zoom_label",
+                    model.waveform.zoom_label.as_deref().unwrap_or(""),
+                ),
                 (
                     "cursor_milli",
                     &model
@@ -383,10 +393,16 @@ impl NativeShellState {
             bounds: bounds(layout.browser_panel),
             value: Some(model.browser_chrome.item_count_label.clone()),
             enabled: true,
-            selected: matches!(model.focus_context, crate::app::FocusContextModel::SampleBrowser),
+            selected: matches!(
+                model.focus_context,
+                crate::app::FocusContextModel::SampleBrowser
+            ),
             available_actions: vec![String::from("focus_browser_panel")],
             metadata: metadata(&[
-                ("active_tab", model.browser.active_tab_label.as_deref().unwrap_or("")),
+                (
+                    "active_tab",
+                    model.browser.active_tab_label.as_deref().unwrap_or(""),
+                ),
                 ("search_query", model.browser.search_query.as_str()),
                 (
                     "focused_sample_label",
@@ -419,7 +435,10 @@ impl NativeShellState {
             layout.browser_rows,
             Some(model.browser_chrome.item_count_label.clone()),
             true,
-            matches!(model.focus_context, crate::app::FocusContextModel::SampleBrowser),
+            matches!(
+                model.focus_context,
+                crate::app::FocusContextModel::SampleBrowser
+            ),
             vec![String::from("focus_browser_panel")],
         );
         table_node.children = rows
@@ -517,9 +536,18 @@ fn update_panel_automation(
             ("status_label", model.update.status_label.as_str()),
             ("action_hint", model.update.action_hint_label.as_str()),
             ("release_notes", model.update.release_notes_label.as_str()),
-            ("available_tag", model.update.available_tag.as_deref().unwrap_or("")),
-            ("available_url", model.update.available_url.as_deref().unwrap_or("")),
-            ("last_error", model.update.last_error.as_deref().unwrap_or("")),
+            (
+                "available_tag",
+                model.update.available_tag.as_deref().unwrap_or(""),
+            ),
+            (
+                "available_url",
+                model.update.available_url.as_deref().unwrap_or(""),
+            ),
+            (
+                "last_error",
+                model.update.last_error.as_deref().unwrap_or(""),
+            ),
         ]),
         children,
     }
@@ -623,7 +651,10 @@ fn prompt_automation(
         available_actions: Vec::new(),
         metadata: metadata(&[
             ("kind", &format!("{:?}", model.confirm_prompt.kind)),
-            ("input_error", model.confirm_prompt.input_error.as_deref().unwrap_or("")),
+            (
+                "input_error",
+                model.confirm_prompt.input_error.as_deref().unwrap_or(""),
+            ),
         ]),
         children,
     })
@@ -938,23 +969,17 @@ fn action_slug(action: &UiAction) -> String {
         }
         UiAction::SetWaveformEditSelectionRange { .. } => "set_waveform_edit_selection_range",
         UiAction::SetWaveformEditFadeInEnd { .. } => "set_waveform_edit_fade_in_end",
-        UiAction::SetWaveformEditFadeInMuteStart { .. } => {
-            "set_waveform_edit_fade_in_mute_start"
-        }
+        UiAction::SetWaveformEditFadeInMuteStart { .. } => "set_waveform_edit_fade_in_mute_start",
         UiAction::SetWaveformEditFadeInCurve { .. } => "set_waveform_edit_fade_in_curve",
         UiAction::SetWaveformEditFadeOutStart { .. } => "set_waveform_edit_fade_out_start",
-        UiAction::SetWaveformEditFadeOutMuteEnd { .. } => {
-            "set_waveform_edit_fade_out_mute_end"
-        }
+        UiAction::SetWaveformEditFadeOutMuteEnd { .. } => "set_waveform_edit_fade_out_mute_end",
         UiAction::SetWaveformEditFadeOutCurve { .. } => "set_waveform_edit_fade_out_curve",
         UiAction::FinishWaveformEditFadeDrag => "finish_waveform_edit_fade_drag",
         UiAction::StartWaveformSelectionDrag { .. } => "start_waveform_selection_drag",
         UiAction::UpdateWaveformSelectionDrag { .. } => "update_waveform_selection_drag",
         UiAction::FinishWaveformSelectionDrag => "finish_waveform_selection_drag",
         UiAction::BeginWaveformSelectionShift { .. } => "begin_waveform_selection_shift",
-        UiAction::BeginWaveformEditSelectionShift { .. } => {
-            "begin_waveform_edit_selection_shift"
-        }
+        UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
         UiAction::ClearWaveformSelection => "clear_waveform_selection",
         UiAction::ClearWaveformEditSelection => "clear_waveform_edit_selection",
         UiAction::SetWaveformViewCenter { .. } => "set_waveform_view_center",

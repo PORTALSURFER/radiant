@@ -510,12 +510,32 @@ pub(super) fn rendered_browser_rows_cached_with_window_start(
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
 ) -> (Vec<CachedBrowserRow>, usize) {
+    rendered_browser_rows_cached_with_window_start_and_previous(
+        layout,
+        model,
+        style,
+        truncation_cache,
+        frame_counts,
+        None,
+    )
+}
+
+/// Build rendered browser rows while preserving a prior visible viewport start.
+pub(super) fn rendered_browser_rows_cached_with_window_start_and_previous(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+    truncation_cache: &mut BrowserRowTruncationCache,
+    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    previous_visible_start: Option<usize>,
+) -> (Vec<CachedBrowserRow>, usize) {
     let sizing = style.sizing;
     if model.map.active || model.browser.rows.is_empty() {
         return (Vec::new(), 0);
     }
 
-    let (window_start, window_end) = browser_rows_window_bounds(layout, model, sizing);
+    let (window_start, window_end) =
+        browser_rows_window_bounds_with_previous(layout, model, sizing, previous_visible_start);
     let window = &model.browser.rows[window_start..window_end];
     let content_rect =
         browser_rows_content_rect(layout.browser_rows, model.browser.visible_count, sizing);
@@ -729,17 +749,24 @@ pub(super) fn browser_scrollbar_view_start_for_pointer(
     Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
 }
 
-/// Resolve browser row-window bounds in model-row index space.
-pub(super) fn browser_rows_window_bounds(
+/// Resolve browser row-window bounds while preserving a prior visible viewport start.
+///
+/// The host projects a much larger retained browser row slice than the native
+/// shell can show at once. When autoscroll is active inside that prewindowed
+/// slice, callers can pass the previous visible-row start so edge guards stay
+/// anchored to the rows the user is actually looking at instead of snapping
+/// back to the host slice start on every focus change.
+pub(super) fn browser_rows_window_bounds_with_previous(
     layout: &ShellLayout,
     model: &AppModel,
     sizing: SizingTokens,
+    previous_visible_start: Option<usize>,
 ) -> (usize, usize) {
     if model.map.active || model.browser.rows.is_empty() {
         return (0, 0);
     }
     let window_len = browser_rows_capacity(layout.browser_rows, sizing);
-    let window_start = browser_window_start(
+    let window_start = browser_window_start_with_previous(
         &model.browser.rows,
         window_len,
         model.browser.visible_count,
@@ -747,6 +774,7 @@ pub(super) fn browser_rows_window_bounds(
         model.browser.anchor_visible_row,
         model.browser.autoscroll,
         model.browser.view_start_row,
+        previous_visible_start,
     );
     let window_end = (window_start + window_len).min(model.browser.rows.len());
     (window_start, window_end)
@@ -767,7 +795,8 @@ pub(super) fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
     hasher.finish()
 }
 
-pub(super) fn browser_window_start(
+/// Resolve one browser viewport start while preserving a prior visible start.
+pub(super) fn browser_window_start_with_previous(
     rows: &[BrowserRowModel],
     window_len: usize,
     visible_count: usize,
@@ -775,6 +804,7 @@ pub(super) fn browser_window_start(
     anchor_visible_row: Option<usize>,
     autoscroll: bool,
     view_start_row: usize,
+    previous_visible_start: Option<usize>,
 ) -> usize {
     if rows.len() <= window_len {
         return 0;
@@ -791,8 +821,17 @@ pub(super) fn browser_window_start(
         .or_else(|| rows.iter().position(|row| row.selected))
         .unwrap_or(0);
     if rows.len() < visible_count {
-        let projected_window_start =
-            prewindowed_relative_view_start(slice_start, view_start_row, max_start);
+        let projected_window_start = if autoscroll {
+            previous_visible_start
+                .map(|visible_row| {
+                    prewindowed_relative_view_start(slice_start, visible_row, max_start)
+                })
+                .unwrap_or_else(|| {
+                    prewindowed_relative_view_start(slice_start, view_start_row, max_start)
+                })
+        } else {
+            prewindowed_relative_view_start(slice_start, view_start_row, max_start)
+        };
         if !autoscroll {
             return projected_window_start;
         }

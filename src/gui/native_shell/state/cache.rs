@@ -37,7 +37,13 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> &[CachedBrowserRow] {
-        let (window_start, _) = browser_rows_window_bounds(layout, model, style.sizing);
+        let previous_visible_start = self.browser_rows.first().map(|row| row.visible_row);
+        let (window_start, _) = browser_rows_window_bounds_with_previous(
+            layout,
+            model,
+            style.sizing,
+            previous_visible_start,
+        );
         let cache_key = browser_rows_cache_key(layout, style, model, window_start);
         let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
         if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
@@ -46,13 +52,15 @@ impl NativeShellState {
         }
         self.browser_row_truncation_frame_counts = BrowserRowTruncationFrameCounts::default();
         if self.browser_rows_cache_key != Some(cache_key) {
-            let (rows, resolved_window_start) = rendered_browser_rows_cached_with_window_start(
-                layout,
-                model,
-                style,
-                &mut self.browser_row_truncation_cache,
-                &mut self.browser_row_truncation_frame_counts,
-            );
+            let (rows, resolved_window_start) =
+                rendered_browser_rows_cached_with_window_start_and_previous(
+                    layout,
+                    model,
+                    style,
+                    &mut self.browser_row_truncation_cache,
+                    &mut self.browser_row_truncation_frame_counts,
+                    previous_visible_start,
+                );
             let resolved_cache_key =
                 browser_rows_cache_key(layout, style, model, resolved_window_start);
             self.browser_rows = rows;

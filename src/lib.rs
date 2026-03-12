@@ -9,11 +9,9 @@
 //! [`UiAction`](crate::app::UiAction) events produced by input and interactions.
 //! All GUI-specific layout, diffing, and render orchestration stay inside `radiant`.
 
-// `radiant` is in the middle of the staged cleanup backlog (`tmp/cleanup_plan.md`
-// items 20-23, 26, and 30). The current crate still carries large transitional
-// state/layout modules, so newer clippy structural lints would block unrelated
-// work until those splits land. Keep this list narrow and remove entries as the
-// corresponding cleanup items are completed.
+// `radiant` still carries several large transitional runtime and native-shell
+// modules. Keep this list narrow while the active cleanup lane continues to
+// split those surfaces into smaller focused modules.
 #![allow(clippy::collapsible_if)]
 #![allow(clippy::derivable_impls)]
 #![allow(clippy::double_ended_iterator_last)]

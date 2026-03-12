@@ -1,0 +1,103 @@
+use super::*;
+
+impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    pub(in crate::gui_runtime::native_vello) fn rebuild_scene_if_needed(&mut self) {
+        if self.shell_layout.is_none() || self.frame_state.layout_dirty {
+            self.rebuild_layout();
+        }
+        let model_refresh_requested = self.frame_state.take_model();
+        let static_rebuild_requested = self.frame_state.take_scene();
+        let state_overlay_requested = self.frame_state.take_state_overlay();
+        let motion_overlay_requested = self.frame_state.take_motion_overlay();
+        if self.startup_model_pull_pending
+            && !self.first_frame_presented
+            && !model_refresh_requested
+            && static_rebuild_requested
+        {
+            let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
+                return;
+            };
+            let style = self.cached_style_for_layout(layout.as_ref());
+            self.build_startup_placeholder_scene(layout.as_ref(), &style);
+            return;
+        }
+        if static_rebuild_requested {
+            self.profiler.add_explicit_static_rebuild();
+        }
+        let rebuild_static = static_rebuild_requested || model_refresh_requested;
+        let rebuild_state_overlay = state_overlay_requested || rebuild_static;
+        let rebuild_motion_overlay = motion_overlay_requested || rebuild_static;
+        if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
+            return;
+        }
+        self.rebuild_scene(
+            model_refresh_requested,
+            static_rebuild_requested,
+            rebuild_static,
+            rebuild_state_overlay,
+            rebuild_motion_overlay,
+        );
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn apply_invalidation_scope(
+        &mut self,
+        scope: RuntimeInvalidationScope,
+    ) {
+        match scope {
+            RuntimeInvalidationScope::OverlayStateOnly => {
+                self.frame_state.mark_state_overlay_dirty();
+            }
+            RuntimeInvalidationScope::OverlayMotionOnly => {
+                self.frame_state.mark_motion_overlay_dirty();
+            }
+            RuntimeInvalidationScope::ModelAndOverlays => {
+                self.frame_state.mark_model_overlay_dirty();
+            }
+            RuntimeInvalidationScope::StaticAndOverlays => {
+                self.frame_state.mark_model_dirty();
+            }
+            RuntimeInvalidationScope::LayoutAndAll => {
+                self.frame_state.mark_layout_dirty();
+                self.frame_state.mark_model_dirty();
+                self.layout_runtime.reset();
+                self.layout_runtime
+                    .mark_all_dirty(ShellLayoutDirtyKind::Measure);
+            }
+        }
+        self.request_redraw_if_needed();
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn rebuild_overlay_and_request_redraw(&mut self) {
+        self.frame_state.mark_state_overlay_dirty();
+        self.request_redraw_if_needed();
+    }
+
+    fn rebuild_scene_for_tick(&mut self) {
+        self.frame_state.mark_motion_overlay_dirty();
+        self.rebuild_scene_if_needed();
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn rebuild_scene_for_redraw(
+        &mut self,
+        needs_animation: bool,
+        delta_seconds: f32,
+    ) -> (bool, FrameBuildResult) {
+        if !needs_animation {
+            if self.frame_state.has_pending_rebuild() {
+                self.rebuild_scene_if_needed();
+                return (true, self.frame_result_base());
+            }
+            return (false, self.frame_result_base());
+        }
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return (false, self.frame_result_base());
+        };
+        let tick_start = self.profiler.now_if_enabled();
+        let style = self.cached_style_for_layout(layout);
+        self.shell_state.tick_with_style(delta_seconds, &style);
+        self.rebuild_scene_for_tick();
+        let tick_duration = tick_start.map_or(Duration::ZERO, |start| start.elapsed());
+        self.profiler.add_tick(tick_duration);
+        (true, self.frame_result_base())
+    }
+}

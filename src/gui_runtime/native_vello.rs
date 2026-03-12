@@ -306,13 +306,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn deactivate_text_input_target(&mut self) {
         let previous_target = self.text_input_target;
         let was_waveform_bpm = self.text_input_target == TextInputTarget::WaveformBpm;
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            self.waveform_bpm_input_buffer = None;
-        }
-        self.text_input_target = TextInputTarget::None;
-        self.text_input_buffer = None;
-        self.text_editor_state = None;
-        self.text_input_drag_active = false;
+        self.clear_text_input_target_state();
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
@@ -632,14 +626,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::FocusBrowserSearch => {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
-            UiAction::BlurBrowserSearch => self.text_input_target = TextInputTarget::None,
+            UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
             UiAction::FocusFolderSearch => {
                 self.activate_text_input_target(TextInputTarget::FolderSearch)
             }
             UiAction::ConfirmPrompt | UiAction::CancelPrompt => {
-                self.text_input_target = TextInputTarget::None;
-                self.text_input_buffer = None;
-                self.text_editor_state = None;
+                self.clear_text_input_target_state()
             }
             _ => {}
         }
@@ -654,6 +646,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+    }
+
+    fn clear_text_input_target_state(&mut self) {
+        if self.text_input_target == TextInputTarget::WaveformBpm {
+            self.waveform_bpm_input_buffer = None;
+        }
+        self.text_input_target = TextInputTarget::None;
+        self.text_input_buffer = None;
+        self.text_editor_state = None;
+        self.text_input_drag_active = false;
     }
 
     fn read_clipboard_text(&mut self) -> Option<String> {

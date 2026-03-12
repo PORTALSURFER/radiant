@@ -355,21 +355,18 @@ where
         action: UiAction,
         map_drag_start: bool,
     ) -> bool {
-        let waveform_drag_mode = waveform_drag_mode_for_action(&action);
         let map_drag_sample_id = match &action {
             UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
             _ => None,
         };
-        self.waveform_drag_mode = waveform_drag_mode;
-        self.selection_drag_active = matches!(action, UiAction::StartWaveformSelectionDrag { .. });
+        self.begin_waveform_pointer_interaction(&action);
         if !waveform_press_action_emits_immediately(&action) {
             return false;
         }
         self.update_text_target_after_action(&action);
         self.emit_model_action(action);
         if map_drag_start {
-            self.map_focus_drag_active = true;
-            self.last_emitted_map_drag_sample_id = map_drag_sample_id;
+            self.begin_map_focus_drag(map_drag_sample_id);
         }
         true
     }
@@ -409,16 +406,7 @@ where
         if finish_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
         }
-        self.waveform_drag_mode = None;
-        self.selection_drag_active = false;
-        self.last_emitted_waveform_drag_action = None;
-        self.map_focus_drag_active = false;
-        self.last_emitted_map_drag_sample_id = None;
-        self.browser_scrollbar_drag = None;
-        self.last_emitted_browser_view_start = None;
-        self.waveform_scrollbar_drag = None;
-        self.waveform_pan_drag = None;
-        self.last_emitted_waveform_view_center = None;
+        self.clear_pointer_drag_session();
         if seek_on_waveform_click_release
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {

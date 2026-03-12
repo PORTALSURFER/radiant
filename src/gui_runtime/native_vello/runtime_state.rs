@@ -37,6 +37,19 @@ pub(super) enum RuntimeInvalidationScope {
     LayoutAndAll,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ActivePointerSession {
+    Volume,
+    BrowserScrollbar,
+    WaveformScrollbar,
+    WaveformPan,
+    WaveformDrag,
+    SelectionDrag,
+    MapFocusDrag,
+    TextInputDrag,
+    Hover,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct NativeVelloFrameState {
     pub(crate) layout_dirty: bool,
@@ -107,5 +120,97 @@ impl NativeVelloFrameState {
             || self.state_overlay_dirty
             || self.motion_overlay_dirty
             || self.model_dirty
+    }
+}
+
+impl<Bridge> super::NativeVelloRunner<Bridge>
+where
+    Bridge: crate::app::NativeAppBridge,
+{
+    pub(super) fn active_pointer_session(&self) -> ActivePointerSession {
+        if self.volume_drag_active {
+            ActivePointerSession::Volume
+        } else if self.browser_scrollbar_drag.is_some() {
+            ActivePointerSession::BrowserScrollbar
+        } else if self.waveform_scrollbar_drag.is_some() {
+            ActivePointerSession::WaveformScrollbar
+        } else if self.waveform_pan_drag.is_some() {
+            ActivePointerSession::WaveformPan
+        } else if self.waveform_drag_mode.is_some() {
+            ActivePointerSession::WaveformDrag
+        } else if self.selection_drag_active {
+            ActivePointerSession::SelectionDrag
+        } else if self.map_focus_drag_active {
+            ActivePointerSession::MapFocusDrag
+        } else if self.text_input_drag_active {
+            ActivePointerSession::TextInputDrag
+        } else {
+            ActivePointerSession::Hover
+        }
+    }
+
+    pub(super) fn begin_pointer_press_cycle(&mut self) {
+        self.pending_volume_milli = None;
+        self.volume_drag_active = false;
+        self.last_emitted_volume_milli = None;
+        self.clear_pointer_drag_session();
+    }
+
+    pub(super) fn clear_pointer_release_state(&mut self) {
+        self.text_input_drag_active = false;
+        self.browser_scrollbar_drag = None;
+        self.waveform_scrollbar_drag = None;
+        self.waveform_pan_drag = None;
+        self.last_emitted_browser_view_start = None;
+        self.last_emitted_waveform_view_center = None;
+    }
+
+    pub(super) fn clear_pointer_drag_session(&mut self) {
+        self.waveform_drag_mode = None;
+        self.selection_drag_active = false;
+        self.last_emitted_waveform_drag_action = None;
+        self.map_focus_drag_active = false;
+        self.last_emitted_map_drag_sample_id = None;
+        self.browser_scrollbar_drag = None;
+        self.last_emitted_browser_view_start = None;
+        self.waveform_scrollbar_drag = None;
+        self.waveform_pan_drag = None;
+        self.last_emitted_waveform_view_center = None;
+    }
+
+    pub(super) fn begin_browser_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
+        self.browser_scrollbar_drag = Some(BrowserScrollbarDragState {
+            thumb_pointer_offset_y,
+        });
+        self.last_emitted_browser_view_start = None;
+    }
+
+    pub(super) fn begin_waveform_scrollbar_drag(&mut self, thumb_pointer_offset_x: f32) {
+        self.waveform_scrollbar_drag = Some(WaveformScrollbarDragState {
+            thumb_pointer_offset_x,
+        });
+        self.last_emitted_waveform_view_center = None;
+    }
+
+    pub(super) fn begin_waveform_pan_drag(&mut self, origin_x: f32) {
+        self.waveform_pan_drag = Some(WaveformPanDragState {
+            origin_x,
+            view_start_micros: self.model.waveform.view_start_micros,
+            view_end_micros: self.model.waveform.view_end_micros,
+        });
+        self.last_emitted_waveform_view_center = None;
+    }
+
+    pub(super) fn begin_map_focus_drag(&mut self, sample_id: Option<String>) {
+        self.map_focus_drag_active = true;
+        self.last_emitted_map_drag_sample_id = sample_id;
+    }
+
+    pub(super) fn begin_waveform_pointer_interaction(&mut self, action: &crate::app::UiAction) {
+        self.waveform_drag_mode = super::input::waveform_drag_mode_for_action(action);
+        self.selection_drag_active = matches!(
+            action,
+            crate::app::UiAction::StartWaveformSelectionDrag { .. }
+        );
     }
 }

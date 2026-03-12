@@ -1,0 +1,185 @@
+use super::*;
+
+impl NativeShellState {
+    /// Handle pointer movement and classify which overlay bucket changed.
+    pub(crate) fn handle_cursor_move_effect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> CursorMoveEffect {
+        let next_hover = layout.hit_test(point);
+        let next_hovered_browser_row =
+            self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_browser_rating_filter_level =
+            self.resolve_hovered_browser_rating_filter_level(layout, model, point);
+        let next_hovered_browser_search_field =
+            self.resolve_hovered_browser_search_field(layout, model, point);
+        let next_hovered_folder_row =
+            self.resolve_hovered_folder_row(layout, model, point, next_hover);
+        let next_hovered_source_add_button =
+            self.resolve_hovered_source_add_button(layout, point, next_hover);
+        let next_hovered_status_options_button =
+            self.resolve_hovered_status_options_button(layout, point, next_hover);
+        let next_hovered_waveform_toolbar_hint =
+            self.resolve_hovered_waveform_toolbar_hint(layout, model, point, next_hover);
+        let next_hovered_waveform_resize_edge =
+            hovered_waveform_resize_edge_for_point(layout, model, point, next_hover);
+        let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
+        let hover_changed = next_hover != self.hovered;
+        let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let browser_rating_filter_changed =
+            next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
+        let browser_search_field_changed =
+            next_hovered_browser_search_field != self.hovered_browser_search_field;
+        let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
+        let source_add_button_changed =
+            next_hovered_source_add_button != self.hovered_source_add_button;
+        let status_options_button_changed =
+            next_hovered_status_options_button != self.hovered_status_options_button;
+        let waveform_toolbar_hint_changed =
+            next_hovered_waveform_toolbar_hint != self.hovered_waveform_toolbar_hint;
+        let waveform_resize_edge_changed =
+            next_hovered_waveform_resize_edge != self.hovered_waveform_resize_edge;
+        let waveform_hover_changed =
+            next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
+        if !hover_changed
+            && !browser_row_changed
+            && !browser_rating_filter_changed
+            && !browser_search_field_changed
+            && !folder_row_changed
+            && !source_add_button_changed
+            && !status_options_button_changed
+            && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
+            && !waveform_hover_changed
+        {
+            return CursorMoveEffect::None;
+        }
+        self.hovered = next_hover;
+        self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
+        self.hovered_browser_search_field = next_hovered_browser_search_field;
+        self.hovered_folder_row_index = next_hovered_folder_row;
+        self.hovered_source_add_button = next_hovered_source_add_button;
+        self.hovered_status_options_button = next_hovered_status_options_button;
+        self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
+        self.hovered_waveform_resize_edge = next_hovered_waveform_resize_edge;
+        self.waveform_hover_x = next_waveform_hover_x;
+        if waveform_hover_changed
+            && !hover_changed
+            && !browser_row_changed
+            && !browser_rating_filter_changed
+            && !browser_search_field_changed
+            && !folder_row_changed
+            && !source_add_button_changed
+            && !status_options_button_changed
+            && !waveform_toolbar_hint_changed
+            && !waveform_resize_edge_changed
+        {
+            CursorMoveEffect::WaveformHoverOnly
+        } else {
+            CursorMoveEffect::GeneralOverlay
+        }
+    }
+
+    fn resolve_hovered_browser_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_browser_rows(layout, &style, model);
+        row_index_for_visible_rows(rows, point, layout.browser_rows)
+            .map(|index| rows[index].visible_row)
+    }
+
+    fn resolve_hovered_folder_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<usize> {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let rows = self.cached_folder_row_rects(layout, &style, model);
+        compute_row_index_at_point(rows, point)
+    }
+
+    fn resolve_hovered_browser_search_field(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
+    }
+
+    fn resolve_hovered_browser_rating_filter_level(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<i8> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+    }
+
+    fn resolve_hovered_source_add_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::Sidebar) {
+            return false;
+        }
+        source_add_button_rect(layout.sidebar_header, style_for_layout(layout).sizing)
+            .is_some_and(|rect| rect.contains(point))
+    }
+
+    fn resolve_hovered_status_options_button(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> bool {
+        if hover != Some(ShellNodeKind::TopBar) {
+            return false;
+        }
+        status_options_button_rect(
+            layout.top_bar_action_cluster,
+            style_for_layout(layout).sizing,
+        )
+        .is_some_and(|rect| rect.contains(point))
+    }
+
+    fn resolve_hovered_waveform_toolbar_hint(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        hover: Option<ShellNodeKind>,
+    ) -> Option<WaveformToolbarHoverHint> {
+        if hover != Some(ShellNodeKind::WaveformCard) {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.cached_waveform_toolbar_buttons(layout, &style, &motion_model)
+            .iter()
+            .find(|button| button.rect.contains(point))
+            .and_then(|button| waveform_toolbar_hover_hint(button.label))
+    }
+}

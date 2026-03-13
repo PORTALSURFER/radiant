@@ -5,19 +5,11 @@ use super::super::*;
 pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
-    browser_buttons: &[ActionButton],
 ) -> BrowserToolbarLayout {
-    let action_left = browser_buttons
-        .iter()
-        .map(|button| button.rect.min.x)
-        .min_by(f32::total_cmp)
-        .or(Some(
-            layout.browser_toolbar.max.x - style.sizing.text_inset_x,
-        ));
-    let sections =
-        compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing, action_left);
+    let sections = compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing);
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
+        action_slot: sections.action_slot,
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,
         sort_chip: sections.sort_chip,
@@ -220,18 +212,16 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    toolbar: &BrowserToolbarLayout,
 ) -> Vec<ActionButton> {
-    let labels = ["Random"];
-    compute_update_action_button_rects(
-        layout.browser_toolbar,
-        layout.browser_toolbar,
-        style.sizing,
-        &labels,
-    )
-    .into_iter()
-    .map(|rect| ActionButton {
-        rect,
+    let _ = layout;
+    if toolbar.action_slot.width() <= 1.0 {
+        return Vec::new();
+    }
+    vec![ActionButton {
+        rect: toolbar.action_slot,
         label: "Random",
+        icon: Some(WaveformToolbarIcon::Dice),
         enabled: true,
         active: model.browser_actions.random_navigation_enabled,
         action: UiAction::ToggleRandomNavigationMode,
@@ -240,6 +230,5 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
         } else {
             style.text_primary
         },
-    })
-    .collect()
+    }]
 }

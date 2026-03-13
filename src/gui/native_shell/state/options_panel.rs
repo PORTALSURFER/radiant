@@ -98,6 +98,7 @@ pub(super) fn options_panel_layout(
         buttons.push(ActionButton {
             rect,
             label,
+            icon: None,
             enabled: true,
             active: false,
             action,

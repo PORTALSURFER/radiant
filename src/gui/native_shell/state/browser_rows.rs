@@ -72,6 +72,7 @@ pub(super) struct BrowserRowsCacheKey {
 pub(super) struct ActionButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
+    pub(super) icon: Option<WaveformToolbarIcon>,
     pub(super) enabled: bool,
     pub(super) active: bool,
     pub(super) action: UiAction,
@@ -109,6 +110,7 @@ pub(super) struct SidebarSections {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarLayout {
     pub(super) rating_filter_chips: [Rect; 8],
+    pub(super) action_slot: Rect,
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,
     pub(super) sort_chip: Rect,
@@ -815,19 +817,16 @@ pub(super) fn browser_window_start_with_previous(
     let projected_window_start = if autoscroll {
         previous_visible_start
             .map(|visible_row| prewindowed_relative_view_start(slice_start, visible_row, max_start))
-            .unwrap_or_else(|| prewindowed_relative_view_start(slice_start, view_start_row, max_start))
+            .unwrap_or_else(|| {
+                prewindowed_relative_view_start(slice_start, view_start_row, max_start)
+            })
     } else {
         prewindowed_relative_view_start(slice_start, view_start_row, max_start)
     };
     if !autoscroll {
         return projected_window_start;
     }
-    browser_prewindowed_start(
-        focus_index,
-        window_len,
-        max_start,
-        projected_window_start,
-    )
+    browser_prewindowed_start(focus_index, window_len, max_start, projected_window_start)
 }
 
 /// Resolve the authoritative viewport start inside a host-prewindowed browser slice.

@@ -10,7 +10,8 @@ impl NativeShellState {
         column: usize,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
-        let buttons = browser_action_buttons(layout, &style, model);
+        let toolbar = browser_toolbar_layout(layout, &style);
+        let buttons = browser_action_buttons(layout, &style, model, &toolbar);
         browser_column_chips(layout, &style, model, &buttons)
             .into_iter()
             .find(|chip| chip.column == column)
@@ -209,7 +210,8 @@ impl NativeShellState {
         label: &str,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
-        browser_action_buttons(layout, &style, model)
+        let toolbar = browser_toolbar_layout(layout, &style);
+        browser_action_buttons(layout, &style, model, &toolbar)
             .into_iter()
             .find(|button| button.label == label)
             .map(|button| button.rect)

@@ -182,6 +182,7 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
             |(rect, (label, enabled, action, text_color))| ActionButton {
                 rect,
                 label,
+                icon: None,
                 enabled,
                 active: false,
                 action,
@@ -278,6 +279,7 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
         buttons.push(ActionButton {
             rect,
             label,
+            icon: None,
             enabled,
             active: false,
             action,

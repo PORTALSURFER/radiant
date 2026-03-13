@@ -72,7 +72,8 @@ impl NativeShellState {
             render_waveform_static(self, &ctx, primitives, text_runs, motion_model);
         }
 
-        let browser_buttons = browser_action_buttons(layout, style, model);
+        let browser_toolbar = browser_toolbar_layout(layout, style);
+        let browser_buttons = browser_action_buttons(layout, style, model, &browser_toolbar);
         let browser_frame_data = BrowserFrameData {
             column_chips: browser_column_chips(layout, style, model, &browser_buttons),
             buttons: browser_buttons,

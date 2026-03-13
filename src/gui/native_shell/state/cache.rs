@@ -97,19 +97,16 @@ impl NativeShellState {
     ) -> (&[ActionButton], &[BrowserColumnChip], BrowserToolbarLayout) {
         let cache_key = browser_action_hit_test_cache_key(layout, model);
         if self.browser_action_hit_test_cache_key != Some(cache_key) {
-            self.browser_action_buttons = browser_action_buttons(layout, style, model);
+            let toolbar = browser_toolbar_layout(layout, style);
+            self.browser_action_buttons = browser_action_buttons(layout, style, model, &toolbar);
             self.browser_column_chips =
                 browser_column_chips(layout, style, model, &self.browser_action_buttons);
-            self.browser_toolbar_layout = Some(browser_toolbar_layout(
-                layout,
-                style,
-                &self.browser_action_buttons,
-            ));
+            self.browser_toolbar_layout = Some(toolbar);
             self.browser_action_hit_test_cache_key = Some(cache_key);
         }
         let toolbar = self
             .browser_toolbar_layout
-            .unwrap_or_else(|| browser_toolbar_layout(layout, style, &self.browser_action_buttons));
+            .unwrap_or_else(|| browser_toolbar_layout(layout, style));
         (
             &self.browser_action_buttons,
             &self.browser_column_chips,

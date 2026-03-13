@@ -325,8 +325,8 @@ impl NativeShellState {
         model: &AppModel,
         style: &StyleTokens,
     ) -> AutomationNodeSnapshot {
-        let buttons = browser_action_buttons(layout, style, model);
-        let toolbar = browser_toolbar_layout(layout, style, &buttons);
+        let toolbar = browser_toolbar_layout(layout, style);
+        let buttons = browser_action_buttons(layout, style, model, &toolbar);
         let tabs = compute_browser_tabs_rects(layout.browser_tabs, style.sizing);
         let mut children = vec![
             simple_node(

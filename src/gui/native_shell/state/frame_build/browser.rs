@@ -223,7 +223,6 @@ pub(super) fn render_browser_frame(
     data: &BrowserFrameData,
 ) {
     for button in &data.buttons {
-        let label_rect = compute_action_button_text_rect(button.rect, ctx.sizing);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -253,26 +252,33 @@ pub(super) fn render_browser_frame(
             },
             ctx.sizing.border_width,
         );
-        emit_text(
-            text_runs,
-            TextRun {
-                text: button.label.to_string(),
-                position: label_rect.min,
-                font_size: ctx.sizing.font_meta,
-                color: if button.enabled {
-                    button.text_color
-                } else {
-                    ctx.style.text_muted
+        let button_color = if button.enabled {
+            button.text_color
+        } else {
+            ctx.style.text_muted
+        };
+        if let Some(icon) = button.icon {
+            let icon_rect = centered_button_icon_rect(button.rect, ctx.sizing);
+            let _ = emit_toolbar_svg_icon(primitives, icon, icon_rect, button_color);
+        } else {
+            let label_rect = compute_action_button_text_rect(button.rect, ctx.sizing);
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: button.label.to_string(),
+                    position: label_rect.min,
+                    font_size: ctx.sizing.font_meta,
+                    color: button_color,
+                    max_width: Some(label_rect.width().max(12.0)),
+                    align: TextAlign::Center,
                 },
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
-            },
-        );
+            );
+        }
     }
 
     render_browser_tabs(primitives, text_runs, ctx, true);
 
-    let toolbar = browser_toolbar_layout(ctx.layout, ctx.style, &data.buttons);
+    let toolbar = browser_toolbar_layout(ctx.layout, ctx.style);
     for (index, rect) in toolbar.rating_filter_chips.iter().copied().enumerate() {
         if rect.width() <= 1.0 {
             continue;
@@ -469,6 +475,20 @@ pub(super) fn render_browser_frame(
             },
         );
     }
+}
+
+fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
+    let side = button_rect
+        .width()
+        .min(button_rect.height())
+        .min((button_rect.height() - (sizing.text_inset_y * 0.8)).max(8.0))
+        .clamp(8.0, 20.0);
+    let min_x = button_rect.min.x + ((button_rect.width() - side) * 0.5);
+    let min_y = button_rect.min.y + ((button_rect.height() - side) * 0.5);
+    Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + side, min_y + side),
+    )
 }
 
 pub(super) fn render_browser_table_header(

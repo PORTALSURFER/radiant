@@ -305,6 +305,99 @@ fn browser_window_start_keeps_interior_focus_in_full_visible_slice_after_up_scro
 }
 
 #[test]
+fn browser_window_start_applies_guard_band_across_full_scroll_range() {
+    let rows: Vec<_> = (0..40)
+        .map(|visible_row| {
+            BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                false,
+            )
+        })
+        .collect();
+    let window_len = 21usize;
+    let max_start = rows.len() - window_len;
+    let edge_margin = 3usize;
+
+    for previous_start in 0..=max_start {
+        let window_end = previous_start + window_len;
+        for focus_row in previous_start..window_end {
+            let expected = if focus_row < previous_start + edge_margin {
+                focus_row.saturating_sub(edge_margin)
+            } else if focus_row >= window_end.saturating_sub(edge_margin) {
+                focus_row
+                    .saturating_add(edge_margin + 1)
+                    .saturating_sub(window_len)
+            } else {
+                previous_start
+            }
+            .min(max_start);
+
+            assert_eq!(
+                browser_window_start_with_previous(
+                    &rows,
+                    window_len,
+                    rows.len(),
+                    Some(focus_row),
+                    Some(focus_row),
+                    true,
+                    0,
+                    Some(previous_start),
+                ),
+                expected,
+                "previous_start={previous_start}, focus_row={focus_row}"
+            );
+        }
+    }
+}
+
+#[test]
+fn browser_virtualization_preserves_guard_band_across_repeated_scrolled_refocuses() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let expected_sequence = [
+        (18usize, 1usize),
+        (19usize, 2usize),
+        (20usize, 3usize),
+        (15usize, 3usize),
+        (5usize, 2usize),
+        (4usize, 1usize),
+        (3usize, 0usize),
+    ];
+
+    for (focused_visible_row, expected_start) in expected_sequence {
+        let mut model = AppModel::default();
+        for visible_row in 0..40 {
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == focused_visible_row,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(focused_visible_row);
+        model.browser.anchor_visible_row = Some(focused_visible_row);
+        model.browser.autoscroll = true;
+        // Simulate the stale controller state after focus updates in a
+        // short visible list: the shell must continue from the rows already on
+        // screen instead of snapping back to zero.
+        model.browser.view_start_row = 0;
+
+        let start = state
+            .cached_browser_rows(&layout, &style, &model)
+            .first()
+            .map(|row| row.visible_row)
+            .expect("browser viewport should render rows");
+        assert_eq!(start, expected_start, "focused_visible_row={focused_visible_row}");
+    }
+}
+
+#[test]
 /// Hit-testing should return no row when pointer sits in an inter-row gap.
 fn browser_row_hit_test_returns_none_inside_gap() {
     let column = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(310.0, 320.0));

@@ -6,6 +6,51 @@ impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
 {
+    pub(super) fn sync_browser_viewport_from_shell(&mut self, layout: &ShellLayout) {
+        let Some(visible_row) = self
+            .shell_state
+            .browser_viewport_start_row(layout, &self.model)
+        else {
+            return;
+        };
+        if visible_row == self.model.browser.view_start_row
+            || self.last_emitted_browser_view_start == Some(visible_row)
+        {
+            return;
+        }
+        self.last_emitted_browser_view_start = Some(visible_row);
+        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+    }
+
+    fn sync_browser_viewport_for_pointer_row_action(&mut self, action: &UiAction) {
+        let Some(target_visible_row) = browser_pointer_action_visible_row(action) else {
+            return;
+        };
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return;
+        };
+        let viewport_len = self.shell_state.browser_viewport_len(layout, &self.model);
+        let current_view_start = self
+            .shell_state
+            .browser_viewport_start_row(layout, &self.model)
+            .unwrap_or(self.model.browser.view_start_row);
+        let Some(next_view_start) = browser_view_start_after_focus(
+            current_view_start,
+            self.model.browser.visible_count,
+            viewport_len,
+            target_visible_row,
+        ) else {
+            return;
+        };
+        if next_view_start == self.model.browser.view_start_row {
+            return;
+        }
+        self.last_emitted_browser_view_start = Some(next_view_start);
+        self.emit_model_action(UiAction::SetBrowserViewStart {
+            visible_row: next_view_start,
+        });
+    }
+
     pub(super) fn queue_cursor(&mut self, point: Point) {
         self.pending_cursor = Some(point);
     }
@@ -376,6 +421,7 @@ where
         if !waveform_press_action_emits_immediately(&action) {
             return false;
         }
+        self.sync_browser_viewport_for_pointer_row_action(&action);
         self.update_text_target_after_action(&action);
         self.emit_model_action(action);
         if map_drag_start {
@@ -457,4 +503,43 @@ where
         self.frame_state.mark_motion_overlay_dirty();
         true
     }
+}
+
+fn browser_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
+    match action {
+        UiAction::FocusBrowserRow { visible_row }
+        | UiAction::ToggleBrowserRowSelection { visible_row }
+        | UiAction::ExtendBrowserSelectionToRow { visible_row }
+        | UiAction::AddRangeBrowserSelection { visible_row } => Some(*visible_row),
+        _ => None,
+    }
+}
+
+fn browser_view_start_after_focus(
+    current_view_start: usize,
+    visible_count: usize,
+    viewport_len: usize,
+    focus_visible_row: usize,
+) -> Option<usize> {
+    if visible_count == 0 || viewport_len == 0 {
+        return None;
+    }
+    if visible_count <= viewport_len {
+        return Some(0);
+    }
+    let max_start = visible_count.saturating_sub(viewport_len);
+    let edge_margin = 3usize.min(viewport_len.saturating_sub(1) / 2);
+    let focus_visible_row = focus_visible_row.min(visible_count.saturating_sub(1));
+    let mut view_start = current_view_start.min(max_start);
+    let view_end = view_start + viewport_len;
+    let top_guard = view_start + edge_margin;
+    let bottom_guard = view_end.saturating_sub(edge_margin);
+    if focus_visible_row < top_guard {
+        view_start = focus_visible_row.saturating_sub(edge_margin);
+    } else if focus_visible_row >= bottom_guard {
+        view_start = focus_visible_row
+            .saturating_add(edge_margin + 1)
+            .saturating_sub(viewport_len);
+    }
+    Some(view_start.min(max_start))
 }

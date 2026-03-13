@@ -418,15 +418,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::RemoveDeadLinksForSourceRow { .. }
             | UiAction::FocusFolderRow { .. }
             | UiAction::MoveFolderFocus { .. }
-            | UiAction::MoveBrowserFocus { .. }
-            | UiAction::FocusBrowserRow { .. }
-            | UiAction::ToggleBrowserRowSelection { .. }
-            | UiAction::ExtendBrowserSelectionToRow { .. }
-            | UiAction::AddRangeBrowserSelection { .. }
-            | UiAction::ExtendBrowserSelectionFromFocus { .. }
-            | UiAction::AddRangeBrowserSelectionFromFocus { .. }
-            | UiAction::ToggleFocusedBrowserRowSelection
-            | UiAction::SelectAllBrowserRows
             | UiAction::SetBrowserSearch { .. }
             | UiAction::BlurBrowserSearch
             | UiAction::SetBrowserTab { .. }
@@ -449,10 +440,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FinishWaveformSelectionDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
-            // Browser viewport moves replace the rendered row strip, so the
-            // retained static scene must be rebuilt instead of only updating
-            // the live overlays.
-            UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
+            // Browser focus/selection can move the visible viewport through the
+            // guard-band autoscroll rules, so the retained row strip must be
+            // rebuilt instead of only updating the overlays.
+            UiAction::MoveBrowserFocus { .. }
+            | UiAction::FocusBrowserRow { .. }
+            | UiAction::ToggleBrowserRowSelection { .. }
+            | UiAction::ExtendBrowserSelectionToRow { .. }
+            | UiAction::AddRangeBrowserSelection { .. }
+            | UiAction::ExtendBrowserSelectionFromFocus { .. }
+            | UiAction::AddRangeBrowserSelectionFromFocus { .. }
+            | UiAction::ToggleFocusedBrowserRowSelection
+            | UiAction::SelectAllBrowserRows
+            | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
             UiAction::SeekWaveform { .. }
             | UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead

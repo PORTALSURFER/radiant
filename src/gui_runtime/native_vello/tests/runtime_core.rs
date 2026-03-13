@@ -72,7 +72,13 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::MoveBrowserFocus {
             delta: 1
         }),
-        RuntimeInvalidationScope::ModelAndOverlays
+        RuntimeInvalidationScope::StaticAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::FocusBrowserRow {
+            visible_row: 12
+        }),
+        RuntimeInvalidationScope::StaticAndOverlays
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserViewStart {

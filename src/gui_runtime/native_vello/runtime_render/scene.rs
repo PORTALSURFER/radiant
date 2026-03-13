@@ -445,6 +445,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.profiler.add_encode_static(encode_duration);
                 self.clear_color = self.frame_cache.clear_color;
             }
+            self.sync_browser_viewport_from_shell(layout);
         }
         let state_overlay_fingerprint = self.state_overlay_cache_fingerprint(
             &self.model,

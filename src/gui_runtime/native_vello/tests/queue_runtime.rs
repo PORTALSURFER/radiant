@@ -213,6 +213,82 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
 }
 
 #[test]
+fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    runner.model = Arc::new(browser_model_with_rows(40, 0));
+    runner.shell_layout = Some(Arc::new(layout));
+
+    assert!(runner.handle_pointer_press_action(
+        UiAction::FocusBrowserRow { visible_row: 18 },
+        false
+    ));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::SetBrowserViewStart { visible_row: 1 },
+            UiAction::FocusBrowserRow { visible_row: 18 }
+        ]
+    );
+}
+
+#[test]
+fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = browser_model_with_rows(40, 20);
+    let resolved_view_start = runner
+        .shell_state
+        .browser_viewport_start_row(&layout, &model)
+        .expect("focused browser viewport should resolve a visible start");
+    assert_eq!(resolved_view_start, 3);
+
+    runner.model = Arc::new(model);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.bridge.actions.clear();
+
+    assert!(runner.handle_pointer_press_action(
+        UiAction::FocusBrowserRow { visible_row: 15 },
+        false
+    ));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::SetBrowserViewStart { visible_row: 3 },
+            UiAction::FocusBrowserRow { visible_row: 15 }
+        ]
+    );
+}
+
+#[test]
+fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = browser_model_with_rows(40, 20);
+    let resolved_view_start = runner
+        .shell_state
+        .browser_viewport_start_row(&layout, &model)
+        .expect("focused browser viewport should resolve a visible start");
+    assert_eq!(resolved_view_start, 3);
+
+    runner.model = Arc::new(model);
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.bridge.actions.clear();
+
+    runner.sync_browser_viewport_from_shell(&layout);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
+    );
+}
+
+#[test]
 fn waveform_scrollbar_drag_emit_updates_action_queue() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

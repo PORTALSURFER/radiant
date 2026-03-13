@@ -428,6 +428,15 @@ impl NativeShellState {
         style: &StyleTokens,
     ) -> AutomationNodeSnapshot {
         let rows = self.cached_browser_rows(layout, style, model).to_vec();
+        let first_visible_row = rows
+            .first()
+            .map(|row| row.visible_row.to_string())
+            .unwrap_or_default();
+        let last_visible_row = rows
+            .last()
+            .map(|row| row.visible_row.to_string())
+            .unwrap_or_default();
+        let rendered_row_count = rows.len().to_string();
         let mut table_node = simple_node(
             "browser.table",
             AutomationRole::Table,
@@ -441,6 +450,11 @@ impl NativeShellState {
             ),
             vec![String::from("focus_browser_panel")],
         );
+        table_node.metadata = metadata(&[
+            ("first_visible_row", &first_visible_row),
+            ("last_visible_row", &last_visible_row),
+            ("rendered_row_count", &rendered_row_count),
+        ]);
         table_node.children = rows
             .into_iter()
             .map(|row| AutomationNodeSnapshot {

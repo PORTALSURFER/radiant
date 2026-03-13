@@ -96,18 +96,15 @@ fn browser_scrollbar_track_click_emit_updates_action_queue() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = browser_model_with_rows(500, 120);
     let mut shell_state = NativeShellState::new();
-    let thumb_point = ((layout.browser_rows.max.x as i32 - 16)..=layout.browser_rows.max.x as i32)
+    let track_point = ((layout.browser_rows.max.x as i32 - 16)..=layout.browser_rows.max.x as i32)
         .rev()
         .find_map(|x| {
-            (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
-                let point = Point::new(x as f32, y as f32);
-                shell_state
-                    .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
-                    .map(|_| point)
-            })
+            let point = Point::new(x as f32, layout.browser_rows.max.y - 24.0);
+            shell_state
+                .browser_scrollbar_view_start_at_point(&layout, &model, point)
+                .map(|_| point)
         })
-        .expect("overflowing browser list should expose a hittable scrollbar thumb");
-    let track_point = Point::new(thumb_point.x, layout.browser_rows.max.y - 24.0);
+        .expect("track click should find one hittable scrollbar point");
     let expected_visible_row = shell_state
         .browser_scrollbar_view_start_at_point(&layout, &model, track_point)
         .expect("track click should resolve a view start");

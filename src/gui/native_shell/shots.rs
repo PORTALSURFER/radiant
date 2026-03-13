@@ -532,6 +532,8 @@ fn browser_dense_model() -> AppModel {
     }
 
     model.browser.visible_count = 500;
+    model.browser.autoscroll = true;
+    model.browser.view_start_row = 57;
     model.browser.selected_path_count = 7;
     model.browser.selected_visible_row = Some(72);
     model.browser.anchor_visible_row = Some(68);

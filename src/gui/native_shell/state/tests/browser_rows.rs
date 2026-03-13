@@ -15,7 +15,9 @@ fn browser_virtualization_keeps_focused_row_visible_in_dense_column() {
         ));
     }
     model.browser.visible_count = model.browser.rows.len();
+    model.browser.autoscroll = true;
     model.browser.selected_visible_row = Some(150);
+    model.browser.anchor_visible_row = Some(148);
     let rendered = rendered_browser_rows(&layout, &model, &style);
     assert!(!rendered.is_empty());
     assert!(rendered.iter().any(|row| row.visible_row == 150));
@@ -235,12 +237,12 @@ fn browser_virtualization_keeps_center_focus_stable_in_scrolled_prewindowed_slic
 
 #[test]
 fn browser_virtualization_hit_test_is_stable_across_viewport_tiers() {
-    let mut state = NativeShellState::new();
     for viewport in [
         Vector2::new(820.0, 520.0),
         Vector2::new(1280.0, 720.0),
         Vector2::new(2300.0, 1080.0),
     ] {
+        let mut state = NativeShellState::new();
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
         let model = browser_model_with_rows(1200, 940);
@@ -260,6 +262,46 @@ fn browser_virtualization_hit_test_is_stable_across_viewport_tiers() {
             );
         }
     }
+}
+
+#[test]
+fn browser_window_start_keeps_interior_focus_in_full_visible_slice_after_down_scroll() {
+    let rows: Vec<_> = (0..40)
+        .map(|visible_row| {
+            BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == 18,
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        browser_window_start_with_previous(&rows, 21, 40, Some(18), Some(18), true, 0, Some(1)),
+        1
+    );
+}
+
+#[test]
+fn browser_window_start_keeps_interior_focus_in_full_visible_slice_after_up_scroll() {
+    let rows: Vec<_> = (0..40)
+        .map(|visible_row| {
+            BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == 6,
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        browser_window_start_with_previous(&rows, 21, 40, Some(6), Some(6), true, 0, Some(3)),
+        3
+    );
 }
 
 #[test]

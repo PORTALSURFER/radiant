@@ -799,7 +799,7 @@ pub(super) fn browser_row_text_revision(rows: &[BrowserRowModel]) -> u64 {
 pub(super) fn browser_window_start_with_previous(
     rows: &[BrowserRowModel],
     window_len: usize,
-    visible_count: usize,
+    _visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
     autoscroll: bool,
@@ -820,30 +820,22 @@ pub(super) fn browser_window_start_with_previous(
         .or_else(|| rows.iter().position(|row| row.focused))
         .or_else(|| rows.iter().position(|row| row.selected))
         .unwrap_or(0);
-    if rows.len() < visible_count {
-        let projected_window_start = if autoscroll {
-            previous_visible_start
-                .map(|visible_row| {
-                    prewindowed_relative_view_start(slice_start, visible_row, max_start)
-                })
-                .unwrap_or_else(|| {
-                    prewindowed_relative_view_start(slice_start, view_start_row, max_start)
-                })
-        } else {
-            prewindowed_relative_view_start(slice_start, view_start_row, max_start)
-        };
-        if !autoscroll {
-            return projected_window_start;
-        }
-        return browser_prewindowed_start(
-            focus_index,
-            window_len,
-            max_start,
-            projected_window_start,
-        );
+    let projected_window_start = if autoscroll {
+        previous_visible_start
+            .map(|visible_row| prewindowed_relative_view_start(slice_start, visible_row, max_start))
+            .unwrap_or_else(|| prewindowed_relative_view_start(slice_start, view_start_row, max_start))
+    } else {
+        prewindowed_relative_view_start(slice_start, view_start_row, max_start)
+    };
+    if !autoscroll {
+        return projected_window_start;
     }
-    let half = window_len / 2;
-    focus_index.saturating_sub(half).min(max_start)
+    browser_prewindowed_start(
+        focus_index,
+        window_len,
+        max_start,
+        projected_window_start,
+    )
 }
 
 /// Resolve the authoritative viewport start inside a host-prewindowed browser slice.

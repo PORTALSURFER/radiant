@@ -360,8 +360,8 @@ fn waveform_wheel_zoom_requires_waveform_hover_and_maps_direction() {
 fn waveform_pointer_position_tracks_active_view_window() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.waveform.view_start_milli = 250;
-    model.waveform.view_end_milli = 750;
+    model.waveform.view_start_micros = 250_000;
+    model.waveform.view_end_micros = 750_000;
     let y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
 
     let left = Point::new(layout.waveform_plot.min.x, y);

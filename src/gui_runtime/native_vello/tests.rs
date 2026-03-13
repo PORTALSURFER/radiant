@@ -42,6 +42,7 @@ fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel
         ));
     }
     model.browser.visible_count = model.browser.rows.len();
+    model.browser.autoscroll = true;
     model.browser.selected_visible_row = Some(focused_visible_row);
     model.browser.anchor_visible_row = Some(focused_visible_row.saturating_sub(2));
     model

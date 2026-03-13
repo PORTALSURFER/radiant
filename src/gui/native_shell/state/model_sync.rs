@@ -66,6 +66,16 @@ impl NativeShellState {
         self.browser_search_editor_visual = visual;
     }
 
+    /// Clear transient waveform hover feedback during an active drag gesture.
+    ///
+    /// Resize, shift, and fade drags redraw the waveform overlay on every move.
+    /// Leaving the idle hover marker and resize-edge hint active during those
+    /// gestures can paint stale guide chrome on top of the live drag target.
+    pub(crate) fn clear_waveform_hover_feedback(&mut self) {
+        self.hovered_waveform_resize_edge = None;
+        self.waveform_hover_x = None;
+    }
+
     pub(super) fn trigger_waveform_toolbar_flash(&mut self, hint: WaveformToolbarHoverHint) {
         self.waveform_toolbar_flash = Some(WaveformToolbarFlash {
             hint,

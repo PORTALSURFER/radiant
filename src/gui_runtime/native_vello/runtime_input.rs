@@ -90,6 +90,15 @@ where
         self.set_cursor_icon(icon);
     }
 
+    /// Keep one stable cursor icon for the currently captured waveform drag.
+    pub(super) fn update_cursor_for_active_waveform_drag(&mut self) {
+        let icon = self
+            .waveform_drag_mode
+            .map(cursor_icon_for_waveform_drag_mode)
+            .unwrap_or(CursorIcon::Default);
+        self.set_cursor_icon(icon);
+    }
+
     /// Record recent pointer activity for short-lived high-frequency redraw pacing.
     pub(super) fn note_cursor_activity(&mut self, now: Instant) {
         self.cursor_activity_redraw_until = Some(now + CURSOR_ACTIVITY_REDRAW_WINDOW);
@@ -473,6 +482,10 @@ where
             self.emit_model_action(UiAction::FinishWaveformSelectionSmartScaleDrag);
         }
         self.clear_pointer_drag_session();
+        if let Some(point) = self.last_cursor {
+            let _ = self.process_cursor_move_immediately(point);
+            self.update_waveform_resize_cursor(point);
+        }
         if seek_on_waveform_click_release
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {
@@ -519,6 +532,24 @@ fn browser_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
         | UiAction::ExtendBrowserSelectionToRow { visible_row }
         | UiAction::AddRangeBrowserSelection { visible_row } => Some(*visible_row),
         _ => None,
+    }
+}
+
+fn cursor_icon_for_waveform_drag_mode(mode: WaveformPointerDragMode) -> CursorIcon {
+    match mode {
+        WaveformPointerDragMode::Selection { .. }
+        | WaveformPointerDragMode::SelectionSmartScale { .. }
+        | WaveformPointerDragMode::EditSelection { .. }
+        | WaveformPointerDragMode::EditFadeInEnd
+        | WaveformPointerDragMode::EditFadeInMuteStart
+        | WaveformPointerDragMode::EditFadeOutStart
+        | WaveformPointerDragMode::EditFadeOutMuteEnd => CursorIcon::EwResize,
+        WaveformPointerDragMode::SelectionShift { .. }
+        | WaveformPointerDragMode::EditSelectionShift { .. } => CursorIcon::Grab,
+        WaveformPointerDragMode::Seek
+        | WaveformPointerDragMode::Cursor
+        | WaveformPointerDragMode::EditFadeInCurve
+        | WaveformPointerDragMode::EditFadeOutCurve => CursorIcon::Default,
     }
 }
 

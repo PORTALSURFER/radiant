@@ -208,6 +208,9 @@ where
 
     pub(super) fn begin_waveform_pointer_interaction(&mut self, action: &crate::app::UiAction) {
         self.waveform_drag_mode = super::input::waveform_drag_mode_for_action(action);
+        if self.waveform_drag_mode.is_some() {
+            self.shell_state.clear_waveform_hover_feedback();
+        }
         self.selection_drag_active = matches!(
             action,
             crate::app::UiAction::StartWaveformSelectionDrag { .. }

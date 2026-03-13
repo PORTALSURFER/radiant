@@ -65,8 +65,13 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
                 }
                 self.last_cursor = Some(point);
                 self.note_cursor_activity(Instant::now());
-                self.update_waveform_resize_cursor(point);
-                match self.active_pointer_session() {
+                let session = self.active_pointer_session();
+                if matches!(session, ActivePointerSession::WaveformDrag) {
+                    self.update_cursor_for_active_waveform_drag();
+                } else {
+                    self.update_waveform_resize_cursor(point);
+                }
+                match session {
                     ActivePointerSession::Volume => {
                         if let Some(layout) = self.shell_layout.as_ref()
                             && let Some(action) =

@@ -273,3 +273,42 @@ fn handle_pointer_press_action_arms_selection_shift_without_emitting() {
         })
     );
 }
+
+#[test]
+fn handle_pointer_press_action_clears_waveform_hover_feedback_for_resize_drag() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let left_edge = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) + 2.0,
+        y,
+    );
+    runner.model = Arc::new(model.clone());
+
+    assert_eq!(
+        runner
+            .shell_state
+            .handle_cursor_move_effect(&layout, &model, left_edge),
+        CursorMoveEffect::GeneralOverlay
+    );
+    let fingerprint = runner.shell_state.motion_overlay_fingerprint();
+    assert!(fingerprint.hovered_waveform_resize_edge.is_some());
+    assert_eq!(fingerprint.waveform_hover_x_bits, Some(left_edge.x.round().to_bits()));
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(800),
+            end_micros: milli(200),
+            preserve_view_edge: false,
+        },
+        false,
+    );
+
+    assert!(!emitted);
+    let cleared = runner.shell_state.motion_overlay_fingerprint();
+    assert!(cleared.hovered_waveform_resize_edge.is_none());
+    assert!(cleared.waveform_hover_x_bits.is_none());
+}

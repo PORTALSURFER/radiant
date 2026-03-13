@@ -177,6 +177,27 @@ fn waveform_image_transparent_pixels_do_not_emit_texture_primitive() {
 }
 
 #[test]
+fn waveform_loading_motion_overlay_covers_plot_with_placeholder() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform.loading = true;
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut overlay = NativeViewFrame::default();
+
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut overlay);
+
+    assert!(overlay.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == layout.waveform_plot && rect.color == style.surface_base
+        )
+    }));
+}
+
+#[test]
 fn map_header_prefers_projected_legend_selection_and_viewport_copy() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

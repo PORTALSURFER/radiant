@@ -339,6 +339,7 @@ pub(super) fn waveform_motion_overlay_model_signature(model: &NativeMotionModel)
     fingerprint_mix_u16(&mut state, model.waveform_view_end_milli);
     fingerprint_mix_u32(&mut state, model.waveform_view_start_micros);
     fingerprint_mix_u32(&mut state, model.waveform_view_end_micros);
+    fingerprint_mix_bool(&mut state, model.waveform_loading);
     if let Some(signature) = model.waveform_image_signature {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u64(&mut state, signature);

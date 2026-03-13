@@ -14,6 +14,7 @@ impl NativeShellState {
         frame: &mut NativeViewFrame,
     ) {
         let sizing = style.sizing;
+        let motion_wave = interaction_wave(self.pulse_phase);
         frame.primitives.clear();
         frame.text_runs.clear();
         let primitives = &mut frame.primitives;
@@ -23,6 +24,7 @@ impl NativeShellState {
             layout,
             style,
             model,
+            motion_wave,
             &playhead_trail_lines,
             self.hovered_waveform_resize_edge,
         );

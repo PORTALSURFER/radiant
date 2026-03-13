@@ -53,6 +53,8 @@ fn micros_to_milli(value_micros: u32) -> u16 {
 pub struct WaveformPanelModel {
     /// Display label for the loaded sample, when any.
     pub loaded_label: Option<String>,
+    /// Whether a newly focused sample is still loading waveform data.
+    pub loading: bool,
     /// Cursor position in normalized milli-units.
     pub cursor_milli: Option<u16>,
     /// Playhead position in normalized milli-units.
@@ -126,6 +128,7 @@ impl Default for WaveformPanelModel {
     fn default() -> Self {
         Self {
             loaded_label: None,
+            loading: false,
             cursor_milli: None,
             playhead_milli: None,
             playhead_micros: None,

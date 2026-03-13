@@ -97,9 +97,14 @@ pub(super) fn push_waveform_playhead_overlay(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
+    motion_wave: f32,
     playhead_trail_lines: &[PlayheadTrailLine],
     hovered_resize_edge: Option<WaveformResizeHoverEdge>,
 ) {
+    if model.waveform_loading {
+        emit_waveform_loading_placeholder(primitives, layout.waveform_plot, style, motion_wave);
+        return;
+    }
     let edit_selection_blue = Rgba8 {
         r: 86,
         g: 156,
@@ -230,6 +235,63 @@ pub(super) fn push_waveform_playhead_overlay(
         );
     }
     emit_waveform_scrollbar(primitives, layout.waveform_plot, style, model);
+}
+
+fn emit_waveform_loading_placeholder(
+    primitives: &mut impl PrimitiveSink,
+    waveform_plot: Rect,
+    style: &StyleTokens,
+    motion_wave: f32,
+) {
+    if waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0 {
+        return;
+    }
+
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: waveform_plot,
+            color: style.surface_base,
+        }),
+    );
+
+    let pulse = 0.18 + (motion_wave * 0.12);
+    let rail_color = blend_color(style.surface_overlay, style.border_emphasis, 0.22 + pulse);
+    let glow_color = blend_color(style.surface_overlay, style.accent_warning, 0.16 + pulse);
+    let bar_width = (waveform_plot.width() * 0.14).clamp(12.0, waveform_plot.width() * 0.22);
+    let gap = (waveform_plot.width() * 0.05).clamp(10.0, 28.0);
+    let total_width = bar_width * 3.0 + gap * 2.0;
+    let left = waveform_plot.min.x + ((waveform_plot.width() - total_width) * 0.5).max(0.0);
+    let heights = [0.28_f32, 0.52, 0.38];
+
+    for (index, height_ratio) in heights.into_iter().enumerate() {
+        let height = (waveform_plot.height() * height_ratio).clamp(18.0, waveform_plot.height());
+        let top = waveform_plot.min.y + (waveform_plot.height() - height) * 0.5;
+        let min_x = left + index as f32 * (bar_width + gap);
+        let bar = Rect::from_min_max(
+            Point::new(min_x, top),
+            Point::new((min_x + bar_width).min(waveform_plot.max.x), top + height),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: bar,
+                color: rail_color,
+            }),
+        );
+        let glow_inset = (bar.width() * 0.18).min(6.0);
+        let glow = Rect::from_min_max(
+            Point::new(bar.min.x + glow_inset, bar.min.y),
+            Point::new(bar.max.x - glow_inset, bar.max.y),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: glow,
+                color: glow_color,
+            }),
+        );
+    }
 }
 
 pub(super) fn push_waveform_image(

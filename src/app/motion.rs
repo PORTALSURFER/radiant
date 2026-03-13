@@ -57,6 +57,8 @@ pub struct NativeMotionModel {
     pub waveform_zoom_label: Option<String>,
     /// Loaded waveform label shown in the waveform overlay header.
     pub waveform_loaded_label: Option<String>,
+    /// Whether the waveform plot is currently waiting for a new sample to load.
+    pub waveform_loading: bool,
     /// Stable image signature for detecting waveform image updates during motion-only frames.
     pub waveform_image_signature: Option<u64>,
     /// Transport hint rendered with waveform metadata.
@@ -112,6 +114,7 @@ impl NativeMotionModel {
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
             waveform_loaded_label: model.waveform.loaded_label.clone(),
+            waveform_loading: model.waveform.loading,
             waveform_image_signature: model.waveform.waveform_image_signature,
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
             waveform_channel_view: model.waveform_chrome.channel_view,

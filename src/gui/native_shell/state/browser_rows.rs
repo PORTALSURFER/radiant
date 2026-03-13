@@ -222,15 +222,6 @@ pub(super) fn interaction_wave(pulse_phase: f32) -> f32 {
     ((pulse_phase.sin() + 1.0) * 0.5).clamp(0.0, 1.0)
 }
 
-pub(super) fn focus_fill_blend(style: &StyleTokens, motion_wave: f32) -> f32 {
-    (style.state_focus_pulse_blend + (motion_wave * style.motion_focus_wave_amp)).clamp(0.0, 1.0)
-}
-
-pub(super) fn focus_text_blend(style: &StyleTokens, motion_wave: f32) -> f32 {
-    (style.state_focus_pulse_blend + (motion_wave * style.motion_focus_text_wave_amp))
-        .clamp(0.0, 1.0)
-}
-
 pub(super) fn translucent_overlay_color(base: Rgba8, tint: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mut color = blend_color(base, tint, amount);

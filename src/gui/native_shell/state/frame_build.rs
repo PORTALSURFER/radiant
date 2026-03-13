@@ -17,8 +17,6 @@ struct StaticFrameCtx<'a> {
     model: &'a AppModel,
     sizing: SizingTokens,
     motion_wave: f32,
-    focus_fill_emphasis: f32,
-    focus_text_emphasis: f32,
 }
 
 struct BrowserFrameData {
@@ -47,16 +45,12 @@ impl NativeShellState {
     ) {
         let sizing = style.sizing;
         let motion_wave = interaction_wave(pulse_phase);
-        let focus_fill_emphasis = focus_fill_blend(style, motion_wave);
-        let focus_text_emphasis = focus_text_blend(style, motion_wave);
         let ctx = StaticFrameCtx {
             layout,
             style,
             model,
             sizing,
             motion_wave,
-            focus_fill_emphasis,
-            focus_text_emphasis,
         };
         let build_global_static =
             static_segment_matches(static_segment_filter, StaticFrameSegment::GlobalStatic);

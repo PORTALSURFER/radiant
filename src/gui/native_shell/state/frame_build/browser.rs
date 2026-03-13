@@ -13,13 +13,7 @@ pub(super) fn render_browser_rows_window(
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         let row_columns = row_text_layout.columns;
-        let base_fill = if row.focused {
-            translucent_overlay_color(
-                ctx.style.bg_tertiary,
-                ctx.style.grid_strong,
-                ctx.focus_fill_emphasis,
-            )
-        } else if row.selected {
+        let base_fill = if row.selected {
             selected_browser_row_fill(ctx.style)
         } else {
             browser_row_stripe_fill(ctx.style, row.visible_row)
@@ -29,24 +23,8 @@ pub(super) fn render_browser_rows_window(
         } else {
             base_fill
         };
-        let row_border = if row.focused {
-            blend_color(
-                ctx.style.accent_warning,
-                ctx.style.text_primary,
-                ctx.motion_wave * ctx.style.state_focus_pulse_blend,
-            )
-        } else {
-            ctx.style.border
-        };
-        let row_text_color = if row.focused {
-            blend_color(
-                ctx.style.accent_warning,
-                ctx.style.text_primary,
-                ctx.motion_wave * ctx.focus_text_emphasis,
-            )
-        } else {
-            ctx.style.text_primary
-        };
+        let row_border = ctx.style.border;
+        let row_text_color = ctx.style.text_primary;
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -76,9 +54,9 @@ pub(super) fn render_browser_rows_window(
             row_border_stroke,
             BorderSides {
                 top: true,
-                bottom: row.focused || Some(row.rect.max.y) == last_row_max_y,
-                left: row.focused,
-                right: row.focused,
+                bottom: Some(row.rect.max.y) == last_row_max_y,
+                left: false,
+                right: false,
             },
         );
         let chip_rect = row_text_layout.bucket_chip;

@@ -323,3 +323,89 @@ fn waveform_hover_overlay_draws_preview_cursor_marker() {
         .expect("waveform hover marker should emit a cursor fill rectangle");
     assert_eq!(overlay_color, expected_color);
 }
+
+#[test]
+fn stale_static_browser_rows_do_not_keep_old_focus_highlight_after_refocus() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let old_model = browser_model_with_rows(40, 18);
+    let new_model = browser_model_with_rows(40, 12);
+    let focus_border = blend_color(
+        style.accent_warning,
+        style.text_primary,
+        style.state_focus_pulse_blend,
+    );
+
+    let old_row_rect = rendered_browser_rows(&layout, &old_model, &style)
+        .into_iter()
+        .find(|row| row.visible_row == 18)
+        .map(|row| row.rect)
+        .expect("old focused row should render");
+    let new_row_rect = rendered_browser_rows(&layout, &new_model, &style)
+        .into_iter()
+        .find(|row| row.visible_row == 12)
+        .map(|row| row.rect)
+        .expect("new focused row should render");
+
+    let mut segments = StaticFrameSegments::default();
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &old_model,
+        None,
+        StaticFrameSegment::BrowserRowsWindow,
+        &mut segments,
+    );
+
+    let static_frame = segments.frame(StaticFrameSegment::BrowserRowsWindow);
+    assert!(
+        static_frame.primitives.iter().all(|primitive| {
+            !matches!(
+                primitive,
+                Primitive::Rect(rect) if rect.rect.min.y >= old_row_rect.min.y
+                    && rect.rect.max.y <= old_row_rect.max.y
+                    && rect.color == focus_border
+            )
+        }),
+        "static browser rows should not own focused-row warning chrome"
+    );
+
+    state.sync_from_model(&new_model);
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &new_model, &mut overlay);
+
+    let old_focus_rects = overlay
+        .primitives
+        .iter()
+        .filter(|primitive| match primitive {
+            Primitive::Rect(rect) => {
+                rect.rect.min.y >= old_row_rect.min.y
+                    && rect.rect.max.y <= old_row_rect.max.y
+                    && rect.color == focus_border
+            }
+            _ => false,
+        })
+        .count();
+    let new_focus_rects = overlay
+        .primitives
+        .iter()
+        .filter(|primitive| match primitive {
+            Primitive::Rect(rect) => {
+                rect.rect.min.y >= new_row_rect.min.y
+                    && rect.rect.max.y <= new_row_rect.max.y
+                    && rect.color == focus_border
+            }
+            _ => false,
+        })
+        .count();
+
+    assert_eq!(
+        old_focus_rects, 0,
+        "fresh overlay should not keep the old focused row highlighted"
+    );
+    assert!(
+        new_focus_rects > 0,
+        "fresh overlay should highlight the newly focused row"
+    );
+}

@@ -1,0 +1,225 @@
+use super::*;
+
+/// Resolve one waveform action for a captured waveform drag mode.
+pub(super) fn waveform_drag_action_for_mode(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> UiAction {
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
+    match mode {
+        WaveformPointerDragMode::Seek => UiAction::SeekWaveform {
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(layout, model, point)),
+        },
+        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor {
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(layout, model, point)),
+        },
+        WaveformPointerDragMode::Selection { anchor_micros } => UiAction::SetWaveformSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: position_micros,
+            preserve_view_edge,
+        },
+        WaveformPointerDragMode::SelectionSmartScale { anchor_micros } => {
+            UiAction::SetWaveformSelectionRangeSmartScale {
+                start_micros: anchor_micros,
+                end_micros: position_micros,
+            }
+        }
+        WaveformPointerDragMode::SelectionShift {
+            pointer_micros,
+            start_micros,
+            end_micros,
+        } => {
+            let (start_micros, end_micros) = shift_waveform_range_micros(
+                pointer_micros,
+                position_micros,
+                start_micros,
+                end_micros,
+            );
+            UiAction::SetWaveformSelectionRange {
+                start_micros,
+                end_micros,
+                preserve_view_edge: false,
+            }
+        }
+        WaveformPointerDragMode::EditSelection { anchor_micros } => {
+            UiAction::SetWaveformEditSelectionRange {
+                start_micros: anchor_micros,
+                end_micros: position_micros,
+                preserve_view_edge,
+            }
+        }
+        WaveformPointerDragMode::EditSelectionShift {
+            pointer_micros,
+            start_micros,
+            end_micros,
+        } => {
+            let (start_micros, end_micros) = shift_waveform_range_micros(
+                pointer_micros,
+                position_micros,
+                start_micros,
+                end_micros,
+            );
+            UiAction::SetWaveformEditSelectionRange {
+                start_micros,
+                end_micros,
+                preserve_view_edge: false,
+            }
+        }
+        WaveformPointerDragMode::EditFadeInEnd => {
+            UiAction::SetWaveformEditFadeInEnd { position_micros }
+        }
+        WaveformPointerDragMode::EditFadeInMuteStart => {
+            UiAction::SetWaveformEditFadeInMuteStart { position_micros }
+        }
+        WaveformPointerDragMode::EditFadeInCurve => UiAction::SetWaveformEditFadeInCurve {
+            curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
+        },
+        WaveformPointerDragMode::EditFadeOutStart => {
+            UiAction::SetWaveformEditFadeOutStart { position_micros }
+        }
+        WaveformPointerDragMode::EditFadeOutMuteEnd => {
+            UiAction::SetWaveformEditFadeOutMuteEnd { position_micros }
+        }
+        WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
+            curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
+        },
+    }
+}
+
+/// Return whether an armed waveform drag moved far enough to emit selection updates.
+///
+/// New playback-selection drags use a small horizontal click-slop so minor
+/// pointer wobble still behaves like a click/seek instead of creating a
+/// micro-selection.
+pub(super) fn waveform_drag_exceeds_click_slop(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> bool {
+    match mode {
+        WaveformPointerDragMode::Selection { anchor_micros } => {
+            let anchor_x = waveform_x_for_micros(layout.waveform_plot, model, anchor_micros);
+            (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
+        }
+        _ => true,
+    }
+}
+
+/// Resolve drag mode from an initial waveform action emitted on pointer press.
+pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<WaveformPointerDragMode> {
+    match action {
+        UiAction::SeekWaveform { .. } => Some(WaveformPointerDragMode::Seek),
+        UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
+        UiAction::BeginWaveformSelectionAt { anchor_micros } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_micros: *anchor_micros,
+            })
+        }
+        UiAction::SetWaveformSelectionRange { start_micros, .. } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_micros: *start_micros,
+            })
+        }
+        UiAction::SetWaveformSelectionRangeSmartScale { start_micros, .. } => {
+            Some(WaveformPointerDragMode::SelectionSmartScale {
+                anchor_micros: *start_micros,
+            })
+        }
+        UiAction::BeginWaveformSelectionShift {
+            pointer_micros,
+            start_micros,
+            end_micros,
+        } => Some(WaveformPointerDragMode::SelectionShift {
+            pointer_micros: *pointer_micros,
+            start_micros: *start_micros,
+            end_micros: *end_micros,
+        }),
+        UiAction::SetWaveformEditSelectionRange { start_micros, .. } => {
+            Some(WaveformPointerDragMode::EditSelection {
+                anchor_micros: *start_micros,
+            })
+        }
+        UiAction::BeginWaveformEditSelectionShift {
+            pointer_micros,
+            start_micros,
+            end_micros,
+        } => Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_micros: *pointer_micros,
+            start_micros: *start_micros,
+            end_micros: *end_micros,
+        }),
+        UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
+        UiAction::SetWaveformEditFadeInMuteStart { .. } => {
+            Some(WaveformPointerDragMode::EditFadeInMuteStart)
+        }
+        UiAction::SetWaveformEditFadeInCurve { .. } => {
+            Some(WaveformPointerDragMode::EditFadeInCurve)
+        }
+        UiAction::SetWaveformEditFadeOutStart { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutStart)
+        }
+        UiAction::SetWaveformEditFadeOutMuteEnd { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutMuteEnd)
+        }
+        UiAction::SetWaveformEditFadeOutCurve { .. } => {
+            Some(WaveformPointerDragMode::EditFadeOutCurve)
+        }
+        _ => None,
+    }
+}
+
+/// Return whether one waveform drag mode edits fade geometry and needs a release callback.
+pub(super) fn waveform_drag_mode_is_edit_fade(mode: WaveformPointerDragMode) -> bool {
+    matches!(
+        mode,
+        WaveformPointerDragMode::EditFadeInEnd
+            | WaveformPointerDragMode::EditFadeInMuteStart
+            | WaveformPointerDragMode::EditFadeInCurve
+            | WaveformPointerDragMode::EditFadeOutStart
+            | WaveformPointerDragMode::EditFadeOutMuteEnd
+            | WaveformPointerDragMode::EditFadeOutCurve
+    )
+}
+
+/// Return whether one waveform press action should mutate model state immediately.
+///
+/// Selection/edit/fade gestures are armed on press and only emit once the
+/// pointer actually moves. This keeps simple clicks from creating zero-width
+/// markers or nudging handles without a drag.
+pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool {
+    !matches!(
+        action,
+        UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::BeginWaveformSelectionShift { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::BeginWaveformEditSelectionShift { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
+    )
+}
+
+pub(super) fn normalized_waveform_position_ratio(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> f32 {
+    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
+    let view_end = model
+        .waveform
+        .view_end_micros
+        .min(1_000_000)
+        .max(model.waveform.view_start_micros.min(1_000_000)) as f32
+        / 1_000_000.0;
+    let view_width = (view_end - view_start).max(0.0);
+    let ratio_in_view = waveform_ratio_from_point(layout, point);
+    (view_start + (view_width * ratio_in_view)).clamp(0.0, 1.0)
+}

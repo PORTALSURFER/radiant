@@ -1,0 +1,179 @@
+use super::*;
+
+/// Resolve the highest-priority waveform press gesture for the current modifiers.
+pub(super) fn waveform_primary_press_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    command: bool,
+    alt: bool,
+    shift: bool,
+) -> Option<UiAction> {
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) =
+            waveform_edit_selection_shift_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_drag_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_shift_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && alt
+        && !shift
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, true)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, false)
+    {
+        return Some(action);
+    }
+    None
+}
+
+/// Resolve one selection-drag action when the pointer lands on the playback-selection handle.
+pub(super) fn waveform_selection_drag_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    waveform_selection_drag_handle_hit_rect(layout, model).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::StartWaveformSelectionDrag {
+                pointer_x: point.x.max(0.0).round() as u16,
+                pointer_y: point.y.max(0.0).round() as u16,
+            })
+    })
+}
+
+/// Resolve one playback-selection shift action from the bottom-center handle.
+pub(super) fn waveform_selection_shift_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.selection_milli?;
+    waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::BeginWaveformSelectionShift {
+                pointer_micros: waveform_position_micros_from_point(layout, model, point),
+                start_micros: selection.start_micros,
+                end_micros: selection.end_micros,
+            })
+    })
+}
+
+/// Resolve one edit-selection shift action from the bottom-center handle.
+pub(super) fn waveform_edit_selection_shift_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let selection = model.waveform.edit_selection_milli?;
+    waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
+        rect.contains(point)
+            .then_some(UiAction::BeginWaveformEditSelectionShift {
+                pointer_micros: waveform_position_micros_from_point(layout, model, point),
+                start_micros: selection.start_micros,
+                end_micros: selection.end_micros,
+            })
+    })
+}
+
+/// Resolve one playback-selection resize action when the pointer lands on an edge handle.
+pub(super) fn waveform_selection_resize_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    smart_scale: bool,
+) -> Option<UiAction> {
+    let selection = model.waveform.selection_milli?;
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
+    if selection_end <= selection_start {
+        return None;
+    }
+    let selection_start_x = waveform_x_for_micros(layout.waveform_plot, model, selection_start);
+    let selection_end_x = waveform_x_for_micros(layout.waveform_plot, model, selection_end);
+    let (handle_top, handle_bottom) = waveform_centered_resize_edge_y_bounds(layout.waveform_plot);
+    if point.y < handle_top || point.y > handle_bottom {
+        return None;
+    }
+    let left_distance = (point.x - selection_start_x).abs();
+    let right_distance = (point.x - selection_end_x).abs();
+    let left_hit = left_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
+    let right_hit = right_distance <= WAVEFORM_RESIZE_EDGE_HIT_HALF_WIDTH;
+    if !left_hit && !right_hit {
+        return None;
+    }
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    if left_hit && (!right_hit || left_distance <= right_distance) {
+        return Some(if smart_scale {
+            UiAction::SetWaveformSelectionRangeSmartScale {
+                start_micros: selection.end_micros,
+                end_micros: position_micros,
+            }
+        } else {
+            UiAction::SetWaveformSelectionRange {
+                start_micros: selection.end_micros,
+                end_micros: position_micros,
+                preserve_view_edge: false,
+            }
+        });
+    }
+    Some(if smart_scale {
+        UiAction::SetWaveformSelectionRangeSmartScale {
+            start_micros: selection.start_micros,
+            end_micros: position_micros,
+        }
+    } else {
+        UiAction::SetWaveformSelectionRange {
+            start_micros: selection.start_micros,
+            end_micros: position_micros,
+            preserve_view_edge: false,
+        }
+    })
+}

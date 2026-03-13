@@ -475,6 +475,14 @@ pub(super) fn waveform_edit_selection_contains_point(
     waveform_handles::waveform_edit_selection_contains_point(layout, model, point)
 }
 
+pub(super) fn waveform_selection_contains_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> bool {
+    waveform_handles::waveform_selection_contains_point(layout, model, point)
+}
+
 pub(super) fn waveform_selection_drag_handle_hit_rect(
     layout: &ShellLayout,
     model: &AppModel,

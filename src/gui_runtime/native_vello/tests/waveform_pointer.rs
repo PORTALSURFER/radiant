@@ -33,11 +33,7 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetWaveformSelectionRange {
-            start_micros: milli(500),
-            end_micros: milli(500),
-            preserve_view_edge: false,
-        })
+        Some(UiAction::ClearWaveformSelection)
     );
 
     assert_eq!(
@@ -207,6 +203,30 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
 }
 
 #[test]
+fn waveform_left_click_outside_selection_clears_it() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        y,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ClearWaveformSelection)
+    );
+}
+
+#[test]
 fn waveform_right_click_outside_edit_selection_clears_it() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
@@ -361,8 +381,9 @@ fn narrow_playback_selection_shift_handle_hit_rect_stays_stable() {
 fn narrow_edit_selection_shift_handle_starts_gesture_without_panicking() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.edit_selection_milli =
-        Some(crate::app::NormalizedRangeModel::from_micros(500_000, 500_001));
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::from_micros(
+        500_000, 500_001,
+    ));
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
         layout.waveform_plot.max.y - 2.0,

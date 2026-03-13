@@ -72,6 +72,15 @@ pub(super) fn waveform_action_from_pointer(
     {
         return action;
     }
+    if !command
+        && !alt
+        && !shift
+        && layout.waveform_plot.contains(point)
+        && model.waveform.selection_milli.is_some()
+        && !waveform_selection_contains_point(layout, model, point)
+    {
+        return UiAction::ClearWaveformSelection;
+    }
     if command {
         UiAction::SetWaveformCursor { position_milli }
     } else if alt {

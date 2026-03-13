@@ -83,6 +83,22 @@ fn finish_volume_drag_emits_finish_selection_drag_for_active_selection_export() 
 }
 
 #[test]
+fn finish_volume_drag_emits_finish_selection_smart_scale_drag_for_alt_resize() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::SelectionSmartScale {
+        anchor_micros: milli(250),
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformSelectionSmartScaleDrag]
+    );
+}
+
+#[test]
 /// Drag waveform actions should clamp pointer positions and preserve anchors or widths.
 fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));

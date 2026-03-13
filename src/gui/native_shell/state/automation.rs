@@ -1013,6 +1013,9 @@ fn action_slug(action: &UiAction) -> String {
         UiAction::StartWaveformSelectionDrag { .. } => "start_waveform_selection_drag",
         UiAction::UpdateWaveformSelectionDrag { .. } => "update_waveform_selection_drag",
         UiAction::FinishWaveformSelectionDrag => "finish_waveform_selection_drag",
+        UiAction::FinishWaveformSelectionSmartScaleDrag => {
+            "finish_waveform_selection_smart_scale_drag"
+        }
         UiAction::BeginWaveformSelectionShift { .. } => "begin_waveform_selection_shift",
         UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
         UiAction::ClearWaveformSelection => "clear_waveform_selection",

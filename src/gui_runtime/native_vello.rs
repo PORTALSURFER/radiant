@@ -438,6 +438,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::StartWaveformSelectionDrag { .. }
             | UiAction::UpdateWaveformSelectionDrag { .. }
             | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionSmartScaleDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
             // Browser focus/selection can move the visible viewport through the
@@ -491,6 +492,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::StartWaveformSelectionDrag { .. }
             | UiAction::UpdateWaveformSelectionDrag { .. }
             | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionSmartScaleDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ZoomWaveform { .. }

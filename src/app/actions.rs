@@ -382,6 +382,8 @@ pub enum UiAction {
     },
     /// Finish the active waveform-selection drag gesture.
     FinishWaveformSelectionDrag,
+    /// Finish the active alt-resize smart-scale gesture and commit the inferred BPM.
+    FinishWaveformSelectionSmartScaleDrag,
     /// Arm a playback-selection translate gesture from the bottom-center handle.
     BeginWaveformSelectionShift {
         /// Pointer micro position captured at press time.

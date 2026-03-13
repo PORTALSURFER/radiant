@@ -436,6 +436,10 @@ where
             .is_some_and(waveform_drag_mode_is_edit_fade);
         let finish_selection_drag =
             self.selection_drag_active && matches!(released_button, Some(MouseButton::Left));
+        let finish_selection_smart_scale_drag = matches!(released_button, Some(MouseButton::Left))
+            && self.waveform_drag_mode.is_some_and(|mode| {
+                matches!(mode, WaveformPointerDragMode::SelectionSmartScale { .. })
+            });
         let seek_on_waveform_click_release = if matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
         {
@@ -464,6 +468,9 @@ where
         }
         if finish_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
+        }
+        if finish_selection_smart_scale_drag {
+            self.emit_model_action(UiAction::FinishWaveformSelectionSmartScaleDrag);
         }
         self.clear_pointer_drag_session();
         if seek_on_waveform_click_release

@@ -96,11 +96,9 @@ fn browser_row_click_targets_interior_row_after_downward_autoscroll() {
     model.browser.selected_visible_row = Some(18);
     model.browser.anchor_visible_row = Some(18);
     let row_stride = style.sizing.browser_row_height + style.sizing.browser_row_gap;
-    let row_center_y = layout.browser_rows.min.y + (row_stride * 11.0) + (style.sizing.browser_row_height * 0.5);
-    let point = Point::new(
-        layout.browser_rows.min.x + 24.0,
-        row_center_y,
-    );
+    let row_center_y =
+        layout.browser_rows.min.y + (row_stride * 11.0) + (style.sizing.browser_row_height * 0.5);
+    let point = Point::new(layout.browser_rows.min.x + 24.0, row_center_y);
 
     assert_eq!(
         action_from_pointer(

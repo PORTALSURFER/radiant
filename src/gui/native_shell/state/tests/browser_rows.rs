@@ -393,7 +393,10 @@ fn browser_virtualization_preserves_guard_band_across_repeated_scrolled_refocuse
             .first()
             .map(|row| row.visible_row)
             .expect("browser viewport should render rows");
-        assert_eq!(start, expected_start, "focused_visible_row={focused_visible_row}");
+        assert_eq!(
+            start, expected_start,
+            "focused_visible_row={focused_visible_row}"
+        );
     }
 }
 

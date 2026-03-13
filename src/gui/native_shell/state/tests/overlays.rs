@@ -487,7 +487,9 @@ fn clearing_browser_row_hover_removes_unrelated_hover_fill() {
         CursorMoveEffect::None
     );
     assert_eq!(
-        state.state_overlay_fingerprint().hovered_browser_visible_row,
+        state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
         Some(12)
     );
 
@@ -496,7 +498,9 @@ fn clearing_browser_row_hover_removes_unrelated_hover_fill() {
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
     assert_eq!(
-        state.state_overlay_fingerprint().hovered_browser_visible_row,
+        state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
         None
     );
     assert!(

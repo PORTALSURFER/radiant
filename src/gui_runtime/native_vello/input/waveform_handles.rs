@@ -278,18 +278,20 @@ pub(super) fn waveform_selection_shift_handle_hit_rect(
 /// Return the visible playback-selection drag handle rect.
 fn waveform_selection_drag_handle_rect(selection_rect: UiRect) -> UiRect {
     let size = WAVEFORM_SELECTION_DRAG_HANDLE_SIZE
-        .min(selection_rect.width().max(1.0))
-        .min(selection_rect.height().max(1.0));
+        .min(selection_rect.width().max(f32::EPSILON))
+        .min(selection_rect.height().max(f32::EPSILON));
     let min = Point::new(selection_rect.max.x - size, selection_rect.max.y - size);
     UiRect::from_min_max(min, selection_rect.max)
 }
 
 /// Return the visible bottom-center selection shift handle rect.
 fn waveform_selection_shift_handle_rect(selection_rect: UiRect) -> UiRect {
-    let width = WAVEFORM_SELECTION_SHIFT_HANDLE_WIDTH.min(selection_rect.width().max(1.0));
-    let height = WAVEFORM_SELECTION_SHIFT_HANDLE_HEIGHT.min(selection_rect.height().max(1.0));
+    let width = WAVEFORM_SELECTION_SHIFT_HANDLE_WIDTH.min(selection_rect.width().max(f32::EPSILON));
+    let height =
+        WAVEFORM_SELECTION_SHIFT_HANDLE_HEIGHT.min(selection_rect.height().max(f32::EPSILON));
+    let max_left = (selection_rect.max.x - width).max(selection_rect.min.x);
     let left = (selection_rect.min.x + (selection_rect.width() - width) * 0.5)
-        .clamp(selection_rect.min.x, selection_rect.max.x - width.max(1.0));
+        .clamp(selection_rect.min.x, max_left);
     let top = (selection_rect.max.y - height).max(selection_rect.min.y);
     UiRect::from_min_max(
         Point::new(left, top),

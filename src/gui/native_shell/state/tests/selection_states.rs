@@ -51,7 +51,9 @@ fn browser_row_selected_fill_uses_lighter_neutral_overlay() {
         .push(BrowserRowModel::new(0, "selected row", 1, true, false));
 
     let selected_row = rendered_browser_rows(&layout, &model, &style)[0].rect;
-    let frame = state.build_frame(&layout, &model);
+    state.sync_from_model(&model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
     let row_color = frame
         .primitives
         .iter()
@@ -76,7 +78,9 @@ fn browser_row_locked_fill_tints_selected_row_mint() {
         .push(BrowserRowModel::new(0, "locked row", 1, true, false).with_locked(true));
 
     let selected_row = rendered_browser_rows(&layout, &model, &style)[0].rect;
-    let frame = state.build_frame(&layout, &model);
+    state.sync_from_model(&model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
     let row_color = frame
         .primitives
         .iter()

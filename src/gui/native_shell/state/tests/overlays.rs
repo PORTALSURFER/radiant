@@ -409,3 +409,100 @@ fn stale_static_browser_rows_do_not_keep_old_focus_highlight_after_refocus() {
         "fresh overlay should highlight the newly focused row"
     );
 }
+
+#[test]
+fn stale_static_browser_rows_do_not_keep_old_selection_fill_after_refocus() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut old_model = browser_model_with_rows(40, 18);
+    let mut new_model = browser_model_with_rows(40, 12);
+    if let Some(row) = old_model.browser.rows.get_mut(18) {
+        row.selected = true;
+    }
+    if let Some(row) = new_model.browser.rows.get_mut(12) {
+        row.selected = true;
+    }
+    let old_row_rect = rendered_browser_rows(&layout, &old_model, &style)
+        .into_iter()
+        .find(|row| row.visible_row == 18)
+        .map(|row| row.rect)
+        .expect("old selected row should render");
+    let selected_fill = selected_browser_row_fill(&style);
+
+    let mut segments = StaticFrameSegments::default();
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &old_model,
+        None,
+        StaticFrameSegment::BrowserRowsWindow,
+        &mut segments,
+    );
+
+    let static_frame = segments.frame(StaticFrameSegment::BrowserRowsWindow);
+    assert!(
+        static_frame.primitives.iter().all(|primitive| {
+            !matches!(
+                primitive,
+                Primitive::Rect(rect) if rect.rect == old_row_rect && rect.color == selected_fill
+            )
+        }),
+        "static browser rows should not own selected-row fill"
+    );
+
+    state.sync_from_model(&new_model);
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &new_model, &mut overlay);
+
+    assert!(
+        overlay.primitives.iter().all(|primitive| {
+            !matches!(
+                primitive,
+                Primitive::Rect(rect) if rect.rect == old_row_rect && rect.color == selected_fill
+            )
+        }),
+        "fresh overlay should not keep the old selected row filled"
+    );
+}
+
+#[test]
+fn clearing_browser_row_hover_removes_unrelated_hover_fill() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let model = browser_model_with_rows(40, 18);
+    let hovered_row = rendered_browser_rows(&layout, &model, &style)
+        .into_iter()
+        .find(|row| row.visible_row == 12)
+        .map(|row| row.rect)
+        .expect("hover target row should render");
+    let hover_point = Point::new(
+        hovered_row.min.x + 6.0,
+        (hovered_row.min.y + hovered_row.max.y) * 0.5,
+    );
+
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, hover_point),
+        CursorMoveEffect::None
+    );
+    assert_eq!(
+        state.state_overlay_fingerprint().hovered_browser_visible_row,
+        Some(12)
+    );
+
+    state.clear_browser_row_hover();
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert_eq!(
+        state.state_overlay_fingerprint().hovered_browser_visible_row,
+        None
+    );
+    assert!(
+        frame.primitives.iter().all(|primitive| {
+            !matches!(primitive, Primitive::Rect(rect) if rect.rect == hovered_row && rect.color == browser_row_hover_fill(&style))
+        }),
+        "cleared browser row hover should remove the row-hover fill"
+    );
+}

@@ -1,6 +1,21 @@
 use super::*;
 
 impl NativeShellState {
+    #[cfg(test)]
+    pub(crate) fn set_browser_row_hover_for_tests(&mut self, visible_row: Option<usize>) {
+        self.hovered_browser_visible_row = visible_row;
+    }
+
+    /// Clear the transient browser-row hover target.
+    ///
+    /// Row clicks and viewport shifts can move list content underneath a
+    /// stationary cursor. Clearing the row hover in those cases avoids showing
+    /// an unrelated hover fill on a different row than the current selection
+    /// and focus state.
+    pub(crate) fn clear_browser_row_hover(&mut self) {
+        self.hovered_browser_visible_row = None;
+    }
+
     /// Handle pointer movement and classify which overlay bucket changed.
     pub(crate) fn handle_cursor_move_effect(
         &mut self,

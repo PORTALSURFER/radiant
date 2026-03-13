@@ -31,11 +31,18 @@ fn immediate_volume_emit_updates_action_queue_without_pending_buffer() {
 fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner
+        .shell_state
+        .set_browser_row_hover_for_tests(Some(12));
     assert!(runner.process_wheel_rows_immediately(3));
 
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
+    );
+    assert_eq!(
+        runner.shell_state.state_overlay_fingerprint().hovered_browser_visible_row,
+        None
     );
 }
 
@@ -119,6 +126,29 @@ fn browser_scrollbar_track_click_emit_updates_action_queue() {
         vec![UiAction::SetBrowserViewStart {
             visible_row: expected_visible_row
         }]
+    );
+}
+
+#[test]
+fn browser_row_pointer_action_clears_row_hover_before_emitting() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner
+        .shell_state
+        .set_browser_row_hover_for_tests(Some(18));
+
+    assert!(runner.handle_pointer_press_action(
+        UiAction::FocusBrowserRow { visible_row: 12 },
+        false
+    ));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FocusBrowserRow { visible_row: 12 }]
+    );
+    assert_eq!(
+        runner.shell_state.state_overlay_fingerprint().hovered_browser_visible_row,
+        None
     );
 }
 

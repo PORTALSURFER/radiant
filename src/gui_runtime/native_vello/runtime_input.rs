@@ -103,6 +103,7 @@ where
 
     /// Emit one wheel-derived browser viewport-scroll action immediately.
     pub(super) fn process_wheel_rows_immediately(&mut self, visible_row: usize) -> bool {
+        self.shell_state.clear_browser_row_hover();
         self.emit_model_action_with_profile(
             UiAction::SetBrowserViewStart { visible_row },
             Some(InteractionProfileKind::Wheel),
@@ -130,6 +131,7 @@ where
             return true;
         }
         self.last_emitted_browser_view_start = Some(visible_row);
+        self.shell_state.clear_browser_row_hover();
         self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
         true
     }
@@ -148,6 +150,7 @@ where
         else {
             return false;
         };
+        self.shell_state.clear_browser_row_hover();
         self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
         true
     }
@@ -355,6 +358,16 @@ where
         action: UiAction,
         map_drag_start: bool,
     ) -> bool {
+        if matches!(
+            action,
+            UiAction::FocusBrowserRow { .. }
+                | UiAction::CommitFocusedBrowserRow
+                | UiAction::ToggleBrowserRowSelection { .. }
+                | UiAction::ExtendBrowserSelectionToRow { .. }
+                | UiAction::AddRangeBrowserSelection { .. }
+        ) {
+            self.shell_state.clear_browser_row_hover();
+        }
         let map_drag_sample_id = match &action {
             UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
             _ => None,

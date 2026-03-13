@@ -13,11 +13,7 @@ pub(super) fn render_browser_rows_window(
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         let row_columns = row_text_layout.columns;
-        let base_fill = if row.selected {
-            selected_browser_row_fill(ctx.style)
-        } else {
-            browser_row_stripe_fill(ctx.style, row.visible_row)
-        };
+        let base_fill = browser_row_stripe_fill(ctx.style, row.visible_row);
         let row_fill = if row.locked {
             locked_browser_row_fill(ctx.style, base_fill)
         } else {

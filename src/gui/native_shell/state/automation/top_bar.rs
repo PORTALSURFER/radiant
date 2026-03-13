@@ -28,7 +28,8 @@ pub(super) fn build_top_bar_automation(
             ],
         ));
     }
-    if let Some(button_rect) = status_options_button_rect(layout.top_bar_action_cluster, style.sizing)
+    if let Some(button_rect) =
+        status_options_button_rect(layout.top_bar_action_cluster, style.sizing)
     {
         children.push(simple_node(
             "shell.top_bar.options_button",
@@ -45,7 +46,9 @@ pub(super) fn build_top_bar_automation(
             })],
         ));
     }
-    children.push(super::dialogs::update_panel_automation(layout, model, &style));
+    children.push(super::dialogs::update_panel_automation(
+        layout, model, &style,
+    ));
     AutomationNodeSnapshot {
         id: super::helpers::node_id("shell.top_bar"),
         role: AutomationRole::Panel,

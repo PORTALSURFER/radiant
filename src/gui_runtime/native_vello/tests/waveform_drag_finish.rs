@@ -152,12 +152,8 @@ fn outside_selection_drag_creates_new_selection_without_clearing_first() {
     Arc::make_mut(&mut runner.model).waveform.selection_milli =
         Some(crate::app::NormalizedRangeModel::new(200, 800));
 
-    let emitted = runner.handle_pointer_press_action(
-        UiAction::BeginWaveformSelectionAt {
-            anchor_micros,
-        },
-        false,
-    );
+    let emitted = runner
+        .handle_pointer_press_action(UiAction::BeginWaveformSelectionAt { anchor_micros }, false);
     assert!(emitted);
 
     assert!(runner.process_waveform_drag_immediately(drag));

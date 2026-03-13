@@ -185,10 +185,9 @@ mod tests {
         model.confirm_prompt.visible = true;
         model.progress_overlay.visible = true;
         model.progress_overlay.modal = true;
-        let options = dialogs::options_panel_automation(&layout, &model, &style)
-            .expect("options panel node");
-        let prompt =
-            dialogs::prompt_automation(&layout, &model, &style).expect("prompt node");
+        let options =
+            dialogs::options_panel_automation(&layout, &model, &style).expect("options panel node");
+        let prompt = dialogs::prompt_automation(&layout, &model, &style).expect("prompt node");
         let progress =
             dialogs::progress_automation(&layout, &model, &style).expect("progress node");
         assert_eq!(options.id.0, "overlay.options_panel");

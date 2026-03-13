@@ -312,7 +312,10 @@ fn handle_pointer_press_action_clears_waveform_hover_feedback_for_resize_drag() 
     );
     let fingerprint = runner.shell_state.motion_overlay_fingerprint();
     assert!(fingerprint.hovered_waveform_resize_edge.is_some());
-    assert_eq!(fingerprint.waveform_hover_x_bits, Some(left_edge.x.round().to_bits()));
+    assert_eq!(
+        fingerprint.waveform_hover_x_bits,
+        Some(left_edge.x.round().to_bits())
+    );
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::SetWaveformSelectionRange {

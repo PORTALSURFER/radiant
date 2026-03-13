@@ -94,9 +94,7 @@ pub(in crate::gui::native_shell::state) fn truncation_width_bucket(width: f32) -
 }
 
 /// Quantize truncation font-size inputs into stable cache buckets.
-pub(in crate::gui::native_shell::state) fn truncation_font_size_bucket(
-    font_size: f32,
-) -> u16 {
+pub(in crate::gui::native_shell::state) fn truncation_font_size_bucket(font_size: f32) -> u16 {
     ((font_size.max(0.0) * 64.0)
         .round()
         .clamp(0.0, u16::MAX as f32)) as u16

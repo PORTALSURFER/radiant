@@ -10,8 +10,7 @@ use self::{
     clear::{waveform_clear_action_from_pointer, waveform_new_selection_action_from_pointer},
     press::{
         waveform_edit_selection_shift_action_from_pointer,
-        waveform_primary_press_action_from_pointer,
-        waveform_selection_drag_action_from_pointer,
+        waveform_primary_press_action_from_pointer, waveform_selection_drag_action_from_pointer,
         waveform_selection_resize_action_from_pointer,
         waveform_selection_shift_action_from_pointer,
     },

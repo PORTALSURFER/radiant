@@ -224,6 +224,9 @@ where
         &self,
         action: &crate::app::UiAction,
     ) -> bool {
-        matches!(action, crate::app::UiAction::BeginWaveformSelectionAt { .. })
+        matches!(
+            action,
+            crate::app::UiAction::BeginWaveformSelectionAt { .. }
+        )
     }
 }

@@ -1,0 +1,121 @@
+use super::*;
+
+impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    pub(super) fn classify_action_scope(action: &UiAction) -> RuntimeInvalidationScope {
+        match action {
+            UiAction::SetVolume { .. }
+            | UiAction::CommitVolumeSetting
+            | UiAction::SetFolderSearch { .. }
+            | UiAction::ReloadSourceRow { .. }
+            | UiAction::HardSyncSourceRow { .. }
+            | UiAction::OpenSourceFolderRow { .. }
+            | UiAction::RemoveSourceRow { .. }
+            | UiAction::RemoveDeadLinksForSourceRow { .. }
+            | UiAction::FocusFolderRow { .. }
+            | UiAction::MoveFolderFocus { .. }
+            | UiAction::SetBrowserSearch { .. }
+            | UiAction::BlurBrowserSearch
+            | UiAction::SetBrowserTab { .. }
+            | UiAction::FocusMapSample { .. }
+            | UiAction::SetPromptInput { .. }
+            | UiAction::SetWaveformBpmValue { .. }
+            | UiAction::AdjustWaveformBpm { .. }
+            | UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
+            | UiAction::FinishWaveformEditFadeDrag
+            | UiAction::StartWaveformSelectionDrag { .. }
+            | UiAction::UpdateWaveformSelectionDrag { .. }
+            | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionSmartScaleDrag
+            | UiAction::ClearWaveformSelection
+            | UiAction::ClearWaveformEditSelection
+            | UiAction::ClearWaveformSelections => RuntimeInvalidationScope::ModelAndOverlays,
+            UiAction::MoveBrowserFocus { .. }
+            | UiAction::FocusBrowserRow { .. }
+            | UiAction::ToggleBrowserRowSelection { .. }
+            | UiAction::ExtendBrowserSelectionToRow { .. }
+            | UiAction::AddRangeBrowserSelection { .. }
+            | UiAction::ExtendBrowserSelectionFromFocus { .. }
+            | UiAction::AddRangeBrowserSelectionFromFocus { .. }
+            | UiAction::ToggleFocusedBrowserRowSelection
+            | UiAction::SelectAllBrowserRows
+            | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
+            UiAction::SeekWaveform { .. }
+            | UiAction::PlayFromStart
+            | UiAction::PlayFromCurrentPlayhead
+            | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
+            UiAction::ZoomWaveform { .. }
+            | UiAction::SetWaveformViewCenter { .. }
+            | UiAction::ZoomWaveformToSelection
+            | UiAction::ZoomWaveformFull => RuntimeInvalidationScope::StaticAndOverlays,
+            _ => RuntimeInvalidationScope::StaticAndOverlays,
+        }
+    }
+
+    /// Classify bridge actions into tracked interaction profile groups.
+    pub(super) fn classify_action_interaction(action: &UiAction) -> Option<InteractionProfileKind> {
+        match action {
+            UiAction::SetBrowserTab { map: true } | UiAction::FocusMapSample { .. } => {
+                Some(InteractionProfileKind::MapPanProxy)
+            }
+            UiAction::SeekWaveform { .. }
+            | UiAction::PlayFromStart
+            | UiAction::PlayFromCurrentPlayhead
+            | UiAction::SetWaveformCursor { .. }
+            | UiAction::SetWaveformViewCenter { .. }
+            | UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::SetWaveformBpmValue { .. }
+            | UiAction::AdjustWaveformBpm { .. }
+            | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditFadeInEnd { .. }
+            | UiAction::SetWaveformEditFadeInMuteStart { .. }
+            | UiAction::SetWaveformEditFadeInCurve { .. }
+            | UiAction::SetWaveformEditFadeOutStart { .. }
+            | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
+            | UiAction::SetWaveformEditFadeOutCurve { .. }
+            | UiAction::FinishWaveformEditFadeDrag
+            | UiAction::StartWaveformSelectionDrag { .. }
+            | UiAction::UpdateWaveformSelectionDrag { .. }
+            | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionSmartScaleDrag
+            | UiAction::ClearWaveformSelection
+            | UiAction::ClearWaveformEditSelection
+            | UiAction::ClearWaveformSelections
+            | UiAction::ZoomWaveform { .. }
+            | UiAction::ZoomWaveformToSelection
+            | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),
+            UiAction::SetVolume { .. } => Some(InteractionProfileKind::Volume),
+            _ => None,
+        }
+    }
+
+    /// Apply one model action and optionally record interaction latency.
+    pub(super) fn emit_model_action_with_profile(
+        &mut self,
+        action: UiAction,
+        profile_kind: Option<InteractionProfileKind>,
+    ) {
+        self.apply_invalidation_scope(Self::classify_action_scope(&action));
+        let profile_start = profile_kind.and_then(|_| self.profiler.now_if_enabled());
+        self.bridge.reduce_action(action);
+        if let (Some(kind), Some(start)) = (profile_kind, profile_start) {
+            self.profiler.add_interaction_latency(kind, start.elapsed());
+        }
+    }
+
+    /// Apply one model action with default interaction profiling classification.
+    pub(super) fn emit_model_action(&mut self, action: UiAction) {
+        let profile_kind = Self::classify_action_interaction(&action);
+        self.emit_model_action_with_profile(action, profile_kind);
+    }
+}

@@ -11,16 +11,22 @@ pub(super) fn waveform_drag_action_for_mode(
     let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
     match mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveform {
-            position_milli: ratio_to_milli(normalized_waveform_position_ratio(layout, model, point)),
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
+                layout, model, point,
+            )),
         },
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor {
-            position_milli: ratio_to_milli(normalized_waveform_position_ratio(layout, model, point)),
+            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
+                layout, model, point,
+            )),
         },
-        WaveformPointerDragMode::Selection { anchor_micros } => UiAction::SetWaveformSelectionRange {
-            start_micros: anchor_micros,
-            end_micros: position_micros,
-            preserve_view_edge,
-        },
+        WaveformPointerDragMode::Selection { anchor_micros } => {
+            UiAction::SetWaveformSelectionRange {
+                start_micros: anchor_micros,
+                end_micros: position_micros,
+                preserve_view_edge,
+            }
+        }
         WaveformPointerDragMode::SelectionSmartScale { anchor_micros } => {
             UiAction::SetWaveformSelectionRangeSmartScale {
                 start_micros: anchor_micros,

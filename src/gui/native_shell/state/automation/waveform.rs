@@ -1,8 +1,6 @@
 //! Waveform automation snapshot builders.
 
-use super::helpers::{
-    action_slug, bounds, metadata, node_id, selection_micros_text, simple_node,
-};
+use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
 use crate::app::{AutomationRole, NormalizedRangeModel};
 
@@ -57,7 +55,10 @@ pub(super) fn build_waveform_automation(
             String::from("set_waveform_view_center"),
         ],
         metadata: metadata(&[
-            ("loop_enabled", super::helpers::bool_text(model.waveform.loop_enabled)),
+            (
+                "loop_enabled",
+                super::helpers::bool_text(model.waveform.loop_enabled),
+            ),
             (
                 "tempo_label",
                 model.waveform.tempo_label.as_deref().unwrap_or(""),

@@ -36,9 +36,7 @@ pub(in crate::gui::native_shell::state) fn translucent_overlay_color(
 }
 
 /// Return a subtle whitish row-hover fill used across non-browser item lists.
-pub(in crate::gui::native_shell::state) fn subtle_item_hover_fill(
-    style: &StyleTokens,
-) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -71,9 +69,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
 }
 
 /// Return the lighter neutral fill used for selected browser rows.
-pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(
-    style: &StyleTokens,
-) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -93,11 +89,7 @@ pub(in crate::gui::native_shell::state) fn locked_browser_row_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn blend_color(
-    a: Rgba8,
-    b: Rgba8,
-    amount: f32,
-) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {
         ((x as f32) + ((y as f32 - x as f32) * amount))

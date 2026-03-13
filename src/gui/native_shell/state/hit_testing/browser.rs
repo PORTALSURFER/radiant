@@ -41,6 +41,23 @@ impl NativeShellState {
             .min(model.browser.visible_count)
     }
 
+    /// Return the current rendered browser viewport start row.
+    ///
+    /// The shell can preserve a previously resolved visible window even when the
+    /// host-projected `view_start_row` is briefly stale. Callers that need to
+    /// continue scrolling from the rows the user is actually seeing should use
+    /// this value instead of the raw model field.
+    pub(crate) fn browser_viewport_start_row(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<usize> {
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
+            .first()
+            .map(|row| row.visible_row)
+    }
+
     /// Return the pointer's offset within the browser scrollbar thumb when hovered.
     pub(crate) fn browser_scrollbar_thumb_offset_at_point(
         &mut self,

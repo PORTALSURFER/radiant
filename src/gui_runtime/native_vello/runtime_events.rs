@@ -282,6 +282,11 @@ impl<B: NativeAppBridge> ApplicationHandler<RuntimeUserEvent> for NativeVelloRun
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    #[cfg(test)]
+    pub(crate) fn handle_mouse_wheel_for_tests(&mut self, delta: MouseScrollDelta) {
+        self.handle_mouse_wheel(delta);
+    }
+
     fn handle_left_pointer_press(
         &mut self,
         layout: &ShellLayout,
@@ -419,7 +424,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     browser_wheel_row_delta(layout, &this.model, point, &style, delta)
                 {
                     let viewport_len = this.shell_state.browser_viewport_len(layout, &this.model);
-                    let current_view_start = this.model.browser.view_start_row;
+                    let current_view_start = this
+                        .shell_state
+                        .browser_viewport_start_row(layout, &this.model)
+                        .unwrap_or(this.model.browser.view_start_row);
                     if let Some(visible_row) = browser_view_start_after_wheel(
                         current_view_start,
                         this.model.browser.visible_count,

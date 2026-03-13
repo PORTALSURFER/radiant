@@ -47,6 +47,66 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
 }
 
 #[test]
+fn browser_wheel_uses_rendered_viewport_start_when_model_start_is_stale() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let host_window_start = 100usize;
+    let projected_rows = runner
+        .shell_state
+        .browser_viewport_len(&layout, &browser_model_with_rows(5_000, 0))
+        .saturating_add(12);
+
+    let build_model = |focused_visible_row: usize| {
+        let mut model = AppModel::default();
+        for offset in 0..projected_rows {
+            let visible_row = host_window_start + offset;
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:04}"),
+                1,
+                false,
+                visible_row == focused_visible_row,
+            ));
+        }
+        model.browser.visible_count = 5_000;
+        model.browser.selected_visible_row = Some(focused_visible_row);
+        model.browser.anchor_visible_row = Some(focused_visible_row);
+        model.browser.autoscroll = true;
+        model.browser.view_start_row = host_window_start;
+        model
+    };
+
+    let row_capacity = runner
+        .shell_state
+        .browser_viewport_len(&layout, &build_model(host_window_start));
+    let bottom_focus = host_window_start + row_capacity.saturating_sub(1);
+    let bottom_model = build_model(bottom_focus);
+    let scrolled_start = runner
+        .shell_state
+        .browser_viewport_start_row(&layout, &bottom_model)
+        .expect("bottom viewport should render at least one row");
+    assert!(scrolled_start > host_window_start);
+
+    let stale_model = build_model(scrolled_start + (row_capacity / 2));
+    runner.model = Arc::new(stale_model);
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(Point::new(
+        layout.browser_rows.min.x + 24.0,
+        layout.browser_rows.min.y + 24.0,
+    ));
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -1.0));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetBrowserViewStart {
+            visible_row: scrolled_start + 1
+        }]
+    );
+}
+
+#[test]
 fn browser_scrollbar_drag_emit_updates_action_queue() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

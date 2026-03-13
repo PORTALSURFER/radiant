@@ -99,6 +99,7 @@ pub(super) fn options_panel_layout(
             rect,
             label,
             enabled: true,
+            active: false,
             action,
             text_color: style.text_primary,
         });

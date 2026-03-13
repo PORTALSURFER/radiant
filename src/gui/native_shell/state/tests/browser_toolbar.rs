@@ -474,7 +474,11 @@ fn browser_action_buttons_stay_inside_toolbar() {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
         let buttons = browser_action_buttons(&layout, &style, &model);
-        assert!(buttons.is_empty());
+        assert_eq!(buttons.len(), 1);
+        assert_eq!(buttons[0].label, "Random");
+        assert!(buttons[0].enabled);
+        assert!(!buttons[0].active);
+        assert_rect_inside(layout.browser_toolbar, buttons[0].rect);
     }
 }
 
@@ -488,7 +492,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let style = style_for_layout(&layout);
     let buttons = browser_action_buttons(&layout, &style, &model);
     let controls = browser_toolbar_layout(&layout, &style, &buttons);
-    assert!(buttons.is_empty());
+    assert_eq!(buttons.len(), 1);
     assert!(
         controls
             .rating_filter_chips
@@ -496,6 +500,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
             .all(|chip| chip.width() > 1.0)
     );
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
+    assert!(controls.search_field.max.x <= buttons[0].rect.min.x);
     assert!(controls.rating_filter_chips[7].max.x <= controls.search_field.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
@@ -524,6 +529,25 @@ fn browser_toolbar_right_side_does_not_hit_search_field() {
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
         None
+    );
+}
+
+#[test]
+fn browser_random_action_button_click_maps_to_toggle_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let button = state
+        .browser_action_button_rect(&layout, &model, "Random")
+        .expect("random button should render");
+    let point = Point::new(
+        (button.min.x + button.max.x) * 0.5,
+        (button.min.y + button.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(UiAction::ToggleRandomNavigationMode)
     );
 }
 

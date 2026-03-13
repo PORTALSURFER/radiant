@@ -73,6 +73,7 @@ pub(super) struct ActionButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
+    pub(super) active: bool,
     pub(super) action: UiAction,
     pub(super) text_color: Rgba8,
 }

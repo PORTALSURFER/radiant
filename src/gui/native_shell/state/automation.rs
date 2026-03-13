@@ -381,6 +381,18 @@ impl NativeShellState {
                 vec![String::from("toggle_browser_rating_filter")],
             ));
         }
+        for button in buttons {
+            children.push(simple_node(
+                format!("browser.action.{}", slug(button.label)),
+                AutomationRole::Button,
+                Some(String::from(button.label)),
+                button.rect,
+                None,
+                button.enabled,
+                button.active,
+                vec![action_slug(&button.action)],
+            ));
+        }
         if model.map.active {
             children.push(map_canvas_automation(layout, model, style));
         } else {
@@ -415,6 +427,14 @@ impl NativeShellState {
                         .selected_visible_row
                         .map(|value| value.to_string())
                         .unwrap_or_default(),
+                ),
+                (
+                    "random_navigation_enabled",
+                    if model.browser_actions.random_navigation_enabled {
+                        "true"
+                    } else {
+                        "false"
+                    },
                 ),
             ]),
             children,
@@ -944,6 +964,7 @@ fn action_slug(action: &UiAction) -> String {
         UiAction::SelectAllBrowserRows => "select_all_browser_rows",
         UiAction::SetBrowserSearch { .. } => "set_browser_search",
         UiAction::ToggleBrowserRatingFilter { .. } => "toggle_browser_rating_filter",
+        UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",
         UiAction::SetBrowserTab { .. } => "set_browser_tab",
         UiAction::FocusMapSample { .. } => "focus_map_sample",
         UiAction::SetPromptInput { .. } => "set_prompt_input",

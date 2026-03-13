@@ -200,6 +200,21 @@ impl NativeShellState {
         (rect.width() > 1.0).then_some(rect)
     }
 
+    /// Return one browser action-button rect for the given label.
+    #[cfg(test)]
+    pub(crate) fn browser_action_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        label: &str,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        browser_action_buttons(layout, &style, model)
+            .into_iter()
+            .find(|button| button.label == label)
+            .map(|button| button.rect)
+    }
+
     /// Return the browser-search text rect used for rendering inside the field.
     pub(crate) fn browser_search_text_rect(
         &mut self,
@@ -254,6 +269,10 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
     model.browser_actions.can_rename.hash(&mut hasher);
     model.browser_actions.can_tag.hash(&mut hasher);
     model.browser_actions.can_delete.hash(&mut hasher);
+    model
+        .browser_actions
+        .random_navigation_enabled
+        .hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);
     for index in 0..3 {

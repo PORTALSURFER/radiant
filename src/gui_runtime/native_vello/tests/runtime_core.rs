@@ -87,6 +87,12 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::StaticAndOverlays
     );
     assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::ToggleRandomNavigationMode
+        ),
+        RuntimeInvalidationScope::StaticAndOverlays
+    );
+    assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetVolume {
             value_milli: 250
         }),

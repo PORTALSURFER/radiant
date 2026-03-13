@@ -228,24 +228,28 @@ pub(super) fn render_browser_frame(
             primitives,
             Primitive::Rect(FillRect {
                 rect: button.rect,
-                color: if button.enabled {
-                    ctx.style.surface_overlay
-                } else {
+                color: if !button.enabled {
                     ctx.style.control_disabled_fill
+                } else if button.active {
+                    blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.26)
+                } else {
+                    ctx.style.surface_overlay
                 },
             }),
         );
         push_border(
             primitives,
             button.rect,
-            if button.enabled {
+            if !button.enabled {
+                ctx.style.border
+            } else if button.active {
+                blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32)
+            } else {
                 blend_color(
                     ctx.style.border_emphasis,
                     ctx.style.text_primary,
                     ctx.style.state_hover_soft,
                 )
-            } else {
-                ctx.style.border
             },
             ctx.sizing.border_width,
         );

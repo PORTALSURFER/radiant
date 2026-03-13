@@ -183,6 +183,7 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
                 rect,
                 label,
                 enabled,
+                active: false,
                 action,
                 text_color,
             },
@@ -278,6 +279,7 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
             rect,
             label,
             enabled,
+            active: false,
             action,
             text_color,
         });

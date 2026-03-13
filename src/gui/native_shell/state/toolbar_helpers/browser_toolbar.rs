@@ -221,6 +221,25 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<ActionButton> {
-    let _ = (layout, style, model);
-    Vec::new()
+    let labels = ["Random"];
+    compute_update_action_button_rects(
+        layout.browser_toolbar,
+        layout.browser_toolbar,
+        style.sizing,
+        &labels,
+    )
+    .into_iter()
+    .map(|rect| ActionButton {
+        rect,
+        label: "Random",
+        enabled: true,
+        active: model.browser_actions.random_navigation_enabled,
+        action: UiAction::ToggleRandomNavigationMode,
+        text_color: if model.browser_actions.random_navigation_enabled {
+            style.highlight_cyan
+        } else {
+            style.text_primary
+        },
+    })
+    .collect()
 }

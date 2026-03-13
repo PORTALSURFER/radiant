@@ -163,6 +163,8 @@ pub struct BrowserActionsModel {
     pub can_delete: bool,
     /// Whether tag actions can be applied to focused/selected rows.
     pub can_tag: bool,
+    /// Whether sticky random navigation mode is currently enabled.
+    pub random_navigation_enabled: bool,
 }
 
 /// Render mode label for the map panel.

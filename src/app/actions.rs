@@ -301,6 +301,15 @@ pub enum UiAction {
         /// Normalized milli cursor position (`0..=1000`).
         position_milli: u16,
     },
+    /// Begin a new playback-selection drag from one exact anchor point.
+    ///
+    /// The runtime emits this on plain waveform press before any drag motion so
+    /// the controller can preserve the initial click anchor exactly, even when
+    /// BPM snapping or an older selection is active.
+    BeginWaveformSelectionAt {
+        /// Exact anchor position in normalized micro-units.
+        anchor_micros: u32,
+    },
     /// Set waveform selection bounds in normalized micro space (`0..=1_000_000`).
     SetWaveformSelectionRange {
         /// Selection start position in normalized micro-units.

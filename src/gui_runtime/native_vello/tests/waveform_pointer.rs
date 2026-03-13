@@ -33,10 +33,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetWaveformSelectionRange {
-            start_micros: milli(500),
-            end_micros: milli(500),
-            preserve_view_edge: false,
+        Some(UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(500),
         })
     );
 
@@ -226,10 +224,8 @@ fn waveform_left_click_outside_selection_clears_it() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetWaveformSelectionRange {
-            start_micros: milli(100),
-            end_micros: milli(100),
-            preserve_view_edge: false,
+        Some(UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(100),
         })
     );
 }

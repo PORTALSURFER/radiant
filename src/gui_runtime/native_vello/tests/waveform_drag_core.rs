@@ -16,6 +16,14 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::Cursor)
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(125),
+        }),
+        Some(WaveformPointerDragMode::Selection {
+            anchor_micros: milli(125)
+        })
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRange {
             start_micros: milli(125),
             end_micros: milli(250),
@@ -138,6 +146,11 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
             position_milli: 250,
         }
     ));
+    assert!(waveform_press_action_emits_immediately(
+        &UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(125),
+        }
+    ));
     assert!(!waveform_press_action_emits_immediately(
         &UiAction::SetWaveformSelectionRange {
             start_micros: milli(125),
@@ -206,16 +219,19 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
 
     let emitted = runner.handle_pointer_press_action(
-        UiAction::SetWaveformSelectionRange {
-            start_micros: milli(250),
-            end_micros: milli(250),
-            preserve_view_edge: false,
+        UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(250),
         },
         false,
     );
 
-    assert!(!emitted);
-    assert!(runner.bridge.actions.is_empty());
+    assert!(emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(250),
+        }]
+    );
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::Selection {

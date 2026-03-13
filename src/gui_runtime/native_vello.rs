@@ -427,6 +427,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetPromptInput { .. }
             | UiAction::SetWaveformBpmValue { .. }
             | UiAction::AdjustWaveformBpm { .. }
+            | UiAction::BeginWaveformSelectionAt { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
@@ -480,6 +481,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::PlayFromCurrentPlayhead
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformViewCenter { .. }
+            | UiAction::BeginWaveformSelectionAt { .. }
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::SetWaveformBpmValue { .. }

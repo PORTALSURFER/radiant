@@ -107,24 +107,27 @@ fn outside_selection_click_release_clears_playback_selection_then_seeks() {
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
-    let action = UiAction::SetWaveformSelectionRange {
-        start_micros: milli(100),
-        end_micros: milli(100),
-        preserve_view_edge: false,
-    };
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.last_cursor = Some(point);
     Arc::make_mut(&mut runner.model).waveform.selection_milli =
         Some(crate::app::NormalizedRangeModel::new(200, 800));
 
-    let emitted = runner.handle_pointer_press_action(action, false);
-    assert!(!emitted);
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(100),
+        },
+        false,
+    );
+    assert!(emitted);
 
     runner.finish_volume_drag(Some(MouseButton::Left));
 
     assert_eq!(
         runner.bridge.actions,
         vec![
+            UiAction::BeginWaveformSelectionAt {
+                anchor_micros: milli(100),
+            },
             UiAction::ClearWaveformSelection,
             UiAction::SeekWaveform {
                 position_milli: waveform_position_milli_from_point(&layout, &runner.model, point),
@@ -150,23 +153,24 @@ fn outside_selection_drag_creates_new_selection_without_clearing_first() {
         Some(crate::app::NormalizedRangeModel::new(200, 800));
 
     let emitted = runner.handle_pointer_press_action(
-        UiAction::SetWaveformSelectionRange {
-            start_micros: anchor_micros,
-            end_micros: anchor_micros,
-            preserve_view_edge: false,
+        UiAction::BeginWaveformSelectionAt {
+            anchor_micros,
         },
         false,
     );
-    assert!(!emitted);
+    assert!(emitted);
 
     assert!(runner.process_waveform_drag_immediately(drag));
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetWaveformSelectionRange {
-            start_micros: anchor_micros,
-            end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
-            preserve_view_edge: false,
-        }]
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::SetWaveformSelectionRange {
+                start_micros: anchor_micros,
+                end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+                preserve_view_edge: false,
+            },
+        ]
     );
 }
 

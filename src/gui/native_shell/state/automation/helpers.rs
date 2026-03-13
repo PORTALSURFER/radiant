@@ -179,6 +179,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::CommitVolumeSetting => "commit_volume_setting",
         UiAction::SeekWaveform { .. } => "seek_waveform",
         UiAction::SetWaveformCursor { .. } => "set_waveform_cursor",
+        UiAction::BeginWaveformSelectionAt { .. } => "begin_waveform_selection_at",
         UiAction::SetWaveformSelectionRange { .. } => "set_waveform_selection_range",
         UiAction::SetWaveformSelectionRangeSmartScale { .. } => {
             "set_waveform_selection_range_smart_scale"

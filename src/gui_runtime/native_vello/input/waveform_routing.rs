@@ -38,10 +38,8 @@ pub(super) fn waveform_action_from_pointer(
             preserve_view_edge: false,
         }
     } else {
-        UiAction::SetWaveformSelectionRange {
-            start_micros: micros_from_milli(position_milli),
-            end_micros: micros_from_milli(position_milli),
-            preserve_view_edge: false,
+        UiAction::BeginWaveformSelectionAt {
+            anchor_micros: micros_from_milli(position_milli),
         }
     }
 }
@@ -71,10 +69,8 @@ fn waveform_new_selection_action_from_pointer(
         return None;
     }
     let position_micros = waveform_position_micros_from_point(layout, model, point);
-    Some(UiAction::SetWaveformSelectionRange {
-        start_micros: position_micros,
-        end_micros: position_micros,
-        preserve_view_edge: false,
+    Some(UiAction::BeginWaveformSelectionAt {
+        anchor_micros: position_micros,
     })
 }
 
@@ -459,6 +455,11 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
     match action {
         UiAction::SeekWaveform { .. } => Some(WaveformPointerDragMode::Seek),
         UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
+        UiAction::BeginWaveformSelectionAt { anchor_micros } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_micros: *anchor_micros,
+            })
+        }
         UiAction::SetWaveformSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::Selection {
                 anchor_micros: *start_micros,

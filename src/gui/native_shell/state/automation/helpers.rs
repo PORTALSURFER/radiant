@@ -1,0 +1,226 @@
+//! Shared helper utilities for semantic automation snapshot builders.
+
+use super::*;
+use crate::app::{
+    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
+    NormalizedRangeModel, UpdateStatusModel,
+};
+use std::collections::BTreeMap;
+
+/// Build one leaf automation node with empty metadata and no children.
+pub(super) fn simple_node(
+    id: impl Into<String>,
+    role: AutomationRole,
+    label: Option<String>,
+    rect: Rect,
+    value: Option<String>,
+    enabled: bool,
+    selected: bool,
+    available_actions: Vec<String>,
+) -> AutomationNodeSnapshot {
+    AutomationNodeSnapshot {
+        id: node_id(id),
+        role,
+        label,
+        bounds: bounds(rect),
+        value,
+        enabled,
+        selected,
+        available_actions,
+        metadata: BTreeMap::new(),
+        children: Vec::new(),
+    }
+}
+
+/// Build one stable automation node id.
+pub(super) fn node_id(id: impl Into<String>) -> AutomationNodeId {
+    AutomationNodeId::new(id)
+}
+
+/// Convert one UI rectangle into deterministic automation bounds.
+pub(super) fn bounds(rect: Rect) -> AutomationBounds {
+    AutomationBounds {
+        x: quantize(rect.min.x),
+        y: quantize(rect.min.y),
+        width: quantize(rect.width()),
+        height: quantize(rect.height()),
+    }
+}
+
+fn quantize(value: f32) -> f32 {
+    (value * 1000.0).round() / 1000.0
+}
+
+/// Build metadata while omitting empty values.
+pub(super) fn metadata(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+    entries
+        .iter()
+        .filter(|(_, value)| !value.is_empty())
+        .map(|(key, value)| (String::from(*key), String::from(*value)))
+        .collect()
+}
+
+/// Return a stable textual boolean for semantic metadata.
+pub(super) fn bool_text(value: bool) -> &'static str {
+    if value { "true" } else { "false" }
+}
+
+/// Return a stable update-status label for semantic metadata.
+pub(super) fn update_status_text(status: UpdateStatusModel) -> &'static str {
+    match status {
+        UpdateStatusModel::Idle => "idle",
+        UpdateStatusModel::Checking => "checking",
+        UpdateStatusModel::Available => "available",
+        UpdateStatusModel::Error => "error",
+    }
+}
+
+/// Return a stable selection range string in microseconds.
+pub(super) fn selection_micros_text(range: NormalizedRangeModel) -> String {
+    format!("{}-{}", range.start_micros, range.end_micros)
+}
+
+/// Convert a UI label into a stable automation slug.
+pub(super) fn slug(label: &str) -> String {
+    label
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// Convert one concrete action into its stable automation action id.
+pub(super) fn action_slug(action: &UiAction) -> String {
+    match action {
+        UiAction::SelectColumn { .. } => "select_column",
+        UiAction::MoveColumn { .. } => "move_column",
+        UiAction::ToggleTransport => "toggle_transport",
+        UiAction::PlayFromStart => "play_from_start",
+        UiAction::PlayFromCurrentPlayhead => "play_from_current_playhead",
+        UiAction::HandleEscape => "handle_escape",
+        UiAction::FocusBrowserPanel => "focus_browser_panel",
+        UiAction::FocusSourcesPanel => "focus_sources_panel",
+        UiAction::FocusWaveformPanel => "focus_waveform_panel",
+        UiAction::FocusLoadedSampleInBrowser => "focus_loaded_sample_in_browser",
+        UiAction::FocusBrowserSearch => "focus_browser_search",
+        UiAction::BlurBrowserSearch => "blur_browser_search",
+        UiAction::OpenAddSourceDialog => "open_add_source_dialog",
+        UiAction::OpenOptionsMenu => "open_options_menu",
+        UiAction::CloseOptionsPanel => "close_options_panel",
+        UiAction::PickTrashFolder => "pick_trash_folder",
+        UiAction::OpenTrashFolder => "open_trash_folder",
+        UiAction::FocusFolderSearch => "focus_folder_search",
+        UiAction::SetFolderSearch { .. } => "set_folder_search",
+        UiAction::SelectSourceRow { .. } => "select_source_row",
+        UiAction::ReloadSourceRow { .. } => "reload_source_row",
+        UiAction::HardSyncSourceRow { .. } => "hard_sync_source_row",
+        UiAction::OpenSourceFolderRow { .. } => "open_source_folder_row",
+        UiAction::RemoveSourceRow { .. } => "remove_source_row",
+        UiAction::RemoveDeadLinksForSourceRow { .. } => "remove_dead_links_for_source_row",
+        UiAction::FocusFolderRow { .. } => "focus_folder_row",
+        UiAction::MoveFolderFocus { .. } => "move_folder_focus",
+        UiAction::StartNewFolder => "start_new_folder",
+        UiAction::StartNewFolderAtRoot => "start_new_folder_at_root",
+        UiAction::StartFolderRename => "start_folder_rename",
+        UiAction::DeleteFocusedFolder => "delete_focused_folder",
+        UiAction::ClearFolderDeleteRecoveryLog => "clear_folder_delete_recovery_log",
+        UiAction::MoveBrowserFocus { .. } => "move_browser_focus",
+        UiAction::SetBrowserViewStart { .. } => "set_browser_view_start",
+        UiAction::FocusBrowserRow { .. } => "focus_browser_row",
+        UiAction::CommitFocusedBrowserRow => "commit_focused_browser_row",
+        UiAction::SaveWaveformSelectionToBrowser => "save_waveform_selection_to_browser",
+        UiAction::ToggleBrowserRowSelection { .. } => "toggle_browser_row_selection",
+        UiAction::ExtendBrowserSelectionToRow { .. } => "extend_browser_selection_to_row",
+        UiAction::AddRangeBrowserSelection { .. } => "add_range_browser_selection",
+        UiAction::ExtendBrowserSelectionFromFocus { .. } => "extend_browser_selection_from_focus",
+        UiAction::AddRangeBrowserSelectionFromFocus { .. } => {
+            "add_range_browser_selection_from_focus"
+        }
+        UiAction::ToggleFocusedBrowserRowSelection => "toggle_focused_browser_row_selection",
+        UiAction::SelectAllBrowserRows => "select_all_browser_rows",
+        UiAction::SetBrowserSearch { .. } => "set_browser_search",
+        UiAction::ToggleBrowserRatingFilter { .. } => "toggle_browser_rating_filter",
+        UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",
+        UiAction::SetBrowserTab { .. } => "set_browser_tab",
+        UiAction::FocusMapSample { .. } => "focus_map_sample",
+        UiAction::SetPromptInput { .. } => "set_prompt_input",
+        UiAction::StartBrowserRename => "start_browser_rename",
+        UiAction::ConfirmBrowserRename => "confirm_browser_rename",
+        UiAction::CancelBrowserRename => "cancel_browser_rename",
+        UiAction::TagBrowserSelection { .. } => "tag_browser_selection",
+        UiAction::DeleteBrowserSelection => "delete_browser_selection",
+        UiAction::NormalizeFocusedBrowserSample => "normalize_focused_browser_sample",
+        UiAction::NormalizeWaveformSelectionOrSample => "normalize_waveform_selection_or_sample",
+        UiAction::CropWaveformSelection => "crop_waveform_selection",
+        UiAction::CropWaveformSelectionToNewSample => "crop_waveform_selection_to_new_sample",
+        UiAction::TrimWaveformSelection => "trim_waveform_selection",
+        UiAction::ConfirmPrompt => "confirm_prompt",
+        UiAction::CancelPrompt => "cancel_prompt",
+        UiAction::CancelProgress => "cancel_progress",
+        UiAction::SetInputMonitoringEnabled { .. } => "set_input_monitoring_enabled",
+        UiAction::SetAdvanceAfterRatingEnabled { .. } => "set_advance_after_rating_enabled",
+        UiAction::SetDestructiveYoloMode { .. } => "set_destructive_yolo_mode",
+        UiAction::SetInvertWaveformScroll { .. } => "set_invert_waveform_scroll",
+        UiAction::ToggleLoopPlayback => "toggle_loop_playback",
+        UiAction::SetWaveformChannelView { .. } => "set_waveform_channel_view",
+        UiAction::SetNormalizedAuditionEnabled { .. } => "set_normalized_audition_enabled",
+        UiAction::SetBpmSnapEnabled { .. } => "set_bpm_snap_enabled",
+        UiAction::AdjustWaveformBpm { .. } => "adjust_waveform_bpm",
+        UiAction::SetWaveformBpmValue { .. } => "set_waveform_bpm_value",
+        UiAction::SetTransientSnapEnabled { .. } => "set_transient_snap_enabled",
+        UiAction::SetTransientMarkersEnabled { .. } => "set_transient_markers_enabled",
+        UiAction::SetSliceModeEnabled { .. } => "set_slice_mode_enabled",
+        UiAction::SetVolume { .. } => "set_volume",
+        UiAction::CommitVolumeSetting => "commit_volume_setting",
+        UiAction::SeekWaveform { .. } => "seek_waveform",
+        UiAction::SetWaveformCursor { .. } => "set_waveform_cursor",
+        UiAction::SetWaveformSelectionRange { .. } => "set_waveform_selection_range",
+        UiAction::SetWaveformSelectionRangeSmartScale { .. } => {
+            "set_waveform_selection_range_smart_scale"
+        }
+        UiAction::SetWaveformEditSelectionRange { .. } => "set_waveform_edit_selection_range",
+        UiAction::SetWaveformEditFadeInEnd { .. } => "set_waveform_edit_fade_in_end",
+        UiAction::SetWaveformEditFadeInMuteStart { .. } => "set_waveform_edit_fade_in_mute_start",
+        UiAction::SetWaveformEditFadeInCurve { .. } => "set_waveform_edit_fade_in_curve",
+        UiAction::SetWaveformEditFadeOutStart { .. } => "set_waveform_edit_fade_out_start",
+        UiAction::SetWaveformEditFadeOutMuteEnd { .. } => "set_waveform_edit_fade_out_mute_end",
+        UiAction::SetWaveformEditFadeOutCurve { .. } => "set_waveform_edit_fade_out_curve",
+        UiAction::FinishWaveformEditFadeDrag => "finish_waveform_edit_fade_drag",
+        UiAction::StartWaveformSelectionDrag { .. } => "start_waveform_selection_drag",
+        UiAction::UpdateWaveformSelectionDrag { .. } => "update_waveform_selection_drag",
+        UiAction::FinishWaveformSelectionDrag => "finish_waveform_selection_drag",
+        UiAction::FinishWaveformSelectionSmartScaleDrag => {
+            "finish_waveform_selection_smart_scale_drag"
+        }
+        UiAction::BeginWaveformSelectionShift { .. } => "begin_waveform_selection_shift",
+        UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
+        UiAction::ClearWaveformSelection => "clear_waveform_selection",
+        UiAction::ClearWaveformEditSelection => "clear_waveform_edit_selection",
+        UiAction::ClearWaveformSelections => "clear_waveform_selections",
+        UiAction::SetWaveformViewCenter { .. } => "set_waveform_view_center",
+        UiAction::ZoomWaveform { .. } => "zoom_waveform",
+        UiAction::ZoomWaveformToSelection => "zoom_waveform_to_selection",
+        UiAction::ZoomWaveformFull => "zoom_waveform_full",
+        UiAction::Undo => "undo",
+        UiAction::Redo => "redo",
+        UiAction::CheckForUpdates => "check_for_updates",
+        UiAction::OpenUpdateLink => "open_update_link",
+        UiAction::InstallUpdate => "install_update",
+        UiAction::DismissUpdate => "dismiss_update",
+    }
+    .to_string()
+}
+
+/// Return a square rectangle centered on the supplied point.
+pub(super) fn circle_rect(center: Point, diameter: f32) -> Rect {
+    let radius = diameter * 0.5;
+    Rect::from_min_max(
+        Point::new(center.x - radius, center.y - radius),
+        Point::new(center.x + radius, center.y + radius),
+    )
+}

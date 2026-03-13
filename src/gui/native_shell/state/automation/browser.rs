@@ -1,0 +1,234 @@
+//! Browser-panel automation snapshot builders.
+
+use super::helpers::{
+    action_slug, bool_text, bounds, circle_rect, metadata, node_id, simple_node, slug,
+};
+use super::*;
+use crate::app::AutomationRole;
+
+/// Build semantic automation for the browser panel and its active content.
+pub(super) fn build_browser_automation(
+    shell: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> AutomationNodeSnapshot {
+    let toolbar = browser_toolbar_layout(layout, style);
+    let buttons = browser_action_buttons(layout, style, model, &toolbar);
+    let tabs = compute_browser_tabs_rects(layout.browser_tabs, style.sizing);
+    let mut children = vec![
+        simple_node(
+            "browser.tab.samples",
+            AutomationRole::Tab,
+            Some(model.browser_chrome.samples_tab_label.clone()),
+            tabs.samples,
+            None,
+            true,
+            !model.map.active,
+            vec![String::from("set_browser_tab")],
+        ),
+        simple_node(
+            "browser.tab.map",
+            AutomationRole::Tab,
+            Some(model.browser_chrome.map_tab_label.clone()),
+            tabs.map,
+            None,
+            true,
+            model.map.active,
+            vec![String::from("set_browser_tab")],
+        ),
+    ];
+    if toolbar.search_field.width() > 1.0 {
+        children.push(simple_node(
+            "browser.search_field",
+            AutomationRole::SearchField,
+            Some(String::from("Browser search")),
+            toolbar.search_field,
+            Some(model.browser.search_query.clone()),
+            true,
+            false,
+            vec![
+                String::from("focus_browser_search"),
+                String::from("set_browser_search"),
+            ],
+        ));
+    }
+    for (index, chip) in toolbar.rating_filter_chips.iter().copied().enumerate() {
+        if chip.width() <= 1.0 {
+            continue;
+        }
+        let level = super::super::BROWSER_RATING_FILTER_LEVELS[index];
+        children.push(simple_node(
+            format!("browser.rating_filter.{level}"),
+            AutomationRole::Button,
+            Some(format!("Rating filter {level}")),
+            chip,
+            None,
+            true,
+            model.browser.active_rating_filters[index],
+            vec![String::from("toggle_browser_rating_filter")],
+        ));
+    }
+    for button in buttons {
+        children.push(simple_node(
+            format!("browser.action.{}", slug(button.label)),
+            AutomationRole::Button,
+            Some(String::from(button.label)),
+            button.rect,
+            None,
+            button.enabled,
+            button.active,
+            vec![action_slug(&button.action)],
+        ));
+    }
+    if model.map.active {
+        children.push(map_canvas_automation(layout, model, style));
+    } else {
+        children.push(build_browser_table_automation(shell, layout, model, style));
+    }
+    AutomationNodeSnapshot {
+        id: node_id("browser.panel"),
+        role: AutomationRole::Panel,
+        label: Some(String::from("Browser panel")),
+        bounds: bounds(layout.browser_panel),
+        value: Some(model.browser_chrome.item_count_label.clone()),
+        enabled: true,
+        selected: matches!(
+            model.focus_context,
+            crate::app::FocusContextModel::SampleBrowser
+        ),
+        available_actions: vec![String::from("focus_browser_panel")],
+        metadata: metadata(&[
+            (
+                "active_tab",
+                model.browser.active_tab_label.as_deref().unwrap_or(""),
+            ),
+            ("search_query", model.browser.search_query.as_str()),
+            (
+                "focused_sample_label",
+                model.browser.focused_sample_label.as_deref().unwrap_or(""),
+            ),
+            (
+                "selected_visible_row",
+                &model
+                    .browser
+                    .selected_visible_row
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            ),
+            (
+                "random_navigation_enabled",
+                if model.browser_actions.random_navigation_enabled {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+        ]),
+        children,
+    }
+}
+
+fn build_browser_table_automation(
+    shell: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> AutomationNodeSnapshot {
+    let rows = shell.cached_browser_rows(layout, style, model).to_vec();
+    let first_visible_row = rows
+        .first()
+        .map(|row| row.visible_row.to_string())
+        .unwrap_or_default();
+    let last_visible_row = rows
+        .last()
+        .map(|row| row.visible_row.to_string())
+        .unwrap_or_default();
+    let rendered_row_count = rows.len().to_string();
+    let mut table_node = simple_node(
+        "browser.table",
+        AutomationRole::Table,
+        Some(String::from("Browser rows")),
+        layout.browser_rows,
+        Some(model.browser_chrome.item_count_label.clone()),
+        true,
+        matches!(
+            model.focus_context,
+            crate::app::FocusContextModel::SampleBrowser
+        ),
+        vec![String::from("focus_browser_panel")],
+    );
+    table_node.metadata = metadata(&[
+        ("first_visible_row", &first_visible_row),
+        ("last_visible_row", &last_visible_row),
+        ("rendered_row_count", &rendered_row_count),
+    ]);
+    table_node.children = rows
+        .into_iter()
+        .map(|row| AutomationNodeSnapshot {
+            id: node_id(format!("browser.row.{}", row.visible_row)),
+            role: AutomationRole::Row,
+            label: Some(row.label.clone()),
+            bounds: bounds(row.rect),
+            value: (!row.bucket_label.is_empty()).then_some(row.bucket_label.clone()),
+            enabled: true,
+            selected: row.selected || row.focused,
+            available_actions: vec![
+                String::from("focus_browser_row"),
+                String::from("toggle_browser_row_selection"),
+                String::from("commit_focused_browser_row"),
+            ],
+            metadata: metadata(&[
+                ("column", &row.column.to_string()),
+                ("rating_level", &row.rating_level.to_string()),
+                ("focused", bool_text(row.focused)),
+                ("missing", bool_text(row.missing)),
+                ("locked", bool_text(row.locked)),
+            ]),
+            children: Vec::new(),
+        })
+        .collect();
+    table_node
+}
+
+fn map_canvas_automation(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> AutomationNodeSnapshot {
+    let canvas = compute_browser_map_canvas_rect(layout.browser_rows, style.sizing);
+    let mut map_node = simple_node(
+        "browser.map_canvas",
+        AutomationRole::MapCanvas,
+        Some(String::from("Similarity map")),
+        canvas,
+        Some(model.map.summary.clone()),
+        true,
+        true,
+        vec![String::from("focus_map_sample")],
+    );
+    map_node.children = model
+        .map
+        .points
+        .iter()
+        .map(|point| AutomationNodeSnapshot {
+            id: node_id(format!("browser.map.point.{}", point.sample_id)),
+            role: AutomationRole::MapPoint,
+            label: Some(String::from(point.sample_id.as_ref())),
+            bounds: bounds(circle_rect(
+                compute_browser_map_point_center(canvas, point.x_milli, point.y_milli),
+                10.0,
+            )),
+            value: None,
+            enabled: true,
+            selected: model.map.selected_sample_id.as_deref() == Some(point.sample_id.as_ref()),
+            available_actions: vec![String::from("focus_map_sample")],
+            metadata: metadata(&[
+                ("x_milli", &point.x_milli.to_string()),
+                ("y_milli", &point.y_milli.to_string()),
+            ]),
+            children: Vec::new(),
+        })
+        .collect();
+    map_node
+}

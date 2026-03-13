@@ -76,6 +76,15 @@ pub(super) fn waveform_action_from_pointer(
         && !alt
         && !shift
         && layout.waveform_plot.contains(point)
+        && model.waveform.edit_selection_milli.is_some()
+        && !waveform_edit_selection_contains_point(layout, model, point)
+    {
+        return UiAction::ClearWaveformEditSelection;
+    }
+    if !command
+        && !alt
+        && !shift
+        && layout.waveform_plot.contains(point)
         && model.waveform.selection_milli.is_some()
         && !waveform_selection_contains_point(layout, model, point)
     {

@@ -21,12 +21,12 @@ pub(crate) struct WaveformScrollbarLayout {
 /// Emit the horizontal waveform scrollbar that mirrors current viewport bounds.
 pub(super) fn emit_waveform_scrollbar(
     primitives: &mut impl PrimitiveSink,
-    waveform_plot: Rect,
+    waveform_scrollbar_lane: Rect,
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
     let Some(scrollbar) = waveform_scrollbar_layout(
-        waveform_plot,
+        waveform_scrollbar_lane,
         model.waveform_view_start_micros,
         model.waveform_view_end_micros,
     ) else {
@@ -50,18 +50,18 @@ pub(super) fn emit_waveform_scrollbar(
 
 /// Compute visual scrollbar geometry for the waveform viewport.
 pub(crate) fn waveform_scrollbar_layout(
-    waveform_plot: Rect,
+    waveform_scrollbar_lane: Rect,
     view_start_micros: u32,
     view_end_micros: u32,
 ) -> Option<WaveformScrollbarLayout> {
-    if waveform_plot.width() <= 1.0 || waveform_plot.height() <= 1.0 {
+    if waveform_scrollbar_lane.width() <= 1.0 || waveform_scrollbar_lane.height() <= 1.0 {
         return None;
     }
-    let track_min_x = waveform_plot.min.x + WAVEFORM_SCROLLBAR_INSET_X;
-    let track_max_x = waveform_plot.max.x - WAVEFORM_SCROLLBAR_INSET_X;
-    let track_max_y = waveform_plot.max.y - WAVEFORM_SCROLLBAR_INSET_BOTTOM;
+    let track_min_x = waveform_scrollbar_lane.min.x + WAVEFORM_SCROLLBAR_INSET_X;
+    let track_max_x = waveform_scrollbar_lane.max.x - WAVEFORM_SCROLLBAR_INSET_X;
+    let track_max_y = waveform_scrollbar_lane.max.y - WAVEFORM_SCROLLBAR_INSET_BOTTOM;
     let track_min_y = (track_max_y - WAVEFORM_SCROLLBAR_TRACK_HEIGHT)
-        .max(waveform_plot.min.y)
+        .max(waveform_scrollbar_lane.min.y)
         .round();
     let track = Rect::from_min_max(
         Point::new(track_min_x.round(), track_min_y),

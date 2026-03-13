@@ -64,6 +64,7 @@ pub(crate) struct ShellLayout {
     pub waveform_card: Rect,
     pub waveform_header: Rect,
     pub waveform_plot: Rect,
+    pub waveform_scrollbar_lane: Rect,
     pub browser_panel: Rect,
     pub browser_tabs: Rect,
     pub browser_toolbar: Rect,
@@ -239,9 +240,22 @@ impl ShellLayout {
             .max
             .y
             .clamp(waveform_card.min.y, waveform_card.max.y);
-        let waveform_plot = Rect::from_min_max(
+        let waveform_body = Rect::from_min_max(
             Point::new(waveform_card.min.x, waveform_body_top),
             waveform_card.max,
+        );
+        let waveform_scrollbar_lane_height =
+            waveform_scrollbar_lane_height(waveform_body, sizing.waveform_header_block_height);
+        let waveform_scrollbar_lane = Rect::from_min_max(
+            Point::new(
+                waveform_body.min.x,
+                waveform_body.max.y - waveform_scrollbar_lane_height,
+            ),
+            waveform_body.max,
+        );
+        let waveform_plot = Rect::from_min_max(
+            waveform_body.min,
+            Point::new(waveform_body.max.x, waveform_scrollbar_lane.min.y),
         );
 
         let mut column_headers = [Rect::default(), Rect::default(), Rect::default()];
@@ -336,6 +350,7 @@ impl ShellLayout {
             waveform_card,
             waveform_header,
             waveform_plot,
+            waveform_scrollbar_lane,
             browser_panel,
             browser_tabs,
             browser_toolbar,
@@ -398,4 +413,12 @@ fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
         Point::new(rect.min.x + inset, rect.min.y),
         Point::new(rect.max.x - inset, rect.max.y),
     )
+}
+
+fn waveform_scrollbar_lane_height(waveform_body: Rect, header_height: f32) -> f32 {
+    if waveform_body.height() <= 1.0 {
+        return 0.0;
+    }
+    let desired = (header_height * 0.5).round().clamp(12.0, 18.0);
+    desired.min((waveform_body.height() - 1.0).max(0.0))
 }

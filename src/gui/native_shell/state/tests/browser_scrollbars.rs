@@ -277,10 +277,12 @@ fn prewindowed_browser_scrollbar_uses_manual_view_start_at_bottom() {
 #[test]
 fn waveform_scrollbar_thumb_tracks_view_position() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let scrollbar = waveform_scrollbar_layout(layout.waveform_plot, 250_000, 500_000)
+    let scrollbar = waveform_scrollbar_layout(layout.waveform_scrollbar_lane, 250_000, 500_000)
         .expect("waveform scrollbar should render for valid plot geometry");
 
-    assert!(scrollbar.track.max.y <= layout.waveform_plot.max.y);
+    assert!(scrollbar.track.min.y >= layout.waveform_scrollbar_lane.min.y);
+    assert!(scrollbar.track.max.y <= layout.waveform_scrollbar_lane.max.y);
+    assert!(scrollbar.track.min.y >= layout.waveform_plot.max.y);
     assert!(scrollbar.thumb.min.x > scrollbar.track.min.x);
     assert!(scrollbar.thumb.max.x < scrollbar.track.max.x);
 }
@@ -292,7 +294,7 @@ fn waveform_scrollbar_thumb_hit_test_returns_drag_offset() {
     model.waveform.view_start_micros = 250_000;
     model.waveform.view_end_micros = 500_000;
     let scrollbar = waveform_scrollbar_layout(
-        layout.waveform_plot,
+        layout.waveform_scrollbar_lane,
         model.waveform.view_start_micros,
         model.waveform.view_end_micros,
     )
@@ -316,7 +318,7 @@ fn waveform_scrollbar_track_click_maps_to_centered_view() {
     model.waveform.view_start_micros = 250_000;
     model.waveform.view_end_micros = 500_000;
     let scrollbar = waveform_scrollbar_layout(
-        layout.waveform_plot,
+        layout.waveform_scrollbar_lane,
         model.waveform.view_start_micros,
         model.waveform.view_end_micros,
     )

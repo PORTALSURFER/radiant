@@ -31,7 +31,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<f32> {
         let scrollbar = waveform_scrollbar_layout(
-            layout.waveform_plot,
+            layout.waveform_scrollbar_lane,
             model.waveform.view_start_micros,
             model.waveform.view_end_micros,
         )?;
@@ -50,7 +50,7 @@ impl NativeShellState {
         thumb_pointer_offset_x: f32,
     ) -> Option<u32> {
         let scrollbar = waveform_scrollbar_layout(
-            layout.waveform_plot,
+            layout.waveform_scrollbar_lane,
             model.waveform.view_start_micros,
             model.waveform.view_end_micros,
         )?;
@@ -71,7 +71,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<u32> {
         let scrollbar = waveform_scrollbar_layout(
-            layout.waveform_plot,
+            layout.waveform_scrollbar_lane,
             model.waveform.view_start_micros,
             model.waveform.view_end_micros,
         )?;

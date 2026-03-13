@@ -260,6 +260,14 @@ mod tests {
         assert!(layout.sidebar_header.max.y <= layout.sidebar_rows.min.y);
         assert!(layout.sidebar_rows.max.y <= layout.sidebar_footer.min.y);
         assert_eq!(layout.waveform_header.max.y, layout.waveform_plot.min.y);
+        assert_eq!(
+            layout.waveform_plot.max.y,
+            layout.waveform_scrollbar_lane.min.y
+        );
+        assert_eq!(
+            layout.waveform_scrollbar_lane.max.y,
+            layout.waveform_card.max.y
+        );
         assert!(layout.browser_tabs.max.y <= layout.browser_toolbar.min.y);
         assert!(layout.browser_toolbar.max.y <= layout.browser_table_header.min.y);
         assert!(layout.browser_table_header.max.y <= layout.browser_rows.min.y);

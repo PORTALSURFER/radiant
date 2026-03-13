@@ -234,7 +234,7 @@ pub(super) fn push_waveform_playhead_overlay(
             }),
         );
     }
-    emit_waveform_scrollbar(primitives, layout.waveform_plot, style, model);
+    emit_waveform_scrollbar(primitives, layout.waveform_scrollbar_lane, style, model);
 }
 
 fn emit_waveform_loading_placeholder(

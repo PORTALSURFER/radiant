@@ -31,9 +31,7 @@ fn immediate_volume_emit_updates_action_queue_without_pending_buffer() {
 fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
-    runner
-        .shell_state
-        .set_browser_row_hover_for_tests(Some(12));
+    runner.shell_state.set_browser_row_hover_for_tests(Some(12));
     assert!(runner.process_wheel_rows_immediately(3));
 
     assert_eq!(
@@ -41,7 +39,10 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
         vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
     );
     assert_eq!(
-        runner.shell_state.state_overlay_fingerprint().hovered_browser_visible_row,
+        runner
+            .shell_state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
         None
     );
 }
@@ -193,21 +194,21 @@ fn browser_scrollbar_track_click_emit_updates_action_queue() {
 fn browser_row_pointer_action_clears_row_hover_before_emitting() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
-    runner
-        .shell_state
-        .set_browser_row_hover_for_tests(Some(18));
+    runner.shell_state.set_browser_row_hover_for_tests(Some(18));
 
-    assert!(runner.handle_pointer_press_action(
-        UiAction::FocusBrowserRow { visible_row: 12 },
-        false
-    ));
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 12 }, false)
+    );
 
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::FocusBrowserRow { visible_row: 12 }]
     );
     assert_eq!(
-        runner.shell_state.state_overlay_fingerprint().hovered_browser_visible_row,
+        runner
+            .shell_state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
         None
     );
 }
@@ -220,10 +221,9 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     runner.model = Arc::new(browser_model_with_rows(40, 0));
     runner.shell_layout = Some(Arc::new(layout));
 
-    assert!(runner.handle_pointer_press_action(
-        UiAction::FocusBrowserRow { visible_row: 18 },
-        false
-    ));
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 18 }, false)
+    );
 
     assert_eq!(
         runner.bridge.actions,
@@ -250,10 +250,9 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     runner.shell_layout = Some(Arc::new(layout));
     runner.bridge.actions.clear();
 
-    assert!(runner.handle_pointer_press_action(
-        UiAction::FocusBrowserRow { visible_row: 15 },
-        false
-    ));
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 15 }, false)
+    );
 
     assert_eq!(
         runner.bridge.actions,
@@ -297,9 +296,11 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
     model.waveform.view_start_micros = 250_000;
     model.waveform.view_end_micros = 500_000;
     let shell_state = NativeShellState::new();
-    let thumb_point = (layout.waveform_plot.min.x as i32..=layout.waveform_plot.max.x as i32)
+    let thumb_point = (layout.waveform_scrollbar_lane.min.x as i32
+        ..=layout.waveform_scrollbar_lane.max.x as i32)
         .find_map(|x| {
-            (layout.waveform_plot.min.y as i32..=layout.waveform_plot.max.y as i32)
+            (layout.waveform_scrollbar_lane.min.y as i32
+                ..=layout.waveform_scrollbar_lane.max.y as i32)
                 .rev()
                 .find_map(|y| {
                     let point = Point::new(x as f32, y as f32);
@@ -316,7 +317,7 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
         .waveform_scrollbar_view_center_for_drag(
             &layout,
             &model,
-            layout.waveform_plot.max.x,
+            layout.waveform_scrollbar_lane.max.x,
             thumb_pointer_offset_x,
         )
         .expect("dragging the waveform thumb should resolve a center");
@@ -329,7 +330,13 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
     });
 
     let drag_point = Point::new(
-        runner.shell_layout.as_ref().unwrap().waveform_plot.max.x,
+        runner
+            .shell_layout
+            .as_ref()
+            .unwrap()
+            .waveform_scrollbar_lane
+            .max
+            .x,
         thumb_point.y,
     );
     assert!(runner.process_waveform_scrollbar_drag_immediately(drag_point));

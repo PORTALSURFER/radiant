@@ -13,82 +13,14 @@ pub(super) fn waveform_action_from_pointer(
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) =
-            waveform_edit_selection_shift_action_from_pointer(layout, model, point)
+    if let Some(action) =
+        waveform_primary_press_action_from_pointer(layout, model, point, command, alt, shift)
     {
         return action;
     }
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) = waveform_selection_drag_action_from_pointer(layout, model, point)
+    if let Some(action) = waveform_clear_action_from_pointer(layout, model, point, command, alt, shift)
     {
         return action;
-    }
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) = waveform_selection_shift_action_from_pointer(layout, model, point)
-    {
-        return action;
-    }
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point)
-    {
-        return action;
-    }
-    if !command
-        && alt
-        && !shift
-        && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
-    {
-        return action;
-    }
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
-    {
-        return action;
-    }
-    if !command
-        && alt
-        && !shift
-        && let Some(action) =
-            waveform_selection_resize_action_from_pointer(layout, model, point, true)
-    {
-        return action;
-    }
-    if !command
-        && !alt
-        && !shift
-        && let Some(action) =
-            waveform_selection_resize_action_from_pointer(layout, model, point, false)
-    {
-        return action;
-    }
-    if !command
-        && !alt
-        && !shift
-        && layout.waveform_plot.contains(point)
-        && model.waveform.edit_selection_milli.is_some()
-        && !waveform_edit_selection_contains_point(layout, model, point)
-    {
-        return UiAction::ClearWaveformEditSelection;
-    }
-    if !command
-        && !alt
-        && !shift
-        && layout.waveform_plot.contains(point)
-        && model.waveform.selection_milli.is_some()
-        && !waveform_selection_contains_point(layout, model, point)
-    {
-        return UiAction::ClearWaveformSelection;
     }
     if command {
         UiAction::SetWaveformCursor { position_milli }
@@ -106,6 +38,101 @@ pub(super) fn waveform_action_from_pointer(
             end_micros: micros_from_milli(position_milli),
             preserve_view_edge: false,
         }
+    }
+}
+
+/// Resolve the highest-priority waveform press gesture for the current modifiers.
+fn waveform_primary_press_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    command: bool,
+    alt: bool,
+    shift: bool,
+) -> Option<UiAction> {
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) =
+            waveform_edit_selection_shift_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_drag_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_selection_shift_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_edit_resize_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_edit_fade_handle_action_from_pointer(layout, model, point)
+    {
+        return Some(action);
+    }
+    if !command
+        && alt
+        && !shift
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, true)
+    {
+        return Some(action);
+    }
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) =
+            waveform_selection_resize_action_from_pointer(layout, model, point, false)
+    {
+        return Some(action);
+    }
+    None
+}
+
+/// Resolve outside-click deselection for one plain left-click in the waveform plot.
+fn waveform_clear_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    command: bool,
+    alt: bool,
+    shift: bool,
+) -> Option<UiAction> {
+    if command || alt || shift || !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let clear_edit = model.waveform.edit_selection_milli.is_some()
+        && !waveform_edit_selection_contains_point(layout, model, point);
+    let clear_playback = model.waveform.selection_milli.is_some()
+        && !waveform_selection_contains_point(layout, model, point);
+    match (clear_edit, clear_playback) {
+        (true, true) => Some(UiAction::ClearWaveformSelections),
+        (true, false) => Some(UiAction::ClearWaveformEditSelection),
+        (false, true) => Some(UiAction::ClearWaveformSelection),
+        (false, false) => None,
     }
 }
 

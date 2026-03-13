@@ -296,6 +296,14 @@ impl NativeShellState {
                         .unwrap_or_default(),
                 ),
                 (
+                    "edit_selection_micros",
+                    &model
+                        .waveform
+                        .edit_selection_milli
+                        .map(selection_micros_text)
+                        .unwrap_or_default(),
+                ),
+                (
                     "view_micros",
                     &format!(
                         "{}-{}",
@@ -305,6 +313,26 @@ impl NativeShellState {
             ]),
             children: Vec::new(),
         });
+        if let Some(selection) = model.waveform.selection_milli {
+            children.push(waveform_selection_node(
+                "waveform.selection",
+                "Playback selection",
+                layout.waveform_plot,
+                model,
+                selection,
+                "clear_waveform_selection",
+            ));
+        }
+        if let Some(selection) = model.waveform.edit_selection_milli {
+            children.push(waveform_selection_node(
+                "waveform.edit_selection",
+                "Edit selection",
+                layout.waveform_plot,
+                model,
+                selection,
+                "clear_waveform_edit_selection",
+            ));
+        }
         AutomationNodeSnapshot {
             id: node_id("waveform.panel"),
             role: AutomationRole::Panel,
@@ -852,6 +880,51 @@ fn selection_micros_text(range: NormalizedRangeModel) -> String {
     format!("{}-{}", range.start_micros, range.end_micros)
 }
 
+fn waveform_selection_node(
+    id: &'static str,
+    label: &'static str,
+    plot: Rect,
+    model: &AppModel,
+    range: NormalizedRangeModel,
+    clear_action: &'static str,
+) -> AutomationNodeSnapshot {
+    let selection_value = selection_micros_text(range);
+    AutomationNodeSnapshot {
+        id: node_id(id),
+        role: AutomationRole::Group,
+        label: Some(String::from(label)),
+        bounds: bounds(waveform_selection_bounds(plot, model, range)),
+        value: Some(selection_value.clone()),
+        enabled: true,
+        selected: true,
+        available_actions: vec![String::from(clear_action)],
+        metadata: metadata(&[("selection_micros", selection_value.as_str())]),
+        children: Vec::new(),
+    }
+}
+
+fn waveform_selection_bounds(plot: Rect, model: &AppModel, range: NormalizedRangeModel) -> Rect {
+    let start_x = waveform_selection_x_for_micros(plot, model, range.start_micros);
+    let end_x = waveform_selection_x_for_micros(plot, model, range.end_micros);
+    let min_x = start_x.min(end_x);
+    let max_x = end_x.max(min_x + 1.0);
+    Rect::from_min_max(Point::new(min_x, plot.min.y), Point::new(max_x, plot.max.y))
+}
+
+fn waveform_selection_x_for_micros(plot: Rect, model: &AppModel, micros: u32) -> f32 {
+    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
+    let view_end = model
+        .waveform
+        .view_end_micros
+        .min(1_000_000)
+        .max(model.waveform.view_start_micros.min(1_000_000)) as f32
+        / 1_000_000.0;
+    let view_width = (view_end - view_start).max(f32::EPSILON);
+    let position = micros.min(1_000_000) as f32 / 1_000_000.0;
+    let ratio_in_view = ((position - view_start) / view_width).clamp(0.0, 1.0);
+    plot.min.x + (plot.width() * ratio_in_view)
+}
+
 struct UpdateButtonSpec<'a> {
     label: &'a str,
     node_slug: &'a str,
@@ -1020,6 +1093,7 @@ fn action_slug(action: &UiAction) -> String {
         UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
         UiAction::ClearWaveformSelection => "clear_waveform_selection",
         UiAction::ClearWaveformEditSelection => "clear_waveform_edit_selection",
+        UiAction::ClearWaveformSelections => "clear_waveform_selections",
         UiAction::SetWaveformViewCenter { .. } => "set_waveform_view_center",
         UiAction::ZoomWaveform { .. } => "zoom_waveform",
         UiAction::ZoomWaveformToSelection => "zoom_waveform_to_selection",

@@ -440,7 +440,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FinishWaveformSelectionDrag
             | UiAction::FinishWaveformSelectionSmartScaleDrag
             | UiAction::ClearWaveformSelection
-            | UiAction::ClearWaveformEditSelection => RuntimeInvalidationScope::ModelAndOverlays,
+            | UiAction::ClearWaveformEditSelection
+            | UiAction::ClearWaveformSelections => RuntimeInvalidationScope::ModelAndOverlays,
             // Browser focus/selection can move the visible viewport through the
             // guard-band autoscroll rules, so the retained row strip must be
             // rebuilt instead of only updating the overlays.
@@ -495,6 +496,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FinishWaveformSelectionSmartScaleDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
+            | UiAction::ClearWaveformSelections
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),

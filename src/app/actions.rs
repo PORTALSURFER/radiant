@@ -406,6 +406,8 @@ pub enum UiAction {
     ClearWaveformSelection,
     /// Clear active waveform edit selection.
     ClearWaveformEditSelection,
+    /// Clear both active waveform selection types from one pointer gesture.
+    ClearWaveformSelections,
     /// Scroll the waveform viewport to a normalized center position in micros.
     SetWaveformViewCenter {
         /// Target center point within the full waveform (`0..=1_000_000`).

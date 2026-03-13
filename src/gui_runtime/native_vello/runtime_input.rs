@@ -466,6 +466,8 @@ where
         } else {
             false
         };
+        let clear_playback_selection_on_click_release =
+            seek_on_waveform_click_release && self.clear_playback_selection_on_click_release;
         let _ = self.flush_pending_volume_action();
         if self.volume_drag_active {
             self.emit_model_action(UiAction::CommitVolumeSetting);
@@ -490,6 +492,9 @@ where
             && let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor)
         {
             let position_milli = waveform_position_milli_from_point(layout, &self.model, point);
+            if clear_playback_selection_on_click_release {
+                self.emit_model_action(UiAction::ClearWaveformSelection);
+            }
             self.emit_model_action_with_profile(
                 UiAction::SeekWaveform { position_milli },
                 Some(InteractionProfileKind::Waveform),

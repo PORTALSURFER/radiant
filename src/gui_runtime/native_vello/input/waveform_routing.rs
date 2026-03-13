@@ -18,6 +18,11 @@ pub(super) fn waveform_action_from_pointer(
     {
         return action;
     }
+    if let Some(action) =
+        waveform_new_selection_action_from_pointer(layout, model, point, command, alt, shift)
+    {
+        return action;
+    }
     if let Some(action) = waveform_clear_action_from_pointer(layout, model, point, command, alt, shift)
     {
         return action;
@@ -39,6 +44,38 @@ pub(super) fn waveform_action_from_pointer(
             preserve_view_edge: false,
         }
     }
+}
+
+/// Arm a fresh playback-selection drag when plain left press starts outside the
+/// current playback selection body.
+///
+/// Release-without-drag is handled later by the runtime, which clears the old
+/// playback selection and seeks from the click point. Dragging past click slop
+/// converts the interaction into a normal new selection drag.
+fn waveform_new_selection_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    command: bool,
+    alt: bool,
+    shift: bool,
+) -> Option<UiAction> {
+    if command || alt || shift || !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    if model.waveform.selection_milli.is_none()
+        || model.waveform.edit_selection_milli.is_some()
+        || waveform_selection_contains_point(layout, model, point)
+        || waveform_edit_selection_contains_point(layout, model, point)
+    {
+        return None;
+    }
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    Some(UiAction::SetWaveformSelectionRange {
+        start_micros: position_micros,
+        end_micros: position_micros,
+        preserve_view_edge: false,
+    })
 }
 
 /// Resolve the highest-priority waveform press gesture for the current modifiers.

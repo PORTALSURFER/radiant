@@ -99,6 +99,78 @@ fn finish_volume_drag_emits_finish_selection_smart_scale_drag_for_alt_resize() {
 }
 
 #[test]
+fn outside_selection_click_release_clears_playback_selection_then_seeks() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let action = UiAction::SetWaveformSelectionRange {
+        start_micros: milli(100),
+        end_micros: milli(100),
+        preserve_view_edge: false,
+    };
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+    Arc::make_mut(&mut runner.model).waveform.selection_milli =
+        Some(crate::app::NormalizedRangeModel::new(200, 800));
+
+    let emitted = runner.handle_pointer_press_action(action, false);
+    assert!(!emitted);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ClearWaveformSelection,
+            UiAction::SeekWaveform {
+                position_milli: waveform_position_milli_from_point(&layout, &runner.model, point),
+            },
+        ]
+    );
+}
+
+#[test]
+fn outside_selection_drag_creates_new_selection_without_clearing_first() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let drag = Point::new(anchor.x + 24.0, anchor.y);
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(anchor);
+    Arc::make_mut(&mut runner.model).waveform.selection_milli =
+        Some(crate::app::NormalizedRangeModel::new(200, 800));
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::SetWaveformSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: anchor_micros,
+            preserve_view_edge: false,
+        },
+        false,
+    );
+    assert!(!emitted);
+
+    assert!(runner.process_waveform_drag_immediately(drag));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetWaveformSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+            preserve_view_edge: false,
+        }]
+    );
+}
+
+#[test]
 /// Drag waveform actions should clamp pointer positions and preserve anchors or widths.
 fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));

@@ -211,6 +211,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     pending_volume_milli: Option<u16>,
     /// Active waveform drag mode while primary pointer is held on waveform.
     waveform_drag_mode: Option<WaveformPointerDragMode>,
+    /// Whether a no-drag waveform release should clear the old playback selection first.
+    clear_playback_selection_on_click_release: bool,
     /// Whether a waveform-selection export drag is currently active.
     selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.

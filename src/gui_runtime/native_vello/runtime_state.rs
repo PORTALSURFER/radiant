@@ -167,6 +167,7 @@ where
 
     pub(super) fn clear_pointer_drag_session(&mut self) {
         self.waveform_drag_mode = None;
+        self.clear_playback_selection_on_click_release = false;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
@@ -208,6 +209,8 @@ where
 
     pub(super) fn begin_waveform_pointer_interaction(&mut self, action: &crate::app::UiAction) {
         self.waveform_drag_mode = super::input::waveform_drag_mode_for_action(action);
+        self.clear_playback_selection_on_click_release =
+            self.should_clear_playback_selection_on_click_release(action);
         if self.waveform_drag_mode.is_some() {
             self.shell_state.clear_waveform_hover_feedback();
         }
@@ -215,5 +218,27 @@ where
             action,
             crate::app::UiAction::StartWaveformSelectionDrag { .. }
         );
+    }
+
+    fn should_clear_playback_selection_on_click_release(
+        &self,
+        action: &crate::app::UiAction,
+    ) -> bool {
+        let crate::app::UiAction::SetWaveformSelectionRange {
+            start_micros,
+            end_micros,
+            ..
+        } = action
+        else {
+            return false;
+        };
+        if start_micros != end_micros || self.model.waveform.selection_milli.is_none() {
+            return false;
+        }
+        let (Some(layout), Some(point)) = (self.shell_layout.as_ref(), self.last_cursor) else {
+            return false;
+        };
+        !super::input::waveform_selection_contains_point(layout, &self.model, point)
+            && !super::input::waveform_edit_selection_contains_point(layout, &self.model, point)
     }
 }

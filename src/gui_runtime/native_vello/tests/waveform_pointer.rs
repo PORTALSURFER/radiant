@@ -33,7 +33,11 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ClearWaveformSelection)
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: milli(500),
+            end_micros: milli(500),
+            preserve_view_edge: false,
+        })
     );
 
     assert_eq!(
@@ -222,7 +226,11 @@ fn waveform_left_click_outside_selection_clears_it() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ClearWaveformSelection)
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: milli(100),
+            end_micros: milli(100),
+            preserve_view_edge: false,
+        })
     );
 }
 

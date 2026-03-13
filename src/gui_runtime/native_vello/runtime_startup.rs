@@ -104,6 +104,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             pending_cursor: None,
             pending_volume_milli: None,
             waveform_drag_mode: None,
+            clear_playback_selection_on_click_release: false,
             selection_drag_active: false,
             last_emitted_waveform_drag_action: None,
             map_focus_drag_active: false,

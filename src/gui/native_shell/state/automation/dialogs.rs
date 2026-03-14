@@ -215,22 +215,20 @@ pub(super) fn progress_automation(
             ("completed", &model.progress_overlay.completed.to_string()),
             ("total", &model.progress_overlay.total.to_string()),
         ]),
-        children: model
-            .progress_overlay
-            .cancelable
-            .then(|| {
-                vec![simple_node(
-                    "overlay.progress.cancel",
-                    AutomationRole::Button,
-                    Some(String::from("Cancel")),
-                    progress_cancel_button(layout, style, true),
-                    None,
-                    !model.progress_overlay.cancel_requested,
-                    false,
-                    vec![String::from("cancel_progress")],
-                )]
-            })
-            .unwrap_or_default(),
+        children: if model.progress_overlay.cancelable {
+            vec![simple_node(
+                "overlay.progress.cancel",
+                AutomationRole::Button,
+                Some(String::from("Cancel")),
+                progress_cancel_button(layout, style, true),
+                None,
+                !model.progress_overlay.cancel_requested,
+                false,
+                vec![String::from("cancel_progress")],
+            )]
+        } else {
+            Vec::new()
+        },
     })
 }
 

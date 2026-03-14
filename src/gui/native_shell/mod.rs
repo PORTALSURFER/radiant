@@ -440,10 +440,14 @@ mod tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let mut state = NativeShellState::new();
         let model = crate::app::AppModel::default();
+        let search_field = state
+            .browser_search_field_rect(&layout, &model)
+            .expect("browser search field should be present");
         let point = Point::new(
-            layout.browser_toolbar.max.x - 12.0,
+            (search_field.max.x + layout.browser_toolbar.max.x) * 0.5,
             (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
         );
+        assert!(point.x > search_field.max.x);
         assert_eq!(
             state.browser_action_at_point(&layout, &model, point, false),
             None

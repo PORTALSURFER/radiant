@@ -230,7 +230,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     );
     BrowserToolbarSections {
         rating_filter_chips,
-        action_slot: clamp_rect_to_bounds(action_slot, host),
+        action_slot: center_square_rect(clamp_rect_to_bounds(action_slot, host), action_side),
         search_field,
         activity_chip: empty,
         sort_chip: empty,

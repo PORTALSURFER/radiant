@@ -199,3 +199,27 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
     assert_eq!(runner.waveform_drag_mode, None);
     assert_eq!(runner.last_emitted_waveform_drag_action, None);
 }
+
+#[test]
+fn flush_pending_input_drains_volume_and_cursor_updates() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.4),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.queue_volume_milli(777);
+    runner.queue_cursor(point);
+
+    assert!(runner.flush_pending_input());
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetVolume { value_milli: 777 }]
+    );
+    assert_eq!(runner.pending_volume_milli, None);
+    assert_eq!(runner.pending_cursor, None);
+    assert!(runner.frame_state.take_motion_overlay());
+}

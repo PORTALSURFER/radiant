@@ -107,6 +107,7 @@ impl NativeShellState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::BrowserRowModel;
     use crate::gui::types::Vector2;
 
     fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
@@ -174,6 +175,45 @@ mod tests {
         assert_eq!(node.id.0, "browser.panel");
         let table = child(&node, "browser.table");
         assert_eq!(table.role, AutomationRole::Table);
+    }
+
+    #[test]
+    fn browser_surface_includes_scrollbar_nodes_when_rows_overflow() {
+        let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        for visible_row in 0..96 {
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:03}"),
+                1,
+                false,
+                visible_row == 12,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(12);
+        let mut state = NativeShellState::new();
+        let node = browser::build_browser_automation(&mut state, &layout, &model, &style);
+        let table = child(&node, "browser.table");
+        let track = child(table, "browser.scrollbar.track");
+        let thumb = child(table, "browser.scrollbar.thumb");
+
+        assert_eq!(
+            table.metadata.get("scrollbar_visible").map(String::as_str),
+            Some("true")
+        );
+        assert_eq!(track.role, AutomationRole::Slider);
+        assert_eq!(thumb.role, AutomationRole::Slider);
+        assert_eq!(
+            track.metadata.get("part").map(String::as_str),
+            Some("track")
+        );
+        assert_eq!(
+            thumb.metadata.get("part").map(String::as_str),
+            Some("thumb")
+        );
+        assert!(track.bounds.height > thumb.bounds.height);
     }
 
     #[test]

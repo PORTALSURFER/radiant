@@ -312,6 +312,100 @@ fn non_modal_progress_does_not_expose_cancel_hit_target() {
 }
 
 #[test]
+fn modal_progress_overlay_renders_cancelling_state() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        progress_overlay: crate::app::ProgressOverlayModel {
+            visible: true,
+            modal: true,
+            title: String::from("Normalizing"),
+            detail: Some(String::from("kick.wav")),
+            completed: 1,
+            total: 4,
+            cancelable: true,
+            cancel_requested: true,
+        },
+        ..AppModel::default()
+    };
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    assert!(overlay.text_runs.iter().any(|run| run.text == "Cancelling"));
+    assert!(overlay.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect)
+            if rect.rect == progress_cancel_button(&layout, &style, true)
+                && rect.color == style.grid_soft
+    )));
+}
+
+#[test]
+fn confirm_prompt_validation_error_renders_disabled_confirm_button_and_error_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        confirm_prompt: crate::app::ConfirmPromptModel {
+            visible: true,
+            title: String::from("Rename"),
+            message: String::from("Choose a new name"),
+            confirm_label: String::from("Apply"),
+            cancel_label: String::from("Dismiss"),
+            input_value: Some(String::from("bad/name")),
+            input_error: Some(String::from("Slash not allowed")),
+            ..crate::app::ConfirmPromptModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Slash not allowed" && run.color == style.accent_warning)
+    );
+    assert!(overlay.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect) if rect.color == style.control_disabled_fill
+    )));
+}
+
+#[test]
+fn drag_overlay_renders_target_arrow_and_warning_text_for_invalid_drop() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        drag_overlay: crate::app::DragOverlayModel {
+            active: true,
+            label: String::from("kick.wav"),
+            target_label: String::from("Trash"),
+            valid_target: false,
+        },
+        ..AppModel::default()
+    };
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    assert!(overlay.text_runs.iter().any(|run| {
+        run.text == "kick.wav -> Trash" && run.color == style.accent_warning
+    }));
+    assert!(overlay.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect)
+            if rect.rect == drag_overlay_rect(&layout, &style)
+                && rect.color == style.surface_overlay
+    )));
+}
+
+#[test]
 fn state_overlay_renders_options_panel_when_visible() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

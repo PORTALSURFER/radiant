@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::RefCell;
 
 /// Static-scene segments used for retained incremental scene composition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -156,10 +157,17 @@ impl PrimitiveSink for SegmentedPrimitiveSink<'_, '_> {
     fn push_primitive(&mut self, primitive: Primitive) {
         let mut context = self.context.borrow_mut();
         let segment = static_segment_for_primitive(context.layout, context.model, &primitive);
-        if context.target_segment.is_some_and(|target| target != segment) {
+        if context
+            .target_segment
+            .is_some_and(|target| target != segment)
+        {
             return;
         }
-        context.segments.frame_mut(segment).primitives.push(primitive);
+        context
+            .segments
+            .frame_mut(segment)
+            .primitives
+            .push(primitive);
     }
 }
 
@@ -172,7 +180,10 @@ impl TextRunSink for SegmentedTextRunSink<'_, '_> {
     fn push_text_run(&mut self, text_run: TextRun) {
         let mut context = self.context.borrow_mut();
         let segment = static_segment_for_text(context.layout, context.model, &text_run);
-        if context.target_segment.is_some_and(|target| target != segment) {
+        if context
+            .target_segment
+            .is_some_and(|target| target != segment)
+        {
             return;
         }
         context.segments.frame_mut(segment).text_runs.push(text_run);

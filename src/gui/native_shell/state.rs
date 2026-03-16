@@ -1,4 +1,10 @@
 //! Mutable interaction state and paint generation for the native shell.
+//!
+//! This root module is intentionally a façade over focused shell-state helpers.
+//! It owns the shared [`NativeShellState`] data model and the top-level entry
+//! points that other native-shell code reaches for first, while behavior-heavy
+//! rendering, hit-testing, cache, and overlay logic lives in sibling
+//! submodules.
 
 use super::{
     layout::{ShellLayout, ShellNodeKind},
@@ -30,7 +36,6 @@ use crate::gui::{
     types::{ImageRgba, Point, Rect, Rgba8},
 };
 use std::{
-    cell::RefCell,
     collections::HashMap,
     hash::{Hash, Hasher},
 };
@@ -40,6 +45,7 @@ mod browser_rows;
 mod cache;
 mod cache_types;
 mod frame_build;
+mod frame_entrypoints;
 mod hit_testing;
 mod model_sync;
 mod motion_overlay;
@@ -101,7 +107,12 @@ const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Additional hit slop for the narrow browser scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 
-/// Mutable interaction + animation state for the native shell.
+/// Mutable interaction + animation state for the native shell façade.
+///
+/// The struct intentionally owns only the persisted shell interaction/cache
+/// state. Rendering, hit testing, text-field behavior, toolbar helpers, and
+/// overlay composition live in sibling modules and extend this type through
+/// additional `impl` blocks.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct NativeShellState {
     selected_column: usize,
@@ -287,130 +298,6 @@ impl NativeShellState {
             return true;
         }
         false
-    }
-
-    /// Build a native frame from state + layout + style tokens.
-    #[cfg(test)]
-    pub(crate) fn build_frame_with_style(
-        &mut self,
-        layout: &ShellLayout,
-        style: &StyleTokens,
-        model: &AppModel,
-    ) -> NativeViewFrame {
-        let mut frame = NativeViewFrame {
-            clear_color: style.clear_color,
-            primitives: Vec::new(),
-            text_runs: Vec::new(),
-        };
-        self.build_frame_with_style_into(layout, style, model, &mut frame);
-        frame
-    }
-
-    /// Build a native frame from state + layout + style tokens into reusable buffers.
-    #[cfg(test)]
-    pub(crate) fn build_frame_with_style_into(
-        &mut self,
-        layout: &ShellLayout,
-        style: &StyleTokens,
-        model: &AppModel,
-        frame: &mut NativeViewFrame,
-    ) {
-        self.build_frame_with_style_into_with_motion(
-            layout,
-            style,
-            model,
-            frame,
-            self.pulse_phase,
-            true,
-        );
-    }
-
-    /// Build a frame without animated values into reusable buffers.
-    pub(crate) fn build_frame_with_style_into_static(
-        &mut self,
-        layout: &ShellLayout,
-        style: &StyleTokens,
-        model: &AppModel,
-        frame: &mut NativeViewFrame,
-    ) {
-        self.build_frame_with_style_into_with_motion(layout, style, model, frame, 0.0, false);
-    }
-
-    /// Build one static segment bucket into reusable buffers.
-    pub(crate) fn build_static_segment_with_style_into(
-        &mut self,
-        layout: &ShellLayout,
-        style: &StyleTokens,
-        model: &AppModel,
-        motion_model: Option<&NativeMotionModel>,
-        segment: StaticFrameSegment,
-        segments: &mut StaticFrameSegments,
-    ) {
-        {
-            let frame = segments.frame_mut(segment);
-            frame.clear_color = style.clear_color;
-            frame.primitives.clear();
-            frame.text_runs.clear();
-        }
-        let emit_context = RefCell::new(SegmentedStaticEmitContext {
-            layout,
-            model,
-            segments,
-            target_segment: Some(segment),
-        });
-        let mut primitives = SegmentedPrimitiveSink {
-            context: &emit_context,
-        };
-        let mut text_runs = SegmentedTextRunSink {
-            context: &emit_context,
-        };
-        self.build_frame_with_style_into_with_motion_sinks(
-            layout,
-            style,
-            model,
-            &mut primitives,
-            &mut text_runs,
-            0.0,
-            false,
-            motion_model,
-            Some(segment),
-        );
-    }
-
-    /// Build a frame with a caller-supplied motion phase.
-    fn build_frame_with_style_into_with_motion(
-        &mut self,
-        layout: &ShellLayout,
-        style: &StyleTokens,
-        model: &AppModel,
-        frame: &mut NativeViewFrame,
-        pulse_phase: f32,
-        include_overlays: bool,
-    ) {
-        frame.clear_color = style.clear_color;
-        frame.primitives.clear();
-        frame.text_runs.clear();
-        self.build_frame_with_style_into_with_motion_sinks(
-            layout,
-            style,
-            model,
-            &mut frame.primitives,
-            &mut frame.text_runs,
-            pulse_phase,
-            include_overlays,
-            None,
-            None,
-        );
-    }
-
-    /// Build a native frame using default style tokens.
-    #[cfg(test)]
-    pub(crate) fn build_frame(
-        &mut self,
-        layout: &ShellLayout,
-        model: &AppModel,
-    ) -> NativeViewFrame {
-        self.build_frame_with_style(layout, &style_for_layout(layout), model)
     }
 }
 

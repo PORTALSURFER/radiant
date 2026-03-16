@@ -8,26 +8,27 @@ mod segmented;
 mod truncation;
 
 pub(in crate::gui::native_shell::state) use interaction::*;
+#[cfg(test)]
+pub(in crate::gui::native_shell::state) use overlay_fingerprints::MotionOverlayFingerprint;
 pub(crate) use overlay_fingerprints::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, StateOverlayFingerprint,
     WaveformMotionOverlayFingerprint,
 };
-#[cfg(test)]
-pub(in crate::gui::native_shell::state) use overlay_fingerprints::MotionOverlayFingerprint;
 pub(in crate::gui::native_shell::state) use overlay_fingerprints::{
     WaveformResizeHoverEdge, WaveformToolbarHoverHint,
 };
-pub(crate) use segmented::{StaticFrameSegment, StaticFrameSegments};
 pub(in crate::gui::native_shell::state) use segmented::{
     PrimitiveSink, SegmentedPrimitiveSink, SegmentedStaticEmitContext, SegmentedTextRunSink,
     TextRunSink, emit_primitive, emit_text,
 };
+pub(crate) use segmented::{StaticFrameSegment, StaticFrameSegments};
 pub(in crate::gui::native_shell::state) use truncation::*;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::gui::types::Vector2;
+    use std::cell::RefCell;
 
     #[test]
     fn truncation_cache_evicts_oldest_entry_after_capacity() {

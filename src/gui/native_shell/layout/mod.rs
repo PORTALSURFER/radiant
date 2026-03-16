@@ -7,6 +7,18 @@ use super::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
+mod contracts;
+mod geometry;
+mod tree;
+
+#[cfg(test)]
+pub(crate) use contracts::LayoutContractSnapshot;
+use geometry::{
+    band_header, build_browser_compat_columns, build_column_sections,
+    waveform_scrollbar_lane_height,
+};
+use tree::build_shell_root;
+
 /// Stable identifier for nodes in the retained shell tree.
 pub(crate) type ViewNodeId = u64;
 
@@ -80,26 +92,6 @@ pub(crate) struct ShellLayout {
     pub status_right_segment: Rect,
     /// UI scale factor used to derive the layout’s active token set.
     pub ui_scale: f32,
-}
-
-/// Derived metrics used to validate layout parity contracts.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg(test)]
-pub(crate) struct LayoutContractSnapshot {
-    /// Effective viewport width after layout clamping.
-    pub viewport_width: f32,
-    /// Effective viewport height after layout clamping.
-    pub viewport_height: f32,
-    /// Sidebar width in logical pixels.
-    pub sidebar_width: f32,
-    /// Waveform card height in logical pixels.
-    pub waveform_height: f32,
-    /// Browser table row capacity using active row-height tokens.
-    pub browser_row_capacity: usize,
-    /// Top-bar height in logical pixels.
-    pub top_bar_height: f32,
-    /// Status-bar height in logical pixels.
-    pub status_bar_height: f32,
 }
 
 impl ShellLayout {
@@ -219,21 +211,7 @@ impl ShellLayout {
 
         // Keep legacy triage partitions as invisible compatibility geometry for
         // routing actions that still speak in triage-column terms.
-        let base_column_width =
-            ((browser_rows.width() - (sizing.column_gap * 2.0)) / 3.0).max(sizing.column_min_width);
-        let mut columns = [Rect::default(), Rect::default(), Rect::default()];
-        for (index, column) in columns.iter_mut().enumerate() {
-            let x0 = browser_rows.min.x + (base_column_width + sizing.column_gap) * index as f32;
-            let x1 = if index == 2 {
-                browser_rows.max.x
-            } else {
-                x0 + base_column_width
-            };
-            *column = Rect::from_min_max(
-                Point::new(x0, browser_rows.min.y),
-                Point::new(x1, browser_rows.max.y),
-            );
-        }
+        let columns = build_browser_compat_columns(browser_rows, sizing);
 
         let waveform_header = band_header(waveform_card, sizing.waveform_header_block_height);
         let waveform_body_top = waveform_header
@@ -258,82 +236,18 @@ impl ShellLayout {
             Point::new(waveform_body.max.x, waveform_scrollbar_lane.min.y),
         );
 
-        let mut column_headers = [Rect::default(), Rect::default(), Rect::default()];
-        let mut column_rows = [Rect::default(), Rect::default(), Rect::default()];
-        for (index, column) in columns.iter().copied().enumerate() {
-            let header = band_header(column, sizing.column_header_block_height);
-            let rows_top = (header.max.y + sizing.header_to_rows_gap).min(column.max.y);
-            let rows_bottom = (column.max.y - sizing.column_bottom_padding).max(header.max.y);
-            column_headers[index] = header;
-            column_rows[index] = inset_horizontal(
-                Rect::from_min_max(
-                    Point::new(column.min.x, rows_top),
-                    Point::new(column.max.x, rows_bottom),
-                ),
-                sizing.panel_inset,
-            );
-        }
-
-        let root = ShellNode {
-            id: 1,
-            kind: ShellNodeKind::Root,
-            rect: root_rect,
-            children: vec![
-                ShellNode {
-                    id: 2,
-                    kind: ShellNodeKind::TopBar,
-                    rect: top_bar,
-                    children: Vec::new(),
-                },
-                ShellNode {
-                    id: 3,
-                    kind: ShellNodeKind::Sidebar,
-                    rect: sidebar,
-                    children: Vec::new(),
-                },
-                ShellNode {
-                    id: 4,
-                    kind: ShellNodeKind::Content,
-                    rect: content,
-                    children: {
-                        let children = vec![
-                            ShellNode {
-                                id: 5,
-                                kind: ShellNodeKind::WaveformCard,
-                                rect: waveform_card,
-                                children: Vec::new(),
-                            },
-                            ShellNode {
-                                id: 100,
-                                kind: ShellNodeKind::BrowserPanel,
-                                rect: browser_panel,
-                                children: vec![
-                                    ShellNode {
-                                        id: 101,
-                                        kind: ShellNodeKind::BrowserTabs,
-                                        rect: browser_tabs,
-                                        children: Vec::new(),
-                                    },
-                                    ShellNode {
-                                        id: 102,
-                                        kind: ShellNodeKind::BrowserTable,
-                                        rect: browser_rows,
-                                        children: Vec::new(),
-                                    },
-                                ],
-                            },
-                        ];
-                        children
-                    },
-                },
-                ShellNode {
-                    id: 6,
-                    kind: ShellNodeKind::StatusBar,
-                    rect: status_bar,
-                    children: Vec::new(),
-                },
-            ],
-        };
+        let (column_headers, column_rows) = build_column_sections(columns, sizing);
+        let root = build_shell_root(
+            root_rect,
+            top_bar,
+            sidebar,
+            content,
+            waveform_card,
+            browser_panel,
+            browser_tabs,
+            browser_rows,
+            status_bar,
+        );
 
         Self {
             root,
@@ -386,39 +300,6 @@ impl ShellLayout {
     /// Build a compact metric snapshot used by parity/layout contract tests.
     #[cfg(test)]
     pub(crate) fn contract_snapshot(&self, style: &StyleTokens) -> LayoutContractSnapshot {
-        let row_stride = (style.sizing.browser_row_height + style.sizing.browser_row_gap).max(1.0);
-        LayoutContractSnapshot {
-            viewport_width: self.root.rect.width(),
-            viewport_height: self.root.rect.height(),
-            sidebar_width: self.sidebar.width(),
-            waveform_height: self.waveform_card.height(),
-            browser_row_capacity: (self.browser_rows.height() / row_stride).floor() as usize,
-            top_bar_height: self.top_bar.height(),
-            status_bar_height: self.status_bar.height(),
-        }
+        contracts::snapshot(self, style)
     }
-}
-
-fn band_header(panel: Rect, header_height: f32) -> Rect {
-    Rect::from_min_max(
-        panel.min,
-        Point::new(panel.max.x, (panel.min.y + header_height).min(panel.max.y)),
-    )
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let max_inset = (rect.width() * 0.5).max(0.0);
-    let inset = inset.min(max_inset);
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
-}
-
-fn waveform_scrollbar_lane_height(waveform_body: Rect, header_height: f32) -> f32 {
-    if waveform_body.height() <= 1.0 {
-        return 0.0;
-    }
-    let desired = (header_height * 0.5).round().clamp(12.0, 18.0);
-    desired.min((waveform_body.height() - 1.0).max(0.0))
 }

@@ -1,0 +1,46 @@
+use super::*;
+
+/// Ephemeral sidebar source-menu state tracked by the runtime.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui::native_shell::state) struct SourceContextMenuState {
+    /// Source row index the menu actions target.
+    pub row_index: usize,
+    /// Pointer anchor used to place the floating menu panel.
+    pub anchor: Point,
+}
+
+/// One retained playhead x-position sample used to build ghost-line trails.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui::native_shell::state) struct PlayheadTrailSample {
+    /// Normalized x-position in `0.0..=1.0`.
+    pub ratio: f32,
+    /// Monotonic animation clock value when this sample was captured.
+    pub captured_at_seconds: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::gui::native_shell::state) struct NativeAnimationReasons {
+    pub transport_running: bool,
+    pub startup_frame_tick: bool,
+    pub playhead_trail_active: bool,
+    pub waveform_toolbar_flash_active: bool,
+    pub source_add_button_flash_active: bool,
+    pub status_options_button_flash_active: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::gui::native_shell::state) struct WaveformToolbarFlash {
+    pub hint: WaveformToolbarHoverHint,
+    pub ticks_remaining: u8,
+}
+
+impl NativeAnimationReasons {
+    pub(in crate::gui::native_shell::state) fn needs_animation(self) -> bool {
+        self.transport_running
+            || self.startup_frame_tick
+            || self.playhead_trail_active
+            || self.waveform_toolbar_flash_active
+            || self.source_add_button_flash_active
+            || self.status_options_button_flash_active
+    }
+}

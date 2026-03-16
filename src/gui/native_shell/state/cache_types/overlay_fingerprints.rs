@@ -1,0 +1,133 @@
+use super::*;
+
+/// Cursor-move effect classification used by runtime overlay invalidation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CursorMoveEffect {
+    /// Pointer movement did not change observable hover state.
+    None,
+    /// Only waveform hover-cursor position changed.
+    WaveformHoverOnly,
+    /// Hovered node and/or hovered row changed.
+    GeneralOverlay,
+}
+
+/// Stable hover-target identifier for waveform-toolbar tooltip hints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformToolbarHoverHint {
+    /// Channel-view toggle that swaps between mono and split stereo.
+    ChannelView,
+    /// Normalized audition toggle.
+    NormalizedAudition,
+    /// Current playback BPM value display.
+    BpmValue,
+    /// BPM snap toggle.
+    BpmSnap,
+    /// Transient snap toggle.
+    TransientSnap,
+    /// Transient marker visibility toggle.
+    ShowTransients,
+    /// Slice-mode toggle.
+    SliceMode,
+    /// Loop playback toggle.
+    Loop,
+    /// Stop transport action.
+    Stop,
+    /// Transport toggle action.
+    Play,
+    /// Record action (currently disabled).
+    Record,
+}
+
+/// Stable hover target for waveform selection/edit resize edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformResizeHoverEdge {
+    /// Start edge of the playback selection.
+    SelectionStart,
+    /// End edge of the playback selection.
+    SelectionEnd,
+    /// Start edge of the edit selection.
+    EditSelectionStart,
+    /// End edge of the edit selection.
+    EditSelectionEnd,
+}
+
+/// Compact state-overlay fingerprint for change detection in runtime caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StateOverlayFingerprint {
+    /// Selected browser column index.
+    pub selected_column: usize,
+    /// Current hovered shell node kind.
+    pub hovered: Option<ShellNodeKind>,
+    /// Hovered browser row in visible-row space.
+    pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered folder row by rendered sidebar row index.
+    pub hovered_folder_row_index: Option<usize>,
+    /// Hovered waveform-toolbar hint target.
+    pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Active browser-search editor visual signature.
+    pub browser_search_editor_signature: u64,
+    /// Whether focused selection emphasis is active.
+    pub has_focus_emphasis: bool,
+}
+
+/// Compact motion-overlay fingerprint for runtime overlay skip checks.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MotionOverlayFingerprint {
+    /// Whether transport-running animation is active.
+    pub transport_running: bool,
+    /// Remaining startup animation ticks.
+    pub startup_frame_ticks: u8,
+    /// Quantized pulse animation phase.
+    pub pulse_phase_bits: u32,
+    /// Hovered waveform marker x-position bits in shell-space coordinates.
+    pub waveform_hover_x_bits: Option<u32>,
+    /// Hovered waveform resize-edge target for highlight overlays.
+    pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
+}
+
+/// Compact waveform-motion fingerprint for cursor/playhead overlay caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct WaveformMotionOverlayFingerprint {
+    /// Hovered waveform marker x-position bits in shell-space coordinates.
+    pub waveform_hover_x_bits: Option<u32>,
+    /// Hovered waveform resize-edge target for highlight overlays.
+    pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
+    /// Quantized motion phase to force repaint while dynamic trails fade.
+    pub pulse_phase_bits: u32,
+}
+
+/// Compact chrome-motion fingerprint for toolbar/tabs/status overlay caches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ChromeMotionOverlayFingerprint {
+    /// Whether transport-running animation is active.
+    pub transport_running: bool,
+    /// Remaining startup animation ticks.
+    pub startup_frame_ticks: u8,
+    /// Hovered browser rating-filter chip level, if any.
+    pub hovered_browser_rating_filter_level: Option<i8>,
+    /// Whether the browser search field is hovered.
+    pub hovered_browser_search_field: bool,
+    /// Whether the source-add button is hovered.
+    pub hovered_source_add_button: bool,
+    /// Whether the status-bar options button is hovered.
+    pub hovered_status_options_button: bool,
+    /// Hovered waveform-toolbar icon/button target.
+    pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Whether the source-add button is currently click-flashed.
+    pub flashed_source_add_button: bool,
+    /// Remaining flash ticks for source-add-button click feedback.
+    pub source_add_button_flash_ticks: u8,
+    /// Whether the status-bar options button is currently click-flashed.
+    pub flashed_status_options_button: bool,
+    /// Remaining flash ticks for status options button click feedback.
+    pub status_options_button_flash_ticks: u8,
+    /// Click-flashed waveform-toolbar icon/button target.
+    pub flashed_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Remaining flash ticks for waveform-toolbar click feedback.
+    pub waveform_toolbar_flash_ticks: u8,
+    /// Active waveform-BPM editor visual signature.
+    pub waveform_bpm_editor_signature: u64,
+    /// Quantized pulse animation phase.
+    pub pulse_phase_bits: u32,
+}

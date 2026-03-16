@@ -1,5 +1,16 @@
+//! Shared single-line text-entry helpers for browser search and waveform BPM.
+//!
+//! This module intentionally keeps the common pointer/editing flow together so
+//! browser search and waveform BPM editing continue to share one cursor,
+//! selection, drag, and text-buffer contract. The targets differ, but the
+//! underlying editor lifecycle is the same, so the preferred maintenance
+//! approach is to keep the shared flow centralized until those behaviors truly
+//! diverge.
+
 use super::*;
 
+/// Sanitize inserted BPM text so the field only accepts digits and one decimal
+/// separator while preserving the existing decimal point outside the selection.
 pub(super) fn sanitize_waveform_bpm_insert(
     current: &str,
     selection_range: (usize, usize),
@@ -20,6 +31,7 @@ pub(super) fn sanitize_waveform_bpm_insert(
     sanitized
 }
 
+/// Parse a positive finite BPM value from one text field string.
 pub(super) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -32,6 +44,7 @@ pub(super) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
     Some(parsed)
 }
 
+/// Convert one BPM value into the tenths-based runtime action representation.
 pub(super) fn bpm_tenths_from_value(value: f32) -> u16 {
     let scaled = (value * 10.0).round();
     if !scaled.is_finite() {
@@ -41,6 +54,8 @@ pub(super) fn bpm_tenths_from_value(value: f32) -> u16 {
 }
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    // Shared text-target accessors.
+
     fn text_value_for_input_target(&self, target: TextInputTarget) -> Option<String> {
         match target {
             TextInputTarget::None => None,
@@ -128,6 +143,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | TextInputTarget::PromptInput => {}
         }
     }
+
+    // Shared pointer-edit lifecycle.
 
     fn handle_text_input_pointer_press(
         &mut self,
@@ -279,6 +296,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
     }
+
+    // Shared buffer mutation helpers.
 
     pub(super) fn current_text_value(&self) -> Option<String> {
         match self.text_input_target {

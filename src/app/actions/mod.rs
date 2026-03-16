@@ -5,6 +5,11 @@
 //! can inspect the full action catalog in one place, while supporting helpers
 //! such as [`UiActionFamily`] keep family-level structure explicit for tests
 //! and future internal routing work.
+//!
+//! This module is intentionally broad rather than split by action family. The
+//! runtime, host bridge, and automation catalog all rely on one inspectable
+//! action surface, so the preferred maintenance approach is to keep the enum
+//! centralized while improving internal organization around it.
 
 use serde::{Deserialize, Serialize};
 

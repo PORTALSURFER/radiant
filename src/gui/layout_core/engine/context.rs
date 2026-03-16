@@ -1,4 +1,10 @@
 //! Shared mutable context for one measure/layout evaluation.
+//!
+//! [`LayoutContext`] intentionally remains one cohesive scratchpad for cache
+//! reuse, diagnostics, virtualization metadata, and debug recording across the
+//! measure/layout/scroll passes. These concerns are tightly coupled during one
+//! engine evaluation, so the preferred maintenance approach is to keep the
+//! scratch state together and only split out clearly pure helpers around it.
 
 use super::{
     CachedVirtualMetrics, DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive,
@@ -11,6 +17,11 @@ use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::{Point, Rect, Vector2};
 use std::collections::{BTreeSet, HashMap};
 
+/// Shared mutable scratch state for one layout-engine evaluation.
+///
+/// This type centralizes the transient caches, diagnostic sinks, and debug
+/// recording needed by the engine's measure and layout passes so those passes
+/// can share one consistent view of normalization and overflow state.
 pub(super) struct LayoutContext<'a> {
     measured: HashMap<MeasureCacheKey, Vector2>,
     measured_by_node: HashMap<NodeId, Vector2>,
@@ -25,6 +36,8 @@ pub(super) struct LayoutContext<'a> {
 }
 
 impl<'a> LayoutContext<'a> {
+    // Cache and virtualization accessors.
+
     pub(super) fn new(
         cache: &'a mut HashMap<MeasureCacheKey, Vector2>,
         virtual_cache: &'a mut HashMap<VirtualizationCacheKey, CachedVirtualMetrics>,
@@ -244,6 +257,8 @@ impl<'a> LayoutContext<'a> {
     pub(super) fn scroll_offset(&self, node_id: NodeId) -> Vector2 {
         self.state.scroll_offset(node_id)
     }
+
+    // Diagnostics and debug output helpers.
 
     pub(super) fn record_overflow(
         &mut self,

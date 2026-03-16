@@ -233,3 +233,53 @@ fn source_action_buttons_stay_inside_sidebar_footer() {
         }
     }
 }
+
+#[test]
+fn selected_source_row_uses_mint_label_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "selected source",
+        String::new(),
+        true,
+        false,
+    ));
+
+    let frame = state.build_frame(&layout, &model);
+    let selected_label = frame
+        .text_runs
+        .iter()
+        .find(|run| run.text == "selected source")
+        .expect("selected source label should render");
+
+    assert_eq!(
+        selected_label.color,
+        StyleTokens::for_viewport_width(1280.0).accent_mint
+    );
+}
+
+#[test]
+fn folder_recovery_badge_renders_idle_count_label() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.folder_recovery.entry_count = 153;
+
+    let frame = state.build_frame(&layout, &model);
+    let badge_label = frame
+        .text_runs
+        .iter()
+        .find(|run| run.text == "153 entries")
+        .expect("idle recovery badge label should render");
+
+    assert_eq!(badge_label.color, style.text_primary);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { color, .. })
+                if *color == style.source_recovery_badge_idle
+        )
+    }));
+}

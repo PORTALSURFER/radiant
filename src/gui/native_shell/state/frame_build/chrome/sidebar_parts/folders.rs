@@ -1,0 +1,240 @@
+use super::*;
+use crate::app::FolderRowModel;
+
+pub(super) fn render_folder_section(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    data: &SidebarFrameData,
+) -> usize {
+    if data.folder_row_rects.is_empty() {
+        return 0;
+    }
+    let sections = sidebar_sections(ctx.layout, ctx.style, ctx.model);
+    render_source_section_divider(ctx, primitives, sections);
+    render_folder_header(ctx, primitives, text_runs, sections.folder_header);
+    render_folder_rows(ctx, primitives, text_runs, data);
+    data.folder_row_rects.len()
+}
+
+fn render_source_section_divider(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    sections: SidebarSections,
+) {
+    let Some(divider_rect) =
+        compute_source_section_divider_rect(sections.source_rows, sections.folder_header, ctx.sizing)
+    else {
+        return;
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: divider_rect,
+            color: ctx.style.source_section_divider,
+        }),
+    );
+}
+
+fn render_folder_header(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    header_rect: Rect,
+) {
+    let header_layout = compute_sidebar_folder_header_layout(
+        header_rect,
+        ctx.sizing,
+        ctx.model.sources.folder_recovery.in_progress,
+        ctx.model.sources.folder_recovery.entry_count,
+    );
+    if let Some(badge) = header_layout.badge.as_ref() {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: badge.rect,
+                color: if badge.active {
+                    ctx.style.source_recovery_badge_active
+                } else {
+                    ctx.style.source_recovery_badge_idle
+                },
+            }),
+        );
+        push_border(
+            primitives,
+            badge.rect,
+            blend_color(
+                ctx.style.border_emphasis,
+                ctx.style.text_primary,
+                ctx.style.state_hover_soft,
+            ),
+            ctx.sizing.border_width,
+        );
+        let badge_text_rect = compute_sidebar_recovery_badge_text_rect(badge.rect, ctx.sizing);
+        emit_text(
+            text_runs,
+            TextRun {
+                text: badge.label.clone(),
+                position: badge_text_rect.min,
+                font_size: ctx.sizing.font_meta,
+                color: ctx.style.text_primary,
+                max_width: Some(badge_text_rect.width().max(18.0)),
+                align: TextAlign::Center,
+            },
+        );
+    }
+    if header_layout.title_row.width() <= 8.0 {
+        return;
+    }
+    emit_text(
+        text_runs,
+        TextRun {
+            text: format!("Folders ({})", ctx.model.sources.folder_rows.len()),
+            position: header_layout.title_row.min,
+            font_size: ctx.sizing.font_header,
+            color: ctx.style.text_primary,
+            max_width: Some(header_layout.title_row.width()),
+            align: TextAlign::Left,
+        },
+    );
+    if let Some(metadata_row) = header_layout.metadata_row {
+        if metadata_row.width() <= 24.0 {
+            return;
+        }
+        emit_text(
+            text_runs,
+            TextRun {
+                text: format!(
+                    "query: {}",
+                    if ctx.model.sources.folder_search_query.is_empty() {
+                        "—"
+                    } else {
+                        ctx.model.sources.folder_search_query.as_str()
+                    }
+                ),
+                position: metadata_row.min,
+                font_size: ctx.sizing.font_meta,
+                color: ctx.style.text_muted,
+                max_width: Some(metadata_row.width()),
+                align: TextAlign::Left,
+            },
+        );
+    }
+}
+
+fn render_folder_rows(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    data: &SidebarFrameData,
+) {
+    let last_row_max_y = data.folder_row_rects.last().map(|rect| rect.max.y);
+    for (row_index, row_rect) in data.folder_row_rects.iter().copied().enumerate() {
+        let row = &ctx.model.sources.folder_rows[row_index];
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: row_rect,
+                color: folder_row_fill(ctx, row),
+            }),
+        );
+        push_browser_row_border(
+            primitives,
+            row_rect,
+            folder_row_border(ctx, row),
+            folder_row_border_width(ctx, row),
+            BorderSides {
+                top: true,
+                bottom: row.focused || Some(row_rect.max.y) == last_row_max_y,
+                left: row.focused,
+                right: row.focused,
+            },
+        );
+        emit_folder_row_label(ctx, text_runs, row_rect, row);
+    }
+}
+
+fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+    if row.focused {
+        translucent_overlay_color(
+            ctx.style.bg_tertiary,
+            ctx.style.grid_strong,
+            (ctx.style.state_hover_soft + (ctx.motion_wave * ctx.style.motion_focus_wave_amp))
+                .clamp(0.0, 1.0),
+        )
+    } else if row.selected {
+        translucent_overlay_color(
+            ctx.style.bg_tertiary,
+            ctx.style.grid_soft,
+            ctx.style.state_selected_blend,
+        )
+    } else {
+        ctx.style.surface_base
+    }
+}
+
+fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+    if row.focused {
+        blend_color(
+            ctx.style.accent_warning,
+            ctx.style.text_primary,
+            ctx.motion_wave * ctx.style.state_focus_pulse_blend,
+        )
+    } else if row.selected {
+        blend_color(
+            ctx.style.accent_mint,
+            ctx.style.text_primary,
+            ctx.motion_wave * ctx.style.state_selected_blend,
+        )
+    } else {
+        ctx.style.border
+    }
+}
+
+fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f32 {
+    if row.focused {
+        ctx.sizing.focus_stroke_width
+    } else {
+        ctx.sizing.border_width
+    }
+}
+
+fn emit_folder_row_label(
+    ctx: &StaticFrameCtx<'_>,
+    text_runs: &mut impl TextRunSink,
+    row_rect: Rect,
+    row: &FolderRowModel,
+) {
+    let glyph = if row.is_root {
+        "•"
+    } else if row.has_children {
+        if row.expanded { "▼" } else { "▶" }
+    } else {
+        "·"
+    };
+    let depth_indent =
+        (row.depth as f32 * ctx.sizing.folder_indent_step).min((row_rect.width() * 0.45).max(0.0));
+    let label_rect = compute_sidebar_folder_row_text_rect(row_rect, ctx.sizing, depth_indent);
+    let label_width = label_rect.width().max(24.0);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: truncate_to_width(
+                &format!("{glyph} {}", row.label),
+                label_width,
+                ctx.sizing.font_body,
+            ),
+            position: label_rect.min,
+            font_size: ctx.sizing.font_body,
+            color: if row.focused {
+                ctx.style.accent_warning
+            } else if row.selected {
+                ctx.style.accent_mint
+            } else {
+                ctx.style.text_primary
+            },
+            max_width: Some(label_width),
+            align: TextAlign::Left,
+        },
+    );
+}

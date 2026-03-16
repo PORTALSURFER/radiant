@@ -1,0 +1,141 @@
+use image::{Rgba, RgbaImage};
+
+use super::snapshot::{ShotColor, ShotPrimitive, ShotSnapshot};
+
+fn blend_pixel(target: &mut Rgba<u8>, source: &ShotColor) {
+    let source_alpha = source.a as f32 / 255.0;
+    if source_alpha <= 0.0 {
+        return;
+    }
+    let target_alpha = target[3] as f32 / 255.0;
+    let out_alpha = source_alpha + target_alpha * (1.0 - source_alpha);
+    if out_alpha <= 0.0 {
+        *target = Rgba([0, 0, 0, 0]);
+        return;
+    }
+    let source_contrib = 1.0 - source_alpha;
+    let out_r = (source.r as f32 * source_alpha + target[0] as f32 * target_alpha * source_contrib)
+        / out_alpha;
+    let out_g = (source.g as f32 * source_alpha + target[1] as f32 * target_alpha * source_contrib)
+        / out_alpha;
+    let out_b = (source.b as f32 * source_alpha + target[2] as f32 * target_alpha * source_contrib)
+        / out_alpha;
+    *target = Rgba([
+        out_r.clamp(0.0, 255.0).round() as u8,
+        out_g.clamp(0.0, 255.0).round() as u8,
+        out_b.clamp(0.0, 255.0).round() as u8,
+        (out_alpha * 255.0).clamp(0.0, 255.0).round() as u8,
+    ]);
+}
+
+pub(super) fn rasterize_shot(snapshot: &ShotSnapshot) -> RgbaImage {
+    let mut image = RgbaImage::from_pixel(
+        snapshot.viewport_width,
+        snapshot.viewport_height,
+        Rgba([
+            snapshot.clear_color.r,
+            snapshot.clear_color.g,
+            snapshot.clear_color.b,
+            snapshot.clear_color.a,
+        ]),
+    );
+
+    let width = i64::from(snapshot.viewport_width);
+    let height = i64::from(snapshot.viewport_height);
+
+    for primitive in &snapshot.primitives {
+        match primitive {
+            ShotPrimitive::Rect { rect, color } => {
+                let left = rect.x.floor().clamp(0.0, width as f32) as i64;
+                let right = (rect.x + rect.width).ceil().clamp(0.0, width as f32) as i64;
+                let top = rect.y.floor().clamp(0.0, height as f32) as i64;
+                let bottom = (rect.y + rect.height).ceil().clamp(0.0, height as f32) as i64;
+
+                for y in top.max(0)..bottom.min(height) {
+                    for x in left.max(0)..right.min(width) {
+                        let pixel = image.get_pixel_mut(
+                            u32::try_from(x).unwrap_or(0),
+                            u32::try_from(y).unwrap_or(0),
+                        );
+                        blend_pixel(pixel, color);
+                    }
+                }
+            }
+            ShotPrimitive::Circle {
+                center,
+                radius,
+                color,
+            } => {
+                let min_x = (center.x - *radius).floor().clamp(0.0, width as f32) as i64;
+                let max_x = (center.x + *radius).ceil().clamp(0.0, width as f32) as i64;
+                let min_y = (center.y - *radius).floor().clamp(0.0, height as f32) as i64;
+                let max_y = (center.y + *radius).ceil().clamp(0.0, height as f32) as i64;
+                let radius_sq = radius * radius;
+
+                for y in min_y.max(0)..max_y.min(height) {
+                    for x in min_x.max(0)..max_x.min(width) {
+                        let x_offset = x as f32 + 0.5 - center.x;
+                        let y_offset = y as f32 + 0.5 - center.y;
+                        if x_offset * x_offset + y_offset * y_offset <= radius_sq {
+                            let pixel = image.get_pixel_mut(
+                                u32::try_from(x).unwrap_or(0),
+                                u32::try_from(y).unwrap_or(0),
+                            );
+                            blend_pixel(pixel, color);
+                        }
+                    }
+                }
+            }
+            ShotPrimitive::Image {
+                rect,
+                width: image_width,
+                height: image_height,
+                pixels,
+            } => {
+                if *image_width == 0
+                    || *image_height == 0
+                    || rect.width <= 0.0
+                    || rect.height <= 0.0
+                {
+                    continue;
+                }
+                let left = rect.x.floor().clamp(0.0, width as f32) as i64;
+                let right = (rect.x + rect.width).ceil().clamp(0.0, width as f32) as i64;
+                let top = rect.y.floor().clamp(0.0, height as f32) as i64;
+                let bottom = (rect.y + rect.height).ceil().clamp(0.0, height as f32) as i64;
+                let src_width = *image_width as usize;
+                let src_height = *image_height as usize;
+                if pixels.len() < src_width.saturating_mul(src_height).saturating_mul(4) {
+                    continue;
+                }
+
+                for y in top.max(0)..bottom.min(height) {
+                    for x in left.max(0)..right.min(width) {
+                        let norm_x = ((x as f32 + 0.5) - rect.x) / rect.width;
+                        let norm_y = ((y as f32 + 0.5) - rect.y) / rect.height;
+                        if !(0.0..=1.0).contains(&norm_x) || !(0.0..=1.0).contains(&norm_y) {
+                            continue;
+                        }
+                        let src_x = ((norm_x * *image_width as f32).floor() as usize)
+                            .min(src_width.saturating_sub(1));
+                        let src_y = ((norm_y * *image_height as f32).floor() as usize)
+                            .min(src_height.saturating_sub(1));
+                        let idx = (src_y * src_width + src_x) * 4;
+                        let color = ShotColor {
+                            r: pixels[idx],
+                            g: pixels[idx + 1],
+                            b: pixels[idx + 2],
+                            a: pixels[idx + 3],
+                        };
+                        let pixel = image.get_pixel_mut(
+                            u32::try_from(x).unwrap_or(0),
+                            u32::try_from(y).unwrap_or(0),
+                        );
+                        blend_pixel(pixel, &color);
+                    }
+                }
+            }
+        }
+    }
+    image
+}

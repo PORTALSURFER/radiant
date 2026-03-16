@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod key;
+mod pointer;
 mod waveform_geometry;
 mod waveform_handles;
 mod waveform_routing;
@@ -85,136 +87,13 @@ const WAVEFORM_SELECTION_SHIFT_HANDLE_HIT_INSET: f32 = 4.0;
 const WAVEFORM_WHEEL_ZOOM_PIXEL_STEP: f32 = 48.0;
 /// Integer precision used by pointer-anchored zoom ratios (`0..=1_000_000`).
 const WAVEFORM_ANCHOR_RATIO_MICROS_SCALE: u32 = 1_000_000;
+
 pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
     model: &AppModel,
 ) -> Option<UiAction> {
-    if model.confirm_prompt.visible {
-        let confirm_enabled = model
-            .confirm_prompt
-            .input_error
-            .as_ref()
-            .is_none_or(|error| error.trim().is_empty());
-        return match key {
-            KeyCode::Enter if confirm_enabled => Some(UiAction::ConfirmPrompt),
-            KeyCode::C => Some(UiAction::CancelPrompt),
-            _ => None,
-        };
-    }
-    if model.options_panel.visible {
-        return None;
-    }
-    let shift = modifiers.shift_key();
-    let command = modifiers.control_key() || modifiers.super_key();
-    match key {
-        KeyCode::ArrowLeft => Some(UiAction::MoveColumn { delta: -1 }),
-        KeyCode::ArrowRight => Some(UiAction::MoveColumn { delta: 1 }),
-        KeyCode::ArrowUp => {
-            if matches!(
-                model.focus_context,
-                crate::app::FocusContextModel::SourceFolders
-            ) {
-                Some(UiAction::MoveFolderFocus { delta: -1 })
-            } else if shift && command {
-                Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: -1 })
-            } else if shift {
-                Some(UiAction::ExtendBrowserSelectionFromFocus { delta: -1 })
-            } else {
-                Some(UiAction::MoveBrowserFocus { delta: -1 })
-            }
-        }
-        KeyCode::ArrowDown => {
-            if matches!(
-                model.focus_context,
-                crate::app::FocusContextModel::SourceFolders
-            ) {
-                Some(UiAction::MoveFolderFocus { delta: 1 })
-            } else if shift && command {
-                Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
-            } else if shift {
-                Some(UiAction::ExtendBrowserSelectionFromFocus { delta: 1 })
-            } else {
-                Some(UiAction::MoveBrowserFocus { delta: 1 })
-            }
-        }
-        KeyCode::Num1 => Some(UiAction::SelectColumn { index: 0 }),
-        KeyCode::Num2 => Some(UiAction::SelectColumn { index: 1 }),
-        KeyCode::Num3 => Some(UiAction::SelectColumn { index: 2 }),
-        KeyCode::A => Some(UiAction::SelectAllBrowserRows),
-        KeyCode::B => Some(UiAction::StartNewFolder),
-        KeyCode::C => match model.focus_context {
-            crate::app::FocusContextModel::Waveform if shift => {
-                Some(UiAction::CropWaveformSelectionToNewSample)
-            }
-            crate::app::FocusContextModel::Waveform => Some(UiAction::CropWaveformSelection),
-            _ => None,
-        },
-        KeyCode::D => Some(UiAction::DeleteBrowserSelection),
-        KeyCode::Enter => {
-            if matches!(model.focus_context, crate::app::FocusContextModel::Waveform) {
-                Some(UiAction::SaveWaveformSelectionToBrowser)
-            } else {
-                Some(UiAction::CommitFocusedBrowserRow)
-            }
-        }
-        KeyCode::F => Some(UiAction::FocusBrowserSearch),
-        KeyCode::G => Some(UiAction::DeleteFocusedFolder),
-        KeyCode::I => Some(UiAction::StartBrowserRename),
-        KeyCode::L => Some(UiAction::ToggleLoopPlayback),
-        KeyCode::M => Some(UiAction::ZoomWaveformToSelection),
-        KeyCode::N => match model.focus_context {
-            crate::app::FocusContextModel::Waveform => {
-                Some(UiAction::NormalizeWaveformSelectionOrSample)
-            }
-            crate::app::FocusContextModel::SampleBrowser | crate::app::FocusContextModel::None => {
-                Some(UiAction::NormalizeFocusedBrowserSample)
-            }
-            _ => None,
-        },
-        KeyCode::OpenBracket => Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Trash,
-        }),
-        KeyCode::P => model
-            .progress_overlay
-            .cancelable
-            .then_some(UiAction::CancelProgress),
-        KeyCode::CloseBracket => Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Keep,
-        }),
-        KeyCode::Slash => Some(UiAction::ZoomWaveformFull),
-        KeyCode::Quote => Some(UiAction::FocusFolderSearch),
-        KeyCode::R => Some(UiAction::Redo),
-        KeyCode::S => Some(UiAction::FocusSourcesPanel),
-        KeyCode::Space => {
-            if command {
-                Some(UiAction::PlayFromCurrentPlayhead)
-            } else {
-                Some(UiAction::PlayFromStart)
-            }
-        }
-        KeyCode::T => match model.focus_context {
-            crate::app::FocusContextModel::Waveform => Some(UiAction::TrimWaveformSelection),
-            _ => None,
-        },
-        KeyCode::U => Some(if shift {
-            UiAction::Redo
-        } else {
-            UiAction::Undo
-        }),
-        KeyCode::W => Some(UiAction::FocusWaveformPanel),
-        KeyCode::X => Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Trash,
-        }),
-        KeyCode::Y => Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Keep,
-        }),
-        KeyCode::Z => match model.focus_context {
-            crate::app::FocusContextModel::Waveform => Some(UiAction::ZoomWaveformToSelection),
-            _ => Some(UiAction::StartFolderRename),
-        },
-        _ => None,
-    }
+    key::action_from_key(key, modifiers, model)
 }
 
 #[cfg(test)]
@@ -225,7 +104,7 @@ pub(super) fn action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
-    action_from_pointer_with_motion(layout, model, None, shell_state, point, modifiers)
+    pointer::action_from_pointer_with_motion(layout, model, None, shell_state, point, modifiers)
 }
 
 /// Resolve one pointer click action using optional retained motion-model context.
@@ -237,84 +116,14 @@ pub(super) fn action_from_pointer_with_motion(
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
-    if let Some(action) = shell_state.prompt_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.options_panel_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if model.options_panel.visible {
-        if shell_state.options_panel_contains_point_live(layout, model, point) {
-            return None;
-        }
-        return Some(UiAction::CloseOptionsPanel);
-    }
-    if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.map_sample_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(action) =
-        shell_state.browser_action_at_point(layout, model, point, modifiers.alt_key())
-    {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(action) = motion_model.and_then(|motion_model| {
-        shell_state.waveform_toolbar_action_at_point_with_motion(layout, motion_model, point)
-    }) {
-        return Some(action);
-    }
-    if let Some(action) = shell_state.waveform_toolbar_action_at_point(layout, model, point) {
-        return Some(action);
-    }
-    if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
-        let shift = modifiers.shift_key();
-        let command = modifiers.control_key() || modifiers.super_key();
-        return Some(if shift && command {
-            UiAction::AddRangeBrowserSelection { visible_row }
-        } else if shift {
-            UiAction::ExtendBrowserSelectionToRow { visible_row }
-        } else if command {
-            UiAction::ToggleBrowserRowSelection { visible_row }
-        } else {
-            UiAction::FocusBrowserRow { visible_row }
-        });
-    }
-    if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
-        return Some(UiAction::FocusFolderRow { index });
-    }
-
-    let hit = layout.hit_test(point)?;
-    match hit {
-        ShellNodeKind::Sidebar => shell_state
-            .source_row_at_point(layout, model, point)
-            .map_or(Some(UiAction::FocusSourcesPanel), |index| {
-                Some(UiAction::SelectSourceRow { index })
-            }),
-        ShellNodeKind::WaveformCard => Some(waveform_action_from_pointer(
-            layout, model, point, modifiers,
-        )),
-        ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
-        ShellNodeKind::Content
-        | ShellNodeKind::BrowserPanel
-        | ShellNodeKind::BrowserTabs
-        | ShellNodeKind::BrowserTable => Some(UiAction::FocusBrowserPanel),
-        ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedSampleInBrowser),
-        _ => None,
-    }
+    pointer::action_from_pointer_with_motion(
+        layout,
+        model,
+        motion_model,
+        shell_state,
+        point,
+        modifiers,
+    )
 }
 
 pub(super) fn waveform_action_from_pointer(

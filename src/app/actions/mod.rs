@@ -8,9 +8,11 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
 mod family;
 
-pub(crate) use family::UiActionFamily;
+#[cfg(test)]
+use family::UiActionFamily;
 
 /// Triage targets used by native browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

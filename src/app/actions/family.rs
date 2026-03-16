@@ -1,0 +1,136 @@
+use super::UiAction;
+
+/// Internal ownership buckets for the centralized [`UiAction`] compatibility surface.
+///
+/// The runtime keeps one top-level action enum so hosts can inspect the whole
+/// bridge contract in one place. This family classification gives local code
+/// and tests a stable way to group actions without splitting that contract.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UiActionFamily {
+    Column,
+    Transport,
+    Focus,
+    Sources,
+    Browser,
+    Prompt,
+    Options,
+    Waveform,
+    History,
+    Update,
+}
+
+impl UiAction {
+    /// Return the high-level ownership family for this action.
+    pub(crate) const fn family(&self) -> UiActionFamily {
+        match self {
+            Self::SelectColumn { .. } | Self::MoveColumn { .. } => UiActionFamily::Column,
+            Self::ToggleTransport
+            | Self::PlayFromStart
+            | Self::PlayFromCurrentPlayhead
+            | Self::HandleEscape => UiActionFamily::Transport,
+            Self::FocusBrowserPanel
+            | Self::FocusSourcesPanel
+            | Self::FocusWaveformPanel
+            | Self::FocusLoadedSampleInBrowser
+            | Self::FocusBrowserSearch
+            | Self::BlurBrowserSearch
+            | Self::OpenAddSourceDialog
+            | Self::OpenOptionsMenu
+            | Self::CloseOptionsPanel
+            | Self::PickTrashFolder
+            | Self::OpenTrashFolder
+            | Self::FocusFolderSearch
+            | Self::SetFolderSearch { .. } => UiActionFamily::Focus,
+            Self::SelectSourceRow { .. }
+            | Self::ReloadSourceRow { .. }
+            | Self::HardSyncSourceRow { .. }
+            | Self::OpenSourceFolderRow { .. }
+            | Self::RemoveSourceRow { .. }
+            | Self::RemoveDeadLinksForSourceRow { .. }
+            | Self::FocusFolderRow { .. }
+            | Self::MoveFolderFocus { .. }
+            | Self::StartNewFolder
+            | Self::StartNewFolderAtRoot
+            | Self::StartFolderRename
+            | Self::DeleteFocusedFolder
+            | Self::ClearFolderDeleteRecoveryLog => UiActionFamily::Sources,
+            Self::MoveBrowserFocus { .. }
+            | Self::SetBrowserViewStart { .. }
+            | Self::FocusBrowserRow { .. }
+            | Self::CommitFocusedBrowserRow
+            | Self::SaveWaveformSelectionToBrowser
+            | Self::ToggleBrowserRowSelection { .. }
+            | Self::ExtendBrowserSelectionToRow { .. }
+            | Self::AddRangeBrowserSelection { .. }
+            | Self::ExtendBrowserSelectionFromFocus { .. }
+            | Self::AddRangeBrowserSelectionFromFocus { .. }
+            | Self::ToggleFocusedBrowserRowSelection
+            | Self::SelectAllBrowserRows
+            | Self::SetBrowserSearch { .. }
+            | Self::ToggleBrowserRatingFilter { .. }
+            | Self::ToggleRandomNavigationMode
+            | Self::SetBrowserTab { .. }
+            | Self::FocusMapSample { .. } => UiActionFamily::Browser,
+            Self::SetPromptInput { .. }
+            | Self::StartBrowserRename
+            | Self::ConfirmBrowserRename
+            | Self::CancelBrowserRename
+            | Self::TagBrowserSelection { .. }
+            | Self::DeleteBrowserSelection
+            | Self::NormalizeFocusedBrowserSample
+            | Self::NormalizeWaveformSelectionOrSample
+            | Self::CropWaveformSelection
+            | Self::CropWaveformSelectionToNewSample
+            | Self::TrimWaveformSelection
+            | Self::ConfirmPrompt
+            | Self::CancelPrompt
+            | Self::CancelProgress => UiActionFamily::Prompt,
+            Self::SetInputMonitoringEnabled { .. }
+            | Self::SetAdvanceAfterRatingEnabled { .. }
+            | Self::SetDestructiveYoloMode { .. }
+            | Self::SetInvertWaveformScroll { .. }
+            | Self::ToggleLoopPlayback
+            | Self::SetWaveformChannelView { .. }
+            | Self::SetNormalizedAuditionEnabled { .. }
+            | Self::SetBpmSnapEnabled { .. }
+            | Self::AdjustWaveformBpm { .. }
+            | Self::SetWaveformBpmValue { .. }
+            | Self::SetTransientSnapEnabled { .. }
+            | Self::SetTransientMarkersEnabled { .. }
+            | Self::SetSliceModeEnabled { .. }
+            | Self::SetVolume { .. }
+            | Self::CommitVolumeSetting => UiActionFamily::Options,
+            Self::SeekWaveform { .. }
+            | Self::SetWaveformCursor { .. }
+            | Self::BeginWaveformSelectionAt { .. }
+            | Self::SetWaveformSelectionRange { .. }
+            | Self::SetWaveformSelectionRangeSmartScale { .. }
+            | Self::SetWaveformEditSelectionRange { .. }
+            | Self::SetWaveformEditFadeInEnd { .. }
+            | Self::SetWaveformEditFadeInMuteStart { .. }
+            | Self::SetWaveformEditFadeInCurve { .. }
+            | Self::SetWaveformEditFadeOutStart { .. }
+            | Self::SetWaveformEditFadeOutMuteEnd { .. }
+            | Self::SetWaveformEditFadeOutCurve { .. }
+            | Self::FinishWaveformEditFadeDrag
+            | Self::StartWaveformSelectionDrag { .. }
+            | Self::UpdateWaveformSelectionDrag { .. }
+            | Self::FinishWaveformSelectionDrag
+            | Self::FinishWaveformSelectionSmartScaleDrag
+            | Self::BeginWaveformSelectionShift { .. }
+            | Self::BeginWaveformEditSelectionShift { .. }
+            | Self::ClearWaveformSelection
+            | Self::ClearWaveformEditSelection
+            | Self::ClearWaveformSelections
+            | Self::SetWaveformViewCenter { .. }
+            | Self::ZoomWaveform { .. }
+            | Self::ZoomWaveformToSelection
+            | Self::ZoomWaveformFull => UiActionFamily::Waveform,
+            Self::Undo | Self::Redo => UiActionFamily::History,
+            Self::CheckForUpdates
+            | Self::OpenUpdateLink
+            | Self::InstallUpdate
+            | Self::DismissUpdate => UiActionFamily::Update,
+        }
+    }
+}

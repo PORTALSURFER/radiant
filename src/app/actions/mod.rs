@@ -1,6 +1,16 @@
 //! User-intent actions emitted by the `radiant` runtime.
+//!
+//! [`UiAction`] intentionally remains the single compatibility surface between
+//! the native runtime and the host bridge. The enum stays centralized so hosts
+//! can inspect the full action catalog in one place, while supporting helpers
+//! such as [`UiActionFamily`] keep family-level structure explicit for tests
+//! and future internal routing work.
 
 use serde::{Deserialize, Serialize};
+
+mod family;
+
+pub(crate) use family::UiActionFamily;
 
 /// Triage targets used by native browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,6 +26,7 @@ pub enum BrowserTagTarget {
 /// Action emitted by the native runtime input layer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UiAction {
+    // Column / triage compatibility actions.
     /// Select a target triage/browser column.
     SelectColumn {
         /// Target column index in the visible triage column set.
@@ -26,6 +37,8 @@ pub enum UiAction {
         /// Signed column delta (`-1` for left, `+1` for right).
         delta: i8,
     },
+
+    // Transport and global playback actions.
     /// Toggle transport playback state.
     ToggleTransport,
     /// Start playback from the beginning of the active sample.
@@ -34,6 +47,8 @@ pub enum UiAction {
     PlayFromCurrentPlayhead,
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
     HandleEscape,
+
+    // Focus and shell-surface actions.
     /// Focus the browser/list panel.
     FocusBrowserPanel,
     /// Focus the sources panel.
@@ -63,6 +78,8 @@ pub enum UiAction {
         /// Full folder-search query text.
         query: String,
     },
+
+    // Sources and folder tree actions.
     /// Select a source row by index.
     SelectSourceRow {
         /// Target source row index.
@@ -113,6 +130,8 @@ pub enum UiAction {
     DeleteFocusedFolder,
     /// Clear staged delete recovery log entries.
     ClearFolderDeleteRecoveryLog,
+
+    // Browser navigation, selection, search, and map actions.
     /// Move browser focus by a row delta in the visible list.
     ///
     /// Hosts should treat this as lightweight preview navigation so held-arrow
@@ -188,6 +207,8 @@ pub enum UiAction {
         /// Stable sample identifier used by map hit-testing.
         sample_id: String,
     },
+
+    // Prompt, rename, and confirmation actions.
     /// Set editable text for the active prompt input field.
     SetPromptInput {
         /// Prompt input text after edit.
@@ -222,6 +243,8 @@ pub enum UiAction {
     CancelPrompt,
     /// Request cancellation of the active progress operation.
     CancelProgress,
+
+    // Options and persistent interaction toggles.
     /// Enable/disable input monitoring.
     SetInputMonitoringEnabled {
         /// Target enabled state.
@@ -291,6 +314,8 @@ pub enum UiAction {
     },
     /// Persist the current volume setting after a drag/continuous edit.
     CommitVolumeSetting,
+
+    // Waveform transport, edit, and gesture actions.
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
     SeekWaveform {
         /// Normalized milli target position (`0..=1000`).
@@ -438,6 +463,8 @@ pub enum UiAction {
     ZoomWaveformToSelection,
     /// Reset waveform view to full-range (`0..=1000`).
     ZoomWaveformFull,
+
+    // Global history and update actions.
     /// Trigger undo.
     Undo,
     /// Trigger redo.
@@ -451,3 +478,6 @@ pub enum UiAction {
     /// Dismiss current update notification.
     DismissUpdate,
 }
+
+#[cfg(test)]
+mod tests;

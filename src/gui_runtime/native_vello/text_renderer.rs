@@ -2,6 +2,10 @@
 
 use super::*;
 
+mod cache;
+mod font;
+mod layout;
+
 #[derive(Clone, Debug)]
 pub(super) struct GlyphLayout {
     id: u32,
@@ -52,7 +56,7 @@ pub(super) struct NativeTextRenderer {
 
 impl NativeTextRenderer {
     pub(super) fn new() -> Self {
-        let loaded_font = load_native_font().map(|font| LoadedFont { font });
+        let loaded_font = font::load_native_font().map(|font| LoadedFont { font });
         if loaded_font.is_none() {
             eprintln!(
                 "Native vello text renderer: no fallback font found; text runs will be skipped"
@@ -118,179 +122,6 @@ impl NativeTextRenderer {
         let font = self.loaded_font.as_ref()?.font.clone();
         self.layout_for(&font, text, font_size)
     }
-
-    pub(super) fn layout_for<'a>(
-        &'a mut self,
-        font: &FontData,
-        text: &str,
-        font_size: f32,
-    ) -> Option<&'a TextLayout> {
-        let text_atom = self.intern_text(text);
-        let key = TextLayoutKey {
-            text: text_atom,
-            font_size_bits: font_size.to_bits(),
-        };
-
-        if let Some(layout) = self
-            .layout_cache
-            .get(&key)
-            .map(|layout| layout as *const TextLayout)
-        {
-            self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return Some(unsafe { &*layout });
-        }
-
-        self.text_layout_misses = self.text_layout_misses.saturating_add(1);
-
-        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
-            if let Some(evicted_key) = self.layout_cache_order.pop_front() {
-                if self.layout_cache.remove(&evicted_key).is_some() {
-                    self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
-                }
-            }
-        }
-
-        let Some(layout) = Self::compute_layout(font, text, font_size) else {
-            return None;
-        };
-        self.layout_cache_order.push_back(key.clone());
-        let cached_layout = self.layout_cache.entry(key).or_insert(layout);
-        Some(cached_layout)
-    }
-
-    pub(super) fn take_layout_profile_counters(&mut self) -> (u64, u64, u64, u64, u64, u64) {
-        let counters = (
-            self.text_layout_hits,
-            self.text_layout_misses,
-            self.text_layout_evictions,
-            self.text_atom_hits,
-            self.text_atom_misses,
-            self.text_atom_evictions,
-        );
-        self.text_layout_hits = 0;
-        self.text_layout_misses = 0;
-        self.text_layout_evictions = 0;
-        self.text_atom_hits = 0;
-        self.text_atom_misses = 0;
-        self.text_atom_evictions = 0;
-        counters
-    }
-
-    /// Intern text into a bounded atom cache so layout-key construction avoids
-    /// hot-path `String` allocations on repeated runs.
-    pub(super) fn intern_text(&mut self, text: &str) -> Arc<str> {
-        self.atom_cache_clock = self.atom_cache_clock.saturating_add(1);
-        let stamp = self.atom_cache_clock;
-        if let Some((cached, _)) = self.atom_cache.get_key_value(text) {
-            let atom = Arc::clone(cached);
-            if let Some(last_seen) = self.atom_cache.get_mut(text) {
-                *last_seen = stamp;
-            }
-            self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
-            self.text_atom_hits = self.text_atom_hits.saturating_add(1);
-            return atom;
-        }
-
-        self.text_atom_misses = self.text_atom_misses.saturating_add(1);
-        let atom: Arc<str> = Arc::from(text);
-        self.atom_cache.insert(Arc::clone(&atom), stamp);
-        self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
-        self.evict_stale_atoms();
-        atom
-    }
-
-    /// Evict stale atom-cache entries using insertion stamps for bounded memory.
-    pub(super) fn evict_stale_atoms(&mut self) {
-        while self.atom_cache.len() > TEXT_ATOM_CACHE_CAPACITY {
-            let Some((candidate, queued_stamp)) = self.atom_cache_order.pop_front() else {
-                break;
-            };
-            let Some(current_stamp) = self.atom_cache.get(candidate.as_ref()) else {
-                continue;
-            };
-            if *current_stamp != queued_stamp {
-                continue;
-            }
-            if self.atom_cache.remove(candidate.as_ref()).is_some() {
-                self.text_atom_evictions = self.text_atom_evictions.saturating_add(1);
-            }
-        }
-    }
-
-    pub(super) fn compute_layout(
-        font: &FontData,
-        text: &str,
-        font_size: f32,
-    ) -> Option<TextLayout> {
-        let font_ref = skrifa::FontRef::from_index(font.data.as_ref(), font.index).ok()?;
-        let charmap = font_ref.charmap();
-        let metrics = font_ref.glyph_metrics(FontSize::new(font_size), LocationRef::default());
-        let fallback_glyph = charmap.map('?');
-
-        let mut x = 0.0_f32;
-        let mut glyphs = Vec::with_capacity(text.len());
-        let mut cursor_stops = Vec::with_capacity(text.chars().count() + 1);
-        cursor_stops.push(TextCursorStop {
-            byte_index: 0,
-            x: 0.0,
-        });
-        for (byte_index, ch) in text.char_indices() {
-            if ch == '\n' || ch == '\r' {
-                break;
-            }
-            if ch == '\t' {
-                x += font_size * 2.0;
-                cursor_stops.push(TextCursorStop {
-                    byte_index: byte_index + ch.len_utf8(),
-                    x,
-                });
-                continue;
-            }
-            if ch == ' ' {
-                x += font_size * 0.33;
-                cursor_stops.push(TextCursorStop {
-                    byte_index: byte_index + ch.len_utf8(),
-                    x,
-                });
-                continue;
-            }
-            if ch.is_control() {
-                cursor_stops.push(TextCursorStop {
-                    byte_index: byte_index + ch.len_utf8(),
-                    x,
-                });
-                continue;
-            }
-            let glyph_id = charmap.map(ch).or(fallback_glyph);
-            let Some(glyph_id) = glyph_id else {
-                x += font_size * 0.5;
-                cursor_stops.push(TextCursorStop {
-                    byte_index: byte_index + ch.len_utf8(),
-                    x,
-                });
-                continue;
-            };
-            glyphs.push(GlyphLayout {
-                id: glyph_id.to_u32(),
-                x,
-            });
-            let advance = metrics
-                .advance_width(glyph_id)
-                .unwrap_or(font_size * 0.55)
-                .max(0.0);
-            x += advance;
-            cursor_stops.push(TextCursorStop {
-                byte_index: byte_index + ch.len_utf8(),
-                x,
-            });
-        }
-
-        Some(TextLayout {
-            width: x,
-            glyphs,
-            cursor_stops,
-        })
-    }
 }
 
 impl TextLayout {
@@ -304,69 +135,6 @@ impl TextLayout {
             }],
         }
     }
-}
-
-pub(super) fn load_native_font() -> Option<FontData> {
-    for path in native_font_candidates() {
-        let Ok(bytes) = std::fs::read(&path) else {
-            continue;
-        };
-        return Some(FontData::new(Blob::from(bytes), 0));
-    }
-    None
-}
-
-pub(super) fn native_font_candidates() -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    if let Ok(path) = std::env::var("SEMPAL_NATIVE_FONT_PATH") {
-        candidates.push(PathBuf::from(path));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(windir) = std::env::var("WINDIR") {
-            let base = PathBuf::from(windir).join("Fonts");
-            // Prefer fixed-pitch UI glyph advances so browser rows stay visually even.
-            candidates.push(base.join("consola.ttf"));
-            candidates.push(base.join("segoeui.ttf"));
-            candidates.push(base.join("arial.ttf"));
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        // Prefer fixed-pitch fonts for deterministic row text spacing.
-        candidates.push(PathBuf::from("/System/Library/Fonts/SFNSMono.ttf"));
-        candidates.push(PathBuf::from(
-            "/System/Library/Fonts/Supplemental/Menlo.ttc",
-        ));
-        candidates.push(PathBuf::from("/System/Library/Fonts/SFNS.ttf"));
-        candidates.push(PathBuf::from(
-            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-        ));
-        candidates.push(PathBuf::from("/Library/Fonts/Arial.ttf"));
-    }
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    {
-        // Prefer fixed-pitch fonts for deterministic row text spacing.
-        candidates.push(PathBuf::from(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-        ));
-        candidates.push(PathBuf::from("/usr/share/fonts/dejavu/DejaVuSansMono.ttf"));
-        candidates.push(PathBuf::from("/usr/share/fonts/TTF/DejaVuSansMono.ttf"));
-        candidates.push(PathBuf::from(
-            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-        ));
-        candidates.push(PathBuf::from(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ));
-        candidates.push(PathBuf::from("/usr/share/fonts/dejavu/DejaVuSans.ttf"));
-        candidates.push(PathBuf::from("/usr/share/fonts/TTF/DejaVuSans.ttf"));
-        candidates.push(PathBuf::from(
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        ));
-    }
-
-    candidates
 }
 
 pub(super) fn to_kurbo_rect(rect: UiRect) -> KurboRect {
@@ -384,4 +152,47 @@ pub(super) fn color_from_rgba(color: Rgba8) -> Color {
 
 pub(super) fn icon_from_rgba(icon: &WindowIconRgba) -> Option<Icon> {
     Icon::from_rgba(icon.rgba.clone(), icon.width, icon.height).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_layout_preserves_terminal_cursor_stop() {
+        let layout = TextLayout::empty_for("tempo");
+        assert_eq!(layout.width, 0.0);
+        assert!(layout.glyphs.is_empty());
+        assert_eq!(
+            layout.cursor_stops,
+            vec![TextCursorStop {
+                byte_index: 5,
+                x: 0.0,
+            }]
+        );
+    }
+
+    #[test]
+    fn intern_text_reuses_cached_atom_and_tracks_hits() {
+        let mut renderer = NativeTextRenderer::new();
+
+        let first = renderer.intern_text("browser");
+        let second = renderer.intern_text("browser");
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(renderer.take_layout_profile_counters(), (0, 0, 0, 1, 1, 0));
+    }
+
+    #[test]
+    fn atom_cache_eviction_drops_old_entries_once_capacity_is_exceeded() {
+        let mut renderer = NativeTextRenderer::new();
+        for index in 0..=TEXT_ATOM_CACHE_CAPACITY {
+            let _ = renderer.intern_text(format!("label-{index}").as_str());
+        }
+
+        let (_, _, _, _, misses, evictions) = renderer.take_layout_profile_counters();
+        assert_eq!(misses, (TEXT_ATOM_CACHE_CAPACITY as u64) + 1);
+        assert!(evictions > 0);
+        assert!(renderer.atom_cache.len() <= TEXT_ATOM_CACHE_CAPACITY);
+    }
 }

@@ -1,0 +1,131 @@
+//! Geometry and hit-testing helpers for the native-shell options panel.
+
+use super::actions::options_panel_button_defs;
+use super::*;
+
+pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) -> Option<Rect> {
+    if segment.width() <= 1.0 || segment.height() <= 1.0 {
+        return None;
+    }
+    let inset_x = sizing.text_inset_x.max(3.0);
+    let inset_y = sizing.text_inset_y.max(2.0);
+    let side = (segment.height() - (inset_y * 2.0))
+        .floor()
+        .clamp(12.0, 20.0);
+    if side <= 0.0 || segment.width() <= side + inset_x {
+        return None;
+    }
+    let min_x = (segment.max.x - inset_x - side).max(segment.min.x);
+    let min_y = (segment.min.y + ((segment.height() - side) * 0.5)).max(segment.min.y);
+    let max_x = (min_x + side).min(segment.max.x);
+    let max_y = (min_y + side).min(segment.max.y);
+    (max_x > min_x && max_y > min_y).then_some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, max_y),
+    ))
+}
+
+pub(super) fn status_right_text_rect(
+    segment: Rect,
+    sizing: SizingTokens,
+    button_rect: Option<Rect>,
+) -> Rect {
+    let text_segment = if let Some(button_rect) = button_rect {
+        let max_x = (button_rect.min.x - sizing.text_inset_x.max(3.0)).max(segment.min.x);
+        Rect::from_min_max(segment.min, Point::new(max_x, segment.max.y))
+    } else {
+        segment
+    };
+    compute_status_text_line_rect(text_segment, sizing, sizing.font_status)
+}
+
+pub(super) fn options_panel_layout(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+) -> Option<OptionsPanelLayout> {
+    if !model.options_panel.visible {
+        return None;
+    }
+    let sizing = style.sizing;
+    let panel_padding = sizing.overlay_padding.max(10.0);
+    let title_height = sizing.overlay_button_height.max(22.0);
+    let button_height = sizing.overlay_button_height.max(22.0);
+    let button_gap = sizing.action_button_gap.max(4.0);
+    let button_width = 236.0_f32.min((layout.content.width() - panel_padding * 2.0).max(160.0));
+    let panel_width = button_width + (panel_padding * 2.0);
+    let definitions = options_panel_button_defs(model);
+    let panel_height = panel_padding
+        + title_height
+        + button_gap
+        + (button_height * definitions.len() as f32)
+        + (button_gap * definitions.len().saturating_sub(1) as f32)
+        + panel_padding;
+    let inset = sizing.panel_inset.max(6.0);
+    let max_x = layout.top_bar.max.x - inset;
+    let min_x = (max_x - panel_width).max(layout.content.min.x + inset);
+    let min_y = layout.top_bar.max.y + inset;
+    let max_y = (min_y + panel_height).min(layout.status_bar.min.y - inset);
+    let min_y = (max_y - panel_height).max(layout.top_bar.max.y + inset);
+    let panel_rect = Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + panel_width, max_y),
+    );
+    let title_rect = Rect::from_min_max(
+        Point::new(
+            panel_rect.min.x + panel_padding,
+            panel_rect.min.y + panel_padding,
+        ),
+        Point::new(
+            panel_rect.max.x - panel_padding,
+            panel_rect.min.y + panel_padding + title_height,
+        ),
+    );
+    let button_x = panel_rect.min.x + panel_padding;
+    let mut button_y = title_rect.max.y + button_gap;
+    let mut buttons = Vec::with_capacity(definitions.len());
+    for (label, action) in definitions {
+        let rect = Rect::from_min_max(
+            Point::new(button_x, button_y),
+            Point::new(button_x + button_width, button_y + button_height),
+        );
+        buttons.push(ActionButton {
+            rect,
+            label,
+            icon: None,
+            enabled: true,
+            active: false,
+            action,
+            text_color: style.text_primary,
+        });
+        button_y += button_height + button_gap;
+    }
+    Some(OptionsPanelLayout {
+        panel_rect,
+        title_rect,
+        buttons,
+    })
+}
+
+pub(super) fn options_panel_contains_point(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    point: Point,
+) -> bool {
+    options_panel_layout(layout, style, model).is_some_and(|panel| panel.panel_rect.contains(point))
+}
+
+pub(super) fn options_panel_action_at_point(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let panel = options_panel_layout(layout, style, model)?;
+    panel
+        .buttons
+        .into_iter()
+        .find(|button| button.rect.contains(point))
+        .map(|button| button.action)
+}

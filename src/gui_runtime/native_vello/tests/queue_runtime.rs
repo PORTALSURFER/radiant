@@ -234,6 +234,73 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     );
 }
 
+#[derive(Default)]
+struct WaveformZoomRefreshBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+}
+
+impl NativeAppBridge for WaveformZoomRefreshBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        if matches!(action, UiAction::ZoomWaveform { .. }) {
+            self.model.waveform.view_start_micros = 100_000;
+            self.model.waveform.view_end_micros = 900_000;
+        }
+        self.actions.push(action);
+    }
+}
+
+#[test]
+fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    let wheel_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        y,
+    );
+    let drag_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.9),
+        y,
+    );
+    let mut bridge = WaveformZoomRefreshBridge::default();
+    bridge.model.waveform.view_start_micros = 200_000;
+    bridge.model.waveform.view_end_micros = 400_000;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.last_cursor = Some(wheel_point);
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
+        anchor_micros: 250_000,
+        boundary_lock: None,
+    });
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
+
+    assert_eq!(runner.model.waveform.view_start_micros, 100_000);
+    assert_eq!(runner.model.waveform.view_end_micros, 900_000);
+
+    assert!(runner.process_waveform_drag_immediately(drag_point));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 3,
+                anchor_ratio_micros: Some(750_000),
+            },
+            UiAction::SetWaveformSelectionRange {
+                start_micros: 250_000,
+                end_micros: 820_000,
+                preserve_view_edge: false,
+            },
+        ]
+    );
+}
+
 #[test]
 fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     let mut runner =

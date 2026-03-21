@@ -13,6 +13,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .and_then(|point| waveform_wheel_zoom_action(layout, &this.model, point, delta));
             let waveform_zoom_emitted = if let Some(action) = waveform_zoom_action {
                 this.emit_model_action_with_profile(action, Some(InteractionProfileKind::Waveform));
+                this.refresh_local_waveform_view_after_zoom();
                 true
             } else {
                 false
@@ -46,6 +47,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
             }
         });
+    }
+
+    /// Refresh the local waveform snapshot after wheel zoom during an active drag.
+    ///
+    /// Drag-point conversion uses `self.model.waveform.view_*` to map screen x
+    /// into absolute micro positions. Wheel zoom is reduced immediately into
+    /// the bridge, but the runner's cached model is normally refreshed later
+    /// during scene rebuild. Pulling a fresh snapshot here keeps the next drag
+    /// sample from using stale viewport bounds and jumping to the wrong time.
+    fn refresh_local_waveform_view_after_zoom(&mut self) {
+        if self.waveform_drag_mode.is_none() {
+            return;
+        }
+        self.model = self.bridge.pull_model_arc();
+        self.shell_state.sync_from_model(&self.model);
+        self.refresh_motion_model_from_model();
     }
 
     pub(super) fn handle_keyboard_input(&mut self, event: winit::event::KeyEvent) {

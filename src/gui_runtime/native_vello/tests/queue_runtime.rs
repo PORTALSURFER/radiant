@@ -256,6 +256,28 @@ impl NativeAppBridge for WaveformZoomRefreshBridge {
     }
 }
 
+#[derive(Default)]
+struct WaveformScrollbarPressBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+    project_calls: usize,
+}
+
+impl NativeAppBridge for WaveformScrollbarPressBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        if matches!(action, UiAction::ZoomWaveform { .. }) {
+            self.model.waveform.view_start_micros = 0;
+            self.model.waveform.view_end_micros = 250_000;
+        }
+        self.actions.push(action);
+    }
+}
+
 #[test]
 fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -340,6 +362,76 @@ fn waveform_middle_pan_refreshes_stale_view_before_capturing_drag_baseline() {
             origin_x,
             view_start_micros: 100_000,
             view_end_micros: 900_000,
+        })
+    );
+}
+
+#[test]
+fn waveform_scrollbar_thumb_press_uses_rendered_thumb_while_refresh_is_pending() {
+    let mut bridge = WaveformScrollbarPressBridge::default();
+    bridge.model.waveform.view_start_micros = 250_000;
+    bridge.model.waveform.view_end_micros = 500_000;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let wheel_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(wheel_point);
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
+
+    assert!(runner.waveform_view_refresh_pending);
+    assert_eq!(runner.bridge.project_calls, 1);
+
+    let stale_model = runner.model.as_ref().clone();
+    let refreshed_model = runner.bridge.model.clone();
+    let thumb_point = (layout.waveform_scrollbar_lane.min.x as i32
+        ..=layout.waveform_scrollbar_lane.max.x as i32)
+        .find_map(|x| {
+            (layout.waveform_scrollbar_lane.min.y as i32
+                ..=layout.waveform_scrollbar_lane.max.y as i32)
+                .rev()
+                .find_map(|y| {
+                    let point = Point::new(x as f32, y as f32);
+                    runner
+                        .shell_state
+                        .waveform_scrollbar_thumb_offset_at_point(&layout, &stale_model, point)
+                        .filter(|_| {
+                            runner
+                                .shell_state
+                                .waveform_scrollbar_thumb_offset_at_point(
+                                    &layout,
+                                    &refreshed_model,
+                                    point,
+                                )
+                                .is_none()
+                        })
+                        .map(|_| point)
+                })
+        })
+        .expect("zoomed waveform should move the thumb away from at least one stale pixel");
+    let stale_thumb_offset_x = runner
+        .shell_state
+        .waveform_scrollbar_thumb_offset_at_point(&layout, &stale_model, thumb_point)
+        .expect("stale thumb point should remain hittable");
+
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        thumb_point,
+        false,
+        &mut action_emitted,
+    ));
+
+    assert_eq!(runner.bridge.project_calls, 1);
+    assert!(!action_emitted);
+    assert_eq!(
+        runner.waveform_scrollbar_drag,
+        Some(WaveformScrollbarDragState {
+            thumb_pointer_offset_x: stale_thumb_offset_x,
         })
     );
 }

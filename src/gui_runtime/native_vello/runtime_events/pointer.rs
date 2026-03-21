@@ -1,6 +1,18 @@
 use super::*;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    /// Route one left-pointer press through the production hit-testing path in tests.
+    #[cfg(test)]
+    pub(crate) fn handle_left_pointer_press_for_tests(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        map_drag_start: bool,
+        action_emitted: &mut bool,
+    ) -> bool {
+        self.handle_left_pointer_press(layout, point, map_drag_start, action_emitted)
+    }
+
     pub(super) fn handle_cursor_moved(&mut self, point: Point) {
         if self.last_cursor == Some(point) {
             return;
@@ -151,12 +163,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         map_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
-        if self.waveform_view_refresh_pending
-            && (layout.waveform_card.contains(point)
-                || layout.waveform_scrollbar_lane.contains(point))
-        {
-            self.refresh_waveform_view_if_needed();
-        }
         if self
             .shell_state
             .prompt_input_at_point(layout, &self.model, point)
@@ -232,12 +238,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         action_emitted: &mut bool,
         source_menu_state_changed: &mut bool,
     ) -> bool {
-        if self.waveform_view_refresh_pending
-            && (layout.waveform_card.contains(point)
-                || layout.waveform_scrollbar_lane.contains(point))
-        {
-            self.refresh_waveform_view_if_needed();
-        }
         if let Some(action) =
             self.shell_state
                 .source_context_menu_action_at_point(layout, &self.model, point)

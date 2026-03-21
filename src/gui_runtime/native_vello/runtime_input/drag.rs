@@ -81,7 +81,9 @@ where
         {
             return false;
         }
-        let action = waveform_drag_action_for_mode(layout, &self.model, point, mode);
+        let (action, next_mode) =
+            waveform_drag_action_and_mode_for_point(layout, &self.model, point, mode);
+        self.waveform_drag_mode = Some(next_mode);
         self.emit_waveform_drag_action_immediately(action);
         true
     }

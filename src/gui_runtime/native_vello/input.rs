@@ -21,11 +21,15 @@ pub(super) enum WaveformPointerDragMode {
     Selection {
         /// Fixed anchor micro position captured at drag start.
         anchor_micros: u32,
+        /// Optional stable clamp captured while the pointer remains off-plot.
+        boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag resizes a playback selection without snapping and recomputes BPM from a 4-beat span.
     SelectionSmartScale {
         /// Fixed anchor micro position captured at drag start.
         anchor_micros: u32,
+        /// Optional stable clamp captured while the pointer remains off-plot.
+        boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag shifts the playback selection while preserving its width.
     SelectionShift {
@@ -40,6 +44,8 @@ pub(super) enum WaveformPointerDragMode {
     EditSelection {
         /// Fixed anchor micro position captured at drag start.
         anchor_micros: u32,
+        /// Optional stable clamp captured while the pointer remains off-plot.
+        boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag shifts the edit selection while preserving its width.
     EditSelectionShift {
@@ -62,6 +68,24 @@ pub(super) enum WaveformPointerDragMode {
     EditFadeOutMuteEnd,
     /// Drag updates the edit fade-out curve.
     EditFadeOutCurve,
+}
+
+/// Horizontal waveform plot edge used by out-of-bounds drag locks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WaveformOutsidePlotSide {
+    /// Pointer sits left of the waveform plot.
+    Left,
+    /// Pointer sits right of the waveform plot.
+    Right,
+}
+
+/// Stable absolute clamp for anchor-based selection drags outside the waveform plot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct WaveformSelectionBoundaryLock {
+    /// Horizontal plot edge the pointer is currently beyond.
+    pub(super) side: WaveformOutsidePlotSide,
+    /// Absolute waveform micro position captured for the drag.
+    pub(super) position_micros: u32,
 }
 
 /// Half-width in pixels used for fade-handle hit testing.
@@ -160,6 +184,7 @@ pub(super) fn waveform_edit_action_from_pointer(
     waveform_routing::waveform_edit_action_from_pointer(layout, model, point, modifiers)
 }
 
+#[cfg(test)]
 pub(super) fn waveform_drag_action_for_mode(
     layout: &ShellLayout,
     model: &AppModel,
@@ -167,6 +192,16 @@ pub(super) fn waveform_drag_action_for_mode(
     mode: WaveformPointerDragMode,
 ) -> UiAction {
     waveform_routing::waveform_drag_action_for_mode(layout, model, point, mode)
+}
+
+/// Resolve one waveform drag action and the updated drag mode for the pointer.
+pub(super) fn waveform_drag_action_and_mode_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> (UiAction, WaveformPointerDragMode) {
+    waveform_routing::waveform_drag_action_and_mode_for_point(layout, model, point, mode)
 }
 
 pub(super) fn waveform_drag_exceeds_click_slop(

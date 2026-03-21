@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(test)]
 /// Resolve one waveform action for a captured waveform drag mode.
 pub(super) fn waveform_drag_action_for_mode(
     layout: &ShellLayout,
@@ -7,9 +8,20 @@ pub(super) fn waveform_drag_action_for_mode(
     point: Point,
     mode: WaveformPointerDragMode,
 ) -> UiAction {
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    waveform_drag_action_and_mode_for_point(layout, model, point, mode).0
+}
+
+/// Resolve one waveform action and updated drag mode for a captured waveform drag.
+pub(super) fn waveform_drag_action_and_mode_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> (UiAction, WaveformPointerDragMode) {
+    let (position_micros, next_mode) =
+        waveform_drag_position_and_mode_for_point(layout, model, point, mode);
     let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
-    match mode {
+    let action = match next_mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveform {
             position_milli: ratio_to_milli(normalized_waveform_position_ratio(
                 layout, model, point,
@@ -20,14 +32,14 @@ pub(super) fn waveform_drag_action_for_mode(
                 layout, model, point,
             )),
         },
-        WaveformPointerDragMode::Selection { anchor_micros } => {
+        WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: position_micros,
                 preserve_view_edge,
             }
         }
-        WaveformPointerDragMode::SelectionSmartScale { anchor_micros } => {
+        WaveformPointerDragMode::SelectionSmartScale { anchor_micros, .. } => {
             UiAction::SetWaveformSelectionRangeSmartScale {
                 start_micros: anchor_micros,
                 end_micros: position_micros,
@@ -50,7 +62,7 @@ pub(super) fn waveform_drag_action_for_mode(
                 preserve_view_edge: false,
             }
         }
-        WaveformPointerDragMode::EditSelection { anchor_micros } => {
+        WaveformPointerDragMode::EditSelection { anchor_micros, .. } => {
             UiAction::SetWaveformEditSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: position_micros,
@@ -92,7 +104,8 @@ pub(super) fn waveform_drag_action_for_mode(
         WaveformPointerDragMode::EditFadeOutCurve => UiAction::SetWaveformEditFadeOutCurve {
             curve_milli: waveform_edit_fade_curve_milli_from_point(layout, point),
         },
-    }
+    };
+    (action, next_mode)
 }
 
 /// Return whether an armed waveform drag moved far enough to emit selection updates.
@@ -107,7 +120,7 @@ pub(super) fn waveform_drag_exceeds_click_slop(
     mode: WaveformPointerDragMode,
 ) -> bool {
     match mode {
-        WaveformPointerDragMode::Selection { anchor_micros } => {
+        WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             let anchor_x = waveform_x_for_micros(layout.waveform_plot, model, anchor_micros);
             (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
         }
@@ -123,16 +136,19 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         UiAction::BeginWaveformSelectionAt { anchor_micros } => {
             Some(WaveformPointerDragMode::Selection {
                 anchor_micros: *anchor_micros,
+                boundary_lock: None,
             })
         }
         UiAction::SetWaveformSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::Selection {
                 anchor_micros: *start_micros,
+                boundary_lock: None,
             })
         }
         UiAction::SetWaveformSelectionRangeSmartScale { start_micros, .. } => {
             Some(WaveformPointerDragMode::SelectionSmartScale {
                 anchor_micros: *start_micros,
+                boundary_lock: None,
             })
         }
         UiAction::BeginWaveformSelectionShift {
@@ -147,6 +163,7 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         UiAction::SetWaveformEditSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::EditSelection {
                 anchor_micros: *start_micros,
+                boundary_lock: None,
             })
         }
         UiAction::BeginWaveformEditSelectionShift {
@@ -228,4 +245,101 @@ pub(super) fn normalized_waveform_position_ratio(
     let view_width = (view_end - view_start).max(0.0);
     let ratio_in_view = waveform_ratio_from_point(layout, point);
     (view_start + (view_width * ratio_in_view)).clamp(0.0, 1.0)
+}
+
+/// Resolve one absolute waveform position and next drag-mode lock state for the pointer.
+fn waveform_drag_position_and_mode_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> (u32, WaveformPointerDragMode) {
+    match mode {
+        WaveformPointerDragMode::Selection {
+            anchor_micros,
+            boundary_lock,
+        } => {
+            let (position_micros, boundary_lock) =
+                waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
+            (
+                position_micros,
+                WaveformPointerDragMode::Selection {
+                    anchor_micros,
+                    boundary_lock,
+                },
+            )
+        }
+        WaveformPointerDragMode::SelectionSmartScale {
+            anchor_micros,
+            boundary_lock,
+        } => {
+            let (position_micros, boundary_lock) =
+                waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
+            (
+                position_micros,
+                WaveformPointerDragMode::SelectionSmartScale {
+                    anchor_micros,
+                    boundary_lock,
+                },
+            )
+        }
+        WaveformPointerDragMode::EditSelection {
+            anchor_micros,
+            boundary_lock,
+        } => {
+            let (position_micros, boundary_lock) =
+                waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
+            (
+                position_micros,
+                WaveformPointerDragMode::EditSelection {
+                    anchor_micros,
+                    boundary_lock,
+                },
+            )
+        }
+        _ => (
+            waveform_position_micros_from_point(layout, model, point),
+            mode,
+        ),
+    }
+}
+
+/// Keep anchor-based drags pinned to one absolute edge while the pointer remains off-plot.
+fn waveform_selection_boundary_lock_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    boundary_lock: Option<WaveformSelectionBoundaryLock>,
+) -> (u32, Option<WaveformSelectionBoundaryLock>) {
+    let Some(side) = waveform_outside_plot_side(layout, point) else {
+        return (
+            waveform_position_micros_from_point(layout, model, point),
+            None,
+        );
+    };
+    if let Some(boundary_lock) = boundary_lock.filter(|lock| lock.side == side) {
+        return (boundary_lock.position_micros, Some(boundary_lock));
+    }
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    (
+        position_micros,
+        Some(WaveformSelectionBoundaryLock {
+            side,
+            position_micros,
+        }),
+    )
+}
+
+/// Return which horizontal waveform-plot side the pointer is currently beyond.
+fn waveform_outside_plot_side(
+    layout: &ShellLayout,
+    point: Point,
+) -> Option<WaveformOutsidePlotSide> {
+    if point.x < layout.waveform_plot.min.x {
+        Some(WaveformOutsidePlotSide::Left)
+    } else if point.x > layout.waveform_plot.max.x {
+        Some(WaveformOutsidePlotSide::Right)
+    } else {
+        None
+    }
 }

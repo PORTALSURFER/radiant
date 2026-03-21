@@ -138,6 +138,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
     runner.last_cursor = Some(point);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
         anchor_micros: milli(position_milli),
+        boundary_lock: None,
     });
     runner.last_emitted_waveform_drag_action = None;
 
@@ -162,7 +163,10 @@ fn process_waveform_drag_immediately_ignores_tiny_selection_wobble() {
     );
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
     runner.shell_layout = Some(Arc::new(layout));
-    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_micros });
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
+        anchor_micros,
+        boundary_lock: None,
+    });
 
     let handled = runner.process_waveform_drag_immediately(Point::new(anchor.x + 2.0, anchor.y));
 
@@ -185,7 +189,10 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
     let release_milli = waveform_position_milli_from_point(&layout, &runner.model, release);
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(release);
-    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection { anchor_micros });
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
+        anchor_micros,
+        boundary_lock: None,
+    });
     runner.last_emitted_waveform_drag_action = None;
 
     runner.finish_volume_drag(Some(MouseButton::Left));

@@ -20,7 +20,8 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
             anchor_micros: milli(125),
         }),
         Some(WaveformPointerDragMode::Selection {
-            anchor_micros: milli(125)
+            anchor_micros: milli(125),
+            boundary_lock: None,
         })
     );
     assert_eq!(
@@ -30,7 +31,8 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
             preserve_view_edge: false,
         }),
         Some(WaveformPointerDragMode::Selection {
-            anchor_micros: milli(125)
+            anchor_micros: milli(125),
+            boundary_lock: None,
         })
     );
     assert_eq!(
@@ -39,7 +41,8 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
             end_micros: milli(250),
         }),
         Some(WaveformPointerDragMode::SelectionSmartScale {
-            anchor_micros: milli(125)
+            anchor_micros: milli(125),
+            boundary_lock: None,
         })
     );
     assert_eq!(
@@ -61,7 +64,8 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
             preserve_view_edge: false,
         }),
         Some(WaveformPointerDragMode::EditSelection {
-            anchor_micros: milli(90)
+            anchor_micros: milli(90),
+            boundary_lock: None,
         })
     );
     assert_eq!(
@@ -117,12 +121,14 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
         WaveformPointerDragMode::Selection {
-            anchor_micros: milli(250)
+            anchor_micros: milli(250),
+            boundary_lock: None,
         }
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
         WaveformPointerDragMode::SelectionSmartScale {
-            anchor_micros: milli(250)
+            anchor_micros: milli(250),
+            boundary_lock: None,
         }
     ));
     assert!(!waveform_drag_mode_is_edit_fade(
@@ -235,7 +241,8 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::Selection {
-            anchor_micros: milli(250)
+            anchor_micros: milli(250),
+            boundary_lock: None,
         })
     );
 }
@@ -259,7 +266,8 @@ fn handle_pointer_press_action_arms_waveform_edit_selection_without_emitting() {
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::EditSelection {
-            anchor_micros: milli(400)
+            anchor_micros: milli(400),
+            boundary_lock: None,
         })
     );
 }

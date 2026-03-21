@@ -118,6 +118,7 @@ pub(super) fn waveform_edit_action_from_pointer(
     }
 }
 
+#[cfg(test)]
 pub(super) fn waveform_drag_action_for_mode(
     layout: &ShellLayout,
     model: &AppModel,
@@ -125,6 +126,16 @@ pub(super) fn waveform_drag_action_for_mode(
     mode: WaveformPointerDragMode,
 ) -> UiAction {
     drag::waveform_drag_action_for_mode(layout, model, point, mode)
+}
+
+/// Resolve one waveform drag action and the updated drag mode for the pointer.
+pub(super) fn waveform_drag_action_and_mode_for_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    mode: WaveformPointerDragMode,
+) -> (UiAction, WaveformPointerDragMode) {
+    drag::waveform_drag_action_and_mode_for_point(layout, model, point, mode)
 }
 
 pub(super) fn waveform_drag_exceeds_click_slop(

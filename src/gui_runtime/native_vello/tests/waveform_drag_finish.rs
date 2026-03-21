@@ -88,6 +88,7 @@ fn finish_volume_drag_emits_finish_selection_smart_scale_drag_for_alt_resize() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::SelectionSmartScale {
         anchor_micros: milli(250),
+        boundary_lock: None,
     });
 
     runner.finish_volume_drag(Some(MouseButton::Left));
@@ -194,7 +195,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &model,
             right,
             WaveformPointerDragMode::Selection {
-                anchor_micros: milli(200)
+                anchor_micros: milli(200),
+                boundary_lock: None,
             }
         ),
         UiAction::SetWaveformSelectionRange {
@@ -209,7 +211,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &model,
             right,
             WaveformPointerDragMode::SelectionSmartScale {
-                anchor_micros: milli(200)
+                anchor_micros: milli(200),
+                boundary_lock: None,
             }
         ),
         UiAction::SetWaveformSelectionRangeSmartScale {
@@ -240,7 +243,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &model,
             right,
             WaveformPointerDragMode::EditSelection {
-                anchor_micros: milli(300)
+                anchor_micros: milli(300),
+                boundary_lock: None,
             }
         ),
         UiAction::SetWaveformEditSelectionRange {
@@ -328,4 +332,46 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
         ),
         UiAction::SetWaveformEditFadeOutCurve { curve_milli: 0 }
     );
+}
+
+#[test]
+fn waveform_resize_drag_keeps_outside_plot_lock_across_zoom_changes() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let outside_right = Point::new(layout.waveform_plot.max.x + 32.0, y);
+    let mut model = AppModel::default();
+    model.waveform.view_start_micros = milli(200);
+    model.waveform.view_end_micros = milli(400);
+
+    let (first_action, locked_mode) = waveform_drag_action_and_mode_for_point(
+        &layout,
+        &model,
+        outside_right,
+        WaveformPointerDragMode::Selection {
+            anchor_micros: milli(250),
+            boundary_lock: None,
+        },
+    );
+    assert_eq!(
+        first_action,
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(250),
+            end_micros: milli(400),
+            preserve_view_edge: true,
+        }
+    );
+
+    model.waveform.view_start_micros = milli(50);
+    model.waveform.view_end_micros = milli(850);
+    let (second_action, relocked_mode) =
+        waveform_drag_action_and_mode_for_point(&layout, &model, outside_right, locked_mode);
+    assert_eq!(
+        second_action,
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(250),
+            end_micros: milli(400),
+            preserve_view_edge: true,
+        }
+    );
+    assert_eq!(locked_mode, relocked_mode);
 }

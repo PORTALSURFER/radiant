@@ -129,7 +129,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             );
         }
         self.model = self.bridge.project_model();
-        self.waveform_drag_view_refresh_pending = false;
+        self.waveform_view_refresh_pending = false;
         let bridge_dirty_segments = self.bridge.take_dirty_segments();
         self.refresh_segment_revisions_from_bridge();
         let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
@@ -198,7 +198,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.profiler.add_bridge_model_pull_rebuild();
         self.motion_model_supported = false;
         self.model = self.bridge.project_model();
-        self.waveform_drag_view_refresh_pending = false;
+        self.waveform_view_refresh_pending = false;
         let bridge_dirty_segments = self.bridge.take_dirty_segments();
         self.refresh_segment_revisions_from_bridge();
         let model_pull_duration = model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());

@@ -107,6 +107,7 @@ where
 
     /// Emit one waveform-scrollbar drag viewport update immediately.
     pub(crate) fn process_waveform_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
+        self.refresh_waveform_view_if_needed();
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
@@ -137,6 +138,7 @@ where
         &mut self,
         point: Point,
     ) -> bool {
+        self.refresh_waveform_view_if_needed();
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };

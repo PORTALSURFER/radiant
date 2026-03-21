@@ -283,13 +283,13 @@ fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
     runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
 
     assert_eq!(runner.bridge.project_calls, 1);
-    assert!(runner.waveform_drag_view_refresh_pending);
+    assert!(runner.waveform_view_refresh_pending);
     assert_eq!(runner.model.waveform.view_start_micros, 200_000);
     assert_eq!(runner.model.waveform.view_end_micros, 400_000);
 
     assert!(runner.process_waveform_drag_immediately(drag_point));
     assert_eq!(runner.bridge.project_calls, 2);
-    assert!(!runner.waveform_drag_view_refresh_pending);
+    assert!(!runner.waveform_view_refresh_pending);
     assert_eq!(runner.model.waveform.view_start_micros, 100_000);
     assert_eq!(runner.model.waveform.view_end_micros, 900_000);
     assert_eq!(
@@ -306,6 +306,41 @@ fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
                 preserve_view_edge: false,
             },
         ]
+    );
+}
+
+#[test]
+fn waveform_middle_pan_refreshes_stale_view_before_capturing_drag_baseline() {
+    let mut bridge = WaveformZoomRefreshBridge::default();
+    bridge.model.waveform.view_start_micros = 200_000;
+    bridge.model.waveform.view_end_micros = 400_000;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let wheel_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(wheel_point);
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
+
+    assert!(runner.waveform_view_refresh_pending);
+    assert_eq!(runner.bridge.project_calls, 1);
+
+    let origin_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5);
+    runner.begin_waveform_pan_drag(origin_x);
+
+    assert_eq!(runner.bridge.project_calls, 2);
+    assert!(!runner.waveform_view_refresh_pending);
+    assert_eq!(
+        runner.waveform_pan_drag,
+        Some(WaveformPanDragState {
+            origin_x,
+            view_start_micros: 100_000,
+            view_end_micros: 900_000,
+        })
     );
 }
 

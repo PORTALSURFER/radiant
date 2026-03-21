@@ -151,6 +151,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         map_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
+        if self.waveform_view_refresh_pending
+            && (layout.waveform_card.contains(point)
+                || layout.waveform_scrollbar_lane.contains(point))
+        {
+            self.refresh_waveform_view_if_needed();
+        }
         if self
             .shell_state
             .prompt_input_at_point(layout, &self.model, point)
@@ -226,6 +232,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         action_emitted: &mut bool,
         source_menu_state_changed: &mut bool,
     ) -> bool {
+        if self.waveform_view_refresh_pending
+            && (layout.waveform_card.contains(point)
+                || layout.waveform_scrollbar_lane.contains(point))
+        {
+            self.refresh_waveform_view_if_needed();
+        }
         if let Some(action) =
             self.shell_state
                 .source_context_menu_action_at_point(layout, &self.model, point)

@@ -70,6 +70,7 @@ where
 
     /// Process one waveform drag cursor update when waveform drag mode is active.
     pub(crate) fn process_waveform_drag_immediately(&mut self, point: Point) -> bool {
+        self.refresh_waveform_drag_view_if_needed();
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
@@ -86,6 +87,22 @@ where
         self.waveform_drag_mode = Some(next_mode);
         self.emit_waveform_drag_action_immediately(action);
         true
+    }
+
+    /// Refresh the local waveform view once after a wheel zoom changed it mid-drag.
+    ///
+    /// Wheel zoom reduces into the bridge immediately, but the runner's cached
+    /// `AppModel` normally updates on the next scene rebuild. When the user
+    /// keeps dragging before that rebuild lands, refresh the local snapshot
+    /// first so pointer-to-time conversion uses the latest view bounds.
+    fn refresh_waveform_drag_view_if_needed(&mut self) {
+        if !self.waveform_drag_view_refresh_pending {
+            return;
+        }
+        self.model = self.bridge.pull_model_arc();
+        self.shell_state.sync_from_model(&self.model);
+        self.refresh_motion_model_from_model();
+        self.waveform_drag_view_refresh_pending = false;
     }
 
     /// Process one waveform-selection export drag cursor update.

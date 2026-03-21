@@ -167,6 +167,7 @@ where
 
     pub(super) fn clear_pointer_drag_session(&mut self) {
         self.waveform_drag_mode = None;
+        self.waveform_drag_view_refresh_pending = false;
         self.clear_playback_selection_on_click_release = false;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;

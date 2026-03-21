@@ -238,10 +238,12 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
 struct WaveformZoomRefreshBridge {
     actions: Vec<UiAction>,
     model: AppModel,
+    project_calls: usize,
 }
 
 impl NativeAppBridge for WaveformZoomRefreshBridge {
     fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
         Arc::new(self.model.clone())
     }
 
@@ -280,10 +282,16 @@ fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
 
     runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
 
-    assert_eq!(runner.model.waveform.view_start_micros, 100_000);
-    assert_eq!(runner.model.waveform.view_end_micros, 900_000);
+    assert_eq!(runner.bridge.project_calls, 1);
+    assert!(runner.waveform_drag_view_refresh_pending);
+    assert_eq!(runner.model.waveform.view_start_micros, 200_000);
+    assert_eq!(runner.model.waveform.view_end_micros, 400_000);
 
     assert!(runner.process_waveform_drag_immediately(drag_point));
+    assert_eq!(runner.bridge.project_calls, 2);
+    assert!(!runner.waveform_drag_view_refresh_pending);
+    assert_eq!(runner.model.waveform.view_start_micros, 100_000);
+    assert_eq!(runner.model.waveform.view_end_micros, 900_000);
     assert_eq!(
         runner.bridge.actions,
         vec![

@@ -417,6 +417,10 @@ fn waveform_scrollbar_thumb_press_uses_rendered_thumb_while_refresh_is_pending()
         .shell_state
         .waveform_scrollbar_thumb_offset_at_point(&layout, &stale_model, thumb_point)
         .expect("stale thumb point should remain hittable");
+    let stale_thumb_ratio_x = runner
+        .shell_state
+        .waveform_scrollbar_thumb_ratio_at_point(&layout, &stale_model, thumb_point)
+        .expect("stale thumb should expose a drag ratio");
 
     let mut action_emitted = false;
     assert!(runner.handle_left_pointer_press_for_tests(
@@ -432,7 +436,101 @@ fn waveform_scrollbar_thumb_press_uses_rendered_thumb_while_refresh_is_pending()
         runner.waveform_scrollbar_drag,
         Some(WaveformScrollbarDragState {
             thumb_pointer_offset_x: stale_thumb_offset_x,
+            thumb_pointer_ratio_x: stale_thumb_ratio_x,
         })
+    );
+}
+
+#[test]
+fn waveform_scrollbar_drag_rebases_stale_thumb_ratio_before_first_sample() {
+    let mut bridge = WaveformScrollbarPressBridge::default();
+    bridge.model.waveform.view_start_micros = 250_000;
+    bridge.model.waveform.view_end_micros = 500_000;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let wheel_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(wheel_point);
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
+
+    let stale_model = runner.model.as_ref().clone();
+    let refreshed_model = runner.bridge.model.clone();
+    let thumb_point = (layout.waveform_scrollbar_lane.min.x as i32
+        ..=layout.waveform_scrollbar_lane.max.x as i32)
+        .find_map(|x| {
+            (layout.waveform_scrollbar_lane.min.y as i32
+                ..=layout.waveform_scrollbar_lane.max.y as i32)
+                .rev()
+                .find_map(|y| {
+                    let point = Point::new(x as f32, y as f32);
+                    runner
+                        .shell_state
+                        .waveform_scrollbar_thumb_offset_at_point(&layout, &stale_model, point)
+                        .filter(|_| {
+                            runner
+                                .shell_state
+                                .waveform_scrollbar_thumb_offset_at_point(
+                                    &layout,
+                                    &refreshed_model,
+                                    point,
+                                )
+                                .is_none()
+                        })
+                        .map(|_| point)
+                })
+        })
+        .expect("zoomed waveform should move the thumb away from at least one stale pixel");
+    let stale_thumb_ratio_x = runner
+        .shell_state
+        .waveform_scrollbar_thumb_ratio_at_point(&layout, &stale_model, thumb_point)
+        .expect("stale thumb should expose a drag ratio");
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        thumb_point,
+        false,
+        &mut action_emitted,
+    ));
+    assert!(!action_emitted);
+
+    let drag_point = Point::new(
+        (thumb_point.x + 80.0).min(layout.waveform_scrollbar_lane.max.x),
+        thumb_point.y,
+    );
+    let remapped_offset_x = runner
+        .shell_state
+        .waveform_scrollbar_thumb_width(&layout, &refreshed_model)
+        .map(|thumb_width| thumb_width * stale_thumb_ratio_x)
+        .expect("refreshed thumb should expose a layout");
+    let expected_center = runner
+        .shell_state
+        .waveform_scrollbar_view_center_for_drag(
+            &layout,
+            &refreshed_model,
+            drag_point.x,
+            remapped_offset_x,
+        )
+        .expect("dragging refreshed thumb should resolve a waveform center");
+
+    assert!(runner.process_waveform_scrollbar_drag_immediately(drag_point));
+    assert_eq!(runner.bridge.project_calls, 2);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 3,
+                anchor_ratio_micros: Some(750_000),
+            },
+            UiAction::SetWaveformViewCenter {
+                center_micros: expected_center,
+            },
+        ]
     );
 }
 
@@ -515,6 +613,9 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
     let thumb_pointer_offset_x = shell_state
         .waveform_scrollbar_thumb_offset_at_point(&layout, &model, thumb_point)
         .expect("waveform thumb center should be hittable");
+    let thumb_pointer_ratio_x = shell_state
+        .waveform_scrollbar_thumb_ratio_at_point(&layout, &model, thumb_point)
+        .expect("waveform thumb should expose a drag ratio");
     let expected_center = shell_state
         .waveform_scrollbar_view_center_for_drag(
             &layout,
@@ -529,6 +630,7 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
     runner.shell_state = shell_state;
     runner.waveform_scrollbar_drag = Some(WaveformScrollbarDragState {
         thumb_pointer_offset_x,
+        thumb_pointer_ratio_x,
     });
 
     let drag_point = Point::new(

@@ -199,7 +199,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .shell_state
             .waveform_scrollbar_thumb_offset_at_point(layout, &self.model, point)
         {
-            self.begin_waveform_scrollbar_drag(thumb_pointer_offset_x);
+            let thumb_pointer_ratio_x = self
+                .shell_state
+                .waveform_scrollbar_thumb_ratio_at_point(layout, &self.model, point)
+                .unwrap_or(0.0);
+            self.begin_waveform_scrollbar_drag(thumb_pointer_offset_x, thumb_pointer_ratio_x);
             return true;
         }
         if self.process_waveform_scrollbar_track_click_immediately(point) {

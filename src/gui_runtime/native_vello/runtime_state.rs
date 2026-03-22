@@ -8,6 +8,7 @@ pub(super) struct BrowserScrollbarDragState {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct WaveformScrollbarDragState {
     pub(super) thumb_pointer_offset_x: f32,
+    pub(super) thumb_pointer_ratio_x: f32,
 }
 
 /// Active middle-button waveform pan drag state.
@@ -186,9 +187,14 @@ where
         self.last_emitted_browser_view_start = None;
     }
 
-    pub(super) fn begin_waveform_scrollbar_drag(&mut self, thumb_pointer_offset_x: f32) {
+    pub(super) fn begin_waveform_scrollbar_drag(
+        &mut self,
+        thumb_pointer_offset_x: f32,
+        thumb_pointer_ratio_x: f32,
+    ) {
         self.waveform_scrollbar_drag = Some(WaveformScrollbarDragState {
             thumb_pointer_offset_x,
+            thumb_pointer_ratio_x,
         });
         self.last_emitted_waveform_view_center = None;
     }

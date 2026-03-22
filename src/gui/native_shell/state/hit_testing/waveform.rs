@@ -41,6 +41,38 @@ impl NativeShellState {
             .then_some((point.x - scrollbar.thumb.min.x).clamp(0.0, scrollbar.thumb.width()))
     }
 
+    /// Return the normalized pointer grip ratio within the waveform scrollbar thumb.
+    pub(crate) fn waveform_scrollbar_thumb_ratio_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<f32> {
+        let scrollbar = waveform_scrollbar_layout(
+            layout.waveform_scrollbar_lane,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )?;
+        scrollbar.thumb.contains(point).then_some({
+            let thumb_width = scrollbar.thumb.width().max(1.0);
+            ((point.x - scrollbar.thumb.min.x) / thumb_width).clamp(0.0, 1.0)
+        })
+    }
+
+    /// Return the current waveform scrollbar thumb width for one view model.
+    pub(crate) fn waveform_scrollbar_thumb_width(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<f32> {
+        waveform_scrollbar_layout(
+            layout.waveform_scrollbar_lane,
+            model.waveform.view_start_micros,
+            model.waveform.view_end_micros,
+        )
+        .map(|scrollbar| scrollbar.thumb.width().max(1.0))
+    }
+
     /// Resolve the waveform viewport center for an active scrollbar-thumb drag.
     pub(crate) fn waveform_scrollbar_view_center_for_drag(
         &self,

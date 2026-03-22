@@ -6,6 +6,33 @@ impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
 {
+    /// Rebase the captured scrollbar grip onto the refreshed thumb geometry.
+    fn refresh_waveform_scrollbar_drag_if_needed(&mut self) {
+        if !self.waveform_view_refresh_pending {
+            return;
+        }
+        let thumb_pointer_ratio_x = self
+            .waveform_scrollbar_drag
+            .map(|drag| drag.thumb_pointer_ratio_x);
+        self.refresh_waveform_view_if_needed();
+        let (Some(layout), Some(thumb_pointer_ratio_x), Some(drag)) = (
+            self.shell_layout.as_ref(),
+            thumb_pointer_ratio_x,
+            self.waveform_scrollbar_drag,
+        ) else {
+            return;
+        };
+        let remapped_offset_x = self
+            .shell_state
+            .waveform_scrollbar_thumb_width(layout, &self.model)
+            .map(|thumb_width| (thumb_width * thumb_pointer_ratio_x).clamp(0.0, thumb_width))
+            .unwrap_or(drag.thumb_pointer_offset_x);
+        self.waveform_scrollbar_drag = Some(WaveformScrollbarDragState {
+            thumb_pointer_offset_x: remapped_offset_x,
+            thumb_pointer_ratio_x,
+        });
+    }
+
     pub(crate) fn sync_browser_viewport_from_shell(&mut self, layout: &ShellLayout) {
         let Some(visible_row) = self
             .shell_state
@@ -107,7 +134,7 @@ where
 
     /// Emit one waveform-scrollbar drag viewport update immediately.
     pub(crate) fn process_waveform_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
-        self.refresh_waveform_view_if_needed();
+        self.refresh_waveform_scrollbar_drag_if_needed();
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };

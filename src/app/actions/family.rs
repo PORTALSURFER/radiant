@@ -33,6 +33,7 @@ impl UiAction {
             Self::FocusBrowserPanel
             | Self::FocusSourcesPanel
             | Self::FocusWaveformPanel
+            | Self::FocusFolderPanel
             | Self::FocusLoadedSampleInBrowser
             | Self::FocusBrowserSearch
             | Self::BlurBrowserSearch
@@ -44,12 +45,20 @@ impl UiAction {
             | Self::FocusFolderSearch
             | Self::SetFolderSearch { .. } => UiActionFamily::Focus,
             Self::SelectSourceRow { .. }
+            | Self::FocusSourceRow { .. }
+            | Self::MoveSourceFocus { .. }
+            | Self::ReloadFocusedSourceRow
+            | Self::HardSyncFocusedSourceRow
+            | Self::OpenFocusedSourceFolder
+            | Self::RemoveFocusedSourceRow
+            | Self::RemoveDeadLinksForFocusedSourceRow
             | Self::ReloadSourceRow { .. }
             | Self::HardSyncSourceRow { .. }
             | Self::OpenSourceFolderRow { .. }
             | Self::RemoveSourceRow { .. }
             | Self::RemoveDeadLinksForSourceRow { .. }
             | Self::FocusFolderRow { .. }
+            | Self::ToggleFocusedFolderSelection
             | Self::MoveFolderFocus { .. }
             | Self::StartNewFolder
             | Self::StartNewFolderAtRoot
@@ -71,6 +80,12 @@ impl UiAction {
             | Self::SetBrowserSearch { .. }
             | Self::ToggleBrowserRatingFilter { .. }
             | Self::ToggleRandomNavigationMode
+            | Self::FocusPreviousBrowserHistory
+            | Self::FocusNextBrowserHistory
+            | Self::ToggleFindSimilarFocusedSample
+            | Self::PlayRandomSample
+            | Self::PlayPreviousRandomSample
+            | Self::AdjustSelectedBrowserRating { .. }
             | Self::SetBrowserTab { .. }
             | Self::FocusMapSample { .. } => UiActionFamily::Browser,
             Self::SetPromptInput { .. }
@@ -92,6 +107,13 @@ impl UiAction {
             | Self::SetDestructiveYoloMode { .. }
             | Self::SetInvertWaveformScroll { .. }
             | Self::ToggleLoopPlayback
+            | Self::ToggleLoopLock
+            | Self::ToggleTransientMarkers
+            | Self::ToggleBpmSnap
+            | Self::ToggleHotkeyOverlay
+            | Self::CopyStatusLog
+            | Self::OpenFeedbackIssuePrompt
+            | Self::MoveTrashedSamplesToFolder
             | Self::SetWaveformChannelView { .. }
             | Self::SetNormalizedAuditionEnabled { .. }
             | Self::SetBpmSnapEnabled { .. }
@@ -128,6 +150,14 @@ impl UiAction {
             | Self::ZoomWaveform { .. }
             | Self::ZoomWaveformToSelection
             | Self::ZoomWaveformFull => UiActionFamily::Waveform,
+            Self::ReverseWaveformSelection
+            | Self::FadeWaveformSelectionLeftToRight
+            | Self::FadeWaveformSelectionRightToLeft
+            | Self::MuteWaveformSelection
+            | Self::DeleteSelectedSliceMarkers
+            | Self::AlignWaveformStartToMarker
+            | Self::DeleteLoadedWaveformSample
+            | Self::SlideWaveformSelection { .. } => UiActionFamily::Waveform,
             Self::Undo | Self::Redo => UiActionFamily::History,
             Self::CheckForUpdates
             | Self::OpenUpdateLink

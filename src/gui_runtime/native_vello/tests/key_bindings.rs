@@ -54,239 +54,190 @@ fn waveform_bpm_input_shift_arrow_steps_by_tenth() {
 }
 
 #[test]
-fn key_bindings_emit_rating_and_waveform_actions() {
-    let mut model = AppModel::default();
-    model.focus_context = crate::app::FocusContextModel::Waveform;
+fn g_prefix_routes_section_focus_commands() {
     assert_eq!(
-        action_from_key(KeyCode::OpenBracket, ModifiersState::default(), &model),
-        Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Trash
-        })
+        action_from_g_prefix_for_tests(KeyCode::G, KeyCode::W),
+        Some(UiAction::FocusWaveformPanel)
     );
     assert_eq!(
-        action_from_key(KeyCode::CloseBracket, ModifiersState::default(), &model),
-        Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Keep
-        })
+        action_from_g_prefix_for_tests(KeyCode::G, KeyCode::B),
+        Some(UiAction::FocusBrowserPanel)
     );
     assert_eq!(
-        action_from_key(KeyCode::M, ModifiersState::default(), &model),
-        Some(UiAction::ZoomWaveformToSelection)
+        action_from_g_prefix_for_tests(KeyCode::G, KeyCode::T),
+        Some(UiAction::FocusFolderPanel)
     );
     assert_eq!(
-        action_from_key(KeyCode::C, ModifiersState::default(), &model),
-        Some(UiAction::CropWaveformSelection)
+        action_from_g_prefix_for_tests(KeyCode::G, KeyCode::S),
+        Some(UiAction::FocusSourcesPanel)
     );
     assert_eq!(
-        action_from_key(KeyCode::C, ModifiersState::SHIFT, &model),
-        Some(UiAction::CropWaveformSelectionToNewSample)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::T, ModifiersState::default(), &model),
-        Some(UiAction::TrimWaveformSelection)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::Slash, ModifiersState::default(), &model),
-        Some(UiAction::ZoomWaveformFull)
+        action_from_g_prefix_for_tests(KeyCode::G, KeyCode::D),
+        None
     );
 }
 
 #[test]
-fn key_bindings_emit_browser_actions() {
-    let mut model = AppModel::default();
-    model.focus_context = crate::app::FocusContextModel::SampleBrowser;
+fn explicit_focus_is_required_for_scope_specific_hotkeys() {
+    let none = AppModel::default();
+    assert_eq!(action_from_key(KeyCode::N, ModifiersState::default(), &none), None);
+    assert_eq!(action_from_key(KeyCode::D, ModifiersState::default(), &none), None);
+    assert_eq!(action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &none), None);
+    assert_eq!(action_from_key(KeyCode::W, ModifiersState::default(), &none), None);
+    assert_eq!(action_from_key(KeyCode::S, ModifiersState::default(), &none), None);
+
+    let browser = AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    };
     assert_eq!(
-        action_from_key(KeyCode::D, ModifiersState::default(), &model),
-        Some(UiAction::DeleteBrowserSelection)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::I, ModifiersState::default(), &model),
-        Some(UiAction::StartBrowserRename)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::N, ModifiersState::default(), &model),
+        action_from_key(KeyCode::N, ModifiersState::default(), &browser),
         Some(UiAction::NormalizeFocusedBrowserSample)
     );
     assert_eq!(
-        action_from_key(KeyCode::X, ModifiersState::default(), &model),
-        Some(UiAction::TagBrowserSelection {
-            target: crate::app::BrowserTagTarget::Trash
-        })
+        action_from_key(KeyCode::D, ModifiersState::default(), &browser),
+        Some(UiAction::DeleteBrowserSelection)
     );
     assert_eq!(
-        action_from_key(KeyCode::C, ModifiersState::default(), &model),
-        None
+        action_from_key(KeyCode::R, ModifiersState::default(), &browser),
+        Some(UiAction::StartBrowserRename)
     );
     assert_eq!(
-        action_from_key(KeyCode::T, ModifiersState::default(), &model),
-        None
-    );
-}
-
-#[test]
-fn key_bindings_map_n_to_waveform_normalize_when_waveform_is_focused() {
-    let mut model = AppModel::default();
-    model.focus_context = crate::app::FocusContextModel::Waveform;
-    assert_eq!(
-        action_from_key(KeyCode::N, ModifiersState::default(), &model),
-        Some(UiAction::NormalizeWaveformSelectionOrSample)
-    );
-}
-
-#[test]
-fn key_bindings_emit_folder_actions() {
-    let model = AppModel::default();
-    assert_eq!(
-        action_from_key(KeyCode::B, ModifiersState::default(), &model),
-        Some(UiAction::StartNewFolder)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::G, ModifiersState::default(), &model),
-        Some(UiAction::DeleteFocusedFolder)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::Quote, ModifiersState::default(), &model),
-        Some(UiAction::FocusFolderSearch)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::Z, ModifiersState::default(), &model),
-        Some(UiAction::StartFolderRename)
-    );
-}
-
-#[test]
-fn key_bindings_map_z_to_waveform_zoom_when_waveform_is_focused() {
-    let mut model = AppModel::default();
-    model.focus_context = crate::app::FocusContextModel::Waveform;
-    assert_eq!(
-        action_from_key(KeyCode::Z, ModifiersState::default(), &model),
-        Some(UiAction::ZoomWaveformToSelection)
-    );
-}
-
-#[test]
-fn key_bindings_map_u_to_undo_and_shift_u_to_redo() {
-    let model = AppModel::default();
-
-    assert_eq!(
-        action_from_key(KeyCode::U, ModifiersState::default(), &model),
-        Some(UiAction::Undo)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::U, ModifiersState::SHIFT, &model),
-        Some(UiAction::Redo)
-    );
-}
-
-#[test]
-fn prompt_visible_routes_enter_and_cancel_keys() {
-    let mut model = AppModel::default();
-    model.confirm_prompt.visible = true;
-    assert_eq!(
-        action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
-        Some(UiAction::ConfirmPrompt)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::C, ModifiersState::default(), &model),
-        Some(UiAction::CancelPrompt)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::W, ModifiersState::default(), &model),
-        None
-    );
-
-    model.confirm_prompt.input_error = Some(String::from("Folder already exists"));
-    assert_eq!(
-        action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
-        None
-    );
-}
-
-#[test]
-fn key_bindings_handle_selection_modifiers() {
-    let model = AppModel::default();
-
-    assert_eq!(
-        action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &model),
+        action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &browser),
         Some(UiAction::MoveBrowserFocus { delta: -1 })
     );
     assert_eq!(
-        action_from_key(KeyCode::ArrowUp, ModifiersState::SHIFT, &model),
-        Some(UiAction::ExtendBrowserSelectionFromFocus { delta: -1 })
+        action_from_key(KeyCode::ArrowDown, ModifiersState::SHIFT, &browser),
+        Some(UiAction::ExtendBrowserSelectionFromFocus { delta: 1 })
     );
     assert_eq!(
         action_from_key(
-            KeyCode::ArrowUp,
-            ModifiersState::SHIFT | ModifiersState::CONTROL,
-            &model
+            KeyCode::A,
+            ModifiersState::CONTROL,
+            &browser,
         ),
-        Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: -1 })
+        Some(UiAction::SelectAllBrowserRows)
     );
-    assert_eq!(
-        action_from_key(
-            KeyCode::ArrowDown,
-            ModifiersState::SHIFT | ModifiersState::SUPER,
-            &model
-        ),
-        Some(UiAction::AddRangeBrowserSelectionFromFocus { delta: 1 })
-    );
-    assert_eq!(
-        action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
-        Some(UiAction::CommitFocusedBrowserRow)
-    );
-}
 
-#[test]
-fn key_bindings_route_arrow_navigation_to_folder_tree_when_folder_focused() {
-    let model = AppModel {
+    let folders = AppModel {
         focus_context: crate::app::FocusContextModel::SourceFolders,
         ..AppModel::default()
     };
-
     assert_eq!(
-        action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &model),
-        Some(UiAction::MoveFolderFocus { delta: -1 })
+        action_from_key(KeyCode::D, ModifiersState::default(), &folders),
+        Some(UiAction::DeleteFocusedFolder)
     );
     assert_eq!(
-        action_from_key(KeyCode::ArrowDown, ModifiersState::default(), &model),
-        Some(UiAction::MoveFolderFocus { delta: 1 })
+        action_from_key(KeyCode::R, ModifiersState::default(), &folders),
+        Some(UiAction::StartFolderRename)
     );
     assert_eq!(
-        action_from_key(KeyCode::ArrowDown, ModifiersState::SHIFT, &model),
+        action_from_key(KeyCode::Quote, ModifiersState::default(), &folders),
+        Some(UiAction::FocusFolderSearch)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowDown, ModifiersState::default(), &folders),
         Some(UiAction::MoveFolderFocus { delta: 1 })
     );
 }
 
 #[test]
-fn key_bindings_route_enter_to_waveform_selection_export_when_waveform_focused() {
-    let model = AppModel {
+fn sources_list_and_waveform_hotkeys_resolve_by_focus_mode() {
+    let sources = AppModel {
+        focus_context: crate::app::FocusContextModel::SourcesList,
+        ..AppModel::default()
+    };
+    assert_eq!(
+        action_from_key(KeyCode::ArrowUp, ModifiersState::default(), &sources),
+        Some(UiAction::MoveSourceFocus { delta: -1 })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowDown, ModifiersState::default(), &sources),
+        Some(UiAction::MoveSourceFocus { delta: 1 })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::D, ModifiersState::default(), &sources),
+        Some(UiAction::RemoveFocusedSourceRow)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::D, ModifiersState::SHIFT, &sources),
+        Some(UiAction::RemoveDeadLinksForFocusedSourceRow)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::R, ModifiersState::default(), &sources),
+        Some(UiAction::ReloadFocusedSourceRow)
+    );
+
+    let waveform = AppModel {
         focus_context: crate::app::FocusContextModel::Waveform,
         ..AppModel::default()
     };
-
     assert_eq!(
-        action_from_key(KeyCode::Enter, ModifiersState::default(), &model),
+        action_from_key(KeyCode::B, ModifiersState::default(), &waveform),
+        Some(UiAction::ToggleBpmSnap)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::C, ModifiersState::default(), &waveform),
+        Some(UiAction::CropWaveformSelection)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::C, ModifiersState::SHIFT, &waveform),
+        Some(UiAction::CropWaveformSelectionToNewSample)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::D, ModifiersState::default(), &waveform),
+        Some(UiAction::DeleteLoadedWaveformSample)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::D, ModifiersState::SHIFT, &waveform),
+        Some(UiAction::DeleteSelectedSliceMarkers)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::M, ModifiersState::default(), &waveform),
+        Some(UiAction::MuteWaveformSelection)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::N, ModifiersState::default(), &waveform),
+        Some(UiAction::NormalizeWaveformSelectionOrSample)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::S, ModifiersState::default(), &waveform),
+        Some(UiAction::AlignWaveformStartToMarker)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::T, ModifiersState::default(), &waveform),
+        Some(UiAction::TrimWaveformSelection)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowLeft, ModifiersState::default(), &waveform),
+        Some(UiAction::SlideWaveformSelection {
+            delta: -1,
+            fine: false,
+        })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::ArrowRight, ModifiersState::SHIFT, &waveform),
+        Some(UiAction::SlideWaveformSelection {
+            delta: 1,
+            fine: true,
+        })
+    );
+    assert_eq!(
+        action_from_key(KeyCode::Slash, ModifiersState::default(), &waveform),
+        Some(UiAction::FadeWaveformSelectionRightToLeft)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::Backslash, ModifiersState::default(), &waveform),
+        Some(UiAction::FadeWaveformSelectionLeftToRight)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::Enter, ModifiersState::default(), &waveform),
         Some(UiAction::SaveWaveformSelectionToBrowser)
     );
 }
 
 #[test]
-fn confirm_prompt_keys_ignore_other_shortcuts_when_visible() {
-    let mut model = AppModel::default();
-    model.confirm_prompt.visible = true;
-
-    assert_eq!(
-        action_from_key(KeyCode::Enter, ModifiersState::SHIFT, &model),
-        Some(UiAction::ConfirmPrompt)
-    );
-    assert_eq!(
-        action_from_key(KeyCode::C, ModifiersState::SUPER, &model),
-        Some(UiAction::CancelPrompt)
-    );
-}
-
-#[test]
-fn key_bindings_respect_progress_cancelability() {
+fn key_bindings_respect_progress_cancelability_and_playback_shortcuts() {
     let mut model = AppModel::default();
     assert_eq!(
         action_from_key(KeyCode::P, ModifiersState::default(), &model),
@@ -297,6 +248,15 @@ fn key_bindings_respect_progress_cancelability() {
     assert_eq!(
         action_from_key(KeyCode::P, ModifiersState::default(), &model),
         Some(UiAction::CancelProgress)
+    );
+
+    assert_eq!(
+        action_from_key(KeyCode::Space, ModifiersState::default(), &model),
+        Some(UiAction::PlayFromStart)
+    );
+    assert_eq!(
+        action_from_key(KeyCode::Space, ModifiersState::CONTROL, &model),
+        Some(UiAction::PlayFromCurrentPlayhead)
     );
 }
 
@@ -375,22 +335,4 @@ fn waveform_bpm_editor_supports_copy_paste_and_delete_selection() {
     assert!(runner.select_all_text());
     assert!(runner.delete_text_forward());
     assert_eq!(runner.waveform_bpm_input_buffer.as_deref(), Some(""));
-}
-
-#[test]
-fn space_key_maps_to_play_from_start() {
-    let model = AppModel::default();
-    assert_eq!(
-        action_from_key(KeyCode::Space, ModifiersState::default(), &model),
-        Some(UiAction::PlayFromStart)
-    );
-}
-
-#[test]
-fn ctrl_space_key_maps_to_play_from_current_playhead() {
-    let model = AppModel::default();
-    assert_eq!(
-        action_from_key(KeyCode::Space, ModifiersState::CONTROL, &model),
-        Some(UiAction::PlayFromCurrentPlayhead)
-    );
 }

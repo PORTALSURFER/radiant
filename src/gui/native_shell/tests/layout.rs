@@ -181,6 +181,27 @@ fn layout_bands_stay_within_panel_bounds() {
 }
 
 #[test]
+fn waveform_view_uses_side_insets_inside_card_body() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    assert_eq!(
+        layout.waveform_plot.min.x - layout.waveform_card.min.x,
+        10.0
+    );
+    assert_eq!(
+        layout.waveform_card.max.x - layout.waveform_plot.max.x,
+        10.0
+    );
+    assert_eq!(
+        layout.waveform_scrollbar_lane.min.x - layout.waveform_card.min.x,
+        10.0
+    );
+    assert_eq!(
+        layout.waveform_card.max.x - layout.waveform_scrollbar_lane.max.x,
+        10.0
+    );
+}
+
+#[test]
 fn major_panels_share_edges_without_gap() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     assert_eq!(layout.top_bar.max.y, layout.sidebar.min.y);
@@ -198,8 +219,14 @@ fn browser_bands_fill_browser_panel_width_without_inner_gutters() {
     assert_eq!(layout.browser_tabs.max.x, layout.browser_panel.max.x);
     assert_eq!(layout.browser_toolbar.min.x, layout.browser_panel.min.x);
     assert_eq!(layout.browser_toolbar.max.x, layout.browser_panel.max.x);
-    assert_eq!(layout.browser_table_header.min.x, layout.browser_panel.min.x);
-    assert_eq!(layout.browser_table_header.max.x, layout.browser_panel.max.x);
+    assert_eq!(
+        layout.browser_table_header.min.x,
+        layout.browser_panel.min.x
+    );
+    assert_eq!(
+        layout.browser_table_header.max.x,
+        layout.browser_panel.max.x
+    );
     assert_eq!(layout.browser_rows.min.x, layout.browser_panel.min.x);
     assert_eq!(layout.browser_rows.max.x, layout.browser_panel.max.x);
     assert_eq!(layout.browser_footer.min.x, layout.browser_panel.min.x);

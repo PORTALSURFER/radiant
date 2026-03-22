@@ -3,16 +3,22 @@ use super::super::*;
 #[test]
 fn waveform_scrollbar_lane_stays_separate_from_waveform_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    assert_eq!(layout.waveform_plot.min.x, layout.waveform_card.min.x);
-    assert_eq!(layout.waveform_plot.max.x, layout.waveform_card.max.x);
+    assert_eq!(
+        layout.waveform_plot.min.x,
+        layout.waveform_card.min.x + 10.0
+    );
+    assert_eq!(
+        layout.waveform_plot.max.x,
+        layout.waveform_card.max.x - 10.0
+    );
     assert_eq!(layout.waveform_plot.min.y, layout.waveform_header.max.y);
     assert_eq!(
         layout.waveform_scrollbar_lane.min.x,
-        layout.waveform_card.min.x
+        layout.waveform_card.min.x + 10.0
     );
     assert_eq!(
         layout.waveform_scrollbar_lane.max.x,
-        layout.waveform_card.max.x
+        layout.waveform_card.max.x - 10.0
     );
     assert_eq!(
         layout.waveform_scrollbar_lane.max.y,

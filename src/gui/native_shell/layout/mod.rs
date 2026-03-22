@@ -19,6 +19,9 @@ use geometry::{
 };
 use tree::build_shell_root;
 
+/// Horizontal inset applied to the waveform plot and scrollbar lane.
+const WAVEFORM_VIEW_SIDE_INSET: f32 = 10.0;
+
 /// Stable identifier for nodes in the retained shell tree.
 pub(crate) type ViewNodeId = u64;
 
@@ -222,18 +225,30 @@ impl ShellLayout {
             Point::new(waveform_card.min.x, waveform_body_top),
             waveform_card.max,
         );
+        let waveform_side_inset =
+            WAVEFORM_VIEW_SIDE_INSET.min((waveform_body.width() - 1.0).max(0.0) * 0.5);
+        let waveform_view_body = Rect::from_min_max(
+            Point::new(
+                waveform_body.min.x + waveform_side_inset,
+                waveform_body.min.y,
+            ),
+            Point::new(
+                waveform_body.max.x - waveform_side_inset,
+                waveform_body.max.y,
+            ),
+        );
         let waveform_scrollbar_lane_height =
-            waveform_scrollbar_lane_height(waveform_body, sizing.waveform_header_block_height);
+            waveform_scrollbar_lane_height(waveform_view_body, sizing.waveform_header_block_height);
         let waveform_scrollbar_lane = Rect::from_min_max(
             Point::new(
-                waveform_body.min.x,
-                waveform_body.max.y - waveform_scrollbar_lane_height,
+                waveform_view_body.min.x,
+                waveform_view_body.max.y - waveform_scrollbar_lane_height,
             ),
-            waveform_body.max,
+            waveform_view_body.max,
         );
         let waveform_plot = Rect::from_min_max(
-            waveform_body.min,
-            Point::new(waveform_body.max.x, waveform_scrollbar_lane.min.y),
+            waveform_view_body.min,
+            Point::new(waveform_view_body.max.x, waveform_scrollbar_lane.min.y),
         );
 
         let (column_headers, column_rows) = build_column_sections(columns, sizing);

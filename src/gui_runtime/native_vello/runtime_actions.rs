@@ -48,10 +48,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ToggleFocusedBrowserRowSelection
             | UiAction::SelectAllBrowserRows
             | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
-            UiAction::SeekWaveform { .. }
-            | UiAction::PlayFromStart
-            | UiAction::PlayFromCurrentPlayhead
-            | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
+            UiAction::SeekWaveform { .. } | UiAction::SetWaveformCursor { .. } => {
+                RuntimeInvalidationScope::OverlayMotionOnly
+            }
+            UiAction::PlayFromStart | UiAction::PlayFromCurrentPlayhead => {
+                RuntimeInvalidationScope::ModelAndOverlays
+            }
             UiAction::ZoomWaveform { .. }
             | UiAction::SetWaveformViewCenter { .. }
             | UiAction::ZoomWaveformToSelection

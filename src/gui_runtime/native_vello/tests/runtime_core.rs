@@ -33,6 +33,16 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
         ),
         RuntimeInvalidationScope::ModelAndOverlays
     );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::PlayFromStart),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::PlayFromCurrentPlayhead
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
 }
 
 #[test]

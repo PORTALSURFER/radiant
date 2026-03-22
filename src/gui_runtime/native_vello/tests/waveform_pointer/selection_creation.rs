@@ -46,11 +46,19 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::CONTROL,
         ),
-        Some(UiAction::SetWaveformCursor { position_milli: 500 })
+        Some(UiAction::SetWaveformCursor {
+            position_milli: 500
+        })
     );
 
     assert_eq!(
-        action_from_pointer(&layout, &model, &mut shell_state, point, ModifiersState::SHIFT),
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::SHIFT
+        ),
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(120),
             end_micros: milli(500),
@@ -59,8 +67,16 @@ fn waveform_click_modifiers_route_expected_actions() {
     );
 
     assert_eq!(
-        action_from_pointer(&layout, &model, &mut shell_state, point, ModifiersState::ALT),
-        Some(UiAction::SeekWaveform { position_milli: 500 })
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::ALT
+        ),
+        Some(UiAction::SeekWaveform {
+            position_milli: 500
+        })
     );
 }
 
@@ -68,8 +84,8 @@ fn waveform_click_modifiers_route_expected_actions() {
 fn waveform_right_click_maps_to_edit_selection_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let point = Point::new(
-        layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
-        layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.5,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
     );
 
     assert_eq!(
@@ -84,5 +100,45 @@ fn waveform_right_click_maps_to_edit_selection_action() {
             end_micros: milli(500),
             preserve_view_edge: false,
         }
+    );
+}
+
+#[test]
+fn waveform_gutter_click_focuses_panel_instead_of_starting_selection() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_card.min.x + 5.0,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusWaveformPanel)
+    );
+}
+
+#[test]
+fn waveform_right_click_in_gutter_focuses_panel_instead_of_editing() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_card.min.x + 5.0,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            point,
+            ModifiersState::default()
+        ),
+        UiAction::FocusWaveformPanel
     );
 }

@@ -103,9 +103,15 @@ fn route_shell_background(
             .map_or(Some(UiAction::FocusSourcesPanel), |index| {
                 Some(UiAction::SelectSourceRow { index })
             }),
-        ShellNodeKind::WaveformCard => Some(waveform_action_from_pointer(
-            layout, model, point, modifiers,
-        )),
+        ShellNodeKind::WaveformCard => {
+            if layout.waveform_plot.contains(point) {
+                Some(waveform_action_from_pointer(
+                    layout, model, point, modifiers,
+                ))
+            } else {
+                Some(UiAction::FocusWaveformPanel)
+            }
+        }
         ShellNodeKind::TopBar => Some(UiAction::ToggleTransport),
         ShellNodeKind::Content
         | ShellNodeKind::BrowserPanel

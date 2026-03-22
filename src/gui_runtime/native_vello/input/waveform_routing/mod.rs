@@ -90,6 +90,9 @@ pub(super) fn waveform_edit_action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> UiAction {
+    if !layout.waveform_plot.contains(point) {
+        return UiAction::FocusWaveformPanel;
+    }
     if modifiers.alt_key()
         && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
     {

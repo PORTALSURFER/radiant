@@ -23,11 +23,12 @@ impl NativeShellState {
         {
             self.source_context_menu = None;
         }
-        self.has_focus_emphasis = model
-            .browser
-            .rows
-            .iter()
-            .any(|row| row.focused || row.selected)
+        self.has_focus_emphasis = model.focus_context != crate::app::FocusContextModel::None
+            || model
+                .browser
+                .rows
+                .iter()
+                .any(|row| row.focused || row.selected)
             || model.sources.rows.iter().any(|row| row.selected)
             || model
                 .sources

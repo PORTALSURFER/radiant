@@ -39,6 +39,8 @@ pub enum KeyCode {
     F1,
     /// Latin letter G.
     G,
+    /// Latin letter H.
+    H,
     /// Latin letter I.
     I,
     /// Latin letter L.
@@ -49,6 +51,8 @@ pub enum KeyCode {
     N,
     /// Open bracket (`[`).
     OpenBracket,
+    /// Latin letter O.
+    O,
     /// Close bracket (`]`).
     CloseBracket,
     /// Latin letter P.
@@ -118,11 +122,13 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::KeyF => KeyCode::F,
         WinitKeyCode::F1 => KeyCode::F1,
         WinitKeyCode::KeyG => KeyCode::G,
+        WinitKeyCode::KeyH => KeyCode::H,
         WinitKeyCode::KeyI => KeyCode::I,
         WinitKeyCode::KeyL => KeyCode::L,
         WinitKeyCode::KeyM => KeyCode::M,
         WinitKeyCode::KeyN => KeyCode::N,
         WinitKeyCode::BracketLeft => KeyCode::OpenBracket,
+        WinitKeyCode::KeyO => KeyCode::O,
         WinitKeyCode::BracketRight => KeyCode::CloseBracket,
         WinitKeyCode::KeyP => KeyCode::P,
         WinitKeyCode::Quote => KeyCode::Quote,

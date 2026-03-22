@@ -1,5 +1,105 @@
 use super::*;
 
+fn section_focus_color(style: &StyleTokens) -> Rgba8 {
+    translucent_overlay_color(
+        style.bg_tertiary,
+        style.accent_warning,
+        (style.state_focus_pulse_blend * 0.12).clamp(0.06, 0.16),
+    )
+}
+
+fn folder_browser_focus_rect(layout: &ShellLayout, style: &StyleTokens, model: &AppModel) -> Rect {
+    let sections = sidebar_sections(layout, style, model);
+    Rect::from_min_max(
+        Point::new(
+            sections.folder_header.min.x.min(sections.folder_rows.min.x),
+            sections.folder_header.min.y.min(sections.folder_rows.min.y),
+        ),
+        Point::new(
+            sections.folder_header.max.x.max(sections.folder_rows.max.x),
+            sections.folder_header.max.y.max(sections.folder_rows.max.y),
+        ),
+    )
+}
+
+#[test]
+fn waveform_focus_overlay_draws_waveform_card_surface() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::Waveform;
+    state.sync_from_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+    let color = section_focus_color(&style);
+
+    assert!(frame.primitives.iter().any(|primitive| match primitive {
+        Primitive::Rect(rect) => rect.rect == layout.waveform_card && rect.color == color,
+        _ => false,
+    }));
+}
+
+#[test]
+fn browser_focus_overlay_draws_browser_panel_surface() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.focus_context = crate::app::FocusContextModel::SampleBrowser;
+    state.sync_from_model(&model);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+    let color = section_focus_color(&style);
+
+    assert!(frame.primitives.iter().any(|primitive| match primitive {
+        Primitive::Rect(rect) => rect.rect == layout.browser_panel && rect.color == color,
+        _ => false,
+    }));
+}
+
+#[test]
+fn source_list_focus_overlay_draws_sidebar_source_band() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.focus_context = crate::app::FocusContextModel::SourcesList;
+    state.sync_from_model(&model);
+
+    let sections = sidebar_sections(&layout, &style, &model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+    let color = section_focus_color(&style);
+
+    assert!(frame.primitives.iter().any(|primitive| match primitive {
+        Primitive::Rect(rect) => rect.rect == sections.source_rows && rect.color == color,
+        _ => false,
+    }));
+}
+
+#[test]
+fn folder_browser_focus_overlay_draws_sidebar_folder_band() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.focus_context = crate::app::FocusContextModel::SourceFolders;
+    state.sync_from_model(&model);
+
+    let focus_rect = folder_browser_focus_rect(&layout, &style, &model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+    let color = section_focus_color(&style);
+
+    assert!(frame.primitives.iter().any(|primitive| match primitive {
+        Primitive::Rect(rect) => rect.rect == focus_rect && rect.color == color,
+        _ => false,
+    }));
+}
+
 #[test]
 fn source_row_selected_fill_is_translucent_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

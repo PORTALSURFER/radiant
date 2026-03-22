@@ -60,6 +60,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         let mut handled = false;
         if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
+            self.pending_hotkey_chord = None;
             if self.model.confirm_prompt.visible {
                 self.emit_model_action(UiAction::CancelPrompt);
                 self.deactivate_text_input_target();
@@ -138,29 +139,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             && self.text_input_target == TextInputTarget::None
             && let Some(key) = key
         {
-            if let Some(prefix) = self.pending_hotkey_prefix.take() {
-                handled = true;
-                if let Some(action) = action_from_prefix(prefix, key) {
+            handled = matches!(
+                self.model.focus_context,
+                crate::app::FocusContextModel::None
+            ) && self.shell_state.handle_key(key);
+            if !handled {
+                let resolution =
+                    action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
+                self.pending_hotkey_chord = resolution.pending_chord;
+                if let Some(action) = resolution.action {
                     self.update_text_target_after_action(&action);
                     self.emit_model_action(action);
-                }
-            } else if matches!(key, KeyCode::G)
-                && !self.modifiers.shift_key()
-                && !self.modifiers.control_key()
-                && !self.modifiers.super_key()
-                && !self.modifiers.alt_key()
-            {
-                self.pending_hotkey_prefix = Some(KeyCode::G);
-                handled = true;
-            } else {
-                handled = matches!(
-                    self.model.focus_context,
-                    crate::app::FocusContextModel::None
-                ) && self.shell_state.handle_key(key);
-                if !handled && let Some(action) = action_from_key(key, self.modifiers, &self.model)
-                {
-                    self.update_text_target_after_action(&action);
-                    self.emit_model_action(action);
+                    handled = true;
+                } else if resolution.handled {
                     handled = true;
                 }
             }
@@ -168,18 +159,5 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if handled && !self.frame_state.has_pending_rebuild() {
             self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
         }
-    }
-}
-
-pub(super) fn action_from_prefix(prefix: KeyCode, key: KeyCode) -> Option<UiAction> {
-    match prefix {
-        KeyCode::G => match key {
-            KeyCode::B => Some(UiAction::FocusBrowserPanel),
-            KeyCode::S => Some(UiAction::FocusSourcesPanel),
-            KeyCode::T => Some(UiAction::FocusFolderPanel),
-            KeyCode::W => Some(UiAction::FocusWaveformPanel),
-            _ => None,
-        },
-        _ => None,
     }
 }

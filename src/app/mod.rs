@@ -37,6 +37,7 @@ mod bridge;
 mod browser;
 mod declarative;
 mod dirty_segments;
+pub(crate) mod hotkeys;
 mod motion;
 mod shell;
 mod sources;
@@ -55,6 +56,7 @@ pub use browser::{
 };
 pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
+pub use hotkeys::{HotkeyBinding, HotkeyGesture, HotkeyScope, KeyPress, iter_hotkey_bindings};
 pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DEFAULT_APP_TITLE, DragOverlayModel,

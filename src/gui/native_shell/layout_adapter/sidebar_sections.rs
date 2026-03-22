@@ -95,7 +95,7 @@ fn resolve_section_heights(
         sizing.folder_row_gap,
     );
     let source_min_rows = if counts.source_rows == 0 {
-        0
+        1
     } else {
         counts
             .source_rows
@@ -136,11 +136,7 @@ fn resolve_section_heights(
         };
     }
 
-    let compact_source_height = stack_height(
-        counts.source_rows.min(1),
-        sizing.source_row_height,
-        sizing.source_row_gap,
-    );
+    let compact_source_height = stack_height(1, sizing.source_row_height, sizing.source_row_gap);
     section_gap = if counts.source_rows > 0 {
         sizing.sidebar_section_gap.min(2.0)
     } else {

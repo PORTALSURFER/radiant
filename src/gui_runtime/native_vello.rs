@@ -2,7 +2,7 @@
 
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::app::{
-    AppModel, DirtySegments, FrameBuildResult, NativeAppBridge, NativeMotionModel,
+    AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
     SegmentRevisions, UiAction,
 };
 use crate::gui::{
@@ -217,8 +217,6 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     waveform_drag_mode: Option<WaveformPointerDragMode>,
     /// Whether the next waveform view-based interaction must refresh local bounds.
     waveform_view_refresh_pending: bool,
-    /// Pending single-key hotkey prefix for chorded runtime shortcuts.
-    pending_hotkey_prefix: Option<KeyCode>,
     /// Whether a no-drag waveform release should clear the old playback selection first.
     clear_playback_selection_on_click_release: bool,
     /// Whether a waveform-selection export drag is currently active.
@@ -361,20 +359,6 @@ pub fn capture_gui_automation_snapshot(
     let mut shell_state = NativeShellState::new();
     shell_state.sync_from_model(model);
     shell_state.automation_snapshot(&layout, model)
-}
-
-#[cfg(test)]
-pub(crate) fn action_from_g_prefix_for_tests(prefix: KeyCode, key: KeyCode) -> Option<UiAction> {
-    match prefix {
-        KeyCode::G => match key {
-            KeyCode::B => Some(UiAction::FocusBrowserPanel),
-            KeyCode::S => Some(UiAction::FocusSourcesPanel),
-            KeyCode::T => Some(UiAction::FocusFolderPanel),
-            KeyCode::W => Some(UiAction::FocusWaveformPanel),
-            _ => None,
-        },
-        _ => None,
-    }
 }
 
 #[cfg(test)]

@@ -10,6 +10,7 @@ use self::{
     browser::{render_browser_tab_overlay, render_source_context_menu},
     focus::{
         render_browser_focus_overlay, render_folder_focus_overlay, render_source_focus_overlay,
+        render_waveform_focus_overlay,
     },
     waveform::push_waveform_toolbar_hover_tooltip,
 };
@@ -78,6 +79,7 @@ pub(super) fn render_state_overlay(
         }
     }
     if shell_state.has_focus_emphasis {
+        render_waveform_focus_overlay(layout, style, model, primitives);
         render_source_focus_overlay(shell_state, layout, style, model, primitives);
         render_folder_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
         render_browser_focus_overlay(shell_state, layout, style, model, primitives, text_runs);

@@ -98,11 +98,7 @@ fn route_shell_background(
 ) -> Option<UiAction> {
     let hit = layout.hit_test(point)?;
     match hit {
-        ShellNodeKind::Sidebar => shell_state
-            .source_row_at_point(layout, model, point)
-            .map_or(Some(UiAction::FocusSourcesPanel), |index| {
-                Some(UiAction::SelectSourceRow { index })
-            }),
+        ShellNodeKind::Sidebar => route_sidebar_background(layout, model, shell_state, point),
         ShellNodeKind::WaveformCard => {
             if layout.waveform_plot.contains(point) {
                 Some(waveform_action_from_pointer(
@@ -120,4 +116,19 @@ fn route_shell_background(
         ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedSampleInBrowser),
         _ => None,
     }
+}
+
+fn route_sidebar_background(
+    layout: &ShellLayout,
+    model: &AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<UiAction> {
+    if let Some(index) = shell_state.source_row_at_point(layout, model, point) {
+        return Some(UiAction::FocusSourceRow { index });
+    }
+    if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
+        return Some(UiAction::FocusFolderRow { index });
+    }
+    shell_state.sidebar_focus_action_at_point(layout, model, point)
 }

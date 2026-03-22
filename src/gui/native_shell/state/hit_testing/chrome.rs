@@ -178,6 +178,24 @@ impl NativeShellState {
             .map(|button| button.action)
     }
 
+    /// Resolve a sidebar background click into a section-focus action.
+    pub(crate) fn sidebar_focus_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let sections = sidebar_sections(layout, &style, model);
+        if sections.source_rows.contains(point) {
+            return Some(UiAction::FocusSourcesPanel);
+        }
+        if sections.folder_header.contains(point) || sections.folder_rows.contains(point) {
+            return Some(UiAction::FocusFolderPanel);
+        }
+        None
+    }
+
     /// Resolve a click inside the status-bar options button to a native options action.
     pub(crate) fn status_options_action_at_point(
         &mut self,

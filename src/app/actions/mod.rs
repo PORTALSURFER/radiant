@@ -62,6 +62,8 @@ pub enum UiAction {
     FocusSourcesPanel,
     /// Focus the waveform panel.
     FocusWaveformPanel,
+    /// Focus the folder browser section inside the sources panel.
+    FocusFolderPanel,
     /// Focus the currently loaded sample in the browser.
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
@@ -87,11 +89,31 @@ pub enum UiAction {
     },
 
     // Sources and folder tree actions.
+    /// Focus a source row by index and make the sources list the active section.
+    FocusSourceRow {
+        /// Target source row index.
+        index: usize,
+    },
     /// Select a source row by index.
     SelectSourceRow {
         /// Target source row index.
         index: usize,
     },
+    /// Move focused source selection by row delta.
+    MoveSourceFocus {
+        /// Signed row delta applied to the focused source selection.
+        delta: i8,
+    },
+    /// Reload wav entries for the focused source row.
+    ReloadFocusedSourceRow,
+    /// Run a hard sync/rescan for the focused source row.
+    HardSyncFocusedSourceRow,
+    /// Open the focused source folder in the system file manager.
+    OpenFocusedSourceFolder,
+    /// Remove the currently focused source row.
+    RemoveFocusedSourceRow,
+    /// Remove missing/dead-link rows for the focused source row.
+    RemoveDeadLinksForFocusedSourceRow,
     /// Reload wav entries for one source row.
     ReloadSourceRow {
         /// Target source row index.
@@ -122,6 +144,8 @@ pub enum UiAction {
         /// Target folder row index.
         index: usize,
     },
+    /// Toggle selection for the currently focused folder row.
+    ToggleFocusedFolderSelection,
     /// Move folder focus by row delta.
     MoveFolderFocus {
         /// Signed row delta applied to focused folder selection.
@@ -204,6 +228,21 @@ pub enum UiAction {
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
+    /// Focus the previous browser sample from focus history.
+    FocusPreviousBrowserHistory,
+    /// Focus the next browser sample from focus history.
+    FocusNextBrowserHistory,
+    /// Toggle find-similar mode for the focused browser sample.
+    ToggleFindSimilarFocusedSample,
+    /// Play a random visible sample.
+    PlayRandomSample,
+    /// Replay the previous random-visible sample.
+    PlayPreviousRandomSample,
+    /// Adjust the rating for selected browser rows by a signed delta.
+    AdjustSelectedBrowserRating {
+        /// Signed rating delta applied to selected rows.
+        delta: i8,
+    },
     /// Set active browser tab (`map = true` selects map; otherwise list).
     SetBrowserTab {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
@@ -244,12 +283,41 @@ pub enum UiAction {
     CropWaveformSelectionToNewSample,
     /// Trim the active waveform selection out of the loaded file.
     TrimWaveformSelection,
+    /// Reverse the active waveform selection.
+    ReverseWaveformSelection,
+    /// Fade the active waveform selection from left to right.
+    FadeWaveformSelectionLeftToRight,
+    /// Fade the active waveform selection from right to left.
+    FadeWaveformSelectionRightToLeft,
+    /// Mute the active waveform selection or merge selected slices in slice mode.
+    MuteWaveformSelection,
+    /// Delete the selected slice markers.
+    DeleteSelectedSliceMarkers,
+    /// Align the waveform start marker to the latest hover marker.
+    AlignWaveformStartToMarker,
+    /// Delete the currently loaded sample and navigate to the next candidate.
+    DeleteLoadedWaveformSample,
+    /// Slide the active waveform selection by one coarse or fine step.
+    SlideWaveformSelection {
+        /// Signed selection slide delta (`-1` for left, `+1` for right).
+        delta: i8,
+        /// Whether the slide should use the fine nudge step.
+        fine: bool,
+    },
     /// Confirm the currently visible modal prompt.
     ConfirmPrompt,
     /// Cancel the currently visible modal prompt.
     CancelPrompt,
     /// Request cancellation of the active progress operation.
     CancelProgress,
+    /// Toggle the hotkey/help overlay.
+    ToggleHotkeyOverlay,
+    /// Copy the status log to the clipboard.
+    CopyStatusLog,
+    /// Open the feedback-issue prompt flow.
+    OpenFeedbackIssuePrompt,
+    /// Move all trashed samples into the configured trash folder.
+    MoveTrashedSamplesToFolder,
 
     // Options and persistent interaction toggles.
     /// Enable/disable input monitoring.
@@ -274,6 +342,8 @@ pub enum UiAction {
     },
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
+    /// Toggle whether loop state stays locked across sample changes.
+    ToggleLoopLock,
     /// Set waveform channel view mode.
     SetWaveformChannelView {
         /// When true, uses split stereo mode; otherwise mono mode.
@@ -309,6 +379,10 @@ pub enum UiAction {
         /// Target enabled state.
         enabled: bool,
     },
+    /// Toggle transient marker visibility.
+    ToggleTransientMarkers,
+    /// Toggle BPM snapping for waveform edits.
+    ToggleBpmSnap,
     /// Enable/disable slice mode.
     SetSliceModeEnabled {
         /// Target enabled state.

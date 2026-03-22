@@ -116,8 +116,9 @@ pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
     model: &AppModel,
-) -> Option<UiAction> {
-    key::action_from_key(key, modifiers, model)
+    pending_chord: Option<crate::app::KeyPress>,
+) -> crate::app::hotkeys::HotkeyResolution {
+    key::action_from_key(key, modifiers, model, pending_chord)
 }
 
 #[cfg(test)]

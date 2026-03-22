@@ -1,5 +1,54 @@
 use super::*;
 
+fn sidebar_focus_background_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    shell_state: &mut NativeShellState,
+    expected: UiAction,
+) -> Point {
+    let mut y = layout.sidebar_rows.min.y + 1.0;
+    while y < layout.sidebar_rows.max.y {
+        let mut x = layout.sidebar_rows.min.x + 1.0;
+        while x < layout.sidebar_rows.max.x {
+            let point = Point::new(x, y);
+            if shell_state
+                .source_row_at_point(layout, model, point)
+                .is_none()
+                && shell_state
+                    .folder_row_at_point(layout, model, point)
+                    .is_none()
+                && shell_state.sidebar_focus_action_at_point(layout, model, point)
+                    == Some(expected.clone())
+            {
+                return point;
+            }
+            x += 4.0;
+        }
+        y += 4.0;
+    }
+    panic!("failed to find sidebar background point for {expected:?}");
+}
+
+fn populated_sidebar_model() -> AppModel {
+    AppModel {
+        sources: SourcesPanelModel {
+            header: String::from("2 sources"),
+            selected_row: Some(0),
+            focused_folder_row: Some(1),
+            rows: vec![
+                crate::app::SourceRowModel::new("Source A", "ready", true, false),
+                crate::app::SourceRowModel::new("Source B", "ready", false, false),
+            ],
+            folder_rows: vec![
+                crate::app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
+                crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
+            ],
+            ..SourcesPanelModel::default()
+        },
+        ..AppModel::default()
+    }
+}
+
 #[test]
 fn map_point_click_routes_to_focus_map_sample() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -105,5 +154,88 @@ fn status_options_click_routes_open_options_menu_action() {
             ModifiersState::default(),
         ),
         Some(UiAction::OpenOptionsMenu)
+    );
+}
+
+#[test]
+fn source_row_click_routes_focus_source_row() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let row = shell_state
+        .rendered_source_row_rects(&layout, &model)
+        .into_iter()
+        .nth(1)
+        .expect("second source row should be rendered");
+    let point = Point::new((row.min.x + row.max.x) * 0.5, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusSourceRow { index: 1 })
+    );
+}
+
+#[test]
+fn empty_source_list_click_routes_focus_sources_panel() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = AppModel {
+        sources: SourcesPanelModel {
+            header: String::from("0 sources"),
+            rows: Vec::new(),
+            folder_rows: vec![
+                crate::app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
+                crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
+            ],
+            ..SourcesPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let point = sidebar_focus_background_point(
+        &layout,
+        &model,
+        &mut shell_state,
+        UiAction::FocusSourcesPanel,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusSourcesPanel)
+    );
+}
+
+#[test]
+fn empty_folder_section_click_routes_focus_folder_panel() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let point = sidebar_focus_background_point(
+        &layout,
+        &model,
+        &mut shell_state,
+        UiAction::FocusFolderPanel,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderPanel)
     );
 }

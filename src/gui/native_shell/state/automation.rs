@@ -107,7 +107,7 @@ impl NativeShellState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::BrowserRowModel;
+    use crate::app::{BrowserRowModel, FocusContextModel, FolderRowModel, SourceRowModel};
     use crate::gui::types::Vector2;
 
     fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
@@ -152,6 +152,44 @@ mod tests {
         let node = sidebar::build_sidebar_automation(&mut state, &layout, &model, &style);
         assert_eq!(node.id.0, "sources.panel");
         assert_eq!(node.role, AutomationRole::Panel);
+    }
+
+    #[test]
+    fn sidebar_surface_exposes_distinct_source_list_and_folder_browser_focus_groups() {
+        let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        model
+            .sources
+            .rows
+            .push(SourceRowModel::new("source_a", "detail_a", false, false));
+        model.sources.folder_rows.push(FolderRowModel::new(
+            "folder_a",
+            String::new(),
+            0,
+            false,
+            false,
+            true,
+            true,
+            true,
+        ));
+        let mut state = NativeShellState::new();
+
+        model.focus_context = FocusContextModel::SourcesList;
+        let sources_node = sidebar::build_sidebar_automation(&mut state, &layout, &model, &style);
+        let source_list = child(&sources_node, "sources.source_list");
+        let folder_browser = child(&sources_node, "sources.folder_browser");
+        assert!(source_list.selected);
+        assert!(!folder_browser.selected);
+        assert_eq!(source_list.role, AutomationRole::Group);
+
+        model.focus_context = FocusContextModel::SourceFolders;
+        let folders_node = sidebar::build_sidebar_automation(&mut state, &layout, &model, &style);
+        let source_list = child(&folders_node, "sources.source_list");
+        let folder_browser = child(&folders_node, "sources.folder_browser");
+        assert!(!source_list.selected);
+        assert!(folder_browser.selected);
+        assert_eq!(folder_browser.role, AutomationRole::Group);
     }
 
     #[test]

@@ -13,6 +13,8 @@ pub struct NativeMotionModel {
     pub active_rating_filters: [bool; 8],
     /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
+    /// One-shot token incremented after successful waveform-selection exports.
+    pub waveform_selection_export_flash_nonce: u64,
     /// Waveform edit-selection window with milli and micro precision.
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit fade-in end handle in normalized milliseconds.
@@ -87,6 +89,7 @@ impl NativeMotionModel {
             map_active: model.map.active,
             active_rating_filters: model.browser.active_rating_filters,
             waveform_selection_milli: model.waveform.selection_milli,
+            waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
             waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,

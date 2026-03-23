@@ -41,6 +41,13 @@ impl NativeShellState {
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
     pub(crate) fn sync_from_motion_model(&mut self, model: &NativeMotionModel) {
         self.transport_running = model.transport_running;
+        if model.waveform_selection_export_flash_nonce
+            != self.last_waveform_selection_export_flash_nonce
+        {
+            self.last_waveform_selection_export_flash_nonce =
+                model.waveform_selection_export_flash_nonce;
+            self.trigger_waveform_selection_flash();
+        }
     }
 
     /// Update waveform BPM toolbar editor state used by toolbar rendering.
@@ -84,6 +91,10 @@ impl NativeShellState {
         });
     }
 
+    pub(super) fn trigger_waveform_selection_flash(&mut self) {
+        self.waveform_selection_flash_ticks = WAVEFORM_SELECTION_FLASH_TICKS;
+    }
+
     pub(super) fn trigger_source_add_button_flash(&mut self) {
         self.source_add_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
     }
@@ -124,6 +135,7 @@ impl NativeShellState {
         WaveformMotionOverlayFingerprint {
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
             hovered_waveform_resize_edge: self.hovered_waveform_resize_edge,
+            waveform_selection_flash_active: self.waveform_selection_flash_ticks > 0,
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }
@@ -176,6 +188,7 @@ impl NativeShellState {
             flash.ticks_remaining = flash.ticks_remaining.saturating_sub(1);
             self.waveform_toolbar_flash = (flash.ticks_remaining > 0).then_some(flash);
         }
+        self.waveform_selection_flash_ticks = self.waveform_selection_flash_ticks.saturating_sub(1);
         self.source_add_button_flash_ticks = self.source_add_button_flash_ticks.saturating_sub(1);
         self.status_options_button_flash_ticks =
             self.status_options_button_flash_ticks.saturating_sub(1);

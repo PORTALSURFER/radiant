@@ -93,6 +93,8 @@ pub(crate) struct WaveformMotionOverlayFingerprint {
     pub waveform_hover_x_bits: Option<u32>,
     /// Hovered waveform resize-edge target for highlight overlays.
     pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
+    /// Whether the waveform selection success flash is active.
+    pub waveform_selection_flash_active: bool,
     /// Quantized motion phase to force repaint while dynamic trails fade.
     pub pulse_phase_bits: u32,
 }

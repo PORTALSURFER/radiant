@@ -66,6 +66,11 @@ pub struct WaveformPanelModel {
     pub playhead_micros: Option<u32>,
     /// Current waveform selection bounds.
     pub selection_milli: Option<NormalizedRangeModel>,
+    /// One-shot token incremented after successful waveform-selection exports.
+    ///
+    /// Native shells treat each new value as an event and can run local flash
+    /// feedback without depending on controller wall-clock timestamps.
+    pub selection_export_flash_nonce: u64,
     /// Current waveform edit-selection bounds (right-click paint range).
     pub edit_selection_milli: Option<NormalizedRangeModel>,
     /// End position for the edit fade-in region in normalized milli-units.
@@ -145,6 +150,7 @@ impl Default for WaveformPanelModel {
             playhead_milli: None,
             playhead_micros: None,
             selection_milli: None,
+            selection_export_flash_nonce: 0,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
             edit_fade_in_end_micros: None,

@@ -10,6 +10,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
+    selection_flash_active: bool,
     motion_wave: f32,
     playhead_trail_lines: &[PlayheadTrailLine],
     hovered_resize_edge: Option<WaveformResizeHoverEdge>,
@@ -37,17 +38,27 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         playhead_marker_rect(layout.waveform_plot, style.sizing.border_width, model);
 
     if let Some(rect) = annotations.selection {
+        let selection_fill = if selection_flash_active {
+            translucent_overlay_color(style.surface_overlay, style.accent_warning, 0.78)
+        } else {
+            translucent_overlay_color(style.bg_secondary, style.accent_warning, 0.52)
+        };
+        let selection_border = if selection_flash_active {
+            blend_color(style.accent_warning, style.text_primary, 0.5)
+        } else {
+            blend_color(style.accent_warning, style.text_primary, 0.28)
+        };
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect,
-                color: translucent_overlay_color(style.bg_secondary, style.accent_warning, 0.52),
+                color: selection_fill,
             }),
         );
         push_border(
             primitives,
             rect,
-            blend_color(style.accent_warning, style.text_primary, 0.28),
+            selection_border,
             style.sizing.border_width,
         );
         emit_hovered_selection_resize_edge(

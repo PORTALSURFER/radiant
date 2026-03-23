@@ -220,7 +220,7 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
     })
 }
 
-/// Build one direct edge-adjust action, defaulting the missing opposite edge to the full span.
+/// Build one direct edge-adjust action, sliding only when the new edge would invert the range.
 fn waveform_edge_adjust_action(
     layout: &ShellLayout,
     model: &AppModel,
@@ -232,23 +232,30 @@ fn waveform_edge_adjust_action(
     if !layout.waveform_plot.contains(point) {
         return None;
     }
+    let selection = selection?;
     let position_micros = waveform_position_micros_from_point(layout, model, point);
-    let (start_micros, end_micros) = if let Some(selection) = selection {
-        let anchor_micros = if shift {
-            selection.end_micros
+    let selection_start = selection.start_micros.min(selection.end_micros);
+    let selection_end = selection.start_micros.max(selection.end_micros);
+    let (start_micros, end_micros) = if shift {
+        if position_micros < selection_start {
+            shift_waveform_range_micros(
+                selection_end,
+                position_micros,
+                selection_start,
+                selection_end,
+            )
         } else {
-            selection.start_micros
-        };
+            (selection_start, position_micros)
+        }
+    } else if position_micros > selection_end {
         shift_waveform_range_micros(
-            anchor_micros,
+            selection_start,
             position_micros,
-            selection.start_micros,
-            selection.end_micros,
+            selection_start,
+            selection_end,
         )
-    } else if shift {
-        (0, position_micros)
     } else {
-        (position_micros, 1_000_000)
+        (position_micros, selection_end)
     };
     Some(build(start_micros, end_micros))
 }

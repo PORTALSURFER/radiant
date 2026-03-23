@@ -9,8 +9,10 @@ mod press;
 use self::{
     clear::{waveform_clear_action_from_pointer, waveform_new_selection_action_from_pointer},
     press::{
+        waveform_edit_selection_edge_adjust_action_from_pointer,
         waveform_edit_selection_shift_action_from_pointer,
         waveform_primary_press_action_from_pointer, waveform_selection_drag_action_from_pointer,
+        waveform_selection_edge_adjust_action_from_pointer,
         waveform_selection_resize_action_from_pointer,
         waveform_selection_shift_action_from_pointer,
     },
@@ -27,6 +29,13 @@ pub(super) fn waveform_action_from_pointer(
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
+    if command
+        && !alt
+        && let Some(action) =
+            waveform_selection_edge_adjust_action_from_pointer(layout, model, point, shift)
+    {
+        return action;
+    }
     if let Some(action) =
         waveform_primary_press_action_from_pointer(layout, model, point, command, alt, shift)
     {
@@ -92,6 +101,18 @@ pub(super) fn waveform_edit_action_from_pointer(
 ) -> UiAction {
     if !layout.waveform_plot.contains(point) {
         return UiAction::FocusWaveformPanel;
+    }
+    let command = modifiers.control_key() || modifiers.super_key();
+    if command
+        && !modifiers.alt_key()
+        && let Some(action) = waveform_edit_selection_edge_adjust_action_from_pointer(
+            layout,
+            model,
+            point,
+            modifiers.shift_key(),
+        )
+    {
+        return action;
     }
     if modifiers.alt_key()
         && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)

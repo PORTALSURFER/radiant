@@ -71,6 +71,48 @@ pub(super) fn waveform_primary_press_action_from_pointer(
     None
 }
 
+/// Resolve one direct playback-selection edge adjustment for command-click gestures.
+pub(super) fn waveform_selection_edge_adjust_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    shift: bool,
+) -> Option<UiAction> {
+    waveform_edge_adjust_action(
+        layout,
+        model,
+        model.waveform.selection_milli,
+        point,
+        shift,
+        |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
+            start_micros,
+            end_micros,
+            preserve_view_edge: false,
+        },
+    )
+}
+
+/// Resolve one direct edit-selection edge adjustment for command-click gestures.
+pub(super) fn waveform_edit_selection_edge_adjust_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    shift: bool,
+) -> Option<UiAction> {
+    waveform_edge_adjust_action(
+        layout,
+        model,
+        model.waveform.edit_selection_milli,
+        point,
+        shift,
+        |start_micros, end_micros| UiAction::SetWaveformEditSelectionRange {
+            start_micros,
+            end_micros,
+            preserve_view_edge: false,
+        },
+    )
+}
+
 /// Resolve one selection-drag action when the pointer lands on the playback-selection handle.
 pub(super) fn waveform_selection_drag_action_from_pointer(
     layout: &ShellLayout,
@@ -176,4 +218,31 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
             preserve_view_edge: false,
         }
     })
+}
+
+/// Build one direct edge-adjust action, defaulting the missing opposite edge to the full span.
+fn waveform_edge_adjust_action(
+    layout: &ShellLayout,
+    model: &AppModel,
+    selection: Option<crate::app::NormalizedRangeModel>,
+    point: Point,
+    shift: bool,
+    build: impl FnOnce(u32, u32) -> UiAction,
+) -> Option<UiAction> {
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    let (start_micros, end_micros) = if shift {
+        (
+            selection.map(|range| range.start_micros).unwrap_or(0),
+            position_micros,
+        )
+    } else {
+        (
+            position_micros,
+            selection.map(|range| range.end_micros).unwrap_or(1_000_000),
+        )
+    };
+    Some(build(start_micros, end_micros))
 }

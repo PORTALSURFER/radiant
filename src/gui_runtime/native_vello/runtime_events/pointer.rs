@@ -222,7 +222,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             point,
             self.modifiers,
         ) {
-            *action_emitted = self.handle_pointer_press_action(action, map_drag_start);
+            if self.should_emit_waveform_command_edge_adjust_immediately(&action) {
+                self.emit_model_action(action);
+                *action_emitted = true;
+            } else {
+                *action_emitted = self.handle_pointer_press_action(action, map_drag_start);
+            }
             return true;
         }
         if self.shell_state.handle_primary_click(layout, point)
@@ -266,9 +271,26 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard)) {
             let action =
                 waveform_edit_action_from_pointer(layout, &self.model, point, self.modifiers);
-            *action_emitted = self.handle_pointer_press_action(action, false);
+            if self.should_emit_waveform_command_edge_adjust_immediately(&action) {
+                self.emit_model_action(action);
+                *action_emitted = true;
+            } else {
+                *action_emitted = self.handle_pointer_press_action(action, false);
+            }
             return true;
         }
         false
+    }
+
+    /// Return whether one command-click waveform edge adjustment should emit on press.
+    fn should_emit_waveform_command_edge_adjust_immediately(&self, action: &UiAction) -> bool {
+        let command = self.modifiers.control_key() || self.modifiers.super_key();
+        command
+            && !self.modifiers.alt_key()
+            && matches!(
+                action,
+                UiAction::SetWaveformSelectionRange { .. }
+                    | UiAction::SetWaveformEditSelectionRange { .. }
+            )
     }
 }

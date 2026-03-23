@@ -564,6 +564,37 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
 }
 
 #[test]
+fn command_waveform_edge_adjust_press_emits_immediately_without_arming_drag() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.6),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    runner.model = Arc::new(model);
+    runner.modifiers = ModifiersState::CONTROL;
+
+    let mut action_emitted = false;
+    assert!(
+        runner.handle_left_pointer_press_for_tests(&layout, point, false, &mut action_emitted,)
+    );
+
+    assert!(action_emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetWaveformSelectionRange {
+            start_micros: 600_000,
+            end_micros: 800_000,
+            preserve_view_edge: false,
+        }]
+    );
+    assert_eq!(runner.waveform_drag_mode, None);
+}
+
+#[test]
 fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

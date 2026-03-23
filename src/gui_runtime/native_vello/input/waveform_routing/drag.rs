@@ -209,8 +209,8 @@ pub(super) fn waveform_drag_mode_is_edit_fade(mode: WaveformPointerDragMode) -> 
 /// Return whether one waveform press action should mutate model state immediately.
 ///
 /// Selection/edit/fade gestures are armed on press and only emit once the
-/// pointer actually moves. This keeps simple clicks from creating zero-width
-/// markers or nudging handles without a drag.
+/// pointer actually moves. This keeps simple clicks from creating incidental
+/// selection artifacts or nudging handles without a drag.
 pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool {
     !matches!(
         action,

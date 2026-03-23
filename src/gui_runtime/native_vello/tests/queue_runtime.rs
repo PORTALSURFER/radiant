@@ -291,11 +291,8 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
 
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
-            UiAction::BeginWaveformSelectionAt { anchor_micros } => {
+            UiAction::BeginWaveformSelectionAt { .. } => {
                 self.model.focus_context = crate::app::FocusContextModel::Waveform;
-                self.model.waveform.selection_milli = Some(
-                    crate::app::NormalizedRangeModel::from_micros(*anchor_micros, *anchor_micros),
-                );
             }
             UiAction::SetWaveformSelectionRange {
                 start_micros,
@@ -314,6 +311,27 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
         }
         self.actions.push(action);
     }
+}
+
+#[test]
+fn begin_waveform_selection_press_does_not_project_zero_width_selection() {
+    let mut bridge = ImmediateWaveformSelectionBridge::default();
+
+    bridge.reduce_action(UiAction::BeginWaveformSelectionAt {
+        anchor_micros: 125_000,
+    });
+
+    assert_eq!(
+        bridge.model.focus_context,
+        crate::app::FocusContextModel::Waveform
+    );
+    assert!(bridge.model.waveform.selection_milli.is_none());
+    assert_eq!(
+        bridge.actions,
+        vec![UiAction::BeginWaveformSelectionAt {
+            anchor_micros: 125_000,
+        }]
+    );
 }
 
 #[test]

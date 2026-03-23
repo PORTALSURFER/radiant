@@ -6,6 +6,23 @@ impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
 {
+    /// Refresh the cached app model before immediate follow-up input uses stale state.
+    ///
+    /// Selection creation and focus changes can reduce into the bridge one event
+    /// before the next redraw rebuild refreshes `self.model`. Keyboard shortcuts
+    /// and same-frame pointer hit-testing should pull that pending snapshot so
+    /// actions like immediate selection export see the latest focus/selection.
+    pub(crate) fn refresh_cached_model_for_pending_input(&mut self) {
+        if !self.frame_state.model_dirty {
+            return;
+        }
+        self.model = self.bridge.pull_model_arc();
+        self.waveform_view_refresh_pending = false;
+        self.shell_state.sync_from_model(&self.model);
+        self.refresh_motion_model_from_model();
+        self.sync_text_input_target();
+    }
+
     pub(crate) fn queue_volume_milli(&mut self, value_milli: u16) {
         self.pending_volume_milli = Some(value_milli.min(1000));
     }

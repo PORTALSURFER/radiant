@@ -278,6 +278,44 @@ impl NativeAppBridge for WaveformScrollbarPressBridge {
     }
 }
 
+#[derive(Default)]
+struct ImmediateWaveformSelectionBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+}
+
+impl NativeAppBridge for ImmediateWaveformSelectionBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        match &action {
+            UiAction::BeginWaveformSelectionAt { anchor_micros } => {
+                self.model.focus_context = crate::app::FocusContextModel::Waveform;
+                self.model.waveform.selection_milli = Some(
+                    crate::app::NormalizedRangeModel::from_micros(*anchor_micros, *anchor_micros),
+                );
+            }
+            UiAction::SetWaveformSelectionRange {
+                start_micros,
+                end_micros,
+                ..
+            } => {
+                self.model.focus_context = crate::app::FocusContextModel::Waveform;
+                self.model.waveform.selection_milli = Some(
+                    crate::app::NormalizedRangeModel::from_micros(*start_micros, *end_micros),
+                );
+            }
+            UiAction::FinishWaveformSelectionDrag => {
+                self.model.focus_context = crate::app::FocusContextModel::Waveform;
+            }
+            _ => {}
+        }
+        self.actions.push(action);
+    }
+}
+
 #[test]
 fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -559,6 +597,110 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
         vec![
             UiAction::SetBrowserViewStart { visible_row: 3 },
             UiAction::FocusBrowserRow { visible_row: 15 }
+        ]
+    );
+}
+
+#[test]
+fn immediate_enter_after_selection_creation_uses_refreshed_waveform_focus() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8),
+        anchor.y,
+    );
+    let mut runner = NativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ImmediateWaveformSelectionBridge::default(),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(anchor);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    assert!(
+        runner.handle_pointer_press_action(
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            false,
+        )
+    );
+    assert!(runner.process_waveform_drag_immediately(drag));
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    runner.handle_hotkey_press_for_tests(KeyCode::Enter);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::SetWaveformSelectionRange {
+                start_micros: anchor_micros,
+                end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+                preserve_view_edge: false,
+            },
+            UiAction::SaveWaveformSelectionToBrowser,
+        ]
+    );
+}
+
+#[test]
+fn immediate_selection_handle_press_after_creation_uses_refreshed_model() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8),
+        anchor.y,
+    );
+    let mut runner = NativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ImmediateWaveformSelectionBridge::default(),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(anchor);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    let end_micros = waveform_position_micros_from_point(&layout, &runner.model, drag);
+    assert!(
+        runner.handle_pointer_press_action(
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            false,
+        )
+    );
+    assert!(runner.process_waveform_drag_immediately(drag));
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    let handle_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8) - 4.0,
+        layout.waveform_plot.max.y - 4.0,
+    );
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        handle_point,
+        false,
+        &mut action_emitted,
+    ));
+    assert!(action_emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::SetWaveformSelectionRange {
+                start_micros: anchor_micros,
+                end_micros,
+                preserve_view_edge: false,
+            },
+            UiAction::StartWaveformSelectionDrag {
+                pointer_x: handle_point.x.round() as u16,
+                pointer_y: handle_point.y.round() as u16,
+            },
         ]
     );
 }

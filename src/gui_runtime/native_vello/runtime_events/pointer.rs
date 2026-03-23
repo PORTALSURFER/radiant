@@ -10,6 +10,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         map_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
+        self.begin_pointer_press_cycle();
+        self.refresh_cached_model_for_pending_input();
         self.handle_left_pointer_press(layout, point, map_drag_start, action_emitted)
     }
 
@@ -89,6 +91,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let mut source_menu_state_changed = false;
             match button {
                 MouseButton::Left => {
+                    this.refresh_cached_model_for_pending_input();
                     let map_drag_start =
                         this.model.map.active && layout.browser_rows.contains(point);
                     if let Some(action) = this.shell_state.source_context_menu_action_at_point(

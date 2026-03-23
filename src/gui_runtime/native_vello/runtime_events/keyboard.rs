@@ -2,6 +2,18 @@ use super::*;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(test)]
+    pub(crate) fn handle_hotkey_press_for_tests(&mut self, key: KeyCode) {
+        self.refresh_cached_model_for_pending_input();
+        let resolution =
+            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
+        self.pending_hotkey_chord = resolution.pending_chord;
+        if let Some(action) = resolution.action {
+            self.update_text_target_after_action(&action);
+            self.emit_model_action(action);
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn handle_mouse_wheel_for_tests(&mut self, delta: MouseScrollDelta) {
         self.handle_mouse_wheel(delta);
     }
@@ -58,6 +70,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if event.state != ElementState::Pressed || (event.repeat && !allow_repeat) {
             return;
         }
+        self.refresh_cached_model_for_pending_input();
         let mut handled = false;
         if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
             self.pending_hotkey_chord = None;

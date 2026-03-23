@@ -172,6 +172,53 @@ fn outside_selection_drag_creates_new_selection_without_clearing_first() {
 }
 
 #[test]
+fn edit_selection_drag_preserves_exact_micro_anchor_through_first_drag_update() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.view_start_micros = milli(200);
+    model.waveform.view_end_micros = milli(400);
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1234),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1712),
+        anchor.y,
+    );
+    let anchor_micros = waveform_position_micros_from_point(&layout, &model, anchor);
+    let drag_micros = waveform_position_micros_from_point(&layout, &model, drag);
+    runner.model = Arc::new(model.clone());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+
+    let press_action =
+        waveform_edit_action_from_pointer(&layout, &model, anchor, ModifiersState::default());
+    assert_eq!(
+        press_action,
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: anchor_micros,
+            preserve_view_edge: false,
+        }
+    );
+
+    let emitted = runner.handle_pointer_press_action(press_action, false);
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
+
+    assert!(runner.process_waveform_drag_immediately(drag));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetWaveformEditSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: drag_micros,
+            preserve_view_edge: false,
+        }]
+    );
+}
+
+#[test]
 /// Drag waveform actions should clamp pointer positions and preserve anchors or widths.
 fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));

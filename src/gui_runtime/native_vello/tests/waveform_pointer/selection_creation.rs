@@ -98,6 +98,63 @@ fn waveform_click_modifiers_route_expected_actions() {
 }
 
 #[test]
+fn waveform_plain_click_preserves_exact_micro_anchor() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1234,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+    let expected_anchor = waveform_position_micros_from_point(&layout, &AppModel::default(), point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::BeginWaveformSelectionAt {
+            anchor_micros: expected_anchor,
+        })
+    );
+}
+
+#[test]
+fn waveform_shift_click_preserves_exact_micro_endpoint() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let point = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1234,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+    let expected_endpoint = waveform_position_micros_from_point(&layout, &AppModel::default(), point);
+    let model = AppModel {
+        waveform: WaveformPanelModel {
+            selection_milli: Some(crate::app::NormalizedRangeModel::new(200, 800)),
+            ..WaveformPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::SHIFT,
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: milli(200),
+            end_micros: expected_endpoint,
+            preserve_view_edge: false,
+        })
+    );
+}
+
+#[test]
 fn waveform_right_click_maps_to_edit_selection_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let point = Point::new(

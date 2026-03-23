@@ -9,8 +9,6 @@ mod waveform_handles;
 mod waveform_routing;
 mod wheel;
 
-use self::waveform_geometry::micros_from_milli;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformPointerDragMode {
     /// Drag updates seek/playhead position.

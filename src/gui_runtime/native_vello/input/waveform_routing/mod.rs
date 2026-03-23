@@ -25,6 +25,9 @@ pub(super) fn waveform_action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> UiAction {
+    // Preserve the initial click/press anchor at micro precision for selection
+    // creation and extension so zoomed-in gestures start exactly under the pointer.
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
     let position_milli = waveform_position_milli_from_point(layout, model, point);
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
@@ -58,12 +61,12 @@ pub(super) fn waveform_action_from_pointer(
     } else if shift {
         UiAction::SetWaveformSelectionRange {
             start_micros: waveform_anchor_micros(model),
-            end_micros: micros_from_milli(position_milli),
+            end_micros: position_micros,
             preserve_view_edge: false,
         }
     } else {
         UiAction::BeginWaveformSelectionAt {
-            anchor_micros: micros_from_milli(position_milli),
+            anchor_micros: position_micros,
         }
     }
 }

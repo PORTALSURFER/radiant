@@ -45,11 +45,7 @@ fn source_row_fill(ctx: &StaticFrameCtx<'_>, row_selected: bool) -> Rgba8 {
     }
 }
 
-fn source_row_border(
-    ctx: &StaticFrameCtx<'_>,
-    row: &SourceRowModel,
-    row_selected: bool,
-) -> Rgba8 {
+fn source_row_border(ctx: &StaticFrameCtx<'_>, row: &SourceRowModel, row_selected: bool) -> Rgba8 {
     if row_selected {
         blend_color(
             ctx.style.accent_mint,

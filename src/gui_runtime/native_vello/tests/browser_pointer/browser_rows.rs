@@ -35,7 +35,13 @@ fn browser_row_click_modifiers_route_expected_actions() {
         Some(UiAction::FocusBrowserRow { visible_row: 17 })
     );
     assert_eq!(
-        action_from_pointer(&layout, &model, &mut shell_state, point, ModifiersState::SHIFT),
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::SHIFT
+        ),
         Some(UiAction::ExtendBrowserSelectionToRow { visible_row: 17 })
     );
     assert_eq!(

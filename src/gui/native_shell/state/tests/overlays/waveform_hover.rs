@@ -16,7 +16,12 @@ fn cursor_move_tracks_waveform_hover_position_inside_plot() {
     );
     let fingerprint = state.state_overlay_fingerprint();
     assert_eq!(fingerprint.hovered, Some(ShellNodeKind::WaveformCard));
-    assert!(state.motion_overlay_fingerprint().waveform_hover_x_bits.is_some());
+    assert!(
+        state
+            .motion_overlay_fingerprint()
+            .waveform_hover_x_bits
+            .is_some()
+    );
 }
 
 #[test]
@@ -150,12 +155,22 @@ fn cursor_move_clears_waveform_hover_position_outside_plot() {
         state.handle_cursor_move_effect(&layout, &model, in_plot),
         CursorMoveEffect::None
     );
-    assert!(state.motion_overlay_fingerprint().waveform_hover_x_bits.is_some());
+    assert!(
+        state
+            .motion_overlay_fingerprint()
+            .waveform_hover_x_bits
+            .is_some()
+    );
     assert_ne!(
         state.handle_cursor_move_effect(&layout, &model, outside),
         CursorMoveEffect::None
     );
-    assert!(state.motion_overlay_fingerprint().waveform_hover_x_bits.is_none());
+    assert!(
+        state
+            .motion_overlay_fingerprint()
+            .waveform_hover_x_bits
+            .is_none()
+    );
 }
 
 #[test]

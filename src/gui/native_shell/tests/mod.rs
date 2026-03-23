@@ -36,16 +36,19 @@ fn canonical_shell_model() -> crate::app::AppModel {
         ));
     }
     for index in 0..14 {
-        model.sources.folder_rows.push(crate::app::FolderRowModel::new(
-            format!("folder_{index:02}"),
-            String::new(),
-            index % 3,
-            index == 1,
-            index == 3,
-            index == 0,
-            true,
-            true,
-        ));
+        model
+            .sources
+            .folder_rows
+            .push(crate::app::FolderRowModel::new(
+                format!("folder_{index:02}"),
+                String::new(),
+                index % 3,
+                index == 1,
+                index == 3,
+                index == 0,
+                true,
+                true,
+            ));
     }
     for index in 0..36 {
         model.browser.rows.push(crate::app::BrowserRowModel::new(

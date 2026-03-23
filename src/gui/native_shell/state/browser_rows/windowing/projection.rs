@@ -26,8 +26,9 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         .find(|row| row.selected)
         .map(|row| row.visible_row as u32)
         .unwrap_or(u32::MAX);
-    let window_end = (window_start + super::scrollbars::browser_rows_capacity(layout.browser_rows, sizing))
-        .min(model.browser.rows.len());
+    let window_end = (window_start
+        + super::scrollbars::browser_rows_capacity(layout.browser_rows, sizing))
+    .min(model.browser.rows.len());
     let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
     BrowserRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),

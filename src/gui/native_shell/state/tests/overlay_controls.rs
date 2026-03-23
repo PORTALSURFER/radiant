@@ -394,9 +394,12 @@ fn drag_overlay_renders_target_arrow_and_warning_text_for_invalid_drop() {
     let mut overlay = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
 
-    assert!(overlay.text_runs.iter().any(|run| {
-        run.text == "kick.wav -> Trash" && run.color == style.accent_warning
-    }));
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| { run.text == "kick.wav -> Trash" && run.color == style.accent_warning })
+    );
     assert!(overlay.primitives.iter().any(|primitive| matches!(
         primitive,
         Primitive::Rect(rect)

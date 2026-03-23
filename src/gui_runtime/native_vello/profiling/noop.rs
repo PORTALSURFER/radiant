@@ -32,11 +32,27 @@ impl NativeVelloProfiler {
     pub(in crate::gui_runtime::native_vello) fn add_motion_pull(&mut self, _duration: Duration) {}
     pub(in crate::gui_runtime::native_vello) fn add_motion_overlay_skip(&mut self) {}
     pub(in crate::gui_runtime::native_vello) fn add_build_static(&mut self, _duration: Duration) {}
-    pub(in crate::gui_runtime::native_vello) fn add_build_state_overlay(&mut self, _duration: Duration) {}
-    pub(in crate::gui_runtime::native_vello) fn add_build_motion_overlay(&mut self, _duration: Duration) {}
+    pub(in crate::gui_runtime::native_vello) fn add_build_state_overlay(
+        &mut self,
+        _duration: Duration,
+    ) {
+    }
+    pub(in crate::gui_runtime::native_vello) fn add_build_motion_overlay(
+        &mut self,
+        _duration: Duration,
+    ) {
+    }
     pub(in crate::gui_runtime::native_vello) fn add_encode_static(&mut self, _duration: Duration) {}
-    pub(in crate::gui_runtime::native_vello) fn add_encode_state_overlay(&mut self, _duration: Duration) {}
-    pub(in crate::gui_runtime::native_vello) fn add_encode_motion_overlay(&mut self, _duration: Duration) {}
+    pub(in crate::gui_runtime::native_vello) fn add_encode_state_overlay(
+        &mut self,
+        _duration: Duration,
+    ) {
+    }
+    pub(in crate::gui_runtime::native_vello) fn add_encode_motion_overlay(
+        &mut self,
+        _duration: Duration,
+    ) {
+    }
     pub(in crate::gui_runtime::native_vello) fn add_interaction_latency(
         &mut self,
         _kind: InteractionProfileKind,

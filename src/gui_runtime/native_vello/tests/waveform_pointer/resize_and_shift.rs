@@ -39,7 +39,13 @@ fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
     let position_micros = waveform_position_micros_from_point(&layout, &model, point);
 
     assert_eq!(
-        action_from_pointer(&layout, &model, &mut shell_state, point, ModifiersState::ALT),
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::ALT
+        ),
         Some(UiAction::SetWaveformSelectionRangeSmartScale {
             start_micros: milli(800),
             end_micros: position_micros,

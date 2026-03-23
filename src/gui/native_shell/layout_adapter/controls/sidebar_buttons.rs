@@ -1,5 +1,5 @@
-use super::shared::{clamp_rect_right_edge, layout_right_aligned_fixed_widths};
 use super::super::super::style::SizingTokens;
+use super::shared::{clamp_rect_right_edge, layout_right_aligned_fixed_widths};
 use crate::gui::types::{Point, Rect};
 
 const SIDEBAR_BUTTON_ROW_ID: u64 = 770;

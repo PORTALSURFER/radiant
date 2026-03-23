@@ -35,16 +35,28 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let controls = browser_toolbar_layout(&layout, &style);
     let buttons = browser_action_buttons(&layout, &style, &model, &controls);
     assert_eq!(buttons.len(), 1);
-    assert!(controls.rating_filter_chips.iter().all(|chip| chip.width() > 1.0));
+    assert!(
+        controls
+            .rating_filter_chips
+            .iter()
+            .all(|chip| chip.width() > 1.0)
+    );
     assert_rect_inside(layout.browser_toolbar, controls.search_field);
-    assert!(controls.search_field.max.x <= layout.browser_toolbar.max.x - style.sizing.text_inset_x);
+    assert!(
+        controls.search_field.max.x <= layout.browser_toolbar.max.x - style.sizing.text_inset_x
+    );
     assert_eq!(buttons[0].rect, controls.action_slot);
     assert!(controls.rating_filter_chips[7].max.x <= buttons[0].rect.min.x);
     assert!(buttons[0].rect.max.x <= controls.search_field.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);
-    assert!(controls.triage_chips.into_iter().all(|chip| chip.width() <= 0.0));
+    assert!(
+        controls
+            .triage_chips
+            .into_iter()
+            .all(|chip| chip.width() <= 0.0)
+    );
 }
 
 #[test]

@@ -16,7 +16,12 @@ fn fixture_paths(name: &str) -> (PathBuf, PathBuf) {
     )
 }
 
-pub(super) fn write_or_compare_shot(name: &str, viewport: Vector2, model: AppModel, write_mode: bool) {
+pub(super) fn write_or_compare_shot(
+    name: &str,
+    viewport: Vector2,
+    model: AppModel,
+    write_mode: bool,
+) {
     let snapshot = snapshot::build_snapshot(name, viewport, &model);
     let (json_path, png_path) = fixture_paths(name);
 

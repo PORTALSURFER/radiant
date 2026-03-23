@@ -205,7 +205,11 @@ fn render_prompt_input(
         },
         sizing.border_width,
     );
-    let input_text = model.confirm_prompt.input_value.as_deref().unwrap_or_default();
+    let input_text = model
+        .confirm_prompt
+        .input_value
+        .as_deref()
+        .unwrap_or_default();
     let (text, color) = if input_text.is_empty() {
         (
             model
@@ -234,8 +238,10 @@ fn render_prompt_input(
             align: TextAlign::Left,
         },
     );
-    if let (Some(error), Some(error_rect)) = (model.confirm_prompt.input_error.as_deref(), input_error_rect)
-    {
+    if let (Some(error), Some(error_rect)) = (
+        model.confirm_prompt.input_error.as_deref(),
+        input_error_rect,
+    ) {
         emit_text(
             text_runs,
             TextRun {

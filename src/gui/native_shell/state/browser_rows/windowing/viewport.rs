@@ -50,7 +50,8 @@ pub(in crate::gui::native_shell::state) fn browser_window_start_with_previous(
     let focus_index = selected_visible_row
         .and_then(|target| rows.iter().position(|row| row.visible_row == target))
         .or_else(|| {
-            anchor_visible_row.and_then(|target| rows.iter().position(|row| row.visible_row == target))
+            anchor_visible_row
+                .and_then(|target| rows.iter().position(|row| row.visible_row == target))
         })
         .or_else(|| rows.iter().position(|row| row.focused))
         .or_else(|| rows.iter().position(|row| row.selected))

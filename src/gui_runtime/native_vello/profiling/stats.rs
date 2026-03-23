@@ -137,13 +137,19 @@ impl NativeVelloProfiler {
         self.build_static_ns = self.build_static_ns.saturating_add(duration.as_nanos());
     }
 
-    pub(in crate::gui_runtime::native_vello) fn add_build_state_overlay(&mut self, duration: Duration) {
+    pub(in crate::gui_runtime::native_vello) fn add_build_state_overlay(
+        &mut self,
+        duration: Duration,
+    ) {
         self.build_state_overlay_ns = self
             .build_state_overlay_ns
             .saturating_add(duration.as_nanos());
     }
 
-    pub(in crate::gui_runtime::native_vello) fn add_build_motion_overlay(&mut self, duration: Duration) {
+    pub(in crate::gui_runtime::native_vello) fn add_build_motion_overlay(
+        &mut self,
+        duration: Duration,
+    ) {
         self.build_motion_overlay_ns = self
             .build_motion_overlay_ns
             .saturating_add(duration.as_nanos());
@@ -153,13 +159,19 @@ impl NativeVelloProfiler {
         self.encode_static_ns = self.encode_static_ns.saturating_add(duration.as_nanos());
     }
 
-    pub(in crate::gui_runtime::native_vello) fn add_encode_state_overlay(&mut self, duration: Duration) {
+    pub(in crate::gui_runtime::native_vello) fn add_encode_state_overlay(
+        &mut self,
+        duration: Duration,
+    ) {
         self.encode_state_overlay_ns = self
             .encode_state_overlay_ns
             .saturating_add(duration.as_nanos());
     }
 
-    pub(in crate::gui_runtime::native_vello) fn add_encode_motion_overlay(&mut self, duration: Duration) {
+    pub(in crate::gui_runtime::native_vello) fn add_encode_motion_overlay(
+        &mut self,
+        duration: Duration,
+    ) {
         self.encode_motion_overlay_ns = self
             .encode_motion_overlay_ns
             .saturating_add(duration.as_nanos());

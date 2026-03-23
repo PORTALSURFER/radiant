@@ -1,9 +1,6 @@
 use super::*;
 
-fn prompt_dialog(
-    layout: &ShellLayout,
-    style: &style::StyleTokens,
-) -> crate::gui::types::Rect {
+fn prompt_dialog(layout: &ShellLayout, style: &style::StyleTokens) -> crate::gui::types::Rect {
     let sizing = style.sizing;
     let width = sizing
         .prompt_width

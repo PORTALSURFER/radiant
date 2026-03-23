@@ -61,10 +61,9 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = crate::app::AppModel::default();
-    model
-        .sources
-        .rows
-        .push(crate::app::SourceRowModel::new("Pack", "pack", false, false));
+    model.sources.rows.push(crate::app::SourceRowModel::new(
+        "Pack", "pack", false, false,
+    ));
     model
         .sources
         .folder_rows

@@ -26,7 +26,10 @@ pub(super) struct ShotRect {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(super) enum ShotPrimitive {
-    Rect { rect: ShotRect, color: ShotColor },
+    Rect {
+        rect: ShotRect,
+        color: ShotColor,
+    },
     Circle {
         center: ShotPoint,
         radius: f32,

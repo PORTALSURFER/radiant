@@ -1,7 +1,5 @@
-use super::common::{
-    centered_line_in_rect, column_tree, fixed_height_child, top_line_in_bounds,
-};
 use super::super::{ProgressOverlaySections, ProgressOverlayTextLayout, shared};
+use super::common::{centered_line_in_rect, column_tree, fixed_height_child, top_line_in_bounds};
 use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 

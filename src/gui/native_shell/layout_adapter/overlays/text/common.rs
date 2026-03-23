@@ -1,10 +1,10 @@
+use super::super::shared;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
 use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Rect, Vector2};
-use super::super::shared;
 
 pub(super) fn centered_line_in_rect(
     rect: Rect,

@@ -22,9 +22,11 @@ fn render_source_section_divider(
     primitives: &mut impl PrimitiveSink,
     sections: SidebarSections,
 ) {
-    let Some(divider_rect) =
-        compute_source_section_divider_rect(sections.source_rows, sections.folder_header, ctx.sizing)
-    else {
+    let Some(divider_rect) = compute_source_section_divider_rect(
+        sections.source_rows,
+        sections.folder_header,
+        ctx.sizing,
+    ) else {
         return;
     };
     emit_primitive(

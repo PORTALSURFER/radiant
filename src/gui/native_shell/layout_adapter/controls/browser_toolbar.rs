@@ -1,7 +1,7 @@
+use super::super::super::style::SizingTokens;
 use super::shared::{
     center_square_rect, clamp_rect_to_bounds, empty_rect, layout_left_aligned_fixed_widths,
 };
-use super::super::super::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 
 const TOOLBAR_FILTER_ID: u64 = 801;

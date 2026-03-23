@@ -25,5 +25,5 @@ pub(in crate::gui::native_shell::state) use self::{
     routing::{static_segment_for_primitive, static_segment_for_text, static_segment_matches},
     scrollbar::{waveform_scrollbar_center_for_pointer, waveform_scrollbar_layout},
     surface::push_waveform_image,
-    trail::{playhead_marker_rect, PlayheadTrailLine},
+    trail::{PlayheadTrailLine, playhead_marker_rect},
 };

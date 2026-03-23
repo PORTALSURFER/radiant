@@ -12,8 +12,5 @@ mod scrollbars;
 mod viewport;
 
 pub(in crate::gui::native_shell::state) use self::{
-    hit_testing::*,
-    projection::*,
-    scrollbars::*,
-    viewport::*,
+    hit_testing::*, projection::*, scrollbars::*, viewport::*,
 };

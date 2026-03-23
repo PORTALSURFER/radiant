@@ -128,7 +128,11 @@ pub(super) fn layout_right_aligned_fixed_widths(
         .collect()
 }
 
-pub(super) fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
+pub(super) fn rect_for(
+    rects: &std::collections::BTreeMap<u64, Rect>,
+    id: u64,
+    fallback: Rect,
+) -> Rect {
     rects.get(&id).copied().unwrap_or(fallback)
 }
 

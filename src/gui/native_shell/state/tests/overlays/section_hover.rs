@@ -35,7 +35,10 @@ fn browser_row_hovered_overlay_uses_hover_fill() {
     let mut state = NativeShellState::new();
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut model = AppModel::default();
-    model.browser.rows.push(BrowserRowModel::new(0, "hover", 1, false, false));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "hover", 1, false, false));
     model
         .browser
         .rows
@@ -127,13 +130,23 @@ fn clearing_browser_row_hover_removes_unrelated_hover_fill() {
         state.handle_cursor_move_effect(&layout, &model, hover_point),
         CursorMoveEffect::None
     );
-    assert_eq!(state.state_overlay_fingerprint().hovered_browser_visible_row, Some(12));
+    assert_eq!(
+        state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
+        Some(12)
+    );
 
     state.clear_browser_row_hover();
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
-    assert_eq!(state.state_overlay_fingerprint().hovered_browser_visible_row, None);
+    assert_eq!(
+        state
+            .state_overlay_fingerprint()
+            .hovered_browser_visible_row,
+        None
+    );
     assert!(
         frame.primitives.iter().all(|primitive| {
             !matches!(

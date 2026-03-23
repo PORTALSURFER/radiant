@@ -100,8 +100,8 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
     runner.queue_volume_milli(915);
     runner.volume_drag_active = true;
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Seek);
-    runner.last_emitted_waveform_drag_action = Some(UiAction::SeekWaveform {
-        position_milli: 915,
+    runner.last_emitted_waveform_drag_action = Some(UiAction::SeekWaveformPrecise {
+        position_nanos: 915_000_000,
     });
     runner.map_focus_drag_active = true;
     runner.last_emitted_map_drag_sample_id = Some(String::from("source::kick.wav"));
@@ -133,12 +133,18 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
         layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
-    let position_milli = waveform_position_milli_from_point(&layout, &runner.model, point);
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
+    let position_nanos = waveform_position_nanos_from_point(&layout, &runner.model, point);
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(point);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
-        anchor_micros: milli(position_milli),
+        anchor_micros,
         boundary_lock: None,
+    });
+    runner.waveform_click_seek_press = Some(WaveformClickSeekPress {
+        press_x: point.x,
+        position_nanos,
+        clear_selection_on_release: false,
     });
     runner.last_emitted_waveform_drag_action = None;
 
@@ -146,7 +152,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SeekWaveform { position_milli }]
+        vec![UiAction::SeekWaveformPrecise { position_nanos }]
     );
     assert_eq!(runner.waveform_drag_mode, None);
     assert_eq!(runner.last_emitted_waveform_drag_action, None);
@@ -186,12 +192,17 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
     );
     let release = Point::new(anchor.x + 2.0, anchor.y);
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
-    let release_milli = waveform_position_milli_from_point(&layout, &runner.model, release);
+    let anchor_nanos = waveform_position_nanos_from_point(&layout, &runner.model, anchor);
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(release);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
         anchor_micros,
         boundary_lock: None,
+    });
+    runner.waveform_click_seek_press = Some(WaveformClickSeekPress {
+        press_x: anchor.x,
+        position_nanos: anchor_nanos,
+        clear_selection_on_release: false,
     });
     runner.last_emitted_waveform_drag_action = None;
 
@@ -199,8 +210,8 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SeekWaveform {
-            position_milli: release_milli
+        vec![UiAction::SeekWaveformPrecise {
+            position_nanos: anchor_nanos
         }]
     );
     assert_eq!(runner.waveform_drag_mode, None);

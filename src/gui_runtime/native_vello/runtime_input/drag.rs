@@ -2,6 +2,9 @@
 
 use super::super::*;
 
+/// Horizontal click slop used to distinguish waveform clicks from drags.
+const WAVEFORM_CLICK_SEEK_SLOP_PX: f32 = 3.0;
+
 impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
@@ -96,7 +99,7 @@ where
             return false;
         };
         if self.last_emitted_waveform_drag_action.is_none()
-            && !waveform_drag_exceeds_click_slop(layout, &self.model, point, mode)
+            && !self.waveform_drag_exceeds_click_slop(layout, point, mode)
         {
             return false;
         }
@@ -105,6 +108,20 @@ where
         self.waveform_drag_mode = Some(next_mode);
         self.emit_waveform_drag_action_immediately(action);
         true
+    }
+
+    fn waveform_drag_exceeds_click_slop(
+        &self,
+        layout: &ShellLayout,
+        point: Point,
+        mode: WaveformPointerDragMode,
+    ) -> bool {
+        if let (WaveformPointerDragMode::Selection { .. }, Some(click_seek_press)) =
+            (mode, self.waveform_click_seek_press)
+        {
+            return (point.x - click_seek_press.press_x).abs() > WAVEFORM_CLICK_SEEK_SLOP_PX;
+        }
+        waveform_drag_exceeds_click_slop(layout, &self.model, point, mode)
     }
 
     /// Refresh the local waveform view once after a wheel zoom changed it mid-drag.
@@ -187,7 +204,8 @@ where
             UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
             _ => None,
         };
-        self.begin_waveform_pointer_interaction(&action);
+        let click_seek_press = self.waveform_click_seek_press_for_action(&action);
+        self.begin_waveform_pointer_interaction(&action, click_seek_press);
         if !waveform_press_action_emits_immediately(&action) {
             return false;
         }
@@ -198,5 +216,25 @@ where
             self.begin_map_focus_drag(map_drag_sample_id);
         }
         true
+    }
+
+    fn waveform_click_seek_press_for_action(
+        &self,
+        action: &UiAction,
+    ) -> Option<WaveformClickSeekPress> {
+        if !matches!(action, UiAction::BeginWaveformSelectionAt { .. }) {
+            return None;
+        }
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return None;
+        };
+        let Some(point) = self.last_cursor else {
+            return None;
+        };
+        Some(WaveformClickSeekPress {
+            press_x: point.x,
+            position_nanos: waveform_position_nanos_from_point(layout, &self.model, point),
+            clear_selection_on_release: true,
+        })
     }
 }

@@ -24,6 +24,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         },
         ..AppModel::default()
     };
+    let expected_position_nanos = waveform_position_nanos_from_point(&layout, &model, point);
 
     assert_eq!(
         action_from_pointer(
@@ -91,8 +92,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::ALT
         ),
-        Some(UiAction::SeekWaveform {
-            position_milli: 500
+        Some(UiAction::SeekWaveformPrecise {
+            position_nanos: expected_position_nanos
         })
     );
 }
@@ -152,6 +153,53 @@ fn waveform_shift_click_preserves_exact_micro_endpoint() {
             end_micros: expected_endpoint,
             preserve_view_edge: false,
         })
+    );
+}
+
+#[test]
+fn waveform_command_click_without_selection_sets_precise_cursor() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let model = AppModel::default();
+    let point = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1234,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+    let expected_position_nanos = waveform_position_nanos_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::CONTROL,
+        ),
+        Some(UiAction::SetWaveformCursorPrecise {
+            position_nanos: expected_position_nanos,
+        })
+    );
+}
+
+#[test]
+fn waveform_pointer_position_uses_nanounit_view_bounds_at_deep_zoom() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.75,
+        layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
+    );
+    let mut model = AppModel::default();
+    model.waveform.view_start_micros = 500_000;
+    model.waveform.view_end_micros = 500_000;
+    model.waveform.view_start_nanos = 500_000_000;
+    model.waveform.view_end_nanos = 500_000_200;
+
+    let position_nanos = waveform_position_nanos_from_point(&layout, &model, point);
+
+    assert_eq!(position_nanos, 500_000_150);
+    assert_eq!(
+        waveform_position_micros_from_point(&layout, &model, point),
+        500_000
     );
 }
 

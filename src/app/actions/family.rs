@@ -124,7 +124,9 @@ impl UiAction {
             | Self::SetSliceModeEnabled { .. }
             | Self::SetVolume { .. }
             | Self::CommitVolumeSetting => UiActionFamily::Options,
-            Self::SeekWaveform { .. }
+            Self::SeekWaveformPrecise { .. }
+            | Self::SetWaveformCursorPrecise { .. }
+            | Self::SeekWaveform { .. }
             | Self::SetWaveformCursor { .. }
             | Self::BeginWaveformSelectionAt { .. }
             | Self::SetWaveformSelectionRange { .. }

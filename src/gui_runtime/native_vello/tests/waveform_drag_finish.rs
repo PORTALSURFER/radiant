@@ -130,8 +130,8 @@ fn outside_selection_click_release_clears_playback_selection_then_seeks() {
                 anchor_micros: milli(100),
             },
             UiAction::ClearWaveformSelection,
-            UiAction::SeekWaveform {
-                position_milli: waveform_position_milli_from_point(&layout, &runner.model, point),
+            UiAction::SeekWaveformPrecise {
+                position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
         ]
     );
@@ -228,12 +228,12 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
     assert_eq!(
         waveform_drag_action_for_mode(&layout, &model, left, WaveformPointerDragMode::Seek),
-        UiAction::SeekWaveform { position_milli: 0 }
+        UiAction::SeekWaveformPrecise { position_nanos: 0 }
     );
     assert_eq!(
         waveform_drag_action_for_mode(&layout, &model, right, WaveformPointerDragMode::Cursor),
-        UiAction::SetWaveformCursor {
-            position_milli: 1000
+        UiAction::SetWaveformCursorPrecise {
+            position_nanos: 1_000_000_000
         }
     );
     assert_eq!(

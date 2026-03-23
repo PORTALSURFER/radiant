@@ -397,12 +397,28 @@ pub enum UiAction {
     CommitVolumeSetting,
 
     // Waveform transport, edit, and gesture actions.
+    /// Seek waveform/playhead to a normalized nanounit position (`0..=1_000_000_000`).
+    SeekWaveformPrecise {
+        /// Normalized nanounit target position (`0..=1_000_000_000`).
+        position_nanos: u32,
+    },
+    /// Set waveform cursor to a normalized nanounit position (`0..=1_000_000_000`).
+    SetWaveformCursorPrecise {
+        /// Normalized nanounit cursor position (`0..=1_000_000_000`).
+        position_nanos: u32,
+    },
     /// Seek waveform/playhead to a normalized milli position (`0..=1000`).
+    ///
+    /// This compatibility action is retained for older callers and is upgraded
+    /// to the precise nanounit path at the host boundary.
     SeekWaveform {
         /// Normalized milli target position (`0..=1000`).
         position_milli: u16,
     },
     /// Set waveform cursor to a normalized milli position (`0..=1000`).
+    ///
+    /// This compatibility action is retained for older callers and is upgraded
+    /// to the precise nanounit path at the host boundary.
     SetWaveformCursor {
         /// Normalized milli cursor position (`0..=1000`).
         position_milli: u16,

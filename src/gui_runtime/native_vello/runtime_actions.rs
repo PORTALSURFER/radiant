@@ -48,9 +48,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ToggleFocusedBrowserRowSelection
             | UiAction::SelectAllBrowserRows
             | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
-            UiAction::SeekWaveform { .. } | UiAction::SetWaveformCursor { .. } => {
-                RuntimeInvalidationScope::OverlayMotionOnly
-            }
+            UiAction::SeekWaveformPrecise { .. }
+            | UiAction::SetWaveformCursorPrecise { .. }
+            | UiAction::SeekWaveform { .. }
+            | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
             UiAction::PlayFromStart | UiAction::PlayFromCurrentPlayhead => {
                 RuntimeInvalidationScope::ModelAndOverlays
             }
@@ -68,9 +69,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SetBrowserTab { map: true } | UiAction::FocusMapSample { .. } => {
                 Some(InteractionProfileKind::MapPanProxy)
             }
-            UiAction::SeekWaveform { .. }
+            UiAction::SeekWaveformPrecise { .. }
+            | UiAction::SeekWaveform { .. }
             | UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead
+            | UiAction::SetWaveformCursorPrecise { .. }
             | UiAction::SetWaveformCursor { .. }
             | UiAction::SetWaveformViewCenter { .. }
             | UiAction::BeginWaveformSelectionAt { .. }

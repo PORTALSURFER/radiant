@@ -19,6 +19,14 @@ pub(super) struct WaveformPanDragState {
     pub(super) view_end_micros: u32,
 }
 
+/// Exact waveform press state used to preserve click-to-seek precision on release.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct WaveformClickSeekPress {
+    pub(super) press_x: f32,
+    pub(super) position_nanos: u32,
+    pub(super) clear_selection_on_release: bool,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum TextInputTarget {
     #[default]
@@ -168,7 +176,7 @@ where
 
     pub(super) fn clear_pointer_drag_session(&mut self) {
         self.waveform_drag_mode = None;
-        self.clear_playback_selection_on_click_release = false;
+        self.waveform_click_seek_press = None;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
@@ -214,10 +222,13 @@ where
         self.last_emitted_map_drag_sample_id = sample_id;
     }
 
-    pub(super) fn begin_waveform_pointer_interaction(&mut self, action: &crate::app::UiAction) {
+    pub(super) fn begin_waveform_pointer_interaction(
+        &mut self,
+        action: &crate::app::UiAction,
+        click_seek_press: Option<WaveformClickSeekPress>,
+    ) {
         self.waveform_drag_mode = super::input::waveform_drag_mode_for_action(action);
-        self.clear_playback_selection_on_click_release =
-            self.should_clear_playback_selection_on_click_release(action);
+        self.waveform_click_seek_press = click_seek_press;
         if self.waveform_drag_mode.is_some() {
             self.shell_state.clear_waveform_hover_feedback();
         }
@@ -225,15 +236,5 @@ where
             action,
             crate::app::UiAction::StartWaveformSelectionDrag { .. }
         );
-    }
-
-    fn should_clear_playback_selection_on_click_release(
-        &self,
-        action: &crate::app::UiAction,
-    ) -> bool {
-        matches!(
-            action,
-            crate::app::UiAction::BeginWaveformSelectionAt { .. }
-        )
     }
 }

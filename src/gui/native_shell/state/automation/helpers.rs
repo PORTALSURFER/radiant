@@ -207,6 +207,8 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SetSliceModeEnabled { .. } => "set_slice_mode_enabled",
         UiAction::SetVolume { .. } => "set_volume",
         UiAction::CommitVolumeSetting => "commit_volume_setting",
+        UiAction::SeekWaveformPrecise { .. } => "seek_waveform_precise",
+        UiAction::SetWaveformCursorPrecise { .. } => "set_waveform_cursor_precise",
         UiAction::SeekWaveform { .. } => "seek_waveform",
         UiAction::SetWaveformCursor { .. } => "set_waveform_cursor",
         UiAction::BeginWaveformSelectionAt { .. } => "begin_waveform_selection_at",

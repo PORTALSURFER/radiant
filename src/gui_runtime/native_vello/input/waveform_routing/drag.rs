@@ -18,20 +18,14 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
     point: Point,
     mode: WaveformPointerDragMode,
 ) -> (UiAction, WaveformPointerDragMode) {
+    let pointer_position = waveform_pointer_position_from_point(layout, model, point);
+    let position_nanos = pointer_position.position_nanos;
     let (position_micros, next_mode) =
         waveform_drag_position_and_mode_for_point(layout, model, point, mode);
     let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
     let action = match next_mode {
-        WaveformPointerDragMode::Seek => UiAction::SeekWaveform {
-            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
-                layout, model, point,
-            )),
-        },
-        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursor {
-            position_milli: ratio_to_milli(normalized_waveform_position_ratio(
-                layout, model, point,
-            )),
-        },
+        WaveformPointerDragMode::Seek => UiAction::SeekWaveformPrecise { position_nanos },
+        WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursorPrecise { position_nanos },
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
@@ -131,8 +125,12 @@ pub(super) fn waveform_drag_exceeds_click_slop(
 /// Resolve drag mode from an initial waveform action emitted on pointer press.
 pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<WaveformPointerDragMode> {
     match action {
-        UiAction::SeekWaveform { .. } => Some(WaveformPointerDragMode::Seek),
-        UiAction::SetWaveformCursor { .. } => Some(WaveformPointerDragMode::Cursor),
+        UiAction::SeekWaveformPrecise { .. } | UiAction::SeekWaveform { .. } => {
+            Some(WaveformPointerDragMode::Seek)
+        }
+        UiAction::SetWaveformCursorPrecise { .. } | UiAction::SetWaveformCursor { .. } => {
+            Some(WaveformPointerDragMode::Cursor)
+        }
         UiAction::BeginWaveformSelectionAt { anchor_micros } => {
             Some(WaveformPointerDragMode::Selection {
                 anchor_micros: *anchor_micros,
@@ -228,23 +226,6 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
     )
-}
-
-pub(super) fn normalized_waveform_position_ratio(
-    layout: &ShellLayout,
-    model: &AppModel,
-    point: Point,
-) -> f32 {
-    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
-    let view_end = model
-        .waveform
-        .view_end_micros
-        .min(1_000_000)
-        .max(model.waveform.view_start_micros.min(1_000_000)) as f32
-        / 1_000_000.0;
-    let view_width = (view_end - view_start).max(0.0);
-    let ratio_in_view = waveform_ratio_from_point(layout, point);
-    (view_start + (view_width * ratio_in_view)).clamp(0.0, 1.0)
 }
 
 /// Resolve one absolute waveform position and next drag-mode lock state for the pointer.

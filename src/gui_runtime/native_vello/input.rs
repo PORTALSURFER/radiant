@@ -224,6 +224,7 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
     waveform_routing::waveform_press_action_emits_immediately(action)
 }
 
+#[cfg(test)]
 pub(super) fn waveform_position_milli_from_point(
     layout: &ShellLayout,
     model: &AppModel,
@@ -240,12 +241,24 @@ pub(super) fn waveform_position_micros_from_point(
     waveform_geometry::waveform_position_micros_from_point(layout, model, point)
 }
 
-pub(super) fn waveform_ratio_from_point(layout: &ShellLayout, point: Point) -> f32 {
-    waveform_geometry::waveform_ratio_from_point(layout, point)
+pub(super) fn waveform_position_nanos_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> u32 {
+    waveform_geometry::waveform_position_nanos_from_point(layout, model, point)
 }
 
-pub(super) fn ratio_to_milli(ratio: f32) -> u16 {
-    waveform_geometry::ratio_to_milli(ratio)
+pub(super) fn waveform_pointer_position_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> waveform_geometry::WaveformPointerPosition {
+    waveform_geometry::waveform_pointer_position_from_point(layout, model, point)
+}
+
+pub(super) fn waveform_ratio_from_point(layout: &ShellLayout, point: Point) -> f32 {
+    waveform_geometry::waveform_ratio_from_point(layout, point)
 }
 
 pub(super) fn ratio_to_micros(ratio: f32) -> u32 {

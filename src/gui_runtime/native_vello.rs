@@ -217,8 +217,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     waveform_drag_mode: Option<WaveformPointerDragMode>,
     /// Whether the next waveform view-based interaction must refresh local bounds.
     waveform_view_refresh_pending: bool,
-    /// Whether a no-drag waveform release should clear the old playback selection first.
-    clear_playback_selection_on_click_release: bool,
+    /// Exact press snapshot used for plain waveform click-to-seek release handling.
+    waveform_click_seek_press: Option<WaveformClickSeekPress>,
     /// Whether a waveform-selection export drag is currently active.
     selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.

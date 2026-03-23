@@ -2,13 +2,42 @@
 
 use super::*;
 
+/// Absolute waveform position resolved from one pointer point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct WaveformPointerPosition {
+    pub(super) plot_ratio: f32,
+    pub(super) normalized_ratio: f64,
+    pub(super) position_micros: u32,
+    pub(super) position_nanos: u32,
+}
+
+/// Resolve one absolute waveform pointer position from an arbitrary point.
+pub(super) fn waveform_pointer_position_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> WaveformPointerPosition {
+    let view = normalized_waveform_view(model);
+    let plot_ratio = waveform_ratio_from_point(layout, point);
+    let normalized_ratio = (view.start + (view.width * f64::from(plot_ratio))).clamp(0.0, 1.0);
+    WaveformPointerPosition {
+        plot_ratio,
+        normalized_ratio,
+        position_micros: ratio_to_micros(normalized_ratio as f32),
+        position_nanos: ratio_to_nanos(normalized_ratio),
+    }
+}
+
 /// Resolve normalized waveform milli position from an arbitrary pointer point.
+#[cfg(test)]
 pub(super) fn waveform_position_milli_from_point(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
 ) -> u16 {
-    ratio_to_milli(normalized_waveform_position_ratio(layout, model, point))
+    ratio_to_milli(
+        waveform_pointer_position_from_point(layout, model, point).normalized_ratio as f32,
+    )
 }
 
 /// Resolve normalized waveform micro position from an arbitrary pointer point.
@@ -17,14 +46,16 @@ pub(super) fn waveform_position_micros_from_point(
     model: &AppModel,
     point: Point,
 ) -> u32 {
-    ratio_to_micros(normalized_waveform_position_ratio(layout, model, point))
+    waveform_pointer_position_from_point(layout, model, point).position_micros
 }
 
-/// Resolve the absolute waveform ratio under one pointer point.
-fn normalized_waveform_position_ratio(layout: &ShellLayout, model: &AppModel, point: Point) -> f32 {
-    let view = normalized_waveform_view(model);
-    let ratio_in_view = waveform_ratio_from_point(layout, point);
-    (view.start + (view.width * ratio_in_view)).clamp(0.0, 1.0)
+/// Resolve normalized waveform nanounit position from an arbitrary pointer point.
+pub(super) fn waveform_position_nanos_from_point(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> u32 {
+    waveform_pointer_position_from_point(layout, model, point).position_nanos
 }
 
 /// Resolve pointer x-position as a normalized ratio within the current plot.
@@ -47,6 +78,11 @@ pub(super) fn ratio_to_milli(ratio: f32) -> u16 {
 /// Convert one normalized view ratio to deterministic micro-units.
 pub(super) fn ratio_to_micros(ratio: f32) -> u32 {
     (ratio.clamp(0.0, 1.0) * WAVEFORM_ANCHOR_RATIO_MICROS_SCALE as f32).round() as u32
+}
+
+/// Convert one normalized view ratio to deterministic nanounits.
+pub(super) fn ratio_to_nanos(ratio: f64) -> u32 {
+    (ratio.clamp(0.0, 1.0) * 1_000_000_000.0).round() as u32
 }
 
 pub(super) fn micros_from_milli(value: u16) -> u32 {
@@ -85,11 +121,11 @@ pub(super) fn shift_waveform_range_micros(
 /// Convert a normalized waveform micro position into plot-space x.
 pub(super) fn waveform_x_for_micros(plot: UiRect, model: &AppModel, micros: u32) -> f32 {
     let view = normalized_waveform_view(model);
-    let absolute_ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
-    let ratio_in_view = if view.width <= f32::EPSILON {
+    let absolute_ratio = f64::from(micros.min(1_000_000)) / 1_000_000.0;
+    let ratio_in_view = if view.width <= f64::EPSILON {
         0.0
     } else {
-        ((absolute_ratio - view.start) / view.width).clamp(0.0, 1.0)
+        ((absolute_ratio - view.start) / view.width).clamp(0.0, 1.0) as f32
     };
     plot.min.x + (plot.width() * ratio_in_view)
 }
@@ -116,20 +152,20 @@ pub(super) fn waveform_edit_fade_curve_milli_from_point(layout: &ShellLayout, po
 
 /// Normalized waveform viewport bounds (`0..=1`) resolved from panel milli fields.
 fn normalized_waveform_view(model: &AppModel) -> WaveformNormalizedView {
-    let start_micros = model.waveform.view_start_micros.min(1_000_000);
-    let end_micros = model
+    let start_nanos = model.waveform.view_start_nanos.min(1_000_000_000);
+    let end_nanos = model
         .waveform
-        .view_end_micros
-        .min(1_000_000)
-        .max(start_micros);
-    let start = start_micros as f32 / 1_000_000.0;
-    let end = end_micros as f32 / 1_000_000.0;
+        .view_end_nanos
+        .min(1_000_000_000)
+        .max(start_nanos);
+    let start = f64::from(start_nanos) / 1_000_000_000.0;
+    let end = f64::from(end_nanos) / 1_000_000_000.0;
     let width = (end - start).max(0.0);
     WaveformNormalizedView { start, width }
 }
 
 /// Precomputed normalized waveform viewport bounds for pointer conversions.
 struct WaveformNormalizedView {
-    start: f32,
-    width: f32,
+    start: f64,
+    width: f64,
 }

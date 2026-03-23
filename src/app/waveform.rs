@@ -104,6 +104,18 @@ pub struct WaveformPanelModel {
     pub view_start_micros: u32,
     /// Visible view end in normalized micro-units (`0..=1_000_000`).
     pub view_end_micros: u32,
+    /// Visible view start in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Native input uses these fields for deep-zoom pointer-to-time mapping so
+    /// click-to-play can preserve exact pixel intent even when the view span is
+    /// narrower than one micro-unit.
+    pub view_start_nanos: u32,
+    /// Visible view end in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Native input uses these fields for deep-zoom pointer-to-time mapping so
+    /// click-to-play can preserve exact pixel intent even when the view span is
+    /// narrower than one micro-unit.
+    pub view_end_nanos: u32,
     /// Quarter-note beat spacing in normalized micro-units when BPM/grid data is available.
     ///
     /// Native waveform renderers use this to draw a minor line on every beat
@@ -148,6 +160,8 @@ impl Default for WaveformPanelModel {
             view_end_milli: 1000,
             view_start_micros: 0,
             view_end_micros: 1_000_000,
+            view_start_nanos: 0,
+            view_end_nanos: 1_000_000_000,
             beat_step_micros: None,
             loop_enabled: false,
             tempo_label: None,

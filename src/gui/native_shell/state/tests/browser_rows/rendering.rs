@@ -10,12 +10,10 @@ fn browser_inline_metadata_prefers_explicit_row_metadata() {
         .rows
         .push(BrowserRowModel::new(0, "Kick 01", 1, true, true).with_bucket_label("165 BPM"));
     let frame = state.build_frame(&layout, &model);
-    assert!(
-        frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("165 BPM"))
-    );
+    assert!(frame
+        .text_runs
+        .iter()
+        .any(|run| run.text.contains("165 BPM")));
 }
 
 #[test]
@@ -171,4 +169,42 @@ fn browser_rows_use_alternating_fill_stripes_for_readability() {
         "expected odd-row fill {expected_odd:?}, saw {odd_fills:?}"
     );
     assert_ne!(expected_even, expected_odd);
+}
+
+#[test]
+fn locked_browser_rows_keep_neutral_fill_and_draw_left_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "locked row", 1, false, false).with_locked(true));
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let row = rendered.first().expect("browser row should render");
+    let marker_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, 0.0).expect("locked marker");
+    let frame = state.build_frame(&layout, &model);
+    let row_fills: Vec<Rgba8> = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == row.rect => Some(rect.color),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        row_fills.contains(&browser_row_stripe_fill(&style, 0)),
+        "locked row should keep the standard stripe fill"
+    );
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == marker_rect && *color == style.accent_mint
+        )
+    }));
 }

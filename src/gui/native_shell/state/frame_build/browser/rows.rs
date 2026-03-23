@@ -13,20 +13,26 @@ pub(super) fn render_browser_rows_window(
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         let row_columns = row_text_layout.columns;
         let base_fill = browser_row_stripe_fill(ctx.style, row.visible_row);
-        let row_fill = if row.locked {
-            locked_browser_row_fill(ctx.style, base_fill)
-        } else {
-            base_fill
-        };
         let row_border = ctx.style.border;
         let row_text_color = ctx.style.text_primary;
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect: row.rect,
-                color: row_fill,
+                color: base_fill,
             }),
         );
+        if row.locked {
+            if let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: marker_rect,
+                        color: ctx.style.accent_mint,
+                    }),
+                );
+            }
+        }
         for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
             emit_primitive(
                 primitives,

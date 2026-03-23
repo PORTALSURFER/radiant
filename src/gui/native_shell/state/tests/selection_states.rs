@@ -167,7 +167,7 @@ fn browser_row_selected_fill_uses_lighter_neutral_overlay() {
 }
 
 #[test]
-fn browser_row_locked_fill_tints_selected_row_mint() {
+fn browser_row_locked_selected_fill_matches_standard_selection_fill() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
@@ -190,10 +190,34 @@ fn browser_row_locked_fill_tints_selected_row_mint() {
         })
         .expect("locked browser row should emit a fill rectangle");
 
-    assert_eq!(
-        row_color,
-        locked_browser_row_fill(&style, selected_browser_row_fill(&style))
-    );
+    assert_eq!(row_color, selected_browser_row_fill(&style));
+}
+
+#[test]
+fn browser_row_locked_selected_state_draws_left_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "locked row", 1, true, false).with_locked(true));
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let marker_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, 0.0).expect("locked marker");
+    state.sync_from_model(&model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == marker_rect && *color == style.accent_mint
+        )
+    }));
 }
 
 #[test]
@@ -331,5 +355,42 @@ fn browser_row_focused_state_draws_left_focus_border() {
     assert!(
         has_focus_left_border,
         "focused browser rows should keep their left focus border highlight"
+    );
+}
+
+#[test]
+fn browser_row_locked_focused_state_draws_offset_left_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "locked focused row", 1, false, true).with_locked(true));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "next row", 1, false, false));
+    state.sync_from_model(&model);
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let stroke = browser_row_border_stroke(&layout);
+    let marker_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, stroke).expect("locked marker");
+    let border_rect = browser_row_border_rect(row.rect, stroke);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == marker_rect && *color == style.accent_mint
+        )
+    }));
+    assert!(
+        marker_rect.min.x >= border_rect.min.x + stroke,
+        "locked marker should sit to the right of the focus border"
     );
 }

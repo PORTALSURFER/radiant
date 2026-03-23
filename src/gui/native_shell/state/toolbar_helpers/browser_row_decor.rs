@@ -15,6 +15,34 @@ pub(in crate::gui::native_shell::state) fn browser_missing_marker_advance(font_s
     (font_size * 1.05).max(7.0)
 }
 
+/// Return the inset left-edge marker rect used to flag locked browser rows.
+///
+/// The marker stays inside the row gutter before the numbering column. When a
+/// focused row also renders a left focus border, `focused_left_border_width`
+/// shifts the marker to the right so both accents remain visible.
+pub(in crate::gui::native_shell::state) fn browser_locked_marker_rect(
+    row_rect: Rect,
+    sizing: SizingTokens,
+    focused_left_border_width: f32,
+) -> Option<Rect> {
+    if row_rect.width() <= 0.0 || row_rect.height() <= 0.0 {
+        return None;
+    }
+    let inset = sizing.row_corner_inset.max(1.0);
+    let marker_width = (row_rect.height() * 0.22).clamp(4.0, 6.0);
+    let min_x = row_rect.min.x + inset + focused_left_border_width.max(0.0);
+    let max_x = (min_x + marker_width).min(row_rect.max.x - inset);
+    let min_y = row_rect.min.y + inset;
+    let max_y = row_rect.max.y - inset;
+    if max_x <= min_x || max_y <= min_y {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, max_y),
+    ))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorLayout {
     pub(in crate::gui::native_shell::state) rects: [Rect; 3],

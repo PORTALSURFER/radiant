@@ -77,18 +77,6 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
     )
 }
 
-/// Blend a subtle mint tint over an existing browser-row base fill for locked samples.
-pub(in crate::gui::native_shell::state) fn locked_browser_row_fill(
-    style: &StyleTokens,
-    base: Rgba8,
-) -> Rgba8 {
-    translucent_overlay_color(
-        base,
-        style.accent_mint,
-        (style.state_selected_blend * 0.55).clamp(0.10, 0.16),
-    )
-}
-
 pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {

@@ -238,7 +238,11 @@ pub(super) fn render_folder_focus_overlay(
             let glyph = if row.is_root {
                 "•"
             } else if row.has_children {
-                if row.expanded { "▼" } else { "▶" }
+                if row.expanded {
+                    "▼"
+                } else {
+                    "▶"
+                }
             } else {
                 "·"
             };
@@ -308,11 +312,7 @@ pub(super) fn render_browser_focus_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.rect,
-                    color: if row.locked {
-                        locked_browser_row_fill(style, selected_browser_row_fill(style))
-                    } else {
-                        selected_browser_row_fill(style)
-                    },
+                    color: selected_browser_row_fill(style),
                 }),
             );
         }
@@ -336,6 +336,20 @@ pub(super) fn render_browser_focus_overlay(
                 right: row.focused,
             },
         );
+        if row.locked {
+            let focus_left_border_width = if row.focused { row_border_stroke } else { 0.0 };
+            if let Some(marker_rect) =
+                browser_locked_marker_rect(row.rect, sizing, focus_left_border_width)
+            {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: marker_rect,
+                        color: style.accent_mint,
+                    }),
+                );
+            }
+        }
         if row.focused {
             let mut label_position = row_text_layout.sample_label.min;
             let inline_tag_reserved_width =

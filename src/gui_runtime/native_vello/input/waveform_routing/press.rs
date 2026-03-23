@@ -233,16 +233,22 @@ fn waveform_edge_adjust_action(
         return None;
     }
     let position_micros = waveform_position_micros_from_point(layout, model, point);
-    let (start_micros, end_micros) = if shift {
-        (
-            selection.map(|range| range.start_micros).unwrap_or(0),
+    let (start_micros, end_micros) = if let Some(selection) = selection {
+        let anchor_micros = if shift {
+            selection.end_micros
+        } else {
+            selection.start_micros
+        };
+        shift_waveform_range_micros(
+            anchor_micros,
             position_micros,
+            selection.start_micros,
+            selection.end_micros,
         )
+    } else if shift {
+        (0, position_micros)
     } else {
-        (
-            position_micros,
-            selection.map(|range| range.end_micros).unwrap_or(1_000_000),
-        )
+        (position_micros, 1_000_000)
     };
     Some(build(start_micros, end_micros))
 }

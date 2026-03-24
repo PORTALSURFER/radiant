@@ -155,6 +155,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_mouse_released(&mut self, button: MouseButton) {
+        tracing::info!(
+            button = ?button,
+            last_cursor = ?self.last_cursor,
+            click_seek_press = ?self.waveform_click_seek_press,
+            waveform_drag_mode = ?self.waveform_drag_mode,
+            selection_drag_active = self.selection_drag_active,
+            "handle_mouse_released entered"
+        );
         self.clear_pointer_release_state();
         self.finish_volume_drag(Some(button));
     }

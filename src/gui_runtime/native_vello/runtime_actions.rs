@@ -59,9 +59,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead
             | UiAction::PlayWaveformAtPrecise { .. }
-            | UiAction::PlayFromWaveformCursor => {
-                RuntimeInvalidationScope::ModelAndOverlays
-            }
+            | UiAction::PlayFromWaveformCursor => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::ZoomWaveform { .. }
             | UiAction::SetWaveformViewCenter { .. }
             | UiAction::ZoomWaveformToSelection

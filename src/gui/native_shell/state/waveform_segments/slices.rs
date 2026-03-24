@@ -7,6 +7,12 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
+    let slice_blue = Rgba8 {
+        r: 86,
+        g: 156,
+        b: 255,
+        a: 255,
+    };
     let slices = compute_waveform_slice_preview_rects(
         waveform_plot,
         &model.waveform_slices,
@@ -16,13 +22,13 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
     for slice in slices {
         let (fill, border) = if slice.selected {
             (
-                translucent_overlay_color(style.surface_overlay, style.highlight_blue, 0.54),
-                blend_color(style.highlight_blue, style.text_primary, 0.42),
+                translucent_overlay_color(style.surface_overlay, slice_blue, 0.72),
+                blend_color(slice_blue, style.text_primary, 0.36),
             )
         } else {
             (
-                translucent_overlay_color(style.bg_secondary, style.highlight_blue_soft, 0.26),
-                blend_color(style.border_emphasis, style.highlight_blue, 0.20),
+                translucent_overlay_color(style.bg_secondary, slice_blue, 0.44),
+                blend_color(slice_blue, style.text_primary, 0.18),
             )
         };
         emit_primitive(

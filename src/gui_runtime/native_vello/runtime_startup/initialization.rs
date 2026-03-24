@@ -147,69 +147,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             "radiant native vello: creating render surface with {}x{}",
             width, height
         );
-        let present_mode_candidates = present_mode_candidates(self.options.target_fps);
-        let mut create_surface_with_mode = |present_mode| {
-            std::panic::catch_unwind(AssertUnwindSafe(|| {
-                pollster::block_on(render_ctx.create_surface(
-                    window.clone(),
-                    width,
-                    height,
-                    present_mode,
-                ))
-            }))
-        };
-        let mut render_surface = None;
-        for (index, present_mode) in present_mode_candidates.iter().copied().enumerate() {
-            let last_attempt = index + 1 == present_mode_candidates.len();
-            match create_surface_with_mode(present_mode) {
-                Ok(Ok(surface)) => {
-                    if index == 0 {
-                        info!(
-                            "radiant native vello: render surface created using {:?}",
-                            present_mode
-                        );
-                    } else {
-                        info!(
-                            "radiant native vello: render surface created using {:?} fallback",
-                            present_mode
-                        );
-                    }
-                    render_surface = Some(surface);
-                    break;
-                }
-                Ok(Err(err)) => {
-                    if last_attempt {
-                        error!(
-                            "radiant native vello: failed to create {:?} surface: {:?}",
-                            present_mode, err
-                        );
-                        event_loop.exit();
-                        return;
-                    }
-                    let next_mode = present_mode_candidates[index + 1];
-                    warn!(
-                        "radiant native vello: {:?} surface creation failed (error): {:?}; retrying {:?}",
-                        present_mode, err, next_mode
-                    );
-                }
-                Err(_) => {
-                    if last_attempt {
-                        error!(
-                            "radiant native vello: {:?} surface creation panicked during startup",
-                            present_mode
-                        );
-                        event_loop.exit();
-                        return;
-                    }
-                    let next_mode = present_mode_candidates[index + 1];
-                    warn!(
-                        "radiant native vello: {:?} surface creation panicked; retrying {:?}",
-                        present_mode, next_mode
-                    );
-                }
-            }
-        }
-        let Some(render_surface) = render_surface else {
+        let Some(render_surface) =
+            self.create_render_surface(event_loop, &mut render_ctx, &window, width, height)
+        else {
             event_loop.exit();
             return;
         };
@@ -249,6 +189,66 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         info!("radiant native vello: window created");
         self.arm_startup_reveal_deadline(Instant::now());
         Some(window)
+    }
+
+    fn create_render_surface(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        render_ctx: &mut RenderContext,
+        window: &Arc<Window>,
+        width: u32,
+        height: u32,
+    ) -> Option<RenderSurface<'static>> {
+        let surface = match render_ctx.instance.create_surface(window.clone()) {
+            Ok(surface) => surface,
+            Err(err) => {
+                error!(
+                    "radiant native vello: failed to create wgpu surface: {:?}",
+                    err
+                );
+                event_loop.exit();
+                return None;
+            }
+        };
+        let dev_id = match pollster::block_on(render_ctx.device(Some(&surface))) {
+            Some(dev_id) => dev_id,
+            None => {
+                error!("radiant native vello: no compatible render device found");
+                event_loop.exit();
+                return None;
+            }
+        };
+        let supported_present_modes = surface
+            .get_capabilities(render_ctx.devices[dev_id].adapter())
+            .present_modes;
+        let present_mode = select_present_mode(self.options.target_fps, &supported_present_modes);
+        let preferred_present_mode = present_mode_candidates(self.options.target_fps)[0];
+        match present_mode == preferred_present_mode {
+            true => info!(
+                "radiant native vello: selected {:?} present mode from supported {:?}",
+                present_mode, supported_present_modes
+            ),
+            false => warn!(
+                "radiant native vello: preferred {:?} present mode unavailable; using {:?} from supported {:?}",
+                preferred_present_mode, present_mode, supported_present_modes
+            ),
+        }
+        match pollster::block_on(render_ctx.create_render_surface(
+            surface,
+            width,
+            height,
+            present_mode,
+        )) {
+            Ok(render_surface) => Some(render_surface),
+            Err(err) => {
+                error!(
+                    "radiant native vello: failed to create {:?} render surface: {:?}",
+                    present_mode, err
+                );
+                event_loop.exit();
+                None
+            }
+        }
     }
 
     fn create_renderer(

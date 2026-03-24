@@ -20,7 +20,6 @@ use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},
 };
-use std::panic::AssertUnwindSafe;
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
@@ -105,6 +104,28 @@ fn present_mode_candidates(target_fps: u32) -> &'static [wgpu::PresentMode] {
     } else {
         &STANDARD_PRESENT_MODE_CANDIDATES
     }
+}
+
+fn select_present_mode(
+    target_fps: u32,
+    supported_present_modes: &[wgpu::PresentMode],
+) -> wgpu::PresentMode {
+    present_mode_candidates(target_fps)
+        .iter()
+        .copied()
+        .find(|mode| present_mode_is_supported(*mode, supported_present_modes))
+        .or_else(|| supported_present_modes.first().copied())
+        .unwrap_or(wgpu::PresentMode::Fifo)
+}
+
+fn present_mode_is_supported(
+    present_mode: wgpu::PresentMode,
+    supported_present_modes: &[wgpu::PresentMode],
+) -> bool {
+    matches!(
+        present_mode,
+        wgpu::PresentMode::AutoVsync | wgpu::PresentMode::AutoNoVsync
+    ) || supported_present_modes.contains(&present_mode)
 }
 
 /// Convert one logical pointer point into lossless-enough action coordinates.

@@ -71,6 +71,50 @@ fn standard_present_mode_candidates_use_vsync_only() {
 }
 
 #[test]
+fn select_present_mode_prefers_mailbox_for_high_refresh_when_supported() {
+    let supported_present_modes = [
+        wgpu::PresentMode::Mailbox,
+        wgpu::PresentMode::Immediate,
+        wgpu::PresentMode::Fifo,
+    ];
+
+    assert_eq!(
+        select_present_mode(120, &supported_present_modes),
+        wgpu::PresentMode::Mailbox
+    );
+}
+
+#[test]
+fn select_present_mode_falls_back_to_immediate_when_mailbox_is_unavailable() {
+    let supported_present_modes = [wgpu::PresentMode::Immediate, wgpu::PresentMode::Fifo];
+
+    assert_eq!(
+        select_present_mode(120, &supported_present_modes),
+        wgpu::PresentMode::Immediate
+    );
+}
+
+#[test]
+fn select_present_mode_uses_auto_vsync_when_only_fifo_is_available() {
+    let supported_present_modes = [wgpu::PresentMode::Fifo];
+
+    assert_eq!(
+        select_present_mode(120, &supported_present_modes),
+        wgpu::PresentMode::AutoVsync
+    );
+}
+
+#[test]
+fn select_present_mode_keeps_standard_refresh_on_auto_vsync() {
+    let supported_present_modes = [wgpu::PresentMode::Immediate, wgpu::PresentMode::Fifo];
+
+    assert_eq!(
+        select_present_mode(60, &supported_present_modes),
+        wgpu::PresentMode::AutoVsync
+    );
+}
+
+#[test]
 fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_actions() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserSearch {

@@ -184,6 +184,49 @@ fn outside_selection_click_release_clears_playback_selection_then_seeks() {
 }
 
 #[test]
+fn click_just_outside_selection_edge_clears_playback_selection_then_seeks() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let selection = crate::app::NormalizedRangeModel::new(200, 800);
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) - 2.0,
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+    Arc::make_mut(&mut runner.model).waveform.selection_milli = Some(selection);
+
+    let mut shell_state = NativeShellState::new();
+    let action = action_from_pointer(
+        &layout,
+        &runner.model,
+        &mut shell_state,
+        point,
+        ModifiersState::default(),
+    )
+    .expect("waveform click should resolve to an action");
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
+    assert_eq!(action, UiAction::BeginWaveformSelectionAt { anchor_micros });
+
+    let emitted = runner.handle_pointer_press_action(action, false);
+    assert!(emitted);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::ClearWaveformSelection,
+            UiAction::SeekWaveformPrecise {
+                position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
+            },
+        ]
+    );
+}
+
+#[test]
 fn clear_playback_selection_press_release_seeks_from_click_point() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -226,8 +269,7 @@ fn clear_both_waveform_marks_press_release_seeks_from_click_point() {
     runner.last_cursor = Some(point);
     let model = Arc::make_mut(&mut runner.model);
     model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
-    model.waveform.edit_selection_milli =
-        Some(crate::app::NormalizedRangeModel::new(250, 750));
+    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(250, 750));
 
     let emitted = runner.handle_pointer_press_action(UiAction::ClearWaveformSelections, false);
     assert!(emitted);

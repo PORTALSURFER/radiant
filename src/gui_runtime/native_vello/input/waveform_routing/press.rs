@@ -208,7 +208,9 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
     smart_scale: bool,
 ) -> Option<UiAction> {
     let selection = model.waveform.selection_milli?;
-    if !layout.waveform_plot.contains(point) {
+    if !layout.waveform_plot.contains(point)
+        || !waveform_selection_contains_point(layout, model, point)
+    {
         return None;
     }
     let selection_start = selection.start_micros.min(selection.end_micros);

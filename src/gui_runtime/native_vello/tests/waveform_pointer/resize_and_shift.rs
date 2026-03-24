@@ -28,6 +28,29 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
 }
 
 #[test]
+fn waveform_left_click_just_outside_selection_edge_starts_new_selection() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x - 2.0, y);
+    let anchor_micros = waveform_position_micros_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::BeginWaveformSelectionAt { anchor_micros })
+    );
+}
+
+#[test]
 fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();

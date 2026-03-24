@@ -49,6 +49,17 @@ where
                     (point.x - press.press_x).abs() <= WAVEFORM_CLICK_SEEK_SLOP_PX
                 })
             });
+        if click_seek_press.is_some() {
+            tracing::info!(
+                released_button = ?released_button,
+                last_cursor = ?self.last_cursor,
+                click_seek_press = ?click_seek_press,
+                waveform_drag_mode = ?self.waveform_drag_mode,
+                last_drag_action = ?self.last_emitted_waveform_drag_action,
+                seek_on_waveform_click_release,
+                "waveform click release evaluated"
+            );
+        }
         let _ = self.flush_pending_volume_action();
         if self.volume_drag_active {
             self.emit_model_action(UiAction::CommitVolumeSetting);
@@ -76,6 +87,11 @@ where
             self.update_waveform_resize_cursor(point);
         }
         if seek_on_waveform_click_release && let Some(click_seek_press) = click_seek_press {
+            tracing::info!(
+                position_nanos = click_seek_press.position_nanos,
+                clear_selection_on_release = click_seek_press.clear_selection_on_release,
+                "waveform click release emitting playback"
+            );
             if click_seek_press.clear_selection_on_release {
                 self.emit_model_action(UiAction::ClearWaveformSelection);
             }

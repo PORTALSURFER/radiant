@@ -102,6 +102,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ToggleTransport => "toggle_transport",
         UiAction::PlayFromStart => "play_from_start",
         UiAction::PlayFromCurrentPlayhead => "play_from_current_playhead",
+        UiAction::PlayFromWaveformCursor => "play_from_waveform_cursor",
         UiAction::HandleEscape => "handle_escape",
         UiAction::FocusBrowserPanel => "focus_browser_panel",
         UiAction::FocusSourcesPanel => "focus_sources_panel",

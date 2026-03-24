@@ -165,21 +165,19 @@ fn outside_selection_click_release_clears_playback_selection_then_plays_from_cli
         },
         false,
     );
-    assert!(emitted);
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
 
     runner.finish_volume_drag(Some(MouseButton::Left));
 
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::BeginWaveformSelectionAt {
-                anchor_micros: milli(100),
-            },
             UiAction::ClearWaveformSelection,
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
 }
@@ -222,7 +220,7 @@ fn click_just_outside_selection_edge_clears_playback_selection_then_plays_from_c
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
 }
@@ -253,7 +251,7 @@ fn clear_playback_selection_press_release_plays_from_click_point() {
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
 }
@@ -285,7 +283,7 @@ fn clear_playback_selection_press_release_while_stopped_sets_cursor_then_plays()
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
 }
@@ -317,7 +315,7 @@ fn clear_both_waveform_marks_press_release_plays_from_click_point() {
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
 }

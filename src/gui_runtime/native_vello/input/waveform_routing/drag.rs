@@ -189,6 +189,7 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         UiAction::SetWaveformEditFadeOutCurve { .. } => {
             Some(WaveformPointerDragMode::EditFadeOutCurve)
         }
+        UiAction::PlayFromWaveformCursor => None,
         _ => None,
     }
 }
@@ -217,6 +218,7 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
         UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::BeginWaveformSelectionShift { .. }
+            | UiAction::BeginWaveformSelectionAt { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::BeginWaveformEditSelectionShift { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }

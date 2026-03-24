@@ -52,6 +52,12 @@ pub enum UiAction {
     PlayFromStart,
     /// Start playback from the current playhead or cursor position.
     PlayFromCurrentPlayhead,
+    /// Start playback from the current waveform cursor position.
+    ///
+    /// Plain waveform click-release uses this action so playback starts from
+    /// the exact clicked point instead of reusing any older visible playhead
+    /// position.
+    PlayFromWaveformCursor,
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
     HandleEscape,
 
@@ -430,10 +436,11 @@ pub enum UiAction {
         /// Normalized milli cursor position (`0..=1000`).
         position_milli: u16,
     },
-    /// Begin a new playback-selection drag from one exact anchor point.
+    /// Arm a new playback-selection drag from one exact anchor point.
     ///
-    /// The runtime emits this on plain waveform press before any drag motion so
-    /// the controller can preserve the initial click anchor exactly, even when
+    /// The runtime routes plain waveform press through this action first, but
+    /// only commits the selection once the pointer moves far enough to exceed
+    /// click slop. This preserves the initial click anchor exactly, even when
     /// BPM snapping or an older selection is active.
     BeginWaveformSelectionAt {
         /// Exact anchor position in normalized micro-units.

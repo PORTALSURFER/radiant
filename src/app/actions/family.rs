@@ -29,6 +29,7 @@ impl UiAction {
             Self::ToggleTransport
             | Self::PlayFromStart
             | Self::PlayFromCurrentPlayhead
+            | Self::PlayFromWaveformCursor
             | Self::HandleEscape => UiActionFamily::Transport,
             Self::FocusBrowserPanel
             | Self::FocusSourcesPanel

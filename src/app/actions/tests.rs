@@ -6,6 +6,10 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiAction::ToggleTransport.family(),
         UiActionFamily::Transport
     );
+    assert_eq!(
+        UiAction::PlayFromWaveformCursor.family(),
+        UiActionFamily::Transport
+    );
     assert_eq!(UiAction::FocusFolderSearch.family(), UiActionFamily::Focus);
     assert_eq!(
         UiAction::DeleteFocusedFolder.family(),

@@ -333,7 +333,7 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
                 | UiAction::SetWaveformCursorPrecise { position_nanos } => {
                     self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
                 }
-                UiAction::PlayFromCurrentPlayhead => {
+                UiAction::PlayFromCurrentPlayhead | UiAction::PlayFromWaveformCursor => {
                     self.model.transport_running = true;
                 }
                 _ => {}
@@ -356,7 +356,7 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
                 self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
                 self.actions.push(action);
             }
-            UiAction::PlayFromCurrentPlayhead => {
+            UiAction::PlayFromCurrentPlayhead | UiAction::PlayFromWaveformCursor => {
                 self.model.transport_running = true;
                 self.actions.push(action);
             }
@@ -825,12 +825,12 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
 
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
     let position_nanos = waveform_position_nanos_from_point(&layout, &runner.model, point);
-    assert!(
-        runner.handle_pointer_press_action(
-            UiAction::BeginWaveformSelectionAt { anchor_micros },
-            false,
-        )
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformSelectionAt { anchor_micros },
+        false,
     );
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
 
     runner.finish_volume_drag(Some(MouseButton::Left));
 
@@ -838,10 +838,9 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::BeginWaveformSelectionAt { anchor_micros },
             UiAction::ClearWaveformSelection,
             UiAction::SetWaveformCursorPrecise { position_nanos },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
     assert!(runner.model.waveform.selection_milli.is_none());

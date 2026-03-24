@@ -152,7 +152,7 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
             position_milli: 250,
         }
     ));
-    assert!(waveform_press_action_emits_immediately(
+    assert!(!waveform_press_action_emits_immediately(
         &UiAction::BeginWaveformSelectionAt {
             anchor_micros: milli(125),
         }
@@ -231,13 +231,8 @@ fn handle_pointer_press_action_arms_waveform_selection_without_emitting() {
         false,
     );
 
-    assert!(emitted);
-    assert_eq!(
-        runner.bridge.actions,
-        vec![UiAction::BeginWaveformSelectionAt {
-            anchor_micros: milli(250),
-        }]
-    );
+    assert!(!emitted);
+    assert!(runner.bridge.actions.is_empty());
     assert_eq!(
         runner.waveform_drag_mode,
         Some(WaveformPointerDragMode::Selection {

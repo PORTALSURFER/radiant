@@ -155,7 +155,7 @@ fn finish_volume_drag_left_click_on_waveform_sets_cursor_then_plays() {
         runner.bridge.actions,
         vec![
             UiAction::SetWaveformCursorPrecise { position_nanos },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
     assert_eq!(runner.waveform_drag_mode, None);
@@ -219,7 +219,7 @@ fn finish_volume_drag_small_waveform_wobble_still_plays_from_click() {
             UiAction::SetWaveformCursorPrecise {
                 position_nanos: anchor_nanos
             },
-            UiAction::PlayFromCurrentPlayhead,
+            UiAction::PlayFromWaveformCursor,
         ]
     );
     assert_eq!(runner.waveform_drag_mode, None);

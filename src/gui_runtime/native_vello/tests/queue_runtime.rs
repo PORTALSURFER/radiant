@@ -834,10 +834,8 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
 
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
     let position_nanos = waveform_position_nanos_from_point(&layout, &runner.model, point);
-    let emitted = runner.handle_pointer_press_action(
-        UiAction::BeginWaveformSelectionAt { anchor_micros },
-        false,
-    );
+    let emitted = runner
+        .handle_pointer_press_action(UiAction::BeginWaveformSelectionAt { anchor_micros }, false);
     assert!(!emitted);
     assert!(runner.bridge.actions.is_empty());
 
@@ -857,6 +855,47 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
         Some((position_nanos / 1_000_000) as u16)
     );
     assert!(runner.model.transport_running);
+}
+
+#[test]
+fn click_seek_release_arms_from_live_layout_borrow() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let mut bridge = QueuedWaveformClickBridge::default();
+    bridge.model.transport_running = false;
+    bridge.model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
+    let position_nanos = waveform_position_nanos_from_point(&layout, &runner.model, point);
+    let emitted = runner
+        .with_shell_layout(|runner, layout| {
+            runner.handle_pointer_press_action_at_point(
+                UiAction::BeginWaveformSelectionAt { anchor_micros },
+                false,
+                layout,
+                point,
+            )
+        })
+        .expect("retained layout should be available");
+    assert!(!emitted);
+    assert!(runner.waveform_click_seek_press.is_some());
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ClearWaveformSelection,
+            UiAction::PlayWaveformAtPrecise { position_nanos },
+        ]
+    );
 }
 
 #[test]

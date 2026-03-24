@@ -53,7 +53,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 MouseButton::Left | MouseButton::Right | MouseButton::Middle
             ) =>
             {
-                tracing::info!(button = ?button, "mouse input pressed received");
                 self.handle_mouse_pressed(button);
             }
             WindowEvent::MouseInput {
@@ -65,7 +64,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 MouseButton::Left | MouseButton::Right | MouseButton::Middle
             ) =>
             {
-                tracing::info!(button = ?button, "mouse input released received");
                 self.handle_mouse_released(button);
             }
             WindowEvent::MouseWheel { delta, .. } => self.handle_mouse_wheel(delta),

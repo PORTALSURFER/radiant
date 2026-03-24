@@ -184,11 +184,50 @@ where
         true
     }
 
-    /// Handle one pointer-press action, deferring drag-only waveform edits until movement.
+    /// Handle one pointer-press action from cached runtime state in tests.
+    ///
+    /// Production pointer presses should call `handle_pointer_press_action_at_point`
+    /// so click-seek arming uses the live borrowed layout instead of the retained
+    /// cache.
+    #[cfg(test)]
     pub(crate) fn handle_pointer_press_action(
         &mut self,
         action: UiAction,
         map_drag_start: bool,
+    ) -> bool {
+        let click_seek_press =
+            self.shell_layout
+                .as_ref()
+                .zip(self.last_cursor)
+                .and_then(|(layout, point)| {
+                    self.waveform_click_seek_press_for_action(&action, layout.as_ref(), point)
+                });
+        self.handle_pointer_press_action_with_click_seek(action, map_drag_start, click_seek_press)
+    }
+
+    /// Handle one pointer-press action using the actively borrowed layout state.
+    ///
+    /// Real pointer presses run inside `with_shell_layout`, which temporarily
+    /// takes `self.shell_layout` out of the runner. Accepting the live layout
+    /// and point here keeps click-to-seek arming aligned with the same hit-test
+    /// inputs that resolved the press action in the first place.
+    pub(crate) fn handle_pointer_press_action_at_point(
+        &mut self,
+        action: UiAction,
+        map_drag_start: bool,
+        layout: &ShellLayout,
+        point: Point,
+    ) -> bool {
+        let click_seek_press = self.waveform_click_seek_press_for_action(&action, layout, point);
+        self.handle_pointer_press_action_with_click_seek(action, map_drag_start, click_seek_press)
+    }
+
+    /// Handle one pointer-press action after any click-seek snapshot is prepared.
+    fn handle_pointer_press_action_with_click_seek(
+        &mut self,
+        action: UiAction,
+        map_drag_start: bool,
+        click_seek_press: Option<WaveformClickSeekPress>,
     ) -> bool {
         if matches!(
             action,
@@ -204,7 +243,6 @@ where
             UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
             _ => None,
         };
-        let click_seek_press = self.waveform_click_seek_press_for_action(&action);
         self.begin_waveform_pointer_interaction(&action, click_seek_press);
         if !waveform_press_action_emits_immediately(&action) {
             return false;
@@ -221,6 +259,8 @@ where
     fn waveform_click_seek_press_for_action(
         &self,
         action: &UiAction,
+        layout: &ShellLayout,
+        point: Point,
     ) -> Option<WaveformClickSeekPress> {
         let clear_selection_on_release = match action {
             UiAction::BeginWaveformSelectionAt { .. } => true,
@@ -228,12 +268,6 @@ where
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections => false,
             _ => return None,
-        };
-        let Some(layout) = self.shell_layout.as_ref() else {
-            return None;
-        };
-        let Some(point) = self.last_cursor else {
-            return None;
         };
         Some(WaveformClickSeekPress {
             press_x: point.x,

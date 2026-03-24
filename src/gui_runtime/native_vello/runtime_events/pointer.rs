@@ -155,14 +155,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_mouse_released(&mut self, button: MouseButton) {
-        tracing::info!(
-            button = ?button,
-            last_cursor = ?self.last_cursor,
-            click_seek_press = ?self.waveform_click_seek_press,
-            waveform_drag_mode = ?self.waveform_drag_mode,
-            selection_drag_active = self.selection_drag_active,
-            "handle_mouse_released entered"
-        );
         self.clear_pointer_release_state();
         self.finish_volume_drag(Some(button));
     }
@@ -174,7 +166,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         map_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
-        let waveform_hit = matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard));
         if self
             .shell_state
             .prompt_input_at_point(layout, &self.model, point)
@@ -234,32 +225,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             point,
             self.modifiers,
         ) {
-            let action_for_log = waveform_hit.then(|| format!("{action:?}"));
             if self.should_emit_waveform_command_edge_adjust_immediately(&action) {
                 self.emit_model_action(action);
                 *action_emitted = true;
             } else {
-                *action_emitted = self.handle_pointer_press_action(action, map_drag_start);
-            }
-            if waveform_hit {
-                tracing::info!(
-                    point_x = point.x,
-                    point_y = point.y,
-                    modifiers = ?self.modifiers,
-                    action = action_for_log.as_deref().unwrap_or("<unknown>"),
-                    action_emitted = *action_emitted,
-                    "waveform click press resolved"
+                *action_emitted = self.handle_pointer_press_action_at_point(
+                    action,
+                    map_drag_start,
+                    layout,
+                    point,
                 );
             }
             return true;
-        }
-        if waveform_hit {
-            tracing::info!(
-                point_x = point.x,
-                point_y = point.y,
-                modifiers = ?self.modifiers,
-                "waveform click press resolved no action"
-            );
         }
         if self.shell_state.handle_primary_click(layout, point)
             && let Some(column) = layout.column_at_point(point)
@@ -306,7 +283,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.emit_model_action(action);
                 *action_emitted = true;
             } else {
-                *action_emitted = self.handle_pointer_press_action(action, false);
+                *action_emitted =
+                    self.handle_pointer_press_action_at_point(action, false, layout, point);
             }
             return true;
         }

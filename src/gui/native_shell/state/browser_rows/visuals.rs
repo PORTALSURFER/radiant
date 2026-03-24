@@ -68,12 +68,12 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
     }
 }
 
-/// Return the lighter neutral fill used for selected browser rows.
+/// Return the stronger neutral fill used for selected browser rows.
 pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
-        (style.state_selected_blend + 0.04).clamp(0.12, 0.24),
+        (style.state_selected_blend + 0.14).clamp(0.22, 0.30),
     )
 }
 

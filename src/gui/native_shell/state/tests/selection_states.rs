@@ -140,7 +140,7 @@ fn source_row_selected_fill_is_translucent_overlay() {
 }
 
 #[test]
-fn browser_row_selected_fill_uses_lighter_neutral_overlay() {
+fn browser_row_selected_fill_uses_stronger_neutral_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();

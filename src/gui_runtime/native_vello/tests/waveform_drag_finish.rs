@@ -256,6 +256,38 @@ fn clear_playback_selection_press_release_seeks_from_click_point() {
 }
 
 #[test]
+fn clear_playback_selection_press_release_while_stopped_sets_cursor_then_plays() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+    let model = Arc::make_mut(&mut runner.model);
+    model.transport_running = false;
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+
+    let emitted = runner.handle_pointer_press_action(UiAction::ClearWaveformSelection, false);
+    assert!(emitted);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ClearWaveformSelection,
+            UiAction::SetWaveformCursorPrecise {
+                position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
+            },
+            UiAction::PlayFromCurrentPlayhead,
+        ]
+    );
+}
+
+#[test]
 fn clear_both_waveform_marks_press_release_seeks_from_click_point() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

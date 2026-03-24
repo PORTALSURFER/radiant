@@ -79,14 +79,8 @@ where
             if click_seek_press.clear_selection_on_release {
                 self.emit_model_action(UiAction::ClearWaveformSelection);
             }
-            self.emit_model_action_with_profile(
-                UiAction::SeekWaveformPrecise {
-                    position_nanos: click_seek_press.position_nanos,
-                },
-                Some(InteractionProfileKind::Waveform),
-            );
+            self.emit_waveform_click_release_playback(click_seek_press.position_nanos);
             self.sync_model_after_waveform_click_release();
-            self.start_playback_after_waveform_click_release_if_stopped();
         }
     }
 
@@ -127,17 +121,22 @@ where
         self.sync_text_input_target();
     }
 
-    /// Ensure click-release seek gestures restart playback from the clicked point.
+    /// Apply click-release waveform playback behavior using the transport state
+    /// visible at the time of release.
     ///
-    /// Some hosts apply the precise seek immediately but still leave transport
-    /// stopped after the first bridge/model sync. When that happens, follow up
-    /// with `PlayFromCurrentPlayhead` so plain waveform clicks behave like
-    /// direct click-to-play instead of only moving the cursor.
-    fn start_playback_after_waveform_click_release_if_stopped(&mut self) {
+    /// Running transport keeps the debounced precise-seek path so active
+    /// playback retargets smoothly. Stopped transport bypasses that queue and
+    /// instead sets the exact cursor position before starting playback
+    /// immediately from the clicked point.
+    fn emit_waveform_click_release_playback(&mut self, position_nanos: u32) {
         if self.model.transport_running {
+            self.emit_model_action_with_profile(
+                UiAction::SeekWaveformPrecise { position_nanos },
+                Some(InteractionProfileKind::Waveform),
+            );
             return;
         }
+        self.emit_model_action(UiAction::SetWaveformCursorPrecise { position_nanos });
         self.emit_model_action(UiAction::PlayFromCurrentPlayhead);
-        self.sync_model_after_waveform_click_release();
     }
 }

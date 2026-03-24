@@ -237,6 +237,7 @@ where
         };
         Some(WaveformClickSeekPress {
             press_x: point.x,
+            position_micros: waveform_position_micros_from_point(layout, &self.model, point),
             position_nanos: waveform_position_nanos_from_point(layout, &self.model, point),
             clear_selection_on_release,
         })

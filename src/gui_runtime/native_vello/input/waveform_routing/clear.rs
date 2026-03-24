@@ -1,11 +1,11 @@
 use super::*;
 
-/// Arm a fresh playback-selection drag when plain left press starts outside the
+/// Clear the active playback selection when plain left press starts outside the
 /// current playback selection body.
 ///
-/// Release-without-drag is handled later by the runtime, which clears the old
-/// playback selection and seeks from the click point. Dragging past click slop
-/// converts the interaction into a normal new selection drag.
+/// The runtime still arms playback-selection drag state from the same click so
+/// dragging past click slop immediately starts a fresh selection from the press
+/// point while release-without-drag seeks from that point.
 pub(super) fn waveform_new_selection_action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
@@ -24,10 +24,7 @@ pub(super) fn waveform_new_selection_action_from_pointer(
     {
         return None;
     }
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
-    Some(UiAction::BeginWaveformSelectionAt {
-        anchor_micros: position_micros,
-    })
+    Some(UiAction::ClearWaveformSelection)
 }
 
 /// Resolve outside-click deselection for one plain left-click in the waveform plot.

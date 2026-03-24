@@ -20,9 +20,7 @@ fn waveform_left_click_outside_selection_clears_it() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::BeginWaveformSelectionAt {
-            anchor_micros: milli(100),
-        })
+        Some(UiAction::ClearWaveformSelection)
     );
 }
 

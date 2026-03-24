@@ -206,8 +206,7 @@ fn click_just_outside_selection_edge_clears_playback_selection_then_seeks() {
         ModifiersState::default(),
     )
     .expect("waveform click should resolve to an action");
-    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
-    assert_eq!(action, UiAction::BeginWaveformSelectionAt { anchor_micros });
+    assert_eq!(action, UiAction::ClearWaveformSelection);
 
     let emitted = runner.handle_pointer_press_action(action, false);
     assert!(emitted);
@@ -217,7 +216,6 @@ fn click_just_outside_selection_edge_clears_playback_selection_then_seeks() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::BeginWaveformSelectionAt { anchor_micros },
             UiAction::ClearWaveformSelection,
             UiAction::SeekWaveformPrecise {
                 position_nanos: waveform_position_nanos_from_point(&layout, &runner.model, point),
@@ -288,7 +286,7 @@ fn clear_both_waveform_marks_press_release_seeks_from_click_point() {
 }
 
 #[test]
-fn outside_selection_drag_creates_new_selection_without_clearing_first() {
+fn outside_selection_drag_clears_then_creates_new_selection() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
@@ -303,15 +301,14 @@ fn outside_selection_drag_creates_new_selection_without_clearing_first() {
     Arc::make_mut(&mut runner.model).waveform.selection_milli =
         Some(crate::app::NormalizedRangeModel::new(200, 800));
 
-    let emitted = runner
-        .handle_pointer_press_action(UiAction::BeginWaveformSelectionAt { anchor_micros }, false);
+    let emitted = runner.handle_pointer_press_action(UiAction::ClearWaveformSelection, false);
     assert!(emitted);
 
     assert!(runner.process_waveform_drag_immediately(drag));
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::ClearWaveformSelection,
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),

@@ -23,6 +23,7 @@ pub(super) struct WaveformPanDragState {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct WaveformClickSeekPress {
     pub(super) press_x: f32,
+    pub(super) position_micros: u32,
     pub(super) position_nanos: u32,
     pub(super) clear_selection_on_release: bool,
 }
@@ -227,7 +228,23 @@ where
         action: &crate::app::UiAction,
         click_seek_press: Option<WaveformClickSeekPress>,
     ) {
-        self.waveform_drag_mode = super::input::waveform_drag_mode_for_action(action);
+        self.waveform_drag_mode =
+            super::input::waveform_drag_mode_for_action(action).or_else(|| {
+                click_seek_press.and_then(|press| {
+                    matches!(
+                        action,
+                        crate::app::UiAction::ClearWaveformSelection
+                            | crate::app::UiAction::ClearWaveformEditSelection
+                            | crate::app::UiAction::ClearWaveformSelections
+                    )
+                    .then_some(
+                        super::input::WaveformPointerDragMode::Selection {
+                            anchor_micros: press.position_micros,
+                            boundary_lock: None,
+                        },
+                    )
+                })
+            });
         self.waveform_click_seek_press = click_seek_press;
         if self.waveform_drag_mode.is_some() {
             self.shell_state.clear_waveform_hover_feedback();

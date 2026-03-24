@@ -143,6 +143,7 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
     });
     runner.waveform_click_seek_press = Some(WaveformClickSeekPress {
         press_x: point.x,
+        position_micros: anchor_micros,
         position_nanos,
         clear_selection_on_release: false,
     });
@@ -201,6 +202,7 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
     });
     runner.waveform_click_seek_press = Some(WaveformClickSeekPress {
         press_x: anchor.x,
+        position_micros: anchor_micros,
         position_nanos: anchor_nanos,
         clear_selection_on_release: false,
     });

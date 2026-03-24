@@ -13,6 +13,24 @@ where
         let finish_edit_fade_drag = self
             .waveform_drag_mode
             .is_some_and(waveform_drag_mode_is_edit_fade);
+        let finish_selection_range_drag = matches!(released_button, Some(MouseButton::Left))
+            && self.waveform_drag_mode.is_some_and(|mode| {
+                matches!(
+                    mode,
+                    WaveformPointerDragMode::Selection { .. }
+                        | WaveformPointerDragMode::SelectionShift { .. }
+                )
+            })
+            && self.last_emitted_waveform_drag_action.is_some();
+        let finish_edit_selection_drag = matches!(released_button, Some(MouseButton::Left))
+            && self.waveform_drag_mode.is_some_and(|mode| {
+                matches!(
+                    mode,
+                    WaveformPointerDragMode::EditSelection { .. }
+                        | WaveformPointerDragMode::EditSelectionShift { .. }
+                )
+            })
+            && self.last_emitted_waveform_drag_action.is_some();
         let finish_selection_drag =
             self.selection_drag_active && matches!(released_button, Some(MouseButton::Left));
         let finish_selection_smart_scale_drag = matches!(released_button, Some(MouseButton::Left))
@@ -41,11 +59,17 @@ where
         if finish_edit_fade_drag {
             self.emit_model_action(UiAction::FinishWaveformEditFadeDrag);
         }
+        if finish_selection_range_drag {
+            self.emit_model_action(UiAction::FinishWaveformSelectionRangeDrag);
+        }
         if finish_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
         }
         if finish_selection_smart_scale_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionSmartScaleDrag);
+        }
+        if finish_edit_selection_drag {
+            self.emit_model_action(UiAction::FinishWaveformEditSelectionDrag);
         }
         self.clear_pointer_drag_session();
         if let Some(point) = self.last_cursor {

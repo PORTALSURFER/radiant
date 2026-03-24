@@ -513,6 +513,11 @@ pub enum UiAction {
     },
     /// Finish the active waveform-selection drag gesture.
     FinishWaveformSelectionDrag,
+    /// Finish an active playback-selection range drag gesture.
+    ///
+    /// This covers plain create, resize, and shift gestures that mutate the
+    /// playback-selection range directly instead of using the export drag flow.
+    FinishWaveformSelectionRangeDrag,
     /// Finish the active alt-resize smart-scale gesture and commit the inferred BPM.
     FinishWaveformSelectionSmartScaleDrag,
     /// Arm a playback-selection translate gesture from the bottom-center handle.
@@ -533,6 +538,11 @@ pub enum UiAction {
         /// Edit-selection end preserved across the translate gesture.
         end_micros: u32,
     },
+    /// Finish an active edit-selection range drag gesture.
+    ///
+    /// This covers plain create, resize, and shift gestures that mutate the
+    /// edit-selection range directly.
+    FinishWaveformEditSelectionDrag,
     /// Clear active waveform selection.
     ClearWaveformSelection,
     /// Clear active waveform edit selection.

@@ -100,6 +100,52 @@ fn finish_volume_drag_emits_finish_selection_smart_scale_drag_for_alt_resize() {
 }
 
 #[test]
+fn finish_volume_drag_emits_finish_selection_range_drag_for_plain_selection_gestures() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::SelectionShift {
+        pointer_micros: milli(320),
+        start_micros: milli(250),
+        end_micros: milli(650),
+    });
+    runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformSelectionRange {
+        start_micros: milli(300),
+        end_micros: milli(700),
+        preserve_view_edge: false,
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformSelectionRangeDrag]
+    );
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_edit_selection_drag_for_plain_edit_gestures() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::EditSelectionShift {
+        pointer_micros: milli(420),
+        start_micros: milli(250),
+        end_micros: milli(650),
+    });
+    runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformEditSelectionRange {
+        start_micros: milli(300),
+        end_micros: milli(700),
+        preserve_view_edge: false,
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformEditSelectionDrag]
+    );
+}
+
+#[test]
 fn outside_selection_click_release_clears_playback_selection_then_seeks() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

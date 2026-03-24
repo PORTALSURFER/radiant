@@ -34,7 +34,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::StartWaveformSelectionDrag { .. }
             | UiAction::UpdateWaveformSelectionDrag { .. }
             | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionRangeDrag
             | UiAction::FinishWaveformSelectionSmartScaleDrag
+            | UiAction::FinishWaveformEditSelectionDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections => RuntimeInvalidationScope::ModelAndOverlays,
@@ -92,7 +94,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::StartWaveformSelectionDrag { .. }
             | UiAction::UpdateWaveformSelectionDrag { .. }
             | UiAction::FinishWaveformSelectionDrag
+            | UiAction::FinishWaveformSelectionRangeDrag
             | UiAction::FinishWaveformSelectionSmartScaleDrag
+            | UiAction::FinishWaveformEditSelectionDrag
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections

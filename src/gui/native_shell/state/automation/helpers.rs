@@ -227,11 +227,13 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::StartWaveformSelectionDrag { .. } => "start_waveform_selection_drag",
         UiAction::UpdateWaveformSelectionDrag { .. } => "update_waveform_selection_drag",
         UiAction::FinishWaveformSelectionDrag => "finish_waveform_selection_drag",
+        UiAction::FinishWaveformSelectionRangeDrag => "finish_waveform_selection_range_drag",
         UiAction::FinishWaveformSelectionSmartScaleDrag => {
             "finish_waveform_selection_smart_scale_drag"
         }
         UiAction::BeginWaveformSelectionShift { .. } => "begin_waveform_selection_shift",
         UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
+        UiAction::FinishWaveformEditSelectionDrag => "finish_waveform_edit_selection_drag",
         UiAction::ClearWaveformSelection => "clear_waveform_selection",
         UiAction::ClearWaveformEditSelection => "clear_waveform_edit_selection",
         UiAction::ClearWaveformSelections => "clear_waveform_selections",

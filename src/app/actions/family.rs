@@ -142,9 +142,11 @@ impl UiAction {
             | Self::StartWaveformSelectionDrag { .. }
             | Self::UpdateWaveformSelectionDrag { .. }
             | Self::FinishWaveformSelectionDrag
+            | Self::FinishWaveformSelectionRangeDrag
             | Self::FinishWaveformSelectionSmartScaleDrag
             | Self::BeginWaveformSelectionShift { .. }
             | Self::BeginWaveformEditSelectionShift { .. }
+            | Self::FinishWaveformEditSelectionDrag
             | Self::ClearWaveformSelection
             | Self::ClearWaveformEditSelection
             | Self::ClearWaveformSelections

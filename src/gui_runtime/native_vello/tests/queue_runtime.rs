@@ -313,6 +313,48 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
     }
 }
 
+#[derive(Default)]
+struct QueuedWaveformClickBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+    queued_actions: Vec<UiAction>,
+    project_calls: usize,
+}
+
+impl NativeAppBridge for QueuedWaveformClickBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
+        for action in self.queued_actions.drain(..) {
+            match &action {
+                UiAction::ClearWaveformSelection => {
+                    self.model.waveform.selection_milli = None;
+                }
+                UiAction::SeekWaveformPrecise { position_nanos } => {
+                    self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
+                }
+                _ => {}
+            }
+            self.actions.push(action);
+        }
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        match &action {
+            UiAction::BeginWaveformSelectionAt { .. } => {
+                self.model.focus_context = crate::app::FocusContextModel::Waveform;
+                self.actions.push(action);
+            }
+            UiAction::ClearWaveformSelection | UiAction::SeekWaveformPrecise { .. } => {
+                self.queued_actions.push(action);
+            }
+            _ => {
+                self.actions.push(action);
+            }
+        }
+    }
+}
+
 #[test]
 fn begin_waveform_selection_press_does_not_project_zero_width_selection() {
     let mut bridge = ImmediateWaveformSelectionBridge::default();
@@ -752,6 +794,47 @@ fn command_waveform_edge_adjust_press_emits_immediately_without_arming_drag() {
         }]
     );
     assert_eq!(runner.waveform_drag_mode, None);
+}
+
+#[test]
+fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let mut bridge = QueuedWaveformClickBridge::default();
+    bridge.model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
+    let position_nanos = waveform_position_nanos_from_point(&layout, &runner.model, point);
+    assert!(
+        runner.handle_pointer_press_action(
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            false,
+        )
+    );
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(runner.bridge.project_calls, 2);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::ClearWaveformSelection,
+            UiAction::SeekWaveformPrecise { position_nanos },
+        ]
+    );
+    assert!(runner.model.waveform.selection_milli.is_none());
+    assert_eq!(
+        runner.model.waveform.cursor_milli,
+        Some((position_nanos / 1_000_000) as u16)
+    );
 }
 
 #[test]

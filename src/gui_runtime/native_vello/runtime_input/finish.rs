@@ -41,9 +41,9 @@ where
         let seek_on_waveform_click_release = matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
             && click_seek_press.is_some()
-            && self.waveform_drag_mode.is_none_or(|mode| {
-                matches!(mode, WaveformPointerDragMode::Selection { .. })
-            })
+            && self
+                .waveform_drag_mode
+                .is_none_or(|mode| matches!(mode, WaveformPointerDragMode::Selection { .. }))
             && self.last_cursor.is_some_and(|point| {
                 click_seek_press.is_some_and(|press| {
                     (point.x - press.press_x).abs() <= WAVEFORM_CLICK_SEEK_SLOP_PX
@@ -85,6 +85,7 @@ where
                 },
                 Some(InteractionProfileKind::Waveform),
             );
+            self.sync_model_after_waveform_click_release();
         }
     }
 
@@ -113,5 +114,15 @@ where
         self.next_idle_status_refresh = next_refresh;
         self.frame_state.mark_motion_overlay_dirty();
         true
+    }
+
+    /// Pull the latest host model after click-to-seek release so queued bridge
+    /// waveform actions become visible and audible immediately.
+    fn sync_model_after_waveform_click_release(&mut self) {
+        self.model = self.bridge.pull_model_arc();
+        self.waveform_view_refresh_pending = false;
+        self.shell_state.sync_from_model(&self.model);
+        self.refresh_motion_model_from_model();
+        self.sync_text_input_target();
     }
 }

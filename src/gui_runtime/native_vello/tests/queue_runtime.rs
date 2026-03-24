@@ -333,6 +333,10 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
                 | UiAction::SetWaveformCursorPrecise { position_nanos } => {
                     self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
                 }
+                UiAction::PlayWaveformAtPrecise { position_nanos } => {
+                    self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
+                    self.model.transport_running = true;
+                }
                 UiAction::PlayFromCurrentPlayhead | UiAction::PlayFromWaveformCursor => {
                     self.model.transport_running = true;
                 }
@@ -354,6 +358,11 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
             }
             UiAction::SetWaveformCursorPrecise { position_nanos } => {
                 self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
+                self.actions.push(action);
+            }
+            UiAction::PlayWaveformAtPrecise { position_nanos } => {
+                self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
+                self.model.transport_running = true;
                 self.actions.push(action);
             }
             UiAction::PlayFromCurrentPlayhead | UiAction::PlayFromWaveformCursor => {
@@ -839,8 +848,7 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
         runner.bridge.actions,
         vec![
             UiAction::ClearWaveformSelection,
-            UiAction::SetWaveformCursorPrecise { position_nanos },
-            UiAction::PlayFromWaveformCursor,
+            UiAction::PlayWaveformAtPrecise { position_nanos },
         ]
     );
     assert!(runner.model.waveform.selection_milli.is_none());

@@ -189,7 +189,7 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         UiAction::SetWaveformEditFadeOutCurve { .. } => {
             Some(WaveformPointerDragMode::EditFadeOutCurve)
         }
-        UiAction::PlayFromWaveformCursor => None,
+        UiAction::PlayFromWaveformCursor | UiAction::PlayWaveformAtPrecise { .. } => None,
         _ => None,
     }
 }

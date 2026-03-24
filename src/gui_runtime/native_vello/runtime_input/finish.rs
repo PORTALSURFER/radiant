@@ -125,10 +125,10 @@ where
     /// Apply plain waveform click-release playback from one exact pointer point.
     ///
     /// Plain clicks should always audition from the clicked location while
-    /// drag gestures still create or resize selections. Update the exact
-    /// cursor first, then start playback from the waveform cursor action.
+    /// drag gestures still create or resize selections. Emit one exact
+    /// click-play action so the host can seek and start transport in the same
+    /// reduction path instead of inferring playback from cursor state.
     fn emit_waveform_click_release_playback(&mut self, position_nanos: u32) {
-        self.emit_model_action(UiAction::SetWaveformCursorPrecise { position_nanos });
-        self.emit_model_action(UiAction::PlayFromWaveformCursor);
+        self.emit_model_action(UiAction::PlayWaveformAtPrecise { position_nanos });
     }
 }

@@ -58,6 +58,15 @@ pub enum UiAction {
     /// the exact clicked point instead of reusing any older visible playhead
     /// position.
     PlayFromWaveformCursor,
+    /// Start playback immediately from one exact waveform position.
+    ///
+    /// Plain waveform click-release uses this direct action so the host can
+    /// seek and start playback from the clicked point in one step without
+    /// inferring intent from the cursor or visible playhead state.
+    PlayWaveformAtPrecise {
+        /// Normalized nanounit playback target (`0..=1_000_000_000`).
+        position_nanos: u32,
+    },
     /// Handle Escape key behavior for playback, selection, and cursor cleanup.
     HandleEscape,
 

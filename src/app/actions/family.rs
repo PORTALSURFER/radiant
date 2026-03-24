@@ -30,6 +30,7 @@ impl UiAction {
             | Self::PlayFromStart
             | Self::PlayFromCurrentPlayhead
             | Self::PlayFromWaveformCursor
+            | Self::PlayWaveformAtPrecise { .. }
             | Self::HandleEscape => UiActionFamily::Transport,
             Self::FocusBrowserPanel
             | Self::FocusSourcesPanel

@@ -58,6 +58,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformCursor { .. } => RuntimeInvalidationScope::OverlayMotionOnly,
             UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead
+            | UiAction::PlayWaveformAtPrecise { .. }
             | UiAction::PlayFromWaveformCursor => {
                 RuntimeInvalidationScope::ModelAndOverlays
             }
@@ -79,6 +80,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SeekWaveform { .. }
             | UiAction::PlayFromStart
             | UiAction::PlayFromCurrentPlayhead
+            | UiAction::PlayWaveformAtPrecise { .. }
             | UiAction::PlayFromWaveformCursor
             | UiAction::SetWaveformCursorPrecise { .. }
             | UiAction::SetWaveformCursor { .. }

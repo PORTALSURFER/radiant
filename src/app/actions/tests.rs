@@ -10,6 +10,13 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiAction::PlayFromWaveformCursor.family(),
         UiActionFamily::Transport
     );
+    assert_eq!(
+        UiAction::PlayWaveformAtPrecise {
+            position_nanos: 330_000_000,
+        }
+        .family(),
+        UiActionFamily::Transport
+    );
     assert_eq!(UiAction::FocusFolderSearch.family(), UiActionFamily::Focus);
     assert_eq!(
         UiAction::DeleteFocusedFolder.family(),

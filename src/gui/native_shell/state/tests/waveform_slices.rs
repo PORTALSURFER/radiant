@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::AutomationNodeSnapshot;
 
 fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
     parent

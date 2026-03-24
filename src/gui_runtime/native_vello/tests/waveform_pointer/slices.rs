@@ -1,5 +1,5 @@
 use super::*;
-use crate::gui::native_shell::layout_adapter::compute_waveform_slice_preview_rects;
+use crate::gui::native_shell::compute_waveform_slice_preview_rects;
 
 #[test]
 fn waveform_slice_preview_click_toggles_slice_selection() {

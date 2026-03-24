@@ -113,6 +113,44 @@ pub(super) fn waveform_edit_selection_edge_adjust_action_from_pointer(
     )
 }
 
+/// Resolve one direct playback-selection slide action for shift-click gestures.
+pub(super) fn waveform_selection_slide_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    waveform_slide_action_from_pointer(
+        layout,
+        model,
+        model.waveform.selection_milli,
+        point,
+        |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
+            start_micros,
+            end_micros,
+            preserve_view_edge: false,
+        },
+    )
+}
+
+/// Resolve one direct edit-selection slide action for shift-right-click gestures.
+pub(super) fn waveform_edit_selection_slide_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    waveform_slide_action_from_pointer(
+        layout,
+        model,
+        model.waveform.edit_selection_milli,
+        point,
+        |start_micros, end_micros| UiAction::SetWaveformEditSelectionRange {
+            start_micros,
+            end_micros,
+            preserve_view_edge: false,
+        },
+    )
+}
+
 /// Resolve one selection-drag action when the pointer lands on the playback-selection handle.
 pub(super) fn waveform_selection_drag_action_from_pointer(
     layout: &ShellLayout,
@@ -257,5 +295,27 @@ fn waveform_edge_adjust_action(
     } else {
         (position_micros, selection_end)
     };
+    Some(build(start_micros, end_micros))
+}
+
+/// Build one direct slide action that moves the selection start to the click position.
+fn waveform_slide_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    selection: Option<crate::app::NormalizedRangeModel>,
+    point: Point,
+    build: impl FnOnce(u32, u32) -> UiAction,
+) -> Option<UiAction> {
+    if !layout.waveform_plot.contains(point) {
+        return None;
+    }
+    let selection = selection?;
+    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    let (start_micros, end_micros) = shift_waveform_range_micros(
+        selection.start_micros,
+        position_micros,
+        selection.start_micros,
+        selection.end_micros,
+    );
     Some(build(start_micros, end_micros))
 }

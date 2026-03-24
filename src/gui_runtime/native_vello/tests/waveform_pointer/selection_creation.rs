@@ -29,6 +29,19 @@ fn expected_command_edge_adjust_range(
     }
 }
 
+fn expected_shift_slide_range(
+    selection_start: u32,
+    selection_end: u32,
+    position_micros: u32,
+) -> (u32, u32) {
+    shift_waveform_range_micros(
+        selection_start,
+        position_micros,
+        selection_start,
+        selection_end,
+    )
+}
+
 #[test]
 fn waveform_click_modifiers_route_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
@@ -107,8 +120,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             ModifiersState::SHIFT
         ),
         Some(UiAction::SetWaveformSelectionRange {
-            start_micros: milli(120),
-            end_micros: milli(500),
+            start_micros: milli(500),
+            end_micros: milli(740),
             preserve_view_edge: false,
         })
     );
@@ -152,15 +165,13 @@ fn waveform_plain_click_preserves_exact_micro_anchor() {
 }
 
 #[test]
-fn waveform_shift_click_preserves_exact_micro_endpoint() {
+fn waveform_shift_click_slides_playback_selection_from_clicked_start() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut shell_state = NativeShellState::new();
     let point = Point::new(
         layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1234,
         layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5,
     );
-    let expected_endpoint =
-        waveform_position_micros_from_point(&layout, &AppModel::default(), point);
     let model = AppModel {
         waveform: WaveformPanelModel {
             selection_milli: Some(crate::app::NormalizedRangeModel::new(200, 800)),
@@ -168,6 +179,9 @@ fn waveform_shift_click_preserves_exact_micro_endpoint() {
         },
         ..AppModel::default()
     };
+    let expected_position = waveform_position_micros_from_point(&layout, &model, point);
+    let (expected_start, expected_end) =
+        expected_shift_slide_range(milli(200), milli(800), expected_position);
 
     assert_eq!(
         action_from_pointer(
@@ -178,8 +192,8 @@ fn waveform_shift_click_preserves_exact_micro_endpoint() {
             ModifiersState::SHIFT,
         ),
         Some(UiAction::SetWaveformSelectionRange {
-            start_micros: milli(200),
-            end_micros: expected_endpoint,
+            start_micros: expected_start,
+            end_micros: expected_end,
             preserve_view_edge: false,
         })
     );
@@ -353,6 +367,52 @@ fn command_click_clamps_existing_selection_translation_to_waveform_bounds() {
 }
 
 #[test]
+fn shift_click_clamps_existing_playback_selection_translation_to_waveform_bounds() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut shell_state = NativeShellState::new();
+    let model = AppModel {
+        waveform: WaveformPanelModel {
+            selection_milli: Some(crate::app::NormalizedRangeModel::new(300, 900)),
+            ..WaveformPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let y = layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5;
+
+    let left_point = Point::new(layout.waveform_plot.min.x, y);
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            left_point,
+            ModifiersState::SHIFT,
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: 0,
+            end_micros: milli(600),
+            preserve_view_edge: false,
+        })
+    );
+
+    let right_point = Point::new(layout.waveform_plot.max.x, y);
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            right_point,
+            ModifiersState::SHIFT,
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: milli(400),
+            end_micros: 1_000_000,
+            preserve_view_edge: false,
+        })
+    );
+}
+
+#[test]
 fn waveform_right_click_maps_to_edit_selection_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let point = Point::new(
@@ -387,6 +447,15 @@ fn waveform_right_click_maps_to_edit_selection_action() {
     );
 
     assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::SHIFT,),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: milli(360),
+            end_micros: 1_000_000,
+            preserve_view_edge: false,
+        }
+    );
+
+    assert_eq!(
         waveform_edit_action_from_pointer(
             &layout,
             &model,
@@ -396,6 +465,39 @@ fn waveform_right_click_maps_to_edit_selection_action() {
         UiAction::SetWaveformEditSelectionRange {
             start_micros: milli(180),
             end_micros: milli(500),
+            preserve_view_edge: false,
+        }
+    );
+}
+
+#[test]
+fn shift_click_slides_existing_edit_selection_to_waveform_bounds() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let model = AppModel {
+        waveform: WaveformPanelModel {
+            edit_selection_milli: Some(crate::app::NormalizedRangeModel::new(200, 500)),
+            ..WaveformPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let y = layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5;
+
+    let left_point = Point::new(layout.waveform_plot.min.x, y);
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, left_point, ModifiersState::SHIFT),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: 0,
+            end_micros: milli(300),
+            preserve_view_edge: false,
+        }
+    );
+
+    let right_point = Point::new(layout.waveform_plot.max.x, y);
+    assert_eq!(
+        waveform_edit_action_from_pointer(&layout, &model, right_point, ModifiersState::SHIFT),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: milli(700),
+            end_micros: 1_000_000,
             preserve_view_edge: false,
         }
     );
@@ -472,6 +574,21 @@ fn command_waveform_edge_adjust_without_selection_preserves_existing_fallbacks()
             &AppModel::default(),
             &mut shell_state,
             point,
+            ModifiersState::SHIFT,
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: 0,
+            end_micros: expected_position_micros,
+            preserve_view_edge: false,
+        })
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            &mut shell_state,
+            point,
             ModifiersState::CONTROL,
         ),
         Some(UiAction::SetWaveformCursorPrecise {
@@ -490,6 +607,20 @@ fn command_waveform_edge_adjust_without_selection_preserves_existing_fallbacks()
         Some(UiAction::SetWaveformCursorPrecise {
             position_nanos: expected_position_nanos,
         })
+    );
+
+    assert_eq!(
+        waveform_edit_action_from_pointer(
+            &layout,
+            &AppModel::default(),
+            point,
+            ModifiersState::SHIFT,
+        ),
+        UiAction::SetWaveformEditSelectionRange {
+            start_micros: expected_position_micros,
+            end_micros: expected_position_micros,
+            preserve_view_edge: false,
+        }
     );
 
     assert_eq!(

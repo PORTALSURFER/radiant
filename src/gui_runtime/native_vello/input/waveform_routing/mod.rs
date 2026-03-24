@@ -12,10 +12,11 @@ use self::{
     press::{
         waveform_edit_selection_edge_adjust_action_from_pointer,
         waveform_edit_selection_shift_action_from_pointer,
+        waveform_edit_selection_slide_action_from_pointer,
         waveform_primary_press_action_from_pointer, waveform_selection_drag_action_from_pointer,
         waveform_selection_edge_adjust_action_from_pointer,
         waveform_selection_resize_action_from_pointer,
-        waveform_selection_shift_action_from_pointer,
+        waveform_selection_shift_action_from_pointer, waveform_selection_slide_action_from_pointer,
     },
     slices::waveform_slice_toggle_action_from_pointer,
 };
@@ -51,6 +52,13 @@ pub(super) fn waveform_action_from_pointer(
     }
     if let Some(action) =
         waveform_primary_press_action_from_pointer(layout, model, point, command, alt, shift)
+    {
+        return action;
+    }
+    if !command
+        && !alt
+        && shift
+        && let Some(action) = waveform_selection_slide_action_from_pointer(layout, model, point)
     {
         return action;
     }
@@ -129,6 +137,14 @@ pub(super) fn waveform_edit_action_from_pointer(
     }
     if modifiers.alt_key()
         && let Some(action) = waveform_edit_fade_curve_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if !command
+        && !modifiers.alt_key()
+        && modifiers.shift_key()
+        && let Some(action) =
+            waveform_edit_selection_slide_action_from_pointer(layout, model, point)
     {
         return action;
     }

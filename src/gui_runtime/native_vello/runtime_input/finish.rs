@@ -40,11 +40,10 @@ where
         let click_seek_press = self.waveform_click_seek_press;
         let seek_on_waveform_click_release = matches!(released_button, Some(MouseButton::Left))
             && self.last_emitted_waveform_drag_action.is_none()
-            && matches!(
-                self.waveform_drag_mode,
-                Some(WaveformPointerDragMode::Selection { .. })
-            )
             && click_seek_press.is_some()
+            && self.waveform_drag_mode.is_none_or(|mode| {
+                matches!(mode, WaveformPointerDragMode::Selection { .. })
+            })
             && self.last_cursor.is_some_and(|point| {
                 click_seek_press.is_some_and(|press| {
                     (point.x - press.press_x).abs() <= WAVEFORM_CLICK_SEEK_SLOP_PX

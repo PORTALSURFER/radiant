@@ -222,9 +222,13 @@ where
         &self,
         action: &UiAction,
     ) -> Option<WaveformClickSeekPress> {
-        if !matches!(action, UiAction::BeginWaveformSelectionAt { .. }) {
-            return None;
-        }
+        let clear_selection_on_release = match action {
+            UiAction::BeginWaveformSelectionAt { .. } => true,
+            UiAction::ClearWaveformSelection
+            | UiAction::ClearWaveformEditSelection
+            | UiAction::ClearWaveformSelections => false,
+            _ => return None,
+        };
         let Some(layout) = self.shell_layout.as_ref() else {
             return None;
         };
@@ -234,7 +238,7 @@ where
         Some(WaveformClickSeekPress {
             press_x: point.x,
             position_nanos: waveform_position_nanos_from_point(layout, &self.model, point),
-            clear_selection_on_release: true,
+            clear_selection_on_release,
         })
     }
 }

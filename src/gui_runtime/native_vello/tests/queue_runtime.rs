@@ -332,6 +332,9 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
                 UiAction::SeekWaveformPrecise { position_nanos } => {
                     self.model.waveform.cursor_milli = Some((position_nanos / 1_000_000) as u16);
                 }
+                UiAction::PlayFromCurrentPlayhead => {
+                    self.model.transport_running = true;
+                }
                 _ => {}
             }
             self.actions.push(action);
@@ -347,6 +350,10 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
             }
             UiAction::ClearWaveformSelection | UiAction::SeekWaveformPrecise { .. } => {
                 self.queued_actions.push(action);
+            }
+            UiAction::PlayFromCurrentPlayhead => {
+                self.model.transport_running = true;
+                self.actions.push(action);
             }
             _ => {
                 self.actions.push(action);
@@ -804,6 +811,7 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
     let mut bridge = QueuedWaveformClickBridge::default();
+    bridge.model.transport_running = false;
     bridge.model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = runner.bridge.project_model();
@@ -821,13 +829,14 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
 
     runner.finish_volume_drag(Some(MouseButton::Left));
 
-    assert_eq!(runner.bridge.project_calls, 2);
+    assert_eq!(runner.bridge.project_calls, 3);
     assert_eq!(
         runner.bridge.actions,
         vec![
             UiAction::BeginWaveformSelectionAt { anchor_micros },
             UiAction::ClearWaveformSelection,
             UiAction::SeekWaveformPrecise { position_nanos },
+            UiAction::PlayFromCurrentPlayhead,
         ]
     );
     assert!(runner.model.waveform.selection_milli.is_none());
@@ -835,6 +844,7 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
         runner.model.waveform.cursor_milli,
         Some((position_nanos / 1_000_000) as u16)
     );
+    assert!(runner.model.transport_running);
 }
 
 #[test]

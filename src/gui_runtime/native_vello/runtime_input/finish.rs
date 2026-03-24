@@ -86,6 +86,7 @@ where
                 Some(InteractionProfileKind::Waveform),
             );
             self.sync_model_after_waveform_click_release();
+            self.start_playback_after_waveform_click_release_if_stopped();
         }
     }
 
@@ -124,5 +125,19 @@ where
         self.shell_state.sync_from_model(&self.model);
         self.refresh_motion_model_from_model();
         self.sync_text_input_target();
+    }
+
+    /// Ensure click-release seek gestures restart playback from the clicked point.
+    ///
+    /// Some hosts apply the precise seek immediately but still leave transport
+    /// stopped after the first bridge/model sync. When that happens, follow up
+    /// with `PlayFromCurrentPlayhead` so plain waveform clicks behave like
+    /// direct click-to-play instead of only moving the cursor.
+    fn start_playback_after_waveform_click_release_if_stopped(&mut self) {
+        if self.model.transport_running {
+            return;
+        }
+        self.emit_model_action(UiAction::PlayFromCurrentPlayhead);
+        self.sync_model_after_waveform_click_release();
     }
 }

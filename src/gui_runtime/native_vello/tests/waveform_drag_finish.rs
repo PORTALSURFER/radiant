@@ -156,8 +156,8 @@ fn outside_selection_click_release_clears_playback_selection_then_seeks() {
     );
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.last_cursor = Some(point);
-    Arc::make_mut(&mut runner.model).waveform.selection_milli =
-        Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let model = Arc::make_mut(&mut runner.model);
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
 
     let emitted = runner.handle_pointer_press_action(
         UiAction::BeginWaveformSelectionAt {
@@ -195,7 +195,8 @@ fn click_just_outside_selection_edge_clears_playback_selection_then_seeks() {
     );
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.last_cursor = Some(point);
-    Arc::make_mut(&mut runner.model).waveform.selection_milli = Some(selection);
+    let model = Arc::make_mut(&mut runner.model);
+    model.waveform.selection_milli = Some(selection);
 
     let mut shell_state = NativeShellState::new();
     let action = action_from_pointer(
@@ -235,8 +236,8 @@ fn clear_playback_selection_press_release_seeks_from_click_point() {
     );
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.last_cursor = Some(point);
-    Arc::make_mut(&mut runner.model).waveform.selection_milli =
-        Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let model = Arc::make_mut(&mut runner.model);
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
 
     let emitted = runner.handle_pointer_press_action(UiAction::ClearWaveformSelection, false);
     assert!(emitted);

@@ -834,14 +834,14 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
 
     runner.finish_volume_drag(Some(MouseButton::Left));
 
-    assert_eq!(runner.bridge.project_calls, 2);
+    assert_eq!(runner.bridge.project_calls, 3);
     assert_eq!(
         runner.bridge.actions,
         vec![
             UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::ClearWaveformSelection,
             UiAction::SetWaveformCursorPrecise { position_nanos },
             UiAction::PlayFromCurrentPlayhead,
-            UiAction::ClearWaveformSelection,
         ]
     );
     assert!(runner.model.waveform.selection_milli.is_none());

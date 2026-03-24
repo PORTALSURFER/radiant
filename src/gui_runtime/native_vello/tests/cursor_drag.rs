@@ -125,7 +125,7 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
 }
 
 #[test]
-fn finish_volume_drag_left_click_on_waveform_emits_seek() {
+fn finish_volume_drag_left_click_on_waveform_sets_cursor_then_plays() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
@@ -153,7 +153,10 @@ fn finish_volume_drag_left_click_on_waveform_emits_seek() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SeekWaveformPrecise { position_nanos }]
+        vec![
+            UiAction::SetWaveformCursorPrecise { position_nanos },
+            UiAction::PlayFromCurrentPlayhead,
+        ]
     );
     assert_eq!(runner.waveform_drag_mode, None);
     assert_eq!(runner.last_emitted_waveform_drag_action, None);
@@ -183,7 +186,7 @@ fn process_waveform_drag_immediately_ignores_tiny_selection_wobble() {
 }
 
 #[test]
-fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
+fn finish_volume_drag_small_waveform_wobble_still_plays_from_click() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
@@ -212,9 +215,12 @@ fn finish_volume_drag_small_waveform_wobble_still_emits_seek() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SeekWaveformPrecise {
-            position_nanos: anchor_nanos
-        }]
+        vec![
+            UiAction::SetWaveformCursorPrecise {
+                position_nanos: anchor_nanos
+            },
+            UiAction::PlayFromCurrentPlayhead,
+        ]
     );
     assert_eq!(runner.waveform_drag_mode, None);
     assert_eq!(runner.last_emitted_waveform_drag_action, None);

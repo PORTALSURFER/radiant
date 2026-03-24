@@ -68,5 +68,6 @@ pub use sources::{
 };
 pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
+    WaveformSlicePreviewModel,
 };
 pub use waveform_tempo::parse_waveform_tempo_number_text;

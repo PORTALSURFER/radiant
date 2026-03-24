@@ -150,6 +150,7 @@ impl UiAction {
             | Self::ClearWaveformSelection
             | Self::ClearWaveformEditSelection
             | Self::ClearWaveformSelections
+            | Self::DetectWaveformSilenceSlices
             | Self::SetWaveformViewCenter { .. }
             | Self::ZoomWaveform { .. }
             | Self::ZoomWaveformToSelection
@@ -159,6 +160,7 @@ impl UiAction {
             | Self::FadeWaveformSelectionRightToLeft
             | Self::MuteWaveformSelection
             | Self::DeleteSelectedSliceMarkers
+            | Self::ToggleWaveformSliceSelection { .. }
             | Self::AlignWaveformStartToMarker
             | Self::DeleteLoadedWaveformSample
             | Self::SlideWaveformSelection { .. } => UiActionFamily::Waveform,

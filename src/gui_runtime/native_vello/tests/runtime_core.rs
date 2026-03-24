@@ -26,6 +26,12 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::DetectWaveformSilenceSlices
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
             &UiAction::StartWaveformSelectionDrag {
                 pointer_x: 320,
                 pointer_y: 240,
@@ -119,6 +125,12 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::ToggleWaveformSliceSelection { index: 0 }
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
         RuntimeInvalidationScope::StaticAndOverlays
     );
@@ -146,7 +158,8 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 #[test]
 fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let baseline = NativeMotionModel::from_app_model(&AppModel::default());
-    let baseline_signature = chrome_motion_overlay_model_signature(&baseline);
+    let chrome_baseline_signature = chrome_motion_overlay_model_signature(&baseline);
+    let waveform_baseline_signature = waveform_motion_overlay_model_signature(&baseline);
 
     let mut changed_channel = baseline.clone();
     changed_channel.waveform_channel_view = match baseline.waveform_channel_view {
@@ -154,7 +167,7 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         crate::app::WaveformChannelViewModel::Stereo => crate::app::WaveformChannelViewModel::Mono,
     };
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_channel)
     );
 
@@ -162,14 +175,14 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     changed_normalized.waveform_normalized_audition_enabled =
         !baseline.waveform_normalized_audition_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_normalized)
     );
 
     let mut changed_bpm_snap = baseline.clone();
     changed_bpm_snap.waveform_bpm_snap_enabled = !baseline.waveform_bpm_snap_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_bpm_snap)
     );
 
@@ -177,7 +190,7 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     changed_transient_snap.waveform_transient_snap_enabled =
         !baseline.waveform_transient_snap_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_transient_snap)
     );
 
@@ -185,21 +198,33 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     changed_transient_markers.waveform_transient_markers_enabled =
         !baseline.waveform_transient_markers_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_transient_markers)
     );
 
     let mut changed_slice_mode = baseline.clone();
     changed_slice_mode.waveform_slice_mode_enabled = !baseline.waveform_slice_mode_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_slice_mode)
+    );
+
+    let mut changed_slices = baseline.clone();
+    changed_slices
+        .waveform_slices
+        .push(crate::app::WaveformSlicePreviewModel {
+            range: crate::app::NormalizedRangeModel::new(120, 240),
+            selected: false,
+        });
+    assert_ne!(
+        waveform_baseline_signature,
+        waveform_motion_overlay_model_signature(&changed_slices)
     );
 
     let mut changed_loop = baseline.clone();
     changed_loop.waveform_loop_enabled = !baseline.waveform_loop_enabled;
     assert_ne!(
-        baseline_signature,
+        chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_loop)
     );
 }

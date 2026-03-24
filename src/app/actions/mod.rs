@@ -185,6 +185,8 @@ pub enum UiAction {
     CommitFocusedBrowserRow,
     /// Save the current waveform selection or slices into the browser as a new sample.
     SaveWaveformSelectionToBrowser,
+    /// Detect silence-split waveform slices for the loaded sample.
+    DetectWaveformSilenceSlices,
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection {
         /// Target visible row index in the browser list.
@@ -293,6 +295,11 @@ pub enum UiAction {
     MuteWaveformSelection,
     /// Delete the selected slice markers.
     DeleteSelectedSliceMarkers,
+    /// Toggle selection for one detected silence-split waveform slice.
+    ToggleWaveformSliceSelection {
+        /// Zero-based slice index within the current preview batch.
+        index: usize,
+    },
     /// Align the waveform start marker to the latest hover marker.
     AlignWaveformStartToMarker,
     /// Delete the currently loaded sample and navigate to the next candidate.

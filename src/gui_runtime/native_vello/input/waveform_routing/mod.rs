@@ -5,6 +5,7 @@ use super::*;
 mod clear;
 mod drag;
 mod press;
+mod slices;
 
 use self::{
     clear::{waveform_clear_action_from_pointer, waveform_new_selection_action_from_pointer},
@@ -16,6 +17,7 @@ use self::{
         waveform_selection_resize_action_from_pointer,
         waveform_selection_shift_action_from_pointer,
     },
+    slices::waveform_slice_toggle_action_from_pointer,
 };
 
 /// Build one waveform action from pointer position and active modifier keys.
@@ -33,6 +35,13 @@ pub(super) fn waveform_action_from_pointer(
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
     let command = modifiers.control_key() || modifiers.super_key();
+    if !command
+        && !alt
+        && !shift
+        && let Some(action) = waveform_slice_toggle_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
     if command
         && !alt
         && let Some(action) =

@@ -104,3 +104,4 @@ mod sidebar;
 mod waveform_edit_fades;
 mod waveform_edit_handles;
 mod waveform_selection;
+mod waveform_slices;

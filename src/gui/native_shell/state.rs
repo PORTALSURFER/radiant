@@ -26,6 +26,7 @@ use super::{
         compute_status_text_line_rect, compute_top_bar_controls_sections,
         compute_top_bar_controls_text_layout, compute_update_action_button_rects,
         compute_waveform_annotation_rects, compute_waveform_header_text_layout,
+        compute_waveform_slice_preview_rects,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},

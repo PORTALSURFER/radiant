@@ -7,7 +7,16 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
     let mut model = AppModel::default();
     model.transport_running = false;
     let labels = [
-        "Channel", "Norm", "BPM Snap", "Tr Snap", "Show Tr", "Slice", "Loop", "Play", "Rec",
+        "Channel",
+        "Norm",
+        "BPM Snap",
+        "Tr Snap",
+        "Show Tr",
+        "Slice",
+        "Silence Split",
+        "Loop",
+        "Play",
+        "Rec",
     ];
     let widths: Vec<u32> = labels
         .iter()
@@ -225,4 +234,46 @@ fn waveform_toolbar_toggle_buttons_share_warning_accent_when_enabled() {
             .unwrap_or_else(|| panic!("{label} toolbar button should be present"));
         assert_eq!(button.text_color, style.accent_warning);
     }
+}
+
+#[test]
+fn waveform_toolbar_silence_split_button_uses_blue_accent() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&AppModel::default()),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Silence Split")
+        .expect("silence split toolbar button should be present");
+
+    assert_eq!(button.text_color, style.highlight_blue_soft);
+}
+
+#[test]
+fn waveform_toolbar_silence_split_button_emits_detect_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Silence Split")
+        .expect("silence split toolbar button should be present");
+
+    assert_eq!(button.action, Some(UiAction::DetectWaveformSilenceSlices));
+    assert!(button.enabled);
 }

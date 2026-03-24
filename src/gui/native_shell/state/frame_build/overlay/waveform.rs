@@ -122,6 +122,9 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
                 String::from("Enable slice mode")
             }
         }
+        WaveformToolbarHoverHint::SilenceSplit => {
+            String::from("Detect silence-based waveform slices")
+        }
         WaveformToolbarHoverHint::Loop => {
             if model.waveform.loop_enabled {
                 String::from("Disable loop playback")

@@ -74,7 +74,9 @@ pub(super) use sidebar_text::{
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
 pub(super) use top_controls::compute_top_bar_controls_sections;
-pub(super) use waveform_annotations::compute_waveform_annotation_rects;
+pub(crate) use waveform_annotations::{
+    compute_waveform_annotation_rects, compute_waveform_slice_preview_rects,
+};
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 
 pub(crate) const SHELL_ROOT_ID: u64 = 1;

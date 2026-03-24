@@ -1,6 +1,6 @@
 //! Motion-only projection types exposed by the `radiant` app contract.
 
-use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel};
+use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformSlicePreviewModel};
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,6 +13,8 @@ pub struct NativeMotionModel {
     pub active_rating_filters: [bool; 8],
     /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
+    /// Preview slices detected from silence-splitting the loaded waveform.
+    pub waveform_slices: Vec<WaveformSlicePreviewModel>,
     /// One-shot token incremented after successful waveform-selection exports.
     pub waveform_selection_export_flash_nonce: u64,
     /// Waveform edit-selection window with milli and micro precision.
@@ -89,6 +91,7 @@ impl NativeMotionModel {
             map_active: model.map.active,
             active_rating_filters: model.browser.active_rating_filters,
             waveform_selection_milli: model.waveform.selection_milli,
+            waveform_slices: model.waveform.slices.clone(),
             waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,

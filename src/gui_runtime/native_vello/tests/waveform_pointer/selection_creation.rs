@@ -413,8 +413,14 @@ fn command_click_slides_existing_edit_selection_only_as_overflow_recovery() {
     };
 
     let y = layout.waveform_plot.min.y + layout.waveform_plot.height() * 0.5;
-    let before_start = Point::new(layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1, y);
-    let after_end = Point::new(layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.8, y);
+    let before_start = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.1,
+        y,
+    );
+    let after_end = Point::new(
+        layout.waveform_plot.min.x + layout.waveform_plot.width() * 0.8,
+        y,
+    );
 
     let before_position = waveform_position_micros_from_point(&layout, &model, before_start);
     let after_position = waveform_position_micros_from_point(&layout, &model, after_end);

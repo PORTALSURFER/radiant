@@ -24,6 +24,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformSelectionRange { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::DetectWaveformSilenceSlices
+            | UiAction::ToggleWaveformSliceSelection { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
@@ -100,6 +102,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections
+            | UiAction::DetectWaveformSilenceSlices
+            | UiAction::ToggleWaveformSliceSelection { .. }
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),

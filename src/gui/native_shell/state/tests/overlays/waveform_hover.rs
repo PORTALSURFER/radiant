@@ -138,6 +138,36 @@ fn state_overlay_renders_waveform_toolbar_hover_tooltip_text() {
 }
 
 #[test]
+fn state_overlay_renders_silence_split_tooltip_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+    let mut state = NativeShellState::new();
+    let button_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Silence Split")
+        .expect("silence split button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::None
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Detect silence-based waveform slices"))
+    );
+}
+
+#[test]
 fn cursor_move_clears_waveform_hover_position_outside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

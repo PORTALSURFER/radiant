@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
-use crate::app::{AutomationRole, NormalizedRangeModel};
+use crate::app::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
 
 /// Build semantic automation for the waveform panel.
 pub(super) fn build_waveform_automation(
@@ -48,6 +48,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(model.focus_context, crate::app::FocusContextModel::Waveform),
         available_actions: vec![
+            String::from("detect_waveform_silence_slices"),
             String::from("seek_waveform"),
             String::from("set_waveform_cursor"),
             String::from("set_waveform_selection_range"),
@@ -121,6 +122,7 @@ pub(super) fn build_waveform_automation(
             "clear_waveform_edit_selection",
         ));
     }
+    children.extend(waveform_slice_nodes(layout.waveform_plot, model));
     AutomationNodeSnapshot {
         id: node_id("waveform.panel"),
         role: AutomationRole::Panel,
@@ -132,6 +134,37 @@ pub(super) fn build_waveform_automation(
         available_actions: vec![String::from("focus_waveform_panel")],
         metadata: std::collections::BTreeMap::new(),
         children,
+    }
+}
+
+fn waveform_slice_nodes(plot: Rect, model: &AppModel) -> Vec<AutomationNodeSnapshot> {
+    model
+        .waveform
+        .slices
+        .iter()
+        .enumerate()
+        .map(|(index, slice)| waveform_slice_node(index, plot, model, slice.clone()))
+        .collect()
+}
+
+fn waveform_slice_node(
+    index: usize,
+    plot: Rect,
+    model: &AppModel,
+    slice: WaveformSlicePreviewModel,
+) -> AutomationNodeSnapshot {
+    let selection_value = selection_micros_text(slice.range);
+    AutomationNodeSnapshot {
+        id: node_id(format!("waveform.slice.{index:03}")),
+        role: AutomationRole::Button,
+        label: Some(format!("Slice {}", index + 1)),
+        bounds: bounds(waveform_selection_bounds(plot, model, slice.range)),
+        value: Some(selection_value.clone()),
+        enabled: true,
+        selected: slice.selected,
+        available_actions: vec![String::from("toggle_waveform_slice_selection")],
+        metadata: metadata(&[("selection_micros", selection_value.as_str())]),
+        children: Vec::new(),
     }
 }
 

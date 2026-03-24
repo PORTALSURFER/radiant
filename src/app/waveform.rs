@@ -44,6 +44,20 @@ impl NormalizedRangeModel {
     }
 }
 
+/// One detected waveform slice preview exposed to the runtime and native shell.
+///
+/// The slice range is expressed in normalized micro-units so the host can
+/// project it into the loaded waveform view without losing precision at deep
+/// zoom levels. The `selected` flag is intentionally separate so the shell can
+/// toggle selection without mutating the range bounds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformSlicePreviewModel {
+    /// Detected slice range in normalized milli and micro precision.
+    pub range: NormalizedRangeModel,
+    /// Whether this slice is currently selected in the preview batch.
+    pub selected: bool,
+}
+
 fn micros_to_milli(value_micros: u32) -> u16 {
     ((value_micros.min(1_000_000) + 500) / 1000) as u16
 }
@@ -66,6 +80,8 @@ pub struct WaveformPanelModel {
     pub playhead_micros: Option<u32>,
     /// Current waveform selection bounds.
     pub selection_milli: Option<NormalizedRangeModel>,
+    /// Preview slices detected from silence-splitting the loaded waveform.
+    pub slices: Vec<WaveformSlicePreviewModel>,
     /// One-shot token incremented after successful waveform-selection exports.
     ///
     /// Native shells treat each new value as an event and can run local flash
@@ -150,6 +166,7 @@ impl Default for WaveformPanelModel {
             playhead_milli: None,
             playhead_micros: None,
             selection_milli: None,
+            slices: Vec::new(),
             selection_export_flash_nonce: 0,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,

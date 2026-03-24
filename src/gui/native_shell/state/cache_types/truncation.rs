@@ -88,6 +88,10 @@ pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
     pub model_flags: u16,
     /// Stable digest of waveform tempo label text.
     pub tempo_label_signature: u64,
+    /// Stable digest of the loaded waveform label used by action availability.
+    pub loaded_label_signature: u64,
+    /// Whether waveform data is still loading.
+    pub waveform_loading: bool,
     /// Whether waveform BPM editor mode is active.
     pub bpm_editor_active: bool,
     /// Stable digest of waveform BPM editor display text.

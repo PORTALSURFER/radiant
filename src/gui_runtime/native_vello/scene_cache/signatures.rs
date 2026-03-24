@@ -83,6 +83,13 @@ fn fingerprint_mix_option_u32(state: &mut u64, value: Option<u32>) {
     fingerprint_mix_bool(state, false);
 }
 
+fn fingerprint_mix_range(state: &mut u64, range: &crate::app::NormalizedRangeModel) {
+    fingerprint_mix_u16(state, range.start_milli);
+    fingerprint_mix_u16(state, range.end_milli);
+    fingerprint_mix_u32(state, range.start_micros);
+    fingerprint_mix_u32(state, range.end_micros);
+}
+
 pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
     fingerprint_mix_usize(&mut state, model.selected_column);
@@ -151,12 +158,14 @@ pub(in super::super) fn waveform_motion_overlay_model_signature(model: &NativeMo
     }
     if let Some(edit_selection) = model.waveform_edit_selection_milli {
         fingerprint_mix_bool(&mut state, true);
-        fingerprint_mix_u16(&mut state, edit_selection.start_milli);
-        fingerprint_mix_u16(&mut state, edit_selection.end_milli);
-        fingerprint_mix_u32(&mut state, edit_selection.start_micros);
-        fingerprint_mix_u32(&mut state, edit_selection.end_micros);
+        fingerprint_mix_range(&mut state, &edit_selection);
     } else {
         fingerprint_mix_bool(&mut state, false);
+    }
+    fingerprint_mix_usize(&mut state, model.waveform_slices.len());
+    for slice in &model.waveform_slices {
+        fingerprint_mix_range(&mut state, &slice.range);
+        fingerprint_mix_bool(&mut state, slice.selected);
     }
     fingerprint_mix_option_u16(&mut state, model.waveform_edit_fade_in_end_milli);
     fingerprint_mix_option_u32(&mut state, model.waveform_edit_fade_in_end_micros);

@@ -19,6 +19,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         emit_waveform_loading_placeholder(primitives, layout.waveform_plot, style, motion_wave);
         return;
     }
+    emit_waveform_slice_previews(primitives, layout.waveform_plot, style, model);
     let edit_selection_blue = Rgba8 {
         r: 86,
         g: 156,

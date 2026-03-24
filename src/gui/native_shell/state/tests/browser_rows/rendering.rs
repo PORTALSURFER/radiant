@@ -10,10 +10,12 @@ fn browser_inline_metadata_prefers_explicit_row_metadata() {
         .rows
         .push(BrowserRowModel::new(0, "Kick 01", 1, true, true).with_bucket_label("165 BPM"));
     let frame = state.build_frame(&layout, &model);
-    assert!(frame
-        .text_runs
-        .iter()
-        .any(|run| run.text.contains("165 BPM")));
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("165 BPM"))
+    );
 }
 
 #[test]

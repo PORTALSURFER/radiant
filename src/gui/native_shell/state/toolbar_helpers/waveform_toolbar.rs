@@ -130,6 +130,15 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             },
         ),
         (
+            "Silence Split",
+            Some(WaveformToolbarIcon::Slice),
+            None,
+            model.waveform_loaded_label.is_some() && !model.waveform_loading,
+            false,
+            Some(UiAction::DetectWaveformSilenceSlices),
+            style.highlight_blue_soft,
+        ),
+        (
             "Loop",
             Some(WaveformToolbarIcon::Loop),
             None,

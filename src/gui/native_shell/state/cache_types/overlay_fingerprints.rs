@@ -28,6 +28,8 @@ pub(crate) enum WaveformToolbarHoverHint {
     ShowTransients,
     /// Slice-mode toggle.
     SliceMode,
+    /// Silence-split slice detection tool.
+    SilenceSplit,
     /// Loop playback toggle.
     Loop,
     /// Stop transport action.

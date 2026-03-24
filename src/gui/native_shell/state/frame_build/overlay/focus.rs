@@ -238,11 +238,7 @@ pub(super) fn render_folder_focus_overlay(
             let glyph = if row.is_root {
                 "•"
             } else if row.has_children {
-                if row.expanded {
-                    "▼"
-                } else {
-                    "▶"
-                }
+                if row.expanded { "▼" } else { "▶" }
             } else {
                 "·"
             };

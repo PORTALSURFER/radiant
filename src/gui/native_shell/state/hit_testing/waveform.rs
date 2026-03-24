@@ -228,6 +228,8 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
         ui_scale: f32_to_bits(layout.ui_scale),
         model_flags: waveform_toolbar_model_flags(model),
         tempo_label_signature: waveform_tempo_label_signature(model),
+        loaded_label_signature: text_signature(model.waveform_loaded_label.as_deref()),
+        waveform_loading: model.waveform_loading,
         bpm_editor_active,
         bpm_editor_display_signature: text_signature(bpm_editor_display),
     }
@@ -289,6 +291,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hover_hint(
         "Tr Snap" => Some(WaveformToolbarHoverHint::TransientSnap),
         "Show Tr" => Some(WaveformToolbarHoverHint::ShowTransients),
         "Slice" => Some(WaveformToolbarHoverHint::SliceMode),
+        "Silence Split" => Some(WaveformToolbarHoverHint::SilenceSplit),
         "Loop" => Some(WaveformToolbarHoverHint::Loop),
         "Stop" => Some(WaveformToolbarHoverHint::Stop),
         "Play" => Some(WaveformToolbarHoverHint::Play),

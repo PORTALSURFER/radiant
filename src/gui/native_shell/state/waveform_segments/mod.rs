@@ -9,6 +9,7 @@ mod overlay;
 mod routing;
 mod scrollbar;
 mod selection;
+mod slices;
 mod surface;
 mod trail;
 
@@ -18,6 +19,7 @@ use self::{
         emit_hovered_edit_resize_edge, emit_hovered_selection_resize_edge,
         emit_selection_drag_handle, emit_selection_shift_handle, emit_waveform_loop_bar,
     },
+    slices::emit_waveform_slice_previews,
 };
 pub(in crate::gui::native_shell::state) use self::{
     header::push_waveform_header_overlay,

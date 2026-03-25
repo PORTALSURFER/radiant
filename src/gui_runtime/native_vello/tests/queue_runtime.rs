@@ -898,6 +898,67 @@ fn command_waveform_edge_adjust_press_emits_immediately_without_arming_drag() {
 }
 
 #[test]
+fn shift_click_playback_selection_slide_emits_immediately_and_finishes_on_release() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.1234),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    runner.model = Arc::new(model);
+    runner.modifiers = ModifiersState::SHIFT;
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(point);
+
+    let position_micros = waveform_position_micros_from_point(&layout, &runner.model, point);
+    let (expected_start, expected_end) =
+        shift_waveform_range_micros(milli(200), position_micros, milli(200), milli(800));
+
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        point,
+        false,
+        &mut action_emitted,
+    ));
+
+    assert!(action_emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetWaveformSelectionRange {
+            start_micros: expected_start,
+            end_micros: expected_end,
+            preserve_view_edge: false,
+        }]
+    );
+    assert_eq!(
+        runner.last_emitted_waveform_drag_action,
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: expected_start,
+            end_micros: expected_end,
+            preserve_view_edge: false,
+        })
+    );
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::SetWaveformSelectionRange {
+                start_micros: expected_start,
+                end_micros: expected_end,
+                preserve_view_edge: false,
+            },
+            UiAction::FinishWaveformSelectionRangeDrag,
+        ]
+    );
+}
+
+#[test]
 fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let point = Point::new(

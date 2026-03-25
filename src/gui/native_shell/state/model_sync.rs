@@ -46,7 +46,14 @@ impl NativeShellState {
         {
             self.last_waveform_selection_export_flash_nonce =
                 model.waveform_selection_export_flash_nonce;
-            self.trigger_waveform_selection_flash();
+            self.trigger_waveform_selection_flash(WaveformSelectionFlashTone::Optimistic);
+        }
+        if model.waveform_selection_export_failure_flash_nonce
+            != self.last_waveform_selection_export_failure_flash_nonce
+        {
+            self.last_waveform_selection_export_failure_flash_nonce =
+                model.waveform_selection_export_failure_flash_nonce;
+            self.trigger_waveform_selection_flash(WaveformSelectionFlashTone::Error);
         }
     }
 
@@ -91,7 +98,8 @@ impl NativeShellState {
         });
     }
 
-    pub(super) fn trigger_waveform_selection_flash(&mut self) {
+    pub(super) fn trigger_waveform_selection_flash(&mut self, tone: WaveformSelectionFlashTone) {
+        self.waveform_selection_flash_tone = tone;
         self.waveform_selection_flash_ticks = WAVEFORM_SELECTION_FLASH_TICKS;
     }
 
@@ -136,6 +144,7 @@ impl NativeShellState {
             waveform_hover_x_bits: self.waveform_hover_x.map(f32::to_bits),
             hovered_waveform_resize_edge: self.hovered_waveform_resize_edge,
             waveform_selection_flash_active: self.waveform_selection_flash_ticks > 0,
+            waveform_selection_flash_tone: self.waveform_selection_flash_tone,
             pulse_phase_bits: self.pulse_phase.to_bits(),
         }
     }

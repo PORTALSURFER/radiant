@@ -110,6 +110,15 @@ const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Additional hit slop for the narrow browser scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 
+/// Color mode used for the transient waveform selection export flash.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WaveformSelectionFlashTone {
+    /// Optimistic submit feedback shown as soon as the export is queued.
+    Optimistic,
+    /// Error feedback shown when an async export later fails.
+    Error,
+}
+
 /// Mutable interaction + animation state for the native shell façade.
 ///
 /// The struct intentionally owns only the persisted shell interaction/cache
@@ -130,7 +139,9 @@ pub(crate) struct NativeShellState {
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_toolbar_flash: Option<WaveformToolbarFlash>,
     waveform_selection_flash_ticks: u8,
+    waveform_selection_flash_tone: WaveformSelectionFlashTone,
     last_waveform_selection_export_flash_nonce: u64,
+    last_waveform_selection_export_failure_flash_nonce: u64,
     source_add_button_flash_ticks: u8,
     status_options_button_flash_ticks: u8,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
@@ -181,7 +192,9 @@ impl NativeShellState {
             hovered_waveform_toolbar_hint: None,
             waveform_toolbar_flash: None,
             waveform_selection_flash_ticks: 0,
+            waveform_selection_flash_tone: WaveformSelectionFlashTone::Optimistic,
             last_waveform_selection_export_flash_nonce: 0,
+            last_waveform_selection_export_failure_flash_nonce: 0,
             source_add_button_flash_ticks: 0,
             status_options_button_flash_ticks: 0,
             hovered_waveform_resize_edge: None,

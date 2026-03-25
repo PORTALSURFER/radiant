@@ -11,6 +11,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     style: &StyleTokens,
     model: &NativeMotionModel,
     selection_flash_active: bool,
+    selection_flash_tone: WaveformSelectionFlashTone,
     motion_wave: f32,
     playhead_trail_lines: &[PlayheadTrailLine],
     hovered_resize_edge: Option<WaveformResizeHoverEdge>,
@@ -40,12 +41,23 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
 
     if let Some(rect) = annotations.selection {
         let selection_fill = if selection_flash_active {
-            translucent_overlay_color(style.surface_overlay, style.accent_warning, 0.78)
+            let flash_accent = match selection_flash_tone {
+                WaveformSelectionFlashTone::Optimistic => style.accent_warning,
+                WaveformSelectionFlashTone::Error => style.accent_trash,
+            };
+            translucent_overlay_color(style.surface_overlay, flash_accent, 0.78)
         } else {
             translucent_overlay_color(style.bg_secondary, style.accent_warning, 0.52)
         };
         let selection_border = if selection_flash_active {
-            blend_color(style.accent_warning, style.text_primary, 0.5)
+            match selection_flash_tone {
+                WaveformSelectionFlashTone::Optimistic => {
+                    blend_color(style.accent_warning, style.text_primary, 0.5)
+                }
+                WaveformSelectionFlashTone::Error => {
+                    blend_color(style.accent_trash, style.text_primary, 0.5)
+                }
+            }
         } else {
             blend_color(style.accent_warning, style.text_primary, 0.28)
         };

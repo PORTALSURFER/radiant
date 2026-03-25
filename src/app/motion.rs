@@ -15,8 +15,10 @@ pub struct NativeMotionModel {
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
     /// Preview slices detected from silence-splitting the loaded waveform.
     pub waveform_slices: Vec<WaveformSlicePreviewModel>,
-    /// One-shot token incremented after successful waveform-selection exports.
+    /// One-shot token incremented when a waveform-selection export is queued.
     pub waveform_selection_export_flash_nonce: u64,
+    /// One-shot token incremented when a queued waveform-selection export fails.
+    pub waveform_selection_export_failure_flash_nonce: u64,
     /// Waveform edit-selection window with milli and micro precision.
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit fade-in end handle in normalized milliseconds.
@@ -93,6 +95,9 @@ impl NativeMotionModel {
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_slices: model.waveform.slices.clone(),
             waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: model
+                .waveform
+                .selection_export_failure_flash_nonce,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
             waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,

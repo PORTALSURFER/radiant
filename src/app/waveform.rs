@@ -82,11 +82,17 @@ pub struct WaveformPanelModel {
     pub selection_milli: Option<NormalizedRangeModel>,
     /// Preview slices detected from silence-splitting the loaded waveform.
     pub slices: Vec<WaveformSlicePreviewModel>,
-    /// One-shot token incremented after successful waveform-selection exports.
+    /// One-shot token incremented when a waveform-selection export is queued.
     ///
-    /// Native shells treat each new value as an event and can run local flash
-    /// feedback without depending on controller wall-clock timestamps.
+    /// Native shells treat each new value as an optimistic event and can run
+    /// immediate local flash feedback without depending on controller
+    /// wall-clock timestamps.
     pub selection_export_flash_nonce: u64,
+    /// One-shot token incremented when a queued waveform-selection export fails.
+    ///
+    /// Native shells treat each new value as an error event so they can tint a
+    /// later flash red after the initial optimistic feedback.
+    pub selection_export_failure_flash_nonce: u64,
     /// Current waveform edit-selection bounds (right-click paint range).
     pub edit_selection_milli: Option<NormalizedRangeModel>,
     /// End position for the edit fade-in region in normalized milli-units.
@@ -168,6 +174,7 @@ impl Default for WaveformPanelModel {
             selection_milli: None,
             slices: Vec::new(),
             selection_export_flash_nonce: 0,
+            selection_export_failure_flash_nonce: 0,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
             edit_fade_in_end_micros: None,

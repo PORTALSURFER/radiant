@@ -31,6 +31,8 @@ pub enum KeyCode {
     C,
     /// Latin letter D.
     D,
+    /// Latin letter E.
+    E,
     /// Enter/Return key.
     Enter,
     /// Latin letter F.
@@ -118,6 +120,7 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::KeyB => KeyCode::B,
         WinitKeyCode::KeyC => KeyCode::C,
         WinitKeyCode::KeyD => KeyCode::D,
+        WinitKeyCode::KeyE => KeyCode::E,
         WinitKeyCode::Enter | WinitKeyCode::NumpadEnter => KeyCode::Enter,
         WinitKeyCode::KeyF => KeyCode::F,
         WinitKeyCode::F1 => KeyCode::F1,
@@ -166,6 +169,7 @@ mod tests {
             Some(KeyCode::Num1)
         );
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
+        assert_eq!(key_code_from_winit(WinitKeyCode::KeyE), Some(KeyCode::E));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyV), Some(KeyCode::V));
         assert_eq!(
             key_code_from_winit(WinitKeyCode::ArrowLeft),

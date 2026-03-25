@@ -763,7 +763,7 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
 }
 
 #[test]
-fn immediate_enter_after_selection_creation_uses_refreshed_waveform_focus() {
+fn immediate_e_after_selection_creation_uses_refreshed_waveform_focus() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let anchor = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
@@ -791,7 +791,7 @@ fn immediate_enter_after_selection_creation_uses_refreshed_waveform_focus() {
     assert!(runner.process_waveform_drag_immediately(drag));
     runner.finish_volume_drag(Some(MouseButton::Left));
 
-    runner.handle_hotkey_press_for_tests(KeyCode::Enter);
+    runner.handle_hotkey_press_for_tests(KeyCode::E);
 
     assert_eq!(
         runner.bridge.actions,

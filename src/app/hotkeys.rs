@@ -556,7 +556,7 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
     HotkeyBinding {
         id: "save-selection-to-browser",
         label: "Save selection/slices to browser",
-        gesture: HotkeyGesture::new(KeyCode::Enter),
+        gesture: HotkeyGesture::new(KeyCode::E),
         scope: WAVEFORM,
         action: UiAction::SaveWaveformSelectionToBrowser,
     },

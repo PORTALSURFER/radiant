@@ -251,6 +251,32 @@ impl NativeAppBridge for WaveformZoomRefreshBridge {
         if matches!(action, UiAction::ZoomWaveform { .. }) {
             self.model.waveform.view_start_micros = 100_000;
             self.model.waveform.view_end_micros = 900_000;
+            self.model.waveform.view_start_nanos = 100_000_000;
+            self.model.waveform.view_end_nanos = 900_000_000;
+        }
+        self.actions.push(action);
+    }
+}
+
+#[derive(Default)]
+struct DeepZoomClickRefreshBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+    project_calls: usize,
+}
+
+impl NativeAppBridge for DeepZoomClickRefreshBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        if matches!(action, UiAction::ZoomWaveform { .. }) {
+            self.model.waveform.view_start_micros = 500_000;
+            self.model.waveform.view_end_micros = 500_000;
+            self.model.waveform.view_start_nanos = 500_000_000;
+            self.model.waveform.view_end_nanos = 500_000_200;
         }
         self.actions.push(action);
     }
@@ -445,6 +471,60 @@ fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
                 start_micros: 250_000,
                 end_micros: 820_000,
                 preserve_view_edge: false,
+            },
+        ]
+    );
+}
+
+#[test]
+fn waveform_click_play_refreshes_pending_zoom_view_before_mapping_press_position() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    let wheel_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        y,
+    );
+    let click_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        y,
+    );
+    let mut bridge = DeepZoomClickRefreshBridge::default();
+    bridge.model.transport_running = false;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(wheel_point);
+
+    runner.handle_mouse_wheel_for_tests(MouseScrollDelta::LineDelta(0.0, -3.0));
+
+    assert!(runner.waveform_view_refresh_pending);
+    let expected_position_nanos =
+        waveform_position_nanos_from_point(&layout, &runner.bridge.model, click_point);
+
+    runner.last_cursor = Some(click_point);
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        click_point,
+        false,
+        &mut action_emitted,
+    ));
+    assert!(!action_emitted);
+    assert!(!runner.waveform_view_refresh_pending);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 3,
+                anchor_ratio_micros: Some(750_000),
+            },
+            UiAction::ClearWaveformSelection,
+            UiAction::PlayWaveformAtPrecise {
+                position_nanos: expected_position_nanos,
             },
         ]
     );

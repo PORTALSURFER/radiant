@@ -217,6 +217,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             *action_emitted = true;
             return true;
         }
+        // Pointer-to-waveform position mapping must use the latest visible view
+        // after wheel/keyboard zoom changes, even if the next redraw has not
+        // rebuilt the cached model yet.
+        self.refresh_waveform_view_if_needed();
         if let Some(action) = action_from_pointer_with_motion(
             layout,
             &self.model,
@@ -277,6 +281,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         *source_menu_state_changed |= self.shell_state.close_source_context_menu();
         if matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard)) {
+            // Edit-selection pointer mapping shares the same waveform view bounds
+            // as click-play, so refresh pending zoom/view changes before hit-testing.
+            self.refresh_waveform_view_if_needed();
             let action =
                 waveform_edit_action_from_pointer(layout, &self.model, point, self.modifiers);
             if self.should_emit_waveform_command_edge_adjust_immediately(&action) {

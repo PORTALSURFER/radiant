@@ -69,9 +69,13 @@ pub(super) fn emit_waveform_bpm_grid(
         return;
     };
     let view_start = u64::from(model.waveform.view_start_micros.min(1_000_000));
-    let view_end = u64::from(model.waveform.view_end_micros.min(1_000_000).max(
-        model.waveform.view_start_micros.min(1_000_000),
-    ));
+    let view_end = u64::from(
+        model
+            .waveform
+            .view_end_micros
+            .min(1_000_000)
+            .max(model.waveform.view_start_micros.min(1_000_000)),
+    );
     if view_end <= view_start || waveform_plot.width() <= 0.0 {
         return;
     }

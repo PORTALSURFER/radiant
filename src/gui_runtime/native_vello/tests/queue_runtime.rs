@@ -918,12 +918,9 @@ fn shift_click_playback_selection_slide_emits_immediately_and_finishes_on_releas
         shift_waveform_range_micros(milli(200), position_micros, milli(200), milli(800));
 
     let mut action_emitted = false;
-    assert!(runner.handle_left_pointer_press_for_tests(
-        &layout,
-        point,
-        false,
-        &mut action_emitted,
-    ));
+    assert!(
+        runner.handle_left_pointer_press_for_tests(&layout, point, false, &mut action_emitted,)
+    );
 
     assert!(action_emitted);
     assert_eq!(

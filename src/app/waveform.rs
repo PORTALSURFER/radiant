@@ -148,6 +148,12 @@ pub struct WaveformPanelModel {
     /// Native waveform renderers use this to draw a minor line on every beat
     /// and can accent every fourth beat as a bar boundary.
     pub beat_step_micros: Option<u32>,
+    /// BPM grid origin in normalized micro-units.
+    ///
+    /// Native shells use this as the selection-relative anchor for drawing
+    /// beat grid lines when no active selection is available. A value of `0`
+    /// means no projected origin has been supplied yet.
+    pub bpm_grid_origin_micros: u32,
     /// Whether loop playback is enabled.
     pub loop_enabled: bool,
     /// Optional tempo label rendered in waveform metadata.
@@ -193,12 +199,23 @@ impl Default for WaveformPanelModel {
             view_start_nanos: 0,
             view_end_nanos: 1_000_000_000,
             beat_step_micros: None,
+            bpm_grid_origin_micros: 0,
             loop_enabled: false,
             tempo_label: None,
             zoom_label: None,
             waveform_image_signature: None,
             waveform_image: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WaveformPanelModel;
+
+    #[test]
+    fn default_bpm_grid_origin_is_zero() {
+        assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
     }
 }
 

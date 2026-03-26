@@ -2,14 +2,14 @@ use super::StaticFrameCtx;
 use super::*;
 
 pub(super) fn render_waveform_static(
-    state: &NativeShellState,
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     motion_model: Option<&NativeMotionModel>,
 ) {
     let waveform_inner = ctx.layout.waveform_plot;
-    emit_waveform_bpm_grid(primitives, waveform_inner, ctx.model, ctx.style);
+    emit_waveform_bpm_grid(state, primitives, waveform_inner, ctx.model, ctx.style);
     push_waveform_image(
         primitives,
         waveform_inner,
@@ -56,6 +56,7 @@ pub(super) fn render_waveform_static(
 
 /// Render BPM-aligned waveform grid lines when beat snapping is enabled.
 pub(super) fn emit_waveform_bpm_grid(
+    state: &mut NativeShellState,
     primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
     model: &AppModel,
@@ -73,10 +74,11 @@ pub(super) fn emit_waveform_bpm_grid(
         return;
     }
     let step_micros = u64::from(step_micros);
-    let first_beat_index = view_start.div_ceil(step_micros);
+    let origin_micros = waveform_bpm_grid_origin_micros(state, model);
+    let first_beat_index = first_waveform_bpm_grid_index(view_start, origin_micros, step_micros);
     let view_width = (view_end - view_start) as f32;
     let mut beat_index = first_beat_index;
-    let mut beat_micros = beat_index.saturating_mul(step_micros);
+    let mut beat_micros = origin_micros.saturating_add(beat_index.saturating_mul(step_micros));
     while beat_micros <= view_end {
         let ratio = (beat_micros.saturating_sub(view_start)) as f32 / view_width;
         let x = (waveform_plot.min.x + (waveform_plot.width() * ratio))
@@ -99,6 +101,37 @@ pub(super) fn emit_waveform_bpm_grid(
         beat_index = beat_index.saturating_add(1);
         beat_micros = beat_micros.saturating_add(step_micros);
     }
+}
+
+/// Return the BPM grid origin in normalized micro-units, persisting the latest selection start.
+fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppModel) -> u64 {
+    let identity = (
+        model.waveform.loaded_label.clone(),
+        model.waveform.waveform_image_signature,
+    );
+    if state.last_waveform_bpm_grid_identity.as_ref() != Some(&identity) {
+        state.last_waveform_bpm_grid_identity = Some(identity);
+        state.last_waveform_bpm_grid_origin_micros = None;
+    }
+    if let Some(selection) = model.waveform.selection_milli {
+        state.last_waveform_bpm_grid_origin_micros = Some(selection.start_micros);
+        return u64::from(selection.start_micros);
+    }
+    if model.waveform.bpm_grid_origin_micros != 0 {
+        let origin = model.waveform.bpm_grid_origin_micros;
+        state.last_waveform_bpm_grid_origin_micros = Some(origin);
+        return u64::from(origin);
+    }
+    u64::from(state.last_waveform_bpm_grid_origin_micros.unwrap_or(0))
+}
+
+/// Return the first beat index that can appear inside the visible waveform span.
+fn first_waveform_bpm_grid_index(view_start: u64, origin_micros: u64, step_micros: u64) -> u64 {
+    if view_start <= origin_micros {
+        return 0;
+    }
+    let distance = view_start - origin_micros;
+    distance.div_ceil(step_micros)
 }
 
 fn waveform_bpm_grid_line_style(style: &StyleTokens, beat_index: u64) -> (Rgba8, f32) {

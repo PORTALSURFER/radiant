@@ -561,6 +561,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::SaveWaveformSelectionToBrowser,
     },
     HotkeyBinding {
+        id: "toggle-focused-slice-export-mark",
+        label: "Mark focused slice for export",
+        gesture: HotkeyGesture::new(KeyCode::A),
+        scope: WAVEFORM,
+        action: UiAction::ToggleFocusedWaveformSliceExportMark,
+    },
+    HotkeyBinding {
         id: "trim-selection",
         label: "Trim selection",
         gesture: HotkeyGesture::new(KeyCode::T),
@@ -639,23 +646,17 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
     },
     HotkeyBinding {
         id: "slide-selection-left",
-        label: "Slide selection left",
+        label: "Previous slice / Slide selection left",
         gesture: HotkeyGesture::new(KeyCode::ArrowLeft),
         scope: WAVEFORM,
-        action: UiAction::SlideWaveformSelection {
-            delta: -1,
-            fine: false,
-        },
+        action: UiAction::MoveWaveformSliceFocus { delta: -1 },
     },
     HotkeyBinding {
         id: "slide-selection-right",
-        label: "Slide selection right",
+        label: "Next slice / Slide selection right",
         gesture: HotkeyGesture::new(KeyCode::ArrowRight),
         scope: WAVEFORM,
-        action: UiAction::SlideWaveformSelection {
-            delta: 1,
-            fine: false,
-        },
+        action: UiAction::MoveWaveformSliceFocus { delta: 1 },
     },
     HotkeyBinding {
         id: "nudge-selection-left",

@@ -319,6 +319,13 @@ pub enum UiAction {
         /// Zero-based slice index within the current preview batch.
         index: usize,
     },
+    /// Move the focused review slice by one signed step.
+    MoveWaveformSliceFocus {
+        /// Signed slice delta (`-1` for previous, `+1` for next).
+        delta: i8,
+    },
+    /// Toggle export marking for the currently focused review slice.
+    ToggleFocusedWaveformSliceExportMark,
     /// Align the waveform start marker to the latest hover marker.
     AlignWaveformStartToMarker,
     /// Delete the currently loaded sample and navigate to the next candidate.

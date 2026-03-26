@@ -165,6 +165,8 @@ impl UiAction {
             | Self::MuteWaveformSelection
             | Self::DeleteSelectedSliceMarkers
             | Self::ToggleWaveformSliceSelection { .. }
+            | Self::MoveWaveformSliceFocus { .. }
+            | Self::ToggleFocusedWaveformSliceExportMark
             | Self::AlignWaveformStartToMarker
             | Self::DeleteLoadedWaveformSample
             | Self::SlideWaveformSelection { .. } => UiActionFamily::Waveform,

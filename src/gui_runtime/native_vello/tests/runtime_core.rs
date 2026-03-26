@@ -175,6 +175,12 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::MoveWaveformSliceFocus { delta: 1 }
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
         RuntimeInvalidationScope::StaticAndOverlays
     );
@@ -259,6 +265,8 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         .push(crate::app::WaveformSlicePreviewModel {
             range: crate::app::NormalizedRangeModel::new(120, 240),
             selected: false,
+            focused: false,
+            marked_for_export: false,
         });
     assert_ne!(
         waveform_baseline_signature,

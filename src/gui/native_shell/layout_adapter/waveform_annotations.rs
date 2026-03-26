@@ -16,6 +16,8 @@ pub(crate) struct WaveformAnnotationRects {
 pub(crate) struct WaveformSlicePreviewRects {
     pub rect: Rect,
     pub selected: bool,
+    pub focused: bool,
+    pub marked_for_export: bool,
 }
 
 /// Compute waveform annotation rectangles constrained to the waveform plot.
@@ -60,6 +62,8 @@ pub(crate) fn compute_waveform_slice_preview_rects(
             slice_rect(waveform_plot, slice.range, view).map(|rect| WaveformSlicePreviewRects {
                 rect,
                 selected: slice.selected,
+                focused: slice.focused,
+                marked_for_export: slice.marked_for_export,
             })
         })
         .collect()
@@ -272,10 +276,14 @@ mod tests {
                 WaveformSlicePreviewModel {
                     range: NormalizedRangeModel::new(100, 220),
                     selected: false,
+                    focused: false,
+                    marked_for_export: false,
                 },
                 WaveformSlicePreviewModel {
                     range: NormalizedRangeModel::new(500, 700),
                     selected: true,
+                    focused: true,
+                    marked_for_export: true,
                 },
             ],
             0_u32,
@@ -285,6 +293,10 @@ mod tests {
         assert_eq!(slices.len(), 2);
         assert!(!slices[0].selected);
         assert!(slices[1].selected);
+        assert!(!slices[0].focused);
+        assert!(slices[1].focused);
+        assert!(!slices[0].marked_for_export);
+        assert!(slices[1].marked_for_export);
         assert_inside(plot, slices[0].rect);
         assert_inside(plot, slices[1].rect);
     }

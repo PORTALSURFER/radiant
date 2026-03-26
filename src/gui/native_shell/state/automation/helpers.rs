@@ -185,6 +185,10 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::MuteWaveformSelection => "mute_waveform_selection",
         UiAction::DeleteSelectedSliceMarkers => "delete_selected_slice_markers",
         UiAction::ToggleWaveformSliceSelection { .. } => "toggle_waveform_slice_selection",
+        UiAction::MoveWaveformSliceFocus { .. } => "move_waveform_slice_focus",
+        UiAction::ToggleFocusedWaveformSliceExportMark => {
+            "toggle_focused_waveform_slice_export_mark"
+        }
         UiAction::AlignWaveformStartToMarker => "align_waveform_start_to_marker",
         UiAction::DeleteLoadedWaveformSample => "delete_loaded_waveform_sample",
         UiAction::SlideWaveformSelection { .. } => "slide_waveform_selection",

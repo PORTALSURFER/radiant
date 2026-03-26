@@ -49,6 +49,8 @@ pub(super) fn build_waveform_automation(
         selected: matches!(model.focus_context, crate::app::FocusContextModel::Waveform),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
+            String::from("move_waveform_slice_focus"),
+            String::from("toggle_focused_waveform_slice_export_mark"),
             String::from("seek_waveform"),
             String::from("set_waveform_cursor"),
             String::from("set_waveform_selection_range"),
@@ -161,9 +163,17 @@ fn waveform_slice_node(
         bounds: bounds(waveform_selection_bounds(plot, model, slice.range)),
         value: Some(selection_value.clone()),
         enabled: true,
-        selected: slice.selected,
+        selected: slice.selected || slice.focused || slice.marked_for_export,
         available_actions: vec![String::from("toggle_waveform_slice_selection")],
-        metadata: metadata(&[("selection_micros", selection_value.as_str())]),
+        metadata: metadata(&[
+            ("selection_micros", selection_value.as_str()),
+            ("focused", super::helpers::bool_text(slice.focused)),
+            (
+                "marked_for_export",
+                super::helpers::bool_text(slice.marked_for_export),
+            ),
+            ("edit_selected", super::helpers::bool_text(slice.selected)),
+        ]),
         children: Vec::new(),
     }
 }

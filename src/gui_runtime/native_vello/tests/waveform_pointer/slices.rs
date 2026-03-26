@@ -11,6 +11,8 @@ fn waveform_slice_preview_click_toggles_slice_selection() {
         .push(crate::app::WaveformSlicePreviewModel {
             range: crate::app::NormalizedRangeModel::new(180, 420),
             selected: false,
+            focused: false,
+            marked_for_export: false,
         });
     let mut shell_state = NativeShellState::new();
     let rects = compute_waveform_slice_preview_rects(

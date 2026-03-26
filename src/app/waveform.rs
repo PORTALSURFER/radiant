@@ -48,14 +48,19 @@ impl NormalizedRangeModel {
 ///
 /// The slice range is expressed in normalized micro-units so the host can
 /// project it into the loaded waveform view without losing precision at deep
-/// zoom levels. The `selected` flag is intentionally separate so the shell can
-/// toggle selection without mutating the range bounds.
+/// zoom levels. Review focus, export marks, and edit selection stay separate so
+/// the shell can present keyboard review state without mutating the range
+/// bounds or overloading edit-selection semantics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WaveformSlicePreviewModel {
     /// Detected slice range in normalized milli and micro precision.
     pub range: NormalizedRangeModel,
-    /// Whether this slice is currently selected in the preview batch.
+    /// Whether this slice is currently selected for slice-edit operations.
     pub selected: bool,
+    /// Whether this slice is focused for keyboard review audition.
+    pub focused: bool,
+    /// Whether this slice is marked for export.
+    pub marked_for_export: bool,
 }
 
 fn micros_to_milli(value_micros: u32) -> u16 {

@@ -24,6 +24,8 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
     let slice = crate::app::WaveformSlicePreviewModel {
         range: crate::app::NormalizedRangeModel::new(180, 420),
         selected: false,
+        focused: false,
+        marked_for_export: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -84,6 +86,8 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
     let slice = crate::app::WaveformSlicePreviewModel {
         range: crate::app::NormalizedRangeModel::new(180, 420),
         selected: true,
+        focused: false,
+        marked_for_export: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -126,6 +130,8 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
         .push(crate::app::WaveformSlicePreviewModel {
             range: crate::app::NormalizedRangeModel::new(180, 420),
             selected: true,
+            focused: true,
+            marked_for_export: true,
         });
     let mut state = NativeShellState::new();
     let node = state.automation_snapshot(&layout, &model);
@@ -137,9 +143,28 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
             .available_actions
             .contains(&String::from("detect_waveform_silence_slices"))
     );
+    assert!(
+        region
+            .available_actions
+            .contains(&String::from("move_waveform_slice_focus"))
+    );
+    assert!(
+        region
+            .available_actions
+            .contains(&String::from("toggle_focused_waveform_slice_export_mark"))
+    );
     let slice = child(waveform, "waveform.slice.000");
     assert_eq!(slice.selected, true);
     assert_eq!(slice.value.as_deref(), Some("180000-420000"));
+    assert_eq!(slice.metadata.get("focused"), Some(&String::from("true")));
+    assert_eq!(
+        slice.metadata.get("marked_for_export"),
+        Some(&String::from("true"))
+    );
+    assert_eq!(
+        slice.metadata.get("edit_selected"),
+        Some(&String::from("true"))
+    );
     assert!(
         slice
             .available_actions

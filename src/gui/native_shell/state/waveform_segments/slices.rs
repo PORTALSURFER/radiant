@@ -13,6 +13,12 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
         b: 255,
         a: 255,
     };
+    let export_amber = Rgba8 {
+        r: 255,
+        g: 188,
+        b: 92,
+        a: 255,
+    };
     let slices = compute_waveform_slice_preview_rects(
         waveform_plot,
         &model.waveform_slices,
@@ -20,7 +26,17 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
         model.waveform_view_end_micros,
     );
     for slice in slices {
-        let (fill, border) = if slice.selected {
+        let (fill, border) = if slice.focused {
+            (
+                translucent_overlay_color(style.surface_overlay, slice_blue, 0.82),
+                blend_color(slice_blue, style.text_primary, 0.55),
+            )
+        } else if slice.marked_for_export {
+            (
+                translucent_overlay_color(style.surface_overlay, export_amber, 0.68),
+                blend_color(export_amber, style.text_primary, 0.42),
+            )
+        } else if slice.selected {
             (
                 translucent_overlay_color(style.surface_overlay, slice_blue, 0.72),
                 blend_color(slice_blue, style.text_primary, 0.36),

@@ -103,6 +103,10 @@ pub enum ConfirmPromptKind {
     FolderRename,
     /// Pending folder creation prompt.
     FolderCreate,
+    /// Pending retained folder-delete restore prompt.
+    RestoreRetainedFolderDeletes,
+    /// Pending retained folder-delete purge prompt.
+    PurgeRetainedFolderDeletes,
 }
 
 /// Modal confirmation prompt projected into the native shell.

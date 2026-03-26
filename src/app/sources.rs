@@ -107,6 +107,10 @@ pub struct FolderActionsModel {
     pub can_rename_folder: bool,
     /// Whether deleting the focused folder is allowed.
     pub can_delete_folder: bool,
+    /// Whether explicit restore for retained folder deletes is allowed.
+    pub can_restore_retained_deletes: bool,
+    /// Whether explicit purge for retained folder deletes is allowed.
+    pub can_purge_retained_deletes: bool,
     /// Whether clearing folder delete-recovery logs is allowed.
     pub can_clear_recovery_log: bool,
 }
@@ -132,8 +136,10 @@ pub enum FocusContextModel {
 pub struct FolderRecoveryModel {
     /// Whether delete recovery is still running in the background.
     pub in_progress: bool,
-    /// Number of recovery log entries currently visible.
+    /// Number of completed recovery log entries currently visible.
     pub entry_count: usize,
+    /// Number of retained deletes currently awaiting explicit restore or purge.
+    pub retained_count: usize,
 }
 
 /// Sidebar model for source browsing controls.

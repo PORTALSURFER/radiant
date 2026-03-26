@@ -66,6 +66,8 @@ impl UiAction {
             | Self::StartNewFolderAtRoot
             | Self::StartFolderRename
             | Self::DeleteFocusedFolder
+            | Self::RestoreRetainedFolderDeletes
+            | Self::PurgeRetainedFolderDeletes
             | Self::ClearFolderDeleteRecoveryLog => UiActionFamily::Sources,
             Self::MoveBrowserFocus { .. }
             | Self::SetBrowserViewStart { .. }

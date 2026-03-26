@@ -166,10 +166,22 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
             style.accent_copper,
         ),
         (
-            "Recovery",
+            "Restore",
+            model.sources.folder_actions.can_restore_retained_deletes,
+            UiAction::RestoreRetainedFolderDeletes,
+            style.accent_mint,
+        ),
+        (
+            "Purge",
+            model.sources.folder_actions.can_purge_retained_deletes,
+            UiAction::PurgeRetainedFolderDeletes,
+            style.accent_copper,
+        ),
+        (
+            "Clear",
             model.sources.folder_actions.can_clear_recovery_log,
             UiAction::ClearFolderDeleteRecoveryLog,
-            style.accent_mint,
+            style.text_muted,
         ),
     ];
     let rects =

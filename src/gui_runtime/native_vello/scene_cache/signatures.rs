@@ -106,6 +106,8 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
             Some(crate::app::ConfirmPromptKind::BrowserRename) => 2,
             Some(crate::app::ConfirmPromptKind::FolderRename) => 3,
             Some(crate::app::ConfirmPromptKind::FolderCreate) => 4,
+            Some(crate::app::ConfirmPromptKind::RestoreRetainedFolderDeletes) => 5,
+            Some(crate::app::ConfirmPromptKind::PurgeRetainedFolderDeletes) => 6,
         },
     );
     fingerprint_mix_string(&mut state, &model.confirm_prompt.title);

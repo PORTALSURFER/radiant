@@ -139,6 +139,8 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::StartNewFolderAtRoot => "start_new_folder_at_root",
         UiAction::StartFolderRename => "start_folder_rename",
         UiAction::DeleteFocusedFolder => "delete_focused_folder",
+        UiAction::RestoreRetainedFolderDeletes => "restore_retained_folder_deletes",
+        UiAction::PurgeRetainedFolderDeletes => "purge_retained_folder_deletes",
         UiAction::ClearFolderDeleteRecoveryLog => "clear_folder_delete_recovery_log",
         UiAction::MoveBrowserFocus { .. } => "move_browser_focus",
         UiAction::SetBrowserViewStart { .. } => "set_browser_view_start",

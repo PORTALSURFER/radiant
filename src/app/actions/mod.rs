@@ -174,6 +174,10 @@ pub enum UiAction {
     StartFolderRename,
     /// Delete the currently focused folder.
     DeleteFocusedFolder,
+    /// Open the explicit restore flow for retained folder deletes.
+    RestoreRetainedFolderDeletes,
+    /// Open the explicit purge flow for retained folder deletes.
+    PurgeRetainedFolderDeletes,
     /// Clear staged delete recovery log entries.
     ClearFolderDeleteRecoveryLog,
 

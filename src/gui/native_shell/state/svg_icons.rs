@@ -42,6 +42,8 @@ pub(super) enum WaveformToolbarIcon {
     Cog,
     /// Browser random-navigation toggle icon.
     Dice,
+    /// Browser focused-row similarity-search icon.
+    Similarity,
 }
 
 /// Return a toolbar icon for one waveform toolbar button.
@@ -147,6 +149,9 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
         }
         WaveformToolbarIcon::Cog => include_str!("../../../../assets/icons/ui/cog.svg"),
         WaveformToolbarIcon::Dice => include_str!("../../../../assets/icons/ui/dice.svg"),
+        WaveformToolbarIcon::Similarity => {
+            include_str!("../../../../assets/icons/ui/similarity.svg")
+        }
     }
 }
 
@@ -230,6 +235,7 @@ mod tests {
             WaveformToolbarIcon::Record,
             WaveformToolbarIcon::Cog,
             WaveformToolbarIcon::Dice,
+            WaveformToolbarIcon::Similarity,
         ] {
             let document = parse_svg_document(icon_svg_asset(icon));
             assert!(document.is_some(), "svg asset for {icon:?} should parse");

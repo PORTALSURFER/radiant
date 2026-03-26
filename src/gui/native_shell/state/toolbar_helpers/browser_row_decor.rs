@@ -306,7 +306,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_wi
     browser_similarity_button_width(sizing) + browser_similarity_button_gap(sizing)
 }
 
-/// Return the far-right button rect used to trigger row similarity mode.
+/// Return the leading sample-column button rect used to trigger row similarity mode.
 pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     row_rect: Rect,
     sizing: SizingTokens,
@@ -314,20 +314,78 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     if row_rect.width() <= 0.0 || row_rect.height() <= 0.0 {
         return None;
     }
-    let inset = sizing.row_corner_inset.max(2.0);
-    let width =
-        browser_similarity_button_width(sizing).min((row_rect.width() - (inset * 2.0)).max(0.0));
+    let sample_column = compute_browser_row_text_layout(row_rect, sizing)
+        .columns
+        .sample;
+    if sample_column.width() <= 0.0 || sample_column.height() <= 0.0 {
+        return None;
+    }
+    let inset = sizing.text_inset_x.min(5.0).max(2.0);
+    let width = browser_similarity_button_width(sizing)
+        .min((sample_column.width() - (inset * 2.0)).max(0.0));
     let height = browser_similarity_button_height(row_rect, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
     }
-    let max_x = row_rect.max.x - inset;
-    let min_x = (max_x - width).max(row_rect.min.x + inset);
+    let min_x = sample_column.min.x + inset;
     let min_y = row_rect.min.y + ((row_rect.height() - height) * 0.5).floor();
     Some(Rect::from_min_max(
         Point::new(min_x, min_y),
-        Point::new(max_x, (min_y + height).min(row_rect.max.y - inset)),
+        Point::new(min_x + width, (min_y + height).min(row_rect.max.y - inset)),
     ))
+}
+
+/// Return the centered icon rect used inside the browser similarity button.
+pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
+    button_rect: Rect,
+    sizing: SizingTokens,
+) -> Rect {
+    let side = button_rect
+        .width()
+        .min(button_rect.height())
+        .min((button_rect.height() - (sizing.text_inset_y * 0.8)).max(8.0))
+        .clamp(8.0, 16.0);
+    let min_x = button_rect.min.x + ((button_rect.width() - side) * 0.5);
+    let min_y = button_rect.min.y + ((button_rect.height() - side) * 0.5);
+    Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + side, min_y + side),
+    )
+}
+
+/// Render the focused-row similarity button using the shared native icon pipeline.
+pub(in crate::gui::native_shell::state) fn render_browser_similarity_button(
+    primitives: &mut impl PrimitiveSink,
+    button_rect: Rect,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    active: bool,
+    icon_color: Rgba8,
+) {
+    let button_fill = if active {
+        translucent_overlay_color(style.surface_overlay, style.highlight_cyan, 0.82)
+    } else {
+        translucent_overlay_color(style.surface_overlay, style.text_primary, 0.14)
+    };
+    let button_border = if active {
+        blend_color(style.highlight_cyan, style.text_primary, 0.42)
+    } else {
+        blend_color(style.border_emphasis, style.text_primary, 0.26)
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: button_rect,
+            color: button_fill,
+        }),
+    );
+    push_border(primitives, button_rect, button_border, sizing.border_width);
+    let _ = emit_toolbar_svg_icon(
+        primitives,
+        WaveformToolbarIcon::Similarity,
+        browser_similarity_button_icon_rect(button_rect, sizing),
+        icon_color,
+    );
 }
 
 fn browser_similarity_button_width(sizing: SizingTokens) -> f32 {

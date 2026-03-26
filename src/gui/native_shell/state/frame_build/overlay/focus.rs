@@ -352,9 +352,14 @@ pub(super) fn render_browser_focus_overlay(
                 browser_similarity_button_reserved_width(true, sizing);
             let inline_tag_reserved_width =
                 browser_inline_tag_reserved_width(&row.bucket_label, sizing);
-            let mut label_max_width = (row_text_layout.sample_label.width()
+            let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
+            if similarity_button_reserved_width > 0.0 {
+                label_position.x = (label_position.x + similarity_button_reserved_width)
+                    .min(row_text_layout.sample_label.max.x);
+                label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+            }
+            label_max_width = (label_max_width
                 - browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
-                - similarity_button_reserved_width
                 - inline_tag_reserved_width)
                 .max(20.0);
             if row.missing {
@@ -390,6 +395,20 @@ pub(super) fn render_browser_focus_overlay(
                     align: TextAlign::Right,
                 },
             );
+            if let Some(button_rect) = browser_similarity_button_rect(row.rect, sizing) {
+                render_browser_similarity_button(
+                    primitives,
+                    button_rect,
+                    style,
+                    sizing,
+                    model.browser.similarity_filtered && row.visible_row == 0,
+                    blend_color(
+                        style.accent_warning,
+                        style.text_primary,
+                        style.state_focus_pulse_blend,
+                    ),
+                );
+            }
             emit_text(
                 text_runs,
                 TextRun {

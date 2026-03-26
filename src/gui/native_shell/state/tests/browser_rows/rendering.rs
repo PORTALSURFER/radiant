@@ -35,7 +35,7 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
     let expected_chip_rects = browser_inline_tag_chip_rects(
         row_text_layout.sample_label,
         &row.bucket_label,
-        browser_similarity_button_reserved_width(true, style.sizing),
+        0.0,
         style.sizing,
     );
     assert_eq!(expected_chip_rects.len(), 3);
@@ -212,7 +212,7 @@ fn locked_browser_rows_keep_neutral_fill_and_draw_left_marker() {
 }
 
 #[test]
-fn focused_browser_rows_render_similarity_button_on_far_right() {
+fn focused_browser_rows_render_similarity_button_on_far_left() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
@@ -225,18 +225,27 @@ fn focused_browser_rows_render_similarity_button_on_far_right() {
     let button_rect = state
         .browser_similarity_button_rect(&layout, &model)
         .expect("focused row should expose a similarity button");
-    let row_rect = rendered_browser_rows(&layout, &model, &style)[0].rect;
+    let row = rendered_browser_rows(&layout, &model, &style)
+        .into_iter()
+        .next()
+        .expect("browser row should render");
+    let row_text_layout = compute_browser_row_text_layout(row.rect, style.sizing);
     let frame = state.build_frame(&layout, &model);
 
     assert!(
-        button_rect.min.x
-            >= row_rect.max.x - browser_similarity_button_reserved_width(true, style.sizing),
-        "similarity button should stay on the far right edge of the row"
+        button_rect.min.x <= row_text_layout.sample_label.min.x,
+        "similarity button should stay on the far left edge of the sample column"
     );
     assert!(frame.primitives.iter().any(|primitive| {
         matches!(primitive, Primitive::Rect(FillRect { rect, .. }) if *rect == button_rect)
     }));
-    assert!(frame.text_runs.iter().any(|run| run.text == "SIM"));
+    assert!(
+        frame
+            .primitives
+            .iter()
+            .any(|primitive| { matches!(primitive, Primitive::Image(DrawImage { .. })) })
+    );
+    assert!(!frame.text_runs.iter().any(|run| run.text == "SIM"));
 }
 
 #[test]

@@ -154,8 +154,10 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
         let rating_reserved_width =
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing);
+        let similarity_button_reserved_width =
+            browser_similarity_button_reserved_width(row.focused, sizing);
         let bucket_label_width = browser_inline_tag_max_width(
-            row_text_layout.sample_label.width(),
+            row_text_layout.sample_label.width() - similarity_button_reserved_width,
             rating_reserved_width,
         );
         let bucket_label_source = row.bucket_label.clone().unwrap_or_default();
@@ -174,6 +176,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         };
         let label_width = (row_text_layout.sample_label.width()
             - rating_reserved_width
+            - similarity_button_reserved_width
             - browser_inline_tag_reserved_width(&bucket_label, sizing))
         .max(20.0);
         rendered.push(CachedBrowserRow {

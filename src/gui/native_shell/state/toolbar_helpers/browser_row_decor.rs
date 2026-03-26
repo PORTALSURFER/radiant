@@ -295,6 +295,56 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_gap(
     sizing.border_width.max(1.0) + 2.0
 }
 
+/// Return the width reserved for the focused-row similarity trigger.
+pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_width(
+    visible: bool,
+    sizing: SizingTokens,
+) -> f32 {
+    if !visible {
+        return 0.0;
+    }
+    browser_similarity_button_width(sizing) + browser_similarity_button_gap(sizing)
+}
+
+/// Return the far-right button rect used to trigger row similarity mode.
+pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
+    row_rect: Rect,
+    sizing: SizingTokens,
+) -> Option<Rect> {
+    if row_rect.width() <= 0.0 || row_rect.height() <= 0.0 {
+        return None;
+    }
+    let inset = sizing.row_corner_inset.max(2.0);
+    let width =
+        browser_similarity_button_width(sizing).min((row_rect.width() - (inset * 2.0)).max(0.0));
+    let height = browser_similarity_button_height(row_rect, sizing);
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    let max_x = row_rect.max.x - inset;
+    let min_x = (max_x - width).max(row_rect.min.x + inset);
+    let min_y = row_rect.min.y + ((row_rect.height() - height) * 0.5).floor();
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, (min_y + height).min(row_rect.max.y - inset)),
+    ))
+}
+
+fn browser_similarity_button_width(sizing: SizingTokens) -> f32 {
+    (sizing.font_meta * 4.4).round().clamp(28.0, 40.0)
+}
+
+fn browser_similarity_button_height(row_rect: Rect, sizing: SizingTokens) -> f32 {
+    let inset = sizing.row_corner_inset.max(2.0);
+    (row_rect.height() - (inset * 2.0))
+        .round()
+        .clamp(12.0, 20.0)
+}
+
+fn browser_similarity_button_gap(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_x.min(6.0).max(4.0)
+}
+
 /// Snap browser-row border bounds to the border stroke grid to avoid uneven AA
 /// widths between top/bottom edges.
 pub(in crate::gui::native_shell::state) fn browser_row_border_rect(

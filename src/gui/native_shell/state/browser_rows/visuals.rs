@@ -68,6 +68,17 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
     }
 }
 
+/// Return the highlighted fill used while a similarity filter is active.
+pub(in crate::gui::native_shell::state) fn browser_similarity_row_fill(
+    style: &StyleTokens,
+    visible_row: usize,
+    anchor: bool,
+) -> Rgba8 {
+    let base = browser_row_stripe_fill(style, visible_row);
+    let tint_amount = if anchor { 0.34 } else { 0.18 };
+    translucent_overlay_color(base, style.highlight_cyan_soft, tint_amount)
+}
+
 /// Return the stronger neutral fill used for selected browser rows.
 pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(

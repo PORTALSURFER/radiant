@@ -34,6 +34,25 @@ impl NativeShellState {
             .map(|index| rows[index].visible_row)
     }
 
+    /// Resolve the focused-row similarity button into its native action.
+    pub(crate) fn browser_row_similarity_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        if model.map.active {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
+            .iter()
+            .find(|row| row.focused)
+            .and_then(|row| browser_similarity_button_rect(row.rect, style.sizing))
+            .filter(|rect| rect.contains(point))
+            .map(|_| UiAction::ToggleFindSimilarFocusedSample)
+    }
+
     /// Return the current rendered browser viewport length.
     pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
         let style = style_for_layout(layout);
@@ -235,6 +254,20 @@ impl NativeShellState {
             style.sizing,
         );
         Some(toolbar_text_layout.search_label)
+    }
+
+    /// Return the focused-row similarity button rect when present.
+    #[cfg(test)]
+    pub(crate) fn browser_similarity_button_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model)
+            .iter()
+            .find(|row| row.focused)
+            .and_then(|row| super::super::browser_similarity_button_rect(row.rect, style.sizing))
     }
 
     /// Resolve a map-point click to a sample-id action when map tab is active.

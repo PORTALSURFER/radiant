@@ -12,7 +12,18 @@ pub(super) fn render_browser_rows_window(
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         let row_columns = row_text_layout.columns;
-        let base_fill = browser_row_stripe_fill(ctx.style, row.visible_row);
+        let similarity_active = ctx.model.browser.similarity_filtered;
+        let similarity_button = row
+            .focused
+            .then(|| browser_similarity_button_rect(row.rect, ctx.sizing))
+            .flatten();
+        let similarity_button_reserved_width =
+            browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
+        let base_fill = if similarity_active {
+            browser_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
+        } else {
+            browser_row_stripe_fill(ctx.style, row.visible_row)
+        };
         let row_border = ctx.style.border;
         let row_text_color = ctx.style.text_primary;
         emit_primitive(
@@ -120,15 +131,20 @@ pub(super) fn render_browser_rows_window(
                 label_origin_x: label_position.x,
                 label_rendered_width: browser_approx_text_width(&row.label, ctx.sizing.font_body)
                     .min(label_max_width.max(0.0)),
-                right_limit_x: row_text_layout.sample_label.max.x - inline_tag_reserved_width,
+                right_limit_x: row_text_layout.sample_label.max.x
+                    - inline_tag_reserved_width
+                    - similarity_button_reserved_width,
             },
             row.rating_level,
             row.locked,
             ctx.sizing,
         );
         if let Some(indicators) = rating_indicator_layout {
-            label_max_width =
-                (label_max_width - rating_reserved_width - inline_tag_reserved_width).max(4.0);
+            label_max_width = (label_max_width
+                - rating_reserved_width
+                - inline_tag_reserved_width
+                - similarity_button_reserved_width)
+                .max(4.0);
             for rect in indicators.rects.into_iter().take(indicators.count) {
                 emit_primitive(
                     primitives,
@@ -145,7 +161,9 @@ pub(super) fn render_browser_rows_window(
                 );
             }
         } else {
-            label_max_width = (label_max_width - inline_tag_reserved_width).max(4.0);
+            label_max_width =
+                (label_max_width - inline_tag_reserved_width - similarity_button_reserved_width)
+                    .max(4.0);
         }
         emit_text(
             text_runs,
@@ -162,7 +180,7 @@ pub(super) fn render_browser_rows_window(
             let chip_rects = browser_inline_tag_chip_rects(
                 row_text_layout.sample_label,
                 &row.bucket_label,
-                0.0,
+                similarity_button_reserved_width,
                 ctx.sizing,
             );
             for (chip_rect, chip_label) in chip_rects
@@ -195,6 +213,48 @@ pub(super) fn render_browser_rows_window(
                     },
                 );
             }
+        }
+        if let Some(button_rect) = similarity_button {
+            let button_active = similarity_active && row.visible_row == 0;
+            let button_fill = if button_active {
+                translucent_overlay_color(ctx.style.surface_overlay, ctx.style.highlight_cyan, 0.82)
+            } else {
+                translucent_overlay_color(ctx.style.surface_overlay, ctx.style.text_primary, 0.14)
+            };
+            let button_border = if button_active {
+                blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.42)
+            } else {
+                blend_color(ctx.style.border_emphasis, ctx.style.text_primary, 0.26)
+            };
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: button_rect,
+                    color: button_fill,
+                }),
+            );
+            push_border(
+                primitives,
+                button_rect,
+                button_border,
+                ctx.sizing.border_width,
+            );
+            let label_rect = compute_action_button_text_rect(button_rect, ctx.sizing);
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: String::from("SIM"),
+                    position: label_rect.min,
+                    font_size: ctx.sizing.font_meta,
+                    color: if button_active {
+                        ctx.style.text_primary
+                    } else {
+                        ctx.style.text_muted
+                    },
+                    max_width: Some(label_rect.width().max(10.0)),
+                    align: TextAlign::Center,
+                },
+            );
         }
     }
     if let Some(scrollbar) = browser_scrollbar_layout(

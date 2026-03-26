@@ -77,6 +77,42 @@ fn browser_row_click_modifiers_route_expected_actions() {
 }
 
 #[test]
+fn focused_browser_row_similarity_button_routes_toggle_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = AppModel {
+        browser: crate::app::BrowserPanelModel {
+            rows: vec![crate::app::BrowserRowModel::new(
+                0, "kick-row", 1, true, true,
+            )],
+            visible_count: 1,
+            selected_visible_row: Some(0),
+            similarity_filtered: true,
+            ..crate::app::BrowserPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let button = shell_state
+        .browser_similarity_button_rect(&layout, &model)
+        .expect("focused row should expose a similarity button");
+    let point = Point::new(
+        (button.min.x + button.max.x) * 0.5,
+        (button.min.y + button.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ToggleFindSimilarFocusedSample)
+    );
+}
+
+#[test]
 fn browser_row_click_targets_interior_row_after_downward_autoscroll() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

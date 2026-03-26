@@ -97,6 +97,8 @@ pub struct BrowserPanelModel {
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
     pub busy: bool,
+    /// Whether the browser is currently showing a similarity-filtered result set.
+    pub similarity_filtered: bool,
     /// Display label for the active browser sort mode.
     pub sort_label: Option<String>,
     /// Display label for the currently active browser tab.

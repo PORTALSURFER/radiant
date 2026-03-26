@@ -32,6 +32,8 @@ fn populated_sidebar_model() -> AppModel {
         can_create_folder_at_root: true,
         can_rename_folder: true,
         can_delete_folder: true,
+        can_restore_retained_deletes: true,
+        can_purge_retained_deletes: true,
         can_clear_recovery_log: true,
     };
     model

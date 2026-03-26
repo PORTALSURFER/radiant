@@ -348,10 +348,13 @@ pub(super) fn render_browser_focus_overlay(
         }
         if row.focused {
             let mut label_position = row_text_layout.sample_label.min;
+            let similarity_button_reserved_width =
+                browser_similarity_button_reserved_width(true, sizing);
             let inline_tag_reserved_width =
                 browser_inline_tag_reserved_width(&row.bucket_label, sizing);
             let mut label_max_width = (row_text_layout.sample_label.width()
                 - browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
+                - similarity_button_reserved_width
                 - inline_tag_reserved_width)
                 .max(20.0);
             if row.missing {

@@ -71,6 +71,9 @@ fn route_browser_or_folder_row(
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
+    if let Some(action) = shell_state.browser_row_similarity_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();

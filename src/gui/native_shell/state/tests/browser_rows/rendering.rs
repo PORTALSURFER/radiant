@@ -35,7 +35,7 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
     let expected_chip_rects = browser_inline_tag_chip_rects(
         row_text_layout.sample_label,
         &row.bucket_label,
-        0.0,
+        browser_similarity_button_reserved_width(true, style.sizing),
         style.sizing,
     );
     assert_eq!(expected_chip_rects.len(), 3);
@@ -207,6 +207,74 @@ fn locked_browser_rows_keep_neutral_fill_and_draw_left_marker() {
             primitive,
             Primitive::Rect(FillRect { rect, color })
                 if *rect == marker_rect && *color == style.accent_mint
+        )
+    }));
+}
+
+#[test]
+fn focused_browser_rows_render_similarity_button_on_far_right() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "focused row", 1, true, true));
+
+    let button_rect = state
+        .browser_similarity_button_rect(&layout, &model)
+        .expect("focused row should expose a similarity button");
+    let row_rect = rendered_browser_rows(&layout, &model, &style)[0].rect;
+    let frame = state.build_frame(&layout, &model);
+
+    assert!(
+        button_rect.min.x
+            >= row_rect.max.x - browser_similarity_button_reserved_width(true, style.sizing),
+        "similarity button should stay on the far right edge of the row"
+    );
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(primitive, Primitive::Rect(FillRect { rect, .. }) if *rect == button_rect)
+    }));
+    assert!(frame.text_runs.iter().any(|run| run.text == "SIM"));
+}
+
+#[test]
+fn similarity_filtered_browser_rows_use_highlighted_fill() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.similarity_filtered = true;
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "anchor", 1, true, true));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "match", 1, false, false));
+    model.browser.visible_count = model.browser.rows.len();
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let frame = state.build_frame(&layout, &model);
+    let anchor_rect = rendered[0].rect;
+    let match_rect = rendered[1].rect;
+    let anchor_fill = browser_similarity_row_fill(&style, 0, true);
+    let match_fill = browser_similarity_row_fill(&style, 1, false);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == anchor_rect && *color == anchor_fill
+        )
+    }));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == match_rect && *color == match_fill
         )
     }));
 }

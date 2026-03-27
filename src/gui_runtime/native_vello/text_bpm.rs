@@ -56,12 +56,19 @@ pub(super) fn bpm_tenths_from_value(value: f32) -> u16 {
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     // Shared text-target accessors.
 
-    pub(super) fn folder_create_row(&self) -> Option<&crate::app::FolderRowModel> {
+    pub(super) fn folder_inline_edit_row(&self) -> Option<&crate::app::FolderRowModel> {
         self.model
             .sources
             .folder_rows
             .iter()
-            .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+            .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+            .or_else(|| {
+                self.model
+                    .sources
+                    .folder_rows
+                    .iter()
+                    .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+            })
     }
 
     fn text_value_for_input_target(&self, target: TextInputTarget) -> Option<String> {
@@ -76,7 +83,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .unwrap_or_else(|| self.waveform_bpm_text_from_model()),
             ),
             TextInputTarget::FolderCreate => Some(self.current_text_value().unwrap_or_else(|| {
-                self.folder_create_row()
+                self.folder_inline_edit_row()
                     .and_then(|row| row.input_value.clone())
                     .unwrap_or_default()
             })),
@@ -96,9 +103,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::WaveformBpm => {
                 self.shell_state.waveform_bpm_text_rect(layout, &self.model)
             }
-            TextInputTarget::FolderCreate => self
-                .shell_state
-                .folder_create_text_rect(layout, &self.model),
+            TextInputTarget::FolderCreate => {
+                self.shell_state.folder_create_text_rect(layout, &self.model)
+            }
             TextInputTarget::None
             | TextInputTarget::FolderSearch
             | TextInputTarget::PromptInput => None,
@@ -290,13 +297,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if self.text_input_target == super::TextInputTarget::PromptInput {
             self.text_input_target = super::TextInputTarget::None;
         }
-        let folder_create_focused = self
-            .folder_create_row()
+        let folder_inline_edit_row = self.folder_inline_edit_row().cloned();
+        let folder_inline_edit_focused = folder_inline_edit_row
+            .as_ref()
             .is_some_and(|row| row.input_focused);
-        if folder_create_focused {
+        if folder_inline_edit_focused {
             self.text_input_target = super::TextInputTarget::FolderCreate;
         } else if self.text_input_target == super::TextInputTarget::FolderCreate
-            && self.folder_create_row().is_none()
+            && folder_inline_edit_row.is_none()
         {
             self.text_input_target = super::TextInputTarget::None;
         }
@@ -321,7 +329,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                                 .clone()
                                 .unwrap_or_default(),
                             super::TextInputTarget::FolderCreate => self
-                                .folder_create_row()
+                                .folder_inline_edit_row()
                                 .and_then(|row| row.input_value.clone())
                                 .unwrap_or_default(),
                             super::TextInputTarget::None | super::TextInputTarget::WaveformBpm => {
@@ -336,6 +344,25 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     }
                 }
                 super::TextInputTarget::None => {}
+            }
+            if let Some(row) = folder_inline_edit_row.as_ref()
+                && self.text_input_target == super::TextInputTarget::FolderCreate
+            {
+                let row_text = row.input_value.clone().unwrap_or_default();
+                let should_seed_initial_text = self
+                    .text_input_buffer
+                    .as_deref()
+                    .is_some_and(str::is_empty)
+                    && !row_text.is_empty();
+                if should_seed_initial_text {
+                    self.text_input_buffer = Some(row_text.clone());
+                }
+                if should_seed_initial_text
+                    && row.select_all_on_focus
+                    && let Some(editor) = self.text_editor_state.as_mut()
+                {
+                    editor.select_all(&row_text);
+                }
             }
             let current_text = self.current_text_value().unwrap_or_default();
             let mut editor = self
@@ -379,7 +406,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                             self.model.confirm_prompt.input_value.clone()
                         }
                         super::TextInputTarget::FolderCreate => self
-                            .folder_create_row()
+                            .folder_inline_edit_row()
                             .and_then(|row| row.input_value.clone()),
                         super::TextInputTarget::None | super::TextInputTarget::WaveformBpm => None,
                     })

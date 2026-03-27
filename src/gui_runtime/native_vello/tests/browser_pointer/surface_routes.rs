@@ -376,3 +376,37 @@ fn inline_folder_create_row_click_focuses_folder_create_input() {
         Some(UiAction::FocusFolderCreateInput)
     );
 }
+
+#[test]
+fn inline_folder_rename_row_click_focuses_folder_create_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.folder_rows.insert(
+        2,
+        crate::app::FolderRowModel::rename_draft(
+            2,
+            String::from("drums"),
+            String::from("Folder name"),
+            None,
+            true,
+        ),
+    );
+    let row = shell_state
+        .rendered_folder_row_rects(&layout, &model)
+        .into_iter()
+        .nth(2)
+        .expect("rename draft folder row should be rendered");
+    let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderCreateInput)
+    );
+}

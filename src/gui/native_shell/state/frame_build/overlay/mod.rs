@@ -59,7 +59,14 @@ pub(super) fn render_state_overlay(
                 .sources
                 .folder_rows
                 .iter()
-                .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft),
+                .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+                .or_else(|| {
+                    model
+                        .sources
+                        .folder_rows
+                        .iter()
+                        .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+                }),
         )
     {
         render_active_folder_create_editor(
@@ -97,7 +104,10 @@ pub(super) fn render_state_overlay(
             folder_row_rects.get(hovered_folder_row_index),
             model.sources.folder_rows.get(hovered_folder_row_index),
         ) {
-            if row.kind != crate::app::FolderRowKind::CreateDraft {
+            if !matches!(
+                row.kind,
+                crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+            ) {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {

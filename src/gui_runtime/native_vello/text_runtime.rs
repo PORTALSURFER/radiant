@@ -19,11 +19,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if matches!(target, TextInputTarget::None | TextInputTarget::WaveformBpm) {
             return;
         }
+        let select_all_on_focus = self
+            .folder_inline_edit_row()
+            .is_some_and(|row| row.select_all_on_focus);
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
             TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
             TextInputTarget::FolderCreate => self
-                .folder_create_row()
+                .folder_inline_edit_row()
                 .and_then(|row| row.input_value.clone())
                 .unwrap_or_default(),
             TextInputTarget::PromptInput => self
@@ -36,7 +39,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.text_input_target = target;
         self.text_input_buffer = Some(current_text.clone());
-        self.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end(&current_text));
+        let mut editor = SingleLineTextEditorState::collapsed_at_end(&current_text);
+        if select_all_on_focus {
+            editor.select_all(&current_text);
+        }
+        self.text_editor_state = Some(editor);
         self.waveform_bpm_input_buffer = None;
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
@@ -270,7 +277,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::StartNewFolder
             | UiAction::StartNewFolderAtFolderRow { .. }
             | UiAction::StartNewFolderAtRoot
-            | UiAction::FocusFolderCreateInput => {
+            | UiAction::FocusFolderCreateInput
+            | UiAction::StartFolderRename => {
                 self.activate_text_input_target(TextInputTarget::FolderCreate)
             }
             UiAction::ConfirmPrompt

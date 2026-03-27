@@ -266,7 +266,12 @@ fn folder_create_confirm_enabled(model: &AppModel) -> bool {
         .sources
         .folder_rows
         .iter()
-        .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+        .find(|row| {
+            matches!(
+                row.kind,
+                crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+            )
+        })
         .and_then(|row| row.input_error.as_ref())
         .is_none_or(|error| error.trim().is_empty())
 }
@@ -290,7 +295,10 @@ fn rewrite_folder_create_hotkey_action(
     let Some(row) = model.sources.folder_rows.get(row_index) else {
         return action;
     };
-    if row.kind == crate::app::FolderRowKind::CreateDraft {
+    if matches!(
+        row.kind,
+        crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+    ) {
         return action;
     }
     row.source_index
@@ -304,6 +312,7 @@ fn folder_create_action_requires_immediate_model_refresh(action: &UiAction) -> b
         UiAction::StartNewFolder
             | UiAction::StartNewFolderAtFolderRow { .. }
             | UiAction::StartNewFolderAtRoot
+            | UiAction::StartFolderRename
             | UiAction::ConfirmFolderCreate
             | UiAction::CancelFolderCreate
     )

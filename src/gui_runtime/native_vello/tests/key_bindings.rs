@@ -316,6 +316,59 @@ fn folder_create_append_text_emits_set_folder_create_input() {
     );
 }
 
+#[test]
+fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
+    let bridge = ImmediateFolderCreateBridge {
+        model: AppModel {
+            focus_context: crate::app::FocusContextModel::SourceFolders,
+            sources: SourcesPanelModel {
+                focused_folder_row: Some(1),
+                folder_rows: vec![
+                    root_folder_row(),
+                    crate::app::FolderRowModel::new(
+                        "Drums",
+                        "",
+                        1,
+                        false,
+                        true,
+                        false,
+                        true,
+                        true,
+                    )
+                    .with_source_index(1),
+                ],
+                ..SourcesPanelModel::default()
+            },
+            ..AppModel::default()
+        },
+        ..ImmediateFolderCreateBridge::default()
+    };
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.frame_state.model_dirty = false;
+
+    runner.handle_hotkey_press_for_tests(KeyCode::R);
+
+    assert_eq!(runner.bridge.actions, vec![UiAction::StartFolderRename]);
+    assert_eq!(runner.text_input_target, TextInputTarget::FolderCreate);
+    assert!(matches!(
+        runner
+            .model
+            .sources
+            .folder_rows
+            .iter()
+            .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft),
+        Some(row) if row.input_value.as_deref() == Some("Drums")
+    ));
+    assert_eq!(
+        runner
+            .text_editor_state
+            .as_ref()
+            .map(|editor| editor.selection_range()),
+        Some((0, "Drums".len()))
+    );
+}
+
 #[derive(Default)]
 struct ImmediateFolderCreateBridge {
     actions: Vec<UiAction>,
@@ -339,16 +392,28 @@ impl ImmediateFolderCreateBridge {
     }
 
     fn set_draft(&mut self, value: String) {
-        self.model.sources.folder_rows = vec![
-            root_folder_row(),
+        self.set_inline_draft(value, false);
+    }
+
+    fn set_inline_draft(&mut self, value: String, rename: bool) {
+        let draft = if rename {
+            crate::app::FolderRowModel::rename_draft(
+                1,
+                value.clone(),
+                String::from("Folder name"),
+                folder_create_error(&value),
+                true,
+            )
+        } else {
             crate::app::FolderRowModel::create_draft(
                 1,
                 value.clone(),
                 String::from("New folder name"),
                 folder_create_error(&value),
                 true,
-            ),
-        ];
+            )
+        };
+        self.model.sources.folder_rows = vec![root_folder_row(), draft];
     }
 
     fn clear_draft(&mut self) {
@@ -384,6 +449,16 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
             UiAction::StartNewFolder
             | UiAction::StartNewFolderAtFolderRow { .. }
             | UiAction::StartNewFolderAtRoot => self.set_draft(String::new()),
+            UiAction::StartFolderRename => {
+                let value = self
+                    .model
+                    .sources
+                    .focused_folder_row
+                    .and_then(|index| self.model.sources.folder_rows.get(index))
+                    .map(|row| row.label.clone())
+                    .unwrap_or_default();
+                self.set_inline_draft(value, true);
+            }
             UiAction::SetFolderCreateInput { value } => self.set_draft(value.clone()),
             UiAction::ConfirmFolderCreate => {
                 let value = self

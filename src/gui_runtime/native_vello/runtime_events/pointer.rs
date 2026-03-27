@@ -92,7 +92,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             match button {
                 MouseButton::Left => {
                     this.refresh_cached_model_for_pending_input();
-                    this.cancel_folder_create_for_external_pointer_target(layout, point);
+                    this.cancel_folder_inline_edit_for_external_pointer_target(layout, point);
                     let map_drag_start =
                         this.model.map.active && layout.browser_rows.contains(point);
                     if let Some(action) = this.shell_state.source_context_menu_action_at_point(
@@ -139,7 +139,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
                 MouseButton::Right => {
                     this.refresh_cached_model_for_pending_input();
-                    this.cancel_folder_create_for_external_pointer_target(layout, point);
+                    this.cancel_folder_inline_edit_for_external_pointer_target(layout, point);
                     handled = this.handle_right_pointer_press(
                         layout,
                         point,
@@ -182,7 +182,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.activate_text_input_target(TextInputTarget::PromptInput);
             return true;
         }
-        self.cancel_folder_create_for_external_pointer_target(layout, point);
+        self.cancel_folder_inline_edit_for_external_pointer_target(layout, point);
         if self.handle_folder_create_pointer_press(layout, point, self.modifiers.shift_key()) {
             return true;
         }
@@ -265,7 +265,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         false
     }
 
-    fn cancel_folder_create_for_external_pointer_target(
+    fn cancel_folder_inline_edit_for_external_pointer_target(
         &mut self,
         layout: &ShellLayout,
         point: Point,

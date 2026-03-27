@@ -102,6 +102,8 @@ pub enum UiAction {
         /// Full folder-search query text.
         query: String,
     },
+    /// Toggle whether the folder tree shows disk folders without WAV-backed samples.
+    ToggleShowAllFolders,
 
     // Sources and folder tree actions.
     /// Focus a source row by index and make the sources list the active section.

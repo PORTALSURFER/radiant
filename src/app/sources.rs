@@ -57,6 +57,8 @@ pub enum FolderRowKind {
     Existing,
     /// Inline draft row used while creating a new folder in place.
     CreateDraft,
+    /// Inline draft row used while renaming an existing folder in place.
+    RenameDraft,
 }
 
 /// Render data for one folder row shown in the sidebar folder tree.
@@ -90,6 +92,8 @@ pub struct FolderRowModel {
     pub input_error: Option<String>,
     /// Whether the inline draft input should own keyboard focus.
     pub input_focused: bool,
+    /// Whether the next focus transition should select the full input text once.
+    pub select_all_on_focus: bool,
 }
 
 impl FolderRowModel {
@@ -120,6 +124,7 @@ impl FolderRowModel {
             input_placeholder: None,
             input_error: None,
             input_focused: false,
+            select_all_on_focus: false,
         }
     }
 
@@ -152,7 +157,42 @@ impl FolderRowModel {
             input_placeholder: Some(input_placeholder.into()),
             input_error,
             input_focused,
+            select_all_on_focus: false,
         }
+    }
+
+    /// Build one inline rename-draft row embedded in the folder tree.
+    pub fn rename_draft(
+        depth: usize,
+        input_value: impl Into<String>,
+        input_placeholder: impl Into<String>,
+        input_error: Option<String>,
+        input_focused: bool,
+    ) -> Self {
+        let input_value = input_value.into();
+        Self {
+            label: input_value.clone(),
+            detail: String::new(),
+            depth,
+            selected: false,
+            focused: false,
+            is_root: false,
+            has_children: false,
+            expanded: false,
+            kind: FolderRowKind::RenameDraft,
+            source_index: None,
+            input_value: Some(input_value),
+            input_placeholder: Some(input_placeholder.into()),
+            input_error,
+            input_focused,
+            select_all_on_focus: true,
+        }
+    }
+
+    /// Set whether the inline input should select all text the next time it receives focus.
+    pub fn with_select_all_on_focus(mut self, select_all_on_focus: bool) -> Self {
+        self.select_all_on_focus = select_all_on_focus;
+        self
     }
 }
 
@@ -211,6 +251,10 @@ pub struct SourcesPanelModel {
     pub search_query: String,
     /// Active folder-search query.
     pub folder_search_query: String,
+    /// Whether the folder browser currently includes empty on-disk folders.
+    pub show_all_folders: bool,
+    /// Whether the folder-visibility toggle is currently actionable.
+    pub can_toggle_show_all_folders: bool,
     /// Selected row index, if any.
     pub selected_row: Option<usize>,
     /// Focused folder row index, if any.

@@ -49,7 +49,40 @@ fn render_folder_header(
         ctx.sizing,
         ctx.model.sources.folder_recovery.in_progress,
         ctx.model.sources.folder_recovery.entry_count,
+        ctx.model.sources.show_all_folders,
+        ctx.model.sources.can_toggle_show_all_folders,
     );
+    if let Some(toggle_button) = header_layout.toggle_button.as_ref() {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: toggle_button.rect,
+                color: folder_toggle_fill(ctx, toggle_button.active, toggle_button.enabled),
+            }),
+        );
+        push_border(
+            primitives,
+            toggle_button.rect,
+            folder_toggle_border(ctx, toggle_button.active, toggle_button.enabled),
+            ctx.sizing.border_width,
+        );
+        let label_rect = compute_action_button_text_rect(toggle_button.rect, ctx.sizing);
+        emit_text(
+            text_runs,
+            TextRun {
+                text: truncate_to_width(
+                    toggle_button.label,
+                    label_rect.width().max(24.0),
+                    ctx.sizing.font_meta,
+                ),
+                position: label_rect.min,
+                font_size: ctx.sizing.font_meta,
+                color: folder_toggle_text_color(ctx, toggle_button.active, toggle_button.enabled),
+                max_width: Some(label_rect.width().max(24.0)),
+                align: TextAlign::Center,
+            },
+        );
+    }
     if let Some(badge) = header_layout.badge.as_ref() {
         emit_primitive(
             primitives,
@@ -133,8 +166,11 @@ fn render_folder_rows(
     let last_row_max_y = data.folder_row_rects.last().map(|rect| rect.max.y);
     for (row_index, row_rect) in data.folder_row_rects.iter().copied().enumerate() {
         let row = &ctx.model.sources.folder_rows[row_index];
-        if row.kind == crate::app::FolderRowKind::CreateDraft {
-            render_folder_create_draft_row(ctx, primitives, text_runs, row_rect, row);
+        if matches!(
+            row.kind,
+            crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+        ) {
+            render_folder_inline_draft_row(ctx, primitives, text_runs, row_rect, row);
             continue;
         }
         emit_primitive(
@@ -161,7 +197,7 @@ fn render_folder_rows(
     }
 }
 
-fn render_folder_create_draft_row(
+fn render_folder_inline_draft_row(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
@@ -419,4 +455,41 @@ fn create_draft_field_rect(row_rect: Rect, sizing: SizingTokens, depth: usize) -
 
 fn create_draft_text_rect(field_rect: Rect, sizing: SizingTokens) -> Rect {
     compute_action_button_text_rect(field_rect, sizing)
+}
+
+fn folder_toggle_fill(ctx: &StaticFrameCtx<'_>, active: bool, enabled: bool) -> Rgba8 {
+    if !enabled {
+        return blend_color(ctx.style.surface_base, ctx.style.border, 0.18);
+    }
+    if active {
+        blend_color(ctx.style.surface_overlay, ctx.style.accent_mint, 0.22)
+    } else {
+        ctx.style.surface_overlay
+    }
+}
+
+fn folder_toggle_border(ctx: &StaticFrameCtx<'_>, active: bool, enabled: bool) -> Rgba8 {
+    if !enabled {
+        return ctx.style.border;
+    }
+    if active {
+        blend_color(ctx.style.border_emphasis, ctx.style.accent_mint, 0.52)
+    } else {
+        blend_color(
+            ctx.style.border_emphasis,
+            ctx.style.text_primary,
+            ctx.style.state_hover_soft,
+        )
+    }
+}
+
+fn folder_toggle_text_color(ctx: &StaticFrameCtx<'_>, active: bool, enabled: bool) -> Rgba8 {
+    if !enabled {
+        return ctx.style.text_muted;
+    }
+    if active {
+        ctx.style.accent_mint
+    } else {
+        ctx.style.text_primary
+    }
 }

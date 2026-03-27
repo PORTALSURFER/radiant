@@ -56,6 +56,9 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.folder_header_action_at_point(layout, model, point) {
+        return Some(action);
+    }
     if let Some(action) = motion_model.and_then(|motion_model| {
         shell_state.waveform_toolbar_action_at_point_with_motion(layout, motion_model, point)
     }) {
@@ -146,7 +149,10 @@ fn folder_row_pointer_action(model: &AppModel, index: usize) -> UiAction {
     let Some(row) = model.sources.folder_rows.get(index) else {
         return UiAction::FocusFolderRow { index };
     };
-    if row.kind == crate::app::FolderRowKind::CreateDraft {
+    if matches!(
+        row.kind,
+        crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+    ) {
         return UiAction::FocusFolderCreateInput;
     }
     let source_index = row.source_index.unwrap_or(index);
@@ -165,5 +171,11 @@ fn folder_row_click_toggles_expansion(model: &AppModel, index: usize) -> bool {
     let Some(row) = model.sources.folder_rows.get(index) else {
         return false;
     };
-    row.has_children && !row.is_root && model.sources.folder_search_query.trim().is_empty()
+    row.has_children
+        && !row.is_root
+        && !matches!(
+            row.kind,
+            crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+        )
+        && model.sources.folder_search_query.trim().is_empty()
 }

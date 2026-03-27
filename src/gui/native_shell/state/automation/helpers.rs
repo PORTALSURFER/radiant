@@ -119,6 +119,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::OpenTrashFolder => "open_trash_folder",
         UiAction::FocusFolderSearch => "focus_folder_search",
         UiAction::SetFolderSearch { .. } => "set_folder_search",
+        UiAction::ToggleShowAllFolders => "toggle_show_all_folders",
         UiAction::SelectSourceRow { .. } => "select_source_row",
         UiAction::FocusSourceRow { .. } => "focus_source_row",
         UiAction::MoveSourceFocus { .. } => "move_source_focus",

@@ -36,6 +36,7 @@ fn populated_sidebar_model() -> AppModel {
         can_purge_retained_deletes: true,
         can_clear_recovery_log: true,
     };
+    model.sources.can_toggle_show_all_folders = true;
     model
 }
 
@@ -97,6 +98,7 @@ mod browser_scrollbars;
 mod browser_toolbar;
 mod chrome_layout;
 mod frame_build;
+mod folder_visibility_toggle;
 mod overlay_controls;
 mod overlays;
 mod playhead_trail_render;

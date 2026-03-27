@@ -225,6 +225,8 @@ impl Default for AppModel {
                 header: String::from("Sources"),
                 search_query: String::new(),
                 folder_search_query: String::new(),
+                show_all_folders: true,
+                can_toggle_show_all_folders: false,
                 selected_row: None,
                 focused_folder_row: None,
                 rows: Vec::new(),

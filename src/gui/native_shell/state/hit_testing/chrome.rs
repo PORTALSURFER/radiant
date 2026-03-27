@@ -25,16 +25,43 @@ impl NativeShellState {
         compute_row_index_at_point(folder_rows, point)
     }
 
-    /// Return the projected folder-create draft row index, when present.
+    /// Return the folder-visibility toggle button rect for tests.
+    #[cfg(test)]
+    pub(crate) fn folder_visibility_toggle_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        compute_sidebar_folder_header_layout(
+            sidebar_sections(layout, &style, model).folder_header,
+            style.sizing,
+            model.sources.folder_recovery.in_progress,
+            model.sources.folder_recovery.entry_count,
+            model.sources.show_all_folders,
+            model.sources.can_toggle_show_all_folders,
+        )
+        .toggle_button
+        .map(|button| button.rect)
+    }
+
+    /// Return the projected inline folder-edit row index, when present.
     pub(crate) fn folder_create_row_index(&self, model: &AppModel) -> Option<usize> {
         model
             .sources
             .folder_rows
             .iter()
-            .position(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+            .position(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+            .or_else(|| {
+                model
+                    .sources
+                    .folder_rows
+                    .iter()
+                    .position(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+            })
     }
 
-    /// Return the folder-create input field rect for the active draft row.
+    /// Return the folder-create input field rect for the active inline edit row.
     pub(crate) fn folder_create_input_rect(
         &mut self,
         layout: &ShellLayout,
@@ -49,7 +76,7 @@ impl NativeShellState {
         Some(folder_create_field_rect(row_rect, style.sizing, row.depth))
     }
 
-    /// Return the folder-create input text rect for the active draft row.
+    /// Return the folder-create input text rect for the active inline edit row.
     pub(crate) fn folder_create_text_rect(
         &mut self,
         layout: &ShellLayout,
@@ -65,7 +92,7 @@ impl NativeShellState {
         Some(folder_create_text_rect(field_rect, style.sizing))
     }
 
-    /// Return whether a point falls inside the inline folder-create input field.
+    /// Return whether a point falls inside the inline folder editor input field.
     pub(crate) fn folder_create_input_at_point(
         &mut self,
         layout: &ShellLayout,
@@ -90,7 +117,12 @@ impl NativeShellState {
         let folder_rows = self.cached_folder_row_rects(layout, &style, model);
         let row_index = compute_row_index_at_point(folder_rows, point)?;
         let row = model.sources.folder_rows.get(row_index)?;
-        if row.kind == crate::app::FolderRowKind::CreateDraft || row.is_root || !row.has_children {
+        if matches!(
+            row.kind,
+            crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+        ) || row.is_root
+            || !row.has_children
+        {
             return None;
         }
         let row_rect = *folder_rows.get(row_index)?;
@@ -271,6 +303,30 @@ impl NativeShellState {
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| button.action)
+    }
+
+    /// Resolve a click inside the folder-header visibility toggle into a UI action.
+    pub(crate) fn folder_header_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let sections = sidebar_sections(layout, &style, model);
+        let toggle = compute_sidebar_folder_header_layout(
+            sections.folder_header,
+            style.sizing,
+            model.sources.folder_recovery.in_progress,
+            model.sources.folder_recovery.entry_count,
+            model.sources.show_all_folders,
+            model.sources.can_toggle_show_all_folders,
+        )
+        .toggle_button?;
+        if !toggle.enabled || !toggle.rect.contains(point) {
+            return None;
+        }
+        Some(UiAction::ToggleShowAllFolders)
     }
 
     /// Resolve a sidebar background click into a section-focus action.

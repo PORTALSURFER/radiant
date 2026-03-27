@@ -25,12 +25,22 @@ pub(crate) struct RecoveryBadgeLayout {
     pub active: bool,
 }
 
+/// Slot-resolved folder-visibility toggle layout inside the folder header.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct FolderVisibilityToggleLayout {
+    pub rect: Rect,
+    pub label: &'static str,
+    pub active: bool,
+    pub enabled: bool,
+}
+
 /// Slot-resolved folder-header text rows and optional recovery badge.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SidebarFolderHeaderLayout {
     pub title_row: Rect,
     pub metadata_row: Option<Rect>,
     pub badge: Option<RecoveryBadgeLayout>,
+    pub toggle_button: Option<FolderVisibilityToggleLayout>,
 }
 
 /// Compute folder-header text rows and recovery badge through slotized helpers.
@@ -39,17 +49,29 @@ pub(crate) fn compute_sidebar_folder_header_layout(
     sizing: SizingTokens,
     recovery_in_progress: bool,
     recovery_entry_count: usize,
+    show_all_folders: bool,
+    toggle_enabled: bool,
 ) -> SidebarFolderHeaderLayout {
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return SidebarFolderHeaderLayout {
             title_row: empty_rect(header_rect),
             metadata_row: None,
             badge: None,
+            toggle_button: None,
         };
     }
 
+    let toggle_button =
+        compute_folder_visibility_toggle_layout(header_rect, sizing, show_all_folders, toggle_enabled);
+    let reserved_right_edge = toggle_button
+        .as_ref()
+        .map(|button| button.rect.min.x - sizing.action_button_gap.max(2.0))
+        .unwrap_or(header_rect.max.x);
     let badge = compute_recovery_badge_layout(
-        header_rect,
+        Rect::from_min_max(
+            header_rect.min,
+            Point::new(reserved_right_edge.max(header_rect.min.x), header_rect.max.y),
+        ),
         sizing,
         recovery_in_progress,
         recovery_entry_count,
@@ -58,7 +80,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
     let text_end_x = badge
         .as_ref()
         .map(|badge| badge.rect.min.x - sizing.text_inset_x)
-        .unwrap_or_else(|| header_rect.max.x - sizing.text_inset_x);
+        .unwrap_or(reserved_right_edge - sizing.text_inset_x);
     let text_bounds = Rect::from_min_max(
         Point::new(text_start_x, header_rect.min.y),
         Point::new(text_end_x.max(text_start_x), header_rect.max.y),
@@ -68,6 +90,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
             title_row: empty_rect(header_rect),
             metadata_row: None,
             badge,
+            toggle_button,
         };
     }
 
@@ -127,6 +150,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         title_row,
         metadata_row,
         badge,
+        toggle_button,
     }
 }
 
@@ -260,6 +284,44 @@ fn compute_recovery_badge_layout(
     })
 }
 
+fn compute_folder_visibility_toggle_layout(
+    header_rect: Rect,
+    sizing: SizingTokens,
+    show_all_folders: bool,
+    enabled: bool,
+) -> Option<FolderVisibilityToggleLayout> {
+    let label = if show_all_folders {
+        "All folders"
+    } else {
+        "WAV folders"
+    };
+    let available_width = (header_rect.width() - (sizing.text_inset_x * 2.0)).max(0.0);
+    if available_width < 24.0 {
+        return None;
+    }
+    let approx_char_width = (sizing.font_meta * 0.62).max(1.0);
+    let button_width = ((label.chars().count() as f32 * approx_char_width)
+        + (sizing.text_inset_x * 2.0))
+        .clamp(52.0, 96.0)
+        .min(available_width);
+    let button_height = (header_rect.height() - (sizing.text_inset_y * 0.4))
+        .max(12.0)
+        .min(header_rect.height());
+    let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
+    let min_x = (max_x - button_width).max(header_rect.min.x + sizing.text_inset_x.max(0.0));
+    let min_y = header_rect.min.y + ((header_rect.height() - button_height) * 0.5).floor();
+    let rect = Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, (min_y + button_height).min(header_rect.max.y)),
+    );
+    (rect.width() > 0.0 && rect.height() > 0.0).then_some(FolderVisibilityToggleLayout {
+        rect,
+        label,
+        active: show_all_folders,
+        enabled,
+    })
+}
+
 fn compact_recovery_badge_label(
     recovery_in_progress: bool,
     recovery_entry_count: usize,
@@ -361,7 +423,8 @@ mod tests {
             Point::new(0.0, 0.0),
             Point::new(58.0, style.sizing.folder_header_block_height),
         );
-        let layout = compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 153);
+        let layout =
+            compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 153, true, true);
         let badge = layout.badge.expect("badge should still render");
         assert!(badge.label.chars().count() <= 3);
         assert!(badge.rect.min.x >= header_rect.min.x);
@@ -375,7 +438,8 @@ mod tests {
             Point::new(24.0, 40.0),
             Point::new(120.0, 40.0 + style.sizing.folder_header_block_height),
         );
-        let layout = compute_sidebar_folder_header_layout(header_rect, style.sizing, true, 0);
+        let layout =
+            compute_sidebar_folder_header_layout(header_rect, style.sizing, true, 0, true, true);
         let badge = layout
             .badge
             .expect("badge should render for active recovery");
@@ -383,6 +447,24 @@ mod tests {
         if let Some(meta) = layout.metadata_row {
             assert!(meta.max.x <= badge.rect.min.x);
         }
+    }
+
+    #[test]
+    fn folder_visibility_toggle_stays_inside_header_bounds() {
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let header_rect = Rect::from_min_max(
+            Point::new(24.0, 40.0),
+            Point::new(220.0, 40.0 + style.sizing.folder_header_block_height),
+        );
+        let layout =
+            compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 0, true, true);
+        let toggle = layout
+            .toggle_button
+            .expect("toggle should render when the header is wide enough");
+        assert!(toggle.rect.min.x >= header_rect.min.x);
+        assert!(toggle.rect.max.x <= header_rect.max.x);
+        assert!(toggle.rect.min.y >= header_rect.min.y);
+        assert!(toggle.rect.max.y <= header_rect.max.y);
     }
 
     #[test]

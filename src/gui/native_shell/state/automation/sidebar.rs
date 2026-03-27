@@ -50,6 +50,8 @@ pub(super) fn build_sidebar_automation(
         sections.folder_rows,
         folder_rows,
         &model.sources.folder_rows,
+        model,
+        style,
         model.focus_context == crate::app::FocusContextModel::SourceFolders,
     ));
     AutomationNodeSnapshot {
@@ -122,19 +124,51 @@ fn folder_browser_group(
     folder_rows_band: Rect,
     folder_rows: Vec<Rect>,
     rows: &[crate::app::FolderRowModel],
+    model: &AppModel,
+    style: &StyleTokens,
     selected: bool,
 ) -> AutomationNodeSnapshot {
     let row_count = rows.len().to_string();
-    let children = folder_rows
+    let mut children = Vec::new();
+    if let Some(toggle_button) = compute_sidebar_folder_header_layout(
+        header_rect,
+        style.sizing,
+        model.sources.folder_recovery.in_progress,
+        model.sources.folder_recovery.entry_count,
+        model.sources.show_all_folders,
+        model.sources.can_toggle_show_all_folders,
+    )
+    .toggle_button
+    {
+        children.push(simple_node(
+            "sources.folder_visibility_toggle",
+            AutomationRole::Button,
+            Some(String::from("Folder visibility")),
+            toggle_button.rect,
+            Some(String::from(toggle_button.label)),
+            toggle_button.enabled,
+            toggle_button.active,
+            vec![String::from("toggle_show_all_folders")],
+        ));
+    }
+    children.extend(folder_rows
         .into_iter()
         .enumerate()
         .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
         .map(|(index, rect, row)| {
             let (role, label, value, available_actions) =
-                if row.kind == crate::app::FolderRowKind::CreateDraft {
+                if matches!(
+                    row.kind,
+                    crate::app::FolderRowKind::CreateDraft
+                        | crate::app::FolderRowKind::RenameDraft
+                ) {
                     (
                         AutomationRole::SearchField,
-                        Some(String::from("New folder")),
+                        Some(if row.kind == crate::app::FolderRowKind::RenameDraft {
+                            String::from("Rename folder")
+                        } else {
+                            String::from("New folder")
+                        }),
                         row.input_value.clone(),
                         vec![
                             String::from("focus_folder_create_input"),
@@ -178,18 +212,21 @@ fn folder_browser_group(
                     ("expanded", bool_text(row.expanded)),
                     (
                         "kind",
-                        if row.kind == crate::app::FolderRowKind::CreateDraft {
-                            "create_draft"
-                        } else {
-                            "existing"
+                        match row.kind {
+                            crate::app::FolderRowKind::CreateDraft => "create_draft",
+                            crate::app::FolderRowKind::RenameDraft => "rename_draft",
+                            crate::app::FolderRowKind::Existing => "existing",
                         },
                     ),
                     ("input_error", row.input_error.as_deref().unwrap_or("")),
+                    (
+                        "select_all_on_focus",
+                        bool_text(row.select_all_on_focus),
+                    ),
                 ]),
                 children: Vec::new(),
             }
-        })
-        .collect();
+        }));
     AutomationNodeSnapshot {
         id: node_id("sources.folder_browser"),
         role: AutomationRole::Group,
@@ -199,7 +236,17 @@ fn folder_browser_group(
         enabled: true,
         selected,
         available_actions: vec![String::from("focus_folder_panel")],
-        metadata: metadata(&[("row_count", &row_count)]),
+        metadata: metadata(&[
+            ("row_count", &row_count),
+            (
+                "visibility",
+                if model.sources.show_all_folders {
+                    "all_folders"
+                } else {
+                    "wav_folders"
+                },
+            ),
+        ]),
         children,
     }
 }

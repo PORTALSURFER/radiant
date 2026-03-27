@@ -137,6 +137,27 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
 }
 
 #[test]
+fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignment() {
+    let browser = AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    };
+    assert_eq!(
+        resolved_action(KeyCode::S, ModifiersState::default(), &browser),
+        Some(UiAction::ToggleFindSimilarFocusedSample)
+    );
+
+    let waveform = AppModel {
+        focus_context: crate::app::FocusContextModel::Waveform,
+        ..AppModel::default()
+    };
+    assert_eq!(
+        resolved_action(KeyCode::S, ModifiersState::default(), &waveform),
+        Some(UiAction::AlignWaveformStartToMarker)
+    );
+}
+
+#[test]
 fn waveform_hotkeys_resolve_by_focus_mode() {
     let waveform = AppModel {
         focus_context: crate::app::FocusContextModel::Waveform,

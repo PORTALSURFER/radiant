@@ -345,7 +345,7 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
     HotkeyBinding {
         id: "find-similar",
         label: "Toggle find similar",
-        gesture: HotkeyGesture::with_shift(KeyCode::F),
+        gesture: HotkeyGesture::new(KeyCode::S),
         scope: BROWSER,
         action: UiAction::ToggleFindSimilarFocusedSample,
     },

@@ -81,6 +81,11 @@ impl NativeShellState {
         self.browser_search_editor_visual = visual;
     }
 
+    /// Update the active inline folder-create editor visuals shown in sidebar overlays.
+    pub(crate) fn set_folder_create_editor_state(&mut self, visual: Option<TextFieldVisualState>) {
+        self.folder_create_editor_visual = visual;
+    }
+
     /// Clear transient waveform hover feedback during an active drag gesture.
     ///
     /// Resize, shift, and fade drags redraw the waveform overlay on every move.
@@ -121,6 +126,9 @@ impl NativeShellState {
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             browser_search_editor_signature: text_field_visual_signature(
                 self.browser_search_editor_visual.as_ref(),
+            ),
+            folder_create_editor_signature: text_field_visual_signature(
+                self.folder_create_editor_visual.as_ref(),
             ),
             has_focus_emphasis: self.has_focus_emphasis,
         }

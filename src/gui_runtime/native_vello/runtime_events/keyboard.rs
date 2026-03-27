@@ -8,6 +8,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
         self.pending_hotkey_chord = resolution.pending_chord;
         if let Some(action) = resolution.action {
+            let action = rewrite_folder_create_hotkey_action(
+                action,
+                &self.model,
+                self.shell_state.hovered_folder_row_index(),
+            );
             self.update_text_target_after_action(&action);
             self.emit_model_action(action);
         }
@@ -78,6 +83,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.emit_model_action(UiAction::CancelPrompt);
                 self.deactivate_text_input_target();
                 handled = true;
+            } else if self.text_input_target == TextInputTarget::FolderCreate {
+                let action = UiAction::CancelFolderCreate;
+                self.update_text_target_after_action(&action);
+                self.emit_model_action(action);
+                handled = true;
             } else if self.text_input_target != TextInputTarget::None {
                 self.deactivate_text_input_target();
                 handled = true;
@@ -105,6 +115,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         {
             self.deactivate_text_input_target();
             handled = true;
+        }
+        if !handled
+            && matches!(event.logical_key, Key::Named(NamedKey::Enter))
+            && self.text_input_target == TextInputTarget::FolderCreate
+        {
+            handled = true;
+            if folder_create_confirm_enabled(&self.model) {
+                let action = UiAction::ConfirmFolderCreate;
+                self.update_text_target_after_action(&action);
+                self.emit_model_action(action);
+            }
         }
         if !handled && let Some(key) = key {
             handled =
@@ -161,6 +182,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
                 self.pending_hotkey_chord = resolution.pending_chord;
                 if let Some(action) = resolution.action {
+                    let action = rewrite_folder_create_hotkey_action(
+                        action,
+                        &self.model,
+                        self.shell_state.hovered_folder_row_index(),
+                    );
                     self.update_text_target_after_action(&action);
                     self.emit_model_action(action);
                     handled = true;
@@ -173,4 +199,41 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
         }
     }
+}
+
+fn folder_create_confirm_enabled(model: &AppModel) -> bool {
+    model
+        .sources
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+        .and_then(|row| row.input_error.as_ref())
+        .is_none_or(|error| error.trim().is_empty())
+}
+
+fn rewrite_folder_create_hotkey_action(
+    action: UiAction,
+    model: &AppModel,
+    hovered_folder_row_index: Option<usize>,
+) -> UiAction {
+    if action != UiAction::StartNewFolder
+        || !matches!(
+            model.focus_context,
+            crate::app::FocusContextModel::SourceFolders
+        )
+    {
+        return action;
+    }
+    let Some(row_index) = hovered_folder_row_index else {
+        return action;
+    };
+    let Some(row) = model.sources.folder_rows.get(row_index) else {
+        return action;
+    };
+    if row.kind == crate::app::FolderRowKind::CreateDraft {
+        return action;
+    }
+    row.source_index
+        .map(|index| UiAction::StartNewFolderAtFolderRow { index })
+        .unwrap_or(action)
 }

@@ -134,6 +134,7 @@ pub(crate) struct NativeShellState {
     hovered_browser_rating_filter_level: Option<i8>,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
+    folder_create_editor_visual: Option<TextFieldVisualState>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -189,6 +190,7 @@ impl NativeShellState {
             hovered_browser_rating_filter_level: None,
             hovered_browser_search_field: false,
             browser_search_editor_visual: None,
+            folder_create_editor_visual: None,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
             hovered_status_options_button: false,
@@ -240,6 +242,17 @@ impl NativeShellState {
     /// remains static without forcing redraws when transport is idle.
     pub(crate) fn needs_animation(&self) -> bool {
         self.animation_reasons().needs_animation()
+    }
+
+    /// Return the currently hovered folder-row index, when any.
+    pub(crate) fn hovered_folder_row_index(&self) -> Option<usize> {
+        self.hovered_folder_row_index
+    }
+
+    /// Override the hovered folder row during focused tests.
+    #[cfg(test)]
+    pub(crate) fn set_hovered_folder_row_index_for_tests(&mut self, row_index: Option<usize>) {
+        self.hovered_folder_row_index = row_index;
     }
 
     fn animation_reasons(&self) -> NativeAnimationReasons {

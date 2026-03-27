@@ -34,6 +34,7 @@ pub(super) enum TextInputTarget {
     None,
     BrowserSearch,
     FolderSearch,
+    FolderCreate,
     PromptInput,
     WaveformBpm,
 }

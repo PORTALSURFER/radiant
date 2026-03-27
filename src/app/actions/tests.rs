@@ -23,6 +23,10 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiActionFamily::Sources
     );
     assert_eq!(
+        UiAction::StartNewFolderAtFolderRow { index: 1 }.family(),
+        UiActionFamily::Sources
+    );
+    assert_eq!(
         UiAction::RestoreRetainedFolderDeletes.family(),
         UiActionFamily::Sources
     );

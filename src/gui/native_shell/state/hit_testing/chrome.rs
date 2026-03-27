@@ -25,6 +25,57 @@ impl NativeShellState {
         compute_row_index_at_point(folder_rows, point)
     }
 
+    /// Return the projected folder-create draft row index, when present.
+    pub(crate) fn folder_create_row_index(&self, model: &AppModel) -> Option<usize> {
+        model
+            .sources
+            .folder_rows
+            .iter()
+            .position(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+    }
+
+    /// Return the folder-create input field rect for the active draft row.
+    pub(crate) fn folder_create_input_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let row_index = self.folder_create_row_index(model)?;
+        let row = model.sources.folder_rows.get(row_index)?;
+        let row_rect = *self
+            .cached_folder_row_rects(layout, &style, model)
+            .get(row_index)?;
+        Some(folder_create_field_rect(row_rect, style.sizing, row.depth))
+    }
+
+    /// Return the folder-create input text rect for the active draft row.
+    pub(crate) fn folder_create_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let row_index = self.folder_create_row_index(model)?;
+        let row = model.sources.folder_rows.get(row_index)?;
+        let row_rect = *self
+            .cached_folder_row_rects(layout, &style, model)
+            .get(row_index)?;
+        let field_rect = folder_create_field_rect(row_rect, style.sizing, row.depth);
+        Some(folder_create_text_rect(field_rect, style.sizing))
+    }
+
+    /// Return whether a point falls inside the inline folder-create input field.
+    pub(crate) fn folder_create_input_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        self.folder_create_input_rect(layout, model)
+            .is_some_and(|rect| rect.contains(point))
+    }
+
     /// Resolve a rendered folder-row disclosure click target for a point within the sidebar.
     pub(crate) fn folder_row_disclosure_at_point(
         &mut self,
@@ -39,7 +90,7 @@ impl NativeShellState {
         let folder_rows = self.cached_folder_row_rects(layout, &style, model);
         let row_index = compute_row_index_at_point(folder_rows, point)?;
         let row = model.sources.folder_rows.get(row_index)?;
-        if row.is_root || !row.has_children {
+        if row.kind == crate::app::FolderRowKind::CreateDraft || row.is_root || !row.has_children {
             return None;
         }
         let row_rect = *folder_rows.get(row_index)?;
@@ -350,4 +401,32 @@ impl NativeShellState {
             .contains(point)
             .then_some(UiAction::CancelProgress)
     }
+}
+
+pub(in crate::gui::native_shell::state) fn folder_create_field_rect(
+    row_rect: Rect,
+    sizing: SizingTokens,
+    depth: usize,
+) -> Rect {
+    let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, sizing, depth);
+    let label_rect = compute_sidebar_folder_row_layout(row_rect, sizing, depth_indent).label_rect;
+    let horizontal_inset = sizing.text_inset_x.max(4.0) * 0.5;
+    let vertical_inset = sizing.text_inset_y.max(2.0) * 0.5;
+    Rect::from_min_max(
+        Point::new(
+            (label_rect.min.x - horizontal_inset).max(row_rect.min.x),
+            row_rect.min.y + vertical_inset,
+        ),
+        Point::new(
+            row_rect.max.x - horizontal_inset,
+            row_rect.max.y - vertical_inset,
+        ),
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn folder_create_text_rect(
+    field_rect: Rect,
+    sizing: SizingTokens,
+) -> Rect {
+    compute_action_button_text_rect(field_rect, sizing)
 }

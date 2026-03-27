@@ -133,6 +133,10 @@ fn render_folder_rows(
     let last_row_max_y = data.folder_row_rects.last().map(|rect| rect.max.y);
     for (row_index, row_rect) in data.folder_row_rects.iter().copied().enumerate() {
         let row = &ctx.model.sources.folder_rows[row_index];
+        if row.kind == crate::app::FolderRowKind::CreateDraft {
+            render_folder_create_draft_row(ctx, primitives, text_runs, row_rect, row);
+            continue;
+        }
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -155,6 +159,83 @@ fn render_folder_rows(
         emit_folder_row_disclosure(ctx, primitives, row_rect, row);
         emit_folder_row_label(ctx, text_runs, row_rect, row);
     }
+}
+
+fn render_folder_create_draft_row(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    row_rect: Rect,
+    row: &FolderRowModel,
+) {
+    let field_rect = create_draft_field_rect(row_rect, ctx.sizing, row.depth);
+    let text_rect = create_draft_text_rect(field_rect, ctx.sizing);
+    let has_error = row
+        .input_error
+        .as_deref()
+        .is_some_and(|error| !error.trim().is_empty());
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: row_rect,
+            color: ctx.style.surface_base,
+        }),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: field_rect,
+            color: browser_search_field_active_fill(ctx.style),
+        }),
+    );
+    push_border(
+        primitives,
+        field_rect,
+        if has_error {
+            blend_color(ctx.style.accent_copper, ctx.style.text_primary, 0.45)
+        } else {
+            browser_search_field_active_border(ctx.style)
+        },
+        ctx.sizing.border_width,
+    );
+    let text = row.input_value.as_deref().unwrap_or_default();
+    let (display_text, color) = if text.is_empty() {
+        (
+            row.input_placeholder
+                .as_deref()
+                .unwrap_or("New folder name")
+                .to_string(),
+            if has_error {
+                blend_color(ctx.style.accent_copper, ctx.style.text_primary, 0.35)
+            } else {
+                ctx.style.text_muted
+            },
+        )
+    } else {
+        (
+            text.to_string(),
+            if has_error {
+                blend_color(ctx.style.accent_copper, ctx.style.text_primary, 0.18)
+            } else {
+                ctx.style.text_primary
+            },
+        )
+    };
+    emit_text(
+        text_runs,
+        TextRun {
+            text: truncate_to_width(
+                &display_text,
+                text_rect.width().max(24.0),
+                ctx.sizing.font_meta,
+            ),
+            position: text_rect.min,
+            font_size: ctx.sizing.font_meta,
+            color,
+            max_width: Some(text_rect.width().max(24.0)),
+            align: TextAlign::Left,
+        },
+    );
 }
 
 fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
@@ -317,4 +398,25 @@ fn emit_down_triangle(primitives: &mut impl PrimitiveSink, rect: Rect, color: Rg
             }),
         );
     }
+}
+
+fn create_draft_field_rect(row_rect: Rect, sizing: SizingTokens, depth: usize) -> Rect {
+    let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, sizing, depth);
+    let label_rect = compute_sidebar_folder_row_layout(row_rect, sizing, depth_indent).label_rect;
+    let horizontal_inset = sizing.text_inset_x.max(4.0) * 0.5;
+    let vertical_inset = sizing.text_inset_y.max(2.0) * 0.5;
+    Rect::from_min_max(
+        Point::new(
+            (label_rect.min.x - horizontal_inset).max(row_rect.min.x),
+            row_rect.min.y + vertical_inset,
+        ),
+        Point::new(
+            row_rect.max.x - horizontal_inset,
+            row_rect.max.y - vertical_inset,
+        ),
+    )
+}
+
+fn create_draft_text_rect(field_rect: Rect, sizing: SizingTokens) -> Rect {
+    compute_action_button_text_rect(field_rect, sizing)
 }

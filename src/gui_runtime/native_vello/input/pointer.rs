@@ -88,11 +88,11 @@ fn route_browser_or_folder_row(
         });
     }
     if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(UiAction::ToggleFolderRowExpanded { index });
+        return Some(folder_row_pointer_action(model, index));
     }
     shell_state
         .folder_row_at_point(layout, model, point)
-        .map(|index| UiAction::FocusFolderRow { index })
+        .map(|index| folder_row_pointer_action(model, index))
 }
 
 fn route_shell_background(
@@ -134,10 +134,36 @@ fn route_sidebar_background(
         return Some(UiAction::FocusSourceRow { index });
     }
     if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(UiAction::ToggleFolderRowExpanded { index });
+        return Some(folder_row_pointer_action(model, index));
     }
     if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
-        return Some(UiAction::FocusFolderRow { index });
+        return Some(folder_row_pointer_action(model, index));
     }
     shell_state.sidebar_focus_action_at_point(layout, model, point)
+}
+
+fn folder_row_pointer_action(model: &AppModel, index: usize) -> UiAction {
+    let Some(row) = model.sources.folder_rows.get(index) else {
+        return UiAction::FocusFolderRow { index };
+    };
+    if row.kind == crate::app::FolderRowKind::CreateDraft {
+        return UiAction::FocusFolderCreateInput;
+    }
+    let source_index = row.source_index.unwrap_or(index);
+    if folder_row_click_toggles_expansion(model, index) {
+        UiAction::ActivateFolderRow {
+            index: source_index,
+        }
+    } else {
+        UiAction::FocusFolderRow {
+            index: source_index,
+        }
+    }
+}
+
+fn folder_row_click_toggles_expansion(model: &AppModel, index: usize) -> bool {
+    let Some(row) = model.sources.folder_rows.get(index) else {
+        return false;
+    };
+    row.has_children && !row.is_root && model.sources.folder_search_query.trim().is_empty()
 }

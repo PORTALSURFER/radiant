@@ -56,6 +56,14 @@ pub(super) fn bpm_tenths_from_value(value: f32) -> u16 {
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     // Shared text-target accessors.
 
+    pub(super) fn folder_create_row(&self) -> Option<&crate::app::FolderRowModel> {
+        self.model
+            .sources
+            .folder_rows
+            .iter()
+            .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+    }
+
     fn text_value_for_input_target(&self, target: TextInputTarget) -> Option<String> {
         match target {
             TextInputTarget::None => None,
@@ -67,6 +75,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.current_text_value()
                     .unwrap_or_else(|| self.waveform_bpm_text_from_model()),
             ),
+            TextInputTarget::FolderCreate => Some(self.current_text_value().unwrap_or_else(|| {
+                self.folder_create_row()
+                    .and_then(|row| row.input_value.clone())
+                    .unwrap_or_default()
+            })),
             TextInputTarget::FolderSearch | TextInputTarget::PromptInput => None,
         }
     }
@@ -83,6 +96,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::WaveformBpm => {
                 self.shell_state.waveform_bpm_text_rect(layout, &self.model)
             }
+            TextInputTarget::FolderCreate => self
+                .shell_state
+                .folder_create_text_rect(layout, &self.model),
             TextInputTarget::None
             | TextInputTarget::FolderSearch
             | TextInputTarget::PromptInput => None,
@@ -115,9 +131,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         ))
     }
 
-    fn sync_text_editor_visual_state_for_target(&mut self, target: TextInputTarget) {
+    pub(super) fn sync_text_editor_visual_state_for_target(&mut self, target: TextInputTarget) {
         match target {
             TextInputTarget::BrowserSearch => self.sync_browser_search_editor_state(),
+            TextInputTarget::FolderCreate => self.sync_folder_create_editor_state(),
             TextInputTarget::WaveformBpm => self.sync_waveform_bpm_editor_state(),
             TextInputTarget::None
             | TextInputTarget::FolderSearch
@@ -136,6 +153,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::WaveformBpm => {
                 if self.text_input_target != TextInputTarget::WaveformBpm {
                     self.activate_waveform_bpm_input();
+                }
+            }
+            TextInputTarget::FolderCreate => {
+                if self.text_input_target != TextInputTarget::FolderCreate {
+                    self.emit_model_action(UiAction::FocusFolderCreateInput);
+                    self.activate_text_input_target(TextInputTarget::FolderCreate);
                 }
             }
             TextInputTarget::None
@@ -216,6 +239,27 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         )
     }
 
+    pub(super) fn handle_folder_create_pointer_press(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        extend_selection: bool,
+    ) -> bool {
+        let Some(field_rect) = self
+            .shell_state
+            .folder_create_input_rect(layout, &self.model)
+        else {
+            return false;
+        };
+        self.handle_text_input_pointer_press(
+            layout,
+            field_rect,
+            point,
+            extend_selection,
+            TextInputTarget::FolderCreate,
+        )
+    }
+
     pub(super) fn process_text_input_drag(&mut self, point: Point) -> bool {
         if !self.text_input_drag_active {
             return false;
@@ -246,10 +290,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else if self.text_input_target == super::TextInputTarget::PromptInput {
             self.text_input_target = super::TextInputTarget::None;
         }
+        let folder_create_focused = self
+            .folder_create_row()
+            .is_some_and(|row| row.input_focused);
+        if folder_create_focused {
+            self.text_input_target = super::TextInputTarget::FolderCreate;
+        } else if self.text_input_target == super::TextInputTarget::FolderCreate
+            && self.folder_create_row().is_none()
+        {
+            self.text_input_target = super::TextInputTarget::None;
+        }
         if self.text_input_target != super::TextInputTarget::None {
             match self.text_input_target {
                 super::TextInputTarget::BrowserSearch
                 | super::TextInputTarget::FolderSearch
+                | super::TextInputTarget::FolderCreate
                 | super::TextInputTarget::PromptInput => {
                     if self.text_input_buffer.is_none() {
                         self.text_input_buffer = Some(match self.text_input_target {
@@ -264,6 +319,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                                 .confirm_prompt
                                 .input_value
                                 .clone()
+                                .unwrap_or_default(),
+                            super::TextInputTarget::FolderCreate => self
+                                .folder_create_row()
+                                .and_then(|row| row.input_value.clone())
                                 .unwrap_or_default(),
                             super::TextInputTarget::None | super::TextInputTarget::WaveformBpm => {
                                 String::new()
@@ -295,6 +354,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_folder_create_editor_state();
     }
 
     // Shared buffer mutation helpers.
@@ -304,6 +364,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             super::TextInputTarget::None => None,
             super::TextInputTarget::BrowserSearch
             | super::TextInputTarget::FolderSearch
+            | super::TextInputTarget::FolderCreate
             | super::TextInputTarget::PromptInput => {
                 self.text_input_buffer
                     .clone()
@@ -317,6 +378,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         super::TextInputTarget::PromptInput => {
                             self.model.confirm_prompt.input_value.clone()
                         }
+                        super::TextInputTarget::FolderCreate => self
+                            .folder_create_row()
+                            .and_then(|row| row.input_value.clone()),
                         super::TextInputTarget::None | super::TextInputTarget::WaveformBpm => None,
                     })
             }
@@ -339,6 +403,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.text_input_buffer = Some(value.clone());
                 UiAction::SetFolderSearch { query: value }
             }
+            super::TextInputTarget::FolderCreate => {
+                self.text_input_buffer = Some(value.clone());
+                UiAction::SetFolderCreateInput { value }
+            }
             super::TextInputTarget::PromptInput => {
                 self.text_input_buffer = Some(value.clone());
                 UiAction::SetPromptInput { value }
@@ -358,6 +426,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.emit_model_action(action);
         self.sync_browser_search_editor_state();
+        self.sync_folder_create_editor_state();
         true
     }
 

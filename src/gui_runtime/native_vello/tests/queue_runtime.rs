@@ -402,6 +402,22 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
     }
 }
 
+#[derive(Default)]
+struct FolderCreateCancelBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+}
+
+impl NativeAppBridge for FolderCreateCancelBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        self.actions.push(action);
+    }
+}
+
 #[test]
 fn begin_waveform_selection_press_does_not_project_zero_width_selection() {
     let mut bridge = ImmediateWaveformSelectionBridge::default();
@@ -1032,6 +1048,71 @@ fn click_seek_release_arms_from_live_layout_borrow() {
         vec![
             UiAction::ClearWaveformSelection,
             UiAction::PlayWaveformAtPrecise { position_nanos },
+        ]
+    );
+}
+
+#[test]
+fn folder_create_click_outside_cancels_then_processes_target_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut bridge = FolderCreateCancelBridge::default();
+    bridge
+        .model
+        .sources
+        .rows
+        .push(crate::app::SourceRowModel::new(
+            "source_a",
+            String::from("/tmp/source_a"),
+            false,
+            false,
+        ));
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = Arc::new(AppModel {
+        sources: SourcesPanelModel {
+            rows: vec![crate::app::SourceRowModel::new(
+                "source_a",
+                String::from("/tmp/source_a"),
+                false,
+                false,
+            )],
+            folder_rows: vec![
+                crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true),
+                crate::app::FolderRowModel::create_draft(
+                    1,
+                    String::from("new folder"),
+                    String::from("New folder name"),
+                    None,
+                    true,
+                ),
+            ],
+            ..SourcesPanelModel::default()
+        },
+        ..AppModel::default()
+    });
+    runner.text_input_target = TextInputTarget::FolderCreate;
+    runner.text_input_buffer = Some(String::from("new folder"));
+    runner.frame_state.model_dirty = false;
+    let source_row = runner
+        .shell_state
+        .rendered_source_row_rects(&layout, &runner.model)
+        .into_iter()
+        .next()
+        .expect("source row should render");
+    let point = Point::new(
+        (source_row.min.x + source_row.max.x) * 0.5,
+        (source_row.min.y + source_row.max.y) * 0.5,
+    );
+    let mut action_emitted = false;
+
+    assert!(
+        runner.handle_left_pointer_press_for_tests(&layout, point, false, &mut action_emitted,)
+    );
+    assert!(action_emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::CancelFolderCreate,
+            UiAction::FocusSourceRow { index: 0 },
         ]
     );
 }

@@ -22,6 +22,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
             TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
+            TextInputTarget::FolderCreate => self
+                .folder_create_row()
+                .and_then(|row| row.input_value.clone())
+                .unwrap_or_default(),
             TextInputTarget::PromptInput => self
                 .model
                 .confirm_prompt
@@ -36,6 +40,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.waveform_bpm_input_buffer = None;
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_folder_create_editor_state();
     }
 
     pub(super) fn deactivate_text_input_target(&mut self) {
@@ -44,6 +49,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.clear_text_input_target_state();
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_folder_create_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
             self.emit_model_action(UiAction::BlurBrowserSearch);
         }
@@ -141,6 +147,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.shell_state.set_browser_search_editor_state(visual);
     }
 
+    pub(super) fn sync_folder_create_editor_state(&mut self) {
+        if self.text_input_target != TextInputTarget::FolderCreate {
+            self.shell_state.set_folder_create_editor_state(None);
+            return;
+        }
+        let Some(visual) = self.with_shell_layout(|this, layout| {
+            this.shell_state
+                .folder_create_text_rect(layout, &this.model)
+                .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
+        }) else {
+            self.shell_state.set_folder_create_editor_state(None);
+            return;
+        };
+        self.shell_state.set_folder_create_editor_state(visual);
+    }
+
     pub(super) fn backspace_text(&mut self) -> bool {
         let Some(value) = self.current_text_value() else {
             return false;
@@ -182,11 +204,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             _ => false,
         };
         if moved {
-            if self.text_input_target == TextInputTarget::WaveformBpm {
-                self.sync_waveform_bpm_editor_state();
-            } else {
-                self.sync_browser_search_editor_state();
-            }
+            self.sync_text_editor_visual_state_for_target(self.text_input_target);
         }
         moved
     }
@@ -199,11 +217,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return false;
         };
         editor.select_all(&text);
-        if self.text_input_target == TextInputTarget::WaveformBpm {
-            self.sync_waveform_bpm_editor_state();
-        } else {
-            self.sync_browser_search_editor_state();
-        }
+        self.sync_text_editor_visual_state_for_target(self.text_input_target);
         true
     }
 
@@ -253,9 +267,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::FocusFolderSearch => {
                 self.activate_text_input_target(TextInputTarget::FolderSearch)
             }
-            UiAction::ConfirmPrompt | UiAction::CancelPrompt => {
-                self.clear_text_input_target_state()
+            UiAction::StartNewFolder
+            | UiAction::StartNewFolderAtFolderRow { .. }
+            | UiAction::StartNewFolderAtRoot
+            | UiAction::FocusFolderCreateInput => {
+                self.activate_text_input_target(TextInputTarget::FolderCreate)
             }
+            UiAction::ConfirmPrompt
+            | UiAction::CancelPrompt
+            | UiAction::ConfirmFolderCreate
+            | UiAction::CancelFolderCreate => self.clear_text_input_target_state(),
             _ => {}
         }
         if self.text_input_target != TextInputTarget::WaveformBpm {
@@ -266,9 +287,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.text_editor_state = None;
             self.text_input_drag_active = false;
             self.shell_state.set_browser_search_editor_state(None);
+            self.shell_state.set_folder_create_editor_state(None);
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_folder_create_editor_state();
     }
 
     pub(super) fn clear_text_input_target_state(&mut self) {

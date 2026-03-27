@@ -30,9 +30,14 @@ fn sidebar_focus_background_point(
 }
 
 fn populated_sidebar_model() -> AppModel {
+    populated_sidebar_model_with_search("")
+}
+
+fn populated_sidebar_model_with_search(query: &str) -> AppModel {
     AppModel {
         sources: SourcesPanelModel {
             header: String::from("2 sources"),
+            folder_search_query: String::from(query),
             selected_row: Some(0),
             focused_folder_row: Some(1),
             rows: vec![
@@ -42,6 +47,7 @@ fn populated_sidebar_model() -> AppModel {
             folder_rows: vec![
                 crate::app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
                 crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
+                crate::app::FolderRowModel::new("Kicks", "", 2, false, false, false, false, false),
             ],
             ..SourcesPanelModel::default()
         },
@@ -241,7 +247,7 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
 }
 
 #[test]
-fn folder_disclosure_click_routes_toggle_expanded_action() {
+fn folder_disclosure_click_routes_activate_folder_row_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = populated_sidebar_model();
@@ -261,12 +267,12 @@ fn folder_disclosure_click_routes_toggle_expanded_action() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ToggleFolderRowExpanded { index: 1 })
+        Some(UiAction::ActivateFolderRow { index: 1 })
     );
 }
 
 #[test]
-fn folder_row_body_click_keeps_focus_row_behavior() {
+fn folder_row_body_click_routes_activate_folder_row_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = populated_sidebar_model();
@@ -285,6 +291,88 @@ fn folder_row_body_click_keeps_focus_row_behavior() {
             point,
             ModifiersState::default(),
         ),
+        Some(UiAction::ActivateFolderRow { index: 1 })
+    );
+}
+
+#[test]
+fn leaf_folder_row_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let row = shell_state
+        .rendered_folder_row_rects(&layout, &model)
+        .into_iter()
+        .nth(2)
+        .expect("leaf folder row should be rendered");
+    let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderRow { index: 2 })
+    );
+}
+
+#[test]
+fn searchable_folder_row_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model_with_search("drum");
+    let row = shell_state
+        .rendered_folder_row_rects(&layout, &model)
+        .into_iter()
+        .nth(1)
+        .expect("expandable search result row should be rendered");
+    let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
         Some(UiAction::FocusFolderRow { index: 1 })
+    );
+}
+
+#[test]
+fn inline_folder_create_row_click_focuses_folder_create_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.folder_rows.insert(
+        2,
+        crate::app::FolderRowModel::create_draft(
+            2,
+            String::from("new folder"),
+            String::from("New folder name"),
+            None,
+            true,
+        ),
+    );
+    let row = shell_state
+        .rendered_folder_row_rects(&layout, &model)
+        .into_iter()
+        .nth(2)
+        .expect("draft folder row should be rendered");
+    let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderCreateInput)
     );
 }

@@ -60,13 +60,19 @@ impl UiAction {
             | Self::RemoveSourceRow { .. }
             | Self::RemoveDeadLinksForSourceRow { .. }
             | Self::FocusFolderRow { .. }
+            | Self::ActivateFolderRow { .. }
             | Self::ToggleFolderRowExpanded { .. }
             | Self::ExpandFocusedFolder
             | Self::CollapseFocusedFolder
             | Self::ToggleFocusedFolderSelection
             | Self::MoveFolderFocus { .. }
             | Self::StartNewFolder
+            | Self::StartNewFolderAtFolderRow { .. }
             | Self::StartNewFolderAtRoot
+            | Self::FocusFolderCreateInput
+            | Self::SetFolderCreateInput { .. }
+            | Self::ConfirmFolderCreate
+            | Self::CancelFolderCreate
             | Self::StartFolderRename
             | Self::DeleteFocusedFolder
             | Self::RestoreRetainedFolderDeletes

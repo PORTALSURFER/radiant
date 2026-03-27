@@ -298,6 +298,113 @@ fn waveform_bpm_editor_overlay_renders_selection_and_caret() {
 }
 
 #[test]
+fn folder_create_draft_row_ignores_disclosure_hit_testing() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.sources.folder_rows.push(FolderRowModel::new(
+        "Root",
+        String::new(),
+        0,
+        false,
+        false,
+        true,
+        true,
+        true,
+    ));
+    model.sources.folder_rows.push(FolderRowModel::create_draft(
+        1,
+        String::from("new folder"),
+        String::from("New folder name"),
+        None,
+        true,
+    ));
+    let mut state = NativeShellState::new();
+    let disclosure = state
+        .folder_row_disclosure_rect(&layout, &model, 1)
+        .expect("draft row should still have layout geometry");
+    let point = Point::new(
+        (disclosure.min.x + disclosure.max.x) * 0.5,
+        (disclosure.min.y + disclosure.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.folder_row_disclosure_at_point(&layout, &model, point),
+        None
+    );
+}
+
+#[test]
+fn folder_create_editor_overlay_renders_selection_and_caret() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.folder_rows.push(FolderRowModel::new(
+        "Root",
+        String::new(),
+        0,
+        false,
+        false,
+        true,
+        true,
+        true,
+    ));
+    model.sources.folder_rows.push(FolderRowModel::create_draft(
+        1,
+        String::from("new folder"),
+        String::from("New folder name"),
+        Some(String::from("Folder already exists")),
+        true,
+    ));
+    let input_rect = state
+        .folder_create_input_rect(&layout, &model)
+        .expect("draft input should render");
+    let text_rect = state
+        .folder_create_text_rect(&layout, &model)
+        .expect("draft text rect should render");
+    state.set_folder_create_editor_state(Some(TextFieldVisualState {
+        text: String::from("new folder"),
+        caret_offset: 18.0,
+        selection_offsets: Some((0.0, 12.0)),
+    }));
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+    let caret_width = style.sizing.border_width.max(1.0);
+
+    assert!(overlay.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == input_rect && *color == browser_search_field_active_fill(&style)
+        )
+    }));
+    assert!(overlay.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, .. })
+                if *rect
+                    == Rect::from_min_max(
+                        Point::new(text_rect.min.x, text_rect.min.y),
+                        Point::new(text_rect.min.x + 12.0, text_rect.max.y),
+                    )
+        )
+    }));
+    assert!(overlay.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, .. })
+                if *rect
+                    == Rect::from_min_max(
+                        Point::new(text_rect.min.x + 18.0, text_rect.min.y),
+                        Point::new(text_rect.min.x + 18.0 + caret_width, text_rect.max.y),
+                    )
+        )
+    }));
+    assert!(overlay.text_runs.iter().any(|run| run.text == "new folder"));
+}
+
+#[test]
 fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);

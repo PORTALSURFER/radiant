@@ -12,6 +12,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::RemoveSourceRow { .. }
             | UiAction::RemoveDeadLinksForSourceRow { .. }
             | UiAction::FocusFolderRow { .. }
+            | UiAction::ActivateFolderRow { .. }
             | UiAction::ToggleFolderRowExpanded { .. }
             | UiAction::ExpandFocusedFolder
             | UiAction::CollapseFocusedFolder

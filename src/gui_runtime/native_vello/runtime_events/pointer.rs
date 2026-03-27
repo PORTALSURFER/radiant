@@ -92,6 +92,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             match button {
                 MouseButton::Left => {
                     this.refresh_cached_model_for_pending_input();
+                    this.cancel_folder_create_for_external_pointer_target(layout, point);
                     let map_drag_start =
                         this.model.map.active && layout.browser_rows.contains(point);
                     if let Some(action) = this.shell_state.source_context_menu_action_at_point(
@@ -107,7 +108,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         source_menu_state_changed |= this.shell_state.close_source_context_menu();
                     }
                     if !handled {
-                        if this.handle_browser_search_pointer_press(
+                        if this.handle_folder_create_pointer_press(
+                            layout,
+                            point,
+                            this.modifiers.shift_key(),
+                        ) {
+                            handled = true;
+                        } else if this.handle_browser_search_pointer_press(
                             layout,
                             point,
                             this.modifiers.shift_key(),
@@ -131,6 +138,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     }
                 }
                 MouseButton::Right => {
+                    this.refresh_cached_model_for_pending_input();
+                    this.cancel_folder_create_for_external_pointer_target(layout, point);
                     handled = this.handle_right_pointer_press(
                         layout,
                         point,
@@ -171,6 +180,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .prompt_input_at_point(layout, &self.model, point)
         {
             self.activate_text_input_target(TextInputTarget::PromptInput);
+            return true;
+        }
+        self.cancel_folder_create_for_external_pointer_target(layout, point);
+        if self.handle_folder_create_pointer_press(layout, point, self.modifiers.shift_key()) {
             return true;
         }
         if self.text_input_target != TextInputTarget::None {
@@ -250,6 +263,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return true;
         }
         false
+    }
+
+    fn cancel_folder_create_for_external_pointer_target(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+    ) {
+        if self.text_input_target != TextInputTarget::FolderCreate
+            || self
+                .shell_state
+                .folder_create_input_at_point(layout, &self.model, point)
+        {
+            return;
+        }
+        let action = UiAction::CancelFolderCreate;
+        self.update_text_target_after_action(&action);
+        self.emit_model_action(action);
+        self.refresh_cached_model_for_pending_input();
     }
 
     fn handle_right_pointer_press(

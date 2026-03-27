@@ -128,6 +128,36 @@ pub(crate) fn render_active_waveform_bpm_editor(
     );
 }
 
+/// Render the active inline folder-create editor fill, selection, text, and caret.
+pub(crate) fn render_active_folder_create_editor(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    input_rect: Rect,
+    input_text_rect: Rect,
+    visual: &TextFieldVisualState,
+    has_error: bool,
+) {
+    render_active_text_field(
+        primitives,
+        text_runs,
+        style,
+        sizing,
+        input_rect,
+        input_text_rect,
+        visual,
+        browser_search_field_active_fill(style),
+        if has_error {
+            blend_color(style.accent_warning, style.accent_trash, 0.6)
+        } else {
+            browser_search_field_active_border(style)
+        },
+        browser_search_selection_fill(style),
+        browser_search_caret_color(style),
+    );
+}
+
 pub(crate) fn text_field_visual_signature(visual: Option<&TextFieldVisualState>) -> u64 {
     let Some(visual) = visual else {
         return 0;

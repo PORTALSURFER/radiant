@@ -50,6 +50,16 @@ impl SourceRowModel {
 }
 
 /// Render data for one folder row shown in the sidebar folder tree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FolderRowKind {
+    /// Standard existing folder row projected from host state.
+    #[default]
+    Existing,
+    /// Inline draft row used while creating a new folder in place.
+    CreateDraft,
+}
+
+/// Render data for one folder row shown in the sidebar folder tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FolderRowModel {
     /// Display label for the folder row.
@@ -68,6 +78,18 @@ pub struct FolderRowModel {
     pub has_children: bool,
     /// Whether this row is expanded in the folder tree.
     pub expanded: bool,
+    /// Row kind used by the shell for inline draft rendering and hit testing.
+    pub kind: FolderRowKind,
+    /// Source/controller row index backing this projected row, when applicable.
+    pub source_index: Option<usize>,
+    /// Editable input value for inline draft rows.
+    pub input_value: Option<String>,
+    /// Placeholder text for inline draft rows.
+    pub input_placeholder: Option<String>,
+    /// Validation error for inline draft rows.
+    pub input_error: Option<String>,
+    /// Whether the inline draft input should own keyboard focus.
+    pub input_focused: bool,
 }
 
 impl FolderRowModel {
@@ -92,6 +114,44 @@ impl FolderRowModel {
             is_root,
             has_children,
             expanded,
+            kind: FolderRowKind::Existing,
+            source_index: None,
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
+            input_focused: false,
+        }
+    }
+
+    /// Attach the backing source/controller row index for one existing row.
+    pub fn with_source_index(mut self, source_index: usize) -> Self {
+        self.source_index = Some(source_index);
+        self
+    }
+
+    /// Build one inline create-draft row embedded in the folder tree.
+    pub fn create_draft(
+        depth: usize,
+        input_value: impl Into<String>,
+        input_placeholder: impl Into<String>,
+        input_error: Option<String>,
+        input_focused: bool,
+    ) -> Self {
+        Self {
+            label: String::new(),
+            detail: String::new(),
+            depth,
+            selected: false,
+            focused: false,
+            is_root: false,
+            has_children: false,
+            expanded: false,
+            kind: FolderRowKind::CreateDraft,
+            source_index: None,
+            input_value: Some(input_value.into()),
+            input_placeholder: Some(input_placeholder.into()),
+            input_error,
+            input_focused,
         }
     }
 }

@@ -223,3 +223,54 @@ fn clicking_browser_search_field_focuses_text_input() {
         Some(UiAction::FocusBrowserSearch)
     );
 }
+
+#[test]
+fn hovered_folder_row_n_creates_under_hovered_folder() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::SourceFolders,
+        sources: SourcesPanelModel {
+            folder_rows: vec![
+                crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+                    .with_source_index(0),
+                crate::app::FolderRowModel::new(
+                    "Drums", "drums", 1, false, true, false, true, true,
+                )
+                .with_source_index(4),
+            ],
+            ..SourcesPanelModel::default()
+        },
+        ..AppModel::default()
+    });
+    runner.frame_state.model_dirty = false;
+    runner
+        .shell_state
+        .set_hovered_folder_row_index_for_tests(Some(1));
+
+    runner.handle_hotkey_press_for_tests(KeyCode::N);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::StartNewFolderAtFolderRow { index: 4 }]
+    );
+}
+
+#[test]
+fn folder_create_append_text_emits_set_folder_create_input() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.text_input_target = TextInputTarget::FolderCreate;
+    runner.text_input_buffer = Some(String::from("dr"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("dr"));
+
+    assert!(runner.append_text("u"));
+
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("dru"));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetFolderCreateInput {
+            value: String::from("dru"),
+        }]
+    );
+}

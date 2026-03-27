@@ -63,8 +63,8 @@ pub use shell::{
     OptionsPanelModel, ProgressOverlayModel, StatusBarModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use sources::{
-    ColumnModel, FocusContextModel, FolderActionsModel, FolderRecoveryModel, FolderRowModel,
-    SourceRowModel, SourcesPanelModel,
+    ColumnModel, FocusContextModel, FolderActionsModel, FolderRecoveryModel, FolderRowKind,
+    FolderRowModel, SourceRowModel, SourcesPanelModel,
 };
 pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,

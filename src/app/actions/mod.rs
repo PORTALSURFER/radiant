@@ -159,6 +159,15 @@ pub enum UiAction {
         /// Target folder row index.
         index: usize,
     },
+    /// Activate one folder row using the default row-click behavior.
+    ///
+    /// Hosts use this combined action for pointer clicks that should keep the
+    /// existing folder-filter selection behavior while also toggling expansion
+    /// for expandable non-root rows outside folder-search mode.
+    ActivateFolderRow {
+        /// Target folder row index.
+        index: usize,
+    },
     /// Toggle expansion for one folder row without changing selection semantics.
     ToggleFolderRowExpanded {
         /// Target folder row index.
@@ -177,8 +186,24 @@ pub enum UiAction {
     },
     /// Create a folder relative to the focused folder.
     StartNewFolder,
+    /// Create a folder relative to one specific projected folder row.
+    StartNewFolderAtFolderRow {
+        /// Backing controller folder row index.
+        index: usize,
+    },
     /// Create a folder at the source root.
     StartNewFolderAtRoot,
+    /// Focus the active inline folder-create input.
+    FocusFolderCreateInput,
+    /// Update the active inline folder-create input text.
+    SetFolderCreateInput {
+        /// Folder-create input text after the latest edit.
+        value: String,
+    },
+    /// Confirm the active inline folder-create draft.
+    ConfirmFolderCreate,
+    /// Cancel the active inline folder-create draft.
+    CancelFolderCreate,
     /// Start folder rename flow for the focused folder.
     StartFolderRename,
     /// Delete the currently focused folder.

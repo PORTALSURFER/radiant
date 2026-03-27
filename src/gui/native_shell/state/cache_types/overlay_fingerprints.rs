@@ -68,6 +68,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Active browser-search editor visual signature.
     pub browser_search_editor_signature: u64,
+    /// Active inline folder-create editor visual signature.
+    pub folder_create_editor_signature: u64,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }

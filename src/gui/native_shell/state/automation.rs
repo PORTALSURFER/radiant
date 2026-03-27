@@ -193,6 +193,52 @@ mod tests {
     }
 
     #[test]
+    fn sidebar_automation_exposes_inline_folder_create_row_metadata() {
+        let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        model.sources.folder_rows.push(FolderRowModel::new(
+            "Root",
+            String::new(),
+            0,
+            false,
+            false,
+            true,
+            true,
+            true,
+        ));
+        model.sources.folder_rows.push(FolderRowModel::create_draft(
+            1,
+            String::from("new folder"),
+            String::from("New folder name"),
+            Some(String::from("Folder already exists")),
+            true,
+        ));
+        let mut state = NativeShellState::new();
+
+        let node = sidebar::build_sidebar_automation(&mut state, &layout, &model, &style);
+        let browser = child(&node, "sources.folder_browser");
+        let draft = child(browser, "sources.folder_row.1");
+
+        assert_eq!(draft.role, AutomationRole::SearchField);
+        assert_eq!(draft.label.as_deref(), Some("New folder"));
+        assert_eq!(draft.value.as_deref(), Some("new folder"));
+        assert_eq!(
+            draft.metadata.get("kind").map(String::as_str),
+            Some("create_draft")
+        );
+        assert_eq!(
+            draft.metadata.get("input_error").map(String::as_str),
+            Some("Folder already exists")
+        );
+        assert!(
+            draft
+                .available_actions
+                .contains(&String::from("focus_folder_create_input"))
+        );
+    }
+
+    #[test]
     fn waveform_surface_smoke_includes_waveform_region() {
         let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
         let model = AppModel::default();

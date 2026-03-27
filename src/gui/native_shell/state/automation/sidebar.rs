@@ -130,31 +130,61 @@ fn folder_browser_group(
         .enumerate()
         .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
         .map(|(index, rect, row)| {
-            let mut available_actions = vec![
-                String::from("focus_folder_row"),
-                String::from("move_folder_focus"),
-                String::from("start_folder_rename"),
-                String::from("delete_focused_folder"),
-            ];
-            if row.has_children && !row.is_root {
-                available_actions.push(String::from("toggle_folder_row_expanded"));
-                available_actions.push(String::from("expand_focused_folder"));
-                available_actions.push(String::from("collapse_focused_folder"));
-            }
+            let (role, label, value, available_actions) =
+                if row.kind == crate::app::FolderRowKind::CreateDraft {
+                    (
+                        AutomationRole::SearchField,
+                        Some(String::from("New folder")),
+                        row.input_value.clone(),
+                        vec![
+                            String::from("focus_folder_create_input"),
+                            String::from("set_folder_create_input"),
+                            String::from("confirm_folder_create"),
+                            String::from("cancel_folder_create"),
+                        ],
+                    )
+                } else {
+                    let mut available_actions = vec![
+                        String::from("focus_folder_row"),
+                        String::from("move_folder_focus"),
+                        String::from("start_folder_rename"),
+                        String::from("delete_focused_folder"),
+                    ];
+                    if row.has_children && !row.is_root {
+                        available_actions.push(String::from("toggle_folder_row_expanded"));
+                        available_actions.push(String::from("expand_focused_folder"));
+                        available_actions.push(String::from("collapse_focused_folder"));
+                    }
+                    (
+                        AutomationRole::Row,
+                        Some(row.label.clone()),
+                        (!row.detail.is_empty()).then(|| row.detail.clone()),
+                        available_actions,
+                    )
+                };
             AutomationNodeSnapshot {
                 id: node_id(format!("sources.folder_row.{index}")),
-                role: AutomationRole::Row,
-                label: Some(row.label.clone()),
+                role,
+                label,
                 bounds: bounds(rect),
-                value: (!row.detail.is_empty()).then(|| row.detail.clone()),
+                value,
                 enabled: true,
-                selected: row.selected || row.focused,
+                selected: row.selected || row.focused || row.input_focused,
                 available_actions,
                 metadata: metadata(&[
                     ("depth", &row.depth.to_string()),
                     ("focused", bool_text(row.focused)),
                     ("root", bool_text(row.is_root)),
                     ("expanded", bool_text(row.expanded)),
+                    (
+                        "kind",
+                        if row.kind == crate::app::FolderRowKind::CreateDraft {
+                            "create_draft"
+                        } else {
+                            "existing"
+                        },
+                    ),
+                    ("input_error", row.input_error.as_deref().unwrap_or("")),
                 ]),
                 children: Vec::new(),
             }

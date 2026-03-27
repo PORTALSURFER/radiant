@@ -5,7 +5,7 @@ fn resolved_action(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
 }
 
 #[test]
-fn key_repeat_is_limited_to_plain_browser_arrow_navigation() {
+fn key_repeat_is_limited_to_plain_arrow_navigation_without_text_input() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     assert!(runner.allows_key_repeat(KeyCode::ArrowUp));
@@ -121,6 +121,14 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
         resolved_action(KeyCode::ArrowRight, ModifiersState::default(), &folders),
         Some(UiAction::ExpandFocusedFolder)
     );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowUp, ModifiersState::default(), &folders),
+        Some(UiAction::MoveFolderFocus { delta: -1 })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &folders),
+        Some(UiAction::MoveFolderFocus { delta: 1 })
+    );
 
     let sources = AppModel {
         focus_context: crate::app::FocusContextModel::SourcesList,
@@ -185,7 +193,7 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
 }
 
 #[test]
-fn folder_expand_hotkeys_pause_while_folder_search_is_active() {
+fn folder_arrow_hotkeys_still_resolve_when_search_query_exists_but_tree_has_focus() {
     let mut folders = AppModel {
         focus_context: crate::app::FocusContextModel::SourceFolders,
         ..AppModel::default()
@@ -194,11 +202,19 @@ fn folder_expand_hotkeys_pause_while_folder_search_is_active() {
 
     assert_eq!(
         resolved_action(KeyCode::ArrowLeft, ModifiersState::default(), &folders),
-        None
+        Some(UiAction::CollapseFocusedFolder)
     );
     assert_eq!(
         resolved_action(KeyCode::ArrowRight, ModifiersState::default(), &folders),
-        None
+        Some(UiAction::ExpandFocusedFolder)
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowUp, ModifiersState::default(), &folders),
+        Some(UiAction::MoveFolderFocus { delta: -1 })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &folders),
+        Some(UiAction::MoveFolderFocus { delta: 1 })
     );
 }
 

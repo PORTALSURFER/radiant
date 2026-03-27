@@ -463,6 +463,20 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::ToggleFocusedFolderSelection,
     },
     HotkeyBinding {
+        id: "move-folder-focus-up",
+        label: "Move focus up",
+        gesture: HotkeyGesture::new(KeyCode::ArrowUp),
+        scope: FOLDERS,
+        action: UiAction::MoveFolderFocus { delta: -1 },
+    },
+    HotkeyBinding {
+        id: "move-folder-focus-down",
+        label: "Move focus down",
+        gesture: HotkeyGesture::new(KeyCode::ArrowDown),
+        scope: FOLDERS,
+        action: UiAction::MoveFolderFocus { delta: 1 },
+    },
+    HotkeyBinding {
         id: "collapse-focused-folder",
         label: "Collapse folder",
         gesture: HotkeyGesture::new(KeyCode::ArrowLeft),

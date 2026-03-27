@@ -96,6 +96,14 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
         resolved_action(KeyCode::D, ModifiersState::default(), &browser),
         Some(UiAction::DeleteBrowserSelection)
     );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowUp, ModifiersState::default(), &browser),
+        Some(UiAction::MoveBrowserFocus { delta: -1 })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &browser),
+        Some(UiAction::MoveBrowserFocus { delta: 1 })
+    );
 
     let folders = AppModel {
         focus_context: crate::app::FocusContextModel::SourceFolders,

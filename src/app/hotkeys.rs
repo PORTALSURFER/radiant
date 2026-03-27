@@ -400,6 +400,20 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::ToggleFocusedBrowserRowSelection,
     },
     HotkeyBinding {
+        id: "move-browser-focus-up",
+        label: "Move focus up",
+        gesture: HotkeyGesture::new(KeyCode::ArrowUp),
+        scope: BROWSER,
+        action: UiAction::MoveBrowserFocus { delta: -1 },
+    },
+    HotkeyBinding {
+        id: "move-browser-focus-down",
+        label: "Move focus down",
+        gesture: HotkeyGesture::new(KeyCode::ArrowDown),
+        scope: BROWSER,
+        action: UiAction::MoveBrowserFocus { delta: 1 },
+    },
+    HotkeyBinding {
         id: "focus-history-previous",
         label: "Previous focused sample",
         gesture: HotkeyGesture::new(KeyCode::ArrowLeft),

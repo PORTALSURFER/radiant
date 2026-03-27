@@ -296,7 +296,7 @@ fn waveform_image_transparent_pixels_do_not_emit_texture_primitive() {
 }
 
 #[test]
-fn waveform_loading_motion_overlay_covers_plot_with_placeholder() {
+fn waveform_loading_motion_overlay_draws_neutral_waveform_placeholder() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
@@ -314,6 +314,40 @@ fn waveform_loading_motion_overlay_covers_plot_with_placeholder() {
                 if rect.rect == layout.waveform_plot && rect.color == style.surface_base
         )
     }));
+
+    let placeholder_rects = overlay
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect)
+                if rect.rect != layout.waveform_plot
+                    && rect.rect.min.x >= layout.waveform_plot.min.x
+                    && rect.rect.max.x <= layout.waveform_plot.max.x
+                    && rect.rect.min.y >= layout.waveform_plot.min.y
+                    && rect.rect.max.y <= layout.waveform_plot.max.y =>
+            {
+                Some(*rect)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        placeholder_rects.len() >= 10,
+        "loading placeholder should emit a multi-column waveform silhouette"
+    );
+    assert!(
+        placeholder_rects
+            .iter()
+            .all(|rect| rect.color != style.accent_warning),
+        "loading placeholder should avoid warning-accent colors"
+    );
+    assert!(
+        placeholder_rects
+            .iter()
+            .all(|rect| rect.rect.width() < layout.waveform_plot.width() * 0.08),
+        "loading placeholder should avoid the previous wide loading bars"
+    );
 }
 
 #[test]

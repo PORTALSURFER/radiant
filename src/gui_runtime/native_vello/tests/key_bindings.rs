@@ -299,3 +299,191 @@ fn folder_create_append_text_emits_set_folder_create_input() {
         }]
     );
 }
+
+#[derive(Default)]
+struct ImmediateFolderCreateBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+    project_calls: usize,
+}
+
+impl ImmediateFolderCreateBridge {
+    fn with_root() -> Self {
+        Self {
+            model: AppModel {
+                focus_context: crate::app::FocusContextModel::SourceFolders,
+                sources: SourcesPanelModel {
+                    folder_rows: vec![root_folder_row()],
+                    ..SourcesPanelModel::default()
+                },
+                ..AppModel::default()
+            },
+            ..Self::default()
+        }
+    }
+
+    fn set_draft(&mut self, value: String) {
+        self.model.sources.folder_rows = vec![
+            root_folder_row(),
+            crate::app::FolderRowModel::create_draft(
+                1,
+                value.clone(),
+                String::from("New folder name"),
+                folder_create_error(&value),
+                true,
+            ),
+        ];
+    }
+
+    fn clear_draft(&mut self) {
+        self.model.sources.folder_rows.retain(|row| row.is_root);
+    }
+
+    fn add_created_folder(&mut self, value: String) {
+        self.model.sources.folder_rows = vec![
+            root_folder_row(),
+            crate::app::FolderRowModel::new(
+                value.clone(),
+                value,
+                1,
+                false,
+                true,
+                false,
+                false,
+                false,
+            )
+            .with_source_index(1),
+        ];
+    }
+}
+
+impl NativeAppBridge for ImmediateFolderCreateBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        match &action {
+            UiAction::StartNewFolder
+            | UiAction::StartNewFolderAtFolderRow { .. }
+            | UiAction::StartNewFolderAtRoot => self.set_draft(String::new()),
+            UiAction::SetFolderCreateInput { value } => self.set_draft(value.clone()),
+            UiAction::ConfirmFolderCreate => {
+                let value = self
+                    .model
+                    .sources
+                    .folder_rows
+                    .iter()
+                    .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+                    .and_then(|row| row.input_value.clone())
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default();
+                if !value.is_empty() {
+                    self.add_created_folder(value);
+                }
+            }
+            UiAction::CancelFolderCreate => self.clear_draft(),
+            _ => {}
+        }
+        self.actions.push(action);
+    }
+}
+
+fn root_folder_row() -> crate::app::FolderRowModel {
+    crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+        .with_source_index(0)
+}
+
+fn folder_create_error(value: &str) -> Option<String> {
+    value
+        .trim()
+        .is_empty()
+        .then(|| String::from("Folder name cannot be empty"))
+}
+
+#[test]
+fn n_hotkey_projects_folder_create_draft_immediately() {
+    let bridge = ImmediateFolderCreateBridge::with_root();
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.frame_state.model_dirty = false;
+
+    runner.handle_hotkey_press_for_tests(KeyCode::N);
+
+    assert_eq!(runner.bridge.actions, vec![UiAction::StartNewFolder]);
+    assert_eq!(runner.text_input_target, TextInputTarget::FolderCreate);
+    assert!(
+        runner
+            .model
+            .sources
+            .folder_rows
+            .iter()
+            .any(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+    );
+}
+
+#[test]
+fn enter_confirms_folder_create_and_refreshes_created_row_immediately() {
+    let bridge = ImmediateFolderCreateBridge::with_root();
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.frame_state.model_dirty = false;
+
+    runner.handle_hotkey_press_for_tests(KeyCode::N);
+    assert!(runner.append_text("drums"));
+
+    runner.handle_enter_for_tests();
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::StartNewFolder,
+            UiAction::SetFolderCreateInput {
+                value: String::from("drums"),
+            },
+            UiAction::ConfirmFolderCreate,
+        ]
+    );
+    assert!(
+        runner
+            .model
+            .sources
+            .folder_rows
+            .iter()
+            .all(|row| row.kind != crate::app::FolderRowKind::CreateDraft)
+    );
+    assert!(
+        runner
+            .model
+            .sources
+            .folder_rows
+            .iter()
+            .any(|row| row.label == "drums")
+    );
+}
+
+#[test]
+fn escape_cancels_folder_create_and_refreshes_model_immediately() {
+    let bridge = ImmediateFolderCreateBridge::with_root();
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.frame_state.model_dirty = false;
+
+    runner.handle_hotkey_press_for_tests(KeyCode::N);
+    runner.handle_escape_for_tests();
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::StartNewFolder, UiAction::CancelFolderCreate]
+    );
+    assert!(
+        runner
+            .model
+            .sources
+            .folder_rows
+            .iter()
+            .all(|row| row.kind != crate::app::FolderRowKind::CreateDraft)
+    );
+    assert_eq!(runner.text_input_target, TextInputTarget::None);
+}

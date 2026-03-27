@@ -14,13 +14,64 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.shell_state.hovered_folder_row_index(),
             );
             self.update_text_target_after_action(&action);
-            self.emit_model_action(action);
+            self.emit_model_action(action.clone());
+            self.refresh_cached_model_after_folder_create_action(&action);
         }
     }
 
     #[cfg(test)]
     pub(crate) fn handle_mouse_wheel_for_tests(&mut self, delta: MouseScrollDelta) {
         self.handle_mouse_wheel(delta);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn handle_enter_for_tests(&mut self) {
+        self.refresh_cached_model_for_pending_input();
+        let mut handled = false;
+        if matches!(
+            self.text_input_target,
+            TextInputTarget::BrowserSearch
+                | TextInputTarget::FolderSearch
+                | TextInputTarget::WaveformBpm
+        ) {
+            self.deactivate_text_input_target();
+            handled = true;
+        } else if self.text_input_target == TextInputTarget::FolderCreate {
+            handled = true;
+            if folder_create_confirm_enabled(&self.model) {
+                let action = UiAction::ConfirmFolderCreate;
+                self.update_text_target_after_action(&action);
+                self.emit_model_action(action.clone());
+                self.refresh_cached_model_after_folder_create_action(&action);
+            }
+        }
+        if handled && !self.frame_state.has_pending_rebuild() {
+            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn handle_escape_for_tests(&mut self) {
+        self.refresh_cached_model_for_pending_input();
+        self.pending_hotkey_chord = None;
+        if self.model.confirm_prompt.visible {
+            self.emit_model_action(UiAction::CancelPrompt);
+            self.deactivate_text_input_target();
+        } else if self.text_input_target == TextInputTarget::FolderCreate {
+            let action = UiAction::CancelFolderCreate;
+            self.update_text_target_after_action(&action);
+            self.emit_model_action(action.clone());
+            self.refresh_cached_model_after_folder_create_action(&action);
+        } else if self.text_input_target != TextInputTarget::None {
+            self.deactivate_text_input_target();
+        } else {
+            let action = UiAction::HandleEscape;
+            self.update_text_target_after_action(&action);
+            self.emit_model_action(action);
+        }
+        if !self.frame_state.has_pending_rebuild() {
+            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        }
     }
 
     pub(super) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
@@ -86,7 +137,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             } else if self.text_input_target == TextInputTarget::FolderCreate {
                 let action = UiAction::CancelFolderCreate;
                 self.update_text_target_after_action(&action);
-                self.emit_model_action(action);
+                self.emit_model_action(action.clone());
+                self.refresh_cached_model_after_folder_create_action(&action);
                 handled = true;
             } else if self.text_input_target != TextInputTarget::None {
                 self.deactivate_text_input_target();
@@ -124,7 +176,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             if folder_create_confirm_enabled(&self.model) {
                 let action = UiAction::ConfirmFolderCreate;
                 self.update_text_target_after_action(&action);
-                self.emit_model_action(action);
+                self.emit_model_action(action.clone());
+                self.refresh_cached_model_after_folder_create_action(&action);
             }
         }
         if !handled && let Some(key) = key {
@@ -188,7 +241,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         self.shell_state.hovered_folder_row_index(),
                     );
                     self.update_text_target_after_action(&action);
-                    self.emit_model_action(action);
+                    self.emit_model_action(action.clone());
+                    self.refresh_cached_model_after_folder_create_action(&action);
                     handled = true;
                 } else if resolution.handled {
                     handled = true;
@@ -197,6 +251,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if handled && !self.frame_state.has_pending_rebuild() {
             self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        }
+    }
+
+    fn refresh_cached_model_after_folder_create_action(&mut self, action: &UiAction) {
+        if folder_create_action_requires_immediate_model_refresh(action) {
+            self.refresh_cached_model_for_pending_input();
         }
     }
 }
@@ -236,4 +296,15 @@ fn rewrite_folder_create_hotkey_action(
     row.source_index
         .map(|index| UiAction::StartNewFolderAtFolderRow { index })
         .unwrap_or(action)
+}
+
+fn folder_create_action_requires_immediate_model_refresh(action: &UiAction) -> bool {
+    matches!(
+        action,
+        UiAction::StartNewFolder
+            | UiAction::StartNewFolderAtFolderRow { .. }
+            | UiAction::StartNewFolderAtRoot
+            | UiAction::ConfirmFolderCreate
+            | UiAction::CancelFolderCreate
+    )
 }

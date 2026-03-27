@@ -129,27 +129,35 @@ fn folder_browser_group(
         .into_iter()
         .enumerate()
         .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
-        .map(|(index, rect, row)| AutomationNodeSnapshot {
-            id: node_id(format!("sources.folder_row.{index}")),
-            role: AutomationRole::Row,
-            label: Some(row.label.clone()),
-            bounds: bounds(rect),
-            value: (!row.detail.is_empty()).then(|| row.detail.clone()),
-            enabled: true,
-            selected: row.selected || row.focused,
-            available_actions: vec![
+        .map(|(index, rect, row)| {
+            let mut available_actions = vec![
                 String::from("focus_folder_row"),
                 String::from("move_folder_focus"),
                 String::from("start_folder_rename"),
                 String::from("delete_focused_folder"),
-            ],
-            metadata: metadata(&[
-                ("depth", &row.depth.to_string()),
-                ("focused", bool_text(row.focused)),
-                ("root", bool_text(row.is_root)),
-                ("expanded", bool_text(row.expanded)),
-            ]),
-            children: Vec::new(),
+            ];
+            if row.has_children && !row.is_root {
+                available_actions.push(String::from("toggle_folder_row_expanded"));
+                available_actions.push(String::from("expand_focused_folder"));
+                available_actions.push(String::from("collapse_focused_folder"));
+            }
+            AutomationNodeSnapshot {
+                id: node_id(format!("sources.folder_row.{index}")),
+                role: AutomationRole::Row,
+                label: Some(row.label.clone()),
+                bounds: bounds(rect),
+                value: (!row.detail.is_empty()).then(|| row.detail.clone()),
+                enabled: true,
+                selected: row.selected || row.focused,
+                available_actions,
+                metadata: metadata(&[
+                    ("depth", &row.depth.to_string()),
+                    ("focused", bool_text(row.focused)),
+                    ("root", bool_text(row.is_root)),
+                    ("expanded", bool_text(row.expanded)),
+                ]),
+                children: Vec::new(),
+            }
         })
         .collect();
     AutomationNodeSnapshot {

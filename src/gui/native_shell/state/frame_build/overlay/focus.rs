@@ -235,23 +235,15 @@ pub(super) fn render_folder_focus_overlay(
             );
         }
         if row.focused {
-            let glyph = if row.is_root {
-                "•"
-            } else if row.has_children {
-                if row.expanded { "▼" } else { "▶" }
-            } else {
-                "·"
-            };
-            let depth_indent = (row.depth as f32 * sizing.folder_indent_step)
-                .min((row_rect.width() * 0.45).max(0.0));
+            let depth_indent =
+                compute_sidebar_folder_row_depth_indent(*row_rect, sizing, row.depth);
             let row_text_rect =
-                compute_sidebar_folder_row_text_rect(*row_rect, sizing, depth_indent);
+                compute_sidebar_folder_row_layout(*row_rect, sizing, depth_indent).label_rect;
             let row_text_width = row_text_rect.width().max(24.0);
-            let row_label = format!("{glyph} {}", row.label);
             emit_text(
                 text_runs,
                 TextRun {
-                    text: truncate_to_width(&row_label, row_text_width, sizing.font_body),
+                    text: truncate_to_width(&row.label, row_text_width, sizing.font_body),
                     position: row_text_rect.min,
                     font_size: sizing.font_body,
                     color: blend_color(

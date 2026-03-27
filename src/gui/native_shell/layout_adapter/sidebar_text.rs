@@ -12,6 +12,17 @@ const SIDEBAR_TEXT_ALIGN_ID: u64 = 1701;
 const SIDEBAR_TEXT_LINE_ID: u64 = 1702;
 const SIDEBAR_BADGE_TEXT_ID: u64 = 1710;
 
+/// Shared geometry for one sidebar folder row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SidebarFolderRowLayout {
+    /// Horizontal indent reserved by tree depth before the disclosure gutter.
+    pub depth_indent: f32,
+    /// Clickable disclosure gutter reserved ahead of the label.
+    pub disclosure_rect: Rect,
+    /// Text bounds for the folder label.
+    pub label_rect: Rect,
+}
+
 /// Compute source-row label bounds through strict slotized text layout.
 pub(crate) fn compute_sidebar_source_row_text_rect(row_rect: Rect, sizing: SizingTokens) -> Rect {
     let inset = sizing.text_inset_x + sizing.row_corner_inset;
@@ -24,21 +35,44 @@ pub(crate) fn compute_sidebar_source_row_text_rect(row_rect: Rect, sizing: Sizin
     )
 }
 
-/// Compute folder-row label bounds through strict slotized text layout.
-pub(crate) fn compute_sidebar_folder_row_text_rect(
+/// Compute the horizontal indent for one tree depth level.
+pub(crate) fn compute_sidebar_folder_row_depth_indent(
+    row_rect: Rect,
+    sizing: SizingTokens,
+    depth: usize,
+) -> f32 {
+    (depth as f32 * sizing.folder_indent_step).min((row_rect.width() * 0.45).max(0.0))
+}
+
+/// Compute shared disclosure-gutter and label bounds for one folder row.
+pub(crate) fn compute_sidebar_folder_row_layout(
     row_rect: Rect,
     sizing: SizingTokens,
     depth_indent: f32,
-) -> Rect {
+) -> SidebarFolderRowLayout {
     let base_inset = sizing.text_inset_x + sizing.row_corner_inset;
-    let left_inset = base_inset + depth_indent.max(0.0);
+    let depth_indent = depth_indent.max(0.0);
+    let gutter_width = folder_row_disclosure_gutter_width(sizing);
+    let gutter_spacing = folder_row_disclosure_spacing(sizing);
+    let disclosure_left = row_rect.min.x + base_inset + depth_indent;
+    let disclosure_right = (disclosure_left + gutter_width).min(row_rect.max.x);
+    let disclosure_rect = Rect::from_min_max(
+        Point::new(disclosure_left.min(row_rect.max.x), row_rect.min.y),
+        Point::new(disclosure_right, row_rect.max.y.max(row_rect.min.y)),
+    );
+    let left_inset = base_inset + depth_indent + gutter_width + gutter_spacing;
     let bounds = inset_rect_horizontal(row_rect, left_inset, base_inset);
-    compute_sidebar_text_line(
+    let label_rect = compute_sidebar_text_line(
         bounds,
         sizing.font_body,
         sizing.text_inset_y,
         SIDEBAR_TEXT_LINE_ID + 1,
-    )
+    );
+    SidebarFolderRowLayout {
+        depth_indent,
+        disclosure_rect,
+        label_rect,
+    }
 }
 
 /// Compute recovery-badge label bounds through strict slotized text layout.
@@ -141,6 +175,16 @@ fn inset_rect_horizontal(rect: Rect, left: f32, right: f32) -> Rect {
     )
 }
 
+fn folder_row_disclosure_gutter_width(sizing: SizingTokens) -> f32 {
+    sizing
+        .folder_indent_step
+        .max((sizing.font_body * 0.95).ceil())
+}
+
+fn folder_row_disclosure_spacing(sizing: SizingTokens) -> f32 {
+    (sizing.text_inset_x * 0.4).max(4.0)
+}
+
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
     let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
     let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
@@ -183,7 +227,8 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let row = Rect::from_min_max(Point::new(8.0, 296.0), Point::new(198.0, 312.0));
         let depth_indent = 18.0;
-        let text_rect = compute_sidebar_folder_row_text_rect(row, style.sizing, depth_indent);
+        let text_rect =
+            compute_sidebar_folder_row_layout(row, style.sizing, depth_indent).label_rect;
         assert_inside(row, text_rect);
         let base_left = row.min.x + style.sizing.text_inset_x + style.sizing.row_corner_inset;
         assert!(text_rect.min.x >= base_left + depth_indent);

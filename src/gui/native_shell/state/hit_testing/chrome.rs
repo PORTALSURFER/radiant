@@ -25,6 +25,50 @@ impl NativeShellState {
         compute_row_index_at_point(folder_rows, point)
     }
 
+    /// Resolve a rendered folder-row disclosure click target for a point within the sidebar.
+    pub(crate) fn folder_row_disclosure_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<usize> {
+        if !model.sources.folder_search_query.trim().is_empty() {
+            return None;
+        }
+        let style = style_for_layout(layout);
+        let folder_rows = self.cached_folder_row_rects(layout, &style, model);
+        let row_index = compute_row_index_at_point(folder_rows, point)?;
+        let row = model.sources.folder_rows.get(row_index)?;
+        if row.is_root || !row.has_children {
+            return None;
+        }
+        let row_rect = *folder_rows.get(row_index)?;
+        let depth_indent =
+            compute_sidebar_folder_row_depth_indent(row_rect, style.sizing, row.depth);
+        let disclosure_rect =
+            compute_sidebar_folder_row_layout(row_rect, style.sizing, depth_indent).disclosure_rect;
+        disclosure_rect.contains(point).then_some(row_index)
+    }
+
+    /// Return one rendered folder-row disclosure gutter rect for tests.
+    #[cfg(test)]
+    pub(crate) fn folder_row_disclosure_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        row_index: usize,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let folder_rows = self.cached_folder_row_rects(layout, &style, model);
+        let row = model.sources.folder_rows.get(row_index)?;
+        let row_rect = *folder_rows.get(row_index)?;
+        let depth_indent =
+            compute_sidebar_folder_row_depth_indent(row_rect, style.sizing, row.depth);
+        Some(
+            compute_sidebar_folder_row_layout(row_rect, style.sizing, depth_indent).disclosure_rect,
+        )
+    }
+
     /// Resolve one source context-menu action at a pointer location.
     pub(crate) fn source_context_menu_action_at_point(
         &self,

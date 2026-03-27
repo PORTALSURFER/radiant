@@ -54,6 +54,18 @@ pub(super) fn action_from_key(
             pending_chord: None,
         };
     }
+    if matches!(
+        model.focus_context,
+        crate::app::FocusContextModel::SourceFolders
+    ) && !model.sources.folder_search_query.trim().is_empty()
+        && matches!(key, KeyCode::ArrowLeft | KeyCode::ArrowRight)
+    {
+        return HotkeyResolution {
+            action: None,
+            handled: false,
+            pending_chord,
+        };
+    }
     resolve_hotkey_press(
         pending_chord,
         keypress_from_input(key, modifiers),

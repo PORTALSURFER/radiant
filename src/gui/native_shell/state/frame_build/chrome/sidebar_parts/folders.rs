@@ -152,6 +152,7 @@ fn render_folder_rows(
                 right: row.focused,
             },
         );
+        emit_folder_row_disclosure(ctx, primitives, row_rect, row);
         emit_folder_row_label(ctx, text_runs, row_rect, row);
     }
 }
@@ -201,42 +202,119 @@ fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f3
     }
 }
 
+fn folder_row_text_color(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+    if row.focused {
+        ctx.style.accent_warning
+    } else if row.selected {
+        ctx.style.accent_mint
+    } else {
+        ctx.style.text_primary
+    }
+}
+
+fn emit_folder_row_disclosure(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row_rect: Rect,
+    row: &FolderRowModel,
+) {
+    if row.is_root || !row.has_children {
+        return;
+    }
+    let layout = folder_row_layout(ctx, row_rect, row);
+    let Some(icon_rect) = centered_tree_icon_rect(layout.disclosure_rect) else {
+        return;
+    };
+    if row.expanded {
+        emit_down_triangle(primitives, icon_rect, folder_row_text_color(ctx, row));
+    } else {
+        emit_right_triangle(primitives, icon_rect, folder_row_text_color(ctx, row));
+    }
+}
+
 fn emit_folder_row_label(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
     row_rect: Rect,
     row: &FolderRowModel,
 ) {
-    let glyph = if row.is_root {
-        "•"
-    } else if row.has_children {
-        if row.expanded { "▼" } else { "▶" }
-    } else {
-        "·"
-    };
-    let depth_indent =
-        (row.depth as f32 * ctx.sizing.folder_indent_step).min((row_rect.width() * 0.45).max(0.0));
-    let label_rect = compute_sidebar_folder_row_text_rect(row_rect, ctx.sizing, depth_indent);
+    let label_rect = folder_row_layout(ctx, row_rect, row).label_rect;
     let label_width = label_rect.width().max(24.0);
     emit_text(
         text_runs,
         TextRun {
-            text: truncate_to_width(
-                &format!("{glyph} {}", row.label),
-                label_width,
-                ctx.sizing.font_body,
-            ),
+            text: truncate_to_width(&row.label, label_width, ctx.sizing.font_body),
             position: label_rect.min,
             font_size: ctx.sizing.font_body,
-            color: if row.focused {
-                ctx.style.accent_warning
-            } else if row.selected {
-                ctx.style.accent_mint
-            } else {
-                ctx.style.text_primary
-            },
+            color: folder_row_text_color(ctx, row),
             max_width: Some(label_width),
             align: TextAlign::Left,
         },
     );
+}
+
+fn folder_row_layout(
+    ctx: &StaticFrameCtx<'_>,
+    row_rect: Rect,
+    row: &FolderRowModel,
+) -> SidebarFolderRowLayout {
+    let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, ctx.sizing, row.depth);
+    compute_sidebar_folder_row_layout(row_rect, ctx.sizing, depth_indent)
+}
+
+fn centered_tree_icon_rect(gutter_rect: Rect) -> Option<Rect> {
+    if gutter_rect.width() <= 1.0 || gutter_rect.height() <= 1.0 {
+        return None;
+    }
+    let mut size = gutter_rect
+        .width()
+        .min(gutter_rect.height())
+        .floor()
+        .clamp(5.0, 9.0);
+    if (size as i32) % 2 == 0 {
+        size -= 1.0;
+    }
+    if size < 5.0 {
+        return None;
+    }
+    let min_x = gutter_rect.min.x + ((gutter_rect.width() - size) * 0.5).floor();
+    let min_y = gutter_rect.min.y + ((gutter_rect.height() - size) * 0.5).floor();
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + size, min_y + size),
+    ))
+}
+
+fn emit_right_triangle(primitives: &mut impl PrimitiveSink, rect: Rect, color: Rgba8) {
+    let size = rect.width().min(rect.height()).floor() as i32;
+    let half = size / 2;
+    for step in 0..=half {
+        let x = rect.min.x + step as f32;
+        let y = rect.min.y + step as f32;
+        let height = (size - (step * 2)) as f32;
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(Point::new(x, y), Point::new(x + 1.0, y + height)),
+                color,
+            }),
+        );
+    }
+}
+
+fn emit_down_triangle(primitives: &mut impl PrimitiveSink, rect: Rect, color: Rgba8) {
+    let size = rect.width().min(rect.height()).floor() as i32;
+    let half = size / 2;
+    for step in 0..=half {
+        let x = rect.min.x + step as f32;
+        let y = rect.min.y + step as f32;
+        let width = (size - (step * 2)) as f32;
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(Point::new(x, y), Point::new(x + width, y + 1.0)),
+                color,
+            }),
+        );
+    }
 }

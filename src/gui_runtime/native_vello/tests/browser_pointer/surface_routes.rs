@@ -239,3 +239,52 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
         Some(UiAction::FocusFolderPanel)
     );
 }
+
+#[test]
+fn folder_disclosure_click_routes_toggle_expanded_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let disclosure = shell_state
+        .folder_row_disclosure_rect(&layout, &model, 1)
+        .expect("folder disclosure should be rendered");
+    let point = Point::new(
+        (disclosure.min.x + disclosure.max.x) * 0.5,
+        (disclosure.min.y + disclosure.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ToggleFolderRowExpanded { index: 1 })
+    );
+}
+
+#[test]
+fn folder_row_body_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let row = shell_state
+        .rendered_folder_row_rects(&layout, &model)
+        .into_iter()
+        .nth(1)
+        .expect("second folder row should be rendered");
+    let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderRow { index: 1 })
+    );
+}

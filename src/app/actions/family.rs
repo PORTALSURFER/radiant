@@ -60,6 +60,9 @@ impl UiAction {
             | Self::RemoveSourceRow { .. }
             | Self::RemoveDeadLinksForSourceRow { .. }
             | Self::FocusFolderRow { .. }
+            | Self::ToggleFolderRowExpanded { .. }
+            | Self::ExpandFocusedFolder
+            | Self::CollapseFocusedFolder
             | Self::ToggleFocusedFolderSelection
             | Self::MoveFolderFocus { .. }
             | Self::StartNewFolder

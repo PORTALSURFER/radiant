@@ -113,6 +113,14 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
         resolved_action(KeyCode::D, ModifiersState::default(), &folders),
         Some(UiAction::DeleteFocusedFolder)
     );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowLeft, ModifiersState::default(), &folders),
+        Some(UiAction::CollapseFocusedFolder)
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowRight, ModifiersState::default(), &folders),
+        Some(UiAction::ExpandFocusedFolder)
+    );
 
     let sources = AppModel {
         focus_context: crate::app::FocusContextModel::SourcesList,
@@ -148,6 +156,24 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
             delta: 1,
             fine: true,
         })
+    );
+}
+
+#[test]
+fn folder_expand_hotkeys_pause_while_folder_search_is_active() {
+    let mut folders = AppModel {
+        focus_context: crate::app::FocusContextModel::SourceFolders,
+        ..AppModel::default()
+    };
+    folders.sources.folder_search_query = String::from("dr");
+
+    assert_eq!(
+        resolved_action(KeyCode::ArrowLeft, ModifiersState::default(), &folders),
+        None
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowRight, ModifiersState::default(), &folders),
+        None
     );
 }
 

@@ -87,6 +87,9 @@ fn route_browser_or_folder_row(
             UiAction::FocusBrowserRow { visible_row }
         });
     }
+    if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(UiAction::ToggleFolderRowExpanded { index });
+    }
     shell_state
         .folder_row_at_point(layout, model, point)
         .map(|index| UiAction::FocusFolderRow { index })
@@ -129,6 +132,9 @@ fn route_sidebar_background(
 ) -> Option<UiAction> {
     if let Some(index) = shell_state.source_row_at_point(layout, model, point) {
         return Some(UiAction::FocusSourceRow { index });
+    }
+    if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(UiAction::ToggleFolderRowExpanded { index });
     }
     if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
         return Some(UiAction::FocusFolderRow { index });

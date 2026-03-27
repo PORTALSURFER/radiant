@@ -159,6 +159,15 @@ pub enum UiAction {
         /// Target folder row index.
         index: usize,
     },
+    /// Toggle expansion for one folder row without changing selection semantics.
+    ToggleFolderRowExpanded {
+        /// Target folder row index.
+        index: usize,
+    },
+    /// Expand the currently focused folder row when it has children.
+    ExpandFocusedFolder,
+    /// Collapse the currently focused folder row or focus its parent.
+    CollapseFocusedFolder,
     /// Toggle selection for the currently focused folder row.
     ToggleFocusedFolderSelection,
     /// Move folder focus by row delta.

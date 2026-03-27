@@ -69,7 +69,8 @@ pub(super) use sidebar_header::{
 };
 pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
 pub(super) use sidebar_text::{
-    compute_sidebar_folder_row_text_rect, compute_sidebar_recovery_badge_text_rect,
+    SidebarFolderRowLayout, compute_sidebar_folder_row_depth_indent,
+    compute_sidebar_folder_row_layout, compute_sidebar_recovery_badge_text_rect,
     compute_sidebar_source_row_text_rect,
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};

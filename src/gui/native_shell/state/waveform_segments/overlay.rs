@@ -11,6 +11,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     style: &StyleTokens,
     model: &NativeMotionModel,
     selection_flash_active: bool,
+    edit_selection_flash_active: bool,
     selection_flash_tone: WaveformSelectionFlashTone,
     motion_wave: f32,
     playhead_trail_lines: &[PlayheadTrailLine],
@@ -100,17 +101,27 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         )
         .selection;
         if let Some(rect) = edit_selection_rect {
+            let edit_fill = if edit_selection_flash_active {
+                translucent_overlay_color(style.surface_overlay, edit_selection_blue, 0.82)
+            } else {
+                translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5)
+            };
+            let edit_border = if edit_selection_flash_active {
+                blend_color(edit_selection_blue, style.text_primary, 0.5)
+            } else {
+                blend_color(edit_selection_blue, style.text_primary, 0.24)
+            };
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect,
-                    color: translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5),
+                    color: edit_fill,
                 }),
             );
             push_border(
                 primitives,
                 rect,
-                blend_color(edit_selection_blue, style.text_primary, 0.24),
+                edit_border,
                 style.sizing.border_width,
             );
             emit_edit_fade_overlays(

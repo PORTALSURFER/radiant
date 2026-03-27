@@ -104,6 +104,8 @@ const PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS: f32 = 1.0 / 240.0;
 const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for one waveform-selection export success flash.
 const WAVEFORM_SELECTION_FLASH_TICKS: u8 = 6;
+/// Number of animation ticks used for one waveform edit-selection apply flash.
+const WAVEFORM_EDIT_SELECTION_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for the sidebar source-add button click flash.
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
@@ -141,9 +143,11 @@ pub(crate) struct NativeShellState {
     hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     waveform_toolbar_flash: Option<WaveformToolbarFlash>,
     waveform_selection_flash_ticks: u8,
+    waveform_edit_selection_flash_ticks: u8,
     waveform_selection_flash_tone: WaveformSelectionFlashTone,
     last_waveform_selection_export_flash_nonce: u64,
     last_waveform_selection_export_failure_flash_nonce: u64,
+    last_waveform_edit_selection_apply_flash_nonce: u64,
     source_add_button_flash_ticks: u8,
     status_options_button_flash_ticks: u8,
     hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
@@ -197,9 +201,11 @@ impl NativeShellState {
             hovered_waveform_toolbar_hint: None,
             waveform_toolbar_flash: None,
             waveform_selection_flash_ticks: 0,
+            waveform_edit_selection_flash_ticks: 0,
             waveform_selection_flash_tone: WaveformSelectionFlashTone::Optimistic,
             last_waveform_selection_export_flash_nonce: 0,
             last_waveform_selection_export_failure_flash_nonce: 0,
+            last_waveform_edit_selection_apply_flash_nonce: 0,
             source_add_button_flash_ticks: 0,
             status_options_button_flash_ticks: 0,
             hovered_waveform_resize_edge: None,
@@ -262,6 +268,7 @@ impl NativeShellState {
             playhead_trail_active: !self.playhead_trail_samples.is_empty(),
             waveform_toolbar_flash_active: self.waveform_toolbar_flash.is_some(),
             waveform_selection_flash_active: self.waveform_selection_flash_ticks > 0,
+            waveform_edit_selection_flash_active: self.waveform_edit_selection_flash_ticks > 0,
             source_add_button_flash_active: self.source_add_button_flash_ticks > 0,
             status_options_button_flash_active: self.status_options_button_flash_ticks > 0,
         }

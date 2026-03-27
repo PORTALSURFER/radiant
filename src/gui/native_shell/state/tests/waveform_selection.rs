@@ -154,6 +154,53 @@ fn waveform_motion_overlay_flashes_selection_red_after_export_failure_token() {
 }
 
 #[test]
+fn waveform_motion_overlay_flashes_edit_selection_after_apply_token() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let edit_selection = NormalizedRangeModel::new(560, 820);
+    let edit_selection_blue = Rgba8 {
+        r: 86,
+        g: 156,
+        b: 255,
+        a: 255,
+    };
+    model.waveform.edit_selection_milli = Some(edit_selection);
+    model.waveform.edit_selection_apply_flash_nonce = 1;
+    let motion = NativeMotionModel::from_app_model(&model);
+    state.sync_from_motion_model(&motion);
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let selection_rect = compute_waveform_annotation_rects(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        Some(edit_selection),
+        None,
+        None,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+    )
+    .selection
+    .expect("edit selection rect");
+    let flash_fill = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == selection_rect => Some(rect.color),
+            _ => None,
+        })
+        .expect("edit selection flash fill");
+
+    assert_eq!(
+        flash_fill,
+        translucent_overlay_color(style.surface_overlay, edit_selection_blue, 0.82)
+    );
+}
+
+#[test]
 fn waveform_motion_overlay_omits_selection_resize_handles_until_hovered() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

@@ -45,6 +45,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FinishWaveformSelectionRangeDrag
             | UiAction::FinishWaveformSelectionSmartScaleDrag
             | UiAction::FinishWaveformEditSelectionDrag
+            | UiAction::CommitWaveformEditFades
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections => RuntimeInvalidationScope::ModelAndOverlays,
@@ -115,6 +116,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ToggleWaveformSliceSelection { .. }
             | UiAction::MoveWaveformSliceFocus { .. }
             | UiAction::ToggleFocusedWaveformSliceExportMark
+            | UiAction::CommitWaveformEditFades
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
             | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),

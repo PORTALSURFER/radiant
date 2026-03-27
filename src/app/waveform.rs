@@ -98,6 +98,11 @@ pub struct WaveformPanelModel {
     /// Native shells treat each new value as an error event so they can tint a
     /// later flash red after the initial optimistic feedback.
     pub selection_export_failure_flash_nonce: u64,
+    /// One-shot token incremented when preview edit fades are committed.
+    ///
+    /// Native shells treat each new value as a success event so they can
+    /// briefly brighten the edit-selection overlay after the write succeeds.
+    pub edit_selection_apply_flash_nonce: u64,
     /// Current waveform edit-selection bounds (right-click paint range).
     pub edit_selection_milli: Option<NormalizedRangeModel>,
     /// End position for the edit fade-in region in normalized milli-units.
@@ -186,6 +191,7 @@ impl Default for WaveformPanelModel {
             slices: Vec::new(),
             selection_export_flash_nonce: 0,
             selection_export_failure_flash_nonce: 0,
+            edit_selection_apply_flash_nonce: 0,
             edit_selection_milli: None,
             edit_fade_in_end_milli: None,
             edit_fade_in_end_micros: None,

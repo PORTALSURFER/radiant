@@ -25,6 +25,7 @@ pub(in crate::gui::native_shell::state) struct NativeAnimationReasons {
     pub playhead_trail_active: bool,
     pub waveform_toolbar_flash_active: bool,
     pub waveform_selection_flash_active: bool,
+    pub waveform_edit_selection_flash_active: bool,
     pub source_add_button_flash_active: bool,
     pub status_options_button_flash_active: bool,
 }
@@ -42,6 +43,7 @@ impl NativeAnimationReasons {
             || self.playhead_trail_active
             || self.waveform_toolbar_flash_active
             || self.waveform_selection_flash_active
+            || self.waveform_edit_selection_flash_active
             || self.source_add_button_flash_active
             || self.status_options_button_flash_active
     }

@@ -40,6 +40,10 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiActionFamily::Options
     );
     assert_eq!(
+        UiAction::CommitWaveformEditFades.family(),
+        UiActionFamily::Waveform
+    );
+    assert_eq!(
         UiAction::ZoomWaveformFull.family(),
         UiActionFamily::Waveform
     );

@@ -589,6 +589,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::SaveWaveformSelectionToBrowser,
     },
     HotkeyBinding {
+        id: "commit-waveform-edit-fades",
+        label: "Apply edit fades",
+        gesture: HotkeyGesture::new(KeyCode::Enter),
+        scope: WAVEFORM,
+        action: UiAction::CommitWaveformEditFades,
+    },
+    HotkeyBinding {
         id: "toggle-focused-slice-export-mark",
         label: "Mark focused slice for export",
         gesture: HotkeyGesture::new(KeyCode::A),

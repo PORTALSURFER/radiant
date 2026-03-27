@@ -145,6 +145,7 @@ impl UiAction {
             | Self::SetWaveformSelectionRange { .. }
             | Self::SetWaveformSelectionRangeSmartScale { .. }
             | Self::SetWaveformEditSelectionRange { .. }
+            | Self::CommitWaveformEditFades
             | Self::SetWaveformEditFadeInEnd { .. }
             | Self::SetWaveformEditFadeInMuteStart { .. }
             | Self::SetWaveformEditFadeInCurve { .. }

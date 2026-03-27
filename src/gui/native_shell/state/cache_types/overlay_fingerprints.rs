@@ -99,6 +99,8 @@ pub(crate) struct WaveformMotionOverlayFingerprint {
     pub hovered_waveform_resize_edge: Option<WaveformResizeHoverEdge>,
     /// Whether the waveform selection success flash is active.
     pub waveform_selection_flash_active: bool,
+    /// Whether the waveform edit-selection apply flash is active.
+    pub waveform_edit_selection_flash_active: bool,
     /// Current flash tone for waveform selection export feedback.
     pub waveform_selection_flash_tone: WaveformSelectionFlashTone,
     /// Quantized motion phase to force repaint while dynamic trails fade.

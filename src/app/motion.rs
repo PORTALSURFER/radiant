@@ -19,6 +19,8 @@ pub struct NativeMotionModel {
     pub waveform_selection_export_flash_nonce: u64,
     /// One-shot token incremented when a queued waveform-selection export fails.
     pub waveform_selection_export_failure_flash_nonce: u64,
+    /// One-shot token incremented when preview edit fades are committed.
+    pub waveform_edit_selection_apply_flash_nonce: u64,
     /// Waveform edit-selection window with milli and micro precision.
     pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
     /// Waveform edit fade-in end handle in normalized milliseconds.
@@ -98,6 +100,9 @@ impl NativeMotionModel {
             waveform_selection_export_failure_flash_nonce: model
                 .waveform
                 .selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: model
+                .waveform
+                .edit_selection_apply_flash_nonce,
             waveform_edit_selection_milli: model.waveform.edit_selection_milli,
             waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
             waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,

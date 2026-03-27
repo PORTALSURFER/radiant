@@ -164,6 +164,10 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
         ..AppModel::default()
     };
     assert_eq!(
+        resolved_action(KeyCode::Enter, ModifiersState::default(), &waveform),
+        Some(UiAction::CommitWaveformEditFades)
+    );
+    assert_eq!(
         resolved_action(KeyCode::E, ModifiersState::default(), &waveform),
         Some(UiAction::SaveWaveformSelectionToBrowser)
     );

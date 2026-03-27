@@ -25,6 +25,7 @@ impl NativeShellState {
             style,
             model,
             self.waveform_selection_flash_ticks > 0,
+            self.waveform_edit_selection_flash_ticks > 0,
             self.waveform_selection_flash_tone,
             motion_wave,
             &playhead_trail_lines,

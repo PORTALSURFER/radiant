@@ -547,6 +547,11 @@ pub enum UiAction {
         start_micros: u32,
         /// Selection end position in normalized micro-units.
         end_micros: u32,
+        /// When true, bypass BPM snapping for this playback drag update.
+        ///
+        /// Native waveform drags set this while Alt is held so the active
+        /// playback selection can move freely until Alt is released again.
+        snap_override: bool,
         /// When true, keep an out-of-bounds drag clamped to the current viewport edge
         /// instead of BPM-snapping that edge back inward.
         preserve_view_edge: bool,

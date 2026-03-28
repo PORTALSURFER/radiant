@@ -108,11 +108,16 @@ pub(super) fn render_state_overlay(
                 row.kind,
                 crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
             ) {
+                let color = if model.drag_overlay.active {
+                    folder_drag_hover_fill(style, model.drag_overlay.valid_target)
+                } else {
+                    subtle_item_hover_fill(style)
+                };
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: *row_rect,
-                        color: subtle_item_hover_fill(style),
+                        color,
                     }),
                 );
             }

@@ -44,6 +44,24 @@ pub(in crate::gui::native_shell::state) fn subtle_item_hover_fill(style: &StyleT
     )
 }
 
+/// Return the stronger folder-row hover fill used during active drag/drop.
+pub(in crate::gui::native_shell::state) fn folder_drag_hover_fill(
+    style: &StyleTokens,
+    valid_target: bool,
+) -> Rgba8 {
+    let tint = if valid_target {
+        style.accent_mint
+    } else {
+        style.accent_warning
+    };
+    let intensity = if valid_target { 2.1 } else { 1.8 };
+    translucent_overlay_color(
+        style.bg_tertiary,
+        tint,
+        (style.state_hover_soft * intensity).clamp(0.22, 0.46),
+    )
+}
+
 /// Return the stronger hover fill used for sample-browser rows.
 ///
 /// The browser hover needs to read clearly against alternating row fills, so it

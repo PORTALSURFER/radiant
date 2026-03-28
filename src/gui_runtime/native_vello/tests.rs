@@ -50,6 +50,7 @@ fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel
 
 mod browser_pointer;
 mod cursor_drag;
+mod drag_highlight;
 mod key_bindings;
 mod queue_runtime;
 mod runtime_core;

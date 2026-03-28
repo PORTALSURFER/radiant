@@ -66,22 +66,14 @@ fn render_folder_header(
             folder_toggle_border(ctx, toggle_button.active, toggle_button.enabled),
             ctx.sizing.border_width,
         );
-        let label_rect = compute_action_button_text_rect(toggle_button.rect, ctx.sizing);
-        emit_text(
-            text_runs,
-            TextRun {
-                text: truncate_to_width(
-                    toggle_button.label,
-                    label_rect.width().max(24.0),
-                    ctx.sizing.font_meta,
-                ),
-                position: label_rect.min,
-                font_size: ctx.sizing.font_meta,
-                color: folder_toggle_text_color(ctx, toggle_button.active, toggle_button.enabled),
-                max_width: Some(label_rect.width().max(24.0)),
-                align: TextAlign::Center,
-            },
-        );
+        if let Some(icon_rect) = centered_header_toggle_icon_rect(toggle_button.rect) {
+            let _ = emit_toolbar_svg_icon(
+                primitives,
+                WaveformToolbarIcon::Filter,
+                icon_rect,
+                folder_toggle_text_color(ctx, toggle_button.active, toggle_button.enabled),
+            );
+        }
     }
     if let Some(badge) = header_layout.badge.as_ref() {
         emit_primitive(
@@ -455,6 +447,21 @@ fn create_draft_field_rect(row_rect: Rect, sizing: SizingTokens, depth: usize) -
 
 fn create_draft_text_rect(field_rect: Rect, sizing: SizingTokens) -> Rect {
     compute_action_button_text_rect(field_rect, sizing)
+}
+
+fn centered_header_toggle_icon_rect(button_rect: Rect) -> Option<Rect> {
+    let size = (button_rect.width().min(button_rect.height()) - 6.0)
+        .floor()
+        .clamp(8.0, 14.0);
+    if size <= 0.0 {
+        return None;
+    }
+    let min_x = button_rect.min.x + ((button_rect.width() - size) * 0.5).floor();
+    let min_y = button_rect.min.y + ((button_rect.height() - size) * 0.5).floor();
+    Some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(min_x + size, min_y + size),
+    ))
 }
 
 fn folder_toggle_fill(ctx: &StaticFrameCtx<'_>, active: bool, enabled: bool) -> Rgba8 {

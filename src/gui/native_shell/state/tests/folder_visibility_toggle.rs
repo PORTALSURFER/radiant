@@ -20,14 +20,17 @@ fn folder_visibility_toggle_button_click_maps_to_toggle_action() {
 }
 
 #[test]
-fn folder_visibility_toggle_button_label_reflects_active_mode() {
+fn folder_visibility_toggle_button_uses_compact_square_layout() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let mut state = NativeShellState::new();
     let mut model = populated_sidebar_model();
     model.sources.show_all_folders = false;
+    let mut state = NativeShellState::new();
 
-    let frame = state.build_frame(&layout, &model);
+    let button = state
+        .folder_visibility_toggle_button_rect(&layout, &model)
+        .expect("folder visibility button should render");
+    let style = style_for_layout(&layout);
 
-    assert!(frame.text_runs.iter().any(|run| run.text == "WAV folders"));
-    assert!(!frame.text_runs.iter().any(|run| run.text == "All folders"));
+    assert!((button.width() - button.height()).abs() <= 0.5);
+    assert!(button.height() <= style.sizing.sidebar_action_button_height + 0.5);
 }

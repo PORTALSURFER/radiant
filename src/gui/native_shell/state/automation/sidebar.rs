@@ -145,22 +145,25 @@ fn folder_browser_group(
             AutomationRole::Button,
             Some(String::from("Folder visibility")),
             toggle_button.rect,
-            Some(String::from(toggle_button.label)),
+            Some(if toggle_button.active {
+                String::from("All folders")
+            } else {
+                String::from("WAV folders")
+            }),
             toggle_button.enabled,
             toggle_button.active,
             vec![String::from("toggle_show_all_folders")],
         ));
     }
-    children.extend(folder_rows
-        .into_iter()
-        .enumerate()
-        .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
-        .map(|(index, rect, row)| {
-            let (role, label, value, available_actions) =
-                if matches!(
+    children.extend(
+        folder_rows
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
+            .map(|(index, rect, row)| {
+                let (role, label, value, available_actions) = if matches!(
                     row.kind,
-                    crate::app::FolderRowKind::CreateDraft
-                        | crate::app::FolderRowKind::RenameDraft
+                    crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
                 ) {
                     (
                         AutomationRole::SearchField,
@@ -196,37 +199,35 @@ fn folder_browser_group(
                         available_actions,
                     )
                 };
-            AutomationNodeSnapshot {
-                id: node_id(format!("sources.folder_row.{index}")),
-                role,
-                label,
-                bounds: bounds(rect),
-                value,
-                enabled: true,
-                selected: row.selected || row.focused || row.input_focused,
-                available_actions,
-                metadata: metadata(&[
-                    ("depth", &row.depth.to_string()),
-                    ("focused", bool_text(row.focused)),
-                    ("root", bool_text(row.is_root)),
-                    ("expanded", bool_text(row.expanded)),
-                    (
-                        "kind",
-                        match row.kind {
-                            crate::app::FolderRowKind::CreateDraft => "create_draft",
-                            crate::app::FolderRowKind::RenameDraft => "rename_draft",
-                            crate::app::FolderRowKind::Existing => "existing",
-                        },
-                    ),
-                    ("input_error", row.input_error.as_deref().unwrap_or("")),
-                    (
-                        "select_all_on_focus",
-                        bool_text(row.select_all_on_focus),
-                    ),
-                ]),
-                children: Vec::new(),
-            }
-        }));
+                AutomationNodeSnapshot {
+                    id: node_id(format!("sources.folder_row.{index}")),
+                    role,
+                    label,
+                    bounds: bounds(rect),
+                    value,
+                    enabled: true,
+                    selected: row.selected || row.focused || row.input_focused,
+                    available_actions,
+                    metadata: metadata(&[
+                        ("depth", &row.depth.to_string()),
+                        ("focused", bool_text(row.focused)),
+                        ("root", bool_text(row.is_root)),
+                        ("expanded", bool_text(row.expanded)),
+                        (
+                            "kind",
+                            match row.kind {
+                                crate::app::FolderRowKind::CreateDraft => "create_draft",
+                                crate::app::FolderRowKind::RenameDraft => "rename_draft",
+                                crate::app::FolderRowKind::Existing => "existing",
+                            },
+                        ),
+                        ("input_error", row.input_error.as_deref().unwrap_or("")),
+                        ("select_all_on_focus", bool_text(row.select_all_on_focus)),
+                    ]),
+                    children: Vec::new(),
+                }
+            }),
+    );
     AutomationNodeSnapshot {
         id: node_id("sources.folder_browser"),
         role: AutomationRole::Group,

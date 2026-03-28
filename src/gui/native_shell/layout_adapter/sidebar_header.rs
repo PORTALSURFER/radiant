@@ -29,7 +29,6 @@ pub(crate) struct RecoveryBadgeLayout {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct FolderVisibilityToggleLayout {
     pub rect: Rect,
-    pub label: &'static str,
     pub active: bool,
     pub enabled: bool,
 }
@@ -61,16 +60,23 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         };
     }
 
-    let toggle_button =
-        compute_folder_visibility_toggle_layout(header_rect, sizing, show_all_folders, toggle_enabled);
+    let toggle_button = compute_folder_visibility_toggle_layout(
+        header_rect,
+        sizing,
+        show_all_folders,
+        toggle_enabled,
+    );
     let reserved_right_edge = toggle_button
         .as_ref()
-        .map(|button| button.rect.min.x - sizing.action_button_gap.max(2.0))
+        .map(|button| button.rect.min.x - sizing.sidebar_action_button_gap.max(2.0))
         .unwrap_or(header_rect.max.x);
     let badge = compute_recovery_badge_layout(
         Rect::from_min_max(
             header_rect.min,
-            Point::new(reserved_right_edge.max(header_rect.min.x), header_rect.max.y),
+            Point::new(
+                reserved_right_edge.max(header_rect.min.x),
+                header_rect.max.y,
+            ),
         ),
         sizing,
         recovery_in_progress,
@@ -290,33 +296,23 @@ fn compute_folder_visibility_toggle_layout(
     show_all_folders: bool,
     enabled: bool,
 ) -> Option<FolderVisibilityToggleLayout> {
-    let label = if show_all_folders {
-        "All folders"
-    } else {
-        "WAV folders"
-    };
     let available_width = (header_rect.width() - (sizing.text_inset_x * 2.0)).max(0.0);
-    if available_width < 24.0 {
+    let button_size = sizing
+        .sidebar_action_button_height
+        .min((header_rect.height() - 2.0).max(10.0))
+        .max(10.0);
+    if available_width < button_size {
         return None;
     }
-    let approx_char_width = (sizing.font_meta * 0.62).max(1.0);
-    let button_width = ((label.chars().count() as f32 * approx_char_width)
-        + (sizing.text_inset_x * 2.0))
-        .clamp(52.0, 96.0)
-        .min(available_width);
-    let button_height = (header_rect.height() - (sizing.text_inset_y * 0.4))
-        .max(12.0)
-        .min(header_rect.height());
     let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
-    let min_x = (max_x - button_width).max(header_rect.min.x + sizing.text_inset_x.max(0.0));
-    let min_y = header_rect.min.y + ((header_rect.height() - button_height) * 0.5).floor();
+    let min_x = (max_x - button_size).max(header_rect.min.x + sizing.text_inset_x.max(0.0));
+    let min_y = header_rect.min.y + ((header_rect.height() - button_size) * 0.5).floor();
     let rect = Rect::from_min_max(
         Point::new(min_x, min_y),
-        Point::new(max_x, (min_y + button_height).min(header_rect.max.y)),
+        Point::new(max_x, (min_y + button_size).min(header_rect.max.y)),
     );
     (rect.width() > 0.0 && rect.height() > 0.0).then_some(FolderVisibilityToggleLayout {
         rect,
-        label,
         active: show_all_folders,
         enabled,
     })
@@ -465,6 +461,8 @@ mod tests {
         assert!(toggle.rect.max.x <= header_rect.max.x);
         assert!(toggle.rect.min.y >= header_rect.min.y);
         assert!(toggle.rect.max.y <= header_rect.max.y);
+        assert!((toggle.rect.width() - toggle.rect.height()).abs() <= 0.5);
+        assert!(toggle.rect.height() <= style.sizing.sidebar_action_button_height + 0.5);
     }
 
     #[test]

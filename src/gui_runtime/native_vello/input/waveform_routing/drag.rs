@@ -7,8 +7,9 @@ pub(super) fn waveform_drag_action_for_mode(
     model: &AppModel,
     point: Point,
     mode: WaveformPointerDragMode,
+    modifiers: ModifiersState,
 ) -> UiAction {
-    waveform_drag_action_and_mode_for_point(layout, model, point, mode).0
+    waveform_drag_action_and_mode_for_point(layout, model, point, mode, modifiers).0
 }
 
 /// Resolve one waveform action and updated drag mode for a captured waveform drag.
@@ -17,6 +18,7 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
     model: &AppModel,
     point: Point,
     mode: WaveformPointerDragMode,
+    modifiers: ModifiersState,
 ) -> (UiAction, WaveformPointerDragMode) {
     let pointer_position = waveform_pointer_position_from_point(layout, model, point);
     let position_nanos = pointer_position.position_nanos;
@@ -30,6 +32,7 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: position_micros,
+                snap_override: modifiers.alt_key(),
                 preserve_view_edge,
             }
         }
@@ -53,6 +56,7 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
             UiAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
+                snap_override: modifiers.alt_key(),
                 preserve_view_edge: false,
             }
         }

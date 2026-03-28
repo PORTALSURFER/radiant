@@ -25,7 +25,6 @@ pub(super) fn waveform_primary_press_action_from_pointer(
         return Some(action);
     }
     if !command
-        && !alt
         && !shift
         && let Some(action) = waveform_selection_shift_action_from_pointer(layout, model, point)
     {
@@ -53,15 +52,13 @@ pub(super) fn waveform_primary_press_action_from_pointer(
         return Some(action);
     }
     if !command
-        && alt
-        && !shift
+        && shift
         && let Some(action) =
             waveform_selection_resize_action_from_pointer(layout, model, point, true)
     {
         return Some(action);
     }
     if !command
-        && !alt
         && !shift
         && let Some(action) =
             waveform_selection_resize_action_from_pointer(layout, model, point, false)
@@ -87,6 +84,7 @@ pub(super) fn waveform_selection_edge_adjust_action_from_pointer(
         |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
+            snap_override: false,
             preserve_view_edge: false,
         },
     )
@@ -127,6 +125,7 @@ pub(super) fn waveform_selection_slide_action_from_pointer(
         |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
+            snap_override: false,
             preserve_view_edge: false,
         },
     )
@@ -242,6 +241,7 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
             UiAction::SetWaveformSelectionRange {
                 start_micros: selection.end_micros,
                 end_micros: position_micros,
+                snap_override: false,
                 preserve_view_edge: false,
             }
         });
@@ -255,6 +255,7 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
         UiAction::SetWaveformSelectionRange {
             start_micros: selection.start_micros,
             end_micros: position_micros,
+            snap_override: false,
             preserve_view_edge: false,
         }
     })

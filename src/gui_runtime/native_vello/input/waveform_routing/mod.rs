@@ -74,12 +74,11 @@ pub(super) fn waveform_action_from_pointer(
     }
     if command {
         UiAction::SetWaveformCursorPrecise { position_nanos }
-    } else if alt {
-        UiAction::SeekWaveformPrecise { position_nanos }
     } else if shift {
         UiAction::SetWaveformSelectionRange {
             start_micros: waveform_anchor_micros(model),
             end_micros: position_micros,
+            snap_override: false,
             preserve_view_edge: false,
         }
     } else {

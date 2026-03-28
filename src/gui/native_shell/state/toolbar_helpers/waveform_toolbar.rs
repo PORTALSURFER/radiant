@@ -85,6 +85,21 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             },
         ),
         (
+            "Rel Grid",
+            Some(WaveformToolbarIcon::RelativeBpmGrid),
+            None,
+            true,
+            model.waveform_relative_bpm_grid_enabled,
+            Some(UiAction::SetRelativeBpmGridEnabled {
+                enabled: !model.waveform_relative_bpm_grid_enabled,
+            }),
+            if model.waveform_relative_bpm_grid_enabled {
+                style.accent_warning
+            } else {
+                style.text_muted
+            },
+        ),
+        (
             "Tr Snap",
             Some(WaveformToolbarIcon::TransientSnap),
             None,

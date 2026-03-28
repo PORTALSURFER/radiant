@@ -240,6 +240,10 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     waveform_view_refresh_pending: bool,
     /// Exact press snapshot used for plain waveform click-to-seek release handling.
     waveform_click_seek_press: Option<WaveformClickSeekPress>,
+    /// Deferred browser-row press captured until click-vs-drag resolution.
+    pending_browser_row_press: Option<PendingBrowserRowPress>,
+    /// Active browser sample drag state for primary pointer movement.
+    browser_sample_drag: Option<BrowserSampleDragState>,
     /// Whether a waveform-selection export drag is currently active.
     selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.
@@ -248,6 +252,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     map_focus_drag_active: bool,
     /// Last map sample id emitted during active map focus drag.
     last_emitted_map_drag_sample_id: Option<String>,
+    /// Active folder-scrollbar thumb drag state for primary pointer movement.
+    folder_scrollbar_drag: Option<FolderScrollbarDragState>,
     /// Active browser-scrollbar thumb drag state for primary pointer movement.
     browser_scrollbar_drag: Option<BrowserScrollbarDragState>,
     /// Last emitted browser viewport start during an active scrollbar drag.

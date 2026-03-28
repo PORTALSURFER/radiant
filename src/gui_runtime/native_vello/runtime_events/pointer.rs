@@ -11,8 +11,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         action_emitted: &mut bool,
     ) -> bool {
         self.begin_pointer_press_cycle();
+        self.last_cursor = Some(point);
         self.refresh_cached_model_for_pending_input();
         self.handle_left_pointer_press(layout, point, map_drag_start, action_emitted)
+    }
+
+    /// Route one cursor-move event through the production pointer path in tests.
+    #[cfg(test)]
+    pub(crate) fn handle_cursor_moved_for_tests(&mut self, point: Point) {
+        self.handle_cursor_moved(point);
     }
 
     pub(super) fn handle_cursor_moved(&mut self, point: Point) {
@@ -21,6 +28,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.last_cursor = Some(point);
         self.note_cursor_activity(Instant::now());
+        if self.maybe_start_browser_sample_drag(point) {
+            return;
+        }
         let session = self.active_pointer_session();
         if matches!(session, ActivePointerSession::WaveformDrag) {
             self.update_cursor_for_active_waveform_drag();
@@ -42,6 +52,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     }
                 }
             }
+            ActivePointerSession::FolderScrollbar => {
+                let _ = self.process_folder_scrollbar_drag_immediately(point);
+            }
             ActivePointerSession::BrowserScrollbar => {
                 let _ = self.process_browser_scrollbar_drag_immediately(point);
             }
@@ -53,6 +66,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             ActivePointerSession::WaveformDrag => {
                 let _ = self.process_waveform_drag_immediately(point);
+            }
+            ActivePointerSession::BrowserSampleDrag => {
+                let _ = self.process_browser_sample_drag_immediately(point);
             }
             ActivePointerSession::SelectionDrag => {
                 let _ = self.process_selection_drag_immediately(point);
@@ -206,6 +222,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if let Some(thumb_pointer_offset_y) = self
             .shell_state
+            .folder_scrollbar_thumb_offset_at_point(layout, &self.model, point)
+        {
+            self.begin_folder_scrollbar_drag(thumb_pointer_offset_y);
+            return true;
+        }
+        if let Some(thumb_pointer_offset_y) = self
+            .shell_state
             .browser_scrollbar_thumb_offset_at_point(layout, &self.model, point)
         {
             self.begin_browser_scrollbar_drag(thumb_pointer_offset_y);
@@ -223,6 +246,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return true;
         }
         if self.process_waveform_scrollbar_track_click_immediately(point) {
+            *action_emitted = true;
+            return true;
+        }
+        if self.process_folder_scrollbar_track_click_immediately(point) {
             *action_emitted = true;
             return true;
         }

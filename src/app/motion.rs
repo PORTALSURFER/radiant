@@ -77,6 +77,8 @@ pub struct NativeMotionModel {
     pub waveform_normalized_audition_enabled: bool,
     /// Whether BPM snapping is enabled.
     pub waveform_bpm_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub waveform_relative_bpm_grid_enabled: bool,
     /// Whether transient snapping is enabled.
     pub waveform_transient_snap_enabled: bool,
     /// Whether transient markers are visible.
@@ -136,6 +138,7 @@ impl NativeMotionModel {
             waveform_channel_view: model.waveform_chrome.channel_view,
             waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
             waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: model.waveform_chrome.relative_bpm_grid_enabled,
             waveform_transient_snap_enabled: model.waveform_chrome.transient_snap_enabled,
             waveform_transient_markers_enabled: model.waveform_chrome.transient_markers_enabled,
             waveform_slice_mode_enabled: model.waveform_chrome.slice_mode_enabled,

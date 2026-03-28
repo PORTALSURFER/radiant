@@ -119,6 +119,10 @@ fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppMode
         state.last_waveform_bpm_grid_identity = Some(identity);
         state.last_waveform_bpm_grid_origin_micros = None;
     }
+    if !model.waveform_chrome.relative_bpm_grid_enabled {
+        state.last_waveform_bpm_grid_origin_micros = Some(0);
+        return 0;
+    }
     if let Some(selection) = model.waveform.selection_milli {
         state.last_waveform_bpm_grid_origin_micros = Some(selection.start_micros);
         return u64::from(selection.start_micros);

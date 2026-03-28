@@ -275,6 +275,111 @@ fn prewindowed_browser_scrollbar_uses_manual_view_start_at_bottom() {
 }
 
 #[test]
+fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let top_model = folder_model_with_rows(80, 6);
+    let top_rows = state
+        .cached_folder_rows(&layout, &style, &top_model)
+        .to_vec();
+    let top_sections = sidebar_sections(&layout, &style, &top_model);
+    let top_content_rect = folder_rows_content_rect(
+        top_sections.folder_rows,
+        top_model.sources.folder_rows.len(),
+        style.sizing,
+    );
+    let top_scrollbar = folder_scrollbar_layout(
+        top_sections.folder_rows,
+        &top_rows,
+        top_model.sources.folder_rows.len(),
+        style.sizing,
+    )
+    .expect("overflowing folder list should render a scrollbar");
+
+    let lower_model = folder_model_with_rows(80, 48);
+    let lower_rows = state
+        .cached_folder_rows(&layout, &style, &lower_model)
+        .to_vec();
+    let lower_sections = sidebar_sections(&layout, &style, &lower_model);
+    let lower_content_rect = folder_rows_content_rect(
+        lower_sections.folder_rows,
+        lower_model.sources.folder_rows.len(),
+        style.sizing,
+    );
+    let lower_scrollbar = folder_scrollbar_layout(
+        lower_sections.folder_rows,
+        &lower_rows,
+        lower_model.sources.folder_rows.len(),
+        style.sizing,
+    )
+    .expect("overflowing folder list should render a scrollbar");
+
+    assert_rect_inside(top_sections.folder_rows, top_scrollbar.track);
+    assert_rect_inside(top_sections.folder_rows, top_scrollbar.thumb);
+    assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
+    assert!(lower_content_rect.max.x < lower_scrollbar.track.min.x);
+    assert!(
+        top_rows
+            .iter()
+            .all(|row| row.rect.max.x <= top_content_rect.max.x)
+    );
+    assert!(
+        lower_rows
+            .iter()
+            .all(|row| row.rect.max.x <= lower_content_rect.max.x)
+    );
+    assert!(lower_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
+
+    let frame = state.build_frame(&layout, &lower_model);
+    let track_color = blend_color(style.border, style.bg_secondary, 0.22);
+    let thumb_color = blend_color(style.text_muted, style.text_primary, 0.32);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == lower_scrollbar.track && rect.color == track_color
+        )
+    }));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if rect.rect == lower_scrollbar.thumb && rect.color == thumb_color
+        )
+    }));
+}
+
+#[test]
+fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = folder_model_with_rows(90, 0);
+    model.sources.focused_folder_row = Some(0);
+    let mut state = NativeShellState::new();
+    let initial_rows = state.cached_folder_rows(&layout, &style, &model).to_vec();
+    let viewport_len = initial_rows.len();
+    let requested_view_start = model.sources.folder_rows.len().saturating_sub(viewport_len);
+    assert!(state.set_folder_view_start_row(requested_view_start));
+
+    let rows = state.cached_folder_rows(&layout, &style, &model).to_vec();
+    let sections = sidebar_sections(&layout, &style, &model);
+    let scrollbar = folder_scrollbar_layout(
+        sections.folder_rows,
+        &rows,
+        model.sources.folder_rows.len(),
+        style.sizing,
+    )
+    .expect("overflowing folder list should render a scrollbar");
+
+    assert_eq!(
+        rows.first().map(|row| row.row_index),
+        Some(requested_view_start)
+    );
+    assert_eq!(scrollbar.thumb.max.y, scrollbar.track.max.y);
+}
+
+#[test]
 fn waveform_scrollbar_thumb_tracks_view_position() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let scrollbar = waveform_scrollbar_layout(layout.waveform_scrollbar_lane, 250_000, 500_000)
@@ -341,4 +446,22 @@ fn waveform_scrollbar_track_click_maps_to_centered_view() {
         state.waveform_scrollbar_view_center_at_point(&layout, &model, point),
         Some(expected_center)
     );
+}
+
+fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
+    let mut model = AppModel::default();
+    model.sources.focused_folder_row = Some(focused_row.min(total_rows.saturating_sub(1)));
+    for row_index in 0..total_rows {
+        model.sources.folder_rows.push(FolderRowModel::new(
+            format!("folder_{row_index:03}"),
+            format!("folder_{row_index:03}"),
+            0,
+            false,
+            row_index == focused_row,
+            row_index == 0,
+            row_index < total_rows.saturating_sub(1),
+            true,
+        ));
+    }
+    model
 }

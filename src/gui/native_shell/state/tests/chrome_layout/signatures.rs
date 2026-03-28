@@ -51,4 +51,12 @@ fn waveform_toolbar_model_flags_change_with_channel_and_toggle_state() {
         baseline_flags,
         waveform_toolbar_model_flags(&changed_toggle)
     );
+
+    let mut changed_relative_grid = baseline.clone();
+    changed_relative_grid.waveform_relative_bpm_grid_enabled =
+        !baseline.waveform_relative_bpm_grid_enabled;
+    assert_ne!(
+        baseline_flags,
+        waveform_toolbar_model_flags(&changed_relative_grid)
+    );
 }

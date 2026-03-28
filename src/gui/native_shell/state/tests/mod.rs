@@ -37,6 +37,7 @@ fn populated_sidebar_model() -> AppModel {
         can_clear_recovery_log: true,
     };
     model.sources.can_toggle_show_all_folders = true;
+    model.sources.can_toggle_flattened_view = true;
     model
 }
 
@@ -97,8 +98,8 @@ mod browser_rows;
 mod browser_scrollbars;
 mod browser_toolbar;
 mod chrome_layout;
-mod frame_build;
 mod folder_visibility_toggle;
+mod frame_build;
 mod overlay_controls;
 mod overlays;
 mod playhead_trail_render;

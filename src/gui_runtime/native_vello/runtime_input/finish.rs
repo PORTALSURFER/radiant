@@ -33,6 +33,8 @@ where
             && self.last_emitted_waveform_drag_action.is_some();
         let finish_selection_drag =
             self.selection_drag_active && matches!(released_button, Some(MouseButton::Left));
+        let finish_browser_sample_drag = self.browser_sample_drag.is_some()
+            && matches!(released_button, Some(MouseButton::Left));
         let finish_selection_smart_scale_drag = matches!(released_button, Some(MouseButton::Left))
             && self.waveform_drag_mode.is_some_and(|mode| {
                 matches!(mode, WaveformPointerDragMode::SelectionSmartScale { .. })
@@ -64,16 +66,32 @@ where
         if finish_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
         }
+        if finish_browser_sample_drag {
+            self.emit_model_action(UiAction::FinishBrowserSampleDrag);
+        }
         if finish_selection_smart_scale_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionSmartScaleDrag);
         }
         if finish_edit_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformEditSelectionDrag);
         }
+        let browser_row_click_release = matches!(released_button, Some(MouseButton::Left))
+            && !finish_browser_sample_drag
+            && self.pending_browser_row_press.is_some();
+        let pending_browser_row_press = if browser_row_click_release {
+            self.pending_browser_row_press.take()
+        } else {
+            self.pending_browser_row_press = None;
+            None
+        };
         self.clear_pointer_drag_session();
         if let Some(point) = self.last_cursor {
             let _ = self.process_cursor_move_immediately(point);
             self.update_waveform_resize_cursor(point);
+        }
+        if let Some(pending_browser_row_press) = pending_browser_row_press {
+            let _ =
+                self.emit_pointer_press_action_now(pending_browser_row_press.action, false, None);
         }
         if seek_on_waveform_click_release && let Some(click_seek_press) = click_seek_press {
             if click_seek_press.clear_selection_on_release {

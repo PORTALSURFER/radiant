@@ -30,6 +30,12 @@ pub(super) struct CachedBrowserRow {
     pub(super) rect: Rect,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct CachedFolderRow {
+    pub(super) row_index: usize,
+    pub(super) rect: Rect,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(super) struct SidebarRowsCacheKey {
     pub(super) root_min_x: u32,
@@ -53,6 +59,14 @@ pub(super) struct SidebarRowsCacheKey {
     pub(super) folder_row_gap: u32,
     pub(super) folder_header_block_height: u32,
     pub(super) ui_scale: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(super) struct FolderRowsCacheKey {
+    pub(super) sidebar: SidebarRowsCacheKey,
+    pub(super) folder_view_start_row: u32,
+    pub(super) focused_folder_row: u32,
+    pub(super) autoscroll: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -136,10 +150,20 @@ pub(super) struct BrowserScrollbarLayout {
     pub(super) thumb: Rect,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct FolderScrollbarLayout {
+    pub(super) track: Rect,
+    pub(super) thumb: Rect,
+}
+
 /// Number of visible rows kept between focus and the viewport edge before scrolling.
 const BROWSER_VIEW_EDGE_MARGIN_ROWS: usize = 3;
 /// Horizontal gap left between browser rows and the visual scrollbar lane.
 const BROWSER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
+/// Number of folder rows kept between focus and the viewport edge before scrolling.
+const FOLDER_VIEW_EDGE_MARGIN_ROWS: usize = 2;
+/// Horizontal gap left between folder rows and the visual scrollbar lane.
+const FOLDER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct TopBarControlsLayout {

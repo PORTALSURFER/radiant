@@ -103,9 +103,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::WaveformBpm => {
                 self.shell_state.waveform_bpm_text_rect(layout, &self.model)
             }
-            TextInputTarget::FolderCreate => {
-                self.shell_state.folder_create_text_rect(layout, &self.model)
-            }
+            TextInputTarget::FolderCreate => self
+                .shell_state
+                .folder_create_text_rect(layout, &self.model),
             TextInputTarget::None
             | TextInputTarget::FolderSearch
             | TextInputTarget::PromptInput => None,
@@ -349,11 +349,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 && self.text_input_target == super::TextInputTarget::FolderCreate
             {
                 let row_text = row.input_value.clone().unwrap_or_default();
-                let should_seed_initial_text = self
-                    .text_input_buffer
-                    .as_deref()
-                    .is_some_and(str::is_empty)
-                    && !row_text.is_empty();
+                let should_seed_initial_text =
+                    self.text_input_buffer.as_deref().is_some_and(str::is_empty)
+                        && !row_text.is_empty();
                 if should_seed_initial_text {
                     self.text_input_buffer = Some(row_text.clone());
                 }

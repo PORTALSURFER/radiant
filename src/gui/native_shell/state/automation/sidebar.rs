@@ -12,7 +12,7 @@ pub(super) fn build_sidebar_automation(
     style: &StyleTokens,
 ) -> AutomationNodeSnapshot {
     let source_rows = shell.cached_source_row_rects(layout, style, model).to_vec();
-    let folder_rows = shell.cached_folder_row_rects(layout, style, model).to_vec();
+    let folder_rows = shell.cached_folder_rows(layout, style, model).to_vec();
     let sections = sidebar_sections(layout, style, model);
     let mut children = Vec::new();
     if let Some(rect) = source_add_button_rect(layout.sidebar_header, style.sizing) {
@@ -122,7 +122,7 @@ fn source_list_group(
 fn folder_browser_group(
     header_rect: Rect,
     folder_rows_band: Rect,
-    folder_rows: Vec<Rect>,
+    folder_rows: Vec<CachedFolderRow>,
     rows: &[crate::app::FolderRowModel],
     model: &AppModel,
     style: &StyleTokens,
@@ -137,8 +137,10 @@ fn folder_browser_group(
         model.sources.folder_recovery.entry_count,
         model.sources.show_all_folders,
         model.sources.can_toggle_show_all_folders,
+        model.sources.flattened_view,
+        model.sources.can_toggle_flattened_view,
     )
-    .toggle_button
+    .visibility_toggle_button
     {
         children.push(simple_node(
             "sources.folder_visibility_toggle",
@@ -155,12 +157,41 @@ fn folder_browser_group(
             vec![String::from("toggle_show_all_folders")],
         ));
     }
+    if let Some(toggle_button) = compute_sidebar_folder_header_layout(
+        header_rect,
+        style.sizing,
+        model.sources.folder_recovery.in_progress,
+        model.sources.folder_recovery.entry_count,
+        model.sources.show_all_folders,
+        model.sources.can_toggle_show_all_folders,
+        model.sources.flattened_view,
+        model.sources.can_toggle_flattened_view,
+    )
+    .flatten_toggle_button
+    {
+        children.push(simple_node(
+            "sources.folder_flatten_toggle",
+            AutomationRole::Button,
+            Some(String::from("Flattened view")),
+            toggle_button.rect,
+            Some(if toggle_button.active {
+                String::from("All descendants")
+            } else {
+                String::from("Direct only")
+            }),
+            toggle_button.enabled,
+            toggle_button.active,
+            vec![String::from("toggle_folder_flattened_view")],
+        ));
+    }
     children.extend(
         folder_rows
             .into_iter()
-            .enumerate()
-            .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
-            .map(|(index, rect, row)| {
+            .filter_map(|rendered_row| {
+                rows.get(rendered_row.row_index)
+                    .map(|row| (rendered_row.row_index, rendered_row.rect, row))
+            })
+            .map(|(row_index, rect, row)| {
                 let (role, label, value, available_actions) = if matches!(
                     row.kind,
                     crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
@@ -200,7 +231,7 @@ fn folder_browser_group(
                     )
                 };
                 AutomationNodeSnapshot {
-                    id: node_id(format!("sources.folder_row.{index}")),
+                    id: node_id(format!("sources.folder_row.{row_index}")),
                     role,
                     label,
                     bounds: bounds(rect),
@@ -245,6 +276,14 @@ fn folder_browser_group(
                     "all_folders"
                 } else {
                     "wav_folders"
+                },
+            ),
+            (
+                "flattened_view",
+                if model.sources.flattened_view {
+                    "all_descendants"
+                } else {
+                    "direct_only"
                 },
             ),
         ]),

@@ -325,17 +325,8 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
                 focused_folder_row: Some(1),
                 folder_rows: vec![
                     root_folder_row(),
-                    crate::app::FolderRowModel::new(
-                        "Drums",
-                        "",
-                        1,
-                        false,
-                        true,
-                        false,
-                        true,
-                        true,
-                    )
-                    .with_source_index(1),
+                    crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true)
+                        .with_source_index(1),
                 ],
                 ..SourcesPanelModel::default()
             },

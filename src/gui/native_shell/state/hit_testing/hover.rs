@@ -125,8 +125,10 @@ impl NativeShellState {
             return None;
         }
         let style = style_for_layout(layout);
-        let rows = self.cached_folder_row_rects(layout, &style, model);
-        compute_row_index_at_point(rows, point)
+        self.cached_folder_rows(layout, &style, model)
+            .iter()
+            .find(|row| row.rect.contains(point))
+            .map(|row| row.row_index)
     }
 
     fn resolve_hovered_browser_search_field(

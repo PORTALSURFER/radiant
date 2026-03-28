@@ -146,6 +146,24 @@ fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
 }
 
 #[test]
+fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = crate::app::AppModel::default();
+    let relative_grid = state
+        .waveform_toolbar_button_rect(&layout, &model, "Rel Grid")
+        .expect("relative grid waveform toolbar button should be present");
+    let point = Point::new(
+        (relative_grid.min.x + relative_grid.max.x) * 0.5,
+        (relative_grid.min.y + relative_grid.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.waveform_toolbar_action_at_point(&layout, &model, point),
+        Some(crate::app::UiAction::SetRelativeBpmGridEnabled { enabled: true })
+    );
+}
+
+#[test]
 fn waveform_toolbar_bpm_value_widget_exposes_input_hit_target() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

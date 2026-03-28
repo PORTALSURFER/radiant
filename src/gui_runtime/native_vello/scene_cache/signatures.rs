@@ -133,6 +133,8 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
     fingerprint_mix_string(&mut state, &model.drag_overlay.label);
     fingerprint_mix_string(&mut state, &model.drag_overlay.target_label);
     fingerprint_mix_bool(&mut state, model.drag_overlay.valid_target);
+    fingerprint_mix_option_u16(&mut state, model.drag_overlay.pointer_x);
+    fingerprint_mix_option_u16(&mut state, model.drag_overlay.pointer_y);
     fingerprint_mix_u8(
         &mut state,
         match model.update.status {
@@ -213,6 +215,7 @@ pub(in super::super) fn chrome_motion_overlay_model_signature(model: &NativeMoti
     );
     fingerprint_mix_bool(&mut state, model.waveform_normalized_audition_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_bpm_snap_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_relative_bpm_grid_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_transient_snap_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_transient_markers_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_slice_mode_enabled);

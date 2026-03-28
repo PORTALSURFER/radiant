@@ -118,12 +118,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
                     color: edit_fill,
                 }),
             );
-            push_border(
-                primitives,
-                rect,
-                edit_border,
-                style.sizing.border_width,
-            );
+            push_border(primitives, rect, edit_border, style.sizing.border_width);
             emit_edit_fade_overlays(
                 primitives,
                 style,

@@ -38,6 +38,40 @@ pub(super) fn browser_wheel_row_delta(
     Some(clamped as i8)
 }
 
+pub(super) fn folder_wheel_row_delta(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    style: &StyleTokens,
+    delta: MouseScrollDelta,
+) -> Option<i8> {
+    if !shell_state.folder_panel_contains_point(layout, model, point) {
+        return None;
+    }
+    let row_stride = (style.sizing.folder_row_height + style.sizing.folder_row_gap).max(1.0);
+    let raw = match delta {
+        MouseScrollDelta::LineDelta(_, y) => -y,
+        MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
+    };
+    if raw == 0.0 {
+        return None;
+    }
+    let mut steps = raw.round();
+    if steps.abs() < 1.0 {
+        steps = raw.signum();
+        if steps == 0.0 {
+            return None;
+        }
+    }
+    let clamped = if steps > 1.0 {
+        steps.min(i8::MAX as f32)
+    } else {
+        steps.max(i8::MIN as f32)
+    };
+    Some(clamped as i8)
+}
+
 /// Clamp one wheel-derived browser viewport move to the current visible-row range.
 pub(super) fn browser_view_start_after_wheel(
     current_view_start: usize,

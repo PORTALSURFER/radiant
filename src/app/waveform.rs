@@ -250,6 +250,8 @@ pub struct WaveformChromeModel {
     pub normalized_audition_enabled: bool,
     /// Whether BPM snapping is enabled for waveform edits.
     pub bpm_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub relative_bpm_grid_enabled: bool,
     /// Whether transient snapping is enabled for waveform edits.
     pub transient_snap_enabled: bool,
     /// Whether transient markers are visible on the waveform.
@@ -265,6 +267,7 @@ impl Default for WaveformChromeModel {
             channel_view: WaveformChannelViewModel::Mono,
             normalized_audition_enabled: false,
             bpm_snap_enabled: false,
+            relative_bpm_grid_enabled: false,
             transient_snap_enabled: false,
             transient_markers_enabled: true,
             slice_mode_enabled: false,

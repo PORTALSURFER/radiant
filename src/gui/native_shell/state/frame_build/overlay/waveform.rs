@@ -101,6 +101,13 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
                 String::from("Enable BPM snapping")
             }
         }
+        WaveformToolbarHoverHint::RelativeBpmGrid => {
+            if model.waveform_chrome.relative_bpm_grid_enabled {
+                String::from("Use sample-start BPM grid")
+            } else {
+                String::from("Use selection-relative BPM grid")
+            }
+        }
         WaveformToolbarHoverHint::TransientSnap => {
             if model.waveform_chrome.transient_snap_enabled {
                 String::from("Disable transient snapping")

@@ -182,12 +182,14 @@ pub(super) fn render_folder_focus_overlay(
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
-    let folder_row_rects = shell_state.cached_folder_row_rects(layout, style, model);
-    let last_folder_row_max_y = folder_row_rects.last().map(|rect| rect.max.y);
-    for (row_index, row_rect) in folder_row_rects.iter().enumerate() {
-        let Some(row) = model.sources.folder_rows.get(row_index) else {
+    let folder_rows = shell_state.cached_folder_rows(layout, style, model);
+    let last_folder_row_max_y = folder_rows.last().map(|row| row.rect.max.y);
+    for rendered_row in folder_rows.iter() {
+        let Some(row) = model.sources.folder_rows.get(rendered_row.row_index) else {
             continue;
         };
+        let row_rect = rendered_row.rect;
+        let visual_rect = folder_row_visual_rect(row_rect, sizing);
         if !(row.selected || row.focused) {
             continue;
         }
@@ -195,7 +197,7 @@ pub(super) fn render_folder_focus_overlay(
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
-                    rect: *row_rect,
+                    rect: visual_rect,
                     color: translucent_overlay_color(
                         style.bg_tertiary,
                         style.grid_strong,
@@ -207,7 +209,7 @@ pub(super) fn render_folder_focus_overlay(
         if row.focused || row.selected {
             push_browser_row_border(
                 primitives,
-                *row_rect,
+                visual_rect,
                 if row.focused {
                     blend_color(
                         style.accent_warning,
@@ -228,17 +230,16 @@ pub(super) fn render_folder_focus_overlay(
                 },
                 BorderSides {
                     top: true,
-                    bottom: row.focused || Some(row_rect.max.y) == last_folder_row_max_y,
+                    bottom: row.focused || Some(visual_rect.max.y) == last_folder_row_max_y,
                     left: row.focused,
                     right: row.focused,
                 },
             );
         }
         if row.focused {
-            let depth_indent =
-                compute_sidebar_folder_row_depth_indent(*row_rect, sizing, row.depth);
+            let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, sizing, row.depth);
             let row_text_rect =
-                compute_sidebar_folder_row_layout(*row_rect, sizing, depth_indent).label_rect;
+                compute_sidebar_folder_row_layout(row_rect, sizing, depth_indent).label_rect;
             let row_text_width = row_text_rect.width().max(24.0);
             emit_text(
                 text_runs,

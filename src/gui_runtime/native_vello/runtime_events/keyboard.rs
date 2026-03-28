@@ -87,6 +87,36 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 false
             };
             if !waveform_zoom_emitted {
+                let style = this.cached_style_for_layout(layout);
+                if let Some(point) = this.last_cursor.filter(|point| {
+                    this.shell_state
+                        .folder_panel_contains_point(layout, &this.model, *point)
+                }) {
+                    if let Some(delta) = folder_wheel_row_delta(
+                        &mut this.shell_state,
+                        layout,
+                        &this.model,
+                        point,
+                        &style,
+                        delta,
+                    ) {
+                        let viewport_len =
+                            this.shell_state.folder_viewport_len(layout, &this.model);
+                        let current_view_start = this
+                            .shell_state
+                            .folder_viewport_start_row(layout, &this.model)
+                            .unwrap_or(0);
+                        if let Some(view_start_row) = browser_view_start_after_wheel(
+                            current_view_start,
+                            this.model.sources.folder_rows.len(),
+                            viewport_len,
+                            delta,
+                        ) {
+                            let _ = this.process_folder_view_start_immediately(view_start_row);
+                        }
+                        return;
+                    }
+                }
                 let fallback_point = Point::new(
                     (layout.browser_rows.min.x + layout.browser_rows.max.x) * 0.5,
                     (layout.browser_rows.min.y + layout.browser_rows.max.y) * 0.5,
@@ -95,7 +125,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .last_cursor
                     .filter(|point| layout.browser_panel.contains(*point))
                     .unwrap_or(fallback_point);
-                let style = this.cached_style_for_layout(layout);
                 if let Some(delta) =
                     browser_wheel_row_delta(layout, &this.model, point, &style, delta)
                 {

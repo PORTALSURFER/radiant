@@ -22,6 +22,8 @@ pub(crate) enum WaveformToolbarHoverHint {
     BpmValue,
     /// BPM snap toggle.
     BpmSnap,
+    /// Selection-relative BPM grid toggle.
+    RelativeBpmGrid,
     /// Transient snap toggle.
     TransientSnap,
     /// Transient marker visibility toggle.

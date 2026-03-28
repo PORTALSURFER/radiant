@@ -27,7 +27,7 @@ struct BrowserFrameData {
 
 struct SidebarFrameData {
     source_row_rects: Vec<Rect>,
-    folder_row_rects: Vec<Rect>,
+    folder_rows: Vec<CachedFolderRow>,
 }
 
 impl NativeShellState {
@@ -89,8 +89,8 @@ impl NativeShellState {
             } else {
                 Vec::new()
             },
-            folder_row_rects: if build_global_static {
-                rendered_folder_row_rects(layout, style, model)
+            folder_rows: if build_global_static {
+                self.cached_folder_rows(layout, style, model).to_vec()
             } else {
                 Vec::new()
             },

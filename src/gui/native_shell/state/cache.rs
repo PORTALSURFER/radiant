@@ -17,18 +17,56 @@ impl NativeShellState {
         &self.source_row_rects
     }
 
-    pub(super) fn cached_folder_row_rects(
+    pub(super) fn cached_folder_rows(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> &[Rect] {
-        let cache_key = sidebar_rows_cache_key(layout, style, model);
-        if self.folder_row_cache_key != Some(cache_key) {
-            self.folder_row_rects = rendered_folder_row_rects(layout, style, model);
-            self.folder_row_cache_key = Some(cache_key);
+    ) -> &[CachedFolderRow] {
+        let cache_key = folder_rows_cache_key(
+            layout,
+            style,
+            model,
+            self.folder_rows_window_start,
+            self.folder_rows_autoscroll,
+        );
+        if self.folder_rows_cache_key != Some(cache_key) {
+            let (rows, resolved_window_start) = rendered_folder_rows_with_state(
+                layout,
+                model,
+                style,
+                self.folder_rows_window_start,
+                self.folder_rows_autoscroll,
+            );
+            self.folder_rows = rows;
+            self.folder_rows_window_start = resolved_window_start;
+            self.folder_rows_cache_key = Some(folder_rows_cache_key(
+                layout,
+                style,
+                model,
+                resolved_window_start,
+                self.folder_rows_autoscroll,
+            ));
         }
-        &self.folder_row_rects
+        &self.folder_rows
+    }
+
+    pub(super) fn cached_folder_scrollbar(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<(FolderScrollbarLayout, usize)> {
+        let style = style_for_layout(layout);
+        let rows = self.cached_folder_rows(layout, &style, model);
+        let viewport_len = rows.len().min(model.sources.folder_rows.len());
+        let sections = sidebar_sections(layout, &style, model);
+        let scrollbar = folder_scrollbar_layout(
+            sections.folder_rows,
+            rows,
+            model.sources.folder_rows.len(),
+            style.sizing,
+        )?;
+        Some((scrollbar, viewport_len))
     }
 
     pub(super) fn cached_browser_rows(

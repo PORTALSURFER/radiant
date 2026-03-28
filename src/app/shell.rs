@@ -145,6 +145,10 @@ pub struct DragOverlayModel {
     pub target_label: String,
     /// Whether the current target is a valid drop.
     pub valid_target: bool,
+    /// Cursor anchor x-coordinate for the floating drag chip, when available.
+    pub pointer_x: Option<u16>,
+    /// Cursor anchor y-coordinate for the floating drag chip, when available.
+    pub pointer_y: Option<u16>,
 }
 
 /// Snapshot of app state required by the native shell renderer.
@@ -227,6 +231,8 @@ impl Default for AppModel {
                 folder_search_query: String::new(),
                 show_all_folders: false,
                 can_toggle_show_all_folders: false,
+                flattened_view: false,
+                can_toggle_flattened_view: false,
                 selected_row: None,
                 focused_folder_row: None,
                 rows: Vec::new(),

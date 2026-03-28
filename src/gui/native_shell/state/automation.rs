@@ -274,13 +274,53 @@ mod tests {
             Some("rename_draft")
         );
         assert_eq!(
-            draft.metadata.get("select_all_on_focus").map(String::as_str),
+            draft
+                .metadata
+                .get("select_all_on_focus")
+                .map(String::as_str),
             Some("true")
         );
         assert!(
             draft
                 .available_actions
                 .contains(&String::from("focus_folder_create_input"))
+        );
+    }
+
+    #[test]
+    fn sidebar_automation_exposes_folder_flatten_toggle_metadata() {
+        let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+        let style = style_for_layout(&layout);
+        let mut model = AppModel::default();
+        model.sources.folder_rows.push(FolderRowModel::new(
+            "Root",
+            String::new(),
+            0,
+            false,
+            false,
+            true,
+            true,
+            true,
+        ));
+        model.sources.can_toggle_show_all_folders = true;
+        model.sources.can_toggle_flattened_view = true;
+        model.sources.flattened_view = true;
+        let mut state = NativeShellState::new();
+
+        let node = sidebar::build_sidebar_automation(&mut state, &layout, &model, &style);
+        let browser = child(&node, "sources.folder_browser");
+        let flatten = child(browser, "sources.folder_flatten_toggle");
+
+        assert_eq!(flatten.role, AutomationRole::Button);
+        assert_eq!(flatten.label.as_deref(), Some("Flattened view"));
+        assert_eq!(flatten.value.as_deref(), Some("All descendants"));
+        assert_eq!(
+            flatten.available_actions,
+            vec![String::from("toggle_folder_flattened_view")]
+        );
+        assert_eq!(
+            browser.metadata.get("flattened_view").map(String::as_str),
+            Some("all_descendants")
         );
     }
 

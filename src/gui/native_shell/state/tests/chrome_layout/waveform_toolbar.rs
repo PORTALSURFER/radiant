@@ -10,6 +10,7 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
         "Channel",
         "Norm",
         "BPM Snap",
+        "Rel Grid",
         "Tr Snap",
         "Show Tr",
         "Slice",
@@ -174,6 +175,43 @@ fn waveform_toolbar_bpm_snap_button_uses_highlight_when_enabled() {
         .find(|button| button.label == "BPM Snap")
         .expect("bpm snap toolbar button should be present");
     assert_eq!(bpm_snap_on.text_color, style.accent_warning);
+}
+
+#[test]
+fn waveform_toolbar_relative_grid_button_uses_highlight_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    let buttons_off = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let relative_off = buttons_off
+        .iter()
+        .find(|button| button.label == "Rel Grid")
+        .expect("relative bpm grid toolbar button should be present");
+    assert_eq!(relative_off.text_color, style.text_muted);
+
+    model.waveform_chrome.relative_bpm_grid_enabled = true;
+    let buttons_on = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let relative_on = buttons_on
+        .iter()
+        .find(|button| button.label == "Rel Grid")
+        .expect("relative bpm grid toolbar button should be present");
+    assert_eq!(relative_on.text_color, style.accent_warning);
+    assert_eq!(
+        relative_on.action,
+        Some(UiAction::SetRelativeBpmGridEnabled { enabled: false })
+    );
 }
 
 #[test]

@@ -387,6 +387,8 @@ fn drag_overlay_renders_target_arrow_and_warning_text_for_invalid_drop() {
             label: String::from("kick.wav"),
             target_label: String::from("Trash"),
             valid_target: false,
+            pointer_x: Some(420),
+            pointer_y: Some(240),
         },
         ..AppModel::default()
     };
@@ -406,6 +408,74 @@ fn drag_overlay_renders_target_arrow_and_warning_text_for_invalid_drop() {
             if rect.rect == drag_overlay_rect(&layout, &style)
                 && rect.color == style.surface_overlay
     )));
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| run.text == "kick.wav" && run.color == style.accent_warning)
+    );
+}
+
+#[test]
+fn drag_overlay_renders_cursor_chip_near_pointer() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        drag_overlay: crate::app::DragOverlayModel {
+            active: true,
+            label: String::from("2 samples"),
+            target_label: String::from("Folder: drums"),
+            valid_target: true,
+            pointer_x: Some(300),
+            pointer_y: Some(210),
+        },
+        ..AppModel::default()
+    };
+
+    let chip = drag_chip_rect(&layout, &style, &model).expect("drag chip should resolve");
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    assert_rect_inside(
+        Rect::from_min_max(
+            Point::new(layout.root.rect.min.x, layout.top_bar.max.y),
+            Point::new(layout.root.rect.max.x, layout.status_bar.min.y),
+        ),
+        chip,
+    );
+    assert!(overlay.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect) if rect.rect == chip
+    )));
+    assert!(overlay.text_runs.iter().any(|run| run.text == "2 samples"));
+}
+
+#[test]
+fn drag_overlay_chip_flips_and_clamps_near_body_edges() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = AppModel {
+        drag_overlay: crate::app::DragOverlayModel {
+            active: true,
+            label: String::from("kick.wav"),
+            target_label: String::from("Folder: drums"),
+            valid_target: true,
+            pointer_x: Some(1272),
+            pointer_y: Some(652),
+        },
+        ..AppModel::default()
+    };
+
+    let chip = drag_chip_rect(&layout, &style, &model).expect("drag chip should resolve");
+    let body_bounds = Rect::from_min_max(
+        Point::new(layout.root.rect.min.x, layout.top_bar.max.y),
+        Point::new(layout.root.rect.max.x, layout.status_bar.min.y),
+    );
+
+    assert_rect_inside(body_bounds, chip);
+    assert!(chip.min.x < f32::from(model.drag_overlay.pointer_x.expect("pointer x")));
+    assert!(chip.max.y <= body_bounds.max.y);
 }
 
 #[test]

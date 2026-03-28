@@ -125,7 +125,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
         style.sizing,
         SidebarRowCounts {
             source_rows: rendered_source_rows(style, model),
-            folder_rows: rendered_folder_rows(style, model),
+            folder_rows: model.sources.folder_rows.len(),
         },
     );
     SidebarSections {

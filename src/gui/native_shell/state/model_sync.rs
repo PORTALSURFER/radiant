@@ -17,6 +17,14 @@ impl NativeShellState {
         {
             self.hovered_folder_row_index = None;
         }
+        if self.last_focused_folder_row != model.sources.focused_folder_row {
+            self.last_focused_folder_row = model.sources.focused_folder_row;
+            self.folder_rows_autoscroll = true;
+            self.folder_rows_cache_key = None;
+        }
+        if model.sources.folder_rows.is_empty() {
+            self.folder_rows_window_start = 0;
+        }
         if self
             .source_context_menu
             .is_some_and(|menu| menu.row_index >= model.sources.rows.len())

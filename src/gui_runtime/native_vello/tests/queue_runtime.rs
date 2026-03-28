@@ -1,5 +1,67 @@
 use super::*;
 
+fn browser_drag_model() -> AppModel {
+    let mut model = browser_model_with_rows(4, 0);
+    model.sources = SourcesPanelModel {
+        folder_rows: vec![
+            crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+                .with_source_index(0),
+            crate::app::FolderRowModel::new("Drums", "drums", 1, false, false, false, true, true)
+                .with_source_index(7),
+        ],
+        ..SourcesPanelModel::default()
+    };
+    model
+}
+
+fn browser_row_point(layout: &ShellLayout) -> Point {
+    let style = StyleTokens::for_viewport_width(layout.root.rect.width());
+    Point::new(
+        layout.browser_rows.min.x + 24.0,
+        layout.browser_rows.min.y + (style.sizing.browser_row_height * 0.5),
+    )
+}
+
+fn folder_row_point(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+    row_index: usize,
+) -> Point {
+    for x in layout.sidebar_rows.min.x as i32..=layout.sidebar_rows.max.x as i32 {
+        for y in layout.sidebar_rows.min.y as i32..=layout.sidebar_rows.max.y as i32 {
+            let point = Point::new(x as f32, y as f32);
+            if shell_state.folder_row_at_point(layout, model, point) == Some(row_index) {
+                return point;
+            }
+        }
+    }
+    panic!("expected hittable folder row at index {row_index}");
+}
+
+fn folder_panel_background_point(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+) -> Point {
+    for x in layout.sidebar_rows.min.x as i32..=layout.sidebar_rows.max.x as i32 {
+        for y in layout.sidebar_rows.min.y as i32..=layout.sidebar_rows.max.y as i32 {
+            let point = Point::new(x as f32, y as f32);
+            if shell_state.folder_panel_contains_point(layout, model, point)
+                && shell_state
+                    .folder_row_at_point(layout, model, point)
+                    .is_none()
+                && shell_state
+                    .source_row_at_point(layout, model, point)
+                    .is_none()
+            {
+                return point;
+            }
+        }
+    }
+    panic!("expected hittable folder-panel background point");
+}
+
 #[test]
 fn pending_volume_updates_flush_last_write_wins() {
     let mut runner =
@@ -195,10 +257,15 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.shell_state.set_browser_row_hover_for_tests(Some(18));
+    runner.last_cursor = Some(Point::new(24.0, 24.0));
 
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 12 }, false)
     );
+    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.bridge.actions.is_empty());
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
 
     assert_eq!(
         runner.bridge.actions,
@@ -220,10 +287,15 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     runner.model = Arc::new(browser_model_with_rows(40, 0));
     runner.shell_layout = Some(Arc::new(layout));
+    runner.last_cursor = Some(browser_row_point(runner.shell_layout.as_ref().unwrap()));
 
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 18 }, false)
     );
+    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.bridge.actions.is_empty());
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
 
     assert_eq!(
         runner.bridge.actions,
@@ -231,6 +303,101 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
             UiAction::SetBrowserViewStart { visible_row: 1 },
             UiAction::FocusBrowserRow { visible_row: 18 }
         ]
+    );
+}
+
+#[test]
+fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(browser_drag_model());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    let press_point = browser_row_point(&layout);
+    let drag_point = folder_row_point(&mut runner.shell_state, &layout, &runner.model, 1);
+    runner.last_cursor = Some(press_point);
+
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+    );
+    assert!(runner.bridge.actions.is_empty());
+
+    runner.handle_cursor_moved_for_tests(drag_point);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::StartBrowserSampleDrag {
+                visible_row: 0,
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+            },
+            UiAction::UpdateBrowserSampleDrag {
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+                hovered_folder_row: Some(7),
+                over_folder_panel: true,
+                shift_down: false,
+                alt_down: false,
+            },
+        ]
+    );
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::StartBrowserSampleDrag {
+                visible_row: 0,
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+            },
+            UiAction::UpdateBrowserSampleDrag {
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+                hovered_folder_row: Some(7),
+                over_folder_panel: true,
+                shift_down: false,
+                alt_down: false,
+            },
+            UiAction::FinishBrowserSampleDrag,
+        ]
+    );
+}
+
+#[test]
+fn browser_row_drag_reports_folder_panel_background_without_row() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(browser_drag_model());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    let press_point = browser_row_point(&layout);
+    let drag_point = folder_panel_background_point(&mut runner.shell_state, &layout, &runner.model);
+    runner.last_cursor = Some(press_point);
+
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+    );
+    runner.handle_cursor_moved_for_tests(drag_point);
+
+    let update = runner
+        .bridge
+        .actions
+        .last()
+        .cloned()
+        .expect("dragging should emit a browser drag update");
+    assert_eq!(
+        update,
+        UiAction::UpdateBrowserSampleDrag {
+            pointer_x: drag_point.x.round() as u16,
+            pointer_y: drag_point.y.round() as u16,
+            hovered_folder_row: None,
+            over_folder_panel: true,
+            shift_down: false,
+            alt_down: false,
+        }
     );
 }
 
@@ -763,11 +930,16 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
 
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout));
+    runner.last_cursor = Some(browser_row_point(runner.shell_layout.as_ref().unwrap()));
     runner.bridge.actions.clear();
 
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 15 }, false)
     );
+    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.bridge.actions.is_empty());
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
 
     assert_eq!(
         runner.bridge.actions,

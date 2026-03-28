@@ -81,6 +81,7 @@ fn folder_row_hovered_overlay_uses_hover_fill() {
 
     let rendered_rows = rendered_folder_row_rects(&layout, &style, &model);
     let hover_row = rendered_rows[0];
+    let hover_visual_rect = folder_row_visual_rect(hover_row, style.sizing);
     let cursor = Point::new(
         hover_row.min.x + 4.0,
         (hover_row.min.y + hover_row.max.y) * 0.5,
@@ -102,12 +103,18 @@ fn folder_row_hovered_overlay_uses_hover_fill() {
         .primitives
         .iter()
         .find_map(|primitive| match primitive {
-            Primitive::Rect(rect) if rect.rect == hover_row => Some(rect.color),
+            Primitive::Rect(rect) if rect.rect == hover_visual_rect => Some(rect.color),
             _ => None,
         })
         .expect("hovered folder row should emit a fill rectangle");
 
     assert_eq!(overlay_color, expected_hover);
+    assert!(frame.primitives.iter().all(|primitive| {
+        !matches!(
+            primitive,
+            Primitive::Rect(rect) if rect.rect == hover_row && rect.color == expected_hover
+        )
+    }));
 }
 
 #[test]
@@ -127,6 +134,7 @@ fn folder_row_drag_hovered_overlay_uses_drag_target_fill() {
 
     let rendered_rows = rendered_folder_row_rects(&layout, &style, &model);
     let hover_row = rendered_rows[0];
+    let hover_visual_rect = folder_row_visual_rect(hover_row, style.sizing);
     let cursor = Point::new(
         hover_row.min.x + 4.0,
         (hover_row.min.y + hover_row.max.y) * 0.5,
@@ -144,12 +152,18 @@ fn folder_row_drag_hovered_overlay_uses_drag_target_fill() {
         .primitives
         .iter()
         .find_map(|primitive| match primitive {
-            Primitive::Rect(rect) if rect.rect == hover_row => Some(rect.color),
+            Primitive::Rect(rect) if rect.rect == hover_visual_rect => Some(rect.color),
             _ => None,
         })
         .expect("drag-hovered folder row should emit a fill rectangle");
 
     assert_eq!(overlay_color, expected_hover);
+    assert!(frame.primitives.iter().all(|primitive| {
+        !matches!(
+            primitive,
+            Primitive::Rect(rect) if rect.rect == hover_row && rect.color == expected_hover
+        )
+    }));
 }
 
 #[test]
@@ -172,8 +186,14 @@ fn folder_panel_background_drag_does_not_emit_row_highlight() {
         state.handle_cursor_move_effect(&layout, &model, background_point),
         CursorMoveEffect::None
     );
-    assert_eq!(state.state_overlay_fingerprint().hovered, Some(ShellNodeKind::Sidebar));
-    assert_eq!(state.state_overlay_fingerprint().hovered_folder_row_index, None);
+    assert_eq!(
+        state.state_overlay_fingerprint().hovered,
+        Some(ShellNodeKind::Sidebar)
+    );
+    assert_eq!(
+        state.state_overlay_fingerprint().hovered_folder_row_index,
+        None
+    );
 
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);

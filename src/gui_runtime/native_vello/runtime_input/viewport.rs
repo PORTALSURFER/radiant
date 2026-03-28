@@ -6,6 +6,14 @@ impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
 {
+    pub(crate) fn process_folder_view_start_immediately(&mut self, view_start_row: usize) -> bool {
+        if !self.shell_state.set_folder_view_start_row(view_start_row) {
+            return false;
+        }
+        self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
+        true
+    }
+
     /// Rebase the captured scrollbar grip onto the refreshed thumb geometry.
     fn refresh_waveform_scrollbar_drag_if_needed(&mut self) {
         if !self.waveform_view_refresh_pending {
@@ -113,6 +121,24 @@ where
         true
     }
 
+    pub(crate) fn process_folder_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(drag) = self.folder_scrollbar_drag else {
+            return false;
+        };
+        let Some(view_start_row) = self.shell_state.folder_scrollbar_view_start_for_drag(
+            layout,
+            &self.model,
+            point.y,
+            drag.thumb_pointer_offset_y,
+        ) else {
+            return false;
+        };
+        self.process_folder_view_start_immediately(view_start_row)
+    }
+
     /// Emit one browser-scrollbar track-click viewport update immediately.
     pub(crate) fn process_browser_scrollbar_track_click_immediately(
         &mut self,
@@ -130,6 +156,22 @@ where
         self.shell_state.clear_browser_row_hover();
         self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
         true
+    }
+
+    pub(crate) fn process_folder_scrollbar_track_click_immediately(
+        &mut self,
+        point: Point,
+    ) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(view_start_row) =
+            self.shell_state
+                .folder_scrollbar_view_start_at_point(layout, &self.model, point)
+        else {
+            return false;
+        };
+        self.process_folder_view_start_immediately(view_start_row)
     }
 
     /// Emit one waveform-scrollbar drag viewport update immediately.

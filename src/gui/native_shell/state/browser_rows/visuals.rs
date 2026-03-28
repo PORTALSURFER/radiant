@@ -45,10 +45,7 @@ pub(in crate::gui::native_shell::state) fn subtle_item_hover_fill(style: &StyleT
 }
 
 /// Return the stronger folder-row hover fill used during active drag/drop.
-pub(in crate::gui::native_shell::state) fn folder_drag_hover_fill(
-    style: &StyleTokens,
-    valid_target: bool,
-) -> Rgba8 {
+pub(crate) fn folder_drag_hover_fill(style: &StyleTokens, valid_target: bool) -> Rgba8 {
     let tint = if valid_target {
         style.accent_mint
     } else {

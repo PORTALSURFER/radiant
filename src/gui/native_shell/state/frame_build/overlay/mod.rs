@@ -99,15 +99,19 @@ pub(super) fn render_state_overlay(
         }
     }
     if let Some(hovered_folder_row_index) = shell_state.hovered_folder_row_index {
-        let folder_row_rects = shell_state.cached_folder_row_rects(layout, style, model);
+        let folder_rows = shell_state.cached_folder_rows(layout, style, model);
         if let (Some(row_rect), Some(row)) = (
-            folder_row_rects.get(hovered_folder_row_index),
+            folder_rows
+                .iter()
+                .find(|rendered_row| rendered_row.row_index == hovered_folder_row_index)
+                .map(|rendered_row| rendered_row.rect),
             model.sources.folder_rows.get(hovered_folder_row_index),
         ) {
             if !matches!(
                 row.kind,
                 crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
             ) {
+                let visual_rect = folder_row_visual_rect(row_rect, sizing);
                 let color = if model.drag_overlay.active {
                     folder_drag_hover_fill(style, model.drag_overlay.valid_target)
                 } else {
@@ -116,7 +120,7 @@ pub(super) fn render_state_overlay(
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
-                        rect: *row_rect,
+                        rect: visual_rect,
                         color,
                     }),
                 );

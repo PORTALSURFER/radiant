@@ -248,20 +248,23 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     if model.waveform_bpm_snap_enabled {
         bits |= 1 << 2;
     }
-    if model.waveform_transient_snap_enabled {
+    if model.waveform_relative_bpm_grid_enabled {
         bits |= 1 << 3;
     }
-    if model.waveform_transient_markers_enabled {
+    if model.waveform_transient_snap_enabled {
         bits |= 1 << 4;
     }
-    if model.waveform_slice_mode_enabled {
+    if model.waveform_transient_markers_enabled {
         bits |= 1 << 5;
     }
-    if model.waveform_loop_enabled {
+    if model.waveform_slice_mode_enabled {
         bits |= 1 << 6;
     }
-    if model.transport_running {
+    if model.waveform_loop_enabled {
         bits |= 1 << 7;
+    }
+    if model.transport_running {
+        bits |= 1 << 8;
     }
     bits
 }
@@ -288,6 +291,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hover_hint(
         "Norm" => Some(WaveformToolbarHoverHint::NormalizedAudition),
         "BPM Value" => Some(WaveformToolbarHoverHint::BpmValue),
         "BPM Snap" => Some(WaveformToolbarHoverHint::BpmSnap),
+        "Rel Grid" => Some(WaveformToolbarHoverHint::RelativeBpmGrid),
         "Tr Snap" => Some(WaveformToolbarHoverHint::TransientSnap),
         "Show Tr" => Some(WaveformToolbarHoverHint::ShowTransients),
         "Slice" => Some(WaveformToolbarHoverHint::SliceMode),

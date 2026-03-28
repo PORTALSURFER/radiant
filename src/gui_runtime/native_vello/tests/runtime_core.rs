@@ -236,6 +236,14 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
         chrome_motion_overlay_model_signature(&changed_bpm_snap)
     );
 
+    let mut changed_relative_grid = baseline.clone();
+    changed_relative_grid.waveform_relative_bpm_grid_enabled =
+        !baseline.waveform_relative_bpm_grid_enabled;
+    assert_ne!(
+        chrome_baseline_signature,
+        chrome_motion_overlay_model_signature(&changed_relative_grid)
+    );
+
     let mut changed_transient_snap = baseline.clone();
     changed_transient_snap.waveform_transient_snap_enabled =
         !baseline.waveform_transient_snap_enabled;
@@ -278,6 +286,31 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     assert_ne!(
         chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_loop)
+    );
+}
+
+#[test]
+fn state_overlay_signature_changes_for_drag_chip_pointer_motion() {
+    let baseline = AppModel::default();
+    let baseline_signature = state_overlay_model_signature(&baseline);
+
+    let mut changed = baseline.clone();
+    changed.drag_overlay = crate::app::DragOverlayModel {
+        active: true,
+        label: String::from("kick.wav"),
+        target_label: String::from("Folder: drums"),
+        valid_target: true,
+        pointer_x: Some(320),
+        pointer_y: Some(240),
+    };
+    let anchored_signature = state_overlay_model_signature(&changed);
+    assert_ne!(baseline_signature, anchored_signature);
+
+    changed.drag_overlay.pointer_x = Some(321);
+    assert_ne!(
+        anchored_signature,
+        state_overlay_model_signature(&changed),
+        "pointer motion should invalidate the state overlay signature"
     );
 }
 

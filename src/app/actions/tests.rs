@@ -19,6 +19,10 @@ fn ui_action_family_preserves_bridge_groupings() {
     );
     assert_eq!(UiAction::FocusFolderSearch.family(), UiActionFamily::Focus);
     assert_eq!(
+        UiAction::ToggleFolderFlattenedView.family(),
+        UiActionFamily::Sources
+    );
+    assert_eq!(
         UiAction::DeleteFocusedFolder.family(),
         UiActionFamily::Sources
     );
@@ -32,6 +36,15 @@ fn ui_action_family_preserves_bridge_groupings() {
     );
     assert_eq!(
         UiAction::ToggleBrowserRowSelection { visible_row: 4 }.family(),
+        UiActionFamily::Browser
+    );
+    assert_eq!(
+        UiAction::StartBrowserSampleDrag {
+            visible_row: 4,
+            pointer_x: 120,
+            pointer_y: 80,
+        }
+        .family(),
         UiActionFamily::Browser
     );
     assert_eq!(UiAction::ConfirmPrompt.family(), UiActionFamily::Prompt);

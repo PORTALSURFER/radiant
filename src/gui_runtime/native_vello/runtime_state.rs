@@ -1,6 +1,14 @@
+use crate::gui::types::Point;
+
 /// Active browser-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserScrollbarDragState {
+    pub(super) thumb_pointer_offset_y: f32,
+}
+
+/// Active folder-scrollbar thumb drag state while the primary pointer is held.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct FolderScrollbarDragState {
     pub(super) thumb_pointer_offset_y: f32,
 }
 
@@ -28,6 +36,20 @@ pub(super) struct WaveformClickSeekPress {
     pub(super) clear_selection_on_release: bool,
 }
 
+/// Deferred browser-row press used to preserve click behavior until release.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PendingBrowserRowPress {
+    pub(super) action: crate::app::UiAction,
+    pub(super) visible_row: usize,
+    pub(super) press_point: Point,
+}
+
+/// Active browser-sample drag session while the primary pointer is held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BrowserSampleDragState {
+    pub(super) visible_row: usize,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum TextInputTarget {
     #[default]
@@ -51,10 +73,12 @@ pub(super) enum RuntimeInvalidationScope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActivePointerSession {
     Volume,
+    FolderScrollbar,
     BrowserScrollbar,
     WaveformScrollbar,
     WaveformPan,
     WaveformDrag,
+    BrowserSampleDrag,
     SelectionDrag,
     MapFocusDrag,
     TextInputDrag,
@@ -141,6 +165,8 @@ where
     pub(super) fn active_pointer_session(&self) -> ActivePointerSession {
         if self.volume_drag_active {
             ActivePointerSession::Volume
+        } else if self.folder_scrollbar_drag.is_some() {
+            ActivePointerSession::FolderScrollbar
         } else if self.browser_scrollbar_drag.is_some() {
             ActivePointerSession::BrowserScrollbar
         } else if self.waveform_scrollbar_drag.is_some() {
@@ -149,6 +175,8 @@ where
             ActivePointerSession::WaveformPan
         } else if self.waveform_drag_mode.is_some() {
             ActivePointerSession::WaveformDrag
+        } else if self.browser_sample_drag.is_some() {
+            ActivePointerSession::BrowserSampleDrag
         } else if self.selection_drag_active {
             ActivePointerSession::SelectionDrag
         } else if self.map_focus_drag_active {
@@ -164,11 +192,13 @@ where
         self.pending_volume_milli = None;
         self.volume_drag_active = false;
         self.last_emitted_volume_milli = None;
+        self.pending_browser_row_press = None;
         self.clear_pointer_drag_session();
     }
 
     pub(super) fn clear_pointer_release_state(&mut self) {
         self.text_input_drag_active = false;
+        self.folder_scrollbar_drag = None;
         self.browser_scrollbar_drag = None;
         self.waveform_scrollbar_drag = None;
         self.waveform_pan_drag = None;
@@ -179,15 +209,23 @@ where
     pub(super) fn clear_pointer_drag_session(&mut self) {
         self.waveform_drag_mode = None;
         self.waveform_click_seek_press = None;
+        self.browser_sample_drag = None;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
         self.last_emitted_map_drag_sample_id = None;
+        self.folder_scrollbar_drag = None;
         self.browser_scrollbar_drag = None;
         self.last_emitted_browser_view_start = None;
         self.waveform_scrollbar_drag = None;
         self.waveform_pan_drag = None;
         self.last_emitted_waveform_view_center = None;
+    }
+
+    pub(super) fn begin_folder_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
+        self.folder_scrollbar_drag = Some(FolderScrollbarDragState {
+            thumb_pointer_offset_y,
+        });
     }
 
     pub(super) fn begin_browser_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
@@ -222,6 +260,10 @@ where
     pub(super) fn begin_map_focus_drag(&mut self, sample_id: Option<String>) {
         self.map_focus_drag_active = true;
         self.last_emitted_map_drag_sample_id = sample_id;
+    }
+
+    pub(super) fn begin_browser_sample_drag(&mut self, visible_row: usize) {
+        self.browser_sample_drag = Some(BrowserSampleDragState { visible_row });
     }
 
     pub(super) fn begin_waveform_pointer_interaction(

@@ -81,6 +81,7 @@ fn waveform_bpm_grid_lines_reuse_last_selection_origin_after_clear() {
     model.waveform.view_end_micros = 875_000;
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = true;
     model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(125, 375));
 
     let selected_frame = state.build_frame(&layout, &model);
@@ -126,6 +127,7 @@ fn waveform_bpm_grid_lines_prefer_projected_origin_when_present() {
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform.bpm_grid_origin_micros = 250_000;
     model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = true;
 
     let frame = state.build_frame(&layout, &model);
     let (soft_xs, strong_xs) = waveform_bpm_grid_positions(&frame, &layout, &style);
@@ -156,6 +158,7 @@ fn waveform_bpm_grid_lines_follow_micro_precision_viewport_when_zoomed() {
     model.waveform.beat_step_micros = Some(200);
     model.waveform.bpm_grid_origin_micros = 500_500;
     model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = true;
 
     let frame = state.build_frame(&layout, &model);
     let (soft_xs, strong_xs) = waveform_bpm_grid_positions(&frame, &layout, &style);
@@ -168,6 +171,35 @@ fn waveform_bpm_grid_lines_follow_micro_precision_viewport_when_zoomed() {
         beat_grid_x_micros(layout.waveform_plot, 500_400, 501_400, 500_500),
         beat_grid_x_micros(layout.waveform_plot, 500_400, 501_400, 501_300),
     ];
+
+    assert_eq!(soft_xs, expected_soft_xs);
+    assert_eq!(strong_xs, expected_strong_xs);
+}
+
+#[test]
+fn waveform_bpm_grid_lines_ignore_selection_origin_in_global_mode() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform.view_start_milli = 125;
+    model.waveform.view_end_milli = 875;
+    model.waveform.view_start_micros = 125_000;
+    model.waveform.view_end_micros = 875_000;
+    model.waveform.beat_step_micros = Some(125_000);
+    model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = false;
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(125, 375));
+    model.waveform.bpm_grid_origin_micros = 250_000;
+
+    let frame = state.build_frame(&layout, &model);
+    let (soft_xs, strong_xs) = waveform_bpm_grid_positions(&frame, &layout, &style);
+
+    let expected_soft_xs = [0.125_f32, 0.25, 0.375, 0.625, 0.75, 0.875]
+        .into_iter()
+        .map(|beat| beat_grid_x(layout.waveform_plot, 0.125, 0.875, beat))
+        .collect::<Vec<_>>();
+    let expected_strong_xs = vec![beat_grid_x(layout.waveform_plot, 0.125, 0.875, 0.5)];
 
     assert_eq!(soft_xs, expected_soft_xs);
     assert_eq!(strong_xs, expected_strong_xs);

@@ -112,6 +112,8 @@ const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Additional hit slop for the narrow browser scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
+/// Additional hit slop for the narrow folder scrollbar thumb.
+const FOLDER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 
 /// Color mode used for the transient waveform selection export flash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -168,8 +170,11 @@ pub(crate) struct NativeShellState {
     source_context_menu: Option<SourceContextMenuState>,
     source_row_rects: Vec<Rect>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
-    folder_row_rects: Vec<Rect>,
-    folder_row_cache_key: Option<SidebarRowsCacheKey>,
+    folder_rows: Vec<CachedFolderRow>,
+    folder_rows_window_start: usize,
+    folder_rows_autoscroll: bool,
+    last_focused_folder_row: Option<usize>,
+    folder_rows_cache_key: Option<FolderRowsCacheKey>,
     browser_rows: Vec<CachedBrowserRow>,
     browser_rows_window_start: usize,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
@@ -226,8 +231,11 @@ impl NativeShellState {
             source_context_menu: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
-            folder_row_rects: Vec::new(),
-            folder_row_cache_key: None,
+            folder_rows: Vec::new(),
+            folder_rows_window_start: 0,
+            folder_rows_autoscroll: true,
+            last_focused_folder_row: None,
+            folder_rows_cache_key: None,
             browser_rows: Vec::new(),
             browser_rows_window_start: 0,
             browser_rows_cache_key: None,

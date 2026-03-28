@@ -255,6 +255,10 @@ pub struct SourcesPanelModel {
     pub show_all_folders: bool,
     /// Whether the folder-visibility toggle is currently actionable.
     pub can_toggle_show_all_folders: bool,
+    /// Whether folder filtering includes descendant files in a flattened list.
+    pub flattened_view: bool,
+    /// Whether the folder flattened-view toggle is currently actionable.
+    pub can_toggle_flattened_view: bool,
     /// Selected row index, if any.
     pub selected_row: Option<usize>,
     /// Focused folder row index, if any.

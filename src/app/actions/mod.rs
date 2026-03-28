@@ -104,6 +104,8 @@ pub enum UiAction {
     },
     /// Toggle whether the folder tree shows disk folders without WAV-backed samples.
     ToggleShowAllFolders,
+    /// Toggle whether folder filtering includes descendant files.
+    ToggleFolderFlattenedView,
 
     // Sources and folder tree actions.
     /// Focus a source row by index and make the sources list the active section.
@@ -249,6 +251,36 @@ pub enum UiAction {
         /// Target visible row index in the browser list.
         visible_row: usize,
     },
+    /// Start dragging one browser sample or the active browser multi-selection.
+    ///
+    /// The runtime emits this only after a browser-row press exceeds drag slop,
+    /// so plain clicks can still resolve into the existing focus/selection
+    /// actions on release without changing preview behavior.
+    StartBrowserSampleDrag {
+        /// Target visible row index that armed the drag session.
+        visible_row: usize,
+        /// Pointer x-position in logical UI coordinates.
+        pointer_x: u16,
+        /// Pointer y-position in logical UI coordinates.
+        pointer_y: u16,
+    },
+    /// Update the active browser-sample drag with the latest pointer position.
+    UpdateBrowserSampleDrag {
+        /// Pointer x-position in logical UI coordinates.
+        pointer_x: u16,
+        /// Pointer y-position in logical UI coordinates.
+        pointer_y: u16,
+        /// Backing controller folder-row index currently hovered, when any.
+        hovered_folder_row: Option<usize>,
+        /// Whether the pointer is currently over the folder panel background.
+        over_folder_panel: bool,
+        /// Whether Shift is currently held.
+        shift_down: bool,
+        /// Whether Alt is currently held.
+        alt_down: bool,
+    },
+    /// Finish the active browser-sample drag gesture.
+    FinishBrowserSampleDrag,
     /// Extend selection from the anchor to the target visible row.
     ExtendBrowserSelectionToRow {
         /// Target visible row index used as selection endpoint.
@@ -427,6 +459,11 @@ pub enum UiAction {
     },
     /// Enable/disable BPM snapping for waveform edits.
     SetBpmSnapEnabled {
+        /// Target enabled state.
+        enabled: bool,
+    },
+    /// Enable/disable selection-relative BPM grid anchoring.
+    SetRelativeBpmGridEnabled {
         /// Target enabled state.
         enabled: bool,
     },

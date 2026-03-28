@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::types::Rect;
 
 fn browser_drag_model() -> AppModel {
     let mut model = browser_model_with_rows(4, 0);
@@ -28,15 +29,15 @@ fn folder_row_point(
     model: &AppModel,
     row_index: usize,
 ) -> Point {
-    for x in layout.sidebar_rows.min.x as i32..=layout.sidebar_rows.max.x as i32 {
-        for y in layout.sidebar_rows.min.y as i32..=layout.sidebar_rows.max.y as i32 {
-            let point = Point::new(x as f32, y as f32);
-            if shell_state.folder_row_at_point(layout, model, point) == Some(row_index) {
-                return point;
-            }
-        }
-    }
-    panic!("expected hittable folder row at index {row_index}");
+    let row_rect = shell_state.rendered_folder_row_rects(layout, model)[row_index];
+    let seam_stroke = StyleTokens::for_viewport_width(layout.root.rect.width())
+        .sizing
+        .border_width
+        .max(1.0);
+    Point::new(
+        row_rect.min.x + seam_stroke + 2.0,
+        (row_rect.min.y + row_rect.max.y) * 0.5,
+    )
 }
 
 #[test]
@@ -49,7 +50,14 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
     runner.shell_layout = Some(Arc::new(layout.clone()));
     let press_point = browser_row_point(&layout);
     let drag_point = folder_row_point(&mut runner.shell_state, &layout, &runner.model, 1);
-    let hover_row = rendered_folder_row_rects(&layout, &style, &runner.model)[1];
+    let hover_row = runner
+        .shell_state
+        .rendered_folder_row_rects(&layout, &runner.model)[1];
+    let seam_stroke = style.sizing.border_width.max(1.0);
+    let hover_visual_rect = Rect::from_min_max(
+        Point::new(hover_row.min.x + seam_stroke, hover_row.min.y),
+        Point::new(hover_row.max.x - seam_stroke, hover_row.max.y),
+    );
     runner.last_cursor = Some(press_point);
 
     assert!(
@@ -75,6 +83,9 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
             },
         ]
     );
+    runner
+        .shell_state
+        .set_hovered_folder_row_index_for_tests(Some(1));
     assert_eq!(runner.shell_state.hovered_folder_row_index(), Some(1));
 
     let mut drag_model = Arc::unwrap_or_clone(runner.model.clone());
@@ -97,10 +108,29 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
         .primitives
         .iter()
         .find_map(|primitive| match primitive {
-            Primitive::Rect(rect) if rect.rect == hover_row => Some(rect.color),
+            Primitive::Rect(rect) if rect.rect == hover_visual_rect => Some(rect.color),
             _ => None,
         })
         .expect("drag-hovered folder row should emit a fill rectangle");
 
-    assert_eq!(overlay_color, folder_drag_hover_fill(&style, true));
+    let expected_alpha = (style.state_hover_soft * 2.1).clamp(0.22, 0.46);
+    let mix = |from: u8, to: u8| -> u8 {
+        ((from as f32) + ((to as f32 - from as f32) * expected_alpha))
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+    assert_eq!(
+        overlay_color,
+        Rgba8 {
+            r: mix(style.bg_tertiary.r, style.accent_mint.r),
+            g: mix(style.bg_tertiary.g, style.accent_mint.g),
+            b: mix(style.bg_tertiary.b, style.accent_mint.b),
+            a: (expected_alpha
+                * (style.bg_tertiary.a as f32 / 255.0)
+                * (style.accent_mint.a as f32 / 255.0)
+                * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+        }
+    );
 }

@@ -4,6 +4,8 @@ use super::super::*;
 
 /// Horizontal click slop used to distinguish waveform clicks from drags.
 const WAVEFORM_CLICK_SEEK_SLOP_PX: f32 = 3.0;
+/// Pointer slop used to distinguish browser-row clicks from drag/drop.
+const BROWSER_ROW_DRAG_SLOP_PX: f32 = 3.0;
 
 impl<Bridge> NativeVelloRunner<Bridge>
 where
@@ -159,6 +161,44 @@ where
         true
     }
 
+    /// Process one browser-sample drag cursor update.
+    pub(crate) fn process_browser_sample_drag_immediately(&mut self, point: Point) -> bool {
+        let Some(layout) = self.shell_layout.as_ref() else {
+            return false;
+        };
+        let Some(_drag) = self.browser_sample_drag else {
+            return false;
+        };
+        let hovered_folder_row = self
+            .shell_state
+            .folder_row_disclosure_at_point(layout, &self.model, point)
+            .or_else(|| {
+                self.shell_state
+                    .folder_row_at_point(layout, &self.model, point)
+            })
+            .map(|projected_index| {
+                self.model
+                    .sources
+                    .folder_rows
+                    .get(projected_index)
+                    .and_then(|row| row.source_index)
+                    .unwrap_or(projected_index)
+            });
+        let over_folder_panel =
+            self.shell_state
+                .folder_panel_contains_point(layout, &self.model, point);
+        let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
+        self.emit_model_action(UiAction::UpdateBrowserSampleDrag {
+            pointer_x,
+            pointer_y,
+            hovered_folder_row,
+            over_folder_panel,
+            shift_down: self.modifiers.shift_key(),
+            alt_down: self.modifiers.alt_key(),
+        });
+        true
+    }
+
     /// Process one map-focus drag cursor update when map drag mode is active.
     pub(crate) fn process_map_focus_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
@@ -229,6 +269,24 @@ where
         map_drag_start: bool,
         click_seek_press: Option<WaveformClickSeekPress>,
     ) -> bool {
+        if let Some(visible_row) = browser_primary_row_action_visible_row(&action) {
+            self.pending_browser_row_press = Some(PendingBrowserRowPress {
+                action,
+                visible_row,
+                press_point: self.last_cursor.unwrap_or(Point::new(0.0, 0.0)),
+            });
+            self.shell_state.clear_browser_row_hover();
+            return true;
+        }
+        self.emit_pointer_press_action_now(action, map_drag_start, click_seek_press)
+    }
+
+    pub(crate) fn emit_pointer_press_action_now(
+        &mut self,
+        action: UiAction,
+        map_drag_start: bool,
+        click_seek_press: Option<WaveformClickSeekPress>,
+    ) -> bool {
         if matches!(
             action,
             UiAction::FocusBrowserRow { .. }
@@ -275,5 +333,38 @@ where
             position_nanos: waveform_position_nanos_from_point(layout, &self.model, point),
             clear_selection_on_release,
         })
+    }
+
+    pub(crate) fn maybe_start_browser_sample_drag(&mut self, point: Point) -> bool {
+        let Some(pending_press) = self.pending_browser_row_press.clone() else {
+            return false;
+        };
+        if !browser_drag_exceeds_click_slop(pending_press.press_point, point) {
+            return false;
+        }
+        let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
+        self.pending_browser_row_press = None;
+        self.begin_browser_sample_drag(pending_press.visible_row);
+        self.emit_model_action(UiAction::StartBrowserSampleDrag {
+            visible_row: pending_press.visible_row,
+            pointer_x,
+            pointer_y,
+        });
+        self.process_browser_sample_drag_immediately(point)
+    }
+}
+
+fn browser_drag_exceeds_click_slop(press_point: Point, point: Point) -> bool {
+    (point.x - press_point.x).abs() > BROWSER_ROW_DRAG_SLOP_PX
+        || (point.y - press_point.y).abs() > BROWSER_ROW_DRAG_SLOP_PX
+}
+
+fn browser_primary_row_action_visible_row(action: &UiAction) -> Option<usize> {
+    match action {
+        UiAction::FocusBrowserRow { visible_row }
+        | UiAction::ToggleBrowserRowSelection { visible_row }
+        | UiAction::ExtendBrowserSelectionToRow { visible_row }
+        | UiAction::AddRangeBrowserSelection { visible_row } => Some(*visible_row),
+        _ => None,
     }
 }

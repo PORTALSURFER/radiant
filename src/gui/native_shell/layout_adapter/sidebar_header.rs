@@ -25,9 +25,9 @@ pub(crate) struct RecoveryBadgeLayout {
     pub active: bool,
 }
 
-/// Slot-resolved folder-visibility toggle layout inside the folder header.
+/// Slot-resolved folder-header toggle layout inside the folder header.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct FolderVisibilityToggleLayout {
+pub(crate) struct FolderHeaderToggleLayout {
     pub rect: Rect,
     pub active: bool,
     pub enabled: bool,
@@ -39,7 +39,8 @@ pub(crate) struct SidebarFolderHeaderLayout {
     pub title_row: Rect,
     pub metadata_row: Option<Rect>,
     pub badge: Option<RecoveryBadgeLayout>,
-    pub toggle_button: Option<FolderVisibilityToggleLayout>,
+    pub visibility_toggle_button: Option<FolderHeaderToggleLayout>,
+    pub flatten_toggle_button: Option<FolderHeaderToggleLayout>,
 }
 
 /// Compute folder-header text rows and recovery badge through slotized helpers.
@@ -49,26 +50,36 @@ pub(crate) fn compute_sidebar_folder_header_layout(
     recovery_in_progress: bool,
     recovery_entry_count: usize,
     show_all_folders: bool,
-    toggle_enabled: bool,
+    visibility_toggle_enabled: bool,
+    flattened_view: bool,
+    flattened_toggle_enabled: bool,
 ) -> SidebarFolderHeaderLayout {
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return SidebarFolderHeaderLayout {
             title_row: empty_rect(header_rect),
             metadata_row: None,
             badge: None,
-            toggle_button: None,
+            visibility_toggle_button: None,
+            flatten_toggle_button: None,
         };
     }
 
-    let toggle_button = compute_folder_visibility_toggle_layout(
+    let (visibility_toggle_button, flatten_toggle_button) = compute_folder_header_toggle_layouts(
         header_rect,
         sizing,
         show_all_folders,
-        toggle_enabled,
+        visibility_toggle_enabled,
+        flattened_view,
+        flattened_toggle_enabled,
     );
-    let reserved_right_edge = toggle_button
+    let reserved_right_edge = visibility_toggle_button
         .as_ref()
         .map(|button| button.rect.min.x - sizing.sidebar_action_button_gap.max(2.0))
+        .or_else(|| {
+            flatten_toggle_button
+                .as_ref()
+                .map(|button| button.rect.min.x - sizing.sidebar_action_button_gap.max(2.0))
+        })
         .unwrap_or(header_rect.max.x);
     let badge = compute_recovery_badge_layout(
         Rect::from_min_max(
@@ -96,7 +107,8 @@ pub(crate) fn compute_sidebar_folder_header_layout(
             title_row: empty_rect(header_rect),
             metadata_row: None,
             badge,
-            toggle_button,
+            visibility_toggle_button,
+            flatten_toggle_button,
         };
     }
 
@@ -156,7 +168,8 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         title_row,
         metadata_row,
         badge,
-        toggle_button,
+        visibility_toggle_button,
+        flatten_toggle_button,
     }
 }
 
@@ -290,32 +303,67 @@ fn compute_recovery_badge_layout(
     })
 }
 
-fn compute_folder_visibility_toggle_layout(
+fn compute_folder_header_toggle_layouts(
     header_rect: Rect,
     sizing: SizingTokens,
     show_all_folders: bool,
-    enabled: bool,
-) -> Option<FolderVisibilityToggleLayout> {
+    visibility_enabled: bool,
+    flattened_view: bool,
+    flattened_enabled: bool,
+) -> (
+    Option<FolderHeaderToggleLayout>,
+    Option<FolderHeaderToggleLayout>,
+) {
     let available_width = (header_rect.width() - (sizing.text_inset_x * 2.0)).max(0.0);
     let button_size = sizing
         .sidebar_action_button_height
         .min((header_rect.height() - 2.0).max(10.0))
         .max(10.0);
     if available_width < button_size {
-        return None;
+        return (None, None);
     }
     let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
-    let min_x = (max_x - button_size).max(header_rect.min.x + sizing.text_inset_x.max(0.0));
     let min_y = header_rect.min.y + ((header_rect.height() - button_size) * 0.5).floor();
-    let rect = Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(max_x, (min_y + button_size).min(header_rect.max.y)),
+    let gap = sizing.sidebar_action_button_gap.max(2.0);
+    let two_button_width = (button_size * 2.0) + gap;
+    let min_inner_x = header_rect.min.x + sizing.text_inset_x.max(0.0);
+
+    let flatten_toggle_button = if available_width >= two_button_width {
+        let flatten_min_x = (max_x - button_size).max(min_inner_x);
+        let rect = Rect::from_min_max(
+            Point::new(flatten_min_x, min_y),
+            Point::new(max_x, (min_y + button_size).min(header_rect.max.y)),
+        );
+        Some(FolderHeaderToggleLayout {
+            rect,
+            active: flattened_view,
+            enabled: flattened_enabled,
+        })
+    } else {
+        None
+    };
+
+    let visibility_max_x = flatten_toggle_button
+        .as_ref()
+        .map(|button| button.rect.min.x - gap)
+        .unwrap_or(max_x);
+    let visibility_min_x = (visibility_max_x - button_size).max(min_inner_x);
+    let visibility_rect = Rect::from_min_max(
+        Point::new(visibility_min_x, min_y),
+        Point::new(
+            visibility_max_x,
+            (min_y + button_size).min(header_rect.max.y),
+        ),
     );
-    (rect.width() > 0.0 && rect.height() > 0.0).then_some(FolderVisibilityToggleLayout {
-        rect,
-        active: show_all_folders,
-        enabled,
-    })
+    let visibility_toggle_button = (visibility_rect.width() > 0.0
+        && visibility_rect.height() > 0.0)
+        .then_some(FolderHeaderToggleLayout {
+            rect: visibility_rect,
+            active: show_all_folders,
+            enabled: visibility_enabled,
+        });
+
+    (visibility_toggle_button, flatten_toggle_button)
 }
 
 fn compact_recovery_badge_label(
@@ -419,8 +467,16 @@ mod tests {
             Point::new(0.0, 0.0),
             Point::new(58.0, style.sizing.folder_header_block_height),
         );
-        let layout =
-            compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 153, true, true);
+        let layout = compute_sidebar_folder_header_layout(
+            header_rect,
+            style.sizing,
+            false,
+            153,
+            true,
+            true,
+            false,
+            true,
+        );
         let badge = layout.badge.expect("badge should still render");
         assert!(badge.label.chars().count() <= 3);
         assert!(badge.rect.min.x >= header_rect.min.x);
@@ -434,8 +490,16 @@ mod tests {
             Point::new(24.0, 40.0),
             Point::new(120.0, 40.0 + style.sizing.folder_header_block_height),
         );
-        let layout =
-            compute_sidebar_folder_header_layout(header_rect, style.sizing, true, 0, true, true);
+        let layout = compute_sidebar_folder_header_layout(
+            header_rect,
+            style.sizing,
+            true,
+            0,
+            true,
+            true,
+            false,
+            true,
+        );
         let badge = layout
             .badge
             .expect("badge should render for active recovery");
@@ -452,10 +516,18 @@ mod tests {
             Point::new(24.0, 40.0),
             Point::new(220.0, 40.0 + style.sizing.folder_header_block_height),
         );
-        let layout =
-            compute_sidebar_folder_header_layout(header_rect, style.sizing, false, 0, true, true);
+        let layout = compute_sidebar_folder_header_layout(
+            header_rect,
+            style.sizing,
+            false,
+            0,
+            true,
+            true,
+            false,
+            true,
+        );
         let toggle = layout
-            .toggle_button
+            .visibility_toggle_button
             .expect("toggle should render when the header is wide enough");
         assert!(toggle.rect.min.x >= header_rect.min.x);
         assert!(toggle.rect.max.x <= header_rect.max.x);
@@ -463,6 +535,33 @@ mod tests {
         assert!(toggle.rect.max.y <= header_rect.max.y);
         assert!((toggle.rect.width() - toggle.rect.height()).abs() <= 0.5);
         assert!(toggle.rect.height() <= style.sizing.sidebar_action_button_height + 0.5);
+    }
+
+    #[test]
+    fn folder_header_two_toggles_fit_without_overlap() {
+        let style = StyleTokens::for_viewport_width(1280.0);
+        let header_rect = Rect::from_min_max(
+            Point::new(24.0, 40.0),
+            Point::new(220.0, 40.0 + style.sizing.folder_header_block_height),
+        );
+        let layout = compute_sidebar_folder_header_layout(
+            header_rect,
+            style.sizing,
+            false,
+            0,
+            false,
+            true,
+            true,
+            true,
+        );
+        let visibility = layout
+            .visibility_toggle_button
+            .expect("visibility toggle should render");
+        let flatten = layout
+            .flatten_toggle_button
+            .expect("flatten toggle should render");
+        assert!(visibility.rect.max.x <= flatten.rect.min.x);
+        assert!(flatten.rect.max.x <= header_rect.max.x);
     }
 
     #[test]

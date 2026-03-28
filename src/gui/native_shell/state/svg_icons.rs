@@ -24,6 +24,8 @@ pub(super) enum WaveformToolbarIcon {
     Normalize,
     /// BPM snap icon.
     BpmSnap,
+    /// Selection-relative BPM grid origin icon.
+    RelativeBpmGrid,
     /// Transient snap icon.
     TransientSnap,
     /// Show transient markers icon.
@@ -46,6 +48,8 @@ pub(super) enum WaveformToolbarIcon {
     Similarity,
     /// Sidebar folder-visibility toggle icon.
     Filter,
+    /// Sidebar flattened-view toggle icon.
+    Flatten,
 }
 
 /// Return a toolbar icon for one waveform toolbar button.
@@ -128,6 +132,9 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
         WaveformToolbarIcon::BpmSnap => {
             include_str!("../../../../assets/icons/waveform_toolbar/bpm_snap.svg")
         }
+        WaveformToolbarIcon::RelativeBpmGrid => {
+            include_str!("../../../../assets/icons/waveform_toolbar/relative_bpm_grid.svg")
+        }
         WaveformToolbarIcon::TransientSnap => {
             include_str!("../../../../assets/icons/waveform_toolbar/transient_snap.svg")
         }
@@ -155,6 +162,7 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
             include_str!("../../../../assets/icons/ui/similarity.svg")
         }
         WaveformToolbarIcon::Filter => include_str!("../../../../assets/icons/ui/filter.svg"),
+        WaveformToolbarIcon::Flatten => include_str!("../../../../assets/icons/ui/flatten.svg"),
     }
 }
 
@@ -229,6 +237,7 @@ mod tests {
             WaveformToolbarIcon::Stereo,
             WaveformToolbarIcon::Normalize,
             WaveformToolbarIcon::BpmSnap,
+            WaveformToolbarIcon::RelativeBpmGrid,
             WaveformToolbarIcon::TransientSnap,
             WaveformToolbarIcon::ShowTransients,
             WaveformToolbarIcon::Slice,
@@ -240,6 +249,7 @@ mod tests {
             WaveformToolbarIcon::Dice,
             WaveformToolbarIcon::Similarity,
             WaveformToolbarIcon::Filter,
+            WaveformToolbarIcon::Flatten,
         ] {
             let document = parse_svg_document(icon_svg_asset(icon));
             assert!(document.is_some(), "svg asset for {icon:?} should parse");

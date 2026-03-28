@@ -78,6 +78,7 @@ impl UiAction {
             | Self::RestoreRetainedFolderDeletes
             | Self::PurgeRetainedFolderDeletes
             | Self::ToggleShowAllFolders
+            | Self::ToggleFolderFlattenedView
             | Self::ClearFolderDeleteRecoveryLog => UiActionFamily::Sources,
             Self::MoveBrowserFocus { .. }
             | Self::SetBrowserViewStart { .. }
@@ -85,6 +86,9 @@ impl UiAction {
             | Self::CommitFocusedBrowserRow
             | Self::SaveWaveformSelectionToBrowser
             | Self::ToggleBrowserRowSelection { .. }
+            | Self::StartBrowserSampleDrag { .. }
+            | Self::UpdateBrowserSampleDrag { .. }
+            | Self::FinishBrowserSampleDrag
             | Self::ExtendBrowserSelectionToRow { .. }
             | Self::AddRangeBrowserSelection { .. }
             | Self::ExtendBrowserSelectionFromFocus { .. }
@@ -131,6 +135,7 @@ impl UiAction {
             | Self::SetWaveformChannelView { .. }
             | Self::SetNormalizedAuditionEnabled { .. }
             | Self::SetBpmSnapEnabled { .. }
+            | Self::SetRelativeBpmGridEnabled { .. }
             | Self::AdjustWaveformBpm { .. }
             | Self::SetWaveformBpmValue { .. }
             | Self::SetTransientSnapEnabled { .. }

@@ -7,14 +7,35 @@ pub(super) fn render_folder_section(
     text_runs: &mut impl TextRunSink,
     data: &SidebarFrameData,
 ) -> usize {
-    if data.folder_row_rects.is_empty() {
+    if data.folder_rows.is_empty() {
         return 0;
     }
     let sections = sidebar_sections(ctx.layout, ctx.style, ctx.model);
     render_source_section_divider(ctx, primitives, sections);
     render_folder_header(ctx, primitives, text_runs, sections.folder_header);
     render_folder_rows(ctx, primitives, text_runs, data);
-    data.folder_row_rects.len()
+    if let Some(scrollbar) = folder_scrollbar_layout(
+        sections.folder_rows,
+        &data.folder_rows,
+        ctx.model.sources.folder_rows.len(),
+        ctx.sizing,
+    ) {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: scrollbar.track,
+                color: blend_color(ctx.style.border, ctx.style.bg_secondary, 0.22),
+            }),
+        );
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: scrollbar.thumb,
+                color: blend_color(ctx.style.text_muted, ctx.style.text_primary, 0.32),
+            }),
+        );
+    }
+    data.folder_rows.len()
 }
 
 fn render_source_section_divider(
@@ -51,30 +72,27 @@ fn render_folder_header(
         ctx.model.sources.folder_recovery.entry_count,
         ctx.model.sources.show_all_folders,
         ctx.model.sources.can_toggle_show_all_folders,
+        ctx.model.sources.flattened_view,
+        ctx.model.sources.can_toggle_flattened_view,
     );
-    if let Some(toggle_button) = header_layout.toggle_button.as_ref() {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: toggle_button.rect,
-                color: folder_toggle_fill(ctx, toggle_button.active, toggle_button.enabled),
-            }),
-        );
-        push_border(
-            primitives,
-            toggle_button.rect,
-            folder_toggle_border(ctx, toggle_button.active, toggle_button.enabled),
-            ctx.sizing.border_width,
-        );
-        if let Some(icon_rect) = centered_header_toggle_icon_rect(toggle_button.rect) {
-            let _ = emit_toolbar_svg_icon(
-                primitives,
-                WaveformToolbarIcon::Filter,
-                icon_rect,
-                folder_toggle_text_color(ctx, toggle_button.active, toggle_button.enabled),
-            );
-        }
-    }
+    render_folder_header_toggle_button(
+        ctx,
+        primitives,
+        header_layout
+            .visibility_toggle_button
+            .as_ref()
+            .map(|button| (button.rect, button.active, button.enabled)),
+        WaveformToolbarIcon::Filter,
+    );
+    render_folder_header_toggle_button(
+        ctx,
+        primitives,
+        header_layout
+            .flatten_toggle_button
+            .as_ref()
+            .map(|button| (button.rect, button.active, button.enabled)),
+        WaveformToolbarIcon::Flatten,
+    );
     if let Some(badge) = header_layout.badge.as_ref() {
         emit_primitive(
             primitives,
@@ -149,37 +167,73 @@ fn render_folder_header(
     }
 }
 
+fn render_folder_header_toggle_button(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    toggle_button: Option<(Rect, bool, bool)>,
+    icon: WaveformToolbarIcon,
+) {
+    let Some((toggle_rect, active, enabled)) = toggle_button else {
+        return;
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: toggle_rect,
+            color: folder_toggle_fill(ctx, active, enabled),
+        }),
+    );
+    push_border(
+        primitives,
+        toggle_rect,
+        folder_toggle_border(ctx, active, enabled),
+        ctx.sizing.border_width,
+    );
+    if let Some(icon_rect) = centered_header_toggle_icon_rect(toggle_rect) {
+        let _ = emit_toolbar_svg_icon(
+            primitives,
+            icon,
+            icon_rect,
+            folder_toggle_text_color(ctx, active, enabled),
+        );
+    }
+}
+
 fn render_folder_rows(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     data: &SidebarFrameData,
 ) {
-    let last_row_max_y = data.folder_row_rects.last().map(|rect| rect.max.y);
-    for (row_index, row_rect) in data.folder_row_rects.iter().copied().enumerate() {
-        let row = &ctx.model.sources.folder_rows[row_index];
+    let last_row_max_y = data.folder_rows.last().map(|row| row.rect.max.y);
+    for rendered_row in &data.folder_rows {
+        let Some(row) = ctx.model.sources.folder_rows.get(rendered_row.row_index) else {
+            continue;
+        };
+        let row_rect = rendered_row.rect;
+        let visual_rect = folder_row_visual_rect(row_rect, ctx.sizing);
         if matches!(
             row.kind,
             crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
         ) {
-            render_folder_inline_draft_row(ctx, primitives, text_runs, row_rect, row);
+            render_folder_inline_draft_row(ctx, primitives, text_runs, row_rect, visual_rect, row);
             continue;
         }
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: row_rect,
+                rect: visual_rect,
                 color: folder_row_fill(ctx, row),
             }),
         );
         push_browser_row_border(
             primitives,
-            row_rect,
+            visual_rect,
             folder_row_border(ctx, row),
             folder_row_border_width(ctx, row),
             BorderSides {
                 top: true,
-                bottom: row.focused || Some(row_rect.max.y) == last_row_max_y,
+                bottom: row.focused || Some(visual_rect.max.y) == last_row_max_y,
                 left: row.focused,
                 right: row.focused,
             },
@@ -194,6 +248,7 @@ fn render_folder_inline_draft_row(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     row_rect: Rect,
+    visual_rect: Rect,
     row: &FolderRowModel,
 ) {
     let field_rect = create_draft_field_rect(row_rect, ctx.sizing, row.depth);
@@ -205,7 +260,7 @@ fn render_folder_inline_draft_row(
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
-            rect: row_rect,
+            rect: visual_rect,
             color: ctx.style.surface_base,
         }),
     );

@@ -364,6 +364,17 @@ pub(super) fn browser_wheel_row_delta(
     wheel::browser_wheel_row_delta(layout, model, point, style, delta)
 }
 
+pub(super) fn folder_wheel_row_delta(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+    style: &StyleTokens,
+    delta: MouseScrollDelta,
+) -> Option<i8> {
+    wheel::folder_wheel_row_delta(shell_state, layout, model, point, style, delta)
+}
+
 pub(super) fn browser_view_start_after_wheel(
     current_view_start: usize,
     visible_count: usize,

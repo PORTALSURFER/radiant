@@ -66,8 +66,6 @@ fn waveform_click_modifiers_route_expected_actions() {
         },
         ..AppModel::default()
     };
-    let expected_position_nanos = waveform_position_nanos_from_point(&layout, &model, point);
-
     assert_eq!(
         action_from_pointer(
             &layout,
@@ -76,9 +74,7 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::BeginWaveformSelectionAt {
-            anchor_micros: milli(500),
-        })
+        Some(UiAction::ClearWaveformSelection)
     );
 
     assert_eq!(
@@ -92,6 +88,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(500),
             end_micros: milli(740),
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -107,6 +104,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(120),
             end_micros: milli(500),
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -122,6 +120,7 @@ fn waveform_click_modifiers_route_expected_actions() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(500),
             end_micros: milli(740),
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -134,8 +133,8 @@ fn waveform_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::ALT
         ),
-        Some(UiAction::SeekWaveformPrecise {
-            position_nanos: expected_position_nanos
+        Some(UiAction::BeginWaveformSelectionAt {
+            anchor_micros: milli(500),
         })
     );
 }
@@ -194,6 +193,7 @@ fn waveform_shift_click_slides_playback_selection_from_clicked_start() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: expected_start,
             end_micros: expected_end,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -277,6 +277,7 @@ fn command_click_adjusts_start_until_overflow_then_slides_playback_selection() {
             Some(UiAction::SetWaveformSelectionRange {
                 start_micros: expected_start,
                 end_micros: expected_end,
+                snap_override: false,
                 preserve_view_edge: false,
             })
         );
@@ -314,6 +315,7 @@ fn command_shift_click_adjusts_end_until_overflow_then_slides_playback_selection
             Some(UiAction::SetWaveformSelectionRange {
                 start_micros: expected_start,
                 end_micros: expected_end,
+                snap_override: false,
                 preserve_view_edge: false,
             })
         );
@@ -345,6 +347,7 @@ fn command_click_clamps_existing_selection_translation_to_waveform_bounds() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: 0,
             end_micros: milli(600),
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -361,6 +364,7 @@ fn command_click_clamps_existing_selection_translation_to_waveform_bounds() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(400),
             end_micros: 1_000_000,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -391,6 +395,7 @@ fn shift_click_clamps_existing_playback_selection_translation_to_waveform_bounds
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: 0,
             end_micros: milli(600),
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -407,6 +412,7 @@ fn shift_click_clamps_existing_playback_selection_translation_to_waveform_bounds
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(400),
             end_micros: 1_000_000,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -579,6 +585,7 @@ fn command_waveform_edge_adjust_without_selection_preserves_existing_fallbacks()
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: 0,
             end_micros: expected_position_micros,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );

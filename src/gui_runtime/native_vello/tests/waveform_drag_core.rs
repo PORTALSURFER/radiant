@@ -28,6 +28,7 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         waveform_drag_mode_for_action(&UiAction::SetWaveformSelectionRange {
             start_micros: milli(125),
             end_micros: milli(250),
+            snap_override: false,
             preserve_view_edge: false,
         }),
         Some(WaveformPointerDragMode::Selection {
@@ -161,6 +162,7 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
         &UiAction::SetWaveformSelectionRange {
             start_micros: milli(125),
             end_micros: milli(250),
+            snap_override: false,
             preserve_view_edge: false,
         }
     ));
@@ -324,6 +326,7 @@ fn handle_pointer_press_action_clears_waveform_hover_feedback_for_resize_drag() 
         UiAction::SetWaveformSelectionRange {
             start_micros: milli(800),
             end_micros: milli(200),
+            snap_override: false,
             preserve_view_edge: false,
         },
         false,

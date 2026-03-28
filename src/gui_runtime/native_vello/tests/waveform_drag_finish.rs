@@ -111,6 +111,7 @@ fn finish_volume_drag_emits_finish_selection_range_drag_for_plain_selection_gest
     runner.last_emitted_waveform_drag_action = Some(UiAction::SetWaveformSelectionRange {
         start_micros: milli(300),
         end_micros: milli(700),
+        snap_override: false,
         preserve_view_edge: false,
     });
 
@@ -342,6 +343,7 @@ fn outside_selection_drag_clears_then_creates_new_selection() {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+                snap_override: false,
                 preserve_view_edge: false,
             },
         ]
@@ -404,11 +406,23 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let left = Point::new(layout.waveform_plot.min.x - 200.0, y);
     let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, &model, left, WaveformPointerDragMode::Seek),
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::Seek,
+            ModifiersState::default(),
+        ),
         UiAction::SeekWaveformPrecise { position_nanos: 0 }
     );
     assert_eq!(
-        waveform_drag_action_for_mode(&layout, &model, right, WaveformPointerDragMode::Cursor),
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::Cursor,
+            ModifiersState::default(),
+        ),
         UiAction::SetWaveformCursorPrecise {
             position_nanos: 1_000_000_000
         }
@@ -421,11 +435,31 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::Selection {
                 anchor_micros: milli(200),
                 boundary_lock: None,
-            }
+            },
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformSelectionRange {
             start_micros: milli(200),
             end_micros: milli(1000),
+            snap_override: false,
+            preserve_view_edge: true,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::Selection {
+                anchor_micros: milli(200),
+                boundary_lock: None,
+            },
+            ModifiersState::ALT,
+        ),
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(200),
+            end_micros: milli(1000),
+            snap_override: true,
             preserve_view_edge: true,
         }
     );
@@ -437,7 +471,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::SelectionSmartScale {
                 anchor_micros: milli(200),
                 boundary_lock: None,
-            }
+            },
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformSelectionRangeSmartScale {
             start_micros: milli(200),
@@ -453,11 +488,32 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
                 pointer_micros: milli(300),
                 start_micros: milli(200),
                 end_micros: milli(400),
-            }
+            },
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformSelectionRange {
             start_micros: milli(800),
             end_micros: milli(1000),
+            snap_override: false,
+            preserve_view_edge: false,
+        }
+    );
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            right,
+            WaveformPointerDragMode::SelectionShift {
+                pointer_micros: milli(300),
+                start_micros: milli(200),
+                end_micros: milli(400),
+            },
+            ModifiersState::ALT,
+        ),
+        UiAction::SetWaveformSelectionRange {
+            start_micros: milli(800),
+            end_micros: milli(1000),
+            snap_override: true,
             preserve_view_edge: false,
         }
     );
@@ -469,7 +525,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             WaveformPointerDragMode::EditSelection {
                 anchor_micros: milli(300),
                 boundary_lock: None,
-            }
+            },
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditSelectionRange {
             start_micros: milli(300),
@@ -486,7 +543,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
                 pointer_micros: milli(550),
                 start_micros: milli(400),
                 end_micros: milli(700),
-            }
+            },
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditSelectionRange {
             start_micros: milli(0),
@@ -499,7 +557,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             left,
-            WaveformPointerDragMode::EditFadeInEnd
+            WaveformPointerDragMode::EditFadeInEnd,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeInEnd {
             position_micros: milli(0)
@@ -510,7 +569,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             left,
-            WaveformPointerDragMode::EditFadeInMuteStart
+            WaveformPointerDragMode::EditFadeInMuteStart,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeInMuteStart {
             position_micros: milli(0)
@@ -521,7 +581,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             Point::new(layout.waveform_plot.min.x, layout.waveform_plot.min.y),
-            WaveformPointerDragMode::EditFadeInCurve
+            WaveformPointerDragMode::EditFadeInCurve,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeInCurve { curve_milli: 1000 }
     );
@@ -530,7 +591,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
-            WaveformPointerDragMode::EditFadeOutStart
+            WaveformPointerDragMode::EditFadeOutStart,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeOutStart {
             position_micros: milli(1000)
@@ -541,7 +603,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             right,
-            WaveformPointerDragMode::EditFadeOutMuteEnd
+            WaveformPointerDragMode::EditFadeOutMuteEnd,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeOutMuteEnd {
             position_micros: milli(1000)
@@ -552,7 +615,8 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
             &layout,
             &model,
             Point::new(layout.waveform_plot.max.x, layout.waveform_plot.max.y),
-            WaveformPointerDragMode::EditFadeOutCurve
+            WaveformPointerDragMode::EditFadeOutCurve,
+            ModifiersState::default(),
         ),
         UiAction::SetWaveformEditFadeOutCurve { curve_milli: 0 }
     );
@@ -575,25 +639,33 @@ fn waveform_resize_drag_keeps_outside_plot_lock_across_zoom_changes() {
             anchor_micros: milli(250),
             boundary_lock: None,
         },
+        ModifiersState::default(),
     );
     assert_eq!(
         first_action,
         UiAction::SetWaveformSelectionRange {
             start_micros: milli(250),
             end_micros: milli(400),
+            snap_override: false,
             preserve_view_edge: true,
         }
     );
 
     model.waveform.view_start_micros = milli(50);
     model.waveform.view_end_micros = milli(850);
-    let (second_action, relocked_mode) =
-        waveform_drag_action_and_mode_for_point(&layout, &model, outside_right, locked_mode);
+    let (second_action, relocked_mode) = waveform_drag_action_and_mode_for_point(
+        &layout,
+        &model,
+        outside_right,
+        locked_mode,
+        ModifiersState::default(),
+    );
     assert_eq!(
         second_action,
         UiAction::SetWaveformSelectionRange {
             start_micros: milli(250),
             end_micros: milli(400),
+            snap_override: false,
             preserve_view_edge: true,
         }
     );

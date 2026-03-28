@@ -189,8 +189,9 @@ pub(super) fn waveform_drag_action_for_mode(
     model: &AppModel,
     point: Point,
     mode: WaveformPointerDragMode,
+    modifiers: ModifiersState,
 ) -> UiAction {
-    waveform_routing::waveform_drag_action_for_mode(layout, model, point, mode)
+    waveform_routing::waveform_drag_action_for_mode(layout, model, point, mode, modifiers)
 }
 
 /// Resolve one waveform drag action and the updated drag mode for the pointer.
@@ -199,8 +200,9 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
     model: &AppModel,
     point: Point,
     mode: WaveformPointerDragMode,
+    modifiers: ModifiersState,
 ) -> (UiAction, WaveformPointerDragMode) {
-    waveform_routing::waveform_drag_action_and_mode_for_point(layout, model, point, mode)
+    waveform_routing::waveform_drag_action_and_mode_for_point(layout, model, point, mode, modifiers)
 }
 
 pub(super) fn waveform_drag_exceeds_click_slop(

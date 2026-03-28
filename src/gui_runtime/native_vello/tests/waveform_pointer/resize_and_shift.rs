@@ -22,6 +22,7 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: milli(800),
             end_micros: position_micros,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -49,7 +50,7 @@ fn waveform_left_click_just_outside_selection_edge_clears_selection() {
 }
 
 #[test]
-fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
+fn waveform_alt_click_on_selection_edge_maps_to_free_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
     model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
@@ -66,6 +67,34 @@ fn waveform_alt_click_on_selection_edge_maps_to_smart_scale_resize_action() {
             &mut shell_state,
             point,
             ModifiersState::ALT
+        ),
+        Some(UiAction::SetWaveformSelectionRange {
+            start_micros: milli(800),
+            end_micros: position_micros,
+            snap_override: false,
+            preserve_view_edge: false,
+        })
+    );
+}
+
+#[test]
+fn waveform_shift_click_on_selection_edge_maps_to_smart_scale_resize_action() {
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let mut model = AppModel::default();
+    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    let mut shell_state = NativeShellState::new();
+    let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
+    let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
+    let point = Point::new(start_x + 2.0, y);
+    let position_micros = waveform_position_micros_from_point(&layout, &model, point);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::SHIFT
         ),
         Some(UiAction::SetWaveformSelectionRangeSmartScale {
             start_micros: milli(800),

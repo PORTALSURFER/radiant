@@ -653,6 +653,7 @@ fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
             UiAction::SetWaveformSelectionRange {
                 start_micros: 250_000,
                 end_micros: 820_000,
+                snap_override: false,
                 preserve_view_edge: false,
             },
         ]
@@ -971,7 +972,7 @@ fn immediate_e_after_selection_creation_uses_refreshed_waveform_focus() {
 
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
     assert!(
-        runner.handle_pointer_press_action(
+        !runner.handle_pointer_press_action(
             UiAction::BeginWaveformSelectionAt { anchor_micros },
             false,
         )
@@ -988,6 +989,7 @@ fn immediate_e_after_selection_creation_uses_refreshed_waveform_focus() {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+                snap_override: false,
                 preserve_view_edge: false,
             },
             UiAction::SaveWaveformSelectionToBrowser,
@@ -1017,7 +1019,7 @@ fn immediate_selection_handle_press_after_creation_uses_refreshed_model() {
     let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
     let end_micros = waveform_position_micros_from_point(&layout, &runner.model, drag);
     assert!(
-        runner.handle_pointer_press_action(
+        !runner.handle_pointer_press_action(
             UiAction::BeginWaveformSelectionAt { anchor_micros },
             false,
         )
@@ -1044,6 +1046,7 @@ fn immediate_selection_handle_press_after_creation_uses_refreshed_model() {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
                 end_micros,
+                snap_override: false,
                 preserve_view_edge: false,
             },
             UiAction::StartWaveformSelectionDrag {
@@ -1051,6 +1054,62 @@ fn immediate_selection_handle_press_after_creation_uses_refreshed_model() {
                 pointer_y: handle_point.y.round() as u16,
             },
         ]
+    );
+}
+
+#[test]
+fn alt_drag_selection_updates_bypass_bpm_snap_until_alt_is_released() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let free_drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.73),
+        anchor.y,
+    );
+    let snapped_drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.76),
+        anchor.y,
+    );
+    let mut runner = NativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ImmediateWaveformSelectionBridge::default(),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(anchor);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    assert!(
+        !runner.handle_pointer_press_action(
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            false,
+        )
+    );
+
+    runner.modifiers = ModifiersState::ALT;
+    assert!(runner.process_waveform_drag_immediately(free_drag));
+    assert_eq!(
+        runner.bridge.actions.last(),
+        Some(&UiAction::SetWaveformSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: waveform_position_micros_from_point(&layout, &runner.model, free_drag),
+            snap_override: true,
+            preserve_view_edge: false,
+        })
+    );
+
+    runner.modifiers = ModifiersState::default();
+    assert!(runner.process_waveform_drag_immediately(snapped_drag));
+    assert_eq!(
+        runner.bridge.actions.last(),
+        Some(&UiAction::SetWaveformSelectionRange {
+            start_micros: anchor_micros,
+            end_micros: waveform_position_micros_from_point(&layout, &runner.model, snapped_drag),
+            snap_override: false,
+            preserve_view_edge: false,
+        })
     );
 }
 
@@ -1079,6 +1138,7 @@ fn command_waveform_edge_adjust_press_emits_immediately_without_arming_drag() {
         vec![UiAction::SetWaveformSelectionRange {
             start_micros: 600_000,
             end_micros: 800_000,
+            snap_override: false,
             preserve_view_edge: false,
         }]
     );
@@ -1116,6 +1176,7 @@ fn shift_click_playback_selection_slide_emits_immediately_and_finishes_on_releas
         vec![UiAction::SetWaveformSelectionRange {
             start_micros: expected_start,
             end_micros: expected_end,
+            snap_override: false,
             preserve_view_edge: false,
         }]
     );
@@ -1124,6 +1185,7 @@ fn shift_click_playback_selection_slide_emits_immediately_and_finishes_on_releas
         Some(UiAction::SetWaveformSelectionRange {
             start_micros: expected_start,
             end_micros: expected_end,
+            snap_override: false,
             preserve_view_edge: false,
         })
     );
@@ -1136,6 +1198,7 @@ fn shift_click_playback_selection_slide_emits_immediately_and_finishes_on_releas
             UiAction::SetWaveformSelectionRange {
                 start_micros: expected_start,
                 end_micros: expected_end,
+                snap_override: false,
                 preserve_view_edge: false,
             },
             UiAction::FinishWaveformSelectionRangeDrag,

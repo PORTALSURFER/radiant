@@ -450,6 +450,48 @@ impl NativeAppBridge for DeepZoomClickRefreshBridge {
 }
 
 #[derive(Default)]
+struct DeepZoomPanRefreshBridge {
+    actions: Vec<UiAction>,
+    model: AppModel,
+    project_calls: usize,
+}
+
+impl NativeAppBridge for DeepZoomPanRefreshBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        self.project_calls = self.project_calls.saturating_add(1);
+        Arc::new(self.model.clone())
+    }
+
+    fn reduce_action(&mut self, action: UiAction) {
+        if let UiAction::SetWaveformViewCenter {
+            center_micros,
+            center_nanos,
+        } = &action
+        {
+            let span_nanos = self
+                .model
+                .waveform
+                .view_end_nanos
+                .saturating_sub(self.model.waveform.view_start_nanos);
+            let resolved_center_nanos = center_nanos.unwrap_or(center_micros.saturating_mul(1000));
+            let half_span = span_nanos / 2;
+            let max_start_nanos = 1_000_000_000u32.saturating_sub(span_nanos);
+            let next_start_nanos = resolved_center_nanos
+                .saturating_sub(half_span)
+                .min(max_start_nanos);
+            let next_end_nanos = next_start_nanos
+                .saturating_add(span_nanos)
+                .min(1_000_000_000);
+            self.model.waveform.view_start_nanos = next_start_nanos;
+            self.model.waveform.view_end_nanos = next_end_nanos;
+            self.model.waveform.view_start_micros = next_start_nanos / 1000;
+            self.model.waveform.view_end_micros = next_end_nanos / 1000;
+        }
+        self.actions.push(action);
+    }
+}
+
+#[derive(Default)]
 struct WaveformScrollbarPressBridge {
     actions: Vec<UiAction>,
     model: AppModel,
@@ -745,6 +787,8 @@ fn waveform_middle_pan_refreshes_stale_view_before_capturing_drag_baseline() {
             origin_x,
             view_start_micros: 100_000,
             view_end_micros: 900_000,
+            view_start_nanos: 100_000_000,
+            view_end_nanos: 900_000_000,
         })
     );
 }
@@ -912,6 +956,7 @@ fn waveform_scrollbar_drag_rebases_stale_thumb_ratio_before_first_sample() {
             },
             UiAction::SetWaveformViewCenter {
                 center_micros: expected_center,
+                center_nanos: None,
             },
         ]
     );
@@ -1483,7 +1528,8 @@ fn waveform_scrollbar_drag_emit_updates_action_queue() {
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetWaveformViewCenter {
-            center_micros: expected_center
+            center_micros: expected_center,
+            center_nanos: None,
         }]
     );
 }
@@ -1503,6 +1549,8 @@ fn waveform_middle_pan_emit_updates_action_queue() {
         origin_x: layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
         view_start_micros: 250_000,
         view_end_micros: 500_000,
+        view_start_nanos: 250_000_000,
+        view_end_nanos: 500_000_000,
     });
 
     let drag_point = Point::new(
@@ -1512,9 +1560,77 @@ fn waveform_middle_pan_emit_updates_action_queue() {
     assert!(runner.process_waveform_pan_drag_immediately(drag_point));
     let emitted = runner.bridge.actions.first().cloned();
     match emitted {
-        Some(UiAction::SetWaveformViewCenter { center_micros }) => {
+        Some(UiAction::SetWaveformViewCenter {
+            center_micros,
+            center_nanos,
+        }) => {
             assert!(center_micros < 375_000);
+            assert_eq!(center_nanos, Some(center_micros * 1000));
         }
         other => panic!("expected waveform pan to emit SetWaveformViewCenter, got {other:?}"),
     }
+}
+
+#[test]
+fn deep_zoom_pan_preserves_precise_click_play_mapping_after_refresh() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let plot_y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    let mut bridge = DeepZoomPanRefreshBridge::default();
+    bridge.model.transport_running = false;
+    bridge.model.waveform.view_start_micros = 500_000;
+    bridge.model.waveform.view_end_micros = 500_000;
+    bridge.model.waveform.view_start_nanos = 500_000_000;
+    bridge.model.waveform.view_end_nanos = 500_000_200;
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+
+    let origin_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5);
+    let drag_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        plot_y,
+    );
+    runner.begin_waveform_pan_drag(origin_x);
+    assert!(runner.process_waveform_pan_drag_immediately(drag_point));
+
+    let expected_center_nanos = 500_000_050;
+    assert_eq!(
+        runner.bridge.actions.first(),
+        Some(&UiAction::SetWaveformViewCenter {
+            center_micros: 500_000,
+            center_nanos: Some(expected_center_nanos),
+        })
+    );
+
+    let click_point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        plot_y,
+    );
+    let expected_position_nanos = 500_000_100;
+    runner.last_cursor = Some(click_point);
+    let mut action_emitted = false;
+    assert!(runner.handle_left_pointer_press_for_tests(
+        &layout,
+        click_point,
+        false,
+        &mut action_emitted,
+    ));
+    assert!(!action_emitted);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(runner.bridge.project_calls, 4);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::SetWaveformViewCenter {
+                center_micros: 500_000,
+                center_nanos: Some(expected_center_nanos),
+            },
+            UiAction::ClearWaveformSelection,
+            UiAction::PlayWaveformAtPrecise {
+                position_nanos: expected_position_nanos,
+            },
+        ]
+    );
 }

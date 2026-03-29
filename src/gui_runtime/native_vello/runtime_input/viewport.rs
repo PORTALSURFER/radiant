@@ -196,7 +196,10 @@ where
         }
         self.last_emitted_waveform_view_center = Some(center_micros);
         self.emit_model_action_with_profile(
-            UiAction::SetWaveformViewCenter { center_micros },
+            UiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos: None,
+            },
             Some(InteractionProfileKind::Waveform),
         );
         true
@@ -219,7 +222,10 @@ where
         };
         self.last_emitted_waveform_view_center = Some(center_micros);
         self.emit_model_action_with_profile(
-            UiAction::SetWaveformViewCenter { center_micros },
+            UiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos: None,
+            },
             Some(InteractionProfileKind::Waveform),
         );
         true

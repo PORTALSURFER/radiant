@@ -59,24 +59,28 @@ where
             return false;
         };
         let plot_width = layout.waveform_plot.width().max(1.0);
-        let span = drag
-            .view_end_micros
-            .min(1_000_000)
-            .saturating_sub(drag.view_start_micros.min(1_000_000))
-            .max(1);
-        let max_view_start = 1_000_000u32.saturating_sub(span);
-        let delta_ratio = (point.x - drag.origin_x) / plot_width;
-        let delta_micros = delta_ratio * span as f32;
-        let next_start = (drag.view_start_micros as f32 - delta_micros)
-            .clamp(0.0, max_view_start as f32)
-            .round() as u32;
-        let center_micros = (next_start + (span / 2)).min(1_000_000);
+        let view = crate::gui::native_shell::waveform_view_window_from_bounds(
+            drag.view_start_micros,
+            drag.view_end_micros,
+            Some(drag.view_start_nanos),
+            Some(drag.view_end_nanos),
+        );
+        let delta_ratio = f64::from((point.x - drag.origin_x) / plot_width);
+        let max_start_ratio = (1.0 - view.width_ratio).max(0.0);
+        let delta_view_ratio = delta_ratio * view.width_ratio;
+        let next_start_ratio = (view.start_ratio - delta_view_ratio).clamp(0.0, max_start_ratio);
+        let center_ratio = (next_start_ratio + (view.width_ratio * 0.5)).clamp(0.0, 1.0);
+        let center_micros = ratio_to_micros(center_ratio as f32);
+        let center_nanos = (center_ratio * 1_000_000_000.0).round() as u32;
         if self.last_emitted_waveform_view_center == Some(center_micros) {
             return true;
         }
         self.last_emitted_waveform_view_center = Some(center_micros);
         self.emit_model_action_with_profile(
-            UiAction::SetWaveformViewCenter { center_micros },
+            UiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos: Some(center_nanos),
+            },
             Some(InteractionProfileKind::Waveform),
         );
         true

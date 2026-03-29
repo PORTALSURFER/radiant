@@ -696,6 +696,11 @@ pub enum UiAction {
     SetWaveformViewCenter {
         /// Target center point within the full waveform (`0..=1_000_000`).
         center_micros: u32,
+        /// Optional exact center point within the full waveform (`0..=1_000_000_000`).
+        ///
+        /// Native input supplies this at deep zoom so viewport gestures keep
+        /// sub-micro precision instead of collapsing to the nearest micro.
+        center_nanos: Option<u32>,
     },
     /// Zoom waveform view by discrete steps.
     ZoomWaveform {

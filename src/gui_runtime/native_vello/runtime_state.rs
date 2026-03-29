@@ -25,6 +25,8 @@ pub(super) struct WaveformPanDragState {
     pub(super) origin_x: f32,
     pub(super) view_start_micros: u32,
     pub(super) view_end_micros: u32,
+    pub(super) view_start_nanos: u32,
+    pub(super) view_end_nanos: u32,
 }
 
 /// Exact waveform press state used to preserve click-to-seek precision on release.
@@ -253,6 +255,8 @@ where
             origin_x,
             view_start_micros: self.model.waveform.view_start_micros,
             view_end_micros: self.model.waveform.view_end_micros,
+            view_start_nanos: self.model.waveform.view_start_nanos,
+            view_end_nanos: self.model.waveform.view_end_nanos,
         });
         self.last_emitted_waveform_view_center = None;
     }

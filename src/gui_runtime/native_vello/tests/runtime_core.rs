@@ -19,7 +19,8 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
             &UiAction::SetWaveformViewCenter {
-                center_micros: 420_000
+                center_micros: 420_000,
+                center_nanos: None,
             }
         ),
         RuntimeInvalidationScope::StaticAndOverlays

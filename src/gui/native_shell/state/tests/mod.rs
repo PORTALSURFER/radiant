@@ -106,6 +106,7 @@ mod playhead_trail_render;
 mod playhead_trail_state;
 mod selection_states;
 mod sidebar;
+mod status_bar_progress;
 mod waveform_edit_fades;
 mod waveform_edit_handles;
 mod waveform_selection;

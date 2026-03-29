@@ -257,8 +257,8 @@ fn non_modal_progress_renders_status_bar_indicator_without_overlay_dialog() {
         frame
             .text_runs
             .iter()
-            .any(|run| run.text.contains("job active")),
-        "status bar should announce an active job"
+            .any(|run| run.text.contains("Normalizing sample")),
+        "status bar should announce the active job title"
     );
     assert!(
         frame.text_runs.iter().any(|run| run.text == "2/5"),

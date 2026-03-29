@@ -122,15 +122,19 @@ pub(super) fn render_status_bar(
             primitives,
             Primitive::Rect(FillRect {
                 rect: progress_track_rect,
-                color: style.grid_soft,
+                color: blend_color(style.grid_soft, style.surface_overlay, 0.35),
             }),
         );
-        if let Some(fill_rect) = status_progress_fill_rect(progress_track_rect, model) {
+        if let Some(fill_rect) = status_progress_fill_rect(
+            progress_track_rect,
+            model,
+            interaction_wave(state.pulse_phase),
+        ) {
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: fill_rect,
-                    color: style.accent_mint,
+                    color: footer_progress_fill_color(style, model.progress_overlay.total == 0),
                 }),
             );
         }
@@ -171,14 +175,13 @@ pub(super) fn render_status_bar(
 /// Build compact footer copy for active non-modal job progress.
 pub(super) fn status_progress_label(model: &AppModel) -> String {
     if model.progress_overlay.cancel_requested {
-        return String::from("Cancelling job…");
+        return format!("Cancelling {}", progress_title(model));
     }
     match model.progress_overlay.detail.as_deref() {
-        Some(detail) if !detail.trim().is_empty() => format!("job active | {detail}"),
-        _ if !model.progress_overlay.title.trim().is_empty() => {
-            format!("job active | {}", model.progress_overlay.title)
+        Some(detail) if !detail.trim().is_empty() => {
+            format!("{} • {}", progress_title(model), detail.trim())
         }
-        _ => String::from("job active"),
+        _ => progress_title(model),
     }
 }
 
@@ -188,7 +191,10 @@ pub(super) fn status_progress_counter(model: &AppModel) -> String {
         return String::from("cancelling");
     }
     if model.progress_overlay.total == 0 {
-        return String::from("active");
+        if model.progress_overlay.completed > 0 {
+            return format_file_counter(model.progress_overlay.completed);
+        }
+        return String::from("busy");
     }
     format!(
         "{}/{}",
@@ -213,7 +219,7 @@ pub(super) fn status_progress_text_rects(segment: Rect, sizing: SizingTokens) ->
 pub(super) fn status_progress_track_rect(segment: Rect, sizing: SizingTokens) -> Rect {
     let inset_left = (sizing.text_inset_x + sizing.header_label_gutter).max(0.0);
     let inset_right = sizing.text_inset_x.max(0.0);
-    let track_height = sizing.border_width.max(2.0);
+    let track_height = (sizing.border_width * 2.0).max(4.0);
     let max_y = (segment.max.y - sizing.text_inset_y.max(1.0)).min(segment.max.y - 1.0);
     let min_y = (max_y - track_height).max(segment.min.y + 1.0);
     Rect::from_min_max(
@@ -226,16 +232,28 @@ pub(super) fn status_progress_track_rect(segment: Rect, sizing: SizingTokens) ->
 }
 
 /// Resolve the filled portion of the footer progress track.
-pub(super) fn status_progress_fill_rect(track_rect: Rect, model: &AppModel) -> Option<Rect> {
+pub(super) fn status_progress_fill_rect(
+    track_rect: Rect,
+    model: &AppModel,
+    motion_wave: f32,
+) -> Option<Rect> {
     if track_rect.width() <= 0.0 || track_rect.height() <= 0.0 {
         return None;
     }
-    let fraction = if model.progress_overlay.total == 0 {
-        0.18
-    } else {
-        (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
-            .clamp(0.0, 1.0)
-    };
+    if model.progress_overlay.total == 0 {
+        let segment_width = (track_rect.width() * 0.24).clamp(18.0, track_rect.width().max(18.0));
+        let travel = (track_rect.width() - segment_width).max(0.0);
+        let min_x = track_rect.min.x + (travel * motion_wave.clamp(0.0, 1.0));
+        return Some(Rect::from_min_max(
+            Point::new(min_x, track_rect.min.y),
+            Point::new(
+                (min_x + segment_width).min(track_rect.max.x),
+                track_rect.max.y,
+            ),
+        ));
+    }
+    let fraction = (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
+        .clamp(0.0, 1.0);
     let fill_width = (track_rect.width() * fraction).max(0.0);
     if fill_width <= 0.0 {
         return None;
@@ -247,4 +265,25 @@ pub(super) fn status_progress_fill_rect(track_rect: Rect, model: &AppModel) -> O
             track_rect.max.y,
         ),
     ))
+}
+
+fn progress_title(model: &AppModel) -> String {
+    let title = model.progress_overlay.title.trim();
+    if title.is_empty() {
+        return String::from("Working");
+    }
+    title.to_string()
+}
+
+fn format_file_counter(completed: usize) -> String {
+    let suffix = if completed == 1 { "file" } else { "files" };
+    format!("{completed} {suffix}")
+}
+
+fn footer_progress_fill_color(style: &StyleTokens, indeterminate: bool) -> Rgba8 {
+    if indeterminate {
+        blend_color(style.accent_mint, style.text_primary, 0.18)
+    } else {
+        style.accent_mint
+    }
 }

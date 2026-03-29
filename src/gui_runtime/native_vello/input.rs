@@ -9,6 +9,8 @@ mod waveform_handles;
 mod waveform_routing;
 mod wheel;
 
+pub(crate) use waveform_routing::duplicate_cleanup_exemption_action_from_pointer;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformPointerDragMode {
     /// Drag updates seek/playhead position.

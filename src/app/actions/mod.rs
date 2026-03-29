@@ -248,9 +248,9 @@ pub enum UiAction {
     CommitWaveformEditFades,
     /// Detect silence-split waveform slices for the loaded sample.
     DetectWaveformSilenceSlices,
-    /// Detect exact duplicate windows for the loaded sample using the current selection size.
+    /// Detect near-duplicate windows for the loaded sample using the current selection size.
     DetectWaveformExactDuplicateSlices,
-    /// Clean exact duplicate windows while keeping the first occurrence.
+    /// Clean near-duplicate windows while keeping the first occurrence.
     CleanWaveformExactDuplicateSlices,
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection {
@@ -393,6 +393,16 @@ pub enum UiAction {
     /// Toggle selection for one detected silence-split waveform slice.
     ToggleWaveformSliceSelection {
         /// Zero-based slice index within the current preview batch.
+        index: usize,
+    },
+    /// Focus and audition one duplicate-cleanup preview slice.
+    AuditionWaveformDuplicateSlice {
+        /// Zero-based duplicate preview index within the current cleanup batch.
+        index: usize,
+    },
+    /// Toggle whether one duplicate-cleanup preview should be kept.
+    ToggleWaveformDuplicateSliceExemption {
+        /// Zero-based duplicate preview index within the current cleanup batch.
         index: usize,
     },
     /// Move the focused review slice by one signed step.

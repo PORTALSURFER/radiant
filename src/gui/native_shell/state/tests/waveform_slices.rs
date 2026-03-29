@@ -26,6 +26,8 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
         selected: false,
         focused: false,
         marked_for_export: false,
+        duplicate_cleanup_candidate: false,
+        duplicate_cleanup_exempted: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -88,6 +90,8 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
         selected: true,
         focused: false,
         marked_for_export: false,
+        duplicate_cleanup_candidate: false,
+        duplicate_cleanup_exempted: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -119,6 +123,56 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
 }
 
 #[test]
+fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_keep_tint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let keep_green = Rgba8 {
+        r: 120,
+        g: 214,
+        b: 146,
+        a: 255,
+    };
+    model
+        .waveform
+        .slices
+        .push(crate::app::WaveformSlicePreviewModel {
+            range: crate::app::NormalizedRangeModel::new(180, 420),
+            selected: false,
+            focused: false,
+            marked_for_export: false,
+            duplicate_cleanup_candidate: true,
+            duplicate_cleanup_exempted: true,
+        });
+    let motion = NativeMotionModel::from_app_model(&model);
+    let expected_rect = compute_waveform_slice_preview_rects(
+        layout.waveform_plot,
+        &model.waveform.slices,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+    )[0]
+    .rect;
+
+    let mut frame = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let fill = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == expected_rect => Some(rect.color),
+            _ => None,
+        })
+        .expect("slice preview fill");
+
+    assert_eq!(
+        fill,
+        translucent_overlay_color(style.surface_overlay, keep_green, 0.74)
+    );
+}
+
+#[test]
 fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
@@ -132,6 +186,8 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
             selected: true,
             focused: true,
             marked_for_export: true,
+            duplicate_cleanup_candidate: false,
+            duplicate_cleanup_exempted: false,
         });
     let mut state = NativeShellState::new();
     let node = state.automation_snapshot(&layout, &model);
@@ -174,6 +230,10 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
     assert_eq!(
         slice.metadata.get("edit_selected"),
         Some(&String::from("true"))
+    );
+    assert_eq!(
+        slice.metadata.get("duplicate_cleanup_candidate"),
+        Some(&String::from("false"))
     );
     assert!(
         slice

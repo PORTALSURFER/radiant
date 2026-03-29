@@ -295,6 +295,8 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
             selected: false,
             focused: false,
             marked_for_export: false,
+            duplicate_cleanup_candidate: false,
+            duplicate_cleanup_exempted: false,
         });
     assert_ne!(
         waveform_baseline_signature,

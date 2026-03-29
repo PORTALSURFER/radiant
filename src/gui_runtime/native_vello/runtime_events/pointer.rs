@@ -342,6 +342,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             // Edit-selection pointer mapping shares the same waveform view bounds
             // as click-play, so refresh pending zoom/view changes before hit-testing.
             self.refresh_waveform_view_if_needed();
+            if let Some(action) =
+                crate::gui_runtime::native_vello::input::duplicate_cleanup_exemption_action_from_pointer(
+                    layout,
+                    &self.model,
+                    point,
+                )
+            {
+                self.emit_model_action(action);
+                *action_emitted = true;
+                return true;
+            }
             let action =
                 waveform_edit_action_from_pointer(layout, &self.model, point, self.modifiers);
             if self.should_emit_waveform_range_adjust_immediately(&action) {

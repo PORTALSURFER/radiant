@@ -32,6 +32,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::DetectWaveformExactDuplicateSlices
             | UiAction::CleanWaveformExactDuplicateSlices
             | UiAction::ToggleWaveformSliceSelection { .. }
+            | UiAction::AuditionWaveformDuplicateSlice { .. }
+            | UiAction::ToggleWaveformDuplicateSliceExemption { .. }
             | UiAction::MoveWaveformSliceFocus { .. }
             | UiAction::ToggleFocusedWaveformSliceExportMark
             | UiAction::SetWaveformEditFadeInEnd { .. }
@@ -124,6 +126,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::DetectWaveformExactDuplicateSlices
             | UiAction::CleanWaveformExactDuplicateSlices
             | UiAction::ToggleWaveformSliceSelection { .. }
+            | UiAction::AuditionWaveformDuplicateSlice { .. }
+            | UiAction::ToggleWaveformDuplicateSliceExemption { .. }
             | UiAction::MoveWaveformSliceFocus { .. }
             | UiAction::ToggleFocusedWaveformSliceExportMark
             | UiAction::CommitWaveformEditFades

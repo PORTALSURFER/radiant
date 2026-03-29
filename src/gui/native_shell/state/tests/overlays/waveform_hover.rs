@@ -190,8 +190,9 @@ fn state_overlay_renders_exact_dedupe_tooltip_text() {
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
     assert!(frame.text_runs.iter().any(|run| {
-        run.text
-            .contains("Detect exact duplicate windows using the current selection size")
+        run.text.contains(
+            "Scan the waveform for near-duplicate hit windows using the current selection size",
+        )
     }));
 }
 
@@ -202,6 +203,7 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
     let mut model = AppModel::default();
     model.waveform.loaded_label = Some(String::from("kick.wav"));
     model.waveform_chrome.slice_mode_enabled = true;
+    model.waveform_chrome.exact_duplicate_cleanup_available = true;
     model
         .waveform
         .slices
@@ -210,6 +212,8 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
             selected: false,
             focused: false,
             marked_for_export: false,
+            duplicate_cleanup_candidate: true,
+            duplicate_cleanup_exempted: false,
         });
     let mut state = NativeShellState::new();
     let button_rect = state
@@ -228,8 +232,9 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
     assert!(frame.text_runs.iter().any(|run| {
-        run.text
-            .contains("Remove duplicate windows, keeping the first copy")
+        run.text.contains(
+            "Remove marked duplicate windows and keep the first copy plus any right-click keeps",
+        )
     }));
 }
 

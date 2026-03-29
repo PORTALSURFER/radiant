@@ -51,6 +51,8 @@ pub(super) fn build_waveform_automation(
             String::from("detect_waveform_silence_slices"),
             String::from("detect_waveform_exact_duplicate_slices"),
             String::from("clean_waveform_exact_duplicate_slices"),
+            String::from("audition_waveform_duplicate_slice"),
+            String::from("toggle_waveform_duplicate_slice_exemption"),
             String::from("move_waveform_slice_focus"),
             String::from("toggle_focused_waveform_slice_export_mark"),
             String::from("seek_waveform"),
@@ -165,8 +167,18 @@ fn waveform_slice_node(
         bounds: bounds(waveform_selection_bounds(plot, model, slice.range)),
         value: Some(selection_value.clone()),
         enabled: true,
-        selected: slice.selected || slice.focused || slice.marked_for_export,
-        available_actions: vec![String::from("toggle_waveform_slice_selection")],
+        selected: slice.selected
+            || slice.focused
+            || slice.marked_for_export
+            || slice.duplicate_cleanup_exempted,
+        available_actions: if slice.duplicate_cleanup_candidate {
+            vec![
+                String::from("audition_waveform_duplicate_slice"),
+                String::from("toggle_waveform_duplicate_slice_exemption"),
+            ]
+        } else {
+            vec![String::from("toggle_waveform_slice_selection")]
+        },
         metadata: metadata(&[
             ("selection_micros", selection_value.as_str()),
             ("focused", super::helpers::bool_text(slice.focused)),
@@ -175,6 +187,14 @@ fn waveform_slice_node(
                 super::helpers::bool_text(slice.marked_for_export),
             ),
             ("edit_selected", super::helpers::bool_text(slice.selected)),
+            (
+                "duplicate_cleanup_candidate",
+                super::helpers::bool_text(slice.duplicate_cleanup_candidate),
+            ),
+            (
+                "duplicate_cleanup_exempted",
+                super::helpers::bool_text(slice.duplicate_cleanup_exempted),
+            ),
         ]),
         children: Vec::new(),
     }

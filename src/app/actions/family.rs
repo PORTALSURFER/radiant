@@ -184,6 +184,8 @@ impl UiAction {
             | Self::MuteWaveformSelection
             | Self::DeleteSelectedSliceMarkers
             | Self::ToggleWaveformSliceSelection { .. }
+            | Self::AuditionWaveformDuplicateSlice { .. }
+            | Self::ToggleWaveformDuplicateSliceExemption { .. }
             | Self::MoveWaveformSliceFocus { .. }
             | Self::ToggleFocusedWaveformSliceExportMark
             | Self::AlignWaveformStartToMarker

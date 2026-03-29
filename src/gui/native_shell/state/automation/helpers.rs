@@ -205,6 +205,10 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::MuteWaveformSelection => "mute_waveform_selection",
         UiAction::DeleteSelectedSliceMarkers => "delete_selected_slice_markers",
         UiAction::ToggleWaveformSliceSelection { .. } => "toggle_waveform_slice_selection",
+        UiAction::AuditionWaveformDuplicateSlice { .. } => "audition_waveform_duplicate_slice",
+        UiAction::ToggleWaveformDuplicateSliceExemption { .. } => {
+            "toggle_waveform_duplicate_slice_exemption"
+        }
         UiAction::MoveWaveformSliceFocus { .. } => "move_waveform_slice_focus",
         UiAction::ToggleFocusedWaveformSliceExportMark => {
             "toggle_focused_waveform_slice_export_mark"

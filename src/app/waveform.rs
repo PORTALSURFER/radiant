@@ -61,6 +61,10 @@ pub struct WaveformSlicePreviewModel {
     pub focused: bool,
     /// Whether this slice is marked for export.
     pub marked_for_export: bool,
+    /// Whether this slice belongs to a duplicate-cleanup preview batch.
+    pub duplicate_cleanup_candidate: bool,
+    /// Whether this duplicate preview is currently exempted from cleanup.
+    pub duplicate_cleanup_exempted: bool,
 }
 
 fn micros_to_milli(value_micros: u32) -> u16 {

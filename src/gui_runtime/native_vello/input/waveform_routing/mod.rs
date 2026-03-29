@@ -7,6 +7,7 @@ mod drag;
 mod press;
 mod slices;
 
+pub(crate) use self::slices::duplicate_cleanup_exemption_action_from_pointer;
 use self::{
     clear::{waveform_clear_action_from_pointer, waveform_new_selection_action_from_pointer},
     press::{

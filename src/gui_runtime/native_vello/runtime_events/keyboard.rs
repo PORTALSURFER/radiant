@@ -20,6 +20,39 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     #[cfg(test)]
+    pub(crate) fn handle_character_key_for_tests(&mut self, key: KeyCode, character: &str) {
+        self.refresh_cached_model_for_pending_input();
+        if self.text_input_target != TextInputTarget::None
+            && !self.modifiers.control_key()
+            && !self.modifiers.super_key()
+            && !self.modifiers.alt_key()
+        {
+            let _ = self.append_text(character);
+            if !self.frame_state.has_pending_rebuild() {
+                self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+            }
+            return;
+        }
+
+        let resolution =
+            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
+        self.pending_hotkey_chord = resolution.pending_chord;
+        if let Some(action) = resolution.action {
+            let action = rewrite_folder_create_hotkey_action(
+                action,
+                &self.model,
+                self.shell_state.hovered_folder_row_index(),
+            );
+            self.update_text_target_after_action(&action);
+            self.emit_model_action(action.clone());
+            self.refresh_cached_model_after_folder_create_action(&action);
+        }
+        if !self.frame_state.has_pending_rebuild() {
+            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) fn handle_mouse_wheel_for_tests(&mut self, delta: MouseScrollDelta) {
         self.handle_mouse_wheel(delta);
     }

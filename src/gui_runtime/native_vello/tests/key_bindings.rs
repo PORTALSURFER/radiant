@@ -104,6 +104,10 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
         resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &browser),
         Some(UiAction::MoveBrowserFocus { delta: 1 })
     );
+    assert_eq!(
+        resolved_action(KeyCode::X, ModifiersState::default(), &browser),
+        Some(UiAction::ToggleFocusedBrowserRowSelection)
+    );
 
     let folders = AppModel {
         focus_context: crate::app::FocusContextModel::SourceFolders,
@@ -128,6 +132,10 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     assert_eq!(
         resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &folders),
         Some(UiAction::MoveFolderFocus { delta: 1 })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::X, ModifiersState::default(), &folders),
+        Some(UiAction::ToggleFocusedFolderSelection)
     );
 
     let sources = AppModel {
@@ -189,6 +197,57 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
             delta: 1,
             fine: true,
         })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::X, ModifiersState::default(), &waveform),
+        Some(UiAction::ZoomWaveformFull)
+    );
+}
+
+#[test]
+fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.frame_state.model_dirty = false;
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    });
+    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_buffer = Some(String::from("dr"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("dr"));
+
+    runner.handle_character_key_for_tests(KeyCode::X, "x");
+
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("drx"));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::SetBrowserSearch {
+            query: String::from("drx"),
+        }]
+    );
+
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::SourceFolders,
+        ..AppModel::default()
+    });
+    runner.text_input_target = TextInputTarget::FolderSearch;
+    runner.text_input_buffer = Some(String::from("ki"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("ki"));
+
+    runner.handle_character_key_for_tests(KeyCode::X, "x");
+
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("kix"));
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::SetBrowserSearch {
+                query: String::from("drx"),
+            },
+            UiAction::SetFolderSearch {
+                query: String::from("kix"),
+            },
+        ]
     );
 }
 

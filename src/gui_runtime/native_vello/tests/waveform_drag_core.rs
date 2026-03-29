@@ -16,6 +16,14 @@ fn waveform_drag_mode_maps_from_waveform_actions() {
         Some(WaveformPointerDragMode::Cursor)
     );
     assert_eq!(
+        waveform_drag_mode_for_action(&UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(180),
+        }),
+        Some(WaveformPointerDragMode::CircularSlide {
+            anchor_micros: milli(180),
+        })
+    );
+    assert_eq!(
         waveform_drag_mode_for_action(&UiAction::BeginWaveformSelectionAt {
             anchor_micros: milli(125),
         }),
@@ -151,6 +159,11 @@ fn waveform_press_action_emit_policy_defers_mark_gestures() {
     assert!(waveform_press_action_emits_immediately(
         &UiAction::SetWaveformCursor {
             position_milli: 250,
+        }
+    ));
+    assert!(waveform_press_action_emits_immediately(
+        &UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(180),
         }
     ));
     assert!(!waveform_press_action_emits_immediately(

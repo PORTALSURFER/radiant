@@ -137,6 +137,7 @@ where
 
 fn cursor_icon_for_waveform_drag_mode(mode: WaveformPointerDragMode) -> CursorIcon {
     match mode {
+        WaveformPointerDragMode::CircularSlide { .. } => CursorIcon::Grab,
         WaveformPointerDragMode::Selection { .. }
         | WaveformPointerDragMode::SelectionSmartScale { .. }
         | WaveformPointerDragMode::EditSelection { .. }

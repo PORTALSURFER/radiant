@@ -99,6 +99,19 @@ fn waveform_click_modifiers_route_expected_actions() {
             &model,
             &mut shell_state,
             point,
+            ModifiersState::CONTROL | ModifiersState::ALT,
+        ),
+        Some(UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(500),
+        })
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
             ModifiersState::CONTROL | ModifiersState::SHIFT,
         ),
         Some(UiAction::SetWaveformSelectionRange {

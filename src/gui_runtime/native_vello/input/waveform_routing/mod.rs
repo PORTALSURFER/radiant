@@ -11,6 +11,7 @@ pub(crate) use self::slices::duplicate_cleanup_exemption_action_from_pointer;
 use self::{
     clear::{waveform_clear_action_from_pointer, waveform_new_selection_action_from_pointer},
     press::{
+        waveform_circular_slide_action_from_pointer,
         waveform_edit_selection_edge_adjust_action_from_pointer,
         waveform_edit_selection_shift_action_from_pointer,
         waveform_edit_selection_slide_action_from_pointer,
@@ -41,6 +42,13 @@ pub(super) fn waveform_action_from_pointer(
         && !alt
         && !shift
         && let Some(action) = waveform_slice_toggle_action_from_pointer(layout, model, point)
+    {
+        return action;
+    }
+    if command
+        && alt
+        && !shift
+        && let Some(action) = waveform_circular_slide_action_from_pointer(layout, model, point)
     {
         return action;
     }

@@ -244,6 +244,9 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SetWaveformCursorPrecise { .. } => "set_waveform_cursor_precise",
         UiAction::SeekWaveform { .. } => "seek_waveform",
         UiAction::SetWaveformCursor { .. } => "set_waveform_cursor",
+        UiAction::BeginWaveformCircularSlide { .. } => "begin_waveform_circular_slide",
+        UiAction::UpdateWaveformCircularSlide { .. } => "update_waveform_circular_slide",
+        UiAction::FinishWaveformCircularSlide => "finish_waveform_circular_slide",
         UiAction::BeginWaveformSelectionAt { .. } => "begin_waveform_selection_at",
         UiAction::SetWaveformSelectionRange { .. } => "set_waveform_selection_range",
         UiAction::SetWaveformSelectionRangeSmartScale { .. } => {

@@ -13,6 +13,10 @@ where
         let finish_edit_fade_drag = self
             .waveform_drag_mode
             .is_some_and(waveform_drag_mode_is_edit_fade);
+        let finish_circular_slide = matches!(released_button, Some(MouseButton::Left))
+            && self.waveform_drag_mode.is_some_and(|mode| {
+                matches!(mode, WaveformPointerDragMode::CircularSlide { .. })
+            });
         let finish_selection_range_drag = matches!(released_button, Some(MouseButton::Left))
             && self.waveform_drag_mode.is_some_and(|mode| {
                 matches!(
@@ -59,6 +63,9 @@ where
         self.last_emitted_volume_milli = None;
         if finish_edit_fade_drag {
             self.emit_model_action(UiAction::FinishWaveformEditFadeDrag);
+        }
+        if finish_circular_slide {
+            self.emit_model_action(UiAction::FinishWaveformCircularSlide);
         }
         if finish_selection_range_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionRangeDrag);

@@ -147,6 +147,9 @@ impl UiAction {
             | Self::SeekWaveform { .. }
             | Self::SetWaveformCursor { .. }
             | Self::BeginWaveformSelectionAt { .. }
+            | Self::BeginWaveformCircularSlide { .. }
+            | Self::UpdateWaveformCircularSlide { .. }
+            | Self::FinishWaveformCircularSlide
             | Self::SetWaveformSelectionRange { .. }
             | Self::SetWaveformSelectionRangeSmartScale { .. }
             | Self::SetWaveformEditSelectionRange { .. }

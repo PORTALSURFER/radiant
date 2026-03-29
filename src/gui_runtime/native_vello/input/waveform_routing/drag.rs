@@ -28,6 +28,9 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
     let action = match next_mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveformPrecise { position_nanos },
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursorPrecise { position_nanos },
+        WaveformPointerDragMode::CircularSlide { .. } => UiAction::UpdateWaveformCircularSlide {
+            position_micros,
+        },
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,
@@ -118,6 +121,7 @@ pub(super) fn waveform_drag_exceeds_click_slop(
     mode: WaveformPointerDragMode,
 ) -> bool {
     match mode {
+        WaveformPointerDragMode::CircularSlide { .. } => true,
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             let anchor_x = waveform_x_for_micros(layout.waveform_plot, model, anchor_micros);
             (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
@@ -134,6 +138,11 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         }
         UiAction::SetWaveformCursorPrecise { .. } | UiAction::SetWaveformCursor { .. } => {
             Some(WaveformPointerDragMode::Cursor)
+        }
+        UiAction::BeginWaveformCircularSlide { anchor_micros } => {
+            Some(WaveformPointerDragMode::CircularSlide {
+                anchor_micros: *anchor_micros,
+            })
         }
         UiAction::BeginWaveformSelectionAt { anchor_micros } => {
             Some(WaveformPointerDragMode::Selection {

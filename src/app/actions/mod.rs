@@ -550,6 +550,22 @@ pub enum UiAction {
         /// Exact anchor position in normalized micro-units.
         anchor_micros: u32,
     },
+    /// Begin one circular waveform-slide gesture from an exact anchor point.
+    ///
+    /// Hosts use this for wrap-drag sample rotation: while the gesture is
+    /// active, pointer motion rotates the waveform preview in a wrapping
+    /// manner, and release commits the rotated sample to disk.
+    BeginWaveformCircularSlide {
+        /// Exact anchor position in normalized micro-units.
+        anchor_micros: u32,
+    },
+    /// Update an active circular waveform-slide gesture.
+    UpdateWaveformCircularSlide {
+        /// Current pointer position in normalized micro-units.
+        position_micros: u32,
+    },
+    /// Finish an active circular waveform-slide gesture.
+    FinishWaveformCircularSlide,
     /// Set waveform selection bounds in normalized micro space (`0..=1_000_000`).
     SetWaveformSelectionRange {
         /// Selection start position in normalized micro-units.

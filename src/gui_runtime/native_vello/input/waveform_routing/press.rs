@@ -165,6 +165,20 @@ pub(super) fn waveform_selection_drag_action_from_pointer(
     })
 }
 
+/// Resolve one circular waveform-slide drag arm from the waveform plot.
+pub(super) fn waveform_circular_slide_action_from_pointer(
+    layout: &ShellLayout,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    layout
+        .waveform_plot
+        .contains(point)
+        .then_some(UiAction::BeginWaveformCircularSlide {
+            anchor_micros: waveform_position_micros_from_point(layout, model, point),
+        })
+}
+
 /// Resolve one playback-selection shift action from the bottom-center handle.
 pub(super) fn waveform_selection_shift_action_from_pointer(
     layout: &ShellLayout,

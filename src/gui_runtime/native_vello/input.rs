@@ -17,6 +17,11 @@ pub(super) enum WaveformPointerDragMode {
     Seek,
     /// Drag updates cursor position.
     Cursor,
+    /// Drag updates circular waveform-slide preview and commit state.
+    CircularSlide {
+        /// Fixed anchor micro position captured at drag start.
+        anchor_micros: u32,
+    },
     /// Drag extends playback selection from a fixed anchor micro value.
     Selection {
         /// Fixed anchor micro position captured at drag start.

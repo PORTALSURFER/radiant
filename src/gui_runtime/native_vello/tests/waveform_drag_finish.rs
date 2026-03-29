@@ -51,6 +51,33 @@ fn handle_pointer_press_action_starts_selection_drag_immediately() {
 }
 
 #[test]
+fn handle_pointer_press_action_starts_circular_slide_immediately() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(320),
+        },
+        false,
+    );
+
+    assert!(emitted);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(320),
+        }]
+    );
+    assert_eq!(
+        runner.waveform_drag_mode,
+        Some(WaveformPointerDragMode::CircularSlide {
+            anchor_micros: milli(320),
+        })
+    );
+}
+
+#[test]
 fn finish_volume_drag_emits_finish_edit_fade_action_for_waveform_fade_handles() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -80,6 +107,22 @@ fn finish_volume_drag_emits_finish_selection_drag_for_active_selection_export() 
         vec![UiAction::FinishWaveformSelectionDrag]
     );
     assert!(!runner.selection_drag_active);
+}
+
+#[test]
+fn finish_volume_drag_emits_finish_circular_slide_for_active_waveform_slide() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.waveform_drag_mode = Some(WaveformPointerDragMode::CircularSlide {
+        anchor_micros: milli(320),
+    });
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::FinishWaveformCircularSlide]
+    );
 }
 
 #[test]
@@ -143,6 +186,39 @@ fn finish_volume_drag_emits_finish_edit_selection_drag_for_plain_edit_gestures()
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::FinishWaveformEditSelectionDrag]
+    );
+}
+
+#[test]
+fn circular_slide_release_does_not_trigger_click_playback() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.25),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.last_cursor = Some(point);
+
+    let emitted = runner.handle_pointer_press_action(
+        UiAction::BeginWaveformCircularSlide {
+            anchor_micros: milli(250),
+        },
+        false,
+    );
+    assert!(emitted);
+
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformCircularSlide {
+                anchor_micros: milli(250),
+            },
+            UiAction::FinishWaveformCircularSlide,
+        ]
     );
 }
 
@@ -405,6 +481,20 @@ fn waveform_drag_action_clamps_and_preserves_selection_anchor() {
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let left = Point::new(layout.waveform_plot.min.x - 200.0, y);
     let right = Point::new(layout.waveform_plot.max.x + 200.0, y);
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            left,
+            WaveformPointerDragMode::CircularSlide {
+                anchor_micros: milli(200),
+            },
+            ModifiersState::default(),
+        ),
+        UiAction::UpdateWaveformCircularSlide {
+            position_micros: milli(0)
+        }
+    );
     assert_eq!(
         waveform_drag_action_for_mode(
             &layout,

@@ -248,9 +248,9 @@ pub enum UiAction {
     CommitWaveformEditFades,
     /// Detect silence-split waveform slices for the loaded sample.
     DetectWaveformSilenceSlices,
-    /// Detect exact duplicate beat windows for the loaded sample.
+    /// Detect exact duplicate windows for the loaded sample using the current selection size.
     DetectWaveformExactDuplicateSlices,
-    /// Clean exact duplicate beat windows while keeping the first occurrence.
+    /// Clean exact duplicate windows while keeping the first occurrence.
     CleanWaveformExactDuplicateSlices,
     /// Toggle browser-row selection by visible index.
     ToggleBrowserRowSelection {

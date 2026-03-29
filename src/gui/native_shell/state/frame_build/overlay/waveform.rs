@@ -133,10 +133,10 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
             String::from("Detect silence-based waveform slices")
         }
         WaveformToolbarHoverHint::ExactDedupe => {
-            String::from("Detect exact duplicate beat windows")
+            String::from("Detect exact duplicate windows using the current selection size")
         }
         WaveformToolbarHoverHint::CleanDuplicates => {
-            String::from("Remove duplicate beat windows, keeping the first copy")
+            String::from("Remove duplicate windows, keeping the first copy")
         }
         WaveformToolbarHoverHint::Loop => {
             if model.waveform_chrome.loop_lock_enabled && model.waveform.loop_enabled {

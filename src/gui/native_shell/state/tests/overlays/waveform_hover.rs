@@ -189,12 +189,10 @@ fn state_overlay_renders_exact_dedupe_tooltip_text() {
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
-    assert!(
-        frame
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Detect exact duplicate beat windows"))
-    );
+    assert!(frame.text_runs.iter().any(|run| {
+        run.text
+            .contains("Detect exact duplicate windows using the current selection size")
+    }));
 }
 
 #[test]
@@ -231,7 +229,7 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
 
     assert!(frame.text_runs.iter().any(|run| {
         run.text
-            .contains("Remove duplicate beat windows, keeping the first copy")
+            .contains("Remove duplicate windows, keeping the first copy")
     }));
 }
 

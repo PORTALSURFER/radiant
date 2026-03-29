@@ -148,22 +148,6 @@ impl NativeShellState {
     }
 
     /// Resolve a waveform-toolbar control click into a native UI action.
-    #[cfg(test)]
-    pub(crate) fn waveform_toolbar_action_at_point_with_motion(
-        &mut self,
-        layout: &ShellLayout,
-        motion_model: &NativeMotionModel,
-        point: Point,
-    ) -> Option<UiAction> {
-        self.waveform_toolbar_action_at_point_with_motion_and_modifiers(
-            layout,
-            motion_model,
-            point,
-            false,
-        )
-    }
-
-    /// Resolve a waveform-toolbar control click into a native UI action.
     pub(crate) fn waveform_toolbar_action_at_point_with_motion_and_modifiers(
         &mut self,
         layout: &ShellLayout,

@@ -258,6 +258,11 @@ pub struct WaveformChromeModel {
     pub transient_markers_enabled: bool,
     /// Whether slice mode is currently active.
     pub slice_mode_enabled: bool,
+    /// Whether the current slice batch is an exact-duplicate cleanup preview.
+    ///
+    /// Native shells use this to enable cleanup-only actions without exposing
+    /// generic slice workflows such as silence-split export review.
+    pub exact_duplicate_cleanup_available: bool,
 }
 
 impl Default for WaveformChromeModel {
@@ -271,6 +276,7 @@ impl Default for WaveformChromeModel {
             transient_snap_enabled: false,
             transient_markers_enabled: true,
             slice_mode_enabled: false,
+            exact_duplicate_cleanup_available: false,
         }
     }
 }

@@ -146,6 +146,16 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
     assert!(
         region
             .available_actions
+            .contains(&String::from("detect_waveform_exact_duplicate_slices"))
+    );
+    assert!(
+        region
+            .available_actions
+            .contains(&String::from("clean_waveform_exact_duplicate_slices"))
+    );
+    assert!(
+        region
+            .available_actions
             .contains(&String::from("move_waveform_slice_focus"))
     );
     assert!(
@@ -184,5 +194,19 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
                 && button.action == Some(UiAction::DetectWaveformSilenceSlices)
         }),
         "silence split toolbar button should be present"
+    );
+    assert!(
+        buttons.iter().any(|button| {
+            button.label == "Exact Dedupe"
+                && button.action == Some(UiAction::DetectWaveformExactDuplicateSlices)
+        }),
+        "exact dedupe toolbar button should be present"
+    );
+    assert!(
+        buttons.iter().any(|button| {
+            button.label == "Clean Dups"
+                && button.action == Some(UiAction::CleanWaveformExactDuplicateSlices)
+        }),
+        "clean dups toolbar button should be present"
     );
 }

@@ -219,6 +219,7 @@ pub(in super::super) fn chrome_motion_overlay_model_signature(model: &NativeMoti
     fingerprint_mix_bool(&mut state, model.waveform_transient_snap_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_transient_markers_enabled);
     fingerprint_mix_bool(&mut state, model.waveform_slice_mode_enabled);
+    fingerprint_mix_bool(&mut state, model.waveform_exact_duplicate_cleanup_available);
     fingerprint_mix_bool(&mut state, model.waveform_loop_enabled);
     fingerprint_mix_string(&mut state, &model.waveform_transport_hint);
     fingerprint_mix_string(&mut state, &model.status_right);

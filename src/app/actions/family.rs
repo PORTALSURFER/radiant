@@ -153,6 +153,8 @@ impl UiAction {
             | Self::SetWaveformSelectionRangeSmartScale { .. }
             | Self::SetWaveformEditSelectionRange { .. }
             | Self::CommitWaveformEditFades
+            | Self::DetectWaveformExactDuplicateSlices
+            | Self::CleanWaveformExactDuplicateSlices
             | Self::SetWaveformEditFadeInEnd { .. }
             | Self::SetWaveformEditFadeInMuteStart { .. }
             | Self::SetWaveformEditFadeInCurve { .. }

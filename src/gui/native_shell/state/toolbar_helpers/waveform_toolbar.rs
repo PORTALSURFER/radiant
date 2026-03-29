@@ -154,6 +154,26 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             style.highlight_blue_soft,
         ),
         (
+            "Exact Dedupe",
+            Some(WaveformToolbarIcon::Slice),
+            None,
+            model.waveform_loaded_label.is_some() && !model.waveform_loading,
+            false,
+            Some(UiAction::DetectWaveformExactDuplicateSlices),
+            style.highlight_blue_soft,
+        ),
+        (
+            "Clean Dups",
+            Some(WaveformToolbarIcon::Slice),
+            None,
+            model.waveform_loaded_label.is_some()
+                && !model.waveform_loading
+                && model.waveform_exact_duplicate_cleanup_available,
+            false,
+            Some(UiAction::CleanWaveformExactDuplicateSlices),
+            style.highlight_cyan_soft,
+        ),
+        (
             "Loop",
             Some(WaveformToolbarIcon::Loop),
             None,
@@ -192,7 +212,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
     let cluster = Rect::from_min_max(
         Point::new(
-            layout.waveform_header.min.x + (layout.waveform_header.width() * 0.42),
+            layout.waveform_header.min.x + (layout.waveform_header.width() * 0.32),
             layout.waveform_header.min.y,
         ),
         layout.waveform_header.max,

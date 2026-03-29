@@ -57,6 +57,14 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiActionFamily::Waveform
     );
     assert_eq!(
+        UiAction::DetectWaveformExactDuplicateSlices.family(),
+        UiActionFamily::Waveform
+    );
+    assert_eq!(
+        UiAction::CleanWaveformExactDuplicateSlices.family(),
+        UiActionFamily::Waveform
+    );
+    assert_eq!(
         UiAction::ZoomWaveformFull.family(),
         UiActionFamily::Waveform
     );

@@ -85,6 +85,8 @@ pub struct NativeMotionModel {
     pub waveform_transient_markers_enabled: bool,
     /// Whether slice mode is active.
     pub waveform_slice_mode_enabled: bool,
+    /// Whether exact-duplicate cleanup can be applied from the waveform toolbar.
+    pub waveform_exact_duplicate_cleanup_available: bool,
     /// Right-aligned status-bar text rendered in the motion overlay.
     pub status_right: String,
 }
@@ -142,6 +144,9 @@ impl NativeMotionModel {
             waveform_transient_snap_enabled: model.waveform_chrome.transient_snap_enabled,
             waveform_transient_markers_enabled: model.waveform_chrome.transient_markers_enabled,
             waveform_slice_mode_enabled: model.waveform_chrome.slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: model
+                .waveform_chrome
+                .exact_duplicate_cleanup_available,
             status_right: model.status.right.clone(),
         }
     }

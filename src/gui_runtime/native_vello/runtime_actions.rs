@@ -29,6 +29,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
             | UiAction::DetectWaveformSilenceSlices
+            | UiAction::DetectWaveformExactDuplicateSlices
+            | UiAction::CleanWaveformExactDuplicateSlices
             | UiAction::ToggleWaveformSliceSelection { .. }
             | UiAction::MoveWaveformSliceFocus { .. }
             | UiAction::ToggleFocusedWaveformSliceExportMark
@@ -119,6 +121,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections
             | UiAction::DetectWaveformSilenceSlices
+            | UiAction::DetectWaveformExactDuplicateSlices
+            | UiAction::CleanWaveformExactDuplicateSlices
             | UiAction::ToggleWaveformSliceSelection { .. }
             | UiAction::MoveWaveformSliceFocus { .. }
             | UiAction::ToggleFocusedWaveformSliceExportMark

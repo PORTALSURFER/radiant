@@ -15,6 +15,8 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
         "Show Tr",
         "Slice",
         "Silence Split",
+        "Exact Dedupe",
+        "Clean Dups",
         "Loop",
         "Play",
         "Rec",
@@ -314,4 +316,96 @@ fn waveform_toolbar_silence_split_button_emits_detect_action() {
 
     assert_eq!(button.action, Some(UiAction::DetectWaveformSilenceSlices));
     assert!(button.enabled);
+}
+
+#[test]
+fn waveform_toolbar_exact_dedupe_button_uses_blue_accent_and_detect_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Exact Dedupe")
+        .expect("exact dedupe toolbar button should be present");
+
+    assert_eq!(button.text_color, style.highlight_blue_soft);
+    assert_eq!(
+        button.action,
+        Some(UiAction::DetectWaveformExactDuplicateSlices)
+    );
+    assert!(button.enabled);
+}
+
+#[test]
+fn waveform_toolbar_clean_dups_button_requires_duplicate_cleanup_batch() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Clean Dups")
+        .expect("clean dups toolbar button should be present");
+
+    assert_eq!(
+        button.action,
+        Some(UiAction::CleanWaveformExactDuplicateSlices)
+    );
+    assert!(!button.enabled);
+
+    model.waveform_chrome.slice_mode_enabled = true;
+    model
+        .waveform
+        .slices
+        .push(crate::app::WaveformSlicePreviewModel {
+            range: crate::app::NormalizedRangeModel::new(180, 420),
+            selected: false,
+            focused: false,
+            marked_for_export: false,
+        });
+    let buttons_enabled = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button_enabled = buttons_enabled
+        .iter()
+        .find(|button| button.label == "Clean Dups")
+        .expect("clean dups toolbar button should be present");
+
+    assert!(!button_enabled.enabled);
+
+    model.waveform_chrome.exact_duplicate_cleanup_available = true;
+    let buttons_cleanup = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button_cleanup = buttons_cleanup
+        .iter()
+        .find(|button| button.label == "Clean Dups")
+        .expect("clean dups toolbar button should be present");
+
+    assert!(button_cleanup.enabled);
 }

@@ -232,6 +232,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
         waveform_loading: model.waveform_loading,
         bpm_editor_active,
         bpm_editor_display_signature: text_signature(bpm_editor_display),
+        waveform_slice_count: model.waveform_slices.len().min(u32::MAX as usize) as u32,
     }
 }
 
@@ -296,6 +297,8 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hover_hint(
         "Show Tr" => Some(WaveformToolbarHoverHint::ShowTransients),
         "Slice" => Some(WaveformToolbarHoverHint::SliceMode),
         "Silence Split" => Some(WaveformToolbarHoverHint::SilenceSplit),
+        "Exact Dedupe" => Some(WaveformToolbarHoverHint::ExactDedupe),
+        "Clean Dups" => Some(WaveformToolbarHoverHint::CleanDuplicates),
         "Loop" => Some(WaveformToolbarHoverHint::Loop),
         "Stop" => Some(WaveformToolbarHoverHint::Stop),
         "Play" => Some(WaveformToolbarHoverHint::Play),

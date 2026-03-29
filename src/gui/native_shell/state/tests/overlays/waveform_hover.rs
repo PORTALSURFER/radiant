@@ -168,6 +168,74 @@ fn state_overlay_renders_silence_split_tooltip_text() {
 }
 
 #[test]
+fn state_overlay_renders_exact_dedupe_tooltip_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+    let mut state = NativeShellState::new();
+    let button_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Exact Dedupe")
+        .expect("exact dedupe button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::None
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Detect exact duplicate beat windows"))
+    );
+}
+
+#[test]
+fn state_overlay_renders_clean_dups_tooltip_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.waveform.loaded_label = Some(String::from("kick.wav"));
+    model.waveform_chrome.slice_mode_enabled = true;
+    model
+        .waveform
+        .slices
+        .push(crate::app::WaveformSlicePreviewModel {
+            range: crate::app::NormalizedRangeModel::new(180, 420),
+            selected: false,
+            focused: false,
+            marked_for_export: false,
+        });
+    let mut state = NativeShellState::new();
+    let button_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Clean Dups")
+        .expect("clean dups button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::None
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.text_runs.iter().any(|run| {
+        run.text
+            .contains("Remove duplicate beat windows, keeping the first copy")
+    }));
+}
+
+#[test]
 fn state_overlay_renders_relative_grid_toggle_tooltip_text() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

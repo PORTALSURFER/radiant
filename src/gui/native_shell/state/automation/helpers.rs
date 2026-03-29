@@ -163,6 +163,8 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         }
         UiAction::CommitWaveformEditFades => "commit_waveform_edit_fades",
         UiAction::DetectWaveformSilenceSlices => "detect_waveform_silence_slices",
+        UiAction::DetectWaveformExactDuplicateSlices => "detect_waveform_exact_duplicate_slices",
+        UiAction::CleanWaveformExactDuplicateSlices => "clean_waveform_exact_duplicate_slices",
         UiAction::ToggleBrowserRowSelection { .. } => "toggle_browser_row_selection",
         UiAction::StartBrowserSampleDrag { .. } => "start_browser_sample_drag",
         UiAction::UpdateBrowserSampleDrag { .. } => "update_browser_sample_drag",

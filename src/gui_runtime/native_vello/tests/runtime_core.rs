@@ -32,6 +32,18 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::DetectWaveformExactDuplicateSlices
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::CleanWaveformExactDuplicateSlices
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
             &UiAction::StartWaveformSelectionDrag {
                 pointer_x: 320,
                 pointer_y: 240,
@@ -265,6 +277,14 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     assert_ne!(
         chrome_baseline_signature,
         chrome_motion_overlay_model_signature(&changed_slice_mode)
+    );
+
+    let mut changed_duplicate_cleanup = baseline.clone();
+    changed_duplicate_cleanup.waveform_exact_duplicate_cleanup_available =
+        !baseline.waveform_exact_duplicate_cleanup_available;
+    assert_ne!(
+        chrome_baseline_signature,
+        chrome_motion_overlay_model_signature(&changed_duplicate_cleanup)
     );
 
     let mut changed_slices = baseline.clone();

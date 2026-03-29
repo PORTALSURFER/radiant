@@ -49,6 +49,8 @@ pub(super) fn build_waveform_automation(
         selected: matches!(model.focus_context, crate::app::FocusContextModel::Waveform),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
+            String::from("detect_waveform_exact_duplicate_slices"),
+            String::from("clean_waveform_exact_duplicate_slices"),
             String::from("move_waveform_slice_focus"),
             String::from("toggle_focused_waveform_slice_export_mark"),
             String::from("seek_waveform"),

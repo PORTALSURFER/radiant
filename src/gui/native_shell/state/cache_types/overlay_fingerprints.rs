@@ -32,6 +32,10 @@ pub(crate) enum WaveformToolbarHoverHint {
     SliceMode,
     /// Silence-split slice detection tool.
     SilenceSplit,
+    /// Exact duplicate beat detection tool.
+    ExactDedupe,
+    /// Exact duplicate beat cleanup tool.
+    CleanDuplicates,
     /// Loop playback toggle.
     Loop,
     /// Stop transport action.

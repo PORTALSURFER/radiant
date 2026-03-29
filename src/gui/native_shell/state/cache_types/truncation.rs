@@ -96,6 +96,8 @@ pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
     pub bpm_editor_active: bool,
     /// Stable digest of waveform BPM editor display text.
     pub bpm_editor_display_signature: u64,
+    /// Current waveform slice preview count, used to invalidate cleanup actions.
+    pub waveform_slice_count: u32,
 }
 
 /// Small retained LRU cache for browser-row text truncation outputs.

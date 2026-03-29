@@ -138,10 +138,6 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
         resolved_action(KeyCode::R, ModifiersState::default(), &sources),
         Some(UiAction::ReloadFocusedSourceRow)
     );
-    assert_eq!(
-        resolved_action(KeyCode::D, ModifiersState::SHIFT, &sources),
-        Some(UiAction::RemoveDeadLinksForFocusedSourceRow)
-    );
 }
 
 #[test]

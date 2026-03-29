@@ -131,8 +131,6 @@ pub enum UiAction {
     OpenFocusedSourceFolder,
     /// Remove the currently focused source row.
     RemoveFocusedSourceRow,
-    /// Remove missing/dead-link rows for the focused source row.
-    RemoveDeadLinksForFocusedSourceRow,
     /// Reload wav entries for one source row.
     ReloadSourceRow {
         /// Target source row index.
@@ -150,11 +148,6 @@ pub enum UiAction {
     },
     /// Remove one configured source row.
     RemoveSourceRow {
-        /// Target source row index.
-        index: usize,
-    },
-    /// Remove missing/dead-link rows for one source row.
-    RemoveDeadLinksForSourceRow {
         /// Target source row index.
         index: usize,
     },

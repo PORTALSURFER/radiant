@@ -561,13 +561,6 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::RemoveFocusedSourceRow,
     },
     HotkeyBinding {
-        id: "remove-dead-links-focused-source",
-        label: "Remove dead links",
-        gesture: HotkeyGesture::with_shift(KeyCode::D),
-        scope: SOURCES,
-        action: UiAction::RemoveDeadLinksForFocusedSourceRow,
-    },
-    HotkeyBinding {
         id: "normalize-waveform",
         label: "Normalize selection/sample",
         gesture: HotkeyGesture::new(KeyCode::N),

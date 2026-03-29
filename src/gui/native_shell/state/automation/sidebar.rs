@@ -96,7 +96,6 @@ fn source_list_group(
                 String::from("hard_sync_source_row"),
                 String::from("open_source_folder_row"),
                 String::from("remove_source_row"),
-                String::from("remove_dead_links_for_source_row"),
             ],
             metadata: metadata(&[
                 ("detail", row.detail.as_str()),

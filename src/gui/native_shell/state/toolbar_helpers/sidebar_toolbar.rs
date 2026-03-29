@@ -249,14 +249,6 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
             },
             style.accent_copper,
         ),
-        (
-            "Remove dead links",
-            true,
-            UiAction::RemoveDeadLinksForSourceRow {
-                index: source_index,
-            },
-            style.accent_copper,
-        ),
     ];
     let sizing = style.sizing;
     let panel_padding = sizing.panel_inset.max(4.0);

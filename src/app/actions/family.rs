@@ -53,12 +53,10 @@ impl UiAction {
             | Self::HardSyncFocusedSourceRow
             | Self::OpenFocusedSourceFolder
             | Self::RemoveFocusedSourceRow
-            | Self::RemoveDeadLinksForFocusedSourceRow
             | Self::ReloadSourceRow { .. }
             | Self::HardSyncSourceRow { .. }
             | Self::OpenSourceFolderRow { .. }
             | Self::RemoveSourceRow { .. }
-            | Self::RemoveDeadLinksForSourceRow { .. }
             | Self::FocusFolderRow { .. }
             | Self::ActivateFolderRow { .. }
             | Self::ToggleFolderRowExpanded { .. }

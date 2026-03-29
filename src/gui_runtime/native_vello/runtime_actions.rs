@@ -10,7 +10,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::HardSyncSourceRow { .. }
             | UiAction::OpenSourceFolderRow { .. }
             | UiAction::RemoveSourceRow { .. }
-            | UiAction::RemoveDeadLinksForSourceRow { .. }
             | UiAction::FocusFolderRow { .. }
             | UiAction::ActivateFolderRow { .. }
             | UiAction::ToggleFolderRowExpanded { .. }

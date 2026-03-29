@@ -292,6 +292,9 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     if model.transport_running {
         bits |= 1 << 9;
     }
+    if model.waveform_compare_anchor_available {
+        bits |= 1 << 10;
+    }
     bits
 }
 
@@ -325,6 +328,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hover_hint(
         "Exact Dedupe" => Some(WaveformToolbarHoverHint::ExactDedupe),
         "Clean Dups" => Some(WaveformToolbarHoverHint::CleanDuplicates),
         "Loop" => Some(WaveformToolbarHoverHint::Loop),
+        "Compare" => Some(WaveformToolbarHoverHint::Compare),
         "Stop" => Some(WaveformToolbarHoverHint::Stop),
         "Play" => Some(WaveformToolbarHoverHint::Play),
         "Rec" => Some(WaveformToolbarHoverHint::Record),

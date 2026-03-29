@@ -27,6 +27,7 @@ impl UiAction {
         match self {
             Self::SelectColumn { .. } | Self::MoveColumn { .. } => UiActionFamily::Column,
             Self::ToggleTransport
+            | Self::PlayCompareAnchor
             | Self::PlayFromStart
             | Self::PlayFromCurrentPlayhead
             | Self::PlayFromWaveformCursor
@@ -81,6 +82,7 @@ impl UiAction {
             Self::MoveBrowserFocus { .. }
             | Self::SetBrowserViewStart { .. }
             | Self::FocusBrowserRow { .. }
+            | Self::SetCompareAnchorFromFocusedBrowserSample
             | Self::CommitFocusedBrowserRow
             | Self::SaveWaveformSelectionToBrowser
             | Self::SaveWaveformSelectionToBrowserWithKeep2

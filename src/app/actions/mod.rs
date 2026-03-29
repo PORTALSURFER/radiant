@@ -48,6 +48,8 @@ pub enum UiAction {
     // Transport and global playback actions.
     /// Toggle transport playback state.
     ToggleTransport,
+    /// Replay the stored compare-anchor sample without changing browser focus.
+    PlayCompareAnchor,
     /// Start playback from the beginning of the active sample.
     PlayFromStart,
     /// Start playback from the current playhead or cursor position.
@@ -231,6 +233,8 @@ pub enum UiAction {
         /// Target visible row index in the browser list.
         visible_row: usize,
     },
+    /// Store the focused browser sample as the compare-anchor reference.
+    SetCompareAnchorFromFocusedBrowserSample,
     /// Commit the currently focused browser row as the active loaded sample.
     CommitFocusedBrowserRow,
     /// Save the current waveform selection or slices into the browser as a new sample.

@@ -73,6 +73,10 @@ pub struct NativeMotionModel {
     pub waveform_image_signature: Option<u64>,
     /// Transport hint rendered with waveform metadata.
     pub waveform_transport_hint: String,
+    /// Whether compare-anchor replay is currently available.
+    pub waveform_compare_anchor_available: bool,
+    /// Label for the stored compare anchor, when available.
+    pub waveform_compare_anchor_label: Option<String>,
     /// Current waveform channel-view mode.
     pub waveform_channel_view: WaveformChannelViewModel,
     /// Whether normalized audition playback is enabled.
@@ -140,6 +144,8 @@ impl NativeMotionModel {
             waveform_loading: model.waveform.loading,
             waveform_image_signature: model.waveform.waveform_image_signature,
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
+            waveform_compare_anchor_available: model.waveform_chrome.compare_anchor_available,
+            waveform_compare_anchor_label: model.waveform_chrome.compare_anchor_label.clone(),
             waveform_channel_view: model.waveform_chrome.channel_view,
             waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
             waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,

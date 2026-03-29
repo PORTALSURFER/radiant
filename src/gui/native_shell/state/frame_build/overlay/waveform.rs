@@ -149,6 +149,12 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
                 String::from("Enable loop playback")
             }
         }
+        WaveformToolbarHoverHint::Compare => model
+            .waveform_chrome
+            .compare_anchor_label
+            .as_deref()
+            .map(|label| format!("Play compare anchor ({label})"))
+            .unwrap_or_else(|| String::from("Set a compare anchor to enable compare playback")),
         WaveformToolbarHoverHint::Stop => String::from("Stop playback"),
         WaveformToolbarHoverHint::Play => {
             if model.transport_running {

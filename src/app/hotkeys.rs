@@ -267,6 +267,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::PlayFromStart,
     },
     HotkeyBinding {
+        id: "play-compare-anchor",
+        label: "Play compare anchor",
+        gesture: HotkeyGesture::with_shift(KeyCode::Space),
+        scope: GLOBAL,
+        action: UiAction::PlayCompareAnchor,
+    },
+    HotkeyBinding {
         id: "play-from-current-playhead",
         label: "Play from current playhead",
         gesture: HotkeyGesture::with_command(KeyCode::Space),
@@ -341,6 +348,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         gesture: HotkeyGesture::new(KeyCode::F),
         scope: BROWSER,
         action: UiAction::FocusLoadedSampleInBrowser,
+    },
+    HotkeyBinding {
+        id: "set-compare-anchor",
+        label: "Set compare anchor",
+        gesture: HotkeyGesture::new(KeyCode::C),
+        scope: BROWSER,
+        action: UiAction::SetCompareAnchorFromFocusedBrowserSample,
     },
     HotkeyBinding {
         id: "find-similar",

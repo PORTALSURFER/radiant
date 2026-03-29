@@ -100,6 +100,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SelectColumn { .. } => "select_column",
         UiAction::MoveColumn { .. } => "move_column",
         UiAction::ToggleTransport => "toggle_transport",
+        UiAction::PlayCompareAnchor => "play_compare_anchor",
         UiAction::PlayFromStart => "play_from_start",
         UiAction::PlayFromCurrentPlayhead => "play_from_current_playhead",
         UiAction::PlayFromWaveformCursor => "play_from_waveform_cursor",
@@ -154,6 +155,9 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::MoveBrowserFocus { .. } => "move_browser_focus",
         UiAction::SetBrowserViewStart { .. } => "set_browser_view_start",
         UiAction::FocusBrowserRow { .. } => "focus_browser_row",
+        UiAction::SetCompareAnchorFromFocusedBrowserSample => {
+            "set_compare_anchor_from_focused_browser_sample"
+        }
         UiAction::CommitFocusedBrowserRow => "commit_focused_browser_row",
         UiAction::SaveWaveformSelectionToBrowser => "save_waveform_selection_to_browser",
         UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {

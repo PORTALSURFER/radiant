@@ -18,6 +18,7 @@ fn waveform_toolbar_icon_buttons_use_uniform_hit_cell_widths() {
         "Exact Dedupe",
         "Clean Dups",
         "Loop",
+        "Compare",
         "Play",
         "Rec",
     ];
@@ -44,7 +45,7 @@ fn waveform_toolbar_renders_without_per_button_rect_chrome() {
     let mut model = AppModel::default();
     model.transport_running = false;
     let mut state = NativeShellState::new();
-    let button_rects = ["Channel", "Play"]
+    let button_rects = ["Channel", "Compare", "Play"]
         .into_iter()
         .map(|label| {
             state
@@ -83,6 +84,65 @@ fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
         Some(WaveformToolbarHoverHint::Play)
     );
     assert!(fingerprint.waveform_toolbar_flash_ticks > 0);
+}
+
+#[test]
+fn waveform_toolbar_compare_button_requires_anchor() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let buttons_disabled = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&AppModel::default()),
+        false,
+        None,
+    );
+    let disabled = buttons_disabled
+        .iter()
+        .find(|button| button.label == "Compare")
+        .expect("compare toolbar button should be present");
+    assert!(!disabled.enabled);
+    assert_eq!(disabled.action, Some(UiAction::PlayCompareAnchor));
+    assert_eq!(disabled.text_color, style.text_muted);
+
+    let mut model = AppModel::default();
+    model.waveform_chrome.compare_anchor_available = true;
+    model.waveform_chrome.compare_anchor_label = Some(String::from("anchor.wav"));
+    let buttons_enabled = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let enabled = buttons_enabled
+        .iter()
+        .find(|button| button.label == "Compare")
+        .expect("compare toolbar button should be present");
+    assert!(enabled.enabled);
+    assert_eq!(enabled.action, Some(UiAction::PlayCompareAnchor));
+    assert_eq!(enabled.text_color, style.highlight_cyan_soft);
+}
+
+#[test]
+fn waveform_toolbar_compare_button_hit_testing_emits_compare_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform_chrome.compare_anchor_available = true;
+    model.waveform_chrome.compare_anchor_label = Some(String::from("anchor.wav"));
+    let compare = state
+        .waveform_toolbar_button_rect(&layout, &model, "Compare")
+        .expect("compare waveform toolbar button should be present");
+    let point = Point::new(
+        (compare.min.x + compare.max.x) * 0.5,
+        (compare.min.y + compare.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.waveform_toolbar_action_at_point(&layout, &model, point),
+        Some(crate::app::UiAction::PlayCompareAnchor)
+    );
 }
 
 #[test]

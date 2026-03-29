@@ -215,6 +215,20 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             },
         ),
         (
+            "Compare",
+            Some(WaveformToolbarIcon::Play),
+            None,
+            None,
+            model.waveform_compare_anchor_available,
+            false,
+            Some(UiAction::PlayCompareAnchor),
+            if model.waveform_compare_anchor_available {
+                style.highlight_cyan_soft
+            } else {
+                style.text_muted
+            },
+        ),
+        (
             transport_label,
             transport_icon,
             None,

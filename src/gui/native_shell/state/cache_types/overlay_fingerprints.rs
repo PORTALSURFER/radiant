@@ -38,6 +38,8 @@ pub(crate) enum WaveformToolbarHoverHint {
     CleanDuplicates,
     /// Loop playback toggle.
     Loop,
+    /// Compare-anchor replay action.
+    Compare,
     /// Stop transport action.
     Stop,
     /// Transport toggle action.

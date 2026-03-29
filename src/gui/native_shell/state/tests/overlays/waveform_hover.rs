@@ -268,6 +268,63 @@ fn state_overlay_renders_relative_grid_toggle_tooltip_text() {
 }
 
 #[test]
+fn state_overlay_renders_compare_tooltip_text_for_anchor_state() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.waveform_chrome.compare_anchor_available = true;
+    model.waveform_chrome.compare_anchor_label = Some(String::from("anchor.wav"));
+    let mut state = NativeShellState::new();
+    let button_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Compare")
+        .expect("compare button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::None
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Play compare anchor (anchor.wav)"))
+    );
+}
+
+#[test]
+fn state_overlay_renders_compare_tooltip_text_without_anchor() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let button_rect = state
+        .waveform_toolbar_button_rect(&layout, &model, "Compare")
+        .expect("compare button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert_ne!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::None
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.text_runs.iter().any(|run| {
+        run.text.contains("Set a compare anchor to enable compare playback")
+    }));
+}
+
+#[test]
 fn cursor_move_clears_waveform_hover_position_outside_plot() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

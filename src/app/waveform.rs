@@ -248,6 +248,10 @@ pub enum WaveformChannelViewModel {
 pub struct WaveformChromeModel {
     /// Extra transport metadata hint shown alongside waveform labels.
     pub transport_hint: String,
+    /// Whether compare-anchor replay is currently available.
+    pub compare_anchor_available: bool,
+    /// Label for the stored compare anchor, when available.
+    pub compare_anchor_label: Option<String>,
     /// Whether loop state is locked against sample-driven auto-updates.
     pub loop_lock_enabled: bool,
     /// Current channel-view mode used by waveform rendering.
@@ -275,6 +279,8 @@ impl Default for WaveformChromeModel {
     fn default() -> Self {
         Self {
             transport_hint: String::from("transport idle"),
+            compare_anchor_available: false,
+            compare_anchor_label: None,
             loop_lock_enabled: false,
             channel_view: WaveformChannelViewModel::Mono,
             normalized_audition_enabled: false,

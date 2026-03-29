@@ -59,4 +59,12 @@ fn waveform_toolbar_model_flags_change_with_channel_and_toggle_state() {
         baseline_flags,
         waveform_toolbar_model_flags(&changed_relative_grid)
     );
+
+    let mut changed_compare_anchor = baseline.clone();
+    changed_compare_anchor.waveform_compare_anchor_available =
+        !baseline.waveform_compare_anchor_available;
+    assert_ne!(
+        baseline_flags,
+        waveform_toolbar_model_flags(&changed_compare_anchor)
+    );
 }

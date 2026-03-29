@@ -28,7 +28,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         b: 255,
         a: 255,
     };
-    let annotations = compute_waveform_annotation_rects(
+    let annotations = compute_waveform_annotation_rects_with_nanos(
         layout.waveform_plot,
         style.sizing.border_width,
         model.waveform_selection_milli,
@@ -36,6 +36,8 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         None,
         model.waveform_view_start_micros,
         model.waveform_view_end_micros,
+        model.waveform_view_start_nanos,
+        model.waveform_view_end_nanos,
     );
     let playhead_rect =
         playhead_marker_rect(layout.waveform_plot, style.sizing.border_width, model);
@@ -90,7 +92,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     }
 
     if let Some(edit_selection) = model.waveform_edit_selection_milli {
-        let edit_selection_rect = compute_waveform_annotation_rects(
+        let edit_selection_rect = compute_waveform_annotation_rects_with_nanos(
             layout.waveform_plot,
             style.sizing.border_width,
             Some(edit_selection),
@@ -98,6 +100,8 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
             None,
             model.waveform_view_start_micros,
             model.waveform_view_end_micros,
+            model.waveform_view_start_nanos,
+            model.waveform_view_end_nanos,
         )
         .selection;
         if let Some(rect) = edit_selection_rect {
@@ -168,6 +172,8 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
             playhead_trail_lines,
             model.waveform_view_start_micros,
             model.waveform_view_end_micros,
+            model.waveform_view_start_nanos,
+            model.waveform_view_end_nanos,
         );
         emit_primitive(
             primitives,

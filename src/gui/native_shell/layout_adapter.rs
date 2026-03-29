@@ -75,8 +75,12 @@ pub(super) use sidebar_text::{
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
 pub(super) use top_controls::compute_top_bar_controls_sections;
+#[cfg(test)]
+pub(crate) use waveform_annotations::compute_waveform_annotation_rects;
 pub(crate) use waveform_annotations::{
-    compute_waveform_annotation_rects, compute_waveform_slice_preview_rects,
+    WaveformPixelSnap, compute_waveform_annotation_rects_with_nanos,
+    compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
+    waveform_plot_x_for_micros, waveform_view_window_from_bounds,
 };
 pub(super) use waveform_header::compute_waveform_header_text_layout;
 

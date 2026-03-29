@@ -23,6 +23,22 @@ impl NativeShellState {
         .map(|button| button.rect)
     }
 
+    /// Return the hovered resize edge resolved from one waveform point in tests.
+    #[cfg(test)]
+    pub(crate) fn hovered_waveform_resize_edge_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<WaveformResizeHoverEdge> {
+        hovered_waveform_resize_edge_for_point(
+            layout,
+            model,
+            point,
+            Some(ShellNodeKind::WaveformCard),
+        )
+    }
+
     /// Return the pointer's offset within the waveform scrollbar thumb when hovered.
     pub(crate) fn waveform_scrollbar_thumb_offset_at_point(
         &self,
@@ -385,7 +401,7 @@ pub(in crate::gui::native_shell::state) fn hovered_waveform_resize_edge_for_poin
 }
 
 /// Return whether the pointer is hovering the start (`true`) or end (`false`) edge of one range.
-pub(in crate::gui::native_shell::state) fn hovered_resize_edge_for_range(
+fn hovered_resize_edge_for_range(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
@@ -418,12 +434,13 @@ pub(in crate::gui::native_shell::state) fn waveform_x_for_micros(
     model: &AppModel,
     micros: u32,
 ) -> f32 {
-    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
-    let view_end = model.waveform.view_end_micros.min(1_000_000) as f32 / 1_000_000.0;
-    let view_width = (view_end - view_start).max(f32::EPSILON);
-    let absolute_ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
-    let ratio_in_view = ((absolute_ratio - view_start) / view_width).clamp(0.0, 1.0);
-    plot.min.x + (plot.width() * ratio_in_view)
+    let view = waveform_view_window_from_bounds(
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        Some(model.waveform.view_start_nanos),
+        Some(model.waveform.view_end_nanos),
+    );
+    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
 }
 
 /// Return the centered vertical hit span used by waveform edge-resize targets.

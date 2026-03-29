@@ -177,6 +177,111 @@ fn waveform_bpm_grid_lines_follow_micro_precision_viewport_when_zoomed() {
 }
 
 #[test]
+fn waveform_bpm_grid_lines_align_with_snapped_selection_edges_in_relative_mode() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform.view_start_milli = 500;
+    model.waveform.view_end_milli = 501;
+    model.waveform.view_start_micros = 500_400;
+    model.waveform.view_end_micros = 501_400;
+    model.waveform.view_start_nanos = 500_400_000;
+    model.waveform.view_end_nanos = 501_400_000;
+    model.waveform.beat_step_micros = Some(200);
+    model.waveform.bpm_grid_origin_micros = 500_500;
+    model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = true;
+    model.waveform.selection_milli = Some(NormalizedRangeModel::from_micros(500_500, 500_900));
+
+    let frame = state.build_frame(&layout, &model);
+    let (soft_xs, strong_xs) = waveform_bpm_grid_positions(&frame, &layout, &style);
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut overlay = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut overlay);
+
+    let selection_rect = compute_waveform_annotation_rects_with_nanos(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        model.waveform.selection_milli,
+        None,
+        None,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        model.waveform.view_start_nanos,
+        model.waveform.view_end_nanos,
+    )
+    .selection
+    .expect("selection rect");
+    let all_grid_xs = soft_xs
+        .iter()
+        .chain(strong_xs.iter())
+        .copied()
+        .collect::<Vec<_>>();
+
+    assert!(
+        overlay.primitives.iter().any(|primitive| {
+            matches!(primitive, Primitive::Rect(rect) if rect.rect == selection_rect)
+        }),
+        "motion overlay should render the snapped playback selection rect"
+    );
+    assert!(all_grid_xs.contains(&selection_rect.min.x));
+    assert!(all_grid_xs.contains(&selection_rect.max.x));
+}
+
+#[test]
+fn waveform_bpm_grid_lines_align_with_snapped_selection_edges_in_global_mode() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.waveform.view_start_milli = 500;
+    model.waveform.view_end_milli = 501;
+    model.waveform.view_start_micros = 500_400;
+    model.waveform.view_end_micros = 501_400;
+    model.waveform.view_start_nanos = 500_400_000;
+    model.waveform.view_end_nanos = 501_400_000;
+    model.waveform.beat_step_micros = Some(200);
+    model.waveform_chrome.bpm_snap_enabled = true;
+    model.waveform_chrome.relative_bpm_grid_enabled = false;
+    model.waveform.selection_milli = Some(NormalizedRangeModel::from_micros(500_600, 501_000));
+
+    let frame = state.build_frame(&layout, &model);
+    let (soft_xs, strong_xs) = waveform_bpm_grid_positions(&frame, &layout, &style);
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut overlay = NativeViewFrame::default();
+    state.build_motion_overlay_into(&layout, &style, &motion, &mut overlay);
+
+    let selection_rect = compute_waveform_annotation_rects_with_nanos(
+        layout.waveform_plot,
+        style.sizing.border_width,
+        model.waveform.selection_milli,
+        None,
+        None,
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        model.waveform.view_start_nanos,
+        model.waveform.view_end_nanos,
+    )
+    .selection
+    .expect("selection rect");
+    let all_grid_xs = soft_xs
+        .iter()
+        .chain(strong_xs.iter())
+        .copied()
+        .collect::<Vec<_>>();
+
+    assert!(
+        overlay.primitives.iter().any(|primitive| {
+            matches!(primitive, Primitive::Rect(rect) if rect.rect == selection_rect)
+        }),
+        "motion overlay should render the snapped playback selection rect"
+    );
+    assert!(all_grid_xs.contains(&selection_rect.min.x));
+    assert!(all_grid_xs.contains(&selection_rect.max.x));
+}
+
+#[test]
 fn waveform_bpm_grid_lines_ignore_selection_origin_in_global_mode() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);

@@ -6,10 +6,12 @@
 //! rendering, hit-testing, cache, and overlay logic lives in sibling
 //! submodules.
 
+#[cfg(test)]
+use super::layout_adapter::compute_waveform_annotation_rects;
 use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        BrowserTabsRects, SidebarFolderRowLayout, SidebarRowCounts,
+        BrowserTabsRects, SidebarFolderRowLayout, SidebarRowCounts, WaveformPixelSnap,
         compute_action_button_text_rect, compute_browser_footer_text_rect,
         compute_browser_header_text_layout, compute_browser_map_canvas_rect,
         compute_browser_map_header_text_layout, compute_browser_map_point_center,
@@ -26,8 +28,9 @@ use super::{
         compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_top_bar_controls_sections,
         compute_top_bar_controls_text_layout, compute_update_action_button_rects,
-        compute_waveform_annotation_rects, compute_waveform_header_text_layout,
-        compute_waveform_slice_preview_rects,
+        compute_waveform_annotation_rects_with_nanos, compute_waveform_header_text_layout,
+        compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
+        waveform_plot_x_for_micros, waveform_view_window_from_bounds,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},

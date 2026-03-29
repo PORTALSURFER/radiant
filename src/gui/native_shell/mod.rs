@@ -17,7 +17,10 @@ mod tests;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
-pub(crate) use layout_adapter::compute_waveform_slice_preview_rects;
+pub(crate) use layout_adapter::{
+    WaveformPixelSnap, compute_waveform_slice_preview_rects, waveform_plot_x_for_micros,
+    waveform_view_window_from_bounds,
+};
 pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::{

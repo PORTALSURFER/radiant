@@ -1,6 +1,9 @@
 //! Waveform coordinate conversion and normalized-view helpers.
 
 use super::*;
+use crate::gui::native_shell::{
+    WaveformPixelSnap, waveform_plot_x_for_micros, waveform_view_window_from_bounds,
+};
 
 /// Absolute waveform position resolved from one pointer point.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -17,9 +20,15 @@ pub(super) fn waveform_pointer_position_from_point(
     model: &AppModel,
     point: Point,
 ) -> WaveformPointerPosition {
-    let view = normalized_waveform_view(model);
+    let view = waveform_view_window_from_bounds(
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        Some(model.waveform.view_start_nanos),
+        Some(model.waveform.view_end_nanos),
+    );
     let plot_ratio = waveform_ratio_from_point(layout, point);
-    let normalized_ratio = (view.start + (view.width * f64::from(plot_ratio))).clamp(0.0, 1.0);
+    let normalized_ratio =
+        (view.start_ratio + (view.width_ratio * f64::from(plot_ratio))).clamp(0.0, 1.0);
     WaveformPointerPosition {
         plot_ratio,
         normalized_ratio,
@@ -120,14 +129,13 @@ pub(super) fn shift_waveform_range_micros(
 
 /// Convert a normalized waveform micro position into plot-space x.
 pub(super) fn waveform_x_for_micros(plot: UiRect, model: &AppModel, micros: u32) -> f32 {
-    let view = normalized_waveform_view(model);
-    let absolute_ratio = f64::from(micros.min(1_000_000)) / 1_000_000.0;
-    let ratio_in_view = if view.width <= f64::EPSILON {
-        0.0
-    } else {
-        ((absolute_ratio - view.start) / view.width).clamp(0.0, 1.0) as f32
-    };
-    plot.min.x + (plot.width() * ratio_in_view)
+    let view = waveform_view_window_from_bounds(
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        Some(model.waveform.view_start_nanos),
+        Some(model.waveform.view_end_nanos),
+    );
+    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
 }
 
 /// Return the centered vertical hit span used by waveform resize edges.
@@ -148,24 +156,4 @@ pub(super) fn waveform_edit_fade_curve_milli_from_point(layout: &ShellLayout, po
     let clamped_y = point.y.clamp(plot.min.y, plot.max.y);
     let ratio = 1.0 - ((clamped_y - plot.min.y) / height).clamp(0.0, 1.0);
     ratio_to_milli(ratio)
-}
-
-/// Normalized waveform viewport bounds (`0..=1`) resolved from panel milli fields.
-fn normalized_waveform_view(model: &AppModel) -> WaveformNormalizedView {
-    let start_nanos = model.waveform.view_start_nanos.min(1_000_000_000);
-    let end_nanos = model
-        .waveform
-        .view_end_nanos
-        .min(1_000_000_000)
-        .max(start_nanos);
-    let start = f64::from(start_nanos) / 1_000_000_000.0;
-    let end = f64::from(end_nanos) / 1_000_000_000.0;
-    let width = (end - start).max(0.0);
-    WaveformNormalizedView { start, width }
-}
-
-/// Precomputed normalized waveform viewport bounds for pointer conversions.
-struct WaveformNormalizedView {
-    start: f64,
-    width: f64,
 }

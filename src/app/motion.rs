@@ -61,6 +61,16 @@ pub struct NativeMotionModel {
     pub waveform_view_start_micros: u32,
     /// Current waveform view end in normalized micro-units (`0..=1_000_000`).
     pub waveform_view_end_micros: u32,
+    /// Current waveform view start in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Motion overlays use nanosecond bounds so rendered selection edges and
+    /// playhead markers stay aligned with deep-zoom pointer geometry.
+    pub waveform_view_start_nanos: u32,
+    /// Current waveform view end in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Motion overlays use nanosecond bounds so rendered selection edges and
+    /// playhead markers stay aligned with deep-zoom pointer geometry.
+    pub waveform_view_end_nanos: u32,
     /// Human-readable tempo metadata.
     pub waveform_tempo_label: Option<String>,
     /// Human-readable zoom metadata.
@@ -138,6 +148,8 @@ impl NativeMotionModel {
             waveform_view_end_milli: model.waveform.view_end_milli,
             waveform_view_start_micros: model.waveform.view_start_micros,
             waveform_view_end_micros: model.waveform.view_end_micros,
+            waveform_view_start_nanos: model.waveform.view_start_nanos,
+            waveform_view_end_nanos: model.waveform.view_end_nanos,
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
             waveform_loaded_label: model.waveform.loaded_label.clone(),

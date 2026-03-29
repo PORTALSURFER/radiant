@@ -232,15 +232,11 @@ fn waveform_selection_bounds(plot: Rect, model: &AppModel, range: NormalizedRang
 }
 
 fn waveform_selection_x_for_micros(plot: Rect, model: &AppModel, micros: u32) -> f32 {
-    let view_start = model.waveform.view_start_micros.min(1_000_000) as f32 / 1_000_000.0;
-    let view_end = model
-        .waveform
-        .view_end_micros
-        .min(1_000_000)
-        .max(model.waveform.view_start_micros.min(1_000_000)) as f32
-        / 1_000_000.0;
-    let view_width = (view_end - view_start).max(f32::EPSILON);
-    let position = micros.min(1_000_000) as f32 / 1_000_000.0;
-    let ratio_in_view = ((position - view_start) / view_width).clamp(0.0, 1.0);
-    plot.min.x + (plot.width() * ratio_in_view)
+    let view = waveform_view_window_from_bounds(
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        Some(model.waveform.view_start_nanos),
+        Some(model.waveform.view_end_nanos),
+    );
+    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
 }

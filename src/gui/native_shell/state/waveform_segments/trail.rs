@@ -22,18 +22,22 @@ pub(crate) fn playhead_marker_rect(
         return marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
-            (playhead_micros as f32 / 1_000_000.0).clamp(0.0, 1.0),
+            f64::from(playhead_micros) / 1_000_000.0,
             model.waveform_view_start_micros,
             model.waveform_view_end_micros,
+            model.waveform_view_start_nanos,
+            model.waveform_view_end_nanos,
         );
     }
     model.waveform_playhead_milli.and_then(|playhead_milli| {
         marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
-            (f32::from(playhead_milli) / 1000.0).clamp(0.0, 1.0),
+            f64::from(playhead_milli) / 1000.0,
             model.waveform_view_start_micros,
             model.waveform_view_end_micros,
+            model.waveform_view_start_nanos,
+            model.waveform_view_end_nanos,
         )
     })
 }
@@ -47,6 +51,8 @@ pub(super) fn emit_waveform_playhead_trail(
     trail_lines: &[PlayheadTrailLine],
     view_start_micros: u32,
     view_end_micros: u32,
+    view_start_nanos: u32,
+    view_end_nanos: u32,
 ) {
     let mut previous_rect: Option<Rect> = None;
     let mut previous_alpha = 0.0f32;
@@ -54,9 +60,11 @@ pub(super) fn emit_waveform_playhead_trail(
         let Some(rect) = marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
-            line.ratio,
+            f64::from(line.ratio),
             view_start_micros,
             view_end_micros,
+            view_start_nanos,
+            view_end_nanos,
         ) else {
             previous_rect = None;
             previous_alpha = 0.0;
@@ -94,21 +102,32 @@ pub(super) fn emit_waveform_playhead_trail(
 fn marker_rect_for_absolute_ratio(
     waveform_plot: Rect,
     border_width: f32,
-    absolute_ratio: f32,
+    absolute_ratio: f64,
     view_start_micros: u32,
     view_end_micros: u32,
+    view_start_nanos: u32,
+    view_end_nanos: u32,
 ) -> Option<Rect> {
-    let view_ratio =
-        ratio_in_view_window(absolute_ratio, view_start_micros, view_end_micros).clamp(0.0, 1.0);
-    marker_rect_for_ratio(waveform_plot, border_width, view_ratio)
+    let view = waveform_view_window_from_bounds(
+        view_start_micros,
+        view_end_micros,
+        Some(view_start_nanos),
+        Some(view_end_nanos),
+    );
+    let raw_x = waveform_plot_x_for_absolute_ratio(
+        waveform_plot,
+        absolute_ratio,
+        view,
+        WaveformPixelSnap::Nearest,
+    );
+    marker_rect_for_x(waveform_plot, border_width, raw_x)
 }
 
-fn marker_rect_for_ratio(waveform_plot: Rect, border_width: f32, ratio: f32) -> Option<Rect> {
+fn marker_rect_for_x(waveform_plot: Rect, border_width: f32, raw_x: f32) -> Option<Rect> {
     if waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0 {
         return None;
     }
     let marker_width = border_width.max(1.0).min(waveform_plot.width());
-    let raw_x = waveform_plot.min.x + (waveform_plot.width() * ratio.clamp(0.0, 1.0));
     let left = raw_x.clamp(waveform_plot.min.x, waveform_plot.max.x - marker_width);
     let right = (left + marker_width).min(waveform_plot.max.x);
     Some(Rect::from_min_max(
@@ -162,13 +181,4 @@ fn emit_waveform_playhead_trail_segment(
 
 fn lerp(start: f32, end: f32, progress: f32) -> f32 {
     start + ((end - start) * progress.clamp(0.0, 1.0))
-}
-
-fn ratio_in_view_window(absolute_ratio: f32, view_start_micros: u32, view_end_micros: u32) -> f32 {
-    let start_micros = view_start_micros.min(1_000_000);
-    let end_micros = view_end_micros.min(1_000_000).max(start_micros);
-    let start_ratio = start_micros as f32 / 1_000_000.0;
-    let width_ratio =
-        ((end_micros.saturating_sub(start_micros)) as f32 / 1_000_000.0).max(f32::EPSILON);
-    (absolute_ratio.clamp(0.0, 1.0) - start_ratio) / width_ratio
 }

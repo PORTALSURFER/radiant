@@ -82,14 +82,21 @@ pub(super) fn emit_waveform_bpm_grid(
     let step_micros = u64::from(step_micros);
     let origin_micros = waveform_bpm_grid_origin_micros(state, model);
     let first_beat_index = first_waveform_bpm_grid_index(view_start, origin_micros, step_micros);
-    let view_width = (view_end - view_start) as f32;
+    let view = waveform_view_window_from_bounds(
+        model.waveform.view_start_micros,
+        model.waveform.view_end_micros,
+        Some(model.waveform.view_start_nanos),
+        Some(model.waveform.view_end_nanos),
+    );
     let mut beat_index = first_beat_index;
     let mut beat_micros = origin_micros.saturating_add(beat_index.saturating_mul(step_micros));
     while beat_micros <= view_end {
-        let ratio = (beat_micros.saturating_sub(view_start)) as f32 / view_width;
-        let x = (waveform_plot.min.x + (waveform_plot.width() * ratio))
-            .round()
-            .clamp(waveform_plot.min.x, waveform_plot.max.x);
+        let x = waveform_plot_x_for_micros(
+            waveform_plot,
+            beat_micros as u32,
+            view,
+            WaveformPixelSnap::Nearest,
+        );
         let (line_color, line_width) = waveform_bpm_grid_line_style(style, beat_index);
         emit_primitive(
             primitives,

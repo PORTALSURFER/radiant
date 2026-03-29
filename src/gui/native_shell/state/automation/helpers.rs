@@ -158,6 +158,9 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::FocusBrowserRow { .. } => "focus_browser_row",
         UiAction::CommitFocusedBrowserRow => "commit_focused_browser_row",
         UiAction::SaveWaveformSelectionToBrowser => "save_waveform_selection_to_browser",
+        UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
+            "save_waveform_selection_to_browser_with_keep2"
+        }
         UiAction::CommitWaveformEditFades => "commit_waveform_edit_fades",
         UiAction::DetectWaveformSilenceSlices => "detect_waveform_silence_slices",
         UiAction::ToggleBrowserRowSelection { .. } => "toggle_browser_row_selection",

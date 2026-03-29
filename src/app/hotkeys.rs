@@ -603,6 +603,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::SaveWaveformSelectionToBrowser,
     },
     HotkeyBinding {
+        id: "save-selection-to-browser-keep2",
+        label: "Save selection/slices to browser (keep x2)",
+        gesture: HotkeyGesture::with_shift(KeyCode::E),
+        scope: WAVEFORM,
+        action: UiAction::SaveWaveformSelectionToBrowserWithKeep2,
+    },
+    HotkeyBinding {
         id: "commit-waveform-edit-fades",
         label: "Apply edit fades",
         gesture: HotkeyGesture::new(KeyCode::Enter),

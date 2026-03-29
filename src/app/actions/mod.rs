@@ -242,6 +242,8 @@ pub enum UiAction {
     CommitFocusedBrowserRow,
     /// Save the current waveform selection or slices into the browser as a new sample.
     SaveWaveformSelectionToBrowser,
+    /// Save the current waveform selection or slices and mark exported clips keep-2.
+    SaveWaveformSelectionToBrowserWithKeep2,
     /// Commit preview fades for the active waveform edit selection.
     CommitWaveformEditFades,
     /// Detect silence-split waveform slices for the loaded sample.

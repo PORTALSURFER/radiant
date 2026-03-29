@@ -85,6 +85,7 @@ impl UiAction {
             | Self::FocusBrowserRow { .. }
             | Self::CommitFocusedBrowserRow
             | Self::SaveWaveformSelectionToBrowser
+            | Self::SaveWaveformSelectionToBrowserWithKeep2
             | Self::ToggleBrowserRowSelection { .. }
             | Self::StartBrowserSampleDrag { .. }
             | Self::UpdateBrowserSampleDrag { .. }

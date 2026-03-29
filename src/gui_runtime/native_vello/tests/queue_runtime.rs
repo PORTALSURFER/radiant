@@ -998,6 +998,53 @@ fn immediate_e_after_selection_creation_uses_refreshed_waveform_focus() {
 }
 
 #[test]
+fn immediate_shift_e_after_selection_creation_uses_refreshed_waveform_focus() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let anchor = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+    let drag = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8),
+        anchor.y,
+    );
+    let mut runner = NativeVelloRunner::new(
+        NativeRunOptions::default(),
+        ImmediateWaveformSelectionBridge::default(),
+    );
+    runner.model = runner.bridge.project_model();
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.last_cursor = Some(anchor);
+
+    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    assert!(
+        !runner.handle_pointer_press_action(
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            false,
+        )
+    );
+    assert!(runner.process_waveform_drag_immediately(drag));
+    runner.finish_volume_drag(Some(MouseButton::Left));
+
+    runner.modifiers = ModifiersState::SHIFT;
+    runner.handle_hotkey_press_for_tests(KeyCode::E);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::BeginWaveformSelectionAt { anchor_micros },
+            UiAction::SetWaveformSelectionRange {
+                start_micros: anchor_micros,
+                end_micros: waveform_position_micros_from_point(&layout, &runner.model, drag),
+                snap_override: false,
+                preserve_view_edge: false,
+            },
+            UiAction::SaveWaveformSelectionToBrowserWithKeep2,
+        ]
+    );
+}
+
+#[test]
 fn immediate_selection_handle_press_after_creation_uses_refreshed_model() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let anchor = Point::new(

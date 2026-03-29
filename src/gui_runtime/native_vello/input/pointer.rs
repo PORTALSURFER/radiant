@@ -60,11 +60,21 @@ fn route_modal_and_chrome_actions(
         return Some(action);
     }
     if let Some(action) = motion_model.and_then(|motion_model| {
-        shell_state.waveform_toolbar_action_at_point_with_motion(layout, motion_model, point)
+        shell_state.waveform_toolbar_action_at_point_with_motion_and_modifiers(
+            layout,
+            motion_model,
+            point,
+            modifiers.shift_key(),
+        )
     }) {
         return Some(action);
     }
-    shell_state.waveform_toolbar_action_at_point(layout, model, point)
+    shell_state.waveform_toolbar_action_at_point_with_modifiers(
+        layout,
+        model,
+        point,
+        modifiers.shift_key(),
+    )
 }
 
 fn route_browser_or_folder_row(

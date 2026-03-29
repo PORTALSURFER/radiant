@@ -146,6 +146,24 @@ fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
 }
 
 #[test]
+fn waveform_toolbar_shift_click_emits_loop_lock_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = crate::app::AppModel::default();
+    let loop_button = state
+        .waveform_toolbar_button_rect(&layout, &model, "Loop")
+        .expect("loop waveform toolbar button should be present");
+    let point = Point::new(
+        (loop_button.min.x + loop_button.max.x) * 0.5,
+        (loop_button.min.y + loop_button.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.waveform_toolbar_action_at_point_with_modifiers(&layout, &model, point, true),
+        Some(crate::app::UiAction::ToggleLoopLock)
+    );
+}
+
+#[test]
 fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

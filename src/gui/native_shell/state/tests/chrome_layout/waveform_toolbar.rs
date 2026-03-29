@@ -277,6 +277,62 @@ fn waveform_toolbar_toggle_buttons_share_warning_accent_when_enabled() {
 }
 
 #[test]
+fn waveform_toolbar_locked_loop_on_uses_red_with_lock_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform.loop_enabled = true;
+    model.waveform_chrome.loop_lock_enabled = true;
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Loop")
+        .expect("loop toolbar button should be present");
+
+    assert_eq!(button.overlay_icon, Some(WaveformToolbarIcon::Lock));
+    assert_eq!(
+        button.text_color,
+        Rgba8 {
+            r: 224,
+            g: 92,
+            b: 92,
+            a: 255,
+        }
+    );
+}
+
+#[test]
+fn waveform_toolbar_locked_loop_off_stays_muted_with_lock_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.waveform.loop_enabled = false;
+    model.waveform_chrome.loop_lock_enabled = true;
+
+    let buttons = waveform_toolbar_buttons(
+        &layout,
+        &style,
+        &NativeMotionModel::from_app_model(&model),
+        false,
+        None,
+    );
+    let button = buttons
+        .iter()
+        .find(|button| button.label == "Loop")
+        .expect("loop toolbar button should be present");
+
+    assert_eq!(button.overlay_icon, Some(WaveformToolbarIcon::Lock));
+    assert_eq!(button.text_color, style.text_muted);
+}
+
+#[test]
 fn waveform_toolbar_silence_split_button_uses_blue_accent() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

@@ -282,7 +282,7 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
     },
     HotkeyBinding {
         id: "toggle-loop-lock",
-        label: "Toggle loop lock",
+        label: "Cycle locked loop",
         gesture: HotkeyGesture::with_shift(KeyCode::L),
         scope: GLOBAL,
         action: UiAction::ToggleLoopLock,

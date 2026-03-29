@@ -244,6 +244,8 @@ pub enum WaveformChannelViewModel {
 pub struct WaveformChromeModel {
     /// Extra transport metadata hint shown alongside waveform labels.
     pub transport_hint: String,
+    /// Whether loop state is locked against sample-driven auto-updates.
+    pub loop_lock_enabled: bool,
     /// Current channel-view mode used by waveform rendering.
     pub channel_view: WaveformChannelViewModel,
     /// Whether normalized audition playback is enabled.
@@ -269,6 +271,7 @@ impl Default for WaveformChromeModel {
     fn default() -> Self {
         Self {
             transport_hint: String::from("transport idle"),
+            loop_lock_enabled: false,
             channel_view: WaveformChannelViewModel::Mono,
             normalized_audition_enabled: false,
             bpm_snap_enabled: false,

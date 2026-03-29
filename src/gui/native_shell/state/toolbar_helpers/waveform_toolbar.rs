@@ -1,7 +1,17 @@
 //! Waveform toolbar layout and button rendering helpers.
 
 use super::super::*;
-use super::{waveform_toolbar_icon_rect, waveform_toolbar_visual_color};
+use super::{
+    waveform_toolbar_icon_rect, waveform_toolbar_overlay_icon_color,
+    waveform_toolbar_overlay_icon_rect, waveform_toolbar_visual_color,
+};
+
+const LOCKED_LOOP_ENABLED_RED: Rgba8 = Rgba8 {
+    r: 224,
+    g: 92,
+    b: 92,
+    a: 255,
+};
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     layout: &ShellLayout,
@@ -38,6 +48,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
                 },
             ),
             None,
+            None,
             true,
             false,
             Some(UiAction::SetWaveformChannelView {
@@ -48,6 +59,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Norm",
             Some(WaveformToolbarIcon::Normalize),
+            None,
             None,
             true,
             model.waveform_normalized_audition_enabled,
@@ -63,6 +75,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "BPM Value",
             None,
+            None,
             Some(bpm_value_label),
             true,
             bpm_input_active,
@@ -72,6 +85,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "BPM Snap",
             Some(WaveformToolbarIcon::BpmSnap),
+            None,
             None,
             true,
             model.waveform_bpm_snap_enabled,
@@ -88,6 +102,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Rel Grid",
             Some(WaveformToolbarIcon::RelativeBpmGrid),
             None,
+            None,
             true,
             model.waveform_relative_bpm_grid_enabled,
             Some(UiAction::SetRelativeBpmGridEnabled {
@@ -102,6 +117,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Tr Snap",
             Some(WaveformToolbarIcon::TransientSnap),
+            None,
             None,
             true,
             model.waveform_transient_snap_enabled,
@@ -118,6 +134,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Show Tr",
             Some(WaveformToolbarIcon::ShowTransients),
             None,
+            None,
             true,
             model.waveform_transient_markers_enabled,
             Some(UiAction::SetTransientMarkersEnabled {
@@ -132,6 +149,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Slice",
             Some(WaveformToolbarIcon::Slice),
+            None,
             None,
             true,
             model.waveform_slice_mode_enabled,
@@ -148,6 +166,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Silence Split",
             Some(WaveformToolbarIcon::Slice),
             None,
+            None,
             model.waveform_loaded_label.is_some() && !model.waveform_loading,
             false,
             Some(UiAction::DetectWaveformSilenceSlices),
@@ -157,6 +176,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Exact Dedupe",
             Some(WaveformToolbarIcon::Slice),
             None,
+            None,
             model.waveform_loaded_label.is_some() && !model.waveform_loading,
             false,
             Some(UiAction::DetectWaveformExactDuplicateSlices),
@@ -165,6 +185,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Clean Dups",
             Some(WaveformToolbarIcon::Slice),
+            None,
             None,
             model.waveform_loaded_label.is_some()
                 && !model.waveform_loading
@@ -176,11 +197,18 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Loop",
             Some(WaveformToolbarIcon::Loop),
+            if model.waveform_loop_lock_enabled {
+                Some(WaveformToolbarIcon::Lock)
+            } else {
+                None
+            },
             None,
             true,
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
-            if model.waveform_loop_enabled {
+            if model.waveform_loop_enabled && model.waveform_loop_lock_enabled {
+                LOCKED_LOOP_ENABLED_RED
+            } else if model.waveform_loop_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -189,6 +217,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             transport_label,
             transport_icon,
+            None,
             None,
             true,
             model.transport_running,
@@ -199,6 +228,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Rec",
             Some(WaveformToolbarIcon::Record),
             None,
+            None,
             false,
             false,
             None,
@@ -207,7 +237,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     ];
     let label_strings: Vec<String> = specs
         .iter()
-        .map(|(label, _, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
+        .map(|(label, _, _, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
         .collect();
     let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
     let cluster = Rect::from_min_max(
@@ -224,11 +254,15 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         .into_iter()
         .zip(specs.into_iter().skip(start_index))
         .map(
-            |(rect, (label, icon, display_text, enabled, active, action, text_color))| {
+            |(
+                rect,
+                (label, icon, overlay_icon, display_text, enabled, active, action, text_color),
+            )| {
                 WaveformToolbarButton {
                     rect,
                     label,
                     icon,
+                    overlay_icon,
                     display_text,
                     enabled,
                     active,
@@ -305,35 +339,36 @@ pub(in crate::gui::native_shell::state) fn render_waveform_toolbar_buttons(
             is_flashed,
             motion_wave,
         );
-        if let Some(icon) = toolbar_icon_for_button(button) {
-            if emit_toolbar_svg_icon(
-                primitives,
-                icon,
-                waveform_toolbar_icon_rect(
-                    button.rect,
-                    sizing,
-                    button.active,
-                    is_hovered,
-                    is_flashed,
-                ),
-                icon_color,
-            ) {
-                continue;
-            }
+        let main_icon_rect =
+            waveform_toolbar_icon_rect(button.rect, sizing, button.active, is_hovered, is_flashed);
+        let rendered_main_icon = if let Some(icon) = toolbar_icon_for_button(button) {
+            emit_toolbar_svg_icon(primitives, icon, main_icon_rect, icon_color)
+        } else {
+            false
+        };
+        if !rendered_main_icon {
+            emit_text(
+                text_runs,
+                TextRun {
+                    text: button
+                        .display_text
+                        .clone()
+                        .unwrap_or_else(|| button.label.to_string()),
+                    position: label_rect.min,
+                    font_size: sizing.font_meta,
+                    color: icon_color,
+                    max_width: Some(label_rect.width().max(12.0)),
+                    align: TextAlign::Center,
+                },
+            );
         }
-        emit_text(
-            text_runs,
-            TextRun {
-                text: button
-                    .display_text
-                    .clone()
-                    .unwrap_or_else(|| button.label.to_string()),
-                position: label_rect.min,
-                font_size: sizing.font_meta,
-                color: icon_color,
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
-            },
-        );
+        if let Some(overlay_icon) = button.overlay_icon {
+            let _ = emit_toolbar_svg_icon(
+                primitives,
+                overlay_icon,
+                waveform_toolbar_overlay_icon_rect(button.rect, sizing),
+                waveform_toolbar_overlay_icon_color(style, icon_color),
+            );
+        }
     }
 }

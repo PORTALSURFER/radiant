@@ -120,22 +120,56 @@ impl NativeShellState {
     }
 
     /// Resolve a waveform-toolbar control click into a native UI action.
+    #[cfg(test)]
     pub(crate) fn waveform_toolbar_action_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let motion_model = NativeMotionModel::from_app_model(model);
-        self.waveform_toolbar_action_at_point_with_motion(layout, &motion_model, point)
+        self.waveform_toolbar_action_at_point_with_modifiers(layout, model, point, false)
     }
 
     /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point_with_modifiers(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+        shift_down: bool,
+    ) -> Option<UiAction> {
+        let motion_model = NativeMotionModel::from_app_model(model);
+        self.waveform_toolbar_action_at_point_with_motion_and_modifiers(
+            layout,
+            &motion_model,
+            point,
+            shift_down,
+        )
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    #[cfg(test)]
     pub(crate) fn waveform_toolbar_action_at_point_with_motion(
         &mut self,
         layout: &ShellLayout,
         motion_model: &NativeMotionModel,
         point: Point,
+    ) -> Option<UiAction> {
+        self.waveform_toolbar_action_at_point_with_motion_and_modifiers(
+            layout,
+            motion_model,
+            point,
+            false,
+        )
+    }
+
+    /// Resolve a waveform-toolbar control click into a native UI action.
+    pub(crate) fn waveform_toolbar_action_at_point_with_motion_and_modifiers(
+        &mut self,
+        layout: &ShellLayout,
+        motion_model: &NativeMotionModel,
+        point: Point,
+        shift_down: bool,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let resolved = self
@@ -145,7 +179,11 @@ impl NativeShellState {
             .map(|button| {
                 (
                     waveform_toolbar_hover_hint(button.label),
-                    button.action.clone(),
+                    if shift_down && button.label == "Loop" {
+                        Some(UiAction::ToggleLoopLock)
+                    } else {
+                        button.action.clone()
+                    },
                 )
             });
         if let Some((Some(hint), _)) = resolved.as_ref() {
@@ -264,8 +302,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     if model.waveform_loop_enabled {
         bits |= 1 << 7;
     }
-    if model.transport_running {
+    if model.waveform_loop_lock_enabled {
         bits |= 1 << 8;
+    }
+    if model.transport_running {
+        bits |= 1 << 9;
     }
     bits
 }

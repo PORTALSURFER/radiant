@@ -45,6 +45,8 @@ pub struct NativeMotionModel {
     pub waveform_edit_fade_out_curve_milli: Option<u16>,
     /// Whether loop playback is enabled for the active waveform selection.
     pub waveform_loop_enabled: bool,
+    /// Whether loop playback is currently locked against sample-driven updates.
+    pub waveform_loop_lock_enabled: bool,
     /// Waveform cursor position in normalized milliseconds.
     pub waveform_cursor_milli: Option<u16>,
     /// Waveform playhead position in normalized milliseconds.
@@ -119,6 +121,7 @@ impl NativeMotionModel {
             waveform_edit_fade_out_mute_end_micros: model.waveform.edit_fade_out_mute_end_micros,
             waveform_edit_fade_out_curve_milli: model.waveform.edit_fade_out_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
+            waveform_loop_lock_enabled: model.waveform_chrome.loop_lock_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
             waveform_playhead_micros: model.waveform.playhead_micros.or_else(|| {

@@ -451,7 +451,7 @@ pub enum UiAction {
     },
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
-    /// Toggle whether loop state stays locked across sample changes.
+    /// Enter or cycle the locked loop override across sample changes.
     ToggleLoopLock,
     /// Set waveform channel view mode.
     SetWaveformChannelView {

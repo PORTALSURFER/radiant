@@ -139,7 +139,11 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
             String::from("Remove duplicate beat windows, keeping the first copy")
         }
         WaveformToolbarHoverHint::Loop => {
-            if model.waveform.loop_enabled {
+            if model.waveform_chrome.loop_lock_enabled && model.waveform.loop_enabled {
+                String::from("Loop locked on. Click to unlock and disable; Shift-click locks off")
+            } else if model.waveform_chrome.loop_lock_enabled {
+                String::from("Loop locked off. Click to unlock and enable; Shift-click locks on")
+            } else if model.waveform.loop_enabled {
                 String::from("Disable loop playback")
             } else {
                 String::from("Enable loop playback")

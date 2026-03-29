@@ -34,6 +34,8 @@ pub(super) enum WaveformToolbarIcon {
     Slice,
     /// Loop toggle icon.
     Loop,
+    /// Lock overlay icon used by locked controls.
+    Lock,
     /// Stop transport icon.
     Stop,
     /// Play transport icon used in both idle and running states.
@@ -156,6 +158,7 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
         WaveformToolbarIcon::Loop => {
             include_str!("../../../../assets/icons/waveform_toolbar/loop.svg")
         }
+        WaveformToolbarIcon::Lock => include_str!("../../../../assets/icons/ui/lock.svg"),
         WaveformToolbarIcon::Cog => include_str!("../../../../assets/icons/ui/cog.svg"),
         WaveformToolbarIcon::Dice => include_str!("../../../../assets/icons/ui/dice.svg"),
         WaveformToolbarIcon::Similarity => {
@@ -177,6 +180,7 @@ mod tests {
             rect: Rect::from_min_max(Point::new(0.0, 0.0), Point::new(18.0, 18.0)),
             label,
             icon: toolbar_icon_for_label(label),
+            overlay_icon: None,
             display_text: None,
             enabled: true,
             active,
@@ -242,6 +246,7 @@ mod tests {
             WaveformToolbarIcon::ShowTransients,
             WaveformToolbarIcon::Slice,
             WaveformToolbarIcon::Loop,
+            WaveformToolbarIcon::Lock,
             WaveformToolbarIcon::Stop,
             WaveformToolbarIcon::Play,
             WaveformToolbarIcon::Record,

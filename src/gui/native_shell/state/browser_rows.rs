@@ -120,6 +120,7 @@ pub(super) struct WaveformToolbarButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
     pub(super) icon: Option<WaveformToolbarIcon>,
+    pub(super) overlay_icon: Option<WaveformToolbarIcon>,
     pub(super) display_text: Option<String>,
     pub(super) enabled: bool,
     pub(super) active: bool,

@@ -110,3 +110,23 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_icon_rect(
         ),
     )
 }
+
+pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_rect(
+    button_rect: Rect,
+    sizing: SizingTokens,
+) -> Rect {
+    let base = waveform_toolbar_icon_rect(button_rect, sizing, false, false, false);
+    let side = (base.width().min(base.height()) * 0.48).clamp(6.0, 10.0);
+    let inset = sizing.border_width.max(1.0);
+    Rect::from_min_max(
+        Point::new(base.max.x - side - inset, base.min.y + inset),
+        Point::new(base.max.x - inset, base.min.y + side + inset),
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_color(
+    style: &StyleTokens,
+    icon_color: Rgba8,
+) -> Rgba8 {
+    blend_color(icon_color, style.text_primary, 0.62)
+}

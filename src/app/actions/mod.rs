@@ -426,6 +426,12 @@ pub enum UiAction {
     CancelPrompt,
     /// Request cancellation of the active progress operation.
     CancelProgress,
+    /// Copy the current browser sample file(s) or waveform selection clip to the clipboard.
+    ///
+    /// Hosts keep this action context-sensitive:
+    /// - browser focus copies the selected or focused source file paths
+    /// - waveform focus copies the current exported selection clip, when any
+    CopySelectionToClipboard,
     /// Toggle the hotkey/help overlay.
     ToggleHotkeyOverlay,
     /// Copy the status log to the clipboard.

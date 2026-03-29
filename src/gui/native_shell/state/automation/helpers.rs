@@ -221,6 +221,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ConfirmPrompt => "confirm_prompt",
         UiAction::CancelPrompt => "cancel_prompt",
         UiAction::CancelProgress => "cancel_progress",
+        UiAction::CopySelectionToClipboard => "copy_selection_to_clipboard",
         UiAction::SetInputMonitoringEnabled { .. } => "set_input_monitoring_enabled",
         UiAction::SetAdvanceAfterRatingEnabled { .. } => "set_advance_after_rating_enabled",
         UiAction::SetDestructiveYoloMode { .. } => "set_destructive_yolo_mode",

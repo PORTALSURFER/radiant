@@ -350,6 +350,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::FocusLoadedSampleInBrowser,
     },
     HotkeyBinding {
+        id: "copy-browser-selection",
+        label: "Copy sample file(s)",
+        gesture: HotkeyGesture::with_command(KeyCode::C),
+        scope: BROWSER,
+        action: UiAction::CopySelectionToClipboard,
+    },
+    HotkeyBinding {
         id: "set-compare-anchor",
         label: "Set compare anchor",
         gesture: HotkeyGesture::new(KeyCode::C),
@@ -594,6 +601,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         gesture: HotkeyGesture::new(KeyCode::C),
         scope: WAVEFORM,
         action: UiAction::CropWaveformSelection,
+    },
+    HotkeyBinding {
+        id: "copy-waveform-selection",
+        label: "Copy selection clip",
+        gesture: HotkeyGesture::with_command(KeyCode::C),
+        scope: WAVEFORM,
+        action: UiAction::CopySelectionToClipboard,
     },
     HotkeyBinding {
         id: "crop-selection-new-sample",
@@ -871,5 +885,24 @@ mod tests {
         assert_eq!(second.action, Some(UiAction::FocusWaveformPanel));
         assert!(second.handled);
         assert!(second.pending_chord.is_none());
+    }
+
+    #[test]
+    fn copy_hotkey_resolves_in_browser_and_waveform_scopes() {
+        let browser = resolve_hotkey_press(
+            None,
+            KeyPress::with_command(KeyCode::C),
+            FocusContextModel::SampleBrowser,
+        );
+        assert_eq!(browser.action, Some(UiAction::CopySelectionToClipboard));
+        assert!(browser.handled);
+
+        let waveform = resolve_hotkey_press(
+            None,
+            KeyPress::with_command(KeyCode::C),
+            FocusContextModel::Waveform,
+        );
+        assert_eq!(waveform.action, Some(UiAction::CopySelectionToClipboard));
+        assert!(waveform.handled);
     }
 }

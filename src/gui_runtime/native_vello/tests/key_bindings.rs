@@ -252,6 +252,34 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
 }
 
 #[test]
+fn text_input_targets_consume_command_c_without_emitting_copy_selection_action() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.frame_state.model_dirty = false;
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    });
+    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_buffer = Some(String::from("drums"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("drums"));
+    runner.modifiers = ModifiersState::CONTROL;
+
+    runner.handle_keyboard_input(winit::event::KeyEvent {
+        physical_key: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyC),
+        logical_key: winit::keyboard::Key::Character("c".into()),
+        text: Some("c".into()),
+        location: winit::keyboard::KeyLocation::Standard,
+        state: winit::event::ElementState::Pressed,
+        repeat: false,
+        platform_specific: Default::default(),
+    });
+
+    assert!(runner.bridge.actions.is_empty());
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("drums"));
+}
+
+#[test]
 fn folder_arrow_hotkeys_still_resolve_when_search_query_exists_but_tree_has_focus() {
     let mut folders = AppModel {
         focus_context: crate::app::FocusContextModel::SourceFolders,

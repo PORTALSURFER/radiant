@@ -104,6 +104,7 @@ impl UiAction {
             | Self::ToggleFindSimilarFocusedSample
             | Self::PlayRandomSample
             | Self::PlayPreviousRandomSample
+            | Self::CopySelectionToClipboard
             | Self::AdjustSelectedBrowserRating { .. }
             | Self::SetBrowserTab { .. }
             | Self::FocusMapSample { .. } => UiActionFamily::Browser,

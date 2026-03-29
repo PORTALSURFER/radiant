@@ -40,6 +40,49 @@ fn folder_row_point(
     )
 }
 
+fn folder_panel_background_point(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    model: &AppModel,
+) -> Point {
+    for x in layout.sidebar_rows.min.x as i32..=layout.sidebar_rows.max.x as i32 {
+        for y in layout.sidebar_rows.min.y as i32..=layout.sidebar_rows.max.y as i32 {
+            let point = Point::new(x as f32, y as f32);
+            if shell_state.folder_panel_contains_point(layout, model, point)
+                && shell_state
+                    .folder_row_at_point(layout, model, point)
+                    .is_none()
+                && shell_state
+                    .source_row_at_point(layout, model, point)
+                    .is_none()
+            {
+                return point;
+            }
+        }
+    }
+    panic!("expected hittable folder-panel background point");
+}
+
+fn valid_folder_drag_hover_fill(style: &StyleTokens) -> Rgba8 {
+    let expected_alpha = (style.state_hover_soft * 2.1).clamp(0.22, 0.46);
+    let mix = |from: u8, to: u8| -> u8 {
+        ((from as f32) + ((to as f32 - from as f32) * expected_alpha))
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+    Rgba8 {
+        r: mix(style.bg_tertiary.r, style.accent_mint.r),
+        g: mix(style.bg_tertiary.g, style.accent_mint.g),
+        b: mix(style.bg_tertiary.b, style.accent_mint.b),
+        a: (expected_alpha
+            * (style.bg_tertiary.a as f32 / 255.0)
+            * (style.accent_mint.a as f32 / 255.0)
+            * 255.0)
+            .round()
+            .clamp(0.0, 255.0) as u8,
+    }
+}
+
 #[test]
 fn browser_row_drag_can_render_folder_drag_highlight() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -83,9 +126,6 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
             },
         ]
     );
-    runner
-        .shell_state
-        .set_hovered_folder_row_index_for_tests(Some(1));
     assert_eq!(runner.shell_state.hovered_folder_row_index(), Some(1));
 
     let mut drag_model = Arc::unwrap_or_clone(runner.model.clone());
@@ -113,24 +153,80 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
         })
         .expect("drag-hovered folder row should emit a fill rectangle");
 
-    let expected_alpha = (style.state_hover_soft * 2.1).clamp(0.22, 0.46);
-    let mix = |from: u8, to: u8| -> u8 {
-        ((from as f32) + ((to as f32 - from as f32) * expected_alpha))
-            .round()
-            .clamp(0.0, 255.0) as u8
-    };
-    assert_eq!(
-        overlay_color,
-        Rgba8 {
-            r: mix(style.bg_tertiary.r, style.accent_mint.r),
-            g: mix(style.bg_tertiary.g, style.accent_mint.g),
-            b: mix(style.bg_tertiary.b, style.accent_mint.b),
-            a: (expected_alpha
-                * (style.bg_tertiary.a as f32 / 255.0)
-                * (style.accent_mint.a as f32 / 255.0)
-                * 255.0)
-                .round()
-                .clamp(0.0, 255.0) as u8,
-        }
+    assert_eq!(overlay_color, valid_folder_drag_hover_fill(&style));
+}
+
+#[test]
+fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(layout.root.rect.width());
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(browser_drag_model());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    let press_point = browser_row_point(&layout);
+    let drag_point = folder_panel_background_point(&mut runner.shell_state, &layout, &runner.model);
+    let seam_stroke = style.sizing.border_width.max(1.0);
+    let folder_visual_rects: Vec<Rect> = runner
+        .shell_state
+        .rendered_folder_row_rects(&layout, &runner.model)
+        .into_iter()
+        .map(|row| {
+            Rect::from_min_max(
+                Point::new(row.min.x + seam_stroke, row.min.y),
+                Point::new(row.max.x - seam_stroke, row.max.y),
+            )
+        })
+        .collect();
+    runner.last_cursor = Some(press_point);
+
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
     );
+    runner.handle_cursor_moved_for_tests(drag_point);
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![
+            UiAction::StartBrowserSampleDrag {
+                visible_row: 0,
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+            },
+            UiAction::UpdateBrowserSampleDrag {
+                pointer_x: drag_point.x.round() as u16,
+                pointer_y: drag_point.y.round() as u16,
+                hovered_folder_row: None,
+                over_folder_panel: true,
+                shift_down: false,
+                alt_down: false,
+            },
+        ]
+    );
+    assert_eq!(runner.shell_state.hovered_folder_row_index(), None);
+
+    let mut drag_model = Arc::unwrap_or_clone(runner.model.clone());
+    drag_model.drag_overlay = crate::app::DragOverlayModel {
+        active: true,
+        label: String::from("row_0000"),
+        target_label: String::from("Folder panel"),
+        valid_target: true,
+        pointer_x: Some(drag_point.x.round() as u16),
+        pointer_y: Some(drag_point.y.round() as u16),
+    };
+    runner.model = Arc::new(drag_model);
+
+    let mut frame = NativeViewFrame::default();
+    runner
+        .shell_state
+        .build_state_overlay_into(&layout, &style, &runner.model, &mut frame);
+
+    let expected_hover = valid_folder_drag_hover_fill(&style);
+    assert!(frame.primitives.iter().all(|primitive| {
+        !matches!(
+            primitive,
+            Primitive::Rect(rect)
+                if folder_visual_rects.contains(&rect.rect) && rect.color == expected_hover
+        )
+    }));
 }

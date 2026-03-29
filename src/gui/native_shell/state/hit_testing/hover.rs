@@ -16,6 +16,29 @@ impl NativeShellState {
         self.hovered_browser_visible_row = None;
     }
 
+    /// Synchronize the hovered folder-row overlay target during active drag/drop.
+    ///
+    /// Browser-row drags bypass the normal cursor-hover pipeline, so the
+    /// runtime updates the folder-row hover target explicitly to keep drag
+    /// feedback aligned with the pointer.
+    pub(crate) fn sync_folder_drag_hover_target(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> (Option<usize>, bool) {
+        let hovered_folder_row = self
+            .folder_row_disclosure_at_point(layout, model, point)
+            .or_else(|| self.folder_row_at_point(layout, model, point));
+        let over_folder_panel = self.folder_panel_contains_point(layout, model, point);
+        self.hovered_folder_row_index = if over_folder_panel {
+            hovered_folder_row
+        } else {
+            None
+        };
+        (hovered_folder_row, over_folder_panel)
+    }
+
     /// Handle pointer movement and classify which overlay bucket changed.
     pub(crate) fn handle_cursor_move_effect(
         &mut self,

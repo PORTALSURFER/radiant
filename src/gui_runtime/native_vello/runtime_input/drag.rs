@@ -174,24 +174,17 @@ where
         let Some(_drag) = self.browser_sample_drag else {
             return false;
         };
-        let hovered_folder_row = self
+        let (hovered_projected_folder_row, over_folder_panel) = self
             .shell_state
-            .folder_row_disclosure_at_point(layout, &self.model, point)
-            .or_else(|| {
-                self.shell_state
-                    .folder_row_at_point(layout, &self.model, point)
-            })
-            .map(|projected_index| {
-                self.model
-                    .sources
-                    .folder_rows
-                    .get(projected_index)
-                    .and_then(|row| row.source_index)
-                    .unwrap_or(projected_index)
-            });
-        let over_folder_panel =
-            self.shell_state
-                .folder_panel_contains_point(layout, &self.model, point);
+            .sync_folder_drag_hover_target(layout, &self.model, point);
+        let hovered_folder_row = hovered_projected_folder_row.map(|projected_index| {
+            self.model
+                .sources
+                .folder_rows
+                .get(projected_index)
+                .and_then(|row| row.source_index)
+                .unwrap_or(projected_index)
+        });
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
         self.emit_model_action(UiAction::UpdateBrowserSampleDrag {
             pointer_x,

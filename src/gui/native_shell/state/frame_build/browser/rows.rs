@@ -12,11 +12,12 @@ pub(super) fn render_browser_rows_window(
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         let row_columns = row_text_layout.columns;
-        let similarity_active = ctx.model.browser.similarity_filtered;
-        let similarity_button = row
-            .focused
-            .then(|| browser_similarity_button_rect(row.rect, ctx.sizing))
-            .flatten();
+        let similarity_active =
+            ctx.model.browser.similarity_filtered || ctx.model.browser.duplicate_cleanup_active;
+        let similarity_button = (!ctx.model.browser.duplicate_cleanup_active)
+            .then_some(row)
+            .filter(|row| row.focused)
+            .and_then(|row| browser_similarity_button_rect(row.rect, ctx.sizing));
         let similarity_button_reserved_width =
             browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
         let base_fill = if similarity_active {

@@ -9,7 +9,7 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     let sections = compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing);
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
-        action_slot: sections.action_slot,
+        action_slots: sections.action_slots,
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,
         sort_chip: sections.sort_chip,
@@ -215,20 +215,39 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     toolbar: &BrowserToolbarLayout,
 ) -> Vec<ActionButton> {
     let _ = layout;
-    if toolbar.action_slot.width() <= 1.0 {
+    if toolbar.action_slots.iter().all(|rect| rect.width() <= 1.0) {
         return Vec::new();
     }
-    vec![ActionButton {
-        rect: toolbar.action_slot,
-        label: "Random",
-        icon: Some(WaveformToolbarIcon::Dice),
-        enabled: true,
-        active: model.browser_actions.random_navigation_enabled,
-        action: UiAction::ToggleRandomNavigationMode,
-        text_color: if model.browser_actions.random_navigation_enabled {
-            style.highlight_cyan
-        } else {
-            style.text_primary
-        },
-    }]
+    let mut buttons = Vec::new();
+    if toolbar.action_slots[0].width() > 1.0 {
+        buttons.push(ActionButton {
+            rect: toolbar.action_slots[0],
+            label: "Random",
+            icon: Some(WaveformToolbarIcon::Dice),
+            enabled: true,
+            active: model.browser_actions.random_navigation_enabled,
+            action: UiAction::ToggleRandomNavigationMode,
+            text_color: if model.browser_actions.random_navigation_enabled {
+                style.highlight_cyan
+            } else {
+                style.text_primary
+            },
+        });
+    }
+    if toolbar.action_slots[1].width() > 1.0 {
+        buttons.push(ActionButton {
+            rect: toolbar.action_slots[1],
+            label: "Cleanup",
+            icon: Some(WaveformToolbarIcon::Filter),
+            enabled: true,
+            active: model.browser_actions.duplicate_cleanup_active,
+            action: UiAction::ToggleBrowserDuplicateCleanupMode,
+            text_color: if model.browser_actions.duplicate_cleanup_active {
+                style.highlight_orange
+            } else {
+                style.text_primary
+            },
+        });
+    }
+    buttons
 }

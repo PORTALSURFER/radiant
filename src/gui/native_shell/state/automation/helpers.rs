@@ -182,9 +182,14 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SetBrowserSearch { .. } => "set_browser_search",
         UiAction::ToggleBrowserRatingFilter { .. } => "toggle_browser_rating_filter",
         UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",
+        UiAction::ToggleBrowserDuplicateCleanupMode => "toggle_browser_duplicate_cleanup_mode",
         UiAction::FocusPreviousBrowserHistory => "focus_previous_browser_history",
         UiAction::FocusNextBrowserHistory => "focus_next_browser_history",
         UiAction::ToggleFindSimilarFocusedSample => "toggle_find_similar_focused_sample",
+        UiAction::ToggleBrowserDuplicateCleanupKeep { .. } => {
+            "toggle_browser_duplicate_cleanup_keep"
+        }
+        UiAction::ConfirmBrowserDuplicateCleanup => "confirm_browser_duplicate_cleanup",
         UiAction::PlayRandomSample => "play_random_sample",
         UiAction::PlayPreviousRandomSample => "play_previous_random_sample",
         UiAction::AdjustSelectedBrowserRating { .. } => "adjust_selected_browser_rating",

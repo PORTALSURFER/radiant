@@ -341,8 +341,9 @@ pub(super) fn render_browser_focus_overlay(
         }
         if row.focused {
             let mut label_position = row_text_layout.sample_label.min;
+            let show_similarity_button = !model.browser.duplicate_cleanup_active;
             let similarity_button_reserved_width =
-                browser_similarity_button_reserved_width(true, sizing);
+                browser_similarity_button_reserved_width(show_similarity_button, sizing);
             let inline_tag_reserved_width =
                 browser_inline_tag_reserved_width(&row.bucket_label, sizing);
             let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
@@ -388,7 +389,9 @@ pub(super) fn render_browser_focus_overlay(
                     align: TextAlign::Right,
                 },
             );
-            if let Some(button_rect) = browser_similarity_button_rect(row.rect, sizing) {
+            if show_similarity_button
+                && let Some(button_rect) = browser_similarity_button_rect(row.rect, sizing)
+            {
                 render_browser_similarity_button(
                     primitives,
                     button_rect,

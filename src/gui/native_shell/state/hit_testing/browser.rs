@@ -41,7 +41,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        if model.map.active {
+        if model.map.active || model.browser.duplicate_cleanup_active {
             return None;
         }
         let style = style_for_layout(layout);
@@ -307,6 +307,10 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
     model
         .browser_actions
         .random_navigation_enabled
+        .hash(&mut hasher);
+    model
+        .browser_actions
+        .duplicate_cleanup_active
         .hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);

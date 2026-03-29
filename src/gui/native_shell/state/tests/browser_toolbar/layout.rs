@@ -15,12 +15,17 @@ fn browser_action_buttons_stay_inside_toolbar() {
         let style = style_for_layout(&layout);
         let toolbar = browser_toolbar_layout(&layout, &style);
         let buttons = browser_action_buttons(&layout, &style, &model, &toolbar);
-        assert_eq!(buttons.len(), 1);
+        assert_eq!(buttons.len(), 2);
         assert_eq!(buttons[0].label, "Random");
         assert_eq!(buttons[0].icon, Some(WaveformToolbarIcon::Dice));
         assert!(buttons[0].enabled);
         assert!(!buttons[0].active);
+        assert_eq!(buttons[1].label, "Cleanup");
+        assert_eq!(buttons[1].icon, Some(WaveformToolbarIcon::Filter));
+        assert!(buttons[1].enabled);
+        assert!(!buttons[1].active);
         assert_rect_inside(layout.browser_toolbar, buttons[0].rect);
+        assert_rect_inside(layout.browser_toolbar, buttons[1].rect);
     }
 }
 
@@ -34,7 +39,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let style = style_for_layout(&layout);
     let controls = browser_toolbar_layout(&layout, &style);
     let buttons = browser_action_buttons(&layout, &style, &model, &controls);
-    assert_eq!(buttons.len(), 1);
+    assert_eq!(buttons.len(), 2);
     assert!(
         controls
             .rating_filter_chips
@@ -45,9 +50,11 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     assert!(
         controls.search_field.max.x <= layout.browser_toolbar.max.x - style.sizing.text_inset_x
     );
-    assert_eq!(buttons[0].rect, controls.action_slot);
+    assert_eq!(buttons[0].rect, controls.action_slots[0]);
+    assert_eq!(buttons[1].rect, controls.action_slots[1]);
     assert!(controls.rating_filter_chips[7].max.x <= buttons[0].rect.min.x);
-    assert!(buttons[0].rect.max.x <= controls.search_field.min.x);
+    assert!(buttons[0].rect.max.x <= buttons[1].rect.min.x);
+    assert!(buttons[1].rect.max.x <= controls.search_field.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);

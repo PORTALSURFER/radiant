@@ -16,6 +16,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.handle_left_pointer_press(layout, point, map_drag_start, action_emitted)
     }
 
+    /// Route one right-pointer press through the production hit-testing path in tests.
+    #[cfg(test)]
+    pub(crate) fn handle_right_pointer_press_for_tests(
+        &mut self,
+        layout: &ShellLayout,
+        point: Point,
+        action_emitted: &mut bool,
+        source_menu_state_changed: &mut bool,
+    ) -> bool {
+        self.begin_pointer_press_cycle();
+        self.last_cursor = Some(point);
+        self.refresh_cached_model_for_pending_input();
+        self.handle_right_pointer_press(layout, point, action_emitted, source_menu_state_changed)
+    }
+
     /// Route one cursor-move event through the production pointer path in tests.
     #[cfg(test)]
     pub(crate) fn handle_cursor_moved_for_tests(&mut self, point: Point) {
@@ -338,6 +353,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return true;
         }
         *source_menu_state_changed |= self.shell_state.close_source_context_menu();
+        if self.model.browser.duplicate_cleanup_active
+            && let Some(visible_row) = self.shell_state.browser_row_at_point(layout, &self.model, point)
+        {
+            self.emit_model_action(UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row });
+            *action_emitted = true;
+            return true;
+        }
         if matches!(layout.hit_test(point), Some(ShellNodeKind::WaveformCard)) {
             // Edit-selection pointer mapping shares the same waveform view bounds
             // as click-play, so refresh pending zoom/view changes before hit-testing.

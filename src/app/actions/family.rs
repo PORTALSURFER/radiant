@@ -99,9 +99,12 @@ impl UiAction {
             | Self::SetBrowserSearch { .. }
             | Self::ToggleBrowserRatingFilter { .. }
             | Self::ToggleRandomNavigationMode
+            | Self::ToggleBrowserDuplicateCleanupMode
             | Self::FocusPreviousBrowserHistory
             | Self::FocusNextBrowserHistory
             | Self::ToggleFindSimilarFocusedSample
+            | Self::ToggleBrowserDuplicateCleanupKeep { .. }
+            | Self::ConfirmBrowserDuplicateCleanup
             | Self::PlayRandomSample
             | Self::PlayPreviousRandomSample
             | Self::CopySelectionToClipboard

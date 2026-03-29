@@ -322,12 +322,21 @@ pub enum UiAction {
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
+    /// Toggle browser duplicate-cleanup mode for the focused browser sample.
+    ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous browser sample from focus history.
     FocusPreviousBrowserHistory,
     /// Focus the next browser sample from focus history.
     FocusNextBrowserHistory,
     /// Toggle find-similar mode for the focused browser sample.
     ToggleFindSimilarFocusedSample,
+    /// Toggle whether one duplicate-cleanup browser row should be kept.
+    ToggleBrowserDuplicateCleanupKeep {
+        /// Target visible row index in the browser list.
+        visible_row: usize,
+    },
+    /// Confirm duplicate cleanup and trash every unkept duplicate.
+    ConfirmBrowserDuplicateCleanup,
     /// Play a random visible sample.
     PlayRandomSample,
     /// Replay the previous random-visible sample.

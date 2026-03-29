@@ -265,15 +265,7 @@ fn text_input_targets_consume_command_c_without_emitting_copy_selection_action()
     runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("drums"));
     runner.modifiers = ModifiersState::CONTROL;
 
-    runner.handle_keyboard_input(winit::event::KeyEvent {
-        physical_key: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::KeyC),
-        logical_key: winit::keyboard::Key::Character("c".into()),
-        text: Some("c".into()),
-        location: winit::keyboard::KeyLocation::Standard,
-        state: winit::event::ElementState::Pressed,
-        repeat: false,
-        platform_specific: Default::default(),
-    });
+    runner.handle_character_key_for_tests(KeyCode::C, "c");
 
     assert!(runner.bridge.actions.is_empty());
     assert_eq!(runner.text_input_buffer.as_deref(), Some("drums"));
@@ -629,6 +621,28 @@ fn enter_confirms_folder_create_and_refreshes_created_row_immediately() {
             .folder_rows
             .iter()
             .any(|row| row.label == "drums")
+    );
+}
+
+#[test]
+fn enter_confirms_browser_duplicate_cleanup_when_browser_has_focus() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        browser: crate::app::BrowserPanelModel {
+            duplicate_cleanup_active: true,
+            ..crate::app::BrowserPanelModel::default()
+        },
+        ..AppModel::default()
+    });
+    runner.frame_state.model_dirty = false;
+
+    runner.handle_enter_for_tests();
+
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::ConfirmBrowserDuplicateCleanup]
     );
 }
 

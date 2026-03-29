@@ -147,3 +147,48 @@ fn browser_row_click_targets_interior_row_after_downward_autoscroll() {
         Some(UiAction::FocusBrowserRow { visible_row: 12 })
     );
 }
+
+#[test]
+fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.model = Arc::new(AppModel {
+        browser: crate::app::BrowserPanelModel {
+            rows: vec![crate::app::BrowserRowModel::new(5, "kick-row", 1, false, true)],
+            visible_count: 1,
+            duplicate_cleanup_active: true,
+            ..crate::app::BrowserPanelModel::default()
+        },
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    });
+    runner.frame_state.model_dirty = false;
+    let point = (layout.browser_rows.min.x as i32..=layout.browser_rows.max.x as i32)
+        .find_map(|x| {
+            (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
+                let point = Point::new(x as f32, y as f32);
+                (runner
+                    .shell_state
+                    .browser_row_at_point(&layout, &runner.model, point)
+                    == Some(5))
+                .then_some(point)
+            })
+        })
+        .expect("duplicate cleanup row should be hittable");
+    let mut action_emitted = false;
+    let mut source_menu_state_changed = false;
+
+    assert!(runner.handle_right_pointer_press_for_tests(
+        &layout,
+        point,
+        &mut action_emitted,
+        &mut source_menu_state_changed,
+    ));
+    assert!(action_emitted);
+    assert!(!source_menu_state_changed);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row: 5 }]
+    );
+}

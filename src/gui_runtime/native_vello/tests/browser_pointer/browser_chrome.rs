@@ -54,6 +54,31 @@ fn browser_random_action_button_click_routes_toggle_random_navigation_mode() {
 }
 
 #[test]
+fn browser_cleanup_action_button_click_routes_toggle_duplicate_cleanup_mode() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut shell_state = NativeShellState::new();
+    let button = shell_state
+        .browser_action_button_rect(&layout, &model, "Cleanup")
+        .expect("cleanup browser action button should exist");
+    let point = Point::new(
+        (button.min.x + button.max.x) * 0.5,
+        (button.min.y + button.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ToggleBrowserDuplicateCleanupMode)
+    );
+}
+
+#[test]
 fn browser_tab_clicks_route_to_tab_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();

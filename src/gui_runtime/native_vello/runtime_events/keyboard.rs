@@ -77,6 +77,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.emit_model_action(action.clone());
                 self.refresh_cached_model_after_folder_create_action(&action);
             }
+        } else if self.text_input_target == TextInputTarget::None
+            && matches!(
+                self.model.focus_context,
+                crate::app::FocusContextModel::SampleBrowser
+            )
+            && self.model.browser.duplicate_cleanup_active
+        {
+            let action = UiAction::ConfirmBrowserDuplicateCleanup;
+            self.emit_model_action(action);
+            handled = true;
         }
         if handled && !self.frame_state.has_pending_rebuild() {
             self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
@@ -241,6 +251,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.emit_model_action(action.clone());
                 self.refresh_cached_model_after_folder_create_action(&action);
             }
+        }
+        if !handled
+            && matches!(event.logical_key, Key::Named(NamedKey::Enter))
+            && self.text_input_target == TextInputTarget::None
+            && matches!(
+                self.model.focus_context,
+                crate::app::FocusContextModel::SampleBrowser
+            )
+            && self.model.browser.duplicate_cleanup_active
+        {
+            self.emit_model_action(UiAction::ConfirmBrowserDuplicateCleanup);
+            handled = true;
         }
         if !handled && let Some(key) = key {
             handled =

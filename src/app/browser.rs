@@ -99,6 +99,8 @@ pub struct BrowserPanelModel {
     pub busy: bool,
     /// Whether the browser is currently showing a similarity-filtered result set.
     pub similarity_filtered: bool,
+    /// Whether browser duplicate cleanup mode is currently active.
+    pub duplicate_cleanup_active: bool,
     /// Display label for the active browser sort mode.
     pub sort_label: Option<String>,
     /// Display label for the currently active browser tab.
@@ -167,6 +169,8 @@ pub struct BrowserActionsModel {
     pub can_tag: bool,
     /// Whether sticky random navigation mode is currently enabled.
     pub random_navigation_enabled: bool,
+    /// Whether browser duplicate cleanup mode is currently enabled.
+    pub duplicate_cleanup_active: bool,
 }
 
 /// Render mode label for the map panel.

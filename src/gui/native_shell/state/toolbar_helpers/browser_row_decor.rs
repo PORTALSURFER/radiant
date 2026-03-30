@@ -218,6 +218,10 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_width(
 }
 
 /// Compute chip rects for one inline browser metadata cluster.
+///
+/// During live resize the sample-label band can briefly shrink below the
+/// nominal metadata-chip minimum height. In that case the chips compress to
+/// the available row height or disappear if no positive-height rect remains.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects(
     sample_label: Rect,
     text: &str,
@@ -240,8 +244,14 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects(
     let right_edge = (sample_label.max.x - trailing_reserved_width).max(sample_label.min.x);
     let start_x = (right_edge - total_width).max(sample_label.min.x);
     let chip_height = browser_inline_tag_chip_height(sample_label, sizing);
+    if chip_height <= 0.0 || right_edge <= start_x {
+        return Vec::new();
+    }
     let min_y = sample_label.min.y + ((sample_label.height() - chip_height) * 0.5).floor();
     let max_y = (min_y + chip_height).min(sample_label.max.y);
+    if max_y <= min_y {
+        return Vec::new();
+    }
     let mut x = start_x;
     labels
         .into_iter()
@@ -268,13 +278,23 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_origin(
     )
 }
 
+/// Return the desired metadata-chip height for one browser sample label.
+///
+/// The nominal minimum is `10px`, but cramped rows during resize may provide
+/// less vertical space. In that case this helper caps the chip to the
+/// available label height instead of panicking on inverted clamp bounds.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_height(
     sample_label: Rect,
     sizing: SizingTokens,
 ) -> f32 {
-    (sizing.font_meta + (browser_inline_tag_chip_padding_y(sizing) * 2.0))
-        .round()
-        .clamp(10.0, sample_label.height().max(1.0))
+    let available_height = sample_label.height().max(0.0);
+    if available_height <= 0.0 {
+        return 0.0;
+    }
+    let desired_height = (sizing.font_meta + (browser_inline_tag_chip_padding_y(sizing) * 2.0))
+        .round();
+    let min_height = 10.0_f32.min(available_height);
+    desired_height.clamp(min_height, available_height)
 }
 
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_padding_x(

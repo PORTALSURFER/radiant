@@ -55,6 +55,47 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
 }
 
 #[test]
+fn browser_inline_metadata_chip_rects_fit_short_sample_labels() {
+    let sample_label = Rect::from_min_max(Point::new(24.0, 10.0), Point::new(164.0, 19.0));
+    let rects = browser_inline_tag_chip_rects(
+        sample_label,
+        "165 BPM · LOOP",
+        0.0,
+        style_for_layout(&ShellLayout::build(Vector2::new(1280.0, 720.0))).sizing,
+    );
+
+    assert_eq!(rects.len(), 2);
+    for rect in rects {
+        assert!(rect.min.x.is_finite());
+        assert!(rect.min.y.is_finite());
+        assert!(rect.max.x.is_finite());
+        assert!(rect.max.y.is_finite());
+        assert!(rect.width() >= 0.0);
+        assert!(rect.height() >= 0.0);
+        assert_rect_inside(sample_label, rect);
+    }
+}
+
+#[test]
+fn browser_inline_metadata_chip_rects_follow_cramped_row_text_layout() {
+    let style = style_for_layout(&ShellLayout::build(Vector2::new(1280.0, 720.0)));
+    let row_rect = Rect::from_min_max(Point::new(20.0, 40.0), Point::new(260.0, 50.0));
+    let row_text_layout = compute_browser_row_text_layout(row_rect, style.sizing);
+    let rects = browser_inline_tag_chip_rects(
+        row_text_layout.sample_label,
+        "165 BPM · LOOP",
+        0.0,
+        style.sizing,
+    );
+
+    assert_eq!(rects.len(), 2);
+    for rect in rects {
+        assert_rect_inside(row_text_layout.sample_label, rect);
+        assert!(rect.height() <= row_text_layout.sample_label.height());
+    }
+}
+
+#[test]
 fn browser_header_omits_bucket_label() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

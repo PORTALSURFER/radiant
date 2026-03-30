@@ -29,6 +29,38 @@ fn browser_toolbar_alt_click_maps_to_inverted_rating_filter_action() {
 }
 
 #[test]
+fn browser_toolbar_click_maps_to_playback_age_filter_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut shell_state = NativeShellState::new();
+    let chip = shell_state
+        .browser_playback_age_filter_chip_rect(
+            &layout,
+            &model,
+            crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+        )
+        .expect("month playback-age filter chip should exist");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ToggleBrowserPlaybackAgeFilter {
+            bucket: crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+            invert: false,
+        })
+    );
+}
+
+#[test]
 fn browser_random_action_button_click_routes_toggle_random_navigation_mode() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

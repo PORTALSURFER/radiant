@@ -113,6 +113,12 @@ const WAVEFORM_EDIT_SELECTION_FLASH_TICKS: u8 = 6;
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
+/// Playback-age filter chips shown left-to-right in the browser toolbar.
+const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::app::PlaybackAgeFilterChip; 3] = [
+    crate::app::PlaybackAgeFilterChip::NeverPlayed,
+    crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+    crate::app::PlaybackAgeFilterChip::OlderThanWeek,
+];
 /// Additional hit slop for the narrow browser scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 /// Additional hit slop for the narrow folder scrollbar thumb.
@@ -139,6 +145,7 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_browser_rating_filter_level: Option<i8>,
+    hovered_browser_playback_age_filter_chip: Option<crate::app::PlaybackAgeFilterChip>,
     hovered_browser_marked_filter: bool,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
@@ -201,6 +208,7 @@ impl NativeShellState {
             hovered: None,
             hovered_browser_visible_row: None,
             hovered_browser_rating_filter_level: None,
+            hovered_browser_playback_age_filter_chip: None,
             hovered_browser_marked_filter: false,
             hovered_browser_search_field: false,
             browser_search_editor_visual: None,

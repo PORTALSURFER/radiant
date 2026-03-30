@@ -11,6 +11,8 @@ pub struct NativeMotionModel {
     pub map_active: bool,
     /// Active browser rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
     pub active_rating_filters: [bool; 8],
+    /// Active browser playback-age filter chip states ordered as `Never`, `Month`, `Week`.
+    pub active_playback_age_filters: [bool; 3],
     /// Whether the browser is currently filtering down to session-marked rows.
     pub marked_filter_active: bool,
     /// Waveform selected playback window with milli and micro precision.
@@ -116,6 +118,7 @@ impl NativeMotionModel {
             transport_running: model.transport_running,
             map_active: model.map.active,
             active_rating_filters: model.browser.active_rating_filters,
+            active_playback_age_filters: model.browser.active_playback_age_filters,
             marked_filter_active: model.browser.marked_filter_active,
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_slices: model.waveform.slices.clone(),

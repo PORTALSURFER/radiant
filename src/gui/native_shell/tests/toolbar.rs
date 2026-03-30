@@ -61,6 +61,56 @@ fn toolbar_hit_test_alt_click_inverts_browser_rating_filter_chip() {
 }
 
 #[test]
+fn toolbar_hit_test_toggles_browser_playback_age_filter_chip() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = crate::app::AppModel::default();
+    let chip = state
+        .browser_playback_age_filter_chip_rect(
+            &layout,
+            &model,
+            crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+        )
+        .expect("month playback-age filter chip should be present");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(crate::app::UiAction::ToggleBrowserPlaybackAgeFilter {
+            bucket: crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+            invert: false,
+        })
+    );
+}
+
+#[test]
+fn toolbar_hit_test_alt_click_inverts_browser_playback_age_filter_chip() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = crate::app::AppModel::default();
+    let chip = state
+        .browser_playback_age_filter_chip_rect(
+            &layout,
+            &model,
+            crate::app::PlaybackAgeFilterChip::OlderThanWeek,
+        )
+        .expect("week playback-age filter chip should be present");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, true),
+        Some(crate::app::UiAction::ToggleBrowserPlaybackAgeFilter {
+            bucket: crate::app::PlaybackAgeFilterChip::OlderThanWeek,
+            invert: true,
+        })
+    );
+}
+
+#[test]
 fn toolbar_hit_test_ignores_empty_right_host_area() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

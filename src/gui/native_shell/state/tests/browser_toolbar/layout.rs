@@ -67,6 +67,27 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
 }
 
 #[test]
+fn browser_toolbar_places_playback_age_chips_between_rating_and_mark_controls() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let controls = browser_toolbar_layout(&layout, &style);
+
+    assert!(
+        controls
+            .playback_age_filter_chips
+            .iter()
+            .all(|chip| chip.width() > 1.0)
+    );
+    assert!(
+        controls.rating_filter_chips[7].max.x <= controls.playback_age_filter_chips[0].min.x
+    );
+    assert!(
+        controls.playback_age_filter_chips[2].max.x <= controls.marked_filter_chip.min.x
+    );
+    assert!(controls.marked_filter_chip.max.x <= controls.action_slots[0].min.x);
+}
+
+#[test]
 fn browser_toolbar_right_side_does_not_hit_search_field() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();

@@ -84,6 +84,47 @@ pub(super) fn render_browser_frame(
             ctx.sizing.border_width,
         );
     }
+    for (index, rect) in toolbar.playback_age_filter_chips.iter().copied().enumerate() {
+        if rect.width() <= 1.0 {
+            continue;
+        }
+        let chip = BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
+        let active = ctx.model.browser.active_playback_age_filters[index];
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect,
+                color: browser_playback_age_filter_chip_fill(ctx.style, chip, active),
+            }),
+        );
+        push_border(
+            primitives,
+            rect,
+            browser_playback_age_filter_chip_border(ctx.style, chip, active),
+            ctx.sizing.border_width,
+        );
+        let label_rect = compute_action_button_text_rect(rect, ctx.sizing);
+        let label = match chip {
+            crate::app::PlaybackAgeFilterChip::NeverPlayed => "NVR",
+            crate::app::PlaybackAgeFilterChip::OlderThanMonth => "1M",
+            crate::app::PlaybackAgeFilterChip::OlderThanWeek => "1W",
+        };
+        emit_text(
+            text_runs,
+            TextRun {
+                text: String::from(label),
+                position: label_rect.min,
+                font_size: ctx.sizing.font_meta,
+                color: if active {
+                    ctx.style.text_primary
+                } else {
+                    ctx.style.text_muted
+                },
+                max_width: Some(label_rect.width().max(12.0)),
+                align: TextAlign::Center,
+            },
+        );
+    }
     if toolbar.marked_filter_chip.width() > 1.0 {
         emit_primitive(
             primitives,

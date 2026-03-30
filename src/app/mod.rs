@@ -52,7 +52,7 @@ pub use automation::{
 pub use bridge::NativeAppBridge;
 pub use browser::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel, MapPanelModel,
-    MapPointModel, MapRenderModeModel,
+    MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
 };
 pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};

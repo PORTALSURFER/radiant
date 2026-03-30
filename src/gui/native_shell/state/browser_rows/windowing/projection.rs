@@ -193,6 +193,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             bucket_label,
             column: row.column.min(2),
             rating_level: row.rating_level.clamp(-3, 3),
+            playback_age_bucket: row.playback_age_bucket,
             selected: row.selected,
             focused: row.focused,
             missing: row.missing,

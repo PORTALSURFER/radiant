@@ -122,6 +122,31 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
     )
 }
 
+/// Desaturate a browser row color according to the playback-age bucket.
+pub(in crate::gui::native_shell::state) fn age_browser_row_color(
+    color: Rgba8,
+    bucket: crate::app::PlaybackAgeBucket,
+) -> Rgba8 {
+    let amount = match bucket {
+        crate::app::PlaybackAgeBucket::Fresh => 0.0,
+        crate::app::PlaybackAgeBucket::OlderThanWeek => 0.22,
+        crate::app::PlaybackAgeBucket::OlderThanMonth => 0.42,
+        crate::app::PlaybackAgeBucket::NeverPlayed => 0.62,
+    };
+    if amount <= 0.0 {
+        return color;
+    }
+    let luma = ((u16::from(color.r) * 54) + (u16::from(color.g) * 183) + (u16::from(color.b) * 19))
+        / 256;
+    let gray = Rgba8 {
+        r: luma as u8,
+        g: luma as u8,
+        b: luma as u8,
+        a: color.a,
+    };
+    blend_color(color, gray, amount)
+}
+
 pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {

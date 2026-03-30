@@ -2,6 +2,45 @@
 
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
+/// Browser playback-age filter chips shown in the native toolbar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum PlaybackAgeFilterChip {
+    /// Samples that have never been played.
+    NeverPlayed,
+    /// Samples whose last playback was at least 30 days ago.
+    OlderThanMonth,
+    /// Samples whose last playback was at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+}
+
+/// Visual playback-age buckets derived from sample playback history.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+)]
+pub enum PlaybackAgeBucket {
+    /// Samples played within the last 7 days, including future-skewed timestamps.
+    #[default]
+    Fresh,
+    /// Samples last played at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+    /// Samples last played at least 30 days ago.
+    OlderThanMonth,
+    /// Samples with no recorded playback timestamp.
+    NeverPlayed,
+}
+
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserRowModel {
@@ -13,6 +52,8 @@ pub struct BrowserRowModel {
     pub column: usize,
     /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
     pub rating_level: i8,
+    /// Visual playback-age bucket used to fade older samples in the browser.
+    pub playback_age_bucket: PlaybackAgeBucket,
     /// Optional inline metadata label rendered at the right edge of the sample lane.
     ///
     /// Hosts can use this for secondary metadata such as BPM or loop/length tags.
@@ -45,6 +86,7 @@ impl BrowserRowModel {
             label: label.into(),
             column: column.min(2),
             rating_level: 0,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: None,
             selected,
             focused,
@@ -57,6 +99,12 @@ impl BrowserRowModel {
     /// Attach a signed keep/trash rating level for inline row indicators.
     pub fn with_rating_level(mut self, rating_level: i8) -> Self {
         self.rating_level = rating_level.clamp(-3, 3);
+        self
+    }
+
+    /// Attach the playback-age bucket used for row aging treatment.
+    pub fn with_playback_age_bucket(mut self, playback_age_bucket: PlaybackAgeBucket) -> Self {
+        self.playback_age_bucket = playback_age_bucket;
         self
     }
 
@@ -102,6 +150,8 @@ pub struct BrowserPanelModel {
     pub search_query: String,
     /// Active rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
     pub active_rating_filters: [bool; 8],
+    /// Active playback-age filter chip states ordered as `Never`, `Month`, `Week`.
+    pub active_playback_age_filters: [bool; 3],
     /// Whether the browser is currently filtering down to only marked rows.
     pub marked_filter_active: bool,
     /// Placeholder shown when the browser search query is empty.

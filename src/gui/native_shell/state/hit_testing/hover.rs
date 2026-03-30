@@ -51,6 +51,8 @@ impl NativeShellState {
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
         let next_hovered_browser_rating_filter_level =
             self.resolve_hovered_browser_rating_filter_level(layout, model, point);
+        let next_hovered_browser_playback_age_filter_chip =
+            self.resolve_hovered_browser_playback_age_filter_chip(layout, model, point);
         let next_hovered_browser_marked_filter =
             self.resolve_hovered_browser_marked_filter(layout, model, point);
         let next_hovered_browser_search_field =
@@ -70,6 +72,8 @@ impl NativeShellState {
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
         let browser_rating_filter_changed =
             next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
+        let browser_playback_age_filter_changed = next_hovered_browser_playback_age_filter_chip
+            != self.hovered_browser_playback_age_filter_chip;
         let browser_marked_filter_changed =
             next_hovered_browser_marked_filter != self.hovered_browser_marked_filter;
         let browser_search_field_changed =
@@ -88,6 +92,7 @@ impl NativeShellState {
         if !hover_changed
             && !browser_row_changed
             && !browser_rating_filter_changed
+            && !browser_playback_age_filter_changed
             && !browser_marked_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
@@ -102,6 +107,7 @@ impl NativeShellState {
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
+        self.hovered_browser_playback_age_filter_chip = next_hovered_browser_playback_age_filter_chip;
         self.hovered_browser_marked_filter = next_hovered_browser_marked_filter;
         self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;
@@ -114,6 +120,7 @@ impl NativeShellState {
             && !hover_changed
             && !browser_row_changed
             && !browser_rating_filter_changed
+            && !browser_playback_age_filter_changed
             && !browser_marked_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
@@ -192,6 +199,17 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+    }
+
+    fn resolve_hovered_browser_playback_age_filter_chip(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<crate::app::PlaybackAgeFilterChip> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        browser_playback_age_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
     }
 
     fn resolve_hovered_source_add_button(

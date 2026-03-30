@@ -181,6 +181,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SelectAllBrowserRows => "select_all_browser_rows",
         UiAction::SetBrowserSearch { .. } => "set_browser_search",
         UiAction::ToggleBrowserRatingFilter { .. } => "toggle_browser_rating_filter",
+        UiAction::ToggleBrowserPlaybackAgeFilter { .. } => "toggle_browser_playback_age_filter",
         UiAction::ToggleBrowserSampleMark => "toggle_browser_sample_mark",
         UiAction::ToggleBrowserMarkedFilter => "toggle_browser_marked_filter",
         UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",

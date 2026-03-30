@@ -69,6 +69,27 @@ pub(super) fn build_browser_automation(
             vec![String::from("toggle_browser_rating_filter")],
         ));
     }
+    for (index, chip) in toolbar.playback_age_filter_chips.iter().copied().enumerate() {
+        if chip.width() <= 1.0 {
+            continue;
+        }
+        let bucket = super::super::BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
+        let (slug, label) = match bucket {
+            crate::app::PlaybackAgeFilterChip::NeverPlayed => ("never", "Never played"),
+            crate::app::PlaybackAgeFilterChip::OlderThanMonth => ("month", "Older than month"),
+            crate::app::PlaybackAgeFilterChip::OlderThanWeek => ("week", "Older than week"),
+        };
+        children.push(simple_node(
+            format!("browser.playback_age_filter.{slug}"),
+            AutomationRole::Button,
+            Some(String::from(label)),
+            chip,
+            None,
+            true,
+            model.browser.active_playback_age_filters[index],
+            vec![String::from("toggle_browser_playback_age_filter")],
+        ));
+    }
     if toolbar.marked_filter_chip.width() > 1.0 {
         children.push(simple_node(
             "browser.marked_filter",
@@ -197,6 +218,15 @@ fn build_browser_table_automation(
                 ("missing", bool_text(row.missing)),
                 ("locked", bool_text(row.locked)),
                 ("marked", bool_text(row.marked)),
+                (
+                    "playback_age_bucket",
+                    match row.playback_age_bucket {
+                        crate::app::PlaybackAgeBucket::Fresh => "fresh",
+                        crate::app::PlaybackAgeBucket::OlderThanWeek => "week",
+                        crate::app::PlaybackAgeBucket::OlderThanMonth => "month",
+                        crate::app::PlaybackAgeBucket::NeverPlayed => "never",
+                    },
+                ),
             ]),
             children: Vec::new(),
         })

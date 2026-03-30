@@ -23,6 +23,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) bucket_label: String,
     pub(super) column: usize,
     pub(super) rating_level: i8,
+    pub(super) playback_age_bucket: crate::app::PlaybackAgeBucket,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,
@@ -139,6 +140,7 @@ pub(super) struct SidebarSections {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarLayout {
     pub(super) rating_filter_chips: [Rect; 8],
+    pub(super) playback_age_filter_chips: [Rect; 3],
     pub(super) marked_filter_chip: Rect,
     pub(super) action_slots: [Rect; 2],
     pub(super) search_field: Rect,

@@ -98,6 +98,7 @@ impl UiAction {
             | Self::SelectAllBrowserRows
             | Self::SetBrowserSearch { .. }
             | Self::ToggleBrowserRatingFilter { .. }
+            | Self::ToggleBrowserPlaybackAgeFilter { .. }
             | Self::ToggleBrowserSampleMark
             | Self::ToggleBrowserMarkedFilter
             | Self::ToggleRandomNavigationMode

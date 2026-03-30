@@ -402,3 +402,46 @@ fn similarity_filtered_browser_rows_use_highlighted_fill() {
         )
     }));
 }
+
+#[test]
+fn browser_playback_age_bucket_grays_out_row_fill_and_text() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "Fresh row", 1, false, false));
+    model.browser.rows.push(
+        BrowserRowModel::new(1, "Never row", 1, false, false)
+            .with_playback_age_bucket(crate::app::PlaybackAgeBucket::NeverPlayed),
+    );
+    model.browser.visible_count = model.browser.rows.len();
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let frame = state.build_frame(&layout, &model);
+    let never_rect = rendered[1].rect;
+    let expected_never_fill = age_browser_row_color(
+        browser_row_stripe_fill(&style, 1),
+        crate::app::PlaybackAgeBucket::NeverPlayed,
+    );
+    let expected_never_text = age_browser_row_color(
+        style.text_primary,
+        crate::app::PlaybackAgeBucket::NeverPlayed,
+    );
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == never_rect && *color == expected_never_fill
+        )
+    }));
+    assert!(
+        frame
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Never row" && run.color == expected_never_text)
+    );
+}

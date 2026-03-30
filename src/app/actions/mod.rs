@@ -11,6 +11,7 @@
 //! action surface, so the preferred maintenance approach is to keep the enum
 //! centralized while improving internal organization around it.
 
+use super::PlaybackAgeFilterChip;
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -318,6 +319,13 @@ pub enum UiAction {
         /// Signed rating level associated with the clicked filter chip.
         level: i8,
         /// Whether the click should activate every filter chip except the clicked one.
+        invert: bool,
+    },
+    /// Toggle one browser playback-age filter chip.
+    ToggleBrowserPlaybackAgeFilter {
+        /// Playback-age chip associated with the clicked filter chip.
+        bucket: PlaybackAgeFilterChip,
+        /// Whether the click should activate every playback-age chip except the clicked one.
         invert: bool,
     },
     /// Toggle the session mark for the focused browser row or current multi-selection.

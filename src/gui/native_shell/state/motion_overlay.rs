@@ -170,6 +170,26 @@ impl NativeShellState {
                 motion_wave,
             );
         }
+        if let Some((chip_rect, chip)) = self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
+            let hovered_chip = self.hovered_browser_playback_age_filter_chip?;
+            let index = browser_playback_age_filter_chip_index(hovered_chip)?;
+            let chip_rect = toolbar.playback_age_filter_chips[index];
+            (chip_rect.width() > 1.0).then_some((chip_rect, hovered_chip))
+        }) {
+            let active = browser_playback_age_filter_chip_index(chip)
+                .and_then(|index| model.active_playback_age_filters.get(index))
+                .copied()
+                .unwrap_or(false);
+            render_browser_playback_age_filter_chip_hover_overlay(
+                primitives,
+                style,
+                sizing,
+                chip_rect,
+                chip,
+                active,
+                motion_wave,
+            );
+        }
         if let Some(chip_rect) = self
             .browser_toolbar_layout
             .as_ref()

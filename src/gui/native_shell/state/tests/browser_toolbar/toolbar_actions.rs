@@ -93,3 +93,34 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     );
     assert_eq!(row.metadata.get("marked").map(String::as_str), Some("true"));
 }
+
+#[test]
+fn browser_automation_exposes_playback_age_filters_and_row_bucket_metadata() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.browser.active_playback_age_filters = [true, false, true];
+    model.browser.rows.push(
+        BrowserRowModel::new(0, "Never played row", 1, false, true)
+            .with_playback_age_bucket(crate::app::PlaybackAgeBucket::NeverPlayed),
+    );
+    model.browser.visible_count = model.browser.rows.len();
+    let mut state = NativeShellState::new();
+
+    let snapshot = state.automation_snapshot(&layout, &model);
+    let browser = child(&snapshot.root, "browser.panel");
+    let never_filter = child(browser, "browser.playback_age_filter.never");
+    let week_filter = child(browser, "browser.playback_age_filter.week");
+    let table = child(browser, "browser.table");
+    let row = child(table, "browser.row.0");
+
+    assert!(never_filter.selected);
+    assert!(week_filter.selected);
+    assert_eq!(
+        never_filter.available_actions,
+        vec![String::from("toggle_browser_playback_age_filter")]
+    );
+    assert_eq!(
+        row.metadata.get("playback_age_bucket").map(String::as_str),
+        Some("never")
+    );
+}

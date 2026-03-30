@@ -9,6 +9,7 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     let sections = compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing);
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
+        playback_age_filter_chips: sections.playback_age_filter_chips,
         marked_filter_chip: sections.marked_filter_chip,
         action_slots: sections.action_slots,
         search_field: sections.search_field,
@@ -36,6 +37,24 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_level_at_point(
         .map(|index| BROWSER_RATING_FILTER_LEVELS[index])
 }
 
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_index(
+    chip: crate::app::PlaybackAgeFilterChip,
+) -> Option<usize> {
+    BROWSER_PLAYBACK_AGE_FILTER_CHIPS
+        .iter()
+        .position(|candidate| *candidate == chip)
+}
+
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_at_point(
+    chips: [Rect; 3],
+    point: Point,
+) -> Option<crate::app::PlaybackAgeFilterChip> {
+    chips
+        .iter()
+        .position(|rect| rect.width() > 1.0 && rect.contains(point))
+        .map(|index| BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index])
+}
+
 pub(in crate::gui::native_shell::state) fn browser_column_chips(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -51,6 +70,100 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_p
     point: Point,
 ) -> bool {
     chip.width() > 1.0 && chip.contains(point)
+}
+
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill(
+    style: &StyleTokens,
+    chip: crate::app::PlaybackAgeFilterChip,
+    active: bool,
+) -> Rgba8 {
+    let tint = match chip {
+        crate::app::PlaybackAgeFilterChip::NeverPlayed => style.text_primary,
+        crate::app::PlaybackAgeFilterChip::OlderThanMonth => style.text_muted,
+        crate::app::PlaybackAgeFilterChip::OlderThanWeek => style.bg_tertiary,
+    };
+    let amount = if active { 0.42 } else { 0.18 };
+    blend_color(
+        if active {
+            style.surface_overlay
+        } else {
+            style.surface_base
+        },
+        tint,
+        amount,
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_border(
+    style: &StyleTokens,
+    chip: crate::app::PlaybackAgeFilterChip,
+    active: bool,
+) -> Rgba8 {
+    if active {
+        match chip {
+            crate::app::PlaybackAgeFilterChip::NeverPlayed => {
+                blend_color(style.text_primary, style.border_emphasis, 0.48)
+            }
+            crate::app::PlaybackAgeFilterChip::OlderThanMonth => {
+                blend_color(style.text_muted, style.border_emphasis, 0.42)
+            }
+            crate::app::PlaybackAgeFilterChip::OlderThanWeek => {
+                blend_color(style.border_emphasis, style.text_primary, 0.34)
+            }
+        }
+    } else {
+        blend_color(style.border, style.surface_overlay, 0.25)
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_fill(
+    style: &StyleTokens,
+    chip: crate::app::PlaybackAgeFilterChip,
+    active: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    translucent_overlay_color(
+        browser_playback_age_filter_chip_fill(style, chip, active),
+        style.text_primary,
+        if active { 0.26 } else { 0.16 } + (motion_wave * 0.04),
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_border(
+    style: &StyleTokens,
+    chip: crate::app::PlaybackAgeFilterChip,
+    active: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    blend_color(
+        browser_playback_age_filter_chip_border(style, chip, active),
+        style.text_primary,
+        0.46 + (motion_wave * 0.08),
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_chip_hover_overlay(
+    primitives: &mut impl PrimitiveSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    chip_rect: Rect,
+    chip: crate::app::PlaybackAgeFilterChip,
+    active: bool,
+    motion_wave: f32,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: chip_rect,
+            color: browser_playback_age_filter_chip_hover_fill(style, chip, active, motion_wave),
+        }),
+    );
+    push_border(
+        primitives,
+        chip_rect,
+        browser_playback_age_filter_chip_hover_border(style, chip, active, motion_wave),
+        sizing.border_width,
+    );
 }
 
 pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(

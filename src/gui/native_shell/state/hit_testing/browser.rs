@@ -161,6 +161,14 @@ impl NativeShellState {
                 invert: alt_down,
             });
         }
+        if let Some(bucket) =
+            browser_playback_age_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
+        {
+            return Some(UiAction::ToggleBrowserPlaybackAgeFilter {
+                bucket,
+                invert: alt_down,
+            });
+        }
         if browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point) {
             return Some(UiAction::ToggleBrowserMarkedFilter);
         }
@@ -233,6 +241,21 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         (toolbar.marked_filter_chip.width() > 1.0).then_some(toolbar.marked_filter_chip)
+    }
+
+    /// Return one browser playback-age filter chip rect for the given chip.
+    #[cfg(test)]
+    pub(crate) fn browser_playback_age_filter_chip_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        chip: crate::app::PlaybackAgeFilterChip,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let index = browser_playback_age_filter_chip_index(chip)?;
+        let rect = toolbar.playback_age_filter_chips[index];
+        (rect.width() > 1.0).then_some(rect)
     }
 
     /// Return one browser action-button rect for the given label.
@@ -328,6 +351,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
         .duplicate_cleanup_active
         .hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
+    model.browser.active_playback_age_filters.hash(&mut hasher);
     model.browser.marked_filter_active.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);
     for index in 0..3 {

@@ -121,14 +121,18 @@ where
             }
             return matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown);
         }
-        if self.modifiers.shift_key()
-            || self.modifiers.control_key()
-            || self.modifiers.super_key()
-            || self.modifiers.alt_key()
-        {
+        if self.text_input_target != TextInputTarget::None {
             return false;
         }
-        if self.text_input_target != TextInputTarget::None {
+        if self.modifiers.control_key() || self.modifiers.super_key() {
+            return false;
+        }
+        if self.modifiers.alt_key() {
+            return !self.modifiers.shift_key()
+                && self.model.focus_context == crate::app::FocusContextModel::Waveform
+                && matches!(key, KeyCode::ArrowLeft | KeyCode::ArrowRight);
+        }
+        if self.modifiers.shift_key() {
             return false;
         }
         matches!(key, KeyCode::ArrowUp | KeyCode::ArrowDown)

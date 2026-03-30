@@ -736,6 +736,26 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::MoveWaveformSliceFocus { delta: 1 },
     },
     HotkeyBinding {
+        id: "micro-slide-selection-left",
+        label: "Micro-slide selection left (1 sample)",
+        gesture: HotkeyGesture::with_alt(KeyCode::ArrowLeft),
+        scope: WAVEFORM,
+        action: UiAction::SlideWaveformSelection {
+            delta: -1,
+            fine: true,
+        },
+    },
+    HotkeyBinding {
+        id: "micro-slide-selection-right",
+        label: "Micro-slide selection right (1 sample)",
+        gesture: HotkeyGesture::with_alt(KeyCode::ArrowRight),
+        scope: WAVEFORM,
+        action: UiAction::SlideWaveformSelection {
+            delta: 1,
+            fine: true,
+        },
+    },
+    HotkeyBinding {
         id: "nudge-selection-left",
         label: "Nudge selection left (fine)",
         gesture: HotkeyGesture::with_shift(KeyCode::ArrowLeft),

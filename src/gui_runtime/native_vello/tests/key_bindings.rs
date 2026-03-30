@@ -50,6 +50,28 @@ fn waveform_bpm_input_shift_arrow_steps_by_tenth() {
 }
 
 #[test]
+fn key_repeat_allows_alt_arrow_micro_slides_only_in_waveform_focus() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.modifiers = ModifiersState::ALT;
+
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowLeft));
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowRight));
+
+    runner.model = Arc::new(AppModel {
+        focus_context: crate::app::FocusContextModel::Waveform,
+        ..AppModel::default()
+    });
+    assert!(runner.allows_key_repeat(KeyCode::ArrowLeft));
+    assert!(runner.allows_key_repeat(KeyCode::ArrowRight));
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowUp));
+
+    runner.text_input_target = TextInputTarget::BrowserSearch;
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowLeft));
+    assert!(!runner.allows_key_repeat(KeyCode::ArrowRight));
+}
+
+#[test]
 fn g_prefix_routes_section_focus_commands() {
     let focus = AppModel::default();
     let first = action_from_key(KeyCode::G, ModifiersState::default(), &focus, None);
@@ -193,6 +215,13 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
     );
     assert_eq!(
         resolved_action(KeyCode::ArrowRight, ModifiersState::SHIFT, &waveform),
+        Some(UiAction::SlideWaveformSelection {
+            delta: 1,
+            fine: true,
+        })
+    );
+    assert_eq!(
+        resolved_action(KeyCode::ArrowRight, ModifiersState::ALT, &waveform),
         Some(UiAction::SlideWaveformSelection {
             delta: 1,
             fine: true,

@@ -98,6 +98,8 @@ impl UiAction {
             | Self::SelectAllBrowserRows
             | Self::SetBrowserSearch { .. }
             | Self::ToggleBrowserRatingFilter { .. }
+            | Self::ToggleBrowserSampleMark
+            | Self::ToggleBrowserMarkedFilter
             | Self::ToggleRandomNavigationMode
             | Self::ToggleBrowserDuplicateCleanupMode
             | Self::FocusPreviousBrowserHistory

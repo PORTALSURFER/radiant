@@ -65,6 +65,8 @@ pub enum KeyCode {
     R,
     /// Latin letter S.
     S,
+    /// Semicolon key (`;`).
+    Semicolon,
     /// Slash key (`/`).
     Slash,
     /// Backslash key (`\\`).
@@ -137,6 +139,7 @@ pub fn key_code_from_winit(key: winit::keyboard::KeyCode) -> Option<KeyCode> {
         WinitKeyCode::Quote => KeyCode::Quote,
         WinitKeyCode::KeyR => KeyCode::R,
         WinitKeyCode::KeyS => KeyCode::S,
+        WinitKeyCode::Semicolon => KeyCode::Semicolon,
         WinitKeyCode::Slash => KeyCode::Slash,
         WinitKeyCode::Backslash => KeyCode::Backslash,
         WinitKeyCode::KeyT => KeyCode::T,
@@ -171,6 +174,10 @@ mod tests {
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyA), Some(KeyCode::A));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyE), Some(KeyCode::E));
         assert_eq!(key_code_from_winit(WinitKeyCode::KeyV), Some(KeyCode::V));
+        assert_eq!(
+            key_code_from_winit(WinitKeyCode::Semicolon),
+            Some(KeyCode::Semicolon)
+        );
         assert_eq!(
             key_code_from_winit(WinitKeyCode::ArrowLeft),
             Some(KeyCode::ArrowLeft)

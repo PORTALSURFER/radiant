@@ -197,6 +197,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             focused: row.focused,
             missing: row.missing,
             locked: row.locked,
+            marked: row.marked,
             rect,
         });
     }

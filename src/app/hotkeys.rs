@@ -421,6 +421,13 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         action: UiAction::ToggleFocusedBrowserRowSelection,
     },
     HotkeyBinding {
+        id: "toggle-browser-sample-mark",
+        label: "Toggle sample mark",
+        gesture: HotkeyGesture::new(KeyCode::Semicolon),
+        scope: BROWSER,
+        action: UiAction::ToggleBrowserSampleMark,
+    },
+    HotkeyBinding {
         id: "move-browser-focus-up",
         label: "Move focus up",
         gesture: HotkeyGesture::new(KeyCode::ArrowUp),
@@ -924,5 +931,24 @@ mod tests {
         );
         assert_eq!(waveform.action, Some(UiAction::CopySelectionToClipboard));
         assert!(waveform.handled);
+    }
+
+    #[test]
+    fn semicolon_hotkey_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
+        let browser = resolve_hotkey_press(
+            None,
+            KeyPress::new(KeyCode::Semicolon),
+            FocusContextModel::SampleBrowser,
+        );
+        assert_eq!(browser.action, Some(UiAction::ToggleBrowserSampleMark));
+        assert!(browser.handled);
+
+        let waveform = resolve_hotkey_press(
+            None,
+            KeyPress::new(KeyCode::Semicolon),
+            FocusContextModel::Waveform,
+        );
+        assert!(waveform.action.is_none());
+        assert!(!waveform.handled);
     }
 }

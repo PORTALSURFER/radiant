@@ -9,6 +9,7 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     let sections = compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing);
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
+        marked_filter_chip: sections.marked_filter_chip,
         action_slots: sections.action_slots,
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,
@@ -43,6 +44,60 @@ pub(in crate::gui::native_shell::state) fn browser_column_chips(
 ) -> Vec<BrowserColumnChip> {
     let _ = (layout, style, model, browser_buttons);
     Vec::new()
+}
+
+pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_point(
+    chip: Rect,
+    point: Point,
+) -> bool {
+    chip.width() > 1.0 && chip.contains(point)
+}
+
+pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(
+    style: &StyleTokens,
+    active: bool,
+) -> Rgba8 {
+    let base = if active {
+        style.surface_overlay
+    } else {
+        style.surface_base
+    };
+    blend_color(base, style.highlight_cyan, if active { 0.34 } else { 0.16 })
+}
+
+pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_border(
+    style: &StyleTokens,
+    active: bool,
+) -> Rgba8 {
+    if active {
+        blend_color(style.highlight_cyan, style.text_primary, 0.32)
+    } else {
+        blend_color(style.border, style.surface_overlay, 0.25)
+    }
+}
+
+pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_fill(
+    style: &StyleTokens,
+    active: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    translucent_overlay_color(
+        browser_marked_filter_chip_fill(style, active),
+        style.highlight_cyan,
+        if active { 0.34 } else { 0.22 } + (motion_wave * 0.04),
+    )
+}
+
+pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_border(
+    style: &StyleTokens,
+    active: bool,
+    motion_wave: f32,
+) -> Rgba8 {
+    blend_color(
+        browser_marked_filter_chip_border(style, active),
+        style.highlight_cyan,
+        0.56 + (motion_wave * 0.08),
+    )
 }
 
 pub(in crate::gui::native_shell::state) fn render_browser_search_field_hover_overlay(

@@ -84,6 +84,43 @@ pub(super) fn render_browser_frame(
             ctx.sizing.border_width,
         );
     }
+    if toolbar.marked_filter_chip.width() > 1.0 {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: toolbar.marked_filter_chip,
+                color: browser_marked_filter_chip_fill(
+                    ctx.style,
+                    ctx.model.browser.marked_filter_active,
+                ),
+            }),
+        );
+        push_border(
+            primitives,
+            toolbar.marked_filter_chip,
+            browser_marked_filter_chip_border(
+                ctx.style,
+                ctx.model.browser.marked_filter_active,
+            ),
+            ctx.sizing.border_width,
+        );
+        let label_rect = compute_action_button_text_rect(toolbar.marked_filter_chip, ctx.sizing);
+        emit_text(
+            text_runs,
+            TextRun {
+                text: String::from("MARK"),
+                position: label_rect.min,
+                font_size: ctx.sizing.font_meta,
+                color: if ctx.model.browser.marked_filter_active {
+                    ctx.style.text_primary
+                } else {
+                    ctx.style.highlight_cyan
+                },
+                max_width: Some(label_rect.width().max(16.0)),
+                align: TextAlign::Center,
+            },
+        );
+    }
     if toolbar.search_field.width() > 1.0 {
         emit_primitive(
             primitives,

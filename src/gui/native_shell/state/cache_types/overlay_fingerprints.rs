@@ -124,6 +124,8 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub startup_frame_ticks: u8,
     /// Hovered browser rating-filter chip level, if any.
     pub hovered_browser_rating_filter_level: Option<i8>,
+    /// Whether the browser marked-filter chip is hovered.
+    pub hovered_browser_marked_filter: bool,
     /// Whether the browser search field is hovered.
     pub hovered_browser_search_field: bool,
     /// Whether the source-add button is hovered.

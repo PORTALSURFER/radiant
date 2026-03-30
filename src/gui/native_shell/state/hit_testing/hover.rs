@@ -51,6 +51,8 @@ impl NativeShellState {
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
         let next_hovered_browser_rating_filter_level =
             self.resolve_hovered_browser_rating_filter_level(layout, model, point);
+        let next_hovered_browser_marked_filter =
+            self.resolve_hovered_browser_marked_filter(layout, model, point);
         let next_hovered_browser_search_field =
             self.resolve_hovered_browser_search_field(layout, model, point);
         let next_hovered_folder_row =
@@ -68,6 +70,8 @@ impl NativeShellState {
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
         let browser_rating_filter_changed =
             next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
+        let browser_marked_filter_changed =
+            next_hovered_browser_marked_filter != self.hovered_browser_marked_filter;
         let browser_search_field_changed =
             next_hovered_browser_search_field != self.hovered_browser_search_field;
         let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
@@ -84,6 +88,7 @@ impl NativeShellState {
         if !hover_changed
             && !browser_row_changed
             && !browser_rating_filter_changed
+            && !browser_marked_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
@@ -97,6 +102,7 @@ impl NativeShellState {
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
+        self.hovered_browser_marked_filter = next_hovered_browser_marked_filter;
         self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;
         self.hovered_source_add_button = next_hovered_source_add_button;
@@ -108,6 +114,7 @@ impl NativeShellState {
             && !hover_changed
             && !browser_row_changed
             && !browser_rating_filter_changed
+            && !browser_marked_filter_changed
             && !browser_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
@@ -163,6 +170,17 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
+    }
+
+    fn resolve_hovered_browser_marked_filter(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
     }
 
     fn resolve_hovered_browser_rating_filter_level(

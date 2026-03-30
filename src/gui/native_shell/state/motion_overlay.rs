@@ -170,6 +170,35 @@ impl NativeShellState {
                 motion_wave,
             );
         }
+        if let Some(chip_rect) = self
+            .browser_toolbar_layout
+            .as_ref()
+            .map(|toolbar| toolbar.marked_filter_chip)
+            .filter(|rect| rect.width() > 1.0)
+            .filter(|_| self.hovered_browser_marked_filter)
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: chip_rect,
+                    color: browser_marked_filter_chip_hover_fill(
+                        style,
+                        model.marked_filter_active,
+                        motion_wave,
+                    ),
+                }),
+            );
+            push_border(
+                primitives,
+                chip_rect,
+                browser_marked_filter_chip_hover_border(
+                    style,
+                    model.marked_filter_active,
+                    motion_wave,
+                ),
+                sizing.border_width,
+            );
+        }
         if let Some(button_rect) = source_add_button_rect(layout.sidebar_header, sizing) {
             let hovered = self.hovered_source_add_button;
             let flashed = self.source_add_button_flash_ticks > 0;

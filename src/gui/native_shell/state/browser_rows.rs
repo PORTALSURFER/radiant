@@ -27,6 +27,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) focused: bool,
     pub(super) missing: bool,
     pub(super) locked: bool,
+    pub(super) marked: bool,
     pub(super) rect: Rect,
 }
 
@@ -138,6 +139,7 @@ pub(super) struct SidebarSections {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarLayout {
     pub(super) rating_filter_chips: [Rect; 8],
+    pub(super) marked_filter_chip: Rect,
     pub(super) action_slots: [Rect; 2],
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,

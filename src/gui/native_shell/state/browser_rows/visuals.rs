@@ -94,6 +94,25 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_row_fill(
     translucent_overlay_color(base, style.highlight_cyan_soft, tint_amount)
 }
 
+/// Return the high-contrast fill used for rows carrying the temporary session mark.
+pub(in crate::gui::native_shell::state) fn browser_marked_row_fill(
+    style: &StyleTokens,
+    visible_row: usize,
+) -> Rgba8 {
+    let base = browser_row_stripe_fill(style, visible_row);
+    translucent_overlay_color(base, style.highlight_cyan, 0.34)
+}
+
+/// Return the combined fill used when a marked row also participates in similarity mode.
+pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
+    style: &StyleTokens,
+    visible_row: usize,
+    anchor: bool,
+) -> Rgba8 {
+    let base = browser_marked_row_fill(style, visible_row);
+    translucent_overlay_color(base, style.highlight_cyan_soft, if anchor { 0.26 } else { 0.14 })
+}
+
 /// Return the stronger neutral fill used for selected browser rows.
 pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(

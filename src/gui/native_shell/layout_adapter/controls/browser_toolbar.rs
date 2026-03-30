@@ -12,6 +12,7 @@ const RATING_FILTER_CHIP_COUNT: usize = 8;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserToolbarSections {
     pub rating_filter_chips: [Rect; 8],
+    pub marked_filter_chip: Rect,
     pub action_slots: [Rect; 2],
     pub search_field: Rect,
     pub activity_chip: Rect,
@@ -31,6 +32,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     if toolbar.width() <= 0.0 || toolbar.height() <= 0.0 {
         return BrowserToolbarSections {
             rating_filter_chips: empty_filter_chips,
+            marked_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -43,6 +45,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     if host.width() <= 1.0 || host.height() <= 0.0 {
         return BrowserToolbarSections {
             rating_filter_chips: empty_filter_chips,
+            marked_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -56,6 +59,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     if available <= 1.0 {
         return BrowserToolbarSections {
             rating_filter_chips: empty_filter_chips,
+            marked_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -95,8 +99,15 @@ pub(crate) fn compute_browser_toolbar_sections(
     let filter_total_width = ((filter_side * RATING_FILTER_CHIP_COUNT as f32)
         + (filter_gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32)))
         .min(available);
+    let marked_chip_side = filter_side.max(0.0);
+    let marked_chip_width = if marked_chip_side > 0.0 {
+        marked_chip_side + gap
+    } else {
+        0.0
+    };
     let remaining_after_filters =
-        (available - filter_total_width - action_cluster_width - (gap * 2.0)).max(0.0);
+        (available - filter_total_width - marked_chip_width - action_cluster_width - (gap * 2.0))
+            .max(0.0);
     let search_width = desired_search_width
         .min(remaining_after_filters.max(min_search_width))
         .max(0.0);
@@ -134,6 +145,18 @@ pub(crate) fn compute_browser_toolbar_sections(
         action_side,
         action_cluster_gap,
     );
+    let marked_filter_chip = if marked_chip_side > 0.0 {
+        let min_x = (filter_strip.max.x + gap).min(left_max);
+        clamp_rect_to_bounds(
+            Rect::from_min_max(
+                Point::new(min_x, host.min.y),
+                Point::new((min_x + marked_chip_side).min(left_max), host.max.y),
+            ),
+            host,
+        )
+    } else {
+        empty
+    };
     let rating_filter_chips = compute_rating_filter_chip_rects(
         filter_strip,
         filter_side,
@@ -142,6 +165,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     );
     BrowserToolbarSections {
         rating_filter_chips,
+        marked_filter_chip,
         action_slots,
         search_field,
         activity_chip: empty,

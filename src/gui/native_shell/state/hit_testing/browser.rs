@@ -161,6 +161,9 @@ impl NativeShellState {
                 invert: alt_down,
             });
         }
+        if browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point) {
+            return Some(UiAction::ToggleBrowserMarkedFilter);
+        }
         if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
             return Some(UiAction::FocusBrowserSearch);
         }
@@ -218,6 +221,18 @@ impl NativeShellState {
         let index = browser_rating_filter_chip_index(level)?;
         let rect = toolbar.rating_filter_chips[index];
         (rect.width() > 1.0).then_some(rect)
+    }
+
+    /// Return the marked-filter chip rect when the toolbar is available.
+    #[cfg(test)]
+    pub(crate) fn browser_marked_filter_chip_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        (toolbar.marked_filter_chip.width() > 1.0).then_some(toolbar.marked_filter_chip)
     }
 
     /// Return one browser action-button rect for the given label.
@@ -313,6 +328,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
         .duplicate_cleanup_active
         .hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
+    model.browser.marked_filter_active.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);
     for index in 0..3 {
         if let Some(column) = model.columns.get(index) {

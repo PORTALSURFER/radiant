@@ -75,6 +75,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
             focused: false,
             missing: false,
             locked: false,
+            marked: false,
             rect,
         })
         .collect()

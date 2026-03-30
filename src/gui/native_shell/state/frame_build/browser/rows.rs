@@ -20,7 +20,11 @@ pub(super) fn render_browser_rows_window(
             .and_then(|row| browser_similarity_button_rect(row.rect, ctx.sizing));
         let similarity_button_reserved_width =
             browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
-        let base_fill = if similarity_active {
+        let base_fill = if row.marked && similarity_active {
+            browser_marked_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
+        } else if row.marked {
+            browser_marked_row_fill(ctx.style, row.visible_row)
+        } else if similarity_active {
             browser_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
         } else {
             browser_row_stripe_fill(ctx.style, row.visible_row)
@@ -34,8 +38,22 @@ pub(super) fn render_browser_rows_window(
                 color: base_fill,
             }),
         );
-        if row.locked {
+        let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
+        if row.marked {
             if let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: marker_rect,
+                        color: ctx.style.highlight_cyan,
+                    }),
+                );
+            }
+        }
+        if row.locked {
+            if let Some(marker_rect) =
+                browser_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
+            {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {

@@ -320,6 +320,10 @@ pub enum UiAction {
         /// Whether the click should activate every filter chip except the clicked one.
         invert: bool,
     },
+    /// Toggle the session mark for the focused browser row or current multi-selection.
+    ToggleBrowserSampleMark,
+    /// Toggle whether the browser shows only session-marked samples.
+    ToggleBrowserMarkedFilter,
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
     /// Toggle browser duplicate-cleanup mode for the focused browser sample.

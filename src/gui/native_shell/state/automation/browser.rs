@@ -69,6 +69,18 @@ pub(super) fn build_browser_automation(
             vec![String::from("toggle_browser_rating_filter")],
         ));
     }
+    if toolbar.marked_filter_chip.width() > 1.0 {
+        children.push(simple_node(
+            "browser.marked_filter",
+            AutomationRole::Button,
+            Some(String::from("Marked filter")),
+            toolbar.marked_filter_chip,
+            None,
+            true,
+            model.browser.marked_filter_active,
+            vec![String::from("toggle_browser_marked_filter")],
+        ));
+    }
     for button in buttons {
         children.push(simple_node(
             format!("browser.action.{}", slug(button.label)),
@@ -184,6 +196,7 @@ fn build_browser_table_automation(
                 ("focused", bool_text(row.focused)),
                 ("missing", bool_text(row.missing)),
                 ("locked", bool_text(row.locked)),
+                ("marked", bool_text(row.marked)),
             ]),
             children: Vec::new(),
         })

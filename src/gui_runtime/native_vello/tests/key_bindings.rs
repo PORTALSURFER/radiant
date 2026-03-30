@@ -192,6 +192,27 @@ fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignme
 }
 
 #[test]
+fn semicolon_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
+    let browser = AppModel {
+        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        ..AppModel::default()
+    };
+    assert_eq!(
+        resolved_action(KeyCode::Semicolon, ModifiersState::default(), &browser),
+        Some(UiAction::ToggleBrowserSampleMark)
+    );
+
+    let waveform = AppModel {
+        focus_context: crate::app::FocusContextModel::Waveform,
+        ..AppModel::default()
+    };
+    assert_eq!(
+        resolved_action(KeyCode::Semicolon, ModifiersState::default(), &waveform),
+        None
+    );
+}
+
+#[test]
 fn waveform_hotkeys_resolve_by_focus_mode() {
     let waveform = AppModel {
         focus_context: crate::app::FocusContextModel::Waveform,

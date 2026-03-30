@@ -27,6 +27,8 @@ pub struct BrowserRowModel {
     pub missing: bool,
     /// Whether the backing sample is marked as a confirmed keep lock.
     pub locked: bool,
+    /// Whether the backing sample is session-marked for later review.
+    pub marked: bool,
 }
 
 impl BrowserRowModel {
@@ -48,6 +50,7 @@ impl BrowserRowModel {
             focused,
             missing: false,
             locked: false,
+            marked: false,
         }
     }
 
@@ -74,6 +77,12 @@ impl BrowserRowModel {
         self.locked = locked;
         self
     }
+
+    /// Mark whether the backing sample should render with the session mark treatment.
+    pub fn with_marked(mut self, marked: bool) -> Self {
+        self.marked = marked;
+        self
+    }
 }
 
 /// Summary of browser/list state consumed by the native shell.
@@ -93,6 +102,8 @@ pub struct BrowserPanelModel {
     pub search_query: String,
     /// Active rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
     pub active_rating_filters: [bool; 8],
+    /// Whether the browser is currently filtering down to only marked rows.
+    pub marked_filter_active: bool,
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.

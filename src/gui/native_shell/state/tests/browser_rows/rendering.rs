@@ -212,6 +212,80 @@ fn locked_browser_rows_keep_neutral_fill_and_draw_left_marker() {
 }
 
 #[test]
+fn marked_browser_rows_use_distinct_fill_and_draw_cyan_left_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "marked row", 1, false, false).with_marked(true));
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let row = rendered.first().expect("browser row should render");
+    let marker_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, 0.0).expect("marked marker");
+    let frame = state.build_frame(&layout, &model);
+    let row_fills: Vec<Rgba8> = frame
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            Primitive::Rect(rect) if rect.rect == row.rect => Some(rect.color),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        row_fills.contains(&browser_marked_row_fill(&style, 0)),
+        "marked row should render the dedicated marked fill"
+    );
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == marker_rect && *color == style.highlight_cyan
+        )
+    }));
+}
+
+#[test]
+fn marked_locked_browser_rows_offset_keep_lock_marker_after_mark_marker() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.rows.push(
+        BrowserRowModel::new(0, "marked locked row", 1, false, false)
+            .with_marked(true)
+            .with_locked(true),
+    );
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let row = rendered.first().expect("browser row should render");
+    let marked_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, 0.0).expect("marked marker");
+    let locked_rect =
+        browser_locked_marker_rect(row.rect, style.sizing, 4.0).expect("locked marker");
+    let frame = state.build_frame(&layout, &model);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == marked_rect && *color == style.highlight_cyan
+        )
+    }));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == locked_rect && *color == style.accent_mint
+        )
+    }));
+}
+
+#[test]
 fn focused_browser_rows_render_similarity_button_on_far_left() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

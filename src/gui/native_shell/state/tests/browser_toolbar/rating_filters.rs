@@ -142,6 +142,88 @@ fn browser_rating_filter_chip_hover_preserves_active_fill_when_enabled() {
 }
 
 #[test]
+fn browser_marked_filter_chip_hover_sets_motion_overlay_fingerprint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_marked_filter_chip_rect(&layout, &model)
+        .expect("marked filter chip should render");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let fingerprint = state.chrome_motion_overlay_fingerprint();
+    assert!(fingerprint.hovered_browser_marked_filter);
+}
+
+#[test]
+fn browser_marked_filter_chip_motion_overlay_uses_hover_fill() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let model = AppModel::default();
+    let motion = NativeMotionModel::from_app_model(&model);
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_marked_filter_chip_rect(&layout, &model)
+        .expect("marked filter chip should render");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.handle_cursor_move_effect(&layout, &model, point),
+        CursorMoveEffect::GeneralOverlay
+    );
+
+    let mut frame = NativeViewFrame::default();
+    state.build_chrome_motion_overlay_into(&layout, &style, &motion, &mut frame);
+
+    let overlay_color = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(FillRect { rect, color }) if *rect == chip => Some(*color),
+            _ => None,
+        })
+        .expect("hovered marked filter chip should emit a motion overlay fill");
+
+    assert_eq!(
+        overlay_color,
+        browser_marked_filter_chip_hover_fill(&style, false, interaction_wave(0.0))
+    );
+}
+
+#[test]
+fn browser_marked_filter_chip_uses_active_fill_when_enabled() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut model = AppModel::default();
+    model.browser.marked_filter_active = true;
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_marked_filter_chip_rect(&layout, &model)
+        .expect("marked filter chip should render");
+
+    let frame = state.build_frame(&layout, &model);
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == chip
+                    && *color == browser_marked_filter_chip_fill(&style, true)
+        )
+    }));
+}
+
+#[test]
 fn browser_rating_indicator_layout_stays_inside_sample_label() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

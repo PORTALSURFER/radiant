@@ -857,6 +857,10 @@ pub(crate) fn resolve_hotkey_press(
 mod tests {
     use super::*;
 
+    fn resolved_action(press: KeyPress, focus: FocusContextModel) -> Option<UiAction> {
+        resolve_hotkey_press(None, press, focus).action
+    }
+
     #[test]
     fn hotkey_ids_are_unique() {
         for (index, binding) in HOTKEY_BINDINGS.iter().enumerate() {
@@ -950,5 +954,180 @@ mod tests {
         );
         assert!(waveform.action.is_none());
         assert!(!waveform.handled);
+    }
+
+    #[test]
+    fn plain_c_routes_compare_anchor_in_browser_and_crop_in_waveform() {
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::C), FocusContextModel::SampleBrowser),
+            Some(UiAction::SetCompareAnchorFromFocusedBrowserSample)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::C), FocusContextModel::Waveform),
+            Some(UiAction::CropWaveformSelection)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::C), FocusContextModel::SourceFolders),
+            None
+        );
+    }
+
+    #[test]
+    fn plain_d_routes_destructive_shortcuts_by_focus_context() {
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::D), FocusContextModel::SampleBrowser),
+            Some(UiAction::DeleteBrowserSelection)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::D), FocusContextModel::SourceFolders),
+            Some(UiAction::DeleteFocusedFolder)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::D), FocusContextModel::SourcesList),
+            Some(UiAction::RemoveFocusedSourceRow)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::D), FocusContextModel::Waveform),
+            Some(UiAction::DeleteLoadedWaveformSample)
+        );
+    }
+
+    #[test]
+    fn plain_n_routes_new_folder_or_normalize_by_focus_context() {
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::N), FocusContextModel::SampleBrowser),
+            Some(UiAction::NormalizeFocusedBrowserSample)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::N), FocusContextModel::SourceFolders),
+            Some(UiAction::StartNewFolder)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::N), FocusContextModel::Waveform),
+            Some(UiAction::NormalizeWaveformSelectionOrSample)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::N), FocusContextModel::SourcesList),
+            None
+        );
+    }
+
+    #[test]
+    fn plain_r_routes_browser_folder_and_source_actions_without_cross_talk() {
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::R), FocusContextModel::SampleBrowser),
+            Some(UiAction::StartBrowserRename)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::R), FocusContextModel::SourceFolders),
+            Some(UiAction::StartFolderRename)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::R), FocusContextModel::SourcesList),
+            Some(UiAction::ReloadFocusedSourceRow)
+        );
+        assert_eq!(
+            resolved_action(KeyPress::new(KeyCode::R), FocusContextModel::Waveform),
+            None
+        );
+    }
+
+    #[test]
+    fn arrow_up_and_down_route_between_browser_folder_and_source_focus_lists() {
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowUp),
+                FocusContextModel::SampleBrowser
+            ),
+            Some(UiAction::MoveBrowserFocus { delta: -1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowDown),
+                FocusContextModel::SampleBrowser
+            ),
+            Some(UiAction::MoveBrowserFocus { delta: 1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowUp),
+                FocusContextModel::SourceFolders
+            ),
+            Some(UiAction::MoveFolderFocus { delta: -1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowDown),
+                FocusContextModel::SourceFolders
+            ),
+            Some(UiAction::MoveFolderFocus { delta: 1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowUp),
+                FocusContextModel::SourcesList
+            ),
+            Some(UiAction::MoveSourceFocus { delta: -1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowDown),
+                FocusContextModel::SourcesList
+            ),
+            Some(UiAction::MoveSourceFocus { delta: 1 })
+        );
+    }
+
+    #[test]
+    fn arrow_left_and_right_route_history_folder_tree_and_waveform_slice_focus() {
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowLeft),
+                FocusContextModel::SampleBrowser
+            ),
+            Some(UiAction::FocusPreviousBrowserHistory)
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowRight),
+                FocusContextModel::SampleBrowser
+            ),
+            Some(UiAction::FocusNextBrowserHistory)
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowLeft),
+                FocusContextModel::SourceFolders
+            ),
+            Some(UiAction::CollapseFocusedFolder)
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowRight),
+                FocusContextModel::SourceFolders
+            ),
+            Some(UiAction::ExpandFocusedFolder)
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowLeft),
+                FocusContextModel::Waveform
+            ),
+            Some(UiAction::MoveWaveformSliceFocus { delta: -1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowRight),
+                FocusContextModel::Waveform
+            ),
+            Some(UiAction::MoveWaveformSliceFocus { delta: 1 })
+        );
+        assert_eq!(
+            resolved_action(
+                KeyPress::new(KeyCode::ArrowLeft),
+                FocusContextModel::SourcesList
+            ),
+            None
+        );
     }
 }

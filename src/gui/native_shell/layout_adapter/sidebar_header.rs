@@ -17,6 +17,11 @@ const FOLDER_HEADER_BADGE_ID: u64 = 1006;
 const SOURCE_DIVIDER_ALIGN_ID: u64 = 1010;
 const SOURCE_DIVIDER_ID: u64 = 1011;
 
+mod helpers;
+
+#[cfg(test)]
+mod tests;
+
 /// Slot-resolved recovery badge layout inside the folder-header surface.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RecoveryBadgeLayout {
@@ -56,7 +61,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
 ) -> SidebarFolderHeaderLayout {
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return SidebarFolderHeaderLayout {
-            title_row: empty_rect(header_rect),
+            title_row: helpers::empty_rect(header_rect),
             metadata_row: None,
             badge: None,
             visibility_toggle_button: None,
@@ -64,14 +69,15 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         };
     }
 
-    let (visibility_toggle_button, flatten_toggle_button) = compute_folder_header_toggle_layouts(
-        header_rect,
-        sizing,
-        show_all_folders,
-        visibility_toggle_enabled,
-        flattened_view,
-        flattened_toggle_enabled,
-    );
+    let (visibility_toggle_button, flatten_toggle_button) =
+        helpers::compute_folder_header_toggle_layouts(
+            header_rect,
+            sizing,
+            show_all_folders,
+            visibility_toggle_enabled,
+            flattened_view,
+            flattened_toggle_enabled,
+        );
     let reserved_right_edge = visibility_toggle_button
         .as_ref()
         .map(|button| button.rect.min.x - sizing.sidebar_action_button_gap.max(2.0))
@@ -81,7 +87,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
                 .map(|button| button.rect.min.x - sizing.sidebar_action_button_gap.max(2.0))
         })
         .unwrap_or(header_rect.max.x);
-    let badge = compute_recovery_badge_layout(
+    let badge = helpers::compute_recovery_badge_layout(
         Rect::from_min_max(
             header_rect.min,
             Point::new(
@@ -104,7 +110,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
     );
     if text_bounds.width() <= 0.0 {
         return SidebarFolderHeaderLayout {
-            title_row: empty_rect(header_rect),
+            title_row: helpers::empty_rect(header_rect),
             metadata_row: None,
             badge,
             visibility_toggle_button,
@@ -112,8 +118,8 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         };
     }
 
-    let show_metadata = folder_header_has_metadata_row(header_rect, sizing);
-    let column_children = build_text_rows(show_metadata, sizing);
+    let show_metadata = helpers::folder_header_has_metadata_row(header_rect, sizing);
+    let column_children = helpers::build_text_rows(show_metadata, sizing);
     let text_tree = LayoutNode::container(
         FOLDER_HEADER_TEXT_ROOT_ID,
         ContainerPolicy {
@@ -143,20 +149,20 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         }],
     );
     let output = layout_tree(&text_tree, text_bounds);
-    let title_row = clamp_rect_to_bounds(
-        rect_for(
+    let title_row = helpers::clamp_rect_to_bounds(
+        helpers::rect_for(
             &output.rects,
             FOLDER_HEADER_TITLE_ID,
-            empty_rect(text_bounds),
+            helpers::empty_rect(text_bounds),
         ),
         text_bounds,
     );
     let metadata_row = if show_metadata {
-        let row = clamp_rect_to_bounds(
-            rect_for(
+        let row = helpers::clamp_rect_to_bounds(
+            helpers::rect_for(
                 &output.rects,
                 FOLDER_HEADER_META_ID,
-                empty_rect(text_bounds),
+                helpers::empty_rect(text_bounds),
             ),
             text_bounds,
         );
@@ -225,355 +231,16 @@ pub(crate) fn compute_source_section_divider_rect(
         }],
     );
     let output = layout_tree(&divider_tree, align_bounds);
-    let rect = clamp_rect_to_bounds(
-        rect_for(&output.rects, SOURCE_DIVIDER_ID, empty_rect(align_bounds)),
+    let rect = helpers::clamp_rect_to_bounds(
+        helpers::rect_for(
+            &output.rects,
+            SOURCE_DIVIDER_ID,
+            helpers::empty_rect(align_bounds),
+        ),
         Rect::from_min_max(
             Point::new(source_rows.min.x, source_rows.min.y),
             Point::new(source_rows.max.x, folder_header.max.y),
         ),
     );
     (rect.height() > 0.0).then_some(rect)
-}
-
-fn compute_recovery_badge_layout(
-    header_rect: Rect,
-    sizing: SizingTokens,
-    recovery_in_progress: bool,
-    recovery_entry_count: usize,
-) -> Option<RecoveryBadgeLayout> {
-    if !recovery_in_progress && recovery_entry_count == 0 {
-        return None;
-    }
-    let available_width = (header_rect.width() - (sizing.text_inset_x * 2.0)).max(0.0);
-    if available_width < 12.0 {
-        return None;
-    }
-    let label = compact_recovery_badge_label(
-        recovery_in_progress,
-        recovery_entry_count,
-        available_width,
-        sizing,
-    )?;
-    let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
-    let label_width = label.chars().count() as f32 * approx_char_width;
-    let badge_width = (label_width + (sizing.recovery_badge_padding_x * 2.0))
-        .max(sizing.recovery_badge_min_width.min(available_width))
-        .min(available_width);
-    let badge_height = sizing
-        .recovery_badge_height
-        .min((header_rect.height() - 2.0).max(10.0));
-    let badge_bounds = inset_horizontal(header_rect, sizing.text_inset_x.max(0.0));
-    let badge_tree = LayoutNode::container(
-        FOLDER_HEADER_BADGE_ALIGN_ID,
-        ContainerPolicy {
-            kind: ContainerKind::AlignBox,
-            align_main: MainAlign::Center,
-            align_cross: CrossAlign::End,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams {
-                size_main: SizeModeMain::Fixed(badge_height),
-                size_cross: SizeModeCross::Fixed(badge_width),
-                constraints: Constraints::new(badge_width, badge_width, badge_height, badge_height),
-                margin: Insets::default(),
-                align_cross_override: Some(CrossAlign::End),
-                allow_fixed_compress: false,
-            },
-            child: LayoutNode::widget(
-                FOLDER_HEADER_BADGE_ID,
-                Vector2::new(badge_width.max(1.0), badge_height.max(1.0)),
-            ),
-        }],
-    );
-    let output = layout_tree(&badge_tree, badge_bounds);
-    let rect = clamp_rect_to_bounds(
-        rect_for(
-            &output.rects,
-            FOLDER_HEADER_BADGE_ID,
-            empty_rect(badge_bounds),
-        ),
-        header_rect,
-    );
-    (rect.height() > 0.0).then_some(RecoveryBadgeLayout {
-        rect,
-        label,
-        active: recovery_in_progress,
-    })
-}
-
-fn compute_folder_header_toggle_layouts(
-    header_rect: Rect,
-    sizing: SizingTokens,
-    show_all_folders: bool,
-    visibility_enabled: bool,
-    flattened_view: bool,
-    flattened_enabled: bool,
-) -> (
-    Option<FolderHeaderToggleLayout>,
-    Option<FolderHeaderToggleLayout>,
-) {
-    let available_width = (header_rect.width() - (sizing.text_inset_x * 2.0)).max(0.0);
-    let button_size = sizing
-        .sidebar_action_button_height
-        .min((header_rect.height() - 2.0).max(10.0))
-        .max(10.0);
-    if available_width < button_size {
-        return (None, None);
-    }
-    let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
-    let min_y = header_rect.min.y + ((header_rect.height() - button_size) * 0.5).floor();
-    let gap = sizing.sidebar_action_button_gap.max(2.0);
-    let two_button_width = (button_size * 2.0) + gap;
-    let min_inner_x = header_rect.min.x + sizing.text_inset_x.max(0.0);
-
-    let flatten_toggle_button = if available_width >= two_button_width {
-        let flatten_min_x = (max_x - button_size).max(min_inner_x);
-        let rect = Rect::from_min_max(
-            Point::new(flatten_min_x, min_y),
-            Point::new(max_x, (min_y + button_size).min(header_rect.max.y)),
-        );
-        Some(FolderHeaderToggleLayout {
-            rect,
-            active: flattened_view,
-            enabled: flattened_enabled,
-        })
-    } else {
-        None
-    };
-
-    let visibility_max_x = flatten_toggle_button
-        .as_ref()
-        .map(|button| button.rect.min.x - gap)
-        .unwrap_or(max_x);
-    let visibility_min_x = (visibility_max_x - button_size).max(min_inner_x);
-    let visibility_rect = Rect::from_min_max(
-        Point::new(visibility_min_x, min_y),
-        Point::new(
-            visibility_max_x,
-            (min_y + button_size).min(header_rect.max.y),
-        ),
-    );
-    let visibility_toggle_button = (visibility_rect.width() > 0.0
-        && visibility_rect.height() > 0.0)
-        .then_some(FolderHeaderToggleLayout {
-            rect: visibility_rect,
-            active: show_all_folders,
-            enabled: visibility_enabled,
-        });
-
-    (visibility_toggle_button, flatten_toggle_button)
-}
-
-fn compact_recovery_badge_label(
-    recovery_in_progress: bool,
-    recovery_entry_count: usize,
-    available_width: f32,
-    sizing: SizingTokens,
-) -> Option<String> {
-    let approx_char_width = (sizing.font_meta * 0.56).max(1.0);
-    let wide_label_fits = |label: &str| {
-        (label.chars().count() as f32 * approx_char_width) + (sizing.recovery_badge_padding_x * 2.0)
-            <= available_width
-    };
-    if recovery_in_progress {
-        return ["Recovery", "Active", "R"]
-            .iter()
-            .find(|label| wide_label_fits(label))
-            .map(|label| (*label).to_string());
-    }
-    let long_label = format!("{recovery_entry_count} entries");
-    if wide_label_fits(&long_label) {
-        return Some(long_label);
-    }
-    let short_label = recovery_entry_count.to_string();
-    Some(short_label)
-}
-
-fn folder_header_has_metadata_row(header_rect: Rect, sizing: SizingTokens) -> bool {
-    let required_height =
-        (sizing.text_inset_y * 2.0) + sizing.font_header + sizing.text_row_gap + sizing.font_meta;
-    header_rect.height() >= required_height
-}
-
-fn build_text_rows(show_metadata: bool, sizing: SizingTokens) -> Vec<SlotChild> {
-    let mut rows = Vec::with_capacity(if show_metadata { 3 } else { 2 });
-    rows.push(fixed_height_child(
-        FOLDER_HEADER_TITLE_ID,
-        sizing.font_header.max(1.0),
-    ));
-    if show_metadata {
-        rows.push(fixed_height_child(
-            FOLDER_HEADER_META_ID,
-            sizing.font_meta.max(1.0),
-        ));
-    }
-    rows.push(SlotChild {
-        slot: SlotParams::fill(),
-        child: LayoutNode::widget(FOLDER_HEADER_TEXT_FILL_ID, Vector2::new(1.0, 1.0)),
-    });
-    rows
-}
-
-fn fixed_height_child(node_id: u64, height: f32) -> SlotChild {
-    SlotChild {
-        slot: SlotParams {
-            size_main: SizeModeMain::Fixed(height),
-            size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, height, height),
-            margin: Insets::default(),
-            align_cross_override: Some(CrossAlign::Stretch),
-            allow_fixed_compress: false,
-        },
-        child: LayoutNode::widget(node_id, Vector2::new(1.0, height.max(1.0))),
-    }
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let inset = inset.max(0.0).min((rect.width() * 0.5).max(0.0));
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
-
-    #[test]
-    fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
-        let style = StyleTokens::for_viewport_width(820.0);
-        let header_rect = Rect::from_min_max(
-            Point::new(0.0, 0.0),
-            Point::new(58.0, style.sizing.folder_header_block_height),
-        );
-        let layout = compute_sidebar_folder_header_layout(
-            header_rect,
-            style.sizing,
-            false,
-            153,
-            true,
-            true,
-            false,
-            true,
-        );
-        let badge = layout.badge.expect("badge should still render");
-        assert!(badge.label.chars().count() <= 3);
-        assert!(badge.rect.min.x >= header_rect.min.x);
-        assert!(badge.rect.max.x <= header_rect.max.x);
-    }
-
-    #[test]
-    fn folder_header_text_rows_do_not_overlap_recovery_badge() {
-        let style = StyleTokens::for_viewport_width(820.0);
-        let header_rect = Rect::from_min_max(
-            Point::new(24.0, 40.0),
-            Point::new(120.0, 40.0 + style.sizing.folder_header_block_height),
-        );
-        let layout = compute_sidebar_folder_header_layout(
-            header_rect,
-            style.sizing,
-            true,
-            0,
-            true,
-            true,
-            false,
-            true,
-        );
-        let badge = layout
-            .badge
-            .expect("badge should render for active recovery");
-        assert!(layout.title_row.max.x <= badge.rect.min.x);
-        if let Some(meta) = layout.metadata_row {
-            assert!(meta.max.x <= badge.rect.min.x);
-        }
-    }
-
-    #[test]
-    fn folder_visibility_toggle_stays_inside_header_bounds() {
-        let style = StyleTokens::for_viewport_width(1280.0);
-        let header_rect = Rect::from_min_max(
-            Point::new(24.0, 40.0),
-            Point::new(220.0, 40.0 + style.sizing.folder_header_block_height),
-        );
-        let layout = compute_sidebar_folder_header_layout(
-            header_rect,
-            style.sizing,
-            false,
-            0,
-            true,
-            true,
-            false,
-            true,
-        );
-        let toggle = layout
-            .visibility_toggle_button
-            .expect("toggle should render when the header is wide enough");
-        assert!(toggle.rect.min.x >= header_rect.min.x);
-        assert!(toggle.rect.max.x <= header_rect.max.x);
-        assert!(toggle.rect.min.y >= header_rect.min.y);
-        assert!(toggle.rect.max.y <= header_rect.max.y);
-        assert!((toggle.rect.width() - toggle.rect.height()).abs() <= 0.5);
-        assert!(toggle.rect.height() <= style.sizing.sidebar_action_button_height + 0.5);
-    }
-
-    #[test]
-    fn folder_header_two_toggles_fit_without_overlap() {
-        let style = StyleTokens::for_viewport_width(1280.0);
-        let header_rect = Rect::from_min_max(
-            Point::new(24.0, 40.0),
-            Point::new(220.0, 40.0 + style.sizing.folder_header_block_height),
-        );
-        let layout = compute_sidebar_folder_header_layout(
-            header_rect,
-            style.sizing,
-            false,
-            0,
-            false,
-            true,
-            true,
-            true,
-        );
-        let visibility = layout
-            .visibility_toggle_button
-            .expect("visibility toggle should render");
-        let flatten = layout
-            .flatten_toggle_button
-            .expect("flatten toggle should render");
-        assert!(visibility.rect.max.x <= flatten.rect.min.x);
-        assert!(flatten.rect.max.x <= header_rect.max.x);
-    }
-
-    #[test]
-    fn source_divider_stays_between_sections_when_space_is_tight() {
-        let style = StyleTokens::for_viewport_width(820.0);
-        let source_rows = Rect::from_min_max(Point::new(12.0, 80.0), Point::new(220.0, 220.0));
-        let folder_header = Rect::from_min_max(Point::new(12.0, 224.0), Point::new(220.0, 252.0));
-        let divider = compute_source_section_divider_rect(source_rows, folder_header, style.sizing)
-            .expect("divider should exist");
-        assert!(divider.min.x >= source_rows.min.x);
-        assert!(divider.max.x <= source_rows.max.x);
-        assert!(divider.min.y >= source_rows.max.y);
-        assert!(divider.max.y <= folder_header.max.y);
-    }
 }

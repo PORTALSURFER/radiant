@@ -1,5 +1,7 @@
 use super::*;
 
+mod shared;
+
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Route one left-pointer press through the production hit-testing path in tests.
     #[cfg(test)]
@@ -284,7 +286,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             point,
             self.modifiers,
         ) {
-            if self.should_emit_waveform_range_adjust_immediately(&action) {
+            if shared::should_emit_waveform_range_adjust_immediately(self, &action) {
                 self.emit_waveform_drag_action_immediately(action);
                 *action_emitted = true;
             } else {
@@ -354,7 +356,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         *source_menu_state_changed |= self.shell_state.close_source_context_menu();
         if self.model.browser.duplicate_cleanup_active
-            && let Some(visible_row) = self.shell_state.browser_row_at_point(layout, &self.model, point)
+            && let Some(visible_row) =
+                self.shell_state
+                    .browser_row_at_point(layout, &self.model, point)
         {
             self.emit_model_action(UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row });
             *action_emitted = true;
@@ -377,7 +381,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             let action =
                 waveform_edit_action_from_pointer(layout, &self.model, point, self.modifiers);
-            if self.should_emit_waveform_range_adjust_immediately(&action) {
+            if shared::should_emit_waveform_range_adjust_immediately(self, &action) {
                 self.emit_waveform_drag_action_immediately(action);
                 *action_emitted = true;
             } else {
@@ -389,31 +393,4 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         false
     }
 
-    /// Return whether one command-click waveform edge adjustment should emit on press.
-    fn should_emit_waveform_range_adjust_immediately(&self, action: &UiAction) -> bool {
-        let command = self.modifiers.control_key() || self.modifiers.super_key();
-        if !self.modifiers.alt_key()
-            && matches!(
-                action,
-                UiAction::SetWaveformSelectionRange { .. }
-                    | UiAction::SetWaveformEditSelectionRange { .. }
-            )
-        {
-            if command {
-                return true;
-            }
-            if self.modifiers.shift_key() {
-                return match action {
-                    UiAction::SetWaveformSelectionRange { .. } => {
-                        self.model.waveform.selection_milli.is_some()
-                    }
-                    UiAction::SetWaveformEditSelectionRange { .. } => {
-                        self.model.waveform.edit_selection_milli.is_some()
-                    }
-                    _ => false,
-                };
-            }
-        }
-        false
-    }
 }

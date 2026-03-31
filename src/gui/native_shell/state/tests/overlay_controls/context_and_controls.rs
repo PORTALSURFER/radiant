@@ -1,0 +1,225 @@
+use super::*;
+
+#[test]
+/// Source context menu hit testing should emit reload for the targeted row.
+fn source_context_menu_hit_test_emits_reload_action_for_row() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    let row_rect = *state
+        .rendered_source_row_rects(&layout, &model)
+        .first()
+        .expect("source row should be rendered");
+    let anchor = Point::new(
+        (row_rect.min.x + row_rect.max.x) * 0.5,
+        (row_rect.min.y + row_rect.max.y) * 0.5,
+    );
+    state.open_source_context_menu_for_row(0, anchor);
+
+    let reload_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .expect("reload action button should be present");
+    let point = Point::new(
+        (reload_rect.min.x + reload_rect.max.x) * 0.5,
+        (reload_rect.min.y + reload_rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.source_context_menu_action_at_point(&layout, &model, point),
+        Some(UiAction::ReloadSourceRow { index: 0 })
+    );
+}
+
+#[test]
+/// Source context menu geometry should disappear after explicit close.
+fn source_context_menu_contains_point_tracks_open_close_state() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    state.open_source_context_menu_for_row(
+        0,
+        Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
+    );
+    let reload_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .expect("reload action button should be present");
+    let point = Point::new(
+        (reload_rect.min.x + reload_rect.max.x) * 0.5,
+        (reload_rect.min.y + reload_rect.max.y) * 0.5,
+    );
+    assert!(state.source_context_menu_contains_point(&layout, &model, point));
+    assert!(state.close_source_context_menu());
+    assert!(!state.source_context_menu_contains_point(&layout, &model, point));
+}
+
+#[test]
+/// Source context menu should expose source removal and render in the overlay pass.
+fn source_context_menu_exposes_remove_action_in_overlay() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(layout.root.rect.width());
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.sources.rows.push(SourceRowModel::new(
+        "source_a",
+        "/tmp/source_a",
+        false,
+        false,
+    ));
+    state.open_source_context_menu_for_row(
+        0,
+        Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
+    );
+
+    let remove_rect = state
+        .source_context_menu_button_rect(&layout, &model, UiAction::RemoveSourceRow { index: 0 })
+        .expect("remove source action button should be present");
+    let point = Point::new(
+        (remove_rect.min.x + remove_rect.max.x) * 0.5,
+        (remove_rect.min.y + remove_rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.source_context_menu_action_at_point(&layout, &model, point),
+        Some(UiAction::RemoveSourceRow { index: 0 })
+    );
+
+    let frame = state.build_frame(&layout, &model);
+    assert!(
+        !frame
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Remove source")
+    );
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Remove source")
+    );
+}
+
+#[test]
+fn tick_with_style_uses_tier_motion_speed_tokens() {
+    let mut model = AppModel::default();
+    model.transport_running = true;
+    let compact_style = StyleTokens::for_viewport_width(820.0);
+    let wide_style = StyleTokens::for_viewport_width(2300.0);
+
+    let mut compact_state = NativeShellState::new();
+    compact_state.sync_from_model(&model);
+    compact_state.tick_with_style(1.0, &compact_style);
+
+    let mut wide_state = NativeShellState::new();
+    wide_state.sync_from_model(&model);
+    wide_state.tick_with_style(1.0, &wide_style);
+
+    assert!(compact_state.pulse_phase > 0.0);
+    assert!(wide_state.pulse_phase > compact_state.pulse_phase);
+}
+
+#[test]
+fn top_bar_volume_click_maps_to_set_volume_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
+    assert!(controls.active);
+    let point = Point::new(
+        controls.volume_meter.min.x + (controls.volume_meter.width() * 0.75),
+        controls.volume_meter.min.y + (controls.volume_meter.height() * 0.5),
+    );
+    let action = state
+        .top_bar_volume_action_at_point(&layout, point)
+        .expect("volume click should produce action");
+    assert_eq!(action, UiAction::SetVolume { value_milli: 750 });
+}
+
+#[test]
+fn status_options_click_maps_to_open_options_menu_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let model = AppModel::default();
+    let button = state
+        .status_options_button_rect(&layout)
+        .expect("status options button should render");
+    let point = Point::new(
+        button.min.x + (button.width() * 0.5),
+        button.min.y + (button.height() * 0.5),
+    );
+    let action = state
+        .status_options_action_at_point(&layout, &model, point)
+        .expect("options click should produce action");
+    assert_eq!(action, UiAction::OpenOptionsMenu);
+}
+
+#[test]
+fn options_panel_contains_points_inside_panel() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let point = Point::new(layout.top_bar.max.x - 40.0, layout.top_bar.max.y + 40.0);
+    assert!(state.options_panel_contains_point(&layout, &model, point));
+}
+
+#[test]
+fn options_panel_trash_folder_buttons_emit_expected_actions() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            trash_folder_label: Some(String::from("trash_bin")),
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+    let set_button = panel
+        .buttons
+        .iter()
+        .find(|button| button.action == UiAction::PickTrashFolder)
+        .expect("set trash folder button should be present");
+    let set_point = Point::new(
+        (set_button.rect.min.x + set_button.rect.max.x) * 0.5,
+        (set_button.rect.min.y + set_button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, set_point),
+        Some(UiAction::PickTrashFolder)
+    );
+
+    let open_button = panel
+        .buttons
+        .iter()
+        .find(|button| button.action == UiAction::OpenTrashFolder)
+        .expect("open trash folder button should be present");
+    let open_point = Point::new(
+        (open_button.rect.min.x + open_button.rect.max.x) * 0.5,
+        (open_button.rect.min.y + open_button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, open_point),
+        Some(UiAction::OpenTrashFolder)
+    );
+}
+

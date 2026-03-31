@@ -69,6 +69,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
             visible_row: index,
             label: format!("row_{index}"),
             bucket_label: String::new(),
+            playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
             column: 1,
             rating_level: 0,
             selected: false,

@@ -8,6 +8,7 @@ const TOOLBAR_FILTER_ID: u64 = 801;
 const TOOLBAR_FILTER_CHIP_BASE_ID: u64 = 820;
 const RATING_FILTER_CHIP_COUNT: usize = 8;
 const PLAYBACK_AGE_FILTER_CHIP_COUNT: usize = 3;
+const MARKED_FILTER_CHIP_COUNT: usize = 1;
 
 /// Slot-resolved browser toolbar sections for search and chip controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -74,6 +75,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         };
     }
     let filter_gap = sizing.border_width.max(1.0) + 1.0;
+    let filter_group_gap = filter_gap + sizing.border_width.max(1.0) + 2.0;
     let max_filter_side = (host.height() - (sizing.text_inset_y * 2.0))
         .floor()
         .clamp(6.0, 14.0);
@@ -95,26 +97,43 @@ pub(crate) fn compute_browser_toolbar_sections(
         0.0
     };
     let min_search_width = sizing.browser_search_field_min_width.min(available);
-    let filter_chip_count = RATING_FILTER_CHIP_COUNT + PLAYBACK_AGE_FILTER_CHIP_COUNT;
-    let available_for_filters =
-        (available - desired_search_width - action_cluster_width - (gap * 2.0)).max(0.0);
-    let filter_side = ((available_for_filters
-        - (filter_gap * (filter_chip_count.saturating_sub(1) as f32)))
-        / filter_chip_count as f32)
-        .floor()
-        .clamp(6.0, max_filter_side);
-    let filter_total_width = ((filter_side * filter_chip_count as f32)
-        + (filter_gap * (filter_chip_count.saturating_sub(1) as f32)))
-        .min(available);
+    let mut filter_side = compute_filter_control_side(
+        (available - desired_search_width - action_cluster_width - (gap * 2.0)).max(0.0),
+        max_filter_side,
+        filter_gap,
+        filter_group_gap,
+    );
+    let mut filter_total_width =
+        browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
     let marked_chip_side = filter_side.max(0.0);
     let marked_chip_width = if marked_chip_side > 0.0 {
-        marked_chip_side + gap
+        marked_chip_side + filter_group_gap
     } else {
         0.0
     };
-    let remaining_after_filters =
+    let mut remaining_after_filters =
         (available - filter_total_width - marked_chip_width - action_cluster_width - (gap * 2.0))
             .max(0.0);
+    if remaining_after_filters < min_search_width && desired_search_width > min_search_width {
+        filter_side = compute_filter_control_side(
+            (available - min_search_width - action_cluster_width - (gap * 2.0)).max(0.0),
+            max_filter_side,
+            filter_gap,
+            filter_group_gap,
+        );
+        filter_total_width =
+            browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
+        remaining_after_filters = (available
+            - filter_total_width
+            - if filter_side > 0.0 {
+                filter_side + filter_group_gap
+            } else {
+                0.0
+            }
+            - action_cluster_width
+            - (gap * 2.0))
+            .max(0.0);
+    }
     let search_width = desired_search_width
         .min(remaining_after_filters.max(min_search_width))
         .max(0.0);
@@ -135,11 +154,28 @@ pub(crate) fn compute_browser_toolbar_sections(
     } else {
         empty
     };
+    let marked_filter_chip = if marked_chip_side > 0.0 {
+        let min_x = (filter_strip.max.x + filter_group_gap).min(left_max);
+        clamp_rect_to_bounds(
+            Rect::from_min_max(
+                Point::new(min_x, host.min.y),
+                Point::new((min_x + marked_chip_side).min(left_max), host.max.y),
+            ),
+            host,
+        )
+    } else {
+        empty
+    };
+    let controls_right_edge = if marked_filter_chip.width() > 1.0 {
+        marked_filter_chip.max.x
+    } else {
+        filter_strip.max.x
+    };
     let action_cluster = if action_side > 0.0 && search_field.width() > 1.0 {
         let action_max_x = (search_field.min.x - gap).max(left_min);
         Rect::from_min_max(
             Point::new(
-                (action_max_x - action_cluster_width).max(filter_strip.max.x + gap),
+                (action_max_x - action_cluster_width).max(controls_right_edge + gap),
                 host.min.y,
             ),
             Point::new(action_max_x, host.max.y),
@@ -152,18 +188,6 @@ pub(crate) fn compute_browser_toolbar_sections(
         action_side,
         action_cluster_gap,
     );
-    let marked_filter_chip = if marked_chip_side > 0.0 {
-        let min_x = (filter_strip.max.x + gap).min(left_max);
-        clamp_rect_to_bounds(
-            Rect::from_min_max(
-                Point::new(min_x, host.min.y),
-                Point::new((min_x + marked_chip_side).min(left_max), host.max.y),
-            ),
-            host,
-        )
-    } else {
-        empty
-    };
     let rating_filter_chips = compute_rating_filter_chip_rects(
         filter_strip,
         filter_side,
@@ -174,6 +198,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         filter_strip,
         filter_side,
         filter_gap,
+        filter_group_gap,
     );
     BrowserToolbarSections {
         rating_filter_chips,
@@ -185,6 +210,55 @@ pub(crate) fn compute_browser_toolbar_sections(
         sort_chip: empty,
         triage_chips: empty_chips,
     }
+}
+
+fn compute_filter_control_side(
+    available_width: f32,
+    max_filter_side: f32,
+    filter_gap: f32,
+    filter_group_gap: f32,
+) -> f32 {
+    if available_width <= 0.0 {
+        return 0.0;
+    }
+    let chip_count = (RATING_FILTER_CHIP_COUNT
+        + PLAYBACK_AGE_FILTER_CHIP_COUNT
+        + MARKED_FILTER_CHIP_COUNT) as f32;
+    let intra_group_gap_count = (RATING_FILTER_CHIP_COUNT.saturating_sub(1)
+        + PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1)) as f32;
+    let raw_side =
+        (available_width - (filter_gap * intra_group_gap_count) - (filter_group_gap * 2.0))
+            / chip_count;
+    if raw_side <= 0.0 {
+        0.0
+    } else {
+        raw_side.floor().clamp(6.0, max_filter_side)
+    }
+}
+
+fn rating_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
+    if chip_side <= 0.0 {
+        return 0.0;
+    }
+    (chip_side * RATING_FILTER_CHIP_COUNT as f32)
+        + (gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32))
+}
+
+fn playback_age_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
+    if chip_side <= 0.0 {
+        return 0.0;
+    }
+    (chip_side * PLAYBACK_AGE_FILTER_CHIP_COUNT as f32)
+        + (gap * (PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1) as f32))
+}
+
+fn browser_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
+    if chip_side <= 0.0 {
+        return 0.0;
+    }
+    rating_filter_strip_width(chip_side, gap)
+        + group_gap
+        + playback_age_filter_strip_width(chip_side, gap)
 }
 
 fn compute_action_slot_rects(cluster: Rect, action_side: f32, gap: f32) -> [Rect; 2] {
@@ -230,16 +304,19 @@ fn compute_playback_age_filter_chip_rects(
     strip: Rect,
     chip_side: f32,
     gap: f32,
+    group_gap: f32,
 ) -> [Rect; 3] {
     let empty = empty_rect(strip);
     if strip.width() <= 1.0 || strip.height() <= 0.0 || chip_side <= 0.0 {
         return [empty; PLAYBACK_AGE_FILTER_CHIP_COUNT];
     }
     let widths = [chip_side; PLAYBACK_AGE_FILTER_CHIP_COUNT];
-    let rating_strip_width = (chip_side * RATING_FILTER_CHIP_COUNT as f32)
-        + (gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32));
+    let rating_strip_width = rating_filter_strip_width(chip_side, gap);
     let age_strip = Rect::from_min_max(
-        Point::new((strip.min.x + rating_strip_width + gap).min(strip.max.x), strip.min.y),
+        Point::new(
+            (strip.min.x + rating_strip_width + group_gap).min(strip.max.x),
+            strip.min.y,
+        ),
         strip.max,
     );
     let rects = layout_left_aligned_fixed_widths(

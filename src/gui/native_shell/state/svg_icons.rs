@@ -52,6 +52,14 @@ pub(super) enum WaveformToolbarIcon {
     Filter,
     /// Sidebar flattened-view toggle icon.
     Flatten,
+    /// Browser playback-age filter icon for samples with no playback history.
+    BrowserNeverPlayed,
+    /// Browser playback-age filter icon for samples older than one month.
+    BrowserOlderThanMonth,
+    /// Browser playback-age filter icon for samples older than one week.
+    BrowserOlderThanWeek,
+    /// Browser marked-only filter icon.
+    BrowserMarked,
 }
 
 /// Return a toolbar icon for one waveform toolbar button.
@@ -166,6 +174,18 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
         }
         WaveformToolbarIcon::Filter => include_str!("../../../../assets/icons/ui/filter.svg"),
         WaveformToolbarIcon::Flatten => include_str!("../../../../assets/icons/ui/flatten.svg"),
+        WaveformToolbarIcon::BrowserNeverPlayed => {
+            include_str!("../../../../assets/icons/ui/browser_never_played.svg")
+        }
+        WaveformToolbarIcon::BrowserOlderThanMonth => {
+            include_str!("../../../../assets/icons/ui/browser_older_than_month.svg")
+        }
+        WaveformToolbarIcon::BrowserOlderThanWeek => {
+            include_str!("../../../../assets/icons/ui/browser_older_than_week.svg")
+        }
+        WaveformToolbarIcon::BrowserMarked => {
+            include_str!("../../../../assets/icons/ui/browser_marked.svg")
+        }
     }
 }
 
@@ -255,6 +275,10 @@ mod tests {
             WaveformToolbarIcon::Similarity,
             WaveformToolbarIcon::Filter,
             WaveformToolbarIcon::Flatten,
+            WaveformToolbarIcon::BrowserNeverPlayed,
+            WaveformToolbarIcon::BrowserOlderThanMonth,
+            WaveformToolbarIcon::BrowserOlderThanWeek,
+            WaveformToolbarIcon::BrowserMarked,
         ] {
             let document = parse_svg_document(icon_svg_asset(icon));
             assert!(document.is_some(), "svg asset for {icon:?} should parse");

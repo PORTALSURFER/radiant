@@ -84,7 +84,12 @@ pub(super) fn render_browser_frame(
             ctx.sizing.border_width,
         );
     }
-    for (index, rect) in toolbar.playback_age_filter_chips.iter().copied().enumerate() {
+    for (index, rect) in toolbar
+        .playback_age_filter_chips
+        .iter()
+        .copied()
+        .enumerate()
+    {
         if rect.width() <= 1.0 {
             continue;
         }
@@ -103,25 +108,14 @@ pub(super) fn render_browser_frame(
             browser_playback_age_filter_chip_border(ctx.style, chip, active),
             ctx.sizing.border_width,
         );
-        let label_rect = compute_action_button_text_rect(rect, ctx.sizing);
-        let label = match chip {
-            crate::app::PlaybackAgeFilterChip::NeverPlayed => "NVR",
-            crate::app::PlaybackAgeFilterChip::OlderThanMonth => "1M",
-            crate::app::PlaybackAgeFilterChip::OlderThanWeek => "1W",
-        };
-        emit_text(
-            text_runs,
-            TextRun {
-                text: String::from(label),
-                position: label_rect.min,
-                font_size: ctx.sizing.font_meta,
-                color: if active {
-                    ctx.style.text_primary
-                } else {
-                    ctx.style.text_muted
-                },
-                max_width: Some(label_rect.width().max(12.0)),
-                align: TextAlign::Center,
+        let _ = emit_toolbar_svg_icon(
+            primitives,
+            browser_playback_age_filter_icon(chip),
+            centered_button_icon_rect(rect, ctx.sizing),
+            if active {
+                ctx.style.text_primary
+            } else {
+                ctx.style.text_muted
             },
         );
     }
@@ -139,26 +133,17 @@ pub(super) fn render_browser_frame(
         push_border(
             primitives,
             toolbar.marked_filter_chip,
-            browser_marked_filter_chip_border(
-                ctx.style,
-                ctx.model.browser.marked_filter_active,
-            ),
+            browser_marked_filter_chip_border(ctx.style, ctx.model.browser.marked_filter_active),
             ctx.sizing.border_width,
         );
-        let label_rect = compute_action_button_text_rect(toolbar.marked_filter_chip, ctx.sizing);
-        emit_text(
-            text_runs,
-            TextRun {
-                text: String::from("MARK"),
-                position: label_rect.min,
-                font_size: ctx.sizing.font_meta,
-                color: if ctx.model.browser.marked_filter_active {
-                    ctx.style.text_primary
-                } else {
-                    ctx.style.highlight_cyan
-                },
-                max_width: Some(label_rect.width().max(16.0)),
-                align: TextAlign::Center,
+        let _ = emit_toolbar_svg_icon(
+            primitives,
+            WaveformToolbarIcon::BrowserMarked,
+            centered_button_icon_rect(toolbar.marked_filter_chip, ctx.sizing),
+            if ctx.model.browser.marked_filter_active {
+                ctx.style.text_primary
+            } else {
+                ctx.style.highlight_cyan
             },
         );
     }
@@ -352,4 +337,18 @@ fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
         Point::new(min_x, min_y),
         Point::new(min_x + side, min_y + side),
     )
+}
+
+fn browser_playback_age_filter_icon(
+    chip: crate::app::PlaybackAgeFilterChip,
+) -> WaveformToolbarIcon {
+    match chip {
+        crate::app::PlaybackAgeFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
+        crate::app::PlaybackAgeFilterChip::OlderThanMonth => {
+            WaveformToolbarIcon::BrowserOlderThanMonth
+        }
+        crate::app::PlaybackAgeFilterChip::OlderThanWeek => {
+            WaveformToolbarIcon::BrowserOlderThanWeek
+        }
+    }
 }

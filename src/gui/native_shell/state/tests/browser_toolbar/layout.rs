@@ -71,6 +71,13 @@ fn browser_toolbar_places_playback_age_chips_between_rating_and_mark_controls() 
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let controls = browser_toolbar_layout(&layout, &style);
+    let rating_gap = controls.rating_filter_chips[1].min.x - controls.rating_filter_chips[0].max.x;
+    let age_gap =
+        controls.playback_age_filter_chips[1].min.x - controls.playback_age_filter_chips[0].max.x;
+    let rating_to_age_gap =
+        controls.playback_age_filter_chips[0].min.x - controls.rating_filter_chips[7].max.x;
+    let age_to_mark_gap =
+        controls.marked_filter_chip.min.x - controls.playback_age_filter_chips[2].max.x;
 
     assert!(
         controls
@@ -78,12 +85,8 @@ fn browser_toolbar_places_playback_age_chips_between_rating_and_mark_controls() 
             .iter()
             .all(|chip| chip.width() > 1.0)
     );
-    assert!(
-        controls.rating_filter_chips[7].max.x <= controls.playback_age_filter_chips[0].min.x
-    );
-    assert!(
-        controls.playback_age_filter_chips[2].max.x <= controls.marked_filter_chip.min.x
-    );
+    assert!(rating_to_age_gap > rating_gap);
+    assert!(age_to_mark_gap > age_gap);
     assert!(controls.marked_filter_chip.max.x <= controls.action_slots[0].min.x);
 }
 

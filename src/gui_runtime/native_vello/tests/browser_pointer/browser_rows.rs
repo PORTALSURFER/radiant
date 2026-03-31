@@ -155,7 +155,9 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
         browser: crate::app::BrowserPanelModel {
-            rows: vec![crate::app::BrowserRowModel::new(5, "kick-row", 1, false, true)],
+            rows: vec![crate::app::BrowserRowModel::new(
+                5, "kick-row", 1, false, true,
+            )],
             visible_count: 1,
             duplicate_cleanup_active: true,
             ..crate::app::BrowserPanelModel::default()

@@ -14,9 +14,9 @@ where
             .waveform_drag_mode
             .is_some_and(waveform_drag_mode_is_edit_fade);
         let finish_circular_slide = matches!(released_button, Some(MouseButton::Left))
-            && self.waveform_drag_mode.is_some_and(|mode| {
-                matches!(mode, WaveformPointerDragMode::CircularSlide { .. })
-            });
+            && self
+                .waveform_drag_mode
+                .is_some_and(|mode| matches!(mode, WaveformPointerDragMode::CircularSlide { .. }));
         let finish_selection_range_drag = matches!(released_button, Some(MouseButton::Left))
             && self.waveform_drag_mode.is_some_and(|mode| {
                 matches!(

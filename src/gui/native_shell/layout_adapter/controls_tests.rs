@@ -32,14 +32,9 @@ fn toolbar_sections_stay_left_of_action_cluster() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let toolbar = Rect::from_min_max(Point::new(300.0, 200.0), Point::new(1180.0, 220.0));
     let sections = compute_browser_toolbar_sections(toolbar, style.sizing);
-    assert!(
-        sections
-            .rating_filter_chips
-            .iter()
-            .all(|rect| {
-                rect.min.x >= toolbar.min.x && rect.max.x <= sections.action_slots[0].min.x
-            })
-    );
+    assert!(sections.rating_filter_chips.iter().all(|rect| {
+        rect.min.x >= toolbar.min.x && rect.max.x <= sections.action_slots[0].min.x
+    }));
     assert!(sections.action_slots[1].max.x <= sections.search_field.min.x);
     assert!(sections.search_field.min.x >= toolbar.min.x);
     assert!(sections.search_field.max.x <= toolbar.max.x - style.sizing.text_inset_x);

@@ -28,9 +28,9 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
     let action = match next_mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveformPrecise { position_nanos },
         WaveformPointerDragMode::Cursor => UiAction::SetWaveformCursorPrecise { position_nanos },
-        WaveformPointerDragMode::CircularSlide { .. } => UiAction::UpdateWaveformCircularSlide {
-            position_micros,
-        },
+        WaveformPointerDragMode::CircularSlide { .. } => {
+            UiAction::UpdateWaveformCircularSlide { position_micros }
+        }
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
             UiAction::SetWaveformSelectionRange {
                 start_micros: anchor_micros,

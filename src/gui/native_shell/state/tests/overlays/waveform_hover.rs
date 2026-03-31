@@ -320,7 +320,8 @@ fn state_overlay_renders_compare_tooltip_text_without_anchor() {
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);
 
     assert!(frame.text_runs.iter().any(|run| {
-        run.text.contains("Set a compare anchor to enable compare playback")
+        run.text
+            .contains("Set a compare anchor to enable compare playback")
     }));
 }
 

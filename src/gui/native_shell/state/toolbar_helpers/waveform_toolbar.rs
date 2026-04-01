@@ -6,13 +6,6 @@ use super::{
     waveform_toolbar_overlay_icon_rect, waveform_toolbar_visual_color,
 };
 
-const LOCKED_LOOP_ENABLED_RED: Rgba8 = Rgba8 {
-    r: 224,
-    g: 92,
-    b: 92,
-    a: 255,
-};
-
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -207,7 +200,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             model.waveform_loop_enabled,
             Some(UiAction::ToggleLoopPlayback),
             if model.waveform_loop_enabled && model.waveform_loop_lock_enabled {
-                LOCKED_LOOP_ENABLED_RED
+                style.accent_warning
             } else if model.waveform_loop_enabled {
                 style.accent_warning
             } else {

@@ -319,7 +319,7 @@ pub(super) fn render_browser_focus_overlay(
                         text: String::from(BROWSER_MISSING_SAMPLE_MARKER),
                         position: label_position,
                         font_size: sizing.font_body,
-                        color: BROWSER_MISSING_SAMPLE_MARKER_COLOR,
+                        color: style.accent_trash,
                         max_width: Some(marker_advance),
                         align: TextAlign::Left,
                     },

@@ -39,51 +39,51 @@ pub(super) struct PaletteTokens {
 /// Resolve the shell palette for the requested layout tier.
 pub(super) fn palette_for_tier(layout_tier: LayoutScaleTier) -> PaletteTokens {
     let mut palette = PaletteTokens {
-        clear_color: rgba(38, 38, 37, 255),
-        bg_primary: rgba(19, 19, 19, 255),
-        bg_secondary: rgba(26, 26, 25, 255),
-        bg_tertiary: rgba(37, 37, 36, 255),
-        surface_base: rgba(19, 19, 19, 255),
-        surface_raised: rgba(31, 30, 29, 255),
-        surface_overlay: rgba(43, 42, 40, 255),
-        border: rgba(75, 74, 72, 255),
-        border_emphasis: rgba(119, 118, 116, 255),
-        source_section_divider: rgba(96, 94, 91, 255),
-        source_recovery_badge_idle: rgba(63, 62, 60, 255),
-        source_recovery_badge_active: rgba(223, 195, 121, 255),
-        control_disabled_fill: rgba(50, 50, 48, 255),
-        grid_strong: rgba(90, 89, 86, 255),
-        grid_soft: rgba(60, 59, 57, 255),
-        accent_mint: rgba(193, 193, 169, 255),
-        accent_copper: rgba(227, 195, 122, 255),
-        accent_trash: rgba(214, 110, 106, 255),
-        accent_warning: rgba(239, 211, 149, 255),
-        highlight_orange: rgba(223, 176, 92, 255),
-        highlight_orange_soft: rgba(236, 204, 142, 255),
-        highlight_blue: rgba(164, 164, 164, 255),
-        highlight_blue_soft: rgba(184, 184, 184, 255),
-        highlight_cyan: rgba(193, 193, 169, 255),
-        highlight_cyan_soft: rgba(227, 226, 195, 255),
-        text_primary: rgba(238, 234, 224, 255),
-        text_muted: rgba(185, 180, 166, 255),
+        clear_color: rgba(20, 20, 22, 255),
+        bg_primary: rgba(13, 14, 16, 255),
+        bg_secondary: rgba(18, 20, 23, 255),
+        bg_tertiary: rgba(25, 28, 32, 255),
+        surface_base: rgba(15, 17, 19, 255),
+        surface_raised: rgba(22, 25, 29, 255),
+        surface_overlay: rgba(30, 34, 39, 255),
+        border: rgba(62, 68, 76, 255),
+        border_emphasis: rgba(95, 103, 114, 255),
+        source_section_divider: rgba(78, 85, 94, 255),
+        source_recovery_badge_idle: rgba(47, 52, 58, 255),
+        source_recovery_badge_active: rgba(242, 182, 92, 255),
+        control_disabled_fill: rgba(37, 41, 46, 255),
+        grid_strong: rgba(74, 80, 88, 255),
+        grid_soft: rgba(45, 50, 56, 255),
+        accent_mint: rgba(102, 194, 255, 255),
+        accent_copper: rgba(92, 157, 255, 255),
+        accent_trash: rgba(232, 101, 101, 255),
+        accent_warning: rgba(242, 182, 92, 255),
+        highlight_orange: rgba(255, 168, 76, 255),
+        highlight_orange_soft: rgba(255, 204, 125, 255),
+        highlight_blue: rgba(71, 133, 255, 255),
+        highlight_blue_soft: rgba(123, 180, 255, 255),
+        highlight_cyan: rgba(84, 214, 255, 255),
+        highlight_cyan_soft: rgba(156, 231, 255, 255),
+        text_primary: rgba(231, 236, 242, 255),
+        text_muted: rgba(161, 170, 181, 255),
     };
 
     match layout_tier {
         LayoutScaleTier::Compact => {
-            palette.surface_overlay = rgba(40, 39, 37, 255);
-            palette.border_emphasis = rgba(112, 111, 108, 255);
-            palette.source_section_divider = rgba(88, 86, 83, 255);
-            palette.source_recovery_badge_idle = rgba(57, 56, 53, 255);
+            palette.surface_overlay = rgba(28, 31, 36, 255);
+            palette.border_emphasis = rgba(89, 96, 106, 255);
+            palette.source_section_divider = rgba(73, 79, 87, 255);
+            palette.source_recovery_badge_idle = rgba(42, 47, 53, 255);
             palette.source_recovery_badge_active = palette.accent_warning;
-            palette.control_disabled_fill = rgba(47, 46, 44, 255);
+            palette.control_disabled_fill = rgba(34, 38, 43, 255);
         }
         LayoutScaleTier::Wide => {
-            palette.surface_overlay = rgba(47, 46, 44, 255);
-            palette.border_emphasis = rgba(128, 126, 123, 255);
-            palette.source_section_divider = rgba(102, 100, 96, 255);
-            palette.source_recovery_badge_idle = rgba(74, 72, 69, 255);
+            palette.surface_overlay = rgba(34, 38, 44, 255);
+            palette.border_emphasis = rgba(104, 113, 124, 255);
+            palette.source_section_divider = rgba(85, 92, 101, 255);
+            palette.source_recovery_badge_idle = rgba(55, 60, 67, 255);
             palette.source_recovery_badge_active = palette.accent_warning;
-            palette.control_disabled_fill = rgba(53, 52, 49, 255);
+            palette.control_disabled_fill = rgba(41, 46, 51, 255);
         }
         LayoutScaleTier::Standard => {}
     }

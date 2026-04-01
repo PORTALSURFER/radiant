@@ -79,13 +79,6 @@ pub(crate) use self::{
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 /// Text glyph shown before browser sample labels whose backing files are missing.
 const BROWSER_MISSING_SAMPLE_MARKER: &str = "!";
-/// Red marker color used to flag missing browser sample files.
-const BROWSER_MISSING_SAMPLE_MARKER_COLOR: Rgba8 = Rgba8 {
-    r: 236,
-    g: 84,
-    b: 84,
-    a: 255,
-};
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
 const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 768;
 /// Number of seconds used to fade one retained playhead ghost line.

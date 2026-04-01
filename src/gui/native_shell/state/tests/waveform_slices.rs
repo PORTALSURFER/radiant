@@ -15,12 +15,6 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice_blue = Rgba8 {
-        r: 86,
-        g: 156,
-        b: 255,
-        a: 255,
-    };
     let slice = crate::app::WaveformSlicePreviewModel {
         range: crate::app::NormalizedRangeModel::new(180, 420),
         selected: false,
@@ -54,7 +48,7 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
 
     assert_eq!(
         fill,
-        translucent_overlay_color(style.bg_secondary, slice_blue, 0.44)
+        translucent_overlay_color(style.bg_secondary, style.highlight_blue, 0.44)
     );
 
     let border_segments = frame
@@ -62,7 +56,7 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
         .iter()
         .filter_map(|primitive| match primitive {
             Primitive::Rect(rect)
-                if rect.color == blend_color(slice_blue, style.text_primary, 0.18)
+                if rect.color == blend_color(style.highlight_blue, style.text_primary, 0.18)
                     && rect.rect != expected_rect =>
             {
                 Some(rect.rect)
@@ -79,12 +73,6 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice_blue = Rgba8 {
-        r: 86,
-        g: 156,
-        b: 255,
-        a: 255,
-    };
     let slice = crate::app::WaveformSlicePreviewModel {
         range: crate::app::NormalizedRangeModel::new(180, 420),
         selected: true,
@@ -118,22 +106,16 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
 
     assert_eq!(
         fill,
-        translucent_overlay_color(style.surface_overlay, slice_blue, 0.72)
+        translucent_overlay_color(style.surface_overlay, style.highlight_blue, 0.72)
     );
 }
 
 #[test]
-fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_keep_tint() {
+fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_cool_accent() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let keep_green = Rgba8 {
-        r: 120,
-        g: 214,
-        b: 146,
-        a: 255,
-    };
     model
         .waveform
         .slices
@@ -168,7 +150,7 @@ fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_keep_tint() {
 
     assert_eq!(
         fill,
-        translucent_overlay_color(style.surface_overlay, keep_green, 0.74)
+        translucent_overlay_color(style.surface_overlay, style.accent_mint, 0.74)
     );
 }
 

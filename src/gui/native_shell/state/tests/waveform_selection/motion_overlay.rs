@@ -8,12 +8,6 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
     let mut model = AppModel::default();
     let play_selection = NormalizedRangeModel::new(180, 420);
     let edit_selection = NormalizedRangeModel::new(560, 820);
-    let edit_selection_blue = Rgba8 {
-        r: 86,
-        g: 156,
-        b: 255,
-        a: 255,
-    };
     model.waveform.selection_milli = Some(play_selection);
     model.waveform.edit_selection_milli = Some(edit_selection);
     let motion = NativeMotionModel::from_app_model(&model);
@@ -66,7 +60,7 @@ fn waveform_motion_overlay_draws_distinct_play_and_edit_selection_marks() {
     );
     assert_eq!(
         edit_fill,
-        translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5)
+        translucent_overlay_color(style.bg_secondary, style.highlight_blue, 0.5)
     );
     assert_ne!(play_fill, edit_fill);
 }
@@ -160,12 +154,6 @@ fn waveform_motion_overlay_flashes_edit_selection_after_apply_token() {
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
     let edit_selection = NormalizedRangeModel::new(560, 820);
-    let edit_selection_blue = Rgba8 {
-        r: 86,
-        g: 156,
-        b: 255,
-        a: 255,
-    };
     model.waveform.edit_selection_milli = Some(edit_selection);
     model.waveform.edit_selection_apply_flash_nonce = 1;
     let motion = NativeMotionModel::from_app_model(&model);
@@ -196,7 +184,7 @@ fn waveform_motion_overlay_flashes_edit_selection_after_apply_token() {
 
     assert_eq!(
         flash_fill,
-        translucent_overlay_color(style.surface_overlay, edit_selection_blue, 0.82)
+        translucent_overlay_color(style.surface_overlay, style.highlight_blue, 0.82)
     );
 }
 

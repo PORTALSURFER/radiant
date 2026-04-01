@@ -22,12 +22,6 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         return;
     }
     emit_waveform_slice_previews(primitives, layout.waveform_plot, style, model);
-    let edit_selection_blue = Rgba8 {
-        r: 86,
-        g: 156,
-        b: 255,
-        a: 255,
-    };
     let annotations = compute_waveform_annotation_rects_with_nanos(
         layout.waveform_plot,
         style.sizing.border_width,
@@ -106,14 +100,14 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         .selection;
         if let Some(rect) = edit_selection_rect {
             let edit_fill = if edit_selection_flash_active {
-                translucent_overlay_color(style.surface_overlay, edit_selection_blue, 0.82)
+                translucent_overlay_color(style.surface_overlay, style.highlight_blue, 0.82)
             } else {
-                translucent_overlay_color(style.bg_secondary, edit_selection_blue, 0.5)
+                translucent_overlay_color(style.bg_secondary, style.highlight_blue, 0.5)
             };
             let edit_border = if edit_selection_flash_active {
-                blend_color(edit_selection_blue, style.text_primary, 0.5)
+                blend_color(style.highlight_blue, style.text_primary, 0.5)
             } else {
-                blend_color(edit_selection_blue, style.text_primary, 0.24)
+                blend_color(style.highlight_blue, style.text_primary, 0.24)
             };
             emit_primitive(
                 primitives,
@@ -141,16 +135,16 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
                 model.waveform_edit_fade_out_curve_milli,
                 model.waveform_view_start_micros,
                 model.waveform_view_end_micros,
-                edit_selection_blue,
+                style.highlight_blue,
             );
             emit_hovered_edit_resize_edge(
                 primitives,
                 style,
                 rect,
-                edit_selection_blue,
+                style.highlight_blue,
                 hovered_resize_edge,
             );
-            emit_selection_shift_handle(primitives, style, rect, edit_selection_blue);
+            emit_selection_shift_handle(primitives, style, rect, style.highlight_blue);
         }
     }
 

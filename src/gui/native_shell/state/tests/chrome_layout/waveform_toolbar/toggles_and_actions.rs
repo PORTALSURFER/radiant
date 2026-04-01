@@ -97,7 +97,7 @@ fn waveform_toolbar_toggle_buttons_share_warning_accent_when_enabled() {
 }
 
 #[test]
-fn waveform_toolbar_locked_loop_on_uses_red_with_lock_overlay() {
+fn waveform_toolbar_locked_loop_on_uses_warning_accent_with_lock_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
@@ -117,15 +117,7 @@ fn waveform_toolbar_locked_loop_on_uses_red_with_lock_overlay() {
         .expect("loop toolbar button should be present");
 
     assert_eq!(button.overlay_icon, Some(WaveformToolbarIcon::Lock));
-    assert_eq!(
-        button.text_color,
-        Rgba8 {
-            r: 224,
-            g: 92,
-            b: 92,
-            a: 255,
-        }
-    );
+    assert_eq!(button.text_color, style.accent_warning);
 }
 
 #[test]

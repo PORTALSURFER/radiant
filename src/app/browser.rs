@@ -42,7 +42,7 @@ pub struct BrowserRowModel {
     pub column: usize,
     /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
     pub rating_level: i8,
-    /// Visual playback-age bucket used to fade older samples in the browser.
+    /// Visual playback-age bucket used to render the browser row age marker.
     pub playback_age_bucket: PlaybackAgeBucket,
     /// Optional inline metadata label rendered at the right edge of the sample lane.
     ///

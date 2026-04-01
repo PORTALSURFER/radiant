@@ -19,6 +19,16 @@ fn row_label_color(frame: &NativeViewFrame, label: &str) -> Rgba8 {
         .expect("row label should render")
 }
 
+fn has_fill_rect(frame: &NativeViewFrame, rect: Rect, color: Rgba8) -> bool {
+    frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect: fill_rect, color: fill_color })
+                if *fill_rect == rect && *fill_color == color
+        )
+    })
+}
+
 fn color_luma(color: Rgba8) -> u16 {
     ((u16::from(color.r) * 54) + (u16::from(color.g) * 183) + (u16::from(color.b) * 19)) / 256
 }
@@ -265,7 +275,7 @@ fn similarity_filtered_browser_rows_use_highlighted_fill() {
 }
 
 #[test]
-fn browser_playback_age_buckets_apply_distinct_row_fill_and_text_tints() {
+fn browser_playback_age_buckets_render_distinct_left_markers_and_keep_rows_neutral() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
@@ -298,74 +308,47 @@ fn browser_playback_age_buckets_apply_distinct_row_fill_and_text_tints() {
     let week_text = row_label_color(&frame, "Week row");
     let month_text = row_label_color(&frame, "Month row");
     let never_text = row_label_color(&frame, "Never row");
-
-    let expected_week_fill = age_browser_row_fill(
-        &style,
-        browser_row_stripe_fill(&style, 1),
-        crate::app::PlaybackAgeBucket::OlderThanWeek,
-    );
-    let expected_month_fill = age_browser_row_fill(
-        &style,
-        browser_row_stripe_fill(&style, 2),
-        crate::app::PlaybackAgeBucket::OlderThanMonth,
-    );
-    let expected_never_fill = age_browser_row_fill(
-        &style,
-        browser_row_stripe_fill(&style, 3),
-        crate::app::PlaybackAgeBucket::NeverPlayed,
-    );
-    let expected_week_text = age_browser_row_text_color(
-        &style,
-        style.text_primary,
-        crate::app::PlaybackAgeBucket::OlderThanWeek,
-    );
-    let expected_month_text = age_browser_row_text_color(
-        &style,
-        style.text_primary,
-        crate::app::PlaybackAgeBucket::OlderThanMonth,
-    );
-    let expected_never_text = age_browser_row_text_color(
-        &style,
-        style.text_primary,
-        crate::app::PlaybackAgeBucket::NeverPlayed,
-    );
+    let fresh_marker_rect = browser_playback_age_marker_rect(rendered[0].rect, style.sizing, 0.0)
+        .expect("fresh marker");
+    let week_marker_rect =
+        browser_playback_age_marker_rect(rendered[1].rect, style.sizing, 0.0).expect("week marker");
+    let month_marker_rect = browser_playback_age_marker_rect(rendered[2].rect, style.sizing, 0.0)
+        .expect("month marker");
+    let never_marker_rect = browser_playback_age_marker_rect(rendered[3].rect, style.sizing, 0.0)
+        .expect("never marker");
+    let fresh_marker_color =
+        browser_playback_age_marker_color(&style, crate::app::PlaybackAgeBucket::Fresh);
+    let week_marker_color =
+        browser_playback_age_marker_color(&style, crate::app::PlaybackAgeBucket::OlderThanWeek);
+    let month_marker_color =
+        browser_playback_age_marker_color(&style, crate::app::PlaybackAgeBucket::OlderThanMonth);
+    let never_marker_color =
+        browser_playback_age_marker_color(&style, crate::app::PlaybackAgeBucket::NeverPlayed);
 
     assert_eq!(fresh_fill, browser_row_stripe_fill(&style, 0));
-    assert_eq!(week_fill, expected_week_fill);
-    assert_eq!(month_fill, expected_month_fill);
-    assert_eq!(never_fill, expected_never_fill);
+    assert_eq!(week_fill, browser_row_stripe_fill(&style, 1));
+    assert_eq!(month_fill, browser_row_stripe_fill(&style, 2));
+    assert_eq!(never_fill, browser_row_stripe_fill(&style, 3));
     assert_eq!(fresh_text, style.text_primary);
-    assert_eq!(week_text, expected_week_text);
-    assert_eq!(month_text, expected_month_text);
-    assert_eq!(never_text, expected_never_text);
+    assert_eq!(week_text, style.text_primary);
+    assert_eq!(month_text, style.text_primary);
+    assert_eq!(never_text, style.text_primary);
 
-    assert_ne!(fresh_fill, week_fill);
-    assert_ne!(fresh_fill, month_fill);
-    assert_ne!(fresh_fill, never_fill);
-    assert_ne!(week_fill, month_fill);
-    assert_ne!(week_fill, never_fill);
-    assert_ne!(month_fill, never_fill);
-    assert_ne!(fresh_text, week_text);
-    assert_ne!(fresh_text, month_text);
-    assert_ne!(fresh_text, never_text);
-    assert_ne!(week_text, month_text);
-    assert_ne!(week_text, never_text);
-    assert_ne!(month_text, never_text);
+    assert!(has_fill_rect(&frame, fresh_marker_rect, fresh_marker_color));
+    assert!(has_fill_rect(&frame, week_marker_rect, week_marker_color));
+    assert!(has_fill_rect(&frame, month_marker_rect, month_marker_color));
+    assert!(has_fill_rect(&frame, never_marker_rect, never_marker_color));
 
-    for (fill, text) in [
-        (week_fill, week_text),
-        (month_fill, month_text),
-        (never_fill, never_text),
-    ] {
-        assert!(
-            color_luma(text) > color_luma(fill) + 40,
-            "expected readable text contrast between {fill:?} and {text:?}"
-        );
-    }
+    assert_ne!(fresh_marker_color, week_marker_color);
+    assert_ne!(week_marker_color, month_marker_color);
+    assert_ne!(month_marker_color, never_marker_color);
+    assert!(color_luma(fresh_marker_color) > color_luma(week_marker_color));
+    assert!(color_luma(week_marker_color) > color_luma(month_marker_color));
+    assert!(color_luma(month_marker_color) > color_luma(never_marker_color));
 }
 
 #[test]
-fn selected_browser_rows_keep_playback_age_tint_in_selection_overlay() {
+fn selected_browser_rows_keep_playback_age_marker_in_overlay() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
@@ -380,17 +363,12 @@ fn selected_browser_rows_keep_playback_age_tint_in_selection_overlay() {
     let mut overlay = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
 
-    let selected_fill =
-        selected_browser_row_fill(&style, crate::app::PlaybackAgeBucket::OlderThanMonth);
-    let fresh_selected_fill =
-        selected_browser_row_fill(&style, crate::app::PlaybackAgeBucket::Fresh);
+    let selected_fill = selected_browser_row_fill(&style);
+    let marker_rect =
+        browser_playback_age_marker_rect(row_rect, style.sizing, 0.0).expect("marker rect");
+    let marker_color =
+        browser_playback_age_marker_color(&style, crate::app::PlaybackAgeBucket::OlderThanMonth);
 
-    assert_ne!(selected_fill, fresh_selected_fill);
-    assert!(overlay.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            Primitive::Rect(FillRect { rect, color })
-                if *rect == row_rect && *color == selected_fill
-        )
-    }));
+    assert!(has_fill_rect(&overlay, row_rect, selected_fill));
+    assert!(has_fill_rect(&overlay, marker_rect, marker_color));
 }

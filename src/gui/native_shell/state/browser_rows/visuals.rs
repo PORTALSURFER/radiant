@@ -117,111 +117,26 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
     )
 }
 
-#[derive(Clone, Copy)]
-struct BrowserRowAgeTreatment {
-    fill_tint: Rgba8,
-    fill_amount: f32,
-    accent_tint: Rgba8,
-    accent_amount: f32,
-    text_tint: Rgba8,
-    text_amount: f32,
-}
-
-fn browser_row_age_treatment(
-    style: &StyleTokens,
-    bucket: crate::app::PlaybackAgeBucket,
-) -> Option<BrowserRowAgeTreatment> {
-    match bucket {
-        crate::app::PlaybackAgeBucket::Fresh => None,
-        crate::app::PlaybackAgeBucket::OlderThanWeek => Some(BrowserRowAgeTreatment {
-            fill_tint: blend_color(style.accent_copper, style.accent_warning, 0.22),
-            fill_amount: 0.24,
-            accent_tint: style.accent_copper,
-            accent_amount: 0.18,
-            text_tint: style.accent_copper,
-            text_amount: 0.10,
-        }),
-        crate::app::PlaybackAgeBucket::OlderThanMonth => Some(BrowserRowAgeTreatment {
-            fill_tint: blend_color(style.highlight_orange, style.accent_warning, 0.36),
-            fill_amount: 0.36,
-            accent_tint: style.highlight_orange,
-            accent_amount: 0.28,
-            text_tint: style.accent_warning,
-            text_amount: 0.18,
-        }),
-        crate::app::PlaybackAgeBucket::NeverPlayed => Some(BrowserRowAgeTreatment {
-            fill_tint: blend_color(style.accent_mint, style.highlight_cyan_soft, 0.28),
-            fill_amount: 0.30,
-            accent_tint: style.accent_mint,
-            accent_amount: 0.22,
-            text_tint: blend_color(style.accent_mint, style.highlight_cyan_soft, 0.46),
-            text_amount: 0.14,
-        }),
-    }
-}
-
-fn browser_row_age_tint(base: Rgba8, tint: Rgba8) -> Rgba8 {
-    Rgba8 {
-        r: tint.r,
-        g: tint.g,
-        b: tint.b,
-        a: base.a,
-    }
-}
-
-fn blend_browser_row_age(base: Rgba8, tint: Rgba8, amount: f32) -> Rgba8 {
-    blend_color(base, browser_row_age_tint(base, tint), amount)
-}
-
 /// Return the stronger neutral fill used for selected browser rows.
-///
-/// Selection stays visually dominant, then playback-age tint is applied so age
-/// buckets remain visible even while multi-selection is active.
-pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(
-    style: &StyleTokens,
-    bucket: crate::app::PlaybackAgeBucket,
-) -> Rgba8 {
-    let base = translucent_overlay_color(
+pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
+    translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
         (style.state_selected_blend + 0.14).clamp(0.22, 0.30),
-    );
-    age_browser_row_fill(style, base, bucket)
+    )
 }
 
-/// Tint a browser row fill according to the playback-age bucket.
-pub(in crate::gui::native_shell::state) fn age_browser_row_fill(
+/// Return the left-edge browser age marker color for the playback-age bucket.
+pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,
-    color: Rgba8,
     bucket: crate::app::PlaybackAgeBucket,
 ) -> Rgba8 {
-    browser_row_age_treatment(style, bucket)
-        .map(|treatment| blend_browser_row_age(color, treatment.fill_tint, treatment.fill_amount))
-        .unwrap_or(color)
-}
-
-/// Tint browser row chips and borders according to the playback-age bucket.
-pub(in crate::gui::native_shell::state) fn age_browser_row_accent_color(
-    style: &StyleTokens,
-    color: Rgba8,
-    bucket: crate::app::PlaybackAgeBucket,
-) -> Rgba8 {
-    browser_row_age_treatment(style, bucket)
-        .map(|treatment| {
-            blend_browser_row_age(color, treatment.accent_tint, treatment.accent_amount)
-        })
-        .unwrap_or(color)
-}
-
-/// Tint browser row text according to the playback-age bucket.
-pub(in crate::gui::native_shell::state) fn age_browser_row_text_color(
-    style: &StyleTokens,
-    color: Rgba8,
-    bucket: crate::app::PlaybackAgeBucket,
-) -> Rgba8 {
-    browser_row_age_treatment(style, bucket)
-        .map(|treatment| blend_browser_row_age(color, treatment.text_tint, treatment.text_amount))
-        .unwrap_or(color)
+    match bucket {
+        crate::app::PlaybackAgeBucket::Fresh => style.text_primary,
+        crate::app::PlaybackAgeBucket::OlderThanWeek => style.highlight_orange_soft,
+        crate::app::PlaybackAgeBucket::OlderThanMonth => style.accent_copper,
+        crate::app::PlaybackAgeBucket::NeverPlayed => style.border_emphasis,
+    }
 }
 
 pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {

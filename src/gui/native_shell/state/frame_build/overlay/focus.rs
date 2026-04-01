@@ -228,7 +228,24 @@ pub(super) fn render_browser_focus_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.rect,
-                    color: selected_browser_row_fill(style, row.playback_age_bucket),
+                    color: selected_browser_row_fill(style),
+                }),
+            );
+        }
+        let focus_similarity_reserved_width =
+            if row.focused && !model.browser.duplicate_cleanup_active {
+                browser_similarity_button_reserved_width(true, sizing)
+            } else {
+                0.0
+            };
+        if let Some(marker_rect) =
+            browser_playback_age_marker_rect(row.rect, sizing, focus_similarity_reserved_width)
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: marker_rect,
+                    color: browser_playback_age_marker_color(style, row.playback_age_bucket),
                 }),
             );
         }
@@ -271,11 +288,21 @@ pub(super) fn render_browser_focus_overlay(
             let show_similarity_button = !model.browser.duplicate_cleanup_active;
             let similarity_button_reserved_width =
                 browser_similarity_button_reserved_width(show_similarity_button, sizing);
+            let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
+                row.rect,
+                sizing,
+                similarity_button_reserved_width,
+            );
             let inline_tag_reserved_width =
                 browser_inline_tag_reserved_width(&row.bucket_label, sizing);
             let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
             if similarity_button_reserved_width > 0.0 {
                 label_position.x = (label_position.x + similarity_button_reserved_width)
+                    .min(row_text_layout.sample_label.max.x);
+                label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+            }
+            if age_marker_reserved_width > 0.0 {
+                label_position.x = (label_position.x + age_marker_reserved_width)
                     .min(row_text_layout.sample_label.max.x);
                 label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
             }

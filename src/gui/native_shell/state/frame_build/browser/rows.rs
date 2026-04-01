@@ -29,18 +29,29 @@ pub(super) fn render_browser_rows_window(
         } else {
             browser_row_stripe_fill(ctx.style, row.visible_row)
         };
-        let row_border =
-            age_browser_row_accent_color(ctx.style, ctx.style.border, row.playback_age_bucket);
-        let aged_base_fill = age_browser_row_fill(ctx.style, base_fill, row.playback_age_bucket);
-        let row_text_color =
-            age_browser_row_text_color(ctx.style, ctx.style.text_primary, row.playback_age_bucket);
+        let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
+            row.rect,
+            ctx.sizing,
+            similarity_button_reserved_width,
+        );
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect: row.rect,
-                color: aged_base_fill,
+                color: base_fill,
             }),
         );
+        if let Some(marker_rect) =
+            browser_playback_age_marker_rect(row.rect, ctx.sizing, similarity_button_reserved_width)
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: marker_rect,
+                    color: browser_playback_age_marker_color(ctx.style, row.playback_age_bucket),
+                }),
+            );
+        }
         let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
         if row.marked {
             if let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
@@ -77,18 +88,14 @@ pub(super) fn render_browser_rows_window(
                             row.rect.max.y,
                         ),
                     ),
-                    color: age_browser_row_accent_color(
-                        ctx.style,
-                        blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
-                        row.playback_age_bucket,
-                    ),
+                    color: blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
                 }),
             );
         }
         push_browser_row_border(
             primitives,
             row_border_rect,
-            row_border,
+            ctx.style.border,
             row_border_stroke,
             BorderSides {
                 top: true,
@@ -98,15 +105,11 @@ pub(super) fn render_browser_rows_window(
             },
         );
         let chip_rect = row_text_layout.bucket_chip;
-        let chip_color = age_browser_row_accent_color(
-            ctx.style,
-            match row.column {
-                0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
-                2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
-                _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
-            },
-            row.playback_age_bucket,
-        );
+        let chip_color = match row.column {
+            0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
+            2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
+            _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
+        };
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -117,7 +120,7 @@ pub(super) fn render_browser_rows_window(
         push_border(
             primitives,
             chip_rect,
-            age_browser_row_accent_color(ctx.style, ctx.style.border, row.playback_age_bucket),
+            ctx.style.border,
             ctx.sizing.border_width,
         );
         emit_text(
@@ -126,11 +129,7 @@ pub(super) fn render_browser_rows_window(
                 text: row.visible_row.to_string(),
                 position: row_text_layout.index_label.min,
                 font_size: ctx.sizing.font_meta,
-                color: age_browser_row_text_color(
-                    ctx.style,
-                    ctx.style.text_muted,
-                    row.playback_age_bucket,
-                ),
+                color: ctx.style.text_muted,
                 max_width: Some(row_text_layout.index_label.width().max(12.0)),
                 align: TextAlign::Right,
             },
@@ -139,6 +138,11 @@ pub(super) fn render_browser_rows_window(
         let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
         if similarity_button_reserved_width > 0.0 {
             label_position.x = (label_position.x + similarity_button_reserved_width)
+                .min(row_text_layout.sample_label.max.x);
+            label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+        }
+        if age_marker_reserved_width > 0.0 {
+            label_position.x = (label_position.x + age_marker_reserved_width)
                 .min(row_text_layout.sample_label.max.x);
             label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
         }
@@ -203,7 +207,7 @@ pub(super) fn render_browser_rows_window(
                 text: row.label.clone(),
                 position: label_position,
                 font_size: ctx.sizing.font_body,
-                color: row_text_color,
+                color: ctx.style.text_primary,
                 max_width: Some(label_max_width),
                 align: TextAlign::Left,
             },
@@ -224,21 +228,13 @@ pub(super) fn render_browser_rows_window(
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: chip_rect,
-                        color: age_browser_row_accent_color(
-                            ctx.style,
-                            blend_color(ctx.style.surface_overlay, ctx.style.bg_tertiary, 0.54),
-                            row.playback_age_bucket,
-                        ),
+                        color: blend_color(ctx.style.surface_overlay, ctx.style.bg_tertiary, 0.54),
                     }),
                 );
                 push_border(
                     primitives,
                     chip_rect,
-                    age_browser_row_accent_color(
-                        ctx.style,
-                        blend_color(ctx.style.border_emphasis, ctx.style.text_muted, 0.18),
-                        row.playback_age_bucket,
-                    ),
+                    blend_color(ctx.style.border_emphasis, ctx.style.text_muted, 0.18),
                     ctx.sizing.border_width,
                 );
                 emit_text(
@@ -247,11 +243,7 @@ pub(super) fn render_browser_rows_window(
                         text: chip_label.to_owned(),
                         position: text_origin,
                         font_size: ctx.sizing.font_meta,
-                        color: age_browser_row_text_color(
-                            ctx.style,
-                            ctx.style.text_primary,
-                            row.playback_age_bucket,
-                        ),
+                        color: ctx.style.text_primary,
                         max_width: Some((chip_rect.max.x - text_origin.x).max(4.0)),
                         align: TextAlign::Left,
                     },

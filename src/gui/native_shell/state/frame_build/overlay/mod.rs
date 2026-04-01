@@ -57,12 +57,14 @@ pub(super) fn render_state_overlay(
             shell_state.folder_create_text_rect(layout, model),
             model
                 .sources
+                .active_folder_pane_model()
                 .folder_rows
                 .iter()
                 .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
                 .or_else(|| {
                     model
                         .sources
+                        .active_folder_pane_model()
                         .folder_rows
                         .iter()
                         .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
@@ -98,14 +100,22 @@ pub(super) fn render_state_overlay(
             );
         }
     }
-    if let Some(hovered_folder_row_index) = shell_state.hovered_folder_row_index {
-        let folder_rows = shell_state.cached_folder_rows(layout, style, model);
+    if let (Some(hovered_folder_pane), Some(hovered_folder_row_index)) = (
+        shell_state.hovered_folder_pane(),
+        shell_state.hovered_folder_row_index,
+    ) {
+        let folder_rows =
+            shell_state.cached_folder_rows(layout, style, model, hovered_folder_pane);
         if let (Some(row_rect), Some(row)) = (
             folder_rows
                 .iter()
                 .find(|rendered_row| rendered_row.row_index == hovered_folder_row_index)
                 .map(|rendered_row| rendered_row.rect),
-            model.sources.folder_rows.get(hovered_folder_row_index),
+            model
+                .sources
+                .folder_pane(hovered_folder_pane)
+                .folder_rows
+                .get(hovered_folder_row_index),
         ) {
             if !matches!(
                 row.kind,

@@ -1,20 +1,22 @@
 use super::*;
+use crate::app::FolderPaneModel;
 
 pub(super) fn render_folder_header(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     header_rect: Rect,
+    pane: &FolderPaneModel,
 ) {
     let header_layout = compute_sidebar_folder_header_layout(
         header_rect,
         ctx.sizing,
-        ctx.model.sources.folder_recovery.in_progress,
-        ctx.model.sources.folder_recovery.entry_count,
-        ctx.model.sources.show_all_folders,
-        ctx.model.sources.can_toggle_show_all_folders,
-        ctx.model.sources.flattened_view,
-        ctx.model.sources.can_toggle_flattened_view,
+        pane.folder_recovery.in_progress,
+        pane.folder_recovery.entry_count,
+        pane.show_all_folders,
+        pane.can_toggle_show_all_folders,
+        pane.flattened_view,
+        pane.can_toggle_flattened_view,
     );
     render_folder_header_toggle_button(
         ctx,
@@ -72,13 +74,23 @@ pub(super) fn render_folder_header(
     if header_layout.title_row.width() <= 8.0 {
         return;
     }
+    let title_prefix = if pane.active { "Active" } else { pane.title.as_str() };
     emit_text(
         text_runs,
         TextRun {
-            text: format!("Folders ({})", ctx.model.sources.folder_rows.len()),
+            text: format!(
+                "{} Pane: {} ({})",
+                title_prefix,
+                pane.source_label,
+                pane.folder_rows.len()
+            ),
             position: header_layout.title_row.min,
             font_size: ctx.sizing.font_header,
-            color: ctx.style.text_primary,
+            color: if pane.active {
+                ctx.style.accent_mint
+            } else {
+                ctx.style.text_primary
+            },
             max_width: Some(header_layout.title_row.width()),
             align: TextAlign::Left,
         },
@@ -91,11 +103,16 @@ pub(super) fn render_folder_header(
             text_runs,
             TextRun {
                 text: format!(
-                    "query: {}",
-                    if ctx.model.sources.folder_search_query.is_empty() {
+                    "{} | query: {}",
+                    if pane.source_detail.is_empty() {
+                        "no source"
+                    } else {
+                        pane.source_detail.as_str()
+                    },
+                    if pane.folder_search_query.is_empty() {
                         "—"
                     } else {
-                        ctx.model.sources.folder_search_query.as_str()
+                        pane.folder_search_query.as_str()
                     }
                 ),
                 position: metadata_row.min,

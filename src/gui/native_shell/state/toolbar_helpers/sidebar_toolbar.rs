@@ -125,13 +125,16 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
         style.sizing,
         SidebarRowCounts {
             source_rows: rendered_source_rows(style, model),
-            folder_rows: model.sources.folder_rows.len(),
+            upper_folder_rows: model.sources.upper_folder_pane.folder_rows.len(),
+            lower_folder_rows: model.sources.lower_folder_pane.folder_rows.len(),
         },
     );
     SidebarSections {
         source_rows: resolved.source_rows,
-        folder_header: resolved.folder_header,
-        folder_rows: resolved.folder_rows,
+        upper_folder_header: resolved.upper_folder_pane.header,
+        upper_folder_rows: resolved.upper_folder_pane.rows,
+        lower_folder_header: resolved.lower_folder_pane.header,
+        lower_folder_rows: resolved.lower_folder_pane.rows,
     }
 }
 

@@ -26,9 +26,13 @@ fn render_sidebar_section_focus_overlay(
             render_section_focus_surface(primitives, sections.source_rows, style);
         }
         crate::app::FocusContextModel::SourceFolders => {
+            let active_pane = model.sources.active_folder_pane;
             render_section_focus_surface(
                 primitives,
-                union_rect(sections.folder_header, sections.folder_rows),
+                union_rect(
+                    sections.folder_header(active_pane),
+                    sections.folder_rows(active_pane),
+                ),
                 style,
             );
         }
@@ -109,80 +113,87 @@ pub(super) fn render_folder_focus_overlay(
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
-    let folder_rows = shell_state.cached_folder_rows(layout, style, model);
-    let last_folder_row_max_y = folder_rows.last().map(|row| row.rect.max.y);
-    for rendered_row in folder_rows.iter() {
-        let Some(row) = model.sources.folder_rows.get(rendered_row.row_index) else {
-            continue;
-        };
-        let row_rect = rendered_row.rect;
-        let visual_rect = folder_row_visual_rect(row_rect, sizing);
-        if !(row.selected || row.focused) {
-            continue;
-        }
-        if row.focused {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: visual_rect,
-                    color: translucent_overlay_color(
-                        style.bg_tertiary,
-                        style.grid_strong,
-                        style.state_focus_pulse_blend,
-                    ),
-                }),
-            );
-        }
-        if row.focused || row.selected {
-            push_browser_row_border(
-                primitives,
-                visual_rect,
-                if row.focused {
-                    blend_color(
-                        style.accent_warning,
-                        style.text_primary,
-                        style.state_focus_pulse_blend,
-                    )
-                } else {
-                    blend_color(
-                        style.accent_mint,
-                        style.text_primary,
-                        style.state_selected_blend,
-                    )
-                },
-                if row.focused {
-                    sizing.focus_stroke_width
-                } else {
-                    sizing.border_width
-                },
-                BorderSides {
-                    top: true,
-                    bottom: row.focused || Some(visual_rect.max.y) == last_folder_row_max_y,
-                    left: row.focused,
-                    right: row.focused,
-                },
-            );
-        }
-        if row.focused {
-            let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, sizing, row.depth);
-            let row_text_rect =
-                compute_sidebar_folder_row_layout(row_rect, sizing, depth_indent).label_rect;
-            let row_text_width = row_text_rect.width().max(24.0);
-            emit_text(
-                text_runs,
-                TextRun {
-                    text: truncate_to_width(&row.label, row_text_width, sizing.font_body),
-                    position: row_text_rect.min,
-                    font_size: sizing.font_body,
-                    color: blend_color(
-                        style.accent_warning,
-                        style.text_primary,
-                        style.state_focus_pulse_blend,
-                    ),
-                    max_width: Some(row_text_width),
-                    align: TextAlign::Left,
-                },
-            );
+    for pane in [
+        crate::app::FolderPaneIdModel::Upper,
+        crate::app::FolderPaneIdModel::Lower,
+    ] {
+        let pane_rows = shell_state.cached_folder_rows(layout, style, model, pane);
+        let pane_model = model.sources.folder_pane(pane);
+        let last_folder_row_max_y = pane_rows.last().map(|row| row.rect.max.y);
+        for rendered_row in pane_rows.iter() {
+            let Some(row) = pane_model.folder_rows.get(rendered_row.row_index) else {
+                continue;
+            };
+            let row_rect = rendered_row.rect;
+            let visual_rect = folder_row_visual_rect(row_rect, sizing);
+            if !(row.selected || row.focused) {
+                continue;
+            }
+            if row.focused {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: visual_rect,
+                        color: translucent_overlay_color(
+                            style.bg_tertiary,
+                            style.grid_strong,
+                            style.state_focus_pulse_blend,
+                        ),
+                    }),
+                );
+            }
+            if row.focused || row.selected {
+                push_browser_row_border(
+                    primitives,
+                    visual_rect,
+                    if row.focused {
+                        blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            style.state_focus_pulse_blend,
+                        )
+                    } else {
+                        blend_color(
+                            style.accent_mint,
+                            style.text_primary,
+                            style.state_selected_blend,
+                        )
+                    },
+                    if row.focused {
+                        sizing.focus_stroke_width
+                    } else {
+                        sizing.border_width
+                    },
+                    BorderSides {
+                        top: true,
+                        bottom: row.focused || Some(visual_rect.max.y) == last_folder_row_max_y,
+                        left: row.focused,
+                        right: row.focused,
+                    },
+                );
+            }
+            if row.focused {
+                let depth_indent =
+                    compute_sidebar_folder_row_depth_indent(row_rect, sizing, row.depth);
+                let row_text_rect =
+                    compute_sidebar_folder_row_layout(row_rect, sizing, depth_indent).label_rect;
+                let row_text_width = row_text_rect.width().max(24.0);
+                emit_text(
+                    text_runs,
+                    TextRun {
+                        text: truncate_to_width(&row.label, row_text_width, sizing.font_body),
+                        position: row_text_rect.min,
+                        font_size: sizing.font_body,
+                        color: blend_color(
+                            style.accent_warning,
+                            style.text_primary,
+                            style.state_focus_pulse_blend,
+                        ),
+                        max_width: Some(row_text_width),
+                        align: TextAlign::Left,
+                    },
+                );
+            }
         }
     }
 }

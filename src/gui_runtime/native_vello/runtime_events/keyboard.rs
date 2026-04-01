@@ -53,6 +53,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     this.shell_state
                         .folder_panel_contains_point(layout, &this.model, *point)
                 }) {
+                    let pane = this
+                        .shell_state
+                        .folder_panel_at_point(layout, &this.model, point)
+                        .unwrap_or(this.model.sources.active_folder_pane);
                     if let Some(delta) = folder_wheel_row_delta(
                         &mut this.shell_state,
                         layout,
@@ -62,18 +66,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         delta,
                     ) {
                         let viewport_len =
-                            this.shell_state.folder_viewport_len(layout, &this.model);
+                            this.shell_state.folder_viewport_len(layout, &this.model, pane);
                         let current_view_start = this
                             .shell_state
-                            .folder_viewport_start_row(layout, &this.model)
+                            .folder_viewport_start_row(layout, &this.model, pane)
                             .unwrap_or(0);
                         if let Some(view_start_row) = browser_view_start_after_wheel(
                             current_view_start,
-                            this.model.sources.folder_rows.len(),
+                            this.model.sources.folder_pane(pane).folder_rows.len(),
                             viewport_len,
                             delta,
                         ) {
-                            let _ = this.process_folder_view_start_immediately(view_start_row);
+                            let _ = this.process_folder_view_start_immediately(pane, view_start_row);
                         }
                         return;
                     }
@@ -291,6 +295,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let action = rewrite_folder_create_hotkey_action(
             action,
             &self.model,
+            self.shell_state.hovered_folder_pane(),
             self.shell_state.hovered_folder_row_index(),
         );
         self.update_text_target_after_action(&action);
@@ -317,6 +322,7 @@ fn folder_create_confirm_enabled(model: &AppModel) -> bool {
 fn rewrite_folder_create_hotkey_action(
     action: UiAction,
     model: &AppModel,
+    hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
 ) -> UiAction {
     if action != UiAction::StartNewFolder
@@ -330,7 +336,9 @@ fn rewrite_folder_create_hotkey_action(
     let Some(row_index) = hovered_folder_row_index else {
         return action;
     };
-    let Some(row) = model.sources.folder_rows.get(row_index) else {
+    let pane = hovered_folder_pane.unwrap_or(model.sources.active_folder_pane);
+    let pane_model = model.sources.folder_pane(pane);
+    let Some(row) = pane_model.folder_rows.get(row_index) else {
         return action;
     };
     if matches!(
@@ -340,7 +348,10 @@ fn rewrite_folder_create_hotkey_action(
         return action;
     }
     row.source_index
-        .map(|index| UiAction::StartNewFolderAtFolderRow { index })
+        .map(|index| UiAction::StartNewFolderAtFolderRow {
+            pane: Some(pane),
+            index,
+        })
         .unwrap_or(action)
 }
 

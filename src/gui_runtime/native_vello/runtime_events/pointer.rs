@@ -237,11 +237,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.volume_drag_active = true;
             return true;
         }
-        if let Some(thumb_pointer_offset_y) = self
+        if let Some((pane, thumb_pointer_offset_y)) = self
             .shell_state
             .folder_scrollbar_thumb_offset_at_point(layout, &self.model, point)
         {
-            self.begin_folder_scrollbar_drag(thumb_pointer_offset_y);
+            self.begin_folder_scrollbar_drag(pane, thumb_pointer_offset_y);
             return true;
         }
         if let Some(thumb_pointer_offset_y) = self

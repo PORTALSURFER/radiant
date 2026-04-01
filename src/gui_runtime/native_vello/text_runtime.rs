@@ -271,7 +271,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
             UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
-            UiAction::FocusFolderSearch => {
+            UiAction::FocusFolderSearch { .. } => {
                 self.activate_text_input_target(TextInputTarget::FolderSearch)
             }
             UiAction::StartNewFolder

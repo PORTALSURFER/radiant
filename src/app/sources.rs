@@ -1,5 +1,27 @@
 //! Source/sidebar-facing models exposed by the `radiant` app contract.
 
+use serde::{Deserialize, Serialize};
+
+/// Stable identifier for one of the two fixed folder panes in the sidebar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum FolderPaneIdModel {
+    /// Upper folder pane shown directly beneath the shared sources list.
+    #[default]
+    Upper,
+    /// Lower folder pane shown beneath the upper pane.
+    Lower,
+}
+
+impl FolderPaneIdModel {
+    /// Return the small stable identifier used by automation and routing.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Upper => "upper",
+            Self::Lower => "lower",
+        }
+    }
+}
+
 /// Render data for one triage/browser column.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColumnModel {
@@ -242,6 +264,41 @@ pub struct FolderRecoveryModel {
     pub retained_count: usize,
 }
 
+/// Projected data for one fixed folder pane shown in the sidebar.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct FolderPaneModel {
+    /// Stable pane identity used by native routing.
+    pub pane: FolderPaneIdModel,
+    /// Short title shown in the pane header.
+    pub title: String,
+    /// Primary source label currently assigned to the pane.
+    pub source_label: String,
+    /// Secondary source detail text, usually the source path.
+    pub source_detail: String,
+    /// Whether this pane currently drives browser and waveform state.
+    pub active: bool,
+    /// Whether a source is assigned to this pane.
+    pub has_source: bool,
+    /// Active folder-search query for this pane.
+    pub folder_search_query: String,
+    /// Whether the folder browser currently includes empty on-disk folders.
+    pub show_all_folders: bool,
+    /// Whether the folder-visibility toggle is currently actionable.
+    pub can_toggle_show_all_folders: bool,
+    /// Whether folder filtering includes descendant files in a flattened list.
+    pub flattened_view: bool,
+    /// Whether the folder flattened-view toggle is currently actionable.
+    pub can_toggle_flattened_view: bool,
+    /// Focused folder row index, if any.
+    pub focused_folder_row: Option<usize>,
+    /// Folder rows to render in this pane.
+    pub folder_rows: Vec<FolderRowModel>,
+    /// Folder action availability projected for this pane.
+    pub folder_actions: FolderActionsModel,
+    /// Folder delete-recovery summary projected for this pane.
+    pub folder_recovery: FolderRecoveryModel,
+}
+
 /// Sidebar model for source browsing controls.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SourcesPanelModel {
@@ -249,6 +306,12 @@ pub struct SourcesPanelModel {
     pub header: String,
     /// Active source-search query.
     pub search_query: String,
+    /// Pane that currently drives browser and waveform state.
+    pub active_folder_pane: FolderPaneIdModel,
+    /// Upper fixed folder pane.
+    pub upper_folder_pane: FolderPaneModel,
+    /// Lower fixed folder pane.
+    pub lower_folder_pane: FolderPaneModel,
     /// Active folder-search query.
     pub folder_search_query: String,
     /// Whether the folder browser currently includes empty on-disk folders.
@@ -271,4 +334,19 @@ pub struct SourcesPanelModel {
     pub folder_actions: FolderActionsModel,
     /// Folder delete-recovery summary for native sidebar status.
     pub folder_recovery: FolderRecoveryModel,
+}
+
+impl SourcesPanelModel {
+    /// Borrow one pane model by id.
+    pub fn folder_pane(&self, pane: FolderPaneIdModel) -> &FolderPaneModel {
+        match pane {
+            FolderPaneIdModel::Upper => &self.upper_folder_pane,
+            FolderPaneIdModel::Lower => &self.lower_folder_pane,
+        }
+    }
+
+    /// Borrow the pane that currently drives browser and waveform state.
+    pub fn active_folder_pane_model(&self) -> &FolderPaneModel {
+        self.folder_pane(self.active_folder_pane)
+    }
 }

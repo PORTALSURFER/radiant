@@ -6,8 +6,15 @@ impl<Bridge> NativeVelloRunner<Bridge>
 where
     Bridge: NativeAppBridge,
 {
-    pub(crate) fn process_folder_view_start_immediately(&mut self, view_start_row: usize) -> bool {
-        if !self.shell_state.set_folder_view_start_row(view_start_row) {
+    pub(crate) fn process_folder_view_start_immediately(
+        &mut self,
+        pane: crate::app::FolderPaneIdModel,
+        view_start_row: usize,
+    ) -> bool {
+        if !self
+            .shell_state
+            .set_folder_view_start_row(pane, view_start_row)
+        {
             return false;
         }
         self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
@@ -131,12 +138,13 @@ where
         let Some(view_start_row) = self.shell_state.folder_scrollbar_view_start_for_drag(
             layout,
             &self.model,
+            drag.pane,
             point.y,
             drag.thumb_pointer_offset_y,
         ) else {
             return false;
         };
-        self.process_folder_view_start_immediately(view_start_row)
+        self.process_folder_view_start_immediately(drag.pane, view_start_row)
     }
 
     /// Emit one browser-scrollbar track-click viewport update immediately.
@@ -165,13 +173,13 @@ where
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
-        let Some(view_start_row) =
+        let Some((pane, view_start_row)) =
             self.shell_state
                 .folder_scrollbar_view_start_at_point(layout, &self.model, point)
         else {
             return false;
         };
-        self.process_folder_view_start_immediately(view_start_row)
+        self.process_folder_view_start_immediately(pane, view_start_row)
     }
 
     /// Emit one waveform-scrollbar drag viewport update immediately.

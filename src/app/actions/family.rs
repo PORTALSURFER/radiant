@@ -36,7 +36,7 @@ impl UiAction {
             Self::FocusBrowserPanel
             | Self::FocusSourcesPanel
             | Self::FocusWaveformPanel
-            | Self::FocusFolderPanel
+            | Self::FocusFolderPanel { .. }
             | Self::FocusLoadedSampleInBrowser
             | Self::FocusBrowserSearch
             | Self::BlurBrowserSearch
@@ -45,7 +45,7 @@ impl UiAction {
             | Self::CloseOptionsPanel
             | Self::PickTrashFolder
             | Self::OpenTrashFolder
-            | Self::FocusFolderSearch
+            | Self::FocusFolderSearch { .. }
             | Self::SetFolderSearch { .. } => UiActionFamily::Focus,
             Self::SelectSourceRow { .. }
             | Self::FocusSourceRow { .. }
@@ -76,8 +76,8 @@ impl UiAction {
             | Self::DeleteFocusedFolder
             | Self::RestoreRetainedFolderDeletes
             | Self::PurgeRetainedFolderDeletes
-            | Self::ToggleShowAllFolders
-            | Self::ToggleFolderFlattenedView
+            | Self::ToggleShowAllFolders { .. }
+            | Self::ToggleFolderFlattenedView { .. }
             | Self::ClearFolderDeleteRecoveryLog => UiActionFamily::Sources,
             Self::MoveBrowserFocus { .. }
             | Self::SetBrowserViewStart { .. }

@@ -9,6 +9,7 @@ pub(super) struct BrowserScrollbarDragState {
 /// Active folder-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct FolderScrollbarDragState {
+    pub(super) pane: crate::app::FolderPaneIdModel,
     pub(super) thumb_pointer_offset_y: f32,
 }
 
@@ -224,8 +225,13 @@ where
         self.last_emitted_waveform_view_center = None;
     }
 
-    pub(super) fn begin_folder_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
+    pub(super) fn begin_folder_scrollbar_drag(
+        &mut self,
+        pane: crate::app::FolderPaneIdModel,
+        thumb_pointer_offset_y: f32,
+    ) {
         self.folder_scrollbar_drag = Some(FolderScrollbarDragState {
+            pane,
             thumb_pointer_offset_y,
         });
     }

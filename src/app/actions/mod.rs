@@ -11,7 +11,7 @@
 //! action surface, so the preferred maintenance approach is to keep the enum
 //! centralized while improving internal organization around it.
 
-use super::PlaybackAgeFilterChip;
+use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -81,7 +81,10 @@ pub enum UiAction {
     /// Focus the waveform panel.
     FocusWaveformPanel,
     /// Focus the folder browser section inside the sources panel.
-    FocusFolderPanel,
+    FocusFolderPanel {
+        /// Pane that should become active, or `None` for the current active pane.
+        pane: Option<FolderPaneIdModel>,
+    },
     /// Focus the currently loaded sample in the browser.
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
@@ -99,16 +102,27 @@ pub enum UiAction {
     /// Open the configured trash folder in the OS file explorer.
     OpenTrashFolder,
     /// Focus the source-folder search field.
-    FocusFolderSearch,
+    FocusFolderSearch {
+        /// Pane whose folder-search field should receive focus, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
+    },
     /// Set folder search query.
     SetFolderSearch {
+        /// Pane whose folder-search query changed, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Full folder-search query text.
         query: String,
     },
     /// Toggle whether the folder tree shows disk folders without WAV-backed samples.
-    ToggleShowAllFolders,
+    ToggleShowAllFolders {
+        /// Pane whose folder-visibility toggle was activated, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
+    },
     /// Toggle whether folder filtering includes descendant files.
-    ToggleFolderFlattenedView,
+    ToggleFolderFlattenedView {
+        /// Pane whose flattened-view toggle was activated, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
+    },
 
     // Sources and folder tree actions.
     /// Focus a source row by index and make the sources list the active section.
@@ -156,6 +170,8 @@ pub enum UiAction {
     },
     /// Focus a folder row by index.
     FocusFolderRow {
+        /// Pane containing the target folder row, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
@@ -165,11 +181,15 @@ pub enum UiAction {
     /// existing folder-filter selection behavior while also toggling expansion
     /// for expandable non-root rows outside folder-search mode.
     ActivateFolderRow {
+        /// Pane containing the target folder row, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
     /// Toggle expansion for one folder row without changing selection semantics.
     ToggleFolderRowExpanded {
+        /// Pane containing the target folder row, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
@@ -188,6 +208,8 @@ pub enum UiAction {
     StartNewFolder,
     /// Create a folder relative to one specific projected folder row.
     StartNewFolderAtFolderRow {
+        /// Pane containing the target folder row, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Backing controller folder row index.
         index: usize,
     },
@@ -274,10 +296,12 @@ pub enum UiAction {
         pointer_x: u16,
         /// Pointer y-position in logical UI coordinates.
         pointer_y: u16,
+        /// Folder pane currently hovered, when the pointer is over a folder pane.
+        hovered_folder_pane: Option<FolderPaneIdModel>,
         /// Backing controller folder-row index currently hovered, when any.
         hovered_folder_row: Option<usize>,
-        /// Whether the pointer is currently over the folder panel background.
-        over_folder_panel: bool,
+        /// Folder pane currently hovered by the pointer background, when any.
+        over_folder_panel: Option<FolderPaneIdModel>,
         /// Whether Shift is currently held.
         shift_down: bool,
         /// Whether Alt is currently held.
@@ -674,6 +698,12 @@ pub enum UiAction {
         pointer_x: u16,
         /// Pointer y-position in logical UI coordinates.
         pointer_y: u16,
+        /// Folder pane currently hovered, when the pointer is over a folder pane.
+        hovered_folder_pane: Option<FolderPaneIdModel>,
+        /// Backing controller folder-row index currently hovered, when any.
+        hovered_folder_row: Option<usize>,
+        /// Folder pane currently hovered by the pointer background, when any.
+        over_folder_panel: Option<FolderPaneIdModel>,
         /// Whether the pointer currently hovers the sample browser list.
         over_browser_list: bool,
         /// Whether Shift is currently held.

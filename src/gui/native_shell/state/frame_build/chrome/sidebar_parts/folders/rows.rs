@@ -1,15 +1,17 @@
 use super::*;
-use crate::app::FolderRowModel;
+use crate::app::{FolderPaneIdModel, FolderRowModel};
 
 pub(super) fn render_folder_rows(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &SidebarFrameData,
+    pane: FolderPaneIdModel,
+    rows: &[CachedFolderRow],
 ) {
-    let last_row_max_y = data.folder_rows.last().map(|row| row.rect.max.y);
-    for rendered_row in &data.folder_rows {
-        let Some(row) = ctx.model.sources.folder_rows.get(rendered_row.row_index) else {
+    let pane_model = ctx.model.sources.folder_pane(pane);
+    let last_row_max_y = rows.last().map(|row| row.rect.max.y);
+    for rendered_row in rows {
+        let Some(row) = pane_model.folder_rows.get(rendered_row.row_index) else {
             continue;
         };
         let row_rect = rendered_row.rect;

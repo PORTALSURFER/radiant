@@ -1,6 +1,7 @@
 //! Model-sync, editor-state, and animation bookkeeping for the native shell.
 
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
@@ -13,18 +14,22 @@ impl NativeShellState {
         }
         if self
             .hovered_folder_row_index
-            .is_some_and(|row_index| row_index >= model.sources.folder_rows.len())
+            .zip(self.hovered_folder_pane)
+            .is_some_and(|(row_index, pane)| {
+                row_index >= model.sources.folder_pane(pane).folder_rows.len()
+            })
         {
+            self.hovered_folder_pane = None;
             self.hovered_folder_row_index = None;
         }
-        if self.last_focused_folder_row != model.sources.focused_folder_row {
-            self.last_focused_folder_row = model.sources.focused_folder_row;
-            self.folder_rows_autoscroll = true;
-            self.folder_rows_cache_key = None;
-        }
-        if model.sources.folder_rows.is_empty() {
-            self.folder_rows_window_start = 0;
-        }
+        sync_folder_pane_model(
+            &mut self.upper_folder_pane,
+            model.sources.folder_pane(FolderPaneIdModel::Upper),
+        );
+        sync_folder_pane_model(
+            &mut self.lower_folder_pane,
+            model.sources.folder_pane(FolderPaneIdModel::Lower),
+        );
         if self
             .source_context_menu
             .is_some_and(|menu| menu.row_index >= model.sources.rows.len())
@@ -40,8 +45,10 @@ impl NativeShellState {
             || model.sources.rows.iter().any(|row| row.selected)
             || model
                 .sources
+                .upper_folder_pane
                 .folder_rows
                 .iter()
+                .chain(model.sources.lower_folder_pane.folder_rows.iter())
                 .any(|row| row.focused || row.selected)
             || model.confirm_prompt.visible;
     }
@@ -141,6 +148,7 @@ impl NativeShellState {
             selected_column: self.selected_column,
             hovered: self.hovered,
             hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_folder_pane: self.hovered_folder_pane,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             browser_search_editor_signature: text_field_visual_signature(
@@ -233,5 +241,19 @@ impl NativeShellState {
         self.source_add_button_flash_ticks = self.source_add_button_flash_ticks.saturating_sub(1);
         self.status_options_button_flash_ticks =
             self.status_options_button_flash_ticks.saturating_sub(1);
+    }
+}
+
+fn sync_folder_pane_model(
+    pane_state: &mut FolderPaneRuntimeState,
+    pane_model: &crate::app::FolderPaneModel,
+) {
+    if pane_state.last_focused_row != pane_model.focused_folder_row {
+        pane_state.last_focused_row = pane_model.focused_folder_row;
+        pane_state.autoscroll = true;
+        pane_state.cache_key = None;
+    }
+    if pane_model.folder_rows.is_empty() {
+        pane_state.window_start = 0;
     }
 }

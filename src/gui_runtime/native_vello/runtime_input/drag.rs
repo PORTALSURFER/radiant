@@ -157,10 +157,16 @@ where
             return false;
         };
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
+        let (hovered_folder_row, over_folder_panel) = self
+            .shell_state
+            .sync_folder_drag_hover_target(layout, &self.model, point);
         self.emit_model_action_with_profile(
             UiAction::UpdateWaveformSelectionDrag {
                 pointer_x,
                 pointer_y,
+                hovered_folder_pane: hovered_folder_row.map(|(pane, _)| pane),
+                hovered_folder_row: hovered_folder_row.map(|(_, row)| row),
+                over_folder_panel,
                 over_browser_list: !self.model.map.active && layout.browser_rows.contains(point),
                 shift_down: self.modifiers.shift_key(),
                 alt_down: self.modifiers.alt_key(),
@@ -181,18 +187,21 @@ where
         let (hovered_projected_folder_row, over_folder_panel) = self
             .shell_state
             .sync_folder_drag_hover_target(layout, &self.model, point);
-        let hovered_folder_row = hovered_projected_folder_row.map(|projected_index| {
+        let hovered_folder_pane = hovered_projected_folder_row.map(|(pane, _)| pane);
+        let hovered_folder_row = hovered_projected_folder_row.and_then(|(pane, projected_index)| {
             self.model
                 .sources
+                .folder_pane(pane)
                 .folder_rows
                 .get(projected_index)
                 .and_then(|row| row.source_index)
-                .unwrap_or(projected_index)
+                .or(Some(projected_index))
         });
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
         self.emit_model_action(UiAction::UpdateBrowserSampleDrag {
             pointer_x,
             pointer_y,
+            hovered_folder_pane,
             hovered_folder_row,
             over_folder_panel,
             shift_down: self.modifiers.shift_key(),

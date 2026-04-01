@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::{FolderPaneIdModel, FolderRowKind};
 
 impl NativeShellState {
     /// Resolve a rendered folder-row index for a point within the sidebar.
@@ -7,24 +8,46 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<usize> {
+    ) -> Option<(FolderPaneIdModel, usize)> {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model)
-            .iter()
-            .find(|row| row.rect.contains(point))
-            .map(|row| row.row_index)
+        for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+            if let Some(row_index) = self
+                .cached_folder_rows(layout, &style, model, pane)
+                .iter()
+                .find(|row| row.rect.contains(point))
+                .map(|row| row.row_index)
+            {
+                return Some((pane, row_index));
+            }
+        }
+        None
     }
 
-    /// Return whether a point falls within the folder panel header or rows band.
+    /// Return the folder pane whose header or rows band contains the point.
+    pub(crate) fn folder_panel_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<FolderPaneIdModel> {
+        let style = style_for_layout(layout);
+        let sections = sidebar_sections(layout, &style, model);
+        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+            .into_iter()
+            .find(|pane| {
+                let folder_sections = sections.folder_header(*pane);
+                folder_sections.contains(point) || sections.folder_rows(*pane).contains(point)
+            })
+    }
+
+    /// Return whether a point falls within either folder pane.
     pub(crate) fn folder_panel_contains_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
     ) -> bool {
-        let style = style_for_layout(layout);
-        let sections = sidebar_sections(layout, &style, model);
-        sections.folder_header.contains(point) || sections.folder_rows.contains(point)
+        self.folder_panel_at_point(layout, model, point).is_some()
     }
 
     /// Return the folder-visibility toggle button rect for tests.
@@ -35,15 +58,17 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
+        let pane = model.sources.active_folder_pane;
+        let pane_model = model.sources.folder_pane(pane);
         compute_sidebar_folder_header_layout(
-            sidebar_sections(layout, &style, model).folder_header,
+            sidebar_sections(layout, &style, model).folder_header(pane),
             style.sizing,
-            model.sources.folder_recovery.in_progress,
-            model.sources.folder_recovery.entry_count,
-            model.sources.show_all_folders,
-            model.sources.can_toggle_show_all_folders,
-            model.sources.flattened_view,
-            model.sources.can_toggle_flattened_view,
+            pane_model.folder_recovery.in_progress,
+            pane_model.folder_recovery.entry_count,
+            pane_model.show_all_folders,
+            pane_model.can_toggle_show_all_folders,
+            pane_model.flattened_view,
+            pane_model.can_toggle_flattened_view,
         )
         .visibility_toggle_button
         .map(|button| button.rect)
@@ -57,33 +82,34 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
+        let pane = model.sources.active_folder_pane;
+        let pane_model = model.sources.folder_pane(pane);
         compute_sidebar_folder_header_layout(
-            sidebar_sections(layout, &style, model).folder_header,
+            sidebar_sections(layout, &style, model).folder_header(pane),
             style.sizing,
-            model.sources.folder_recovery.in_progress,
-            model.sources.folder_recovery.entry_count,
-            model.sources.show_all_folders,
-            model.sources.can_toggle_show_all_folders,
-            model.sources.flattened_view,
-            model.sources.can_toggle_flattened_view,
+            pane_model.folder_recovery.in_progress,
+            pane_model.folder_recovery.entry_count,
+            pane_model.show_all_folders,
+            pane_model.can_toggle_show_all_folders,
+            pane_model.flattened_view,
+            pane_model.can_toggle_flattened_view,
         )
         .flatten_toggle_button
         .map(|button| button.rect)
     }
 
-    /// Return the projected inline folder-edit row index, when present.
+    /// Return the projected inline folder-edit row index in the active pane, when present.
     pub(crate) fn folder_create_row_index(&self, model: &AppModel) -> Option<usize> {
-        model
-            .sources
+        let pane_model = model.sources.active_folder_pane_model();
+        pane_model
             .folder_rows
             .iter()
-            .position(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+            .position(|row| row.kind == FolderRowKind::RenameDraft)
             .or_else(|| {
-                model
-                    .sources
+                pane_model
                     .folder_rows
                     .iter()
-                    .position(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+                    .position(|row| row.kind == FolderRowKind::CreateDraft)
             })
     }
 
@@ -94,10 +120,11 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
+        let pane = model.sources.active_folder_pane;
         let row_index = self.folder_create_row_index(model)?;
-        let row = model.sources.folder_rows.get(row_index)?;
+        let row = model.sources.active_folder_pane_model().folder_rows.get(row_index)?;
         let row_rect = self
-            .cached_folder_rows(layout, &style, model)
+            .cached_folder_rows(layout, &style, model, pane)
             .iter()
             .find(|rendered_row| rendered_row.row_index == row_index)?
             .rect;
@@ -111,10 +138,11 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
+        let pane = model.sources.active_folder_pane;
         let row_index = self.folder_create_row_index(model)?;
-        let row = model.sources.folder_rows.get(row_index)?;
+        let row = model.sources.active_folder_pane_model().folder_rows.get(row_index)?;
         let row_rect = self
-            .cached_folder_rows(layout, &style, model)
+            .cached_folder_rows(layout, &style, model, pane)
             .iter()
             .find(|rendered_row| rendered_row.row_index == row_index)?
             .rect;
@@ -139,31 +167,33 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<usize> {
-        if !model.sources.folder_search_query.trim().is_empty() {
+    ) -> Option<(FolderPaneIdModel, usize)> {
+        let (pane, row_index) = self.folder_row_at_point(layout, model, point)?;
+        let pane_model = model.sources.folder_pane(pane);
+        if !pane_model.folder_search_query.trim().is_empty() {
             return None;
         }
         let style = style_for_layout(layout);
         let rendered_row = self
-            .cached_folder_rows(layout, &style, model)
+            .cached_folder_rows(layout, &style, model, pane)
             .iter()
-            .find(|row| row.rect.contains(point))?;
-        let row_index = rendered_row.row_index;
-        let row = model.sources.folder_rows.get(row_index)?;
-        if matches!(
-            row.kind,
-            crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
-        ) || row.is_root
+            .find(|row| row.row_index == row_index)?;
+        let row = pane_model.folder_rows.get(row_index)?;
+        if matches!(row.kind, FolderRowKind::CreateDraft | FolderRowKind::RenameDraft)
+            || row.is_root
             || !row.has_children
         {
             return None;
         }
-        let row_rect = rendered_row.rect;
         let depth_indent =
-            compute_sidebar_folder_row_depth_indent(row_rect, style.sizing, row.depth);
-        let disclosure_rect =
-            compute_sidebar_folder_row_layout(row_rect, style.sizing, depth_indent).disclosure_rect;
-        disclosure_rect.contains(point).then_some(row_index)
+            compute_sidebar_folder_row_depth_indent(rendered_row.rect, style.sizing, row.depth);
+        let disclosure_rect = compute_sidebar_folder_row_layout(
+            rendered_row.rect,
+            style.sizing,
+            depth_indent,
+        )
+        .disclosure_rect;
+        disclosure_rect.contains(point).then_some((pane, row_index))
     }
 
     /// Return one rendered folder-row disclosure gutter rect for tests.
@@ -175,9 +205,10 @@ impl NativeShellState {
         row_index: usize,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
-        let row = model.sources.folder_rows.get(row_index)?;
+        let pane = model.sources.active_folder_pane;
+        let row = model.sources.active_folder_pane_model().folder_rows.get(row_index)?;
         let row_rect = self
-            .cached_folder_rows(layout, &style, model)
+            .cached_folder_rows(layout, &style, model, pane)
             .iter()
             .find(|rendered_row| rendered_row.row_index == row_index)?
             .rect;
@@ -196,26 +227,33 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model)
+        let pane = model.sources.active_folder_pane;
+        self.cached_folder_rows(layout, &style, model, pane)
             .iter()
             .map(|row| row.rect)
             .collect()
     }
 
-    pub(crate) fn folder_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
+    pub(crate) fn folder_viewport_len(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pane: FolderPaneIdModel,
+    ) -> usize {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model)
+        self.cached_folder_rows(layout, &style, model, pane)
             .len()
-            .min(model.sources.folder_rows.len())
+            .min(model.sources.folder_pane(pane).folder_rows.len())
     }
 
     pub(crate) fn folder_viewport_start_row(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
+        pane: FolderPaneIdModel,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model)
+        self.cached_folder_rows(layout, &style, model, pane)
             .first()
             .map(|row| row.row_index)
     }
@@ -225,35 +263,42 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<f32> {
-        let (scrollbar, _) = self.cached_folder_scrollbar(layout, model)?;
-        let hit_rect = Rect::from_min_max(
-            Point::new(
-                scrollbar.track.min.x - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.min.y - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-            ),
-            Point::new(
-                scrollbar.track.max.x + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.max.y + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-            ),
-        );
-        hit_rect
-            .contains(point)
-            .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
+    ) -> Option<(FolderPaneIdModel, f32)> {
+        for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+            let (scrollbar, _) = self.cached_folder_scrollbar(layout, model, pane)?;
+            let hit_rect = Rect::from_min_max(
+                Point::new(
+                    scrollbar.track.min.x - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
+                    scrollbar.thumb.min.y - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
+                ),
+                Point::new(
+                    scrollbar.track.max.x + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
+                    scrollbar.thumb.max.y + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
+                ),
+            );
+            if hit_rect.contains(point) {
+                return Some((
+                    pane,
+                    (point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()),
+                ));
+            }
+        }
+        None
     }
 
     pub(crate) fn folder_scrollbar_view_start_for_drag(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
+        pane: FolderPaneIdModel,
         pointer_y: f32,
         thumb_pointer_offset_y: f32,
     ) -> Option<usize> {
-        let (scrollbar, viewport_len) = self.cached_folder_scrollbar(layout, model)?;
+        let (scrollbar, viewport_len) = self.cached_folder_scrollbar(layout, model, pane)?;
         folder_scrollbar_view_start_for_pointer(
             scrollbar,
             viewport_len,
-            model.sources.folder_rows.len(),
+            model.sources.folder_pane(pane).folder_rows.len(),
             pointer_y,
             thumb_pointer_offset_y,
         )
@@ -264,31 +309,41 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<usize> {
-        let (scrollbar, viewport_len) = self.cached_folder_scrollbar(layout, model)?;
-        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
-            return None;
+    ) -> Option<(FolderPaneIdModel, usize)> {
+        for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+            let (scrollbar, viewport_len) = self.cached_folder_scrollbar(layout, model, pane)?;
+            if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
+                continue;
+            }
+            if let Some(view_start) = folder_scrollbar_view_start_for_pointer(
+                scrollbar,
+                viewport_len,
+                model.sources.folder_pane(pane).folder_rows.len(),
+                point.y,
+                scrollbar.thumb.height() * 0.5,
+            ) {
+                return Some((pane, view_start));
+            }
         }
-        folder_scrollbar_view_start_for_pointer(
-            scrollbar,
-            viewport_len,
-            model.sources.folder_rows.len(),
-            point.y,
-            scrollbar.thumb.height() * 0.5,
-        )
+        None
     }
 
-    pub(crate) fn set_folder_view_start_row(&mut self, view_start_row: usize) -> bool {
-        if self.folder_rows_window_start == view_start_row && !self.folder_rows_autoscroll {
+    pub(crate) fn set_folder_view_start_row(
+        &mut self,
+        pane: FolderPaneIdModel,
+        view_start_row: usize,
+    ) -> bool {
+        let pane_state = self.folder_pane_runtime_state_mut(pane);
+        if pane_state.window_start == view_start_row && !pane_state.autoscroll {
             return false;
         }
-        self.folder_rows_window_start = view_start_row;
-        self.folder_rows_autoscroll = false;
-        self.folder_rows_cache_key = None;
+        pane_state.window_start = view_start_row;
+        pane_state.autoscroll = false;
+        pane_state.cache_key = None;
         true
     }
 
-    /// Resolve a click inside the folder-header visibility toggle into a UI action.
+    /// Resolve a click inside any folder-header toggle into a UI action.
     pub(crate) fn folder_header_action_at_point(
         &mut self,
         layout: &ShellLayout,
@@ -297,24 +352,32 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        let toggle = compute_sidebar_folder_header_layout(
-            sections.folder_header,
-            style.sizing,
-            model.sources.folder_recovery.in_progress,
-            model.sources.folder_recovery.entry_count,
-            model.sources.show_all_folders,
-            model.sources.can_toggle_show_all_folders,
-            model.sources.flattened_view,
-            model.sources.can_toggle_flattened_view,
-        );
-        if let Some(button) = toggle.visibility_toggle_button {
-            if button.enabled && button.rect.contains(point) {
-                return Some(UiAction::ToggleShowAllFolders);
+        for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+            let pane_model = model.sources.folder_pane(pane);
+            let toggle = compute_sidebar_folder_header_layout(
+                sections.folder_header(pane),
+                style.sizing,
+                pane_model.folder_recovery.in_progress,
+                pane_model.folder_recovery.entry_count,
+                pane_model.show_all_folders,
+                pane_model.can_toggle_show_all_folders,
+                pane_model.flattened_view,
+                pane_model.can_toggle_flattened_view,
+            );
+            if let Some(button) = toggle.visibility_toggle_button
+                && button.enabled
+                && button.rect.contains(point)
+            {
+                return Some(UiAction::ToggleShowAllFolders { pane: Some(pane) });
+            }
+            if let Some(button) = toggle.flatten_toggle_button
+                && button.enabled
+                && button.rect.contains(point)
+            {
+                return Some(UiAction::ToggleFolderFlattenedView { pane: Some(pane) });
             }
         }
-        let button = toggle.flatten_toggle_button?;
-        (button.enabled && button.rect.contains(point))
-            .then_some(UiAction::ToggleFolderFlattenedView)
+        None
     }
 }
 

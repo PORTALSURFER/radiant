@@ -250,7 +250,7 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         label: "Focus folder tree",
         gesture: HotkeyGesture::with_chord(KeyPress::new(KeyCode::G), KeyPress::new(KeyCode::T)),
         scope: GLOBAL,
-        action: UiAction::FocusFolderPanel,
+        action: UiAction::FocusFolderPanel { pane: None },
     },
     HotkeyBinding {
         id: "focus-sources-list",
@@ -544,7 +544,7 @@ pub const HOTKEY_BINDINGS: &[HotkeyBinding] = &[
         label: "Search folders",
         gesture: HotkeyGesture::with_command(KeyCode::F),
         scope: FOLDERS,
-        action: UiAction::FocusFolderSearch,
+        action: UiAction::FocusFolderSearch { pane: None },
     },
     HotkeyBinding {
         id: "move-source-focus-up",

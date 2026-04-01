@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bool_text, bounds, metadata, node_id, simple_node, slug};
 use super::*;
-use crate::app::AutomationRole;
+use crate::app::{AutomationRole, FolderPaneIdModel, FolderPaneModel};
 
 /// Build semantic automation for the sources/sidebar panel.
 pub(super) fn build_sidebar_automation(
@@ -12,7 +12,6 @@ pub(super) fn build_sidebar_automation(
     style: &StyleTokens,
 ) -> AutomationNodeSnapshot {
     let source_rows = shell.cached_source_row_rects(layout, style, model).to_vec();
-    let folder_rows = shell.cached_folder_rows(layout, style, model).to_vec();
     let sections = sidebar_sections(layout, style, model);
     let mut children = Vec::new();
     if let Some(rect) = source_add_button_rect(layout.sidebar_header, style.sizing) {
@@ -45,15 +44,20 @@ pub(super) fn build_sidebar_automation(
             vec![action_slug(&button.action)],
         ));
     }
-    children.push(folder_browser_group(
-        sections.folder_header,
-        sections.folder_rows,
-        folder_rows,
-        &model.sources.folder_rows,
-        model,
-        style,
-        model.focus_context == crate::app::FocusContextModel::SourceFolders,
-    ));
+    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+        let pane_model = model.sources.folder_pane(pane);
+        children.push(folder_browser_group(
+            pane,
+            sections.folder_header(pane),
+            sections.folder_rows(pane),
+            shell.cached_folder_rows(layout, style, model, pane).to_vec(),
+            &pane_model.folder_rows,
+            pane_model,
+            style,
+            model.focus_context == crate::app::FocusContextModel::SourceFolders
+                && model.sources.active_folder_pane == pane,
+        ));
+    }
     AutomationNodeSnapshot {
         id: node_id("sources.panel"),
         role: AutomationRole::Panel,
@@ -65,7 +69,10 @@ pub(super) fn build_sidebar_automation(
         available_actions: vec![String::from("focus_sources_panel")],
         metadata: metadata(&[
             ("source_search", model.sources.search_query.as_str()),
-            ("folder_search", model.sources.folder_search_query.as_str()),
+            (
+                "active_folder_search",
+                model.sources.active_folder_pane_model().folder_search_query.as_str(),
+            ),
         ]),
         children,
     }
@@ -119,11 +126,12 @@ fn source_list_group(
 }
 
 fn folder_browser_group(
+    pane: FolderPaneIdModel,
     header_rect: Rect,
     folder_rows_band: Rect,
     folder_rows: Vec<CachedFolderRow>,
     rows: &[crate::app::FolderRowModel],
-    model: &AppModel,
+    pane_model: &FolderPaneModel,
     style: &StyleTokens,
     selected: bool,
 ) -> AutomationNodeSnapshot {
@@ -132,17 +140,17 @@ fn folder_browser_group(
     if let Some(toggle_button) = compute_sidebar_folder_header_layout(
         header_rect,
         style.sizing,
-        model.sources.folder_recovery.in_progress,
-        model.sources.folder_recovery.entry_count,
-        model.sources.show_all_folders,
-        model.sources.can_toggle_show_all_folders,
-        model.sources.flattened_view,
-        model.sources.can_toggle_flattened_view,
+        pane_model.folder_recovery.in_progress,
+        pane_model.folder_recovery.entry_count,
+        pane_model.show_all_folders,
+        pane_model.can_toggle_show_all_folders,
+        pane_model.flattened_view,
+        pane_model.can_toggle_flattened_view,
     )
     .visibility_toggle_button
     {
         children.push(simple_node(
-            "sources.folder_visibility_toggle",
+            format!("sources.{}.folder_visibility_toggle", folder_pane_slug(pane)),
             AutomationRole::Button,
             Some(String::from("Folder visibility")),
             toggle_button.rect,
@@ -159,17 +167,17 @@ fn folder_browser_group(
     if let Some(toggle_button) = compute_sidebar_folder_header_layout(
         header_rect,
         style.sizing,
-        model.sources.folder_recovery.in_progress,
-        model.sources.folder_recovery.entry_count,
-        model.sources.show_all_folders,
-        model.sources.can_toggle_show_all_folders,
-        model.sources.flattened_view,
-        model.sources.can_toggle_flattened_view,
+        pane_model.folder_recovery.in_progress,
+        pane_model.folder_recovery.entry_count,
+        pane_model.show_all_folders,
+        pane_model.can_toggle_show_all_folders,
+        pane_model.flattened_view,
+        pane_model.can_toggle_flattened_view,
     )
     .flatten_toggle_button
     {
         children.push(simple_node(
-            "sources.folder_flatten_toggle",
+            format!("sources.{}.folder_flatten_toggle", folder_pane_slug(pane)),
             AutomationRole::Button,
             Some(String::from("Flattened view")),
             toggle_button.rect,
@@ -230,7 +238,10 @@ fn folder_browser_group(
                     )
                 };
                 AutomationNodeSnapshot {
-                    id: node_id(format!("sources.folder_row.{row_index}")),
+                    id: node_id(format!(
+                        "sources.{}.folder_row.{row_index}",
+                        folder_pane_slug(pane)
+                    )),
                     role,
                     label,
                     bounds: bounds(rect),
@@ -259,19 +270,21 @@ fn folder_browser_group(
             }),
     );
     AutomationNodeSnapshot {
-        id: node_id("sources.folder_browser"),
+        id: node_id(format!("sources.{}.folder_browser", folder_pane_slug(pane))),
         role: AutomationRole::Group,
-        label: Some(String::from("Folder browser")),
+        label: Some(format!("{} folder browser", pane_model.title)),
         bounds: bounds(union_rect(header_rect, folder_rows_band)),
-        value: None,
+        value: Some(pane_model.source_label.clone()),
         enabled: true,
         selected,
         available_actions: vec![String::from("focus_folder_panel")],
         metadata: metadata(&[
             ("row_count", &row_count),
+            ("pane", folder_pane_slug(pane)),
+            ("source_detail", pane_model.source_detail.as_str()),
             (
                 "visibility",
-                if model.sources.show_all_folders {
+                if pane_model.show_all_folders {
                     "all_folders"
                 } else {
                     "wav_folders"
@@ -279,7 +292,7 @@ fn folder_browser_group(
             ),
             (
                 "flattened_view",
-                if model.sources.flattened_view {
+                if pane_model.flattened_view {
                     "all_descendants"
                 } else {
                     "direct_only"
@@ -287,6 +300,13 @@ fn folder_browser_group(
             ),
         ]),
         children,
+    }
+}
+
+fn folder_pane_slug(pane: FolderPaneIdModel) -> &'static str {
+    match pane {
+        FolderPaneIdModel::Upper => "upper",
+        FolderPaneIdModel::Lower => "lower",
     }
 }
 

@@ -2,6 +2,7 @@
 
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -34,6 +35,7 @@ pub(super) struct CachedBrowserRow {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CachedFolderRow {
+    pub(super) pane: FolderPaneIdModel,
     pub(super) row_index: usize,
     pub(super) rect: Rect,
 }
@@ -54,7 +56,8 @@ pub(super) struct SidebarRowsCacheKey {
     pub(super) source_rows_min_when_split: u32,
     pub(super) folder_rows_min: u32,
     pub(super) source_rows: u32,
-    pub(super) folder_rows: u32,
+    pub(super) upper_folder_rows: u32,
+    pub(super) lower_folder_rows: u32,
     pub(super) source_row_height: u32,
     pub(super) source_row_gap: u32,
     pub(super) folder_row_height: u32,
@@ -66,6 +69,7 @@ pub(super) struct SidebarRowsCacheKey {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(super) struct FolderRowsCacheKey {
     pub(super) sidebar: SidebarRowsCacheKey,
+    pub(super) pane: u32,
     pub(super) folder_view_start_row: u32,
     pub(super) focused_folder_row: u32,
     pub(super) autoscroll: u32,
@@ -133,8 +137,26 @@ pub(super) struct WaveformToolbarButton {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SidebarSections {
     pub(super) source_rows: Rect,
-    pub(super) folder_header: Rect,
-    pub(super) folder_rows: Rect,
+    pub(super) upper_folder_header: Rect,
+    pub(super) upper_folder_rows: Rect,
+    pub(super) lower_folder_header: Rect,
+    pub(super) lower_folder_rows: Rect,
+}
+
+impl SidebarSections {
+    pub(super) fn folder_header(self, pane: FolderPaneIdModel) -> Rect {
+        match pane {
+            FolderPaneIdModel::Upper => self.upper_folder_header,
+            FolderPaneIdModel::Lower => self.lower_folder_header,
+        }
+    }
+
+    pub(super) fn folder_rows(self, pane: FolderPaneIdModel) -> Rect {
+        match pane {
+            FolderPaneIdModel::Upper => self.upper_folder_rows,
+            FolderPaneIdModel::Lower => self.lower_folder_rows,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

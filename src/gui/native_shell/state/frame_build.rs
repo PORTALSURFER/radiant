@@ -27,7 +27,8 @@ struct BrowserFrameData {
 
 struct SidebarFrameData {
     source_row_rects: Vec<Rect>,
-    folder_rows: Vec<CachedFolderRow>,
+    upper_folder_rows: Vec<CachedFolderRow>,
+    lower_folder_rows: Vec<CachedFolderRow>,
 }
 
 impl NativeShellState {
@@ -89,8 +90,25 @@ impl NativeShellState {
             } else {
                 Vec::new()
             },
-            folder_rows: if build_global_static {
-                self.cached_folder_rows(layout, style, model).to_vec()
+            upper_folder_rows: if build_global_static {
+                self.cached_folder_rows(
+                    layout,
+                    style,
+                    model,
+                    crate::app::FolderPaneIdModel::Upper,
+                )
+                .to_vec()
+            } else {
+                Vec::new()
+            },
+            lower_folder_rows: if build_global_static {
+                self.cached_folder_rows(
+                    layout,
+                    style,
+                    model,
+                    crate::app::FolderPaneIdModel::Lower,
+                )
+                .to_vec()
             } else {
                 Vec::new()
             },

@@ -167,8 +167,13 @@ impl NativeShellState {
         if sections.source_rows.contains(point) {
             return Some(UiAction::FocusSourcesPanel);
         }
-        if sections.folder_header.contains(point) || sections.folder_rows.contains(point) {
-            return Some(UiAction::FocusFolderPanel);
+        for pane in [
+            crate::app::FolderPaneIdModel::Upper,
+            crate::app::FolderPaneIdModel::Lower,
+        ] {
+            if sections.folder_header(pane).contains(point) || sections.folder_rows(pane).contains(point) {
+                return Some(UiAction::FocusFolderPanel { pane: Some(pane) });
+            }
         }
         None
     }

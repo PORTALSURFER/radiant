@@ -70,6 +70,8 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered: Option<ShellNodeKind>,
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered folder pane, when the pointer is over a folder pane.
+    pub hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
     /// Hovered folder row by rendered sidebar row index.
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.

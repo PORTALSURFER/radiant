@@ -17,9 +17,12 @@ fn ui_action_family_preserves_bridge_groupings() {
         .family(),
         UiActionFamily::Transport
     );
-    assert_eq!(UiAction::FocusFolderSearch.family(), UiActionFamily::Focus);
     assert_eq!(
-        UiAction::ToggleFolderFlattenedView.family(),
+        UiAction::FocusFolderSearch { pane: None }.family(),
+        UiActionFamily::Focus
+    );
+    assert_eq!(
+        UiAction::ToggleFolderFlattenedView { pane: None }.family(),
         UiActionFamily::Sources
     );
     assert_eq!(
@@ -27,7 +30,11 @@ fn ui_action_family_preserves_bridge_groupings() {
         UiActionFamily::Sources
     );
     assert_eq!(
-        UiAction::StartNewFolderAtFolderRow { index: 1 }.family(),
+        UiAction::StartNewFolderAtFolderRow {
+            pane: None,
+            index: 1,
+        }
+        .family(),
         UiActionFamily::Sources
     );
     assert_eq!(

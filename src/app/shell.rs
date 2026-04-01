@@ -2,8 +2,8 @@
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
-    FolderActionsModel, FolderRecoveryModel, MapPanelModel, SourcesPanelModel, WaveformChromeModel,
-    WaveformPanelModel,
+    FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel, MapPanelModel,
+    SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
 
 /// Host-neutral fallback title used when the embedding application does not
@@ -228,6 +228,17 @@ impl Default for AppModel {
             sources: SourcesPanelModel {
                 header: String::from("Sources"),
                 search_query: String::new(),
+                active_folder_pane: FolderPaneIdModel::Upper,
+                upper_folder_pane: FolderPaneModel {
+                    pane: FolderPaneIdModel::Upper,
+                    title: String::from("Upper"),
+                    ..FolderPaneModel::default()
+                },
+                lower_folder_pane: FolderPaneModel {
+                    pane: FolderPaneIdModel::Lower,
+                    title: String::from("Lower"),
+                    ..FolderPaneModel::default()
+                },
                 folder_search_query: String::new(),
                 show_all_folders: false,
                 can_toggle_show_all_folders: false,

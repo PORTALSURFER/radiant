@@ -26,16 +26,15 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> (Option<usize>, bool) {
+    ) -> (Option<(crate::app::FolderPaneIdModel, usize)>, Option<crate::app::FolderPaneIdModel>) {
         let hovered_folder_row = self
             .folder_row_disclosure_at_point(layout, model, point)
             .or_else(|| self.folder_row_at_point(layout, model, point));
-        let over_folder_panel = self.folder_panel_contains_point(layout, model, point);
-        self.hovered_folder_row_index = if over_folder_panel {
-            hovered_folder_row
-        } else {
-            None
-        };
+        let over_folder_panel = self.folder_panel_at_point(layout, model, point);
+        self.hovered_folder_pane = hovered_folder_row
+            .map(|(pane, _)| pane)
+            .or(over_folder_panel);
+        self.hovered_folder_row_index = hovered_folder_row.map(|(_, row_index)| row_index);
         (hovered_folder_row, over_folder_panel)
     }
 
@@ -59,6 +58,7 @@ impl NativeShellState {
             self.resolve_hovered_browser_search_field(layout, model, point);
         let next_hovered_folder_row =
             self.resolve_hovered_folder_row(layout, model, point, next_hover);
+        let next_hovered_folder_pane = next_hovered_folder_row.map(|(pane, _)| pane);
         let next_hovered_source_add_button =
             self.resolve_hovered_source_add_button(layout, point, next_hover);
         let next_hovered_status_options_button =
@@ -78,7 +78,9 @@ impl NativeShellState {
             next_hovered_browser_marked_filter != self.hovered_browser_marked_filter;
         let browser_search_field_changed =
             next_hovered_browser_search_field != self.hovered_browser_search_field;
-        let folder_row_changed = next_hovered_folder_row != self.hovered_folder_row_index;
+        let folder_row_changed = next_hovered_folder_row.map(|(_, row)| row)
+            != self.hovered_folder_row_index
+            || next_hovered_folder_pane != self.hovered_folder_pane;
         let source_add_button_changed =
             next_hovered_source_add_button != self.hovered_source_add_button;
         let status_options_button_changed =
@@ -111,7 +113,8 @@ impl NativeShellState {
             next_hovered_browser_playback_age_filter_chip;
         self.hovered_browser_marked_filter = next_hovered_browser_marked_filter;
         self.hovered_browser_search_field = next_hovered_browser_search_field;
-        self.hovered_folder_row_index = next_hovered_folder_row;
+        self.hovered_folder_pane = next_hovered_folder_pane;
+        self.hovered_folder_row_index = next_hovered_folder_row.map(|(_, row)| row);
         self.hovered_source_add_button = next_hovered_source_add_button;
         self.hovered_status_options_button = next_hovered_status_options_button;
         self.hovered_waveform_toolbar_hint = next_hovered_waveform_toolbar_hint;
@@ -158,15 +161,11 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
         hover: Option<ShellNodeKind>,
-    ) -> Option<usize> {
+    ) -> Option<(crate::app::FolderPaneIdModel, usize)> {
         if hover != Some(ShellNodeKind::Sidebar) {
             return None;
         }
-        let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model)
-            .iter()
-            .find(|row| row.rect.contains(point))
-            .map(|row| row.row_index)
+        self.folder_row_at_point(layout, model, point)
     }
 
     fn resolve_hovered_browser_search_field(

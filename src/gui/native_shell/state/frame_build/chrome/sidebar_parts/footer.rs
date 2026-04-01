@@ -67,6 +67,7 @@ fn render_sidebar_footer_text(
     rendered_sources: usize,
     rendered_folders: usize,
 ) {
+    let active_pane = ctx.model.sources.active_folder_pane_model();
     let footer_text = compute_sidebar_footer_text_layout(ctx.layout.sidebar_footer, ctx.sizing);
     let primary_width = footer_text.primary_row.width().max(56.0);
     let secondary_width = footer_text.secondary_row.width().max(56.0);
@@ -83,13 +84,13 @@ fn render_sidebar_footer_text(
             },
         );
     }
-    if ctx.model.sources.folder_rows.len() > rendered_folders {
+    if active_pane.folder_rows.len() > rendered_folders {
         emit_text(
             text_runs,
             TextRun {
                 text: format!(
                     "folders: +{} more…",
-                    ctx.model.sources.folder_rows.len() - rendered_folders
+                    active_pane.folder_rows.len() - rendered_folders
                 ),
                 position: footer_text.secondary_row.min,
                 font_size: ctx.sizing.font_meta,
@@ -100,13 +101,13 @@ fn render_sidebar_footer_text(
         );
         return;
     }
-    if ctx.model.sources.folder_recovery.entry_count > 0 {
+    if active_pane.folder_recovery.entry_count > 0 {
         emit_text(
             text_runs,
             TextRun {
                 text: format!(
                     "recovery entries: {}",
-                    ctx.model.sources.folder_recovery.entry_count
+                    active_pane.folder_recovery.entry_count
                 ),
                 position: footer_text.secondary_row.min,
                 font_size: ctx.sizing.font_meta,

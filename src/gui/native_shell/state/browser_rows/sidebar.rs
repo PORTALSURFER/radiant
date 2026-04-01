@@ -1,6 +1,7 @@
 //! Sidebar/source-row geometry helpers shared by the native shell.
 
 use super::*;
+use crate::app::{FolderPaneIdModel, FolderPaneModel};
 
 pub(in crate::gui::native_shell::state) fn rendered_source_rows(
     style: &StyleTokens,
@@ -30,7 +31,8 @@ pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
         source_rows_min_when_split: usize_to_u32(sizing.source_rows_min_when_split),
         folder_rows_min: usize_to_u32(sizing.folder_rows_min),
         source_rows: rendered_source_rows(style, model) as u32,
-        folder_rows: usize_to_u32(model.sources.folder_rows.len()),
+        upper_folder_rows: usize_to_u32(model.sources.upper_folder_pane.folder_rows.len()),
+        lower_folder_rows: usize_to_u32(model.sources.lower_folder_pane.folder_rows.len()),
         source_row_height: f32_to_bits(sizing.source_row_height),
         source_row_gap: f32_to_bits(sizing.source_row_gap),
         folder_row_height: f32_to_bits(sizing.folder_row_height),
@@ -44,14 +46,18 @@ pub(in crate::gui::native_shell::state) fn folder_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    pane: FolderPaneIdModel,
     folder_view_start_row: usize,
     autoscroll: bool,
 ) -> FolderRowsCacheKey {
     FolderRowsCacheKey {
         sidebar: sidebar_rows_cache_key(layout, style, model),
+        pane: match pane {
+            FolderPaneIdModel::Upper => 0,
+            FolderPaneIdModel::Lower => 1,
+        },
         folder_view_start_row: usize_to_u32(folder_view_start_row),
-        focused_folder_row: model
-            .sources
+        focused_folder_row: folder_pane_model(model, pane)
             .focused_folder_row
             .map(usize_to_u32)
             .unwrap_or(u32::MAX),
@@ -74,10 +80,6 @@ pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
 }
 
 /// Return the visual folder-row paint bounds while preserving the sidebar seams.
-///
-/// Folder-row hit-testing and disclosure geometry still use the cached full-width
-/// row rect. Rendering insets only the painted surface so the sidebar panel's
-/// left/right border lines remain visible behind the tree rows.
 pub(in crate::gui::native_shell::state) fn folder_row_visual_rect(
     row_rect: Rect,
     sizing: SizingTokens,
@@ -167,25 +169,28 @@ pub(in crate::gui::native_shell::state) fn rendered_folder_rows_with_state(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
+    pane: FolderPaneIdModel,
     current_view_start: usize,
     autoscroll: bool,
 ) -> (Vec<CachedFolderRow>, usize) {
     let sections = sidebar_sections(layout, style, model);
-    let total_rows = model.sources.folder_rows.len();
+    let pane_model = folder_pane_model(model, pane);
+    let total_rows = pane_model.folder_rows.len();
     if total_rows == 0 {
         return (Vec::new(), 0);
     }
-    let row_capacity = folder_rows_capacity(sections.folder_rows, style.sizing);
+    let rows_rect = sections.folder_rows(pane);
+    let row_capacity = folder_rows_capacity(rows_rect, style.sizing);
     let view_start = folder_window_start(
         total_rows,
         row_capacity,
-        model.sources.focused_folder_row,
+        pane_model.focused_folder_row,
         autoscroll,
         current_view_start,
     );
     let visible_rows = total_rows.saturating_sub(view_start).min(row_capacity);
     let row_rects = build_stacked_rows(
-        folder_rows_content_rect(sections.folder_rows, total_rows, style.sizing),
+        folder_rows_content_rect(rows_rect, total_rows, style.sizing),
         visible_rows,
         style.sizing.folder_row_gap,
         style.sizing.folder_row_height,
@@ -194,6 +199,7 @@ pub(in crate::gui::native_shell::state) fn rendered_folder_rows_with_state(
         .into_iter()
         .enumerate()
         .map(|(offset, rect)| CachedFolderRow {
+            pane,
             row_index: view_start + offset,
             rect,
         })
@@ -207,11 +213,18 @@ pub(crate) fn rendered_folder_row_rects(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<Rect> {
-    rendered_folder_rows_with_state(layout, model, style, 0, true)
-        .0
-        .into_iter()
-        .map(|row| row.rect)
-        .collect()
+    rendered_folder_rows_with_state(
+        layout,
+        model,
+        style,
+        model.sources.active_folder_pane,
+        0,
+        true,
+    )
+    .0
+    .into_iter()
+    .map(|row| row.rect)
+    .collect()
 }
 
 pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
@@ -277,4 +290,11 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_point
         .clamp(scrollbar.track.min.y, scrollbar.track.max.y - thumb_height);
     let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
     Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
+}
+
+pub(in crate::gui::native_shell::state) fn folder_pane_model<'a>(
+    model: &'a AppModel,
+    pane: FolderPaneIdModel,
+) -> &'a FolderPaneModel {
+    model.sources.folder_pane(pane)
 }

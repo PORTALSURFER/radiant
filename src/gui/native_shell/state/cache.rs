@@ -1,6 +1,7 @@
 //! Retained geometry and hit-test cache accessors for the native shell.
 
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 impl NativeShellState {
     pub(super) fn cached_source_row_rects(
@@ -22,48 +23,55 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
+        pane: FolderPaneIdModel,
     ) -> &[CachedFolderRow] {
+        let folder_pane = self.folder_pane_runtime_state_mut(pane);
         let cache_key = folder_rows_cache_key(
             layout,
             style,
             model,
-            self.folder_rows_window_start,
-            self.folder_rows_autoscroll,
+            pane,
+            folder_pane.window_start,
+            folder_pane.autoscroll,
         );
-        if self.folder_rows_cache_key != Some(cache_key) {
+        if folder_pane.cache_key != Some(cache_key) {
             let (rows, resolved_window_start) = rendered_folder_rows_with_state(
                 layout,
                 model,
                 style,
-                self.folder_rows_window_start,
-                self.folder_rows_autoscroll,
+                pane,
+                folder_pane.window_start,
+                folder_pane.autoscroll,
             );
-            self.folder_rows = rows;
-            self.folder_rows_window_start = resolved_window_start;
-            self.folder_rows_cache_key = Some(folder_rows_cache_key(
+            folder_pane.rows = rows;
+            folder_pane.window_start = resolved_window_start;
+            folder_pane.cache_key = Some(folder_rows_cache_key(
                 layout,
                 style,
                 model,
+                pane,
                 resolved_window_start,
-                self.folder_rows_autoscroll,
+                folder_pane.autoscroll,
             ));
         }
-        &self.folder_rows
+        &self.folder_pane_runtime_state(pane).rows
     }
 
     pub(super) fn cached_folder_scrollbar(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
+        pane: FolderPaneIdModel,
     ) -> Option<(FolderScrollbarLayout, usize)> {
         let style = style_for_layout(layout);
-        let rows = self.cached_folder_rows(layout, &style, model);
-        let viewport_len = rows.len().min(model.sources.folder_rows.len());
+        let rows = self.cached_folder_rows(layout, &style, model, pane);
+        let pane_model = model.sources.folder_pane(pane);
+        let viewport_len = rows.len().min(pane_model.folder_rows.len());
         let sections = sidebar_sections(layout, &style, model);
         let scrollbar = folder_scrollbar_layout(
-            sections.folder_rows,
+            sections.folder_rows(pane),
             rows,
-            model.sources.folder_rows.len(),
+            pane_model.folder_rows.len(),
             style.sizing,
         )?;
         Some((scrollbar, viewport_len))
@@ -175,5 +183,22 @@ impl NativeShellState {
             self.waveform_toolbar_hit_test_cache_key = Some(cache_key);
         }
         &self.waveform_toolbar_buttons
+    }
+
+    pub(super) fn folder_pane_runtime_state_mut(
+        &mut self,
+        pane: FolderPaneIdModel,
+    ) -> &mut FolderPaneRuntimeState {
+        match pane {
+            FolderPaneIdModel::Upper => &mut self.upper_folder_pane,
+            FolderPaneIdModel::Lower => &mut self.lower_folder_pane,
+        }
+    }
+
+    pub(super) fn folder_pane_runtime_state(&self, pane: FolderPaneIdModel) -> &FolderPaneRuntimeState {
+        match pane {
+            FolderPaneIdModel::Upper => &self.upper_folder_pane,
+            FolderPaneIdModel::Lower => &self.lower_folder_pane,
+        }
     }
 }

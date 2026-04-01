@@ -100,12 +100,12 @@ fn route_browser_or_folder_row(
             UiAction::FocusBrowserRow { visible_row }
         });
     }
-    if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, index));
+    if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(folder_row_pointer_action(model, pane, index));
     }
     shell_state
         .folder_row_at_point(layout, model, point)
-        .map(|index| folder_row_pointer_action(model, index))
+        .map(|(pane, index)| folder_row_pointer_action(model, pane, index))
 }
 
 fn route_shell_background(
@@ -146,18 +146,26 @@ fn route_sidebar_background(
     if let Some(index) = shell_state.source_row_at_point(layout, model, point) {
         return Some(UiAction::FocusSourceRow { index });
     }
-    if let Some(index) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, index));
+    if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(folder_row_pointer_action(model, pane, index));
     }
-    if let Some(index) = shell_state.folder_row_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, index));
+    if let Some((pane, index)) = shell_state.folder_row_at_point(layout, model, point) {
+        return Some(folder_row_pointer_action(model, pane, index));
     }
     shell_state.sidebar_focus_action_at_point(layout, model, point)
 }
 
-fn folder_row_pointer_action(model: &AppModel, index: usize) -> UiAction {
-    let Some(row) = model.sources.folder_rows.get(index) else {
-        return UiAction::FocusFolderRow { index };
+fn folder_row_pointer_action(
+    model: &AppModel,
+    pane: crate::app::FolderPaneIdModel,
+    index: usize,
+) -> UiAction {
+    let pane_model = model.sources.folder_pane(pane);
+    let Some(row) = pane_model.folder_rows.get(index) else {
+        return UiAction::FocusFolderRow {
+            pane: Some(pane),
+            index,
+        };
     };
     if matches!(
         row.kind,
@@ -166,19 +174,24 @@ fn folder_row_pointer_action(model: &AppModel, index: usize) -> UiAction {
         return UiAction::FocusFolderCreateInput;
     }
     let source_index = row.source_index.unwrap_or(index);
-    if folder_row_click_toggles_expansion(model, index) {
+    if folder_row_click_toggles_expansion(pane_model, index) {
         UiAction::ActivateFolderRow {
+            pane: Some(pane),
             index: source_index,
         }
     } else {
         UiAction::FocusFolderRow {
+            pane: Some(pane),
             index: source_index,
         }
     }
 }
 
-fn folder_row_click_toggles_expansion(model: &AppModel, index: usize) -> bool {
-    let Some(row) = model.sources.folder_rows.get(index) else {
+fn folder_row_click_toggles_expansion(
+    pane_model: &crate::app::FolderPaneModel,
+    index: usize,
+) -> bool {
+    let Some(row) = pane_model.folder_rows.get(index) else {
         return false;
     };
     row.has_children
@@ -187,5 +200,5 @@ fn folder_row_click_toggles_expansion(model: &AppModel, index: usize) -> bool {
             row.kind,
             crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
         )
-        && model.sources.folder_search_query.trim().is_empty()
+        && pane_model.folder_search_query.trim().is_empty()
 }

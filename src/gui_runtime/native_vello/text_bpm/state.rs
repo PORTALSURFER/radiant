@@ -185,7 +185,10 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         }
         TextInputTarget::FolderSearch => {
             runner.text_input_buffer = Some(value.clone());
-            UiAction::SetFolderSearch { query: value }
+            UiAction::SetFolderSearch {
+                pane: None,
+                query: value,
+            }
         }
         TextInputTarget::FolderCreate => {
             runner.text_input_buffer = Some(value.clone());

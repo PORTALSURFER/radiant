@@ -133,6 +133,28 @@ pub(crate) enum WaveformSelectionFlashTone {
 /// overlay composition live in sibling modules and extend this type through
 /// additional `impl` blocks.
 #[derive(Clone, Debug, PartialEq)]
+struct FolderPaneRuntimeState {
+    rows: Vec<CachedFolderRow>,
+    window_start: usize,
+    autoscroll: bool,
+    last_focused_row: Option<usize>,
+    cache_key: Option<FolderRowsCacheKey>,
+}
+
+impl Default for FolderPaneRuntimeState {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            window_start: 0,
+            autoscroll: true,
+            last_focused_row: None,
+            cache_key: None,
+        }
+    }
+}
+
+/// Mutable interaction + animation state for the native shell façade.
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
@@ -143,6 +165,7 @@ pub(crate) struct NativeShellState {
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
+    hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -174,11 +197,8 @@ pub(crate) struct NativeShellState {
     source_context_menu: Option<SourceContextMenuState>,
     source_row_rects: Vec<Rect>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
-    folder_rows: Vec<CachedFolderRow>,
-    folder_rows_window_start: usize,
-    folder_rows_autoscroll: bool,
-    last_focused_folder_row: Option<usize>,
-    folder_rows_cache_key: Option<FolderRowsCacheKey>,
+    upper_folder_pane: FolderPaneRuntimeState,
+    lower_folder_pane: FolderPaneRuntimeState,
     browser_rows: Vec<CachedBrowserRow>,
     browser_rows_window_start: usize,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
@@ -206,6 +226,7 @@ impl NativeShellState {
             hovered_browser_search_field: false,
             browser_search_editor_visual: None,
             folder_create_editor_visual: None,
+            hovered_folder_pane: None,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
             hovered_status_options_button: false,
@@ -237,11 +258,8 @@ impl NativeShellState {
             source_context_menu: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
-            folder_rows: Vec::new(),
-            folder_rows_window_start: 0,
-            folder_rows_autoscroll: true,
-            last_focused_folder_row: None,
-            folder_rows_cache_key: None,
+            upper_folder_pane: FolderPaneRuntimeState::default(),
+            lower_folder_pane: FolderPaneRuntimeState::default(),
             browser_rows: Vec::new(),
             browser_rows_window_start: 0,
             browser_rows_cache_key: None,
@@ -267,6 +285,11 @@ impl NativeShellState {
     /// Return the currently hovered folder-row index, when any.
     pub(crate) fn hovered_folder_row_index(&self) -> Option<usize> {
         self.hovered_folder_row_index
+    }
+
+    /// Return the pane currently associated with the hovered folder row, when any.
+    pub(crate) fn hovered_folder_pane(&self) -> Option<crate::app::FolderPaneIdModel> {
+        self.hovered_folder_pane
     }
 
     /// Override the hovered folder row during focused tests.

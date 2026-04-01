@@ -1,55 +1,19 @@
 use super::*;
+use crate::app::hotkeys::HotkeyResolution;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(test)]
     pub(crate) fn handle_hotkey_press_for_tests(&mut self, key: KeyCode) {
         self.refresh_cached_model_for_pending_input();
-        let resolution =
-            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
-        self.pending_hotkey_chord = resolution.pending_chord;
-        if let Some(action) = resolution.action {
-            let action = rewrite_folder_create_hotkey_action(
-                action,
-                &self.model,
-                self.shell_state.hovered_folder_row_index(),
-            );
-            self.update_text_target_after_action(&action);
-            self.emit_model_action(action.clone());
-            self.refresh_cached_model_after_folder_create_action(&action);
-        }
+        let handled = self.handle_hotkey_press(key);
+        self.finish_keyboard_input(handled);
     }
 
     #[cfg(test)]
     pub(crate) fn handle_character_key_for_tests(&mut self, key: KeyCode, character: &str) {
         self.refresh_cached_model_for_pending_input();
-        if self.text_input_target != TextInputTarget::None
-            && !self.modifiers.control_key()
-            && !self.modifiers.super_key()
-            && !self.modifiers.alt_key()
-        {
-            let _ = self.append_text(character);
-            if !self.frame_state.has_pending_rebuild() {
-                self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
-            }
-            return;
-        }
-
-        let resolution =
-            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
-        self.pending_hotkey_chord = resolution.pending_chord;
-        if let Some(action) = resolution.action {
-            let action = rewrite_folder_create_hotkey_action(
-                action,
-                &self.model,
-                self.shell_state.hovered_folder_row_index(),
-            );
-            self.update_text_target_after_action(&action);
-            self.emit_model_action(action.clone());
-            self.refresh_cached_model_after_folder_create_action(&action);
-        }
-        if !self.frame_state.has_pending_rebuild() {
-            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
-        }
+        let handled = self.handle_character_key(key, character);
+        self.finish_keyboard_input(handled);
     }
 
     #[cfg(test)]
@@ -60,61 +24,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(test)]
     pub(crate) fn handle_enter_for_tests(&mut self) {
         self.refresh_cached_model_for_pending_input();
-        let mut handled = false;
-        if matches!(
-            self.text_input_target,
-            TextInputTarget::BrowserSearch
-                | TextInputTarget::FolderSearch
-                | TextInputTarget::WaveformBpm
-        ) {
-            self.deactivate_text_input_target();
-            handled = true;
-        } else if self.text_input_target == TextInputTarget::FolderCreate {
-            handled = true;
-            if folder_create_confirm_enabled(&self.model) {
-                let action = UiAction::ConfirmFolderCreate;
-                self.update_text_target_after_action(&action);
-                self.emit_model_action(action.clone());
-                self.refresh_cached_model_after_folder_create_action(&action);
-            }
-        } else if self.text_input_target == TextInputTarget::None
-            && matches!(
-                self.model.focus_context,
-                crate::app::FocusContextModel::SampleBrowser
-            )
-            && self.model.browser.duplicate_cleanup_active
-        {
-            let action = UiAction::ConfirmBrowserDuplicateCleanup;
-            self.emit_model_action(action);
-            handled = true;
-        }
-        if handled && !self.frame_state.has_pending_rebuild() {
-            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
-        }
+        let handled = self.handle_enter_key();
+        self.finish_keyboard_input(handled);
     }
 
     #[cfg(test)]
     pub(crate) fn handle_escape_for_tests(&mut self) {
         self.refresh_cached_model_for_pending_input();
-        self.pending_hotkey_chord = None;
-        if self.model.confirm_prompt.visible {
-            self.emit_model_action(UiAction::CancelPrompt);
-            self.deactivate_text_input_target();
-        } else if self.text_input_target == TextInputTarget::FolderCreate {
-            let action = UiAction::CancelFolderCreate;
-            self.update_text_target_after_action(&action);
-            self.emit_model_action(action.clone());
-            self.refresh_cached_model_after_folder_create_action(&action);
-        } else if self.text_input_target != TextInputTarget::None {
-            self.deactivate_text_input_target();
-        } else {
-            let action = UiAction::HandleEscape;
-            self.update_text_target_after_action(&action);
-            self.emit_model_action(action);
-        }
-        if !self.frame_state.has_pending_rebuild() {
-            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
-        }
+        let handled = self.handle_escape_key();
+        self.finish_keyboard_input(handled);
     }
 
     pub(super) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
@@ -201,26 +119,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.refresh_cached_model_for_pending_input();
         let mut handled = false;
         if matches!(event.logical_key, Key::Named(NamedKey::Escape)) {
-            self.pending_hotkey_chord = None;
-            if self.model.confirm_prompt.visible {
-                self.emit_model_action(UiAction::CancelPrompt);
-                self.deactivate_text_input_target();
-                handled = true;
-            } else if self.text_input_target == TextInputTarget::FolderCreate {
-                let action = UiAction::CancelFolderCreate;
-                self.update_text_target_after_action(&action);
-                self.emit_model_action(action.clone());
-                self.refresh_cached_model_after_folder_create_action(&action);
-                handled = true;
-            } else if self.text_input_target != TextInputTarget::None {
-                self.deactivate_text_input_target();
-                handled = true;
-            } else {
-                let action = UiAction::HandleEscape;
-                self.update_text_target_after_action(&action);
-                self.emit_model_action(action);
-                handled = true;
-            }
+            handled = self.handle_escape_key();
         }
         if !handled && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
             handled = self.backspace_text();
@@ -228,65 +127,93 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if !handled && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
             handled = self.delete_text_forward();
         }
-        if !handled
-            && matches!(event.logical_key, Key::Named(NamedKey::Enter))
-            && matches!(
-                self.text_input_target,
-                TextInputTarget::BrowserSearch
-                    | TextInputTarget::FolderSearch
-                    | TextInputTarget::WaveformBpm
-            )
-        {
-            self.deactivate_text_input_target();
-            handled = true;
-        }
-        if !handled
-            && matches!(event.logical_key, Key::Named(NamedKey::Enter))
-            && self.text_input_target == TextInputTarget::FolderCreate
-        {
-            handled = true;
-            if folder_create_confirm_enabled(&self.model) {
-                let action = UiAction::ConfirmFolderCreate;
-                self.update_text_target_after_action(&action);
-                self.emit_model_action(action.clone());
-                self.refresh_cached_model_after_folder_create_action(&action);
-            }
-        }
-        if !handled
-            && matches!(event.logical_key, Key::Named(NamedKey::Enter))
-            && self.text_input_target == TextInputTarget::None
-            && matches!(
-                self.model.focus_context,
-                crate::app::FocusContextModel::SampleBrowser
-            )
-            && self.model.browser.duplicate_cleanup_active
-        {
-            self.emit_model_action(UiAction::ConfirmBrowserDuplicateCleanup);
-            handled = true;
+        if !handled && matches!(event.logical_key, Key::Named(NamedKey::Enter)) {
+            handled = self.handle_enter_key();
         }
         if !handled && let Some(key) = key {
-            handled =
-                match key {
-                    KeyCode::ArrowUp => self
-                        .step_waveform_bpm_input(if self.modifiers.shift_key() { 1 } else { 10 }),
-                    KeyCode::ArrowDown => self
-                        .step_waveform_bpm_input(if self.modifiers.shift_key() { -1 } else { -10 }),
-                    _ => false,
-                };
+            handled = self.handle_text_input_key(key);
         }
-        if !handled
-            && self.text_input_target != TextInputTarget::None
-            && let Some(key) = key
-        {
-            handled = self.move_text_cursor(key, self.modifiers.shift_key());
+        if !handled && let Some(key) = key {
+            if let Some(text) = event.text.as_ref() {
+                handled = self.handle_character_key(key, text);
+            } else if self.text_input_target == TextInputTarget::None {
+                handled = self.handle_hotkey_press(key);
+            }
         }
-        if !handled
-            && self.text_input_target != TextInputTarget::None
-            && (self.modifiers.control_key() || self.modifiers.super_key())
-            && !self.modifiers.alt_key()
-            && let Some(key) = key
+        self.finish_keyboard_input(handled);
+    }
+
+    fn refresh_cached_model_after_folder_create_action(&mut self, action: &UiAction) {
+        if folder_create_action_requires_immediate_model_refresh(action) {
+            self.refresh_cached_model_for_pending_input();
+        }
+    }
+
+    fn finish_keyboard_input(&mut self, handled: bool) {
+        if handled && !self.frame_state.has_pending_rebuild() {
+            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
+        }
+    }
+
+    fn handle_hotkey_press(&mut self, key: KeyCode) -> bool {
+        let handled_by_shell = matches!(
+            self.model.focus_context,
+            crate::app::FocusContextModel::None
+        ) && self.shell_state.handle_key(key);
+        if handled_by_shell {
+            return true;
+        }
+        let resolution =
+            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
+        self.handle_hotkey_resolution(resolution)
+    }
+
+    fn handle_hotkey_resolution(&mut self, resolution: HotkeyResolution) -> bool {
+        self.pending_hotkey_chord = resolution.pending_chord;
+        let Some(action) = resolution.action else {
+            return resolution.handled;
+        };
+        self.emit_keyboard_action(action);
+        true
+    }
+
+    fn handle_character_key(&mut self, key: KeyCode, character: &str) -> bool {
+        if self.handle_text_input_key(key) || self.handle_text_input_text(character) {
+            return true;
+        }
+        if self.text_input_target != TextInputTarget::None {
+            return false;
+        }
+        self.handle_hotkey_press(key)
+    }
+
+    fn handle_text_input_key(&mut self, key: KeyCode) -> bool {
+        match key {
+            KeyCode::ArrowUp => {
+                return self.step_waveform_bpm_input(if self.modifiers.shift_key() {
+                    1
+                } else {
+                    10
+                });
+            }
+            KeyCode::ArrowDown => {
+                return self.step_waveform_bpm_input(if self.modifiers.shift_key() {
+                    -1
+                } else {
+                    -10
+                });
+            }
+            _ => {}
+        }
+        if self.text_input_target == TextInputTarget::None {
+            return false;
+        }
+        if self.move_text_cursor(key, self.modifiers.shift_key()) {
+            return true;
+        }
+        if (self.modifiers.control_key() || self.modifiers.super_key()) && !self.modifiers.alt_key()
         {
-            handled = match key {
+            return match key {
                 KeyCode::A => self.select_all_text(),
                 KeyCode::C => self.copy_selected_text(),
                 KeyCode::V => self.paste_text(),
@@ -294,54 +221,81 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 _ => false,
             };
         }
-        if !handled
-            && self.text_input_target != TextInputTarget::None
-            && !self.modifiers.control_key()
-            && !self.modifiers.super_key()
-            && !self.modifiers.alt_key()
-            && let Some(text) = event.text.as_ref()
-        {
-            let appended: String = text.chars().filter(|ch| !ch.is_control()).collect();
-            if !appended.is_empty() {
-                handled = self.append_text(&appended);
-            }
-        }
-        if !handled
-            && self.text_input_target == TextInputTarget::None
-            && let Some(key) = key
-        {
-            handled = matches!(
-                self.model.focus_context,
-                crate::app::FocusContextModel::None
-            ) && self.shell_state.handle_key(key);
-            if !handled {
-                let resolution =
-                    action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
-                self.pending_hotkey_chord = resolution.pending_chord;
-                if let Some(action) = resolution.action {
-                    let action = rewrite_folder_create_hotkey_action(
-                        action,
-                        &self.model,
-                        self.shell_state.hovered_folder_row_index(),
-                    );
-                    self.update_text_target_after_action(&action);
-                    self.emit_model_action(action.clone());
-                    self.refresh_cached_model_after_folder_create_action(&action);
-                    handled = true;
-                } else if resolution.handled {
-                    handled = true;
-                }
-            }
-        }
-        if handled && !self.frame_state.has_pending_rebuild() {
-            self.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
-        }
+        false
     }
 
-    fn refresh_cached_model_after_folder_create_action(&mut self, action: &UiAction) {
-        if folder_create_action_requires_immediate_model_refresh(action) {
-            self.refresh_cached_model_for_pending_input();
+    fn handle_text_input_text(&mut self, text: &str) -> bool {
+        if self.text_input_target == TextInputTarget::None
+            || self.modifiers.control_key()
+            || self.modifiers.super_key()
+            || self.modifiers.alt_key()
+        {
+            return false;
         }
+        let appended: String = text.chars().filter(|ch| !ch.is_control()).collect();
+        if appended.is_empty() {
+            return false;
+        }
+        self.append_text(&appended)
+    }
+
+    fn handle_enter_key(&mut self) -> bool {
+        if matches!(
+            self.text_input_target,
+            TextInputTarget::BrowserSearch
+                | TextInputTarget::FolderSearch
+                | TextInputTarget::WaveformBpm
+        ) {
+            self.deactivate_text_input_target();
+            return true;
+        }
+        if self.text_input_target == TextInputTarget::FolderCreate {
+            if folder_create_confirm_enabled(&self.model) {
+                self.emit_keyboard_action(UiAction::ConfirmFolderCreate);
+            }
+            return true;
+        }
+        if self.text_input_target == TextInputTarget::None
+            && matches!(
+                self.model.focus_context,
+                crate::app::FocusContextModel::SampleBrowser
+            )
+            && self.model.browser.duplicate_cleanup_active
+        {
+            self.emit_model_action(UiAction::ConfirmBrowserDuplicateCleanup);
+            return true;
+        }
+        false
+    }
+
+    fn handle_escape_key(&mut self) -> bool {
+        self.pending_hotkey_chord = None;
+        if self.model.confirm_prompt.visible {
+            self.emit_model_action(UiAction::CancelPrompt);
+            self.deactivate_text_input_target();
+            return true;
+        }
+        if self.text_input_target == TextInputTarget::FolderCreate {
+            self.emit_keyboard_action(UiAction::CancelFolderCreate);
+            return true;
+        }
+        if self.text_input_target != TextInputTarget::None {
+            self.deactivate_text_input_target();
+            return true;
+        }
+        self.emit_keyboard_action(UiAction::HandleEscape);
+        true
+    }
+
+    fn emit_keyboard_action(&mut self, action: UiAction) {
+        let action = rewrite_folder_create_hotkey_action(
+            action,
+            &self.model,
+            self.shell_state.hovered_folder_row_index(),
+        );
+        self.update_text_target_after_action(&action);
+        self.emit_model_action(action.clone());
+        self.refresh_cached_model_after_folder_create_action(&action);
     }
 }
 

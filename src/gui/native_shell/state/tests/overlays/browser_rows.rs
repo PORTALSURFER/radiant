@@ -104,7 +104,7 @@ fn stale_static_browser_rows_do_not_keep_old_selection_fill_after_refocus() {
         .find(|row| row.visible_row == 18)
         .map(|row| row.rect)
         .expect("old selected row should render");
-    let selected_fill = selected_browser_row_fill(&style);
+    let selected_fill = selected_browser_row_fill(&style, crate::app::PlaybackAgeBucket::Fresh);
 
     let mut segments = StaticFrameSegments::default();
     state.build_static_segment_with_style_into(

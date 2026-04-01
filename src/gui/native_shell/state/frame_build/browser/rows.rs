@@ -29,9 +29,11 @@ pub(super) fn render_browser_rows_window(
         } else {
             browser_row_stripe_fill(ctx.style, row.visible_row)
         };
-        let row_border = ctx.style.border;
-        let aged_base_fill = age_browser_row_color(base_fill, row.playback_age_bucket);
-        let row_text_color = age_browser_row_color(ctx.style.text_primary, row.playback_age_bucket);
+        let row_border =
+            age_browser_row_accent_color(ctx.style, ctx.style.border, row.playback_age_bucket);
+        let aged_base_fill = age_browser_row_fill(ctx.style, base_fill, row.playback_age_bucket);
+        let row_text_color =
+            age_browser_row_text_color(ctx.style, ctx.style.text_primary, row.playback_age_bucket);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -75,7 +77,11 @@ pub(super) fn render_browser_rows_window(
                             row.rect.max.y,
                         ),
                     ),
-                    color: blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
+                    color: age_browser_row_accent_color(
+                        ctx.style,
+                        blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
+                        row.playback_age_bucket,
+                    ),
                 }),
             );
         }
@@ -92,7 +98,8 @@ pub(super) fn render_browser_rows_window(
             },
         );
         let chip_rect = row_text_layout.bucket_chip;
-        let chip_color = age_browser_row_color(
+        let chip_color = age_browser_row_accent_color(
+            ctx.style,
             match row.column {
                 0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
                 2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
@@ -110,7 +117,7 @@ pub(super) fn render_browser_rows_window(
         push_border(
             primitives,
             chip_rect,
-            age_browser_row_color(ctx.style.border, row.playback_age_bucket),
+            age_browser_row_accent_color(ctx.style, ctx.style.border, row.playback_age_bucket),
             ctx.sizing.border_width,
         );
         emit_text(
@@ -119,7 +126,11 @@ pub(super) fn render_browser_rows_window(
                 text: row.visible_row.to_string(),
                 position: row_text_layout.index_label.min,
                 font_size: ctx.sizing.font_meta,
-                color: age_browser_row_color(ctx.style.text_muted, row.playback_age_bucket),
+                color: age_browser_row_text_color(
+                    ctx.style,
+                    ctx.style.text_muted,
+                    row.playback_age_bucket,
+                ),
                 max_width: Some(row_text_layout.index_label.width().max(12.0)),
                 align: TextAlign::Right,
             },
@@ -213,7 +224,8 @@ pub(super) fn render_browser_rows_window(
                     primitives,
                     Primitive::Rect(FillRect {
                         rect: chip_rect,
-                        color: age_browser_row_color(
+                        color: age_browser_row_accent_color(
+                            ctx.style,
                             blend_color(ctx.style.surface_overlay, ctx.style.bg_tertiary, 0.54),
                             row.playback_age_bucket,
                         ),
@@ -222,7 +234,8 @@ pub(super) fn render_browser_rows_window(
                 push_border(
                     primitives,
                     chip_rect,
-                    age_browser_row_color(
+                    age_browser_row_accent_color(
+                        ctx.style,
                         blend_color(ctx.style.border_emphasis, ctx.style.text_muted, 0.18),
                         row.playback_age_bucket,
                     ),
@@ -234,7 +247,8 @@ pub(super) fn render_browser_rows_window(
                         text: chip_label.to_owned(),
                         position: text_origin,
                         font_size: ctx.sizing.font_meta,
-                        color: age_browser_row_color(
+                        color: age_browser_row_text_color(
+                            ctx.style,
                             ctx.style.text_primary,
                             row.playback_age_bucket,
                         ),

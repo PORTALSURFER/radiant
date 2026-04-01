@@ -163,7 +163,10 @@ fn browser_row_selected_fill_uses_stronger_neutral_overlay() {
         })
         .expect("selected browser row should emit a fill rectangle");
 
-    assert_eq!(row_color, selected_browser_row_fill(&style));
+    assert_eq!(
+        row_color,
+        selected_browser_row_fill(&style, crate::app::PlaybackAgeBucket::Fresh)
+    );
 }
 
 #[test]
@@ -190,7 +193,10 @@ fn browser_row_locked_selected_fill_matches_standard_selection_fill() {
         })
         .expect("locked browser row should emit a fill rectangle");
 
-    assert_eq!(row_color, selected_browser_row_fill(&style));
+    assert_eq!(
+        row_color,
+        selected_browser_row_fill(&style, crate::app::PlaybackAgeBucket::Fresh)
+    );
 }
 
 #[test]

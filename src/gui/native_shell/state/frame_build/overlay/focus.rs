@@ -228,7 +228,7 @@ pub(super) fn render_browser_focus_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.rect,
-                    color: selected_browser_row_fill(style),
+                    color: selected_browser_row_fill(style, row.playback_age_bucket),
                 }),
             );
         }

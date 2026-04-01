@@ -61,6 +61,15 @@ pub trait NativeAppBridge {
     /// Reduce one UI action into host state.
     fn reduce_action(&mut self, _action: UiAction) {}
 
+    /// Return whether the most recently reduced action was handled.
+    ///
+    /// Bridges that do not report per-action handling state may return `None`.
+    /// Test harnesses should treat `Some(false)` as an explicit unhandled action
+    /// signal and avoid silently counting the dispatch as covered behavior.
+    fn take_last_action_handled(&mut self) -> Option<bool> {
+        None
+    }
+
     /// Install a runtime repaint signal used by background workers.
     ///
     /// Hosts that run background jobs can store this callback and forward it into

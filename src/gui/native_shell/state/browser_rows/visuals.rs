@@ -133,9 +133,9 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
 ) -> Rgba8 {
     match bucket {
         crate::app::PlaybackAgeBucket::Fresh => style.text_primary,
-        crate::app::PlaybackAgeBucket::OlderThanWeek => style.highlight_orange_soft,
-        crate::app::PlaybackAgeBucket::OlderThanMonth => style.accent_copper,
-        crate::app::PlaybackAgeBucket::NeverPlayed => style.border_emphasis,
+        crate::app::PlaybackAgeBucket::OlderThanWeek => style.text_muted,
+        crate::app::PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
+        crate::app::PlaybackAgeBucket::NeverPlayed => style.grid_soft,
     }
 }
 

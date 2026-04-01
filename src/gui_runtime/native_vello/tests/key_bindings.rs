@@ -143,7 +143,7 @@ fn folder_create_error(value: &str) -> Option<String> {
         .then(|| String::from("Folder name cannot be empty"))
 }
 
-mod repeat;
 mod focus;
-mod text_input;
 mod folder_create;
+mod repeat;
+mod text_input;

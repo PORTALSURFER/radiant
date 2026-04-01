@@ -110,7 +110,11 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
     anchor: bool,
 ) -> Rgba8 {
     let base = browser_marked_row_fill(style, visible_row);
-    translucent_overlay_color(base, style.highlight_cyan_soft, if anchor { 0.26 } else { 0.14 })
+    translucent_overlay_color(
+        base,
+        style.highlight_cyan_soft,
+        if anchor { 0.26 } else { 0.14 },
+    )
 }
 
 /// Return the stronger neutral fill used for selected browser rows.
@@ -136,8 +140,8 @@ pub(in crate::gui::native_shell::state) fn age_browser_row_color(
     if amount <= 0.0 {
         return color;
     }
-    let luma = ((u16::from(color.r) * 54) + (u16::from(color.g) * 183) + (u16::from(color.b) * 19))
-        / 256;
+    let luma =
+        ((u16::from(color.r) * 54) + (u16::from(color.g) * 183) + (u16::from(color.b) * 19)) / 256;
     let gray = Rgba8 {
         r: luma as u8,
         g: luma as u8,

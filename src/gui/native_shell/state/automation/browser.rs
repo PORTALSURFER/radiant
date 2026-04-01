@@ -69,7 +69,12 @@ pub(super) fn build_browser_automation(
             vec![String::from("toggle_browser_rating_filter")],
         ));
     }
-    for (index, chip) in toolbar.playback_age_filter_chips.iter().copied().enumerate() {
+    for (index, chip) in toolbar
+        .playback_age_filter_chips
+        .iter()
+        .copied()
+        .enumerate()
+    {
         if chip.width() <= 1.0 {
             continue;
         }

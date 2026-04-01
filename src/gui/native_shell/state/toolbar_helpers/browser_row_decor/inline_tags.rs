@@ -129,8 +129,8 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_height(
     if available_height <= 0.0 {
         return 0.0;
     }
-    let desired_height = (sizing.font_meta + (browser_inline_tag_chip_padding_y(sizing) * 2.0))
-        .round();
+    let desired_height =
+        (sizing.font_meta + (browser_inline_tag_chip_padding_y(sizing) * 2.0)).round();
     let min_height = 10.0_f32.min(available_height);
     desired_height.clamp(min_height, available_height)
 }

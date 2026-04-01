@@ -392,5 +392,4 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         false
     }
-
 }

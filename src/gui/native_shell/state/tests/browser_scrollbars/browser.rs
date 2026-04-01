@@ -57,8 +57,16 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
     assert_rect_inside(layout.browser_rows, top_scrollbar.thumb);
     assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
     assert!(lower_content_rect.max.x < lower_scrollbar.track.min.x);
-    assert!(top_rows.iter().all(|row| row.rect.max.x <= top_content_rect.max.x));
-    assert!(lower_rows.iter().all(|row| row.rect.max.x <= lower_content_rect.max.x));
+    assert!(
+        top_rows
+            .iter()
+            .all(|row| row.rect.max.x <= top_content_rect.max.x)
+    );
+    assert!(
+        lower_rows
+            .iter()
+            .all(|row| row.rect.max.x <= lower_content_rect.max.x)
+    );
     assert!(top_scrollbar.thumb.height() < top_scrollbar.track.height());
     assert!(lower_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
 

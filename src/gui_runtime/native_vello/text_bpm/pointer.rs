@@ -35,11 +35,15 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
         TextInputTarget::BrowserSearch => runner
             .shell_state
             .browser_search_text_rect(layout, &runner.model),
-        TextInputTarget::WaveformBpm => runner.shell_state.waveform_bpm_text_rect(layout, &runner.model),
+        TextInputTarget::WaveformBpm => runner
+            .shell_state
+            .waveform_bpm_text_rect(layout, &runner.model),
         TextInputTarget::FolderCreate => runner
             .shell_state
             .folder_create_text_rect(layout, &runner.model),
-        TextInputTarget::None | TextInputTarget::FolderSearch | TextInputTarget::PromptInput => None,
+        TextInputTarget::None | TextInputTarget::FolderSearch | TextInputTarget::PromptInput => {
+            None
+        }
     }
 }
 

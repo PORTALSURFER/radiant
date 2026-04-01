@@ -94,9 +94,9 @@ pub(super) fn render_browser_rows_window(
         let chip_rect = row_text_layout.bucket_chip;
         let chip_color = age_browser_row_color(
             match row.column {
-            0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
-            2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
-            _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
+                0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
+                2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
+                _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
             },
             row.playback_age_bucket,
         );

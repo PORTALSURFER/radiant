@@ -183,8 +183,7 @@ impl NativeShellState {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
             hovered_browser_rating_filter_level: self.hovered_browser_rating_filter_level,
-            hovered_browser_playback_age_filter_chip: self
-                .hovered_browser_playback_age_filter_chip,
+            hovered_browser_playback_age_filter_chip: self.hovered_browser_playback_age_filter_chip,
             hovered_browser_marked_filter: self.hovered_browser_marked_filter,
             hovered_source_add_button: self.hovered_source_add_button,
             hovered_status_options_button: self.hovered_status_options_button,

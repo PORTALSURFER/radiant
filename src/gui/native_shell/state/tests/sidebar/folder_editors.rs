@@ -192,4 +192,3 @@ fn folder_rename_draft_row_ignores_disclosure_hit_testing() {
         None
     );
 }
-

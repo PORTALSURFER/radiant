@@ -326,4 +326,3 @@ fn waveform_motion_overlay_draws_selection_drag_handle() {
         "expected playback-selection shift handle primitive"
     );
 }
-

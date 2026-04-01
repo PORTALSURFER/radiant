@@ -17,17 +17,7 @@ pub enum PlaybackAgeFilterChip {
 
 /// Visual playback-age buckets derived from sample playback history.
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
 pub enum PlaybackAgeBucket {
     /// Samples played within the last 7 days, including future-skewed timestamps.

@@ -54,7 +54,10 @@ fn prewindowed_browser_scrollbar_uses_manual_view_start_at_bottom() {
     )
     .expect("prewindowed browser list should render a scrollbar");
 
-    assert_eq!(rows.first().map(|row| row.visible_row), Some(requested_view_start));
+    assert_eq!(
+        rows.first().map(|row| row.visible_row),
+        Some(requested_view_start)
+    );
     assert_eq!(scrollbar.thumb.max.y, scrollbar.track.max.y);
 }
 
@@ -64,7 +67,9 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let top_model = folder_model_with_rows(80, 6);
-    let top_rows = state.cached_folder_rows(&layout, &style, &top_model).to_vec();
+    let top_rows = state
+        .cached_folder_rows(&layout, &style, &top_model)
+        .to_vec();
     let top_sections = sidebar_sections(&layout, &style, &top_model);
     let top_content_rect = folder_rows_content_rect(
         top_sections.folder_rows,
@@ -80,7 +85,9 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     .expect("overflowing folder list should render a scrollbar");
 
     let lower_model = folder_model_with_rows(80, 48);
-    let lower_rows = state.cached_folder_rows(&layout, &style, &lower_model).to_vec();
+    let lower_rows = state
+        .cached_folder_rows(&layout, &style, &lower_model)
+        .to_vec();
     let lower_sections = sidebar_sections(&layout, &style, &lower_model);
     let lower_content_rect = folder_rows_content_rect(
         lower_sections.folder_rows,
@@ -99,8 +106,16 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     assert_rect_inside(top_sections.folder_rows, top_scrollbar.thumb);
     assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
     assert!(lower_content_rect.max.x < lower_scrollbar.track.min.x);
-    assert!(top_rows.iter().all(|row| row.rect.max.x <= top_content_rect.max.x));
-    assert!(lower_rows.iter().all(|row| row.rect.max.x <= lower_content_rect.max.x));
+    assert!(
+        top_rows
+            .iter()
+            .all(|row| row.rect.max.x <= top_content_rect.max.x)
+    );
+    assert!(
+        lower_rows
+            .iter()
+            .all(|row| row.rect.max.x <= lower_content_rect.max.x)
+    );
     assert!(lower_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
 
     let frame = state.build_frame(&layout, &lower_model);
@@ -140,7 +155,10 @@ fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
     )
     .expect("overflowing folder list should render a scrollbar");
 
-    assert_eq!(rows.first().map(|row| row.row_index), Some(requested_view_start));
+    assert_eq!(
+        rows.first().map(|row| row.row_index),
+        Some(requested_view_start)
+    );
     assert_eq!(scrollbar.thumb.max.y, scrollbar.track.max.y);
 }
 

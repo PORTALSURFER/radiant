@@ -351,4 +351,3 @@ fn waveform_bpm_grid_positions(
     }
     (soft_xs, strong_xs)
 }
-

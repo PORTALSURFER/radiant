@@ -238,4 +238,3 @@ fn waveform_toolbar_bpm_snap_button_uses_highlight_when_enabled() {
         .expect("bpm snap toolbar button should be present");
     assert_eq!(bpm_snap_on.text_color, style.accent_warning);
 }
-

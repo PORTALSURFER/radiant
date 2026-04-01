@@ -335,4 +335,3 @@ fn focused_folder_overlay_fill_insets_from_sidebar_seams() {
         )
     }));
 }
-

@@ -107,7 +107,8 @@ impl NativeShellState {
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
         self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
-        self.hovered_browser_playback_age_filter_chip = next_hovered_browser_playback_age_filter_chip;
+        self.hovered_browser_playback_age_filter_chip =
+            next_hovered_browser_playback_age_filter_chip;
         self.hovered_browser_marked_filter = next_hovered_browser_marked_filter;
         self.hovered_browser_search_field = next_hovered_browser_search_field;
         self.hovered_folder_row_index = next_hovered_folder_row;

@@ -64,20 +64,17 @@ pub(super) fn current_text_value<B: NativeAppBridge>(
         TextInputTarget::BrowserSearch
         | TextInputTarget::FolderSearch
         | TextInputTarget::FolderCreate
-        | TextInputTarget::PromptInput => runner
-            .text_input_buffer
-            .clone()
-            .or_else(|| match runner.text_input_target {
-                TextInputTarget::BrowserSearch => Some(runner.model.browser.search_query.clone()),
-                TextInputTarget::FolderSearch => {
-                    Some(runner.model.sources.folder_search_query.clone())
-                }
-                TextInputTarget::PromptInput => runner.model.confirm_prompt.input_value.clone(),
-                TextInputTarget::FolderCreate => runner
-                    .folder_inline_edit_row()
-                    .and_then(|row| row.input_value.clone()),
-                TextInputTarget::None | TextInputTarget::WaveformBpm => None,
-            }),
+        | TextInputTarget::PromptInput => runner.text_input_buffer.clone().or_else(|| match runner
+            .text_input_target
+        {
+            TextInputTarget::BrowserSearch => Some(runner.model.browser.search_query.clone()),
+            TextInputTarget::FolderSearch => Some(runner.model.sources.folder_search_query.clone()),
+            TextInputTarget::PromptInput => runner.model.confirm_prompt.input_value.clone(),
+            TextInputTarget::FolderCreate => runner
+                .folder_inline_edit_row()
+                .and_then(|row| row.input_value.clone()),
+            TextInputTarget::None | TextInputTarget::WaveformBpm => None,
+        }),
         TextInputTarget::WaveformBpm => Some(
             runner
                 .waveform_bpm_input_buffer
@@ -141,9 +138,11 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
             && runner.text_input_target == TextInputTarget::FolderCreate
         {
             let row_text = row.input_value.clone().unwrap_or_default();
-            let should_seed_initial_text =
-                runner.text_input_buffer.as_deref().is_some_and(str::is_empty)
-                    && !row_text.is_empty();
+            let should_seed_initial_text = runner
+                .text_input_buffer
+                .as_deref()
+                .is_some_and(str::is_empty)
+                && !row_text.is_empty();
             if should_seed_initial_text {
                 runner.text_input_buffer = Some(row_text.clone());
             }

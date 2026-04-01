@@ -10,7 +10,9 @@ mod pointer;
 mod state;
 
 #[allow(unused_imports)]
-pub(crate) use state::{bpm_tenths_from_value, parse_waveform_bpm_input, sanitize_waveform_bpm_insert};
+pub(crate) use state::{
+    bpm_tenths_from_value, parse_waveform_bpm_input, sanitize_waveform_bpm_insert,
+};
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(super) fn folder_inline_edit_row(&self) -> Option<&crate::app::FolderRowModel> {

@@ -222,4 +222,3 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
         Some(UiAction::OpenTrashFolder)
     );
 }
-

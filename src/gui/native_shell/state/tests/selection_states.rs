@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 fn section_focus_color(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
@@ -12,12 +13,28 @@ fn folder_browser_focus_rect(layout: &ShellLayout, style: &StyleTokens, model: &
     let sections = sidebar_sections(layout, style, model);
     Rect::from_min_max(
         Point::new(
-            sections.folder_header.min.x.min(sections.folder_rows.min.x),
-            sections.folder_header.min.y.min(sections.folder_rows.min.y),
+            sections
+                .folder_header(FolderPaneIdModel::Upper)
+                .min
+                .x
+                .min(sections.folder_rows(FolderPaneIdModel::Upper).min.x),
+            sections
+                .folder_header(FolderPaneIdModel::Upper)
+                .min
+                .y
+                .min(sections.folder_rows(FolderPaneIdModel::Upper).min.y),
         ),
         Point::new(
-            sections.folder_header.max.x.max(sections.folder_rows.max.x),
-            sections.folder_header.max.y.max(sections.folder_rows.max.y),
+            sections
+                .folder_header(FolderPaneIdModel::Upper)
+                .max
+                .x
+                .max(sections.folder_rows(FolderPaneIdModel::Upper).max.x),
+            sections
+                .folder_header(FolderPaneIdModel::Upper)
+                .max
+                .y
+                .max(sections.folder_rows(FolderPaneIdModel::Upper).max.y),
         ),
     )
 }

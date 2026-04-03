@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[allow(dead_code)]
 fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
@@ -68,16 +69,16 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     let mut state = NativeShellState::new();
     let top_model = folder_model_with_rows(80, 6);
     let top_rows = state
-        .cached_folder_rows(&layout, &style, &top_model)
+        .cached_folder_rows(&layout, &style, &top_model, FolderPaneIdModel::Upper)
         .to_vec();
     let top_sections = sidebar_sections(&layout, &style, &top_model);
     let top_content_rect = folder_rows_content_rect(
-        top_sections.folder_rows,
+        top_sections.folder_rows(FolderPaneIdModel::Upper),
         top_model.sources.folder_rows.len(),
         style.sizing,
     );
     let top_scrollbar = folder_scrollbar_layout(
-        top_sections.folder_rows,
+        top_sections.folder_rows(FolderPaneIdModel::Upper),
         &top_rows,
         top_model.sources.folder_rows.len(),
         style.sizing,
@@ -86,24 +87,30 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
 
     let lower_model = folder_model_with_rows(80, 48);
     let lower_rows = state
-        .cached_folder_rows(&layout, &style, &lower_model)
+        .cached_folder_rows(&layout, &style, &lower_model, FolderPaneIdModel::Lower)
         .to_vec();
     let lower_sections = sidebar_sections(&layout, &style, &lower_model);
     let lower_content_rect = folder_rows_content_rect(
-        lower_sections.folder_rows,
+        lower_sections.folder_rows(FolderPaneIdModel::Lower),
         lower_model.sources.folder_rows.len(),
         style.sizing,
     );
     let lower_scrollbar = folder_scrollbar_layout(
-        lower_sections.folder_rows,
+        lower_sections.folder_rows(FolderPaneIdModel::Lower),
         &lower_rows,
         lower_model.sources.folder_rows.len(),
         style.sizing,
     )
     .expect("overflowing folder list should render a scrollbar");
 
-    assert_rect_inside(top_sections.folder_rows, top_scrollbar.track);
-    assert_rect_inside(top_sections.folder_rows, top_scrollbar.thumb);
+    assert_rect_inside(
+        top_sections.folder_rows(FolderPaneIdModel::Upper),
+        top_scrollbar.track,
+    );
+    assert_rect_inside(
+        top_sections.folder_rows(FolderPaneIdModel::Upper),
+        top_scrollbar.thumb,
+    );
     assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
     assert!(lower_content_rect.max.x < lower_scrollbar.track.min.x);
     assert!(
@@ -140,15 +147,22 @@ fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
     let mut model = folder_model_with_rows(90, 0);
     model.sources.focused_folder_row = Some(0);
     let mut state = NativeShellState::new();
-    let initial_rows = state.cached_folder_rows(&layout, &style, &model).to_vec();
+    let initial_rows = state
+        .cached_folder_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+        .to_vec();
     let viewport_len = initial_rows.len();
     let requested_view_start = model.sources.folder_rows.len().saturating_sub(viewport_len);
-    assert!(state.set_folder_view_start_row(requested_view_start));
+    assert!(state.set_folder_view_start_row(
+        FolderPaneIdModel::Upper,
+        requested_view_start
+    ));
 
-    let rows = state.cached_folder_rows(&layout, &style, &model).to_vec();
+    let rows = state
+        .cached_folder_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+        .to_vec();
     let sections = sidebar_sections(&layout, &style, &model);
     let scrollbar = folder_scrollbar_layout(
-        sections.folder_rows,
+        sections.folder_rows(FolderPaneIdModel::Upper),
         &rows,
         model.sources.folder_rows.len(),
         style.sizing,

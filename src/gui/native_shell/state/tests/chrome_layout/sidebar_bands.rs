@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::app::FolderPaneIdModel;
 
 #[test]
 fn sidebar_sections_keep_non_overlapping_bands_across_tiers() {
@@ -15,10 +16,21 @@ fn sidebar_sections_keep_non_overlapping_bands_across_tiers() {
         let sections = sidebar_sections(&layout, &style, &model);
         let rendered_sources = state.rendered_source_row_rects(&layout, &model);
         assert_rect_inside(layout.sidebar_rows, sections.source_rows);
-        assert_rect_inside(layout.sidebar_rows, sections.folder_header);
-        assert_rect_inside(layout.sidebar_rows, sections.folder_rows);
-        assert!(sections.source_rows.max.y <= sections.folder_header.min.y);
-        assert!(sections.folder_header.max.y <= sections.folder_rows.min.y);
+        assert_rect_inside(
+            layout.sidebar_rows,
+            sections.folder_header(FolderPaneIdModel::Upper),
+        );
+        assert_rect_inside(
+            layout.sidebar_rows,
+            sections.folder_rows(FolderPaneIdModel::Upper),
+        );
+        assert!(
+            sections.source_rows.max.y <= sections.folder_header(FolderPaneIdModel::Upper).min.y
+        );
+        assert!(
+            sections.folder_header(FolderPaneIdModel::Upper).max.y
+                <= sections.folder_rows(FolderPaneIdModel::Upper).min.y
+        );
         assert!(!rendered_sources.is_empty());
     }
 }
@@ -30,8 +42,15 @@ fn sidebar_sections_remain_stable_in_cramped_viewports() {
     let model = populated_sidebar_model();
     let sections = sidebar_sections(&layout, &style, &model);
     assert_rect_inside(layout.sidebar_rows, sections.source_rows);
-    assert_rect_inside(layout.sidebar_rows, sections.folder_header);
-    assert_rect_inside(layout.sidebar_rows, sections.folder_rows);
-    assert!(sections.source_rows.max.y <= sections.folder_header.min.y);
-    assert!(sections.folder_header.max.y <= sections.folder_rows.min.y);
+    assert_rect_inside(
+        layout.sidebar_rows,
+        sections.folder_header(FolderPaneIdModel::Upper),
+    );
+    assert_rect_inside(
+        layout.sidebar_rows,
+        sections.folder_rows(FolderPaneIdModel::Upper),
+    );
+    assert!(sections.source_rows.max.y <= sections.folder_header(FolderPaneIdModel::Upper).min.y);
+    assert!(sections.folder_header(FolderPaneIdModel::Upper).max.y
+        <= sections.folder_rows(FolderPaneIdModel::Upper).min.y);
 }

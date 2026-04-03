@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::FolderPaneIdModel;
 #[test]
 fn folder_create_editor_overlay_renders_selection_and_caret() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -149,12 +150,12 @@ fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let sections = sidebar_sections(&layout, &style, &model);
     let divider = compute_source_section_divider_rect(
         sections.source_rows,
-        sections.folder_header,
+        sections.folder_header(FolderPaneIdModel::Upper),
         style.sizing,
     )
     .expect("divider should exist");
     assert_rect_inside(layout.sidebar_rows, divider);
-    assert!(divider.max.y <= sections.folder_rows.min.y);
+    assert!(divider.max.y <= sections.folder_rows(FolderPaneIdModel::Upper).min.y);
     assert!(divider.min.y >= sections.source_rows.min.y);
 }
 

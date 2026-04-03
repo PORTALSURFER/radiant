@@ -292,6 +292,8 @@ pub struct FolderPaneModel {
     pub active: bool,
     /// Whether a source is assigned to this pane.
     pub has_source: bool,
+    /// Whether this pane is hydrating its assigned source snapshot.
+    pub loading: bool,
     /// Active folder-search query for this pane.
     pub folder_search_query: String,
     /// Whether the folder browser currently includes empty on-disk folders.
@@ -337,6 +339,8 @@ pub struct SourcesPanelModel {
     pub can_toggle_flattened_view: bool,
     /// Selected row index, if any.
     pub selected_row: Option<usize>,
+    /// Source row currently hydrating in the background, if any.
+    pub loading_row: Option<usize>,
     /// Focused folder row index, if any.
     pub focused_folder_row: Option<usize>,
     /// Rows to render in the source panel.

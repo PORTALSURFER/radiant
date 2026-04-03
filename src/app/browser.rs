@@ -148,6 +148,8 @@ pub struct BrowserPanelModel {
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
     pub busy: bool,
+    /// Whether the selected source is still hydrating before browser rows can project.
+    pub source_loading: bool,
     /// Whether the browser is currently showing a similarity-filtered result set.
     pub similarity_filtered: bool,
     /// Whether browser duplicate cleanup mode is currently active.

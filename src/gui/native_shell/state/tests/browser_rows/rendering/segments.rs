@@ -31,6 +31,8 @@ fn static_segments_include_browser_rows_when_list_tab_is_active() {
     assert!(!rows_segment.primitives.is_empty());
     assert!(!rows_segment.text_runs.is_empty());
     assert!(map_segment.primitives.is_empty());
+    assert!(state.browser_rows_cache_key.is_some());
+    assert!(!state.browser_rows.is_empty());
 }
 
 #[test]

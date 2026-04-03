@@ -1,13 +1,15 @@
 use super::*;
 
 pub(super) fn render_browser_frame(
-    state: &NativeShellState,
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &BrowserFrameData,
 ) {
-    for button in &data.buttons {
+    let search_editor_active = state.browser_search_editor_visual.is_some();
+    let (buttons, column_chips, toolbar) =
+        state.cached_browser_action_hit_test(ctx.layout, ctx.style, ctx.model);
+    for button in buttons {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -63,7 +65,6 @@ pub(super) fn render_browser_frame(
 
     render_browser_tabs(primitives, text_runs, ctx, true);
 
-    let toolbar = browser_toolbar_layout(ctx.layout, ctx.style);
     for (index, rect) in toolbar.rating_filter_chips.iter().copied().enumerate() {
         if rect.width() <= 1.0 {
             continue;
@@ -196,7 +197,7 @@ pub(super) fn render_browser_frame(
             ctx.sizing.border_width,
         );
     }
-    for chip in &data.column_chips {
+    for chip in column_chips {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -249,7 +250,6 @@ pub(super) fn render_browser_frame(
         toolbar.sort_chip,
         ctx.sizing,
     );
-    let search_editor_active = state.browser_search_editor_visual.is_some();
     let search_text = if ctx.model.browser.search_query.is_empty() {
         ctx.model.browser_chrome.search_placeholder.clone()
     } else {

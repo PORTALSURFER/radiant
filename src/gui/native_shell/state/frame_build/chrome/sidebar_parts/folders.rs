@@ -5,18 +5,14 @@ mod header;
 mod rows;
 
 pub(super) fn render_folder_section(
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &SidebarFrameData,
 ) -> usize {
     let sections = sidebar_sections(ctx.layout, ctx.style, ctx.model);
     let mut rendered_count = 0;
     for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
-        let pane_rows = match pane {
-            FolderPaneIdModel::Upper => &data.upper_folder_rows,
-            FolderPaneIdModel::Lower => &data.lower_folder_rows,
-        };
         render_source_section_divider(ctx, primitives, sections, pane);
         header::render_folder_header(
             ctx,
@@ -25,6 +21,7 @@ pub(super) fn render_folder_section(
             sections.folder_header(pane),
             ctx.model.sources.folder_pane(pane),
         );
+        let pane_rows = state.cached_folder_rows(ctx.layout, ctx.style, ctx.model, pane);
         rows::render_folder_rows(ctx, primitives, text_runs, pane, pane_rows);
         if let Some(scrollbar) = folder_scrollbar_layout(
             sections.folder_rows(pane),

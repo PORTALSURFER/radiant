@@ -47,3 +47,25 @@ fn browser_filter_icons_replace_legacy_age_and_mark_labels() {
         )
     }));
 }
+
+#[test]
+fn browser_frame_build_reuses_cached_toolbar_geometry() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = browser_model_with_rows(24, 8);
+    let mut state = NativeShellState::new();
+    let mut segments = StaticFrameSegments::default();
+
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::BrowserFrame,
+        &mut segments,
+    );
+
+    assert!(state.browser_action_hit_test_cache_key.is_some());
+    assert!(state.browser_toolbar_layout.is_some());
+    assert!(!state.browser_action_buttons.is_empty());
+}

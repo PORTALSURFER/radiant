@@ -1,27 +1,27 @@
+use super::StaticFrameCtx;
 use super::*;
-use super::{BrowserFrameData, StaticFrameCtx};
 
 mod panel;
 mod rows;
 mod tabs;
 
 pub(super) fn render_browser_frame(
-    state: &NativeShellState,
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &BrowserFrameData,
 ) {
-    panel::render_browser_frame(state, ctx, primitives, text_runs, data);
+    panel::render_browser_frame(state, ctx, primitives, text_runs);
 }
 
 pub(super) fn render_browser_rows_window(
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    rows: &[CachedBrowserRow],
 ) {
-    rows::render_browser_rows_window(ctx, primitives, text_runs, rows);
+    let browser_rows = state.cached_browser_rows(ctx.layout, ctx.style, ctx.model);
+    rows::render_browser_rows_window(ctx, primitives, text_runs, browser_rows);
 }
 
 pub(super) fn render_browser_footer(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl TextRunSink) {

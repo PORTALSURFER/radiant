@@ -4,11 +4,10 @@ use super::*;
 mod parts;
 
 pub(super) fn render_sidebar(
-    state: &NativeShellState,
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &SidebarFrameData,
 ) {
-    parts::render_sidebar(state, ctx, primitives, text_runs, data);
+    parts::render_sidebar(state, ctx, primitives, text_runs);
 }

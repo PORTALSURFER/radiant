@@ -19,19 +19,6 @@ struct StaticFrameCtx<'a> {
     motion_wave: f32,
 }
 
-struct BrowserFrameData {
-    buttons: Vec<ActionButton>,
-    column_chips: Vec<BrowserColumnChip>,
-    rows: Vec<CachedBrowserRow>,
-}
-
-struct SidebarFrameData {
-    upper_source_rows: Vec<CachedSourceRow>,
-    lower_source_rows: Vec<CachedSourceRow>,
-    upper_folder_rows: Vec<CachedFolderRow>,
-    lower_folder_rows: Vec<CachedFolderRow>,
-}
-
 impl NativeShellState {
     pub(super) fn build_frame_with_style_into_with_motion_sinks(
         &mut self,
@@ -74,54 +61,11 @@ impl NativeShellState {
             render_waveform_static(self, &ctx, primitives, text_runs, motion_model);
         }
 
-        let browser_toolbar = browser_toolbar_layout(layout, style);
-        let browser_buttons = browser_action_buttons(layout, style, model, &browser_toolbar);
-        let browser_frame_data = BrowserFrameData {
-            column_chips: browser_column_chips(layout, style, model, &browser_buttons),
-            buttons: browser_buttons,
-            rows: if build_browser_rows_or_map {
-                rendered_browser_rows(layout, model, style)
-            } else {
-                Vec::new()
-            },
-        };
-        let sidebar_data = SidebarFrameData {
-            upper_source_rows: if build_global_static {
-                self.cached_source_rows(layout, style, model)
-                    .iter()
-                    .copied()
-                    .filter(|row| row.pane == crate::app::FolderPaneIdModel::Upper)
-                    .collect()
-            } else {
-                Vec::new()
-            },
-            lower_source_rows: if build_global_static {
-                self.cached_source_rows(layout, style, model)
-                    .iter()
-                    .copied()
-                    .filter(|row| row.pane == crate::app::FolderPaneIdModel::Lower)
-                    .collect()
-            } else {
-                Vec::new()
-            },
-            upper_folder_rows: if build_global_static {
-                self.cached_folder_rows(layout, style, model, crate::app::FolderPaneIdModel::Upper)
-                    .to_vec()
-            } else {
-                Vec::new()
-            },
-            lower_folder_rows: if build_global_static {
-                self.cached_folder_rows(layout, style, model, crate::app::FolderPaneIdModel::Lower)
-                    .to_vec()
-            } else {
-                Vec::new()
-            },
-        };
         if build_browser_rows_or_map {
             if model.map.active && build_map_panel {
                 render_map_panel(&ctx, primitives);
             } else if !model.map.active && build_browser_rows_window {
-                render_browser_rows_window(&ctx, primitives, text_runs, &browser_frame_data.rows);
+                render_browser_rows_window(self, &ctx, primitives, text_runs);
             }
         }
 
@@ -131,10 +75,10 @@ impl NativeShellState {
             render_top_bar_controls(self, &ctx, primitives, text_runs);
         }
         if build_browser_frame {
-            render_browser_frame(self, &ctx, primitives, text_runs, &browser_frame_data);
+            render_browser_frame(self, &ctx, primitives, text_runs);
         }
         if build_global_static {
-            render_sidebar(self, &ctx, primitives, text_runs, &sidebar_data);
+            render_sidebar(self, &ctx, primitives, text_runs);
         }
         // Waveform summary text is produced during overlay rendering so it can
         // update while transport advances without invalidating the static scene.

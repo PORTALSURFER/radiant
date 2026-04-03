@@ -64,6 +64,7 @@ pub(in crate::gui::native_shell::state) fn f32_to_bits(value: f32) -> u32 {
     value.to_bits()
 }
 
+#[cfg(test)]
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
     layout: &ShellLayout,
     model: &AppModel,
@@ -81,6 +82,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
 }
 
 /// Build rendered browser rows while reusing a retained truncation cache.
+#[cfg(test)]
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
     layout: &ShellLayout,
     model: &AppModel,
@@ -99,6 +101,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
 }
 
 /// Build rendered browser rows and return the resolved viewport start used.
+#[cfg(test)]
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start(
     layout: &ShellLayout,
     model: &AppModel,

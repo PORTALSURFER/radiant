@@ -1,5 +1,5 @@
+use super::StaticFrameCtx;
 use super::*;
-use super::{SidebarFrameData, StaticFrameCtx};
 
 mod modals;
 mod shell;
@@ -28,13 +28,12 @@ pub(super) fn render_static_shell_surfaces(
 }
 
 pub(super) fn render_sidebar(
-    state: &NativeShellState,
+    state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    data: &SidebarFrameData,
 ) {
-    sidebar::render_sidebar(state, ctx, primitives, text_runs, data);
+    sidebar::render_sidebar(state, ctx, primitives, text_runs);
 }
 
 pub(super) fn render_top_bar_controls(

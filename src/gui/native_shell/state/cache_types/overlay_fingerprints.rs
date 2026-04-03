@@ -62,6 +62,7 @@ pub(crate) enum WaveformResizeHoverEdge {
 }
 
 /// Compact state-overlay fingerprint for change detection in runtime caches.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StateOverlayFingerprint {
     /// Selected browser column index.
@@ -82,6 +83,47 @@ pub(crate) struct StateOverlayFingerprint {
     pub folder_create_editor_signature: u64,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
+}
+
+/// Compact hover-overlay fingerprint for row hovers, editor chrome, and tooltips.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HoverOverlayFingerprint {
+    /// Current hovered shell node kind.
+    pub hovered: Option<ShellNodeKind>,
+    /// Hovered browser row in visible-row space.
+    pub hovered_browser_visible_row: Option<usize>,
+    /// Hovered folder pane, when the pointer is over a folder pane.
+    pub hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
+    /// Hovered folder row by rendered sidebar row index.
+    pub hovered_folder_row_index: Option<usize>,
+    /// Hovered waveform-toolbar hint target.
+    pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
+    /// Active browser-search editor visual signature.
+    pub browser_search_editor_signature: u64,
+    /// Active inline folder-create editor visual signature.
+    pub folder_create_editor_signature: u64,
+}
+
+/// Compact focus-overlay fingerprint for selection and focus emphasis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FocusOverlayFingerprint {
+    /// Selected browser column index.
+    pub selected_column: usize,
+    /// Whether focused selection emphasis is active.
+    pub has_focus_emphasis: bool,
+}
+
+/// Compact modal-overlay fingerprint for popovers and dialogs above focus chrome.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ModalOverlayFingerprint {
+    /// Active source-context-menu pane, if any.
+    pub source_context_menu_pane: Option<crate::app::FolderPaneIdModel>,
+    /// Active source-context-menu row, if any.
+    pub source_context_menu_row_index: Option<usize>,
+    /// Source-context-menu anchor x-position bits, if any.
+    pub source_context_menu_anchor_x_bits: Option<u32>,
+    /// Source-context-menu anchor y-position bits, if any.
+    pub source_context_menu_anchor_y_bits: Option<u32>,
 }
 
 /// Compact motion-overlay fingerprint for runtime overlay skip checks.

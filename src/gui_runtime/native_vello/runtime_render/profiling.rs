@@ -26,14 +26,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .frame_cache
                 .primitives
                 .len()
-                .saturating_add(self.state_overlay_frame_cache.primitives.len())
+                .saturating_add(self.hover_overlay_frame_cache.primitives.len())
+                .saturating_add(self.focus_overlay_frame_cache.primitives.len())
+                .saturating_add(self.modal_overlay_frame_cache.primitives.len())
                 .saturating_add(self.waveform_motion_overlay_frame_cache.primitives.len())
                 .saturating_add(self.chrome_motion_overlay_frame_cache.primitives.len()),
             text_run_count: self
                 .frame_cache
                 .text_runs
                 .len()
-                .saturating_add(self.state_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.hover_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.focus_overlay_frame_cache.text_runs.len())
+                .saturating_add(self.modal_overlay_frame_cache.text_runs.len())
                 .saturating_add(self.waveform_motion_overlay_frame_cache.text_runs.len())
                 .saturating_add(self.chrome_motion_overlay_frame_cache.text_runs.len()),
             needs_animation: self.shell_state.needs_animation(),

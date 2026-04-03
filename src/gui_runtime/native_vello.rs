@@ -10,8 +10,8 @@ use crate::gui::{
     native_shell::{
         ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, NativeViewFrame,
         Primitive, ShellLayout, ShellLayoutDirtyKind, ShellLayoutRuntime, ShellNodeKind,
-        StateOverlayFingerprint, StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign,
-        TextFieldVisualState, TextRun, WaveformMotionOverlayFingerprint,
+        StaticFrameSegment, StaticFrameSegments, StyleTokens, TextAlign, TextFieldVisualState,
+        TextRun, WaveformMotionOverlayFingerprint,
     },
     repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
@@ -184,8 +184,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     static_segment_graph: StaticSegmentStateGraph,
     /// Retained per-segment static encoded scenes.
     static_segment_scene_cache: StaticSegmentSceneCache,
-    /// Retained state-driven overlay primitives (focus/hover and dialog state).
-    state_overlay_frame_cache: NativeViewFrame,
+    /// Retained hover/editor overlay primitives.
+    hover_overlay_frame_cache: NativeViewFrame,
+    /// Retained focus-emphasis overlay primitives.
+    focus_overlay_frame_cache: NativeViewFrame,
+    /// Retained modal/popover overlay primitives.
+    modal_overlay_frame_cache: NativeViewFrame,
     /// Retained waveform-motion overlay primitives (cursor/playhead/hover marker).
     waveform_motion_overlay_frame_cache: NativeViewFrame,
     /// Retained chrome-motion overlay primitives (toolbar/tabs/status/lamp pulse).
@@ -194,8 +198,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     scene: Scene,
     /// Cached encoded static scene.
     static_scene: Scene,
-    /// Cached encoded state-driven overlay scene.
-    state_overlay_scene: Scene,
+    /// Cached encoded hover/editor overlay scene.
+    hover_overlay_scene: Scene,
+    /// Cached encoded focus-emphasis overlay scene.
+    focus_overlay_scene: Scene,
+    /// Cached encoded modal/popover overlay scene.
+    modal_overlay_scene: Scene,
     /// Cached encoded waveform-motion overlay scene.
     waveform_motion_overlay_scene: Scene,
     /// Cached encoded chrome-motion overlay scene.
@@ -204,8 +212,12 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     image_upload_blob_cache: HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
     /// Recency queue for bounded retained image-upload blob eviction.
     image_upload_blob_cache_order: VecDeque<ImageUploadBlobCacheKey>,
-    /// Last state-overlay fingerprint used for cache-skip checks.
-    state_overlay_fingerprint: Option<StateOverlayCacheFingerprint>,
+    /// Last hover-overlay fingerprint used for cache-skip checks.
+    hover_overlay_fingerprint: Option<HoverOverlayCacheFingerprint>,
+    /// Last focus-overlay fingerprint used for cache-skip checks.
+    focus_overlay_fingerprint: Option<FocusOverlayCacheFingerprint>,
+    /// Last modal-overlay fingerprint used for cache-skip checks.
+    modal_overlay_fingerprint: Option<ModalOverlayCacheFingerprint>,
     /// Last waveform-motion fingerprint used for cache-skip checks.
     waveform_motion_overlay_fingerprint: Option<WaveformMotionOverlayCacheFingerprint>,
     /// Last chrome-motion fingerprint used for cache-skip checks.

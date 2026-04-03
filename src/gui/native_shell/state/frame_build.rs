@@ -157,6 +157,7 @@ impl NativeShellState {
     }
 
     /// Build only state-driven overlays into reusable buffers.
+    #[cfg(test)]
     pub(crate) fn build_state_overlay_into(
         &mut self,
         layout: &ShellLayout,
@@ -169,6 +170,57 @@ impl NativeShellState {
         let primitives = &mut frame.primitives;
         let text_runs = &mut frame.text_runs;
         render_state_overlay(self, layout, style, model, primitives, text_runs);
+
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build only hover/editor overlay primitives into reusable buffers.
+    pub(crate) fn build_hover_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        let text_runs = &mut frame.text_runs;
+        render_hover_overlay(self, layout, style, model, primitives, text_runs);
+
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build only focus-emphasis overlay primitives into reusable buffers.
+    pub(crate) fn build_focus_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        let text_runs = &mut frame.text_runs;
+        render_focus_overlay(self, layout, style, model, primitives, text_runs);
+
+        frame.clear_color = style.clear_color;
+    }
+
+    /// Build only modal and popover overlay primitives into reusable buffers.
+    pub(crate) fn build_modal_overlay_into(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+        frame: &mut NativeViewFrame,
+    ) {
+        frame.primitives.clear();
+        frame.text_runs.clear();
+        let primitives = &mut frame.primitives;
+        let text_runs = &mut frame.text_runs;
+        render_modal_overlay(self, layout, style, model, primitives, text_runs);
 
         frame.clear_color = style.clear_color;
     }

@@ -49,8 +49,7 @@ impl NativeShellState {
                 .folder_rows
                 .iter()
                 .chain(model.sources.lower_folder_pane.folder_rows.iter())
-                .any(|row| row.focused || row.selected)
-            || model.confirm_prompt.visible;
+                .any(|row| row.focused || row.selected);
     }
 
     /// Synchronize motion-sensitive state from a dedicated motion model projection.
@@ -143,6 +142,7 @@ impl NativeShellState {
     }
 
     /// Return the current state-overlay fingerprint.
+    #[cfg(test)]
     pub(crate) fn state_overlay_fingerprint(&self) -> StateOverlayFingerprint {
         StateOverlayFingerprint {
             selected_column: self.selected_column,
@@ -241,6 +241,45 @@ impl NativeShellState {
         self.source_add_button_flash_ticks = self.source_add_button_flash_ticks.saturating_sub(1);
         self.status_options_button_flash_ticks =
             self.status_options_button_flash_ticks.saturating_sub(1);
+    }
+
+    /// Return the current hover-overlay fingerprint.
+    pub(crate) fn hover_overlay_fingerprint(&self) -> HoverOverlayFingerprint {
+        HoverOverlayFingerprint {
+            hovered: self.hovered,
+            hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_folder_pane: self.hovered_folder_pane,
+            hovered_folder_row_index: self.hovered_folder_row_index,
+            hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
+            browser_search_editor_signature: text_field_visual_signature(
+                self.browser_search_editor_visual.as_ref(),
+            ),
+            folder_create_editor_signature: text_field_visual_signature(
+                self.folder_create_editor_visual.as_ref(),
+            ),
+        }
+    }
+
+    /// Return the current focus-overlay fingerprint.
+    pub(crate) fn focus_overlay_fingerprint(&self) -> FocusOverlayFingerprint {
+        FocusOverlayFingerprint {
+            selected_column: self.selected_column,
+            has_focus_emphasis: self.has_focus_emphasis,
+        }
+    }
+
+    /// Return the current modal-overlay fingerprint.
+    pub(crate) fn modal_overlay_fingerprint(&self) -> ModalOverlayFingerprint {
+        ModalOverlayFingerprint {
+            source_context_menu_pane: self.source_context_menu.map(|menu| menu.pane),
+            source_context_menu_row_index: self.source_context_menu.map(|menu| menu.row_index),
+            source_context_menu_anchor_x_bits: self
+                .source_context_menu
+                .map(|menu| menu.anchor.x.to_bits()),
+            source_context_menu_anchor_y_bits: self
+                .source_context_menu
+                .map(|menu| menu.anchor.y.to_bits()),
+        }
     }
 }
 

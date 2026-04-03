@@ -69,8 +69,9 @@ use self::{
 };
 pub(crate) use self::{
     cache_types::{
-        ChromeMotionOverlayFingerprint, CursorMoveEffect, StateOverlayFingerprint,
-        StaticFrameSegment, StaticFrameSegments, WaveformMotionOverlayFingerprint,
+        ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
+        HoverOverlayFingerprint, ModalOverlayFingerprint, StaticFrameSegment, StaticFrameSegments,
+        WaveformMotionOverlayFingerprint,
     },
     text_fields::TextFieldVisualState,
 };

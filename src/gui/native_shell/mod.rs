@@ -24,8 +24,8 @@ pub(crate) use layout_adapter::{
 pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::{
-    ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, StateOverlayFingerprint,
-    StaticFrameSegment, StaticFrameSegments, TextFieldVisualState,
-    WaveformMotionOverlayFingerprint,
+    ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
+    HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, StaticFrameSegment,
+    StaticFrameSegments, TextFieldVisualState, WaveformMotionOverlayFingerprint,
 };
 pub(crate) use style::StyleTokens;

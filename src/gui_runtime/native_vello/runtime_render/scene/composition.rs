@@ -84,38 +84,102 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         layout_scale_bits: u32,
         rebuild_requested: bool,
     ) -> bool {
-        let state_overlay_fingerprint = self.state_overlay_cache_fingerprint(
+        let hover_overlay_fingerprint = self.hover_overlay_cache_fingerprint(
             &self.model,
             style,
             layout_width_bits,
             layout_height_bits,
             layout_scale_bits,
         );
-        let rebuild_state_overlay = rebuild_requested
-            || self.state_overlay_fingerprint.as_ref() != Some(&state_overlay_fingerprint);
-        if rebuild_state_overlay {
-            self.state_overlay_fingerprint = Some(state_overlay_fingerprint);
+        let focus_overlay_fingerprint = self.focus_overlay_cache_fingerprint(
+            &self.model,
+            style,
+            layout_width_bits,
+            layout_height_bits,
+            layout_scale_bits,
+        );
+        let modal_overlay_fingerprint = self.modal_overlay_cache_fingerprint(
+            &self.model,
+            style,
+            layout_width_bits,
+            layout_height_bits,
+            layout_scale_bits,
+        );
+        let rebuild_hover_overlay = rebuild_requested
+            || self.hover_overlay_fingerprint.as_ref() != Some(&hover_overlay_fingerprint);
+        let rebuild_focus_overlay = rebuild_requested
+            || self.focus_overlay_fingerprint.as_ref() != Some(&focus_overlay_fingerprint);
+        let rebuild_modal_overlay = rebuild_requested
+            || self.modal_overlay_fingerprint.as_ref() != Some(&modal_overlay_fingerprint);
+        if !rebuild_hover_overlay && !rebuild_focus_overlay && !rebuild_modal_overlay {
+            return false;
+        }
+
+        let mut build_duration = Duration::ZERO;
+        let mut encode_duration = Duration::ZERO;
+        if rebuild_hover_overlay {
+            self.hover_overlay_fingerprint = Some(hover_overlay_fingerprint);
             let build_start = self.profiler.now_if_enabled();
-            self.shell_state.build_state_overlay_into(
+            self.shell_state.build_hover_overlay_into(
                 layout,
                 style,
                 &self.model,
-                &mut self.state_overlay_frame_cache,
+                &mut self.hover_overlay_frame_cache,
             );
-            let build_duration = build_start.map_or(Duration::ZERO, |start| start.elapsed());
-            self.profiler.add_build_state_overlay(build_duration);
+            build_duration += build_start.map_or(Duration::ZERO, |start| start.elapsed());
             let encode_start = self.profiler.now_if_enabled();
             Self::encode_frame_to_scene(
-                &self.state_overlay_frame_cache,
-                &mut self.state_overlay_scene,
+                &self.hover_overlay_frame_cache,
+                &mut self.hover_overlay_scene,
                 &mut self.text_renderer,
                 &mut self.image_upload_blob_cache,
                 &mut self.image_upload_blob_cache_order,
             );
-            let encode_duration = encode_start.map_or(Duration::ZERO, |start| start.elapsed());
-            self.profiler.add_encode_state_overlay(encode_duration);
+            encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
         }
-        rebuild_state_overlay
+        if rebuild_focus_overlay {
+            self.focus_overlay_fingerprint = Some(focus_overlay_fingerprint);
+            let build_start = self.profiler.now_if_enabled();
+            self.shell_state.build_focus_overlay_into(
+                layout,
+                style,
+                &self.model,
+                &mut self.focus_overlay_frame_cache,
+            );
+            build_duration += build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let encode_start = self.profiler.now_if_enabled();
+            Self::encode_frame_to_scene(
+                &self.focus_overlay_frame_cache,
+                &mut self.focus_overlay_scene,
+                &mut self.text_renderer,
+                &mut self.image_upload_blob_cache,
+                &mut self.image_upload_blob_cache_order,
+            );
+            encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+        }
+        if rebuild_modal_overlay {
+            self.modal_overlay_fingerprint = Some(modal_overlay_fingerprint);
+            let build_start = self.profiler.now_if_enabled();
+            self.shell_state.build_modal_overlay_into(
+                layout,
+                style,
+                &self.model,
+                &mut self.modal_overlay_frame_cache,
+            );
+            build_duration += build_start.map_or(Duration::ZERO, |start| start.elapsed());
+            let encode_start = self.profiler.now_if_enabled();
+            Self::encode_frame_to_scene(
+                &self.modal_overlay_frame_cache,
+                &mut self.modal_overlay_scene,
+                &mut self.text_renderer,
+                &mut self.image_upload_blob_cache,
+                &mut self.image_upload_blob_cache_order,
+            );
+            encode_duration += encode_start.map_or(Duration::ZERO, |start| start.elapsed());
+        }
+        self.profiler.add_build_state_overlay(build_duration);
+        self.profiler.add_encode_state_overlay(encode_duration);
+        true
     }
 
     pub(crate) fn resolve_motion_overlay_rebuild_flags(
@@ -240,7 +304,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         {
             self.scene.reset();
             self.scene.append(&self.static_scene, None);
-            self.scene.append(&self.state_overlay_scene, None);
+            self.scene.append(&self.hover_overlay_scene, None);
+            self.scene.append(&self.focus_overlay_scene, None);
+            self.scene.append(&self.modal_overlay_scene, None);
             self.scene.append(&self.waveform_motion_overlay_scene, None);
             self.scene.append(&self.chrome_motion_overlay_scene, None);
         }

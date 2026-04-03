@@ -25,7 +25,7 @@ pub(super) fn push_browser_row_border(
     focus::push_browser_row_border(primitives, rect, color, stroke, sides);
 }
 
-pub(super) fn render_state_overlay(
+pub(super) fn render_hover_overlay(
     shell_state: &mut NativeShellState,
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -136,12 +136,32 @@ pub(super) fn render_state_overlay(
             }
         }
     }
+}
+
+pub(super) fn render_focus_overlay(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+) {
     if shell_state.has_focus_emphasis {
         render_waveform_focus_overlay(layout, style, model, primitives);
         render_source_focus_overlay(shell_state, layout, style, model, primitives);
         render_folder_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
         render_browser_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
     }
+}
+
+pub(super) fn render_modal_overlay(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+) {
     render_browser_tab_overlay(primitives, text_runs, layout, style, model);
     render_source_context_menu(
         primitives,
@@ -155,4 +175,18 @@ pub(super) fn render_state_overlay(
     render_progress_overlay(primitives, text_runs, layout, style, model);
     render_confirm_prompt(primitives, text_runs, layout, style, model);
     render_drag_overlay(primitives, text_runs, layout, style, model);
+}
+
+#[cfg(test)]
+pub(super) fn render_state_overlay(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+) {
+    render_hover_overlay(shell_state, layout, style, model, primitives, text_runs);
+    render_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
+    render_modal_overlay(shell_state, layout, style, model, primitives, text_runs);
 }

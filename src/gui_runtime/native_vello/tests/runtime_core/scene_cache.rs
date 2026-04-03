@@ -111,9 +111,9 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
 }
 
 #[test]
-fn state_overlay_signature_changes_for_drag_chip_pointer_motion() {
+fn modal_overlay_signature_changes_for_drag_chip_pointer_motion() {
     let baseline = AppModel::default();
-    let baseline_signature = state_overlay_model_signature(&baseline);
+    let baseline_signature = modal_overlay_model_signature(&baseline);
 
     let mut changed = baseline.clone();
     changed.drag_overlay = crate::app::DragOverlayModel {
@@ -124,14 +124,60 @@ fn state_overlay_signature_changes_for_drag_chip_pointer_motion() {
         pointer_x: Some(320),
         pointer_y: Some(240),
     };
-    let anchored_signature = state_overlay_model_signature(&changed);
+    let anchored_signature = modal_overlay_model_signature(&changed);
     assert_ne!(baseline_signature, anchored_signature);
 
     changed.drag_overlay.pointer_x = Some(321);
     assert_ne!(
         anchored_signature,
-        state_overlay_model_signature(&changed),
-        "pointer motion should invalidate the state overlay signature"
+        modal_overlay_model_signature(&changed),
+        "pointer motion should invalidate the modal overlay signature"
+    );
+}
+
+#[test]
+fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
+    let mut baseline = AppModel::default();
+    baseline.drag_overlay = crate::app::DragOverlayModel {
+        active: true,
+        label: String::from("kick.wav"),
+        target_label: String::from("Folder: drums"),
+        valid_target: true,
+        pointer_x: Some(320),
+        pointer_y: Some(240),
+    };
+    let baseline_signature = hover_overlay_model_signature(&baseline);
+
+    let mut changed = baseline;
+    changed.drag_overlay.pointer_x = Some(321);
+
+    assert_eq!(
+        baseline_signature,
+        hover_overlay_model_signature(&changed),
+        "drag-chip pointer motion should not invalidate hover overlays"
+    );
+}
+
+#[test]
+fn focus_overlay_signature_ignores_drag_chip_pointer_motion() {
+    let mut baseline = AppModel::default();
+    baseline.drag_overlay = crate::app::DragOverlayModel {
+        active: true,
+        label: String::from("kick.wav"),
+        target_label: String::from("Folder: drums"),
+        valid_target: true,
+        pointer_x: Some(320),
+        pointer_y: Some(240),
+    };
+    let baseline_signature = focus_overlay_model_signature(&baseline);
+
+    let mut changed = baseline;
+    changed.drag_overlay.pointer_y = Some(241);
+
+    assert_eq!(
+        baseline_signature,
+        focus_overlay_model_signature(&changed),
+        "drag-chip pointer motion should not invalidate focus overlays"
     );
 }
 

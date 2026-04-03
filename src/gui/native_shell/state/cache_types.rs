@@ -8,11 +8,13 @@ mod segmented;
 mod truncation;
 
 pub(in crate::gui::native_shell::state) use interaction::*;
-#[cfg(test)]
-pub(in crate::gui::native_shell::state) use overlay_fingerprints::MotionOverlayFingerprint;
 pub(crate) use overlay_fingerprints::{
-    ChromeMotionOverlayFingerprint, CursorMoveEffect, StateOverlayFingerprint,
-    WaveformMotionOverlayFingerprint,
+    ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
+    HoverOverlayFingerprint, ModalOverlayFingerprint, WaveformMotionOverlayFingerprint,
+};
+#[cfg(test)]
+pub(in crate::gui::native_shell::state) use overlay_fingerprints::{
+    MotionOverlayFingerprint, StateOverlayFingerprint,
 };
 pub(in crate::gui::native_shell::state) use overlay_fingerprints::{
     WaveformResizeHoverEdge, WaveformToolbarHoverHint,

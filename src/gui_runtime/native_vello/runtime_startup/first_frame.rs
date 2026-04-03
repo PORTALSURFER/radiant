@@ -57,9 +57,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.frame_cache.text_runs.clear();
         self.frame_cache.text_runs.push(title.clone());
         self.frame_cache.text_runs.push(subtitle.clone());
-        self.state_overlay_frame_cache.clear_color = style.clear_color;
-        self.state_overlay_frame_cache.primitives.clear();
-        self.state_overlay_frame_cache.text_runs.clear();
+        self.hover_overlay_frame_cache.clear_color = style.clear_color;
+        self.hover_overlay_frame_cache.primitives.clear();
+        self.hover_overlay_frame_cache.text_runs.clear();
+        self.focus_overlay_frame_cache.clear_color = style.clear_color;
+        self.focus_overlay_frame_cache.primitives.clear();
+        self.focus_overlay_frame_cache.text_runs.clear();
+        self.modal_overlay_frame_cache.clear_color = style.clear_color;
+        self.modal_overlay_frame_cache.primitives.clear();
+        self.modal_overlay_frame_cache.text_runs.clear();
         self.waveform_motion_overlay_frame_cache.clear_color = style.clear_color;
         self.waveform_motion_overlay_frame_cache.primitives.clear();
         self.waveform_motion_overlay_frame_cache.text_runs.clear();
@@ -92,7 +98,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         );
         self.text_renderer
             .draw_text_runs(&mut self.static_scene, &[title, subtitle]);
-        self.state_overlay_scene.reset();
+        self.hover_overlay_scene.reset();
+        self.focus_overlay_scene.reset();
+        self.modal_overlay_scene.reset();
         self.waveform_motion_overlay_scene.reset();
         self.chrome_motion_overlay_scene.reset();
         self.scene.reset();

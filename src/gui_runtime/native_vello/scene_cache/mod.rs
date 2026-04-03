@@ -9,12 +9,14 @@ mod signatures;
 
 pub(super) use diff_plan::StaticSegmentStateGraph;
 pub(super) use keys::{
-    ChromeMotionOverlayCacheFingerprint, ImageUploadBlobCacheKey, SharedPixelBytes,
-    StateOverlayCacheFingerprint, StaticSegmentCacheFingerprint,
-    WaveformMotionOverlayCacheFingerprint, touch_image_upload_blob_cache_key,
+    ChromeMotionOverlayCacheFingerprint, FocusOverlayCacheFingerprint,
+    HoverOverlayCacheFingerprint, ImageUploadBlobCacheKey, ModalOverlayCacheFingerprint,
+    SharedPixelBytes, StaticSegmentCacheFingerprint, WaveformMotionOverlayCacheFingerprint,
+    touch_image_upload_blob_cache_key,
 };
 pub(super) use scene_entries::StaticSegmentSceneCache;
 pub(super) use signatures::{
-    chrome_motion_overlay_model_signature, state_overlay_model_signature,
-    static_segment_style_signature, waveform_motion_overlay_model_signature,
+    chrome_motion_overlay_model_signature, focus_overlay_model_signature,
+    hover_overlay_model_signature, modal_overlay_model_signature, static_segment_style_signature,
+    waveform_motion_overlay_model_signature,
 };

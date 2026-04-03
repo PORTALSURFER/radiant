@@ -1,6 +1,9 @@
 //! Cache-key and retained-fingerprint types used by the native Vello runtime.
 
 use super::*;
+use crate::gui::native_shell::{
+    FocusOverlayFingerprint, HoverOverlayFingerprint, ModalOverlayFingerprint,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in super::super) struct ImageUploadBlobCacheKey {
@@ -18,11 +21,29 @@ impl AsRef<[u8]> for SharedPixelBytes {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in super::super) struct StateOverlayCacheFingerprint {
+pub(in super::super) struct HoverOverlayCacheFingerprint {
     pub(in super::super) layout_width_bits: u32,
     pub(in super::super) layout_height_bits: u32,
     pub(in super::super) layout_scale_bits: u32,
-    pub(in super::super) shell: StateOverlayFingerprint,
+    pub(in super::super) shell: HoverOverlayFingerprint,
+    pub(in super::super) model_signature: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in super::super) struct FocusOverlayCacheFingerprint {
+    pub(in super::super) layout_width_bits: u32,
+    pub(in super::super) layout_height_bits: u32,
+    pub(in super::super) layout_scale_bits: u32,
+    pub(in super::super) shell: FocusOverlayFingerprint,
+    pub(in super::super) model_signature: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in super::super) struct ModalOverlayCacheFingerprint {
+    pub(in super::super) layout_width_bits: u32,
+    pub(in super::super) layout_height_bits: u32,
+    pub(in super::super) layout_scale_bits: u32,
+    pub(in super::super) shell: ModalOverlayFingerprint,
     pub(in super::super) model_signature: u64,
 }
 

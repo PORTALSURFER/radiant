@@ -27,20 +27,54 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         })
     }
 
-    pub(crate) fn state_overlay_cache_fingerprint(
+    pub(crate) fn hover_overlay_cache_fingerprint(
         &self,
         model: &AppModel,
         _style: &StyleTokens,
         layout_width_bits: u32,
         layout_height_bits: u32,
         layout_scale_bits: u32,
-    ) -> StateOverlayCacheFingerprint {
-        StateOverlayCacheFingerprint {
+    ) -> HoverOverlayCacheFingerprint {
+        HoverOverlayCacheFingerprint {
             layout_width_bits,
             layout_height_bits,
             layout_scale_bits,
-            shell: self.shell_state.state_overlay_fingerprint(),
-            model_signature: state_overlay_model_signature(model),
+            shell: self.shell_state.hover_overlay_fingerprint(),
+            model_signature: hover_overlay_model_signature(model),
+        }
+    }
+
+    pub(crate) fn focus_overlay_cache_fingerprint(
+        &self,
+        model: &AppModel,
+        _style: &StyleTokens,
+        layout_width_bits: u32,
+        layout_height_bits: u32,
+        layout_scale_bits: u32,
+    ) -> FocusOverlayCacheFingerprint {
+        FocusOverlayCacheFingerprint {
+            layout_width_bits,
+            layout_height_bits,
+            layout_scale_bits,
+            shell: self.shell_state.focus_overlay_fingerprint(),
+            model_signature: focus_overlay_model_signature(model),
+        }
+    }
+
+    pub(crate) fn modal_overlay_cache_fingerprint(
+        &self,
+        model: &AppModel,
+        _style: &StyleTokens,
+        layout_width_bits: u32,
+        layout_height_bits: u32,
+        layout_scale_bits: u32,
+    ) -> ModalOverlayCacheFingerprint {
+        ModalOverlayCacheFingerprint {
+            layout_width_bits,
+            layout_height_bits,
+            layout_scale_bits,
+            shell: self.shell_state.modal_overlay_fingerprint(),
+            model_signature: modal_overlay_model_signature(model),
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::app::FolderPaneIdModel;
 use super::*;
 
 #[test]
@@ -53,7 +54,10 @@ fn folder_row_hit_test_resolves_rendered_folder_row() {
         (folder_rect.min.x + folder_rect.max.x) * 0.5,
         (folder_rect.min.y + folder_rect.max.y) * 0.5,
     );
-    assert_eq!(state.folder_row_at_point(&layout, &model, point), Some(0));
+    assert_eq!(
+        state.folder_row_at_point(&layout, &model, point),
+        Some((FolderPaneIdModel::Upper, 0))
+    );
 }
 
 #[test]
@@ -90,7 +94,7 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     );
     assert_eq!(
         state.folder_row_at_point(&layout, &model, folder_point),
-        Some(0)
+        Some((FolderPaneIdModel::Upper, 0))
     );
 }
 

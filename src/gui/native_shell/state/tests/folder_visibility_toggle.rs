@@ -1,3 +1,4 @@
+use crate::app::FolderPaneIdModel;
 use super::*;
 
 #[test]
@@ -15,7 +16,9 @@ fn folder_visibility_toggle_button_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.folder_header_action_at_point(&layout, &model, point),
-        Some(UiAction::ToggleShowAllFolders)
+        Some(UiAction::ToggleShowAllFolders {
+            pane: Some(FolderPaneIdModel::Upper),
+        })
     );
 }
 
@@ -51,7 +54,9 @@ fn folder_flatten_toggle_button_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.folder_header_action_at_point(&layout, &model, point),
-        Some(UiAction::ToggleFolderFlattenedView)
+        Some(UiAction::ToggleFolderFlattenedView {
+            pane: Some(FolderPaneIdModel::Upper),
+        })
     );
 }
 

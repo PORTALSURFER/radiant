@@ -1,3 +1,4 @@
+use crate::app::FolderPaneIdModel;
 use super::*;
 
 #[test]
@@ -68,7 +69,9 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
         &layout,
         &model,
         &mut shell_state,
-        UiAction::FocusFolderPanel,
+        UiAction::FocusFolderPanel {
+            pane: Some(FolderPaneIdModel::Upper),
+        },
     );
 
     assert_eq!(
@@ -79,7 +82,9 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusFolderPanel)
+        Some(UiAction::FocusFolderPanel {
+            pane: Some(FolderPaneIdModel::Upper),
+        })
     );
 }
 
@@ -104,7 +109,10 @@ fn folder_disclosure_click_routes_activate_folder_row_for_expandable_rows() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ActivateFolderRow { index: 1 })
+        Some(UiAction::ActivateFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 1,
+        })
     );
 }
 
@@ -128,7 +136,10 @@ fn folder_row_body_click_routes_activate_folder_row_for_expandable_rows() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ActivateFolderRow { index: 1 })
+        Some(UiAction::ActivateFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 1,
+        })
     );
 }
 
@@ -152,7 +163,10 @@ fn leaf_folder_row_click_keeps_focus_row_behavior() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusFolderRow { index: 2 })
+        Some(UiAction::FocusFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 2,
+        })
     );
 }
 
@@ -176,7 +190,10 @@ fn searchable_folder_row_click_keeps_focus_row_behavior() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusFolderRow { index: 1 })
+        Some(UiAction::FocusFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 1,
+        })
     );
 }
 

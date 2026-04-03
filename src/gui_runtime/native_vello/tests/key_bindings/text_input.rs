@@ -1,3 +1,4 @@
+use crate::app::FolderPaneIdModel;
 use super::*;
 
 #[test]
@@ -41,6 +42,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
                 query: String::from("drx"),
             },
             UiAction::SetFolderSearch {
+                pane: Some(FolderPaneIdModel::Upper),
                 query: String::from("kix"),
             },
         ]

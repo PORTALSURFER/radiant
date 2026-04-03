@@ -1,3 +1,4 @@
+use crate::app::FolderPaneIdModel;
 use super::*;
 
 #[test]
@@ -28,7 +29,10 @@ fn hovered_folder_row_n_creates_under_hovered_folder() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::StartNewFolderAtFolderRow { index: 4 }]
+        vec![UiAction::StartNewFolderAtFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 4,
+        }]
     );
 }
 

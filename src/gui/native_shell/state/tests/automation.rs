@@ -9,6 +9,7 @@ use super::{
 };
 use crate::app::{AutomationNodeSnapshot, AutomationRole};
 use crate::app::{BrowserRowModel, FocusContextModel, FolderRowModel, SourceRowModel};
+use crate::gui::native_shell::state::tests::populated_sidebar_model;
 use crate::gui::types::Vector2;
 
 fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {

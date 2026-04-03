@@ -152,10 +152,7 @@ fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
         .to_vec();
     let viewport_len = initial_rows.len();
     let requested_view_start = model.sources.folder_rows.len().saturating_sub(viewport_len);
-    assert!(state.set_folder_view_start_row(
-        FolderPaneIdModel::Upper,
-        requested_view_start
-    ));
+    assert!(state.set_folder_view_start_row(FolderPaneIdModel::Upper, requested_view_start));
 
     let rows = state
         .cached_folder_rows(&layout, &style, &model, FolderPaneIdModel::Upper)

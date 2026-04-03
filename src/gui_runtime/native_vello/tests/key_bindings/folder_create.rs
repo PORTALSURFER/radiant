@@ -1,5 +1,5 @@
-use crate::app::FolderPaneIdModel;
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[test]
 fn hovered_folder_row_n_creates_under_hovered_folder() {

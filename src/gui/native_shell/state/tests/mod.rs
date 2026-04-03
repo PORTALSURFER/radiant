@@ -5,7 +5,7 @@ use crate::app::{
 };
 use crate::gui::types::{ImageRgba, Point, Rgba8, Vector2};
 
-fn populated_sidebar_model() -> AppModel {
+pub(crate) fn populated_sidebar_model() -> AppModel {
     let mut model = AppModel::default();
     for index in 0..20 {
         model.sources.rows.push(SourceRowModel::new(
@@ -70,7 +70,7 @@ fn populated_sidebar_model() -> AppModel {
     model
 }
 
-fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
+pub(crate) fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
     let mut model = AppModel::default();
     for visible_row in 0..total {
         model.browser.rows.push(BrowserRowModel::new(

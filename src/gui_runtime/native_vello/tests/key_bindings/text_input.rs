@@ -1,5 +1,5 @@
-use crate::app::FolderPaneIdModel;
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[test]
 fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {

@@ -55,6 +55,8 @@ pub(super) fn build_waveform_automation(
             String::from("toggle_waveform_duplicate_slice_exemption"),
             String::from("move_waveform_slice_focus"),
             String::from("toggle_focused_waveform_slice_export_mark"),
+            String::from("play_waveform_at_precise"),
+            String::from("clear_waveform_selections"),
             String::from("seek_waveform"),
             String::from("set_waveform_cursor"),
             String::from("set_waveform_selection_range"),

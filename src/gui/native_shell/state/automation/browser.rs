@@ -194,7 +194,10 @@ fn build_browser_table_automation(
             model.focus_context,
             crate::app::FocusContextModel::SampleBrowser
         ),
-        vec![String::from("focus_browser_panel")],
+        vec![
+            String::from("focus_browser_panel"),
+            String::from("set_browser_view_start"),
+        ],
     );
     table_node.metadata = metadata(&[
         ("first_visible_row", &first_visible_row),

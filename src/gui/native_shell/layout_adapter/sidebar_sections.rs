@@ -155,13 +155,9 @@ fn resolve_section_heights(
         (0.0, 0.0)
     };
 
-    let rows_height_total = (available_height
-        - source_rows
-        - source_gap
-        - header_height
-        - pane_gap
-        - header_height)
-        .max(0.0);
+    let rows_height_total =
+        (available_height - source_rows - source_gap - header_height - pane_gap - header_height)
+            .max(0.0);
     let (upper_rows, lower_rows) = distribute_folder_rows_height(
         rows_height_total,
         counts.upper_folder_rows,
@@ -199,8 +195,16 @@ fn distribute_folder_rows_height(
         let split = total_height * 0.5;
         return (split, total_height - split);
     }
-    let upper_demand = stack_height(upper_rows.max(1), sizing.folder_row_height, sizing.folder_row_gap);
-    let lower_demand = stack_height(lower_rows.max(1), sizing.folder_row_height, sizing.folder_row_gap);
+    let upper_demand = stack_height(
+        upper_rows.max(1),
+        sizing.folder_row_height,
+        sizing.folder_row_gap,
+    );
+    let lower_demand = stack_height(
+        lower_rows.max(1),
+        sizing.folder_row_height,
+        sizing.folder_row_gap,
+    );
     let remaining = total_height - upper_min - lower_min;
     let upper_extra_cap = (upper_demand - upper_min).max(0.0);
     let lower_extra_cap = (lower_demand - lower_min).max(0.0);

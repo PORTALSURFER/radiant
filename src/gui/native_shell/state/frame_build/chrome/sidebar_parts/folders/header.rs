@@ -74,7 +74,11 @@ pub(super) fn render_folder_header(
     if header_layout.title_row.width() <= 8.0 {
         return;
     }
-    let title_prefix = if pane.active { "Active" } else { pane.title.as_str() };
+    let title_prefix = if pane.active {
+        "Active"
+    } else {
+        pane.title.as_str()
+    };
     emit_text(
         text_runs,
         TextRun {

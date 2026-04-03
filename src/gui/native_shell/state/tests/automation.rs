@@ -19,6 +19,14 @@ fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNode
         .unwrap_or_else(|| panic!("missing automation child {id}"))
 }
 
+fn upper_folder_browser<'a>(node: &'a AutomationNodeSnapshot) -> &'a AutomationNodeSnapshot {
+    child(node, "sources.upper.folder_browser")
+}
+
+fn push_upper_folder_row(model: &mut AppModel, row: FolderRowModel) {
+    model.sources.upper_folder_pane.folder_rows.push(row);
+}
+
 #[test]
 fn metadata_omits_empty_values() {
     let metadata = helpers::metadata(&[("kept", "value"), ("empty", "")]);
@@ -64,22 +72,16 @@ fn sidebar_surface_exposes_distinct_source_list_and_folder_browser_focus_groups(
         .sources
         .rows
         .push(SourceRowModel::new("source_a", "detail_a", false, false));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_a",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("folder_a", String::new(), 0, false, false, true, true, true),
+    );
     let mut state = NativeShellState::new();
 
     model.focus_context = FocusContextModel::SourcesList;
     let sources_node = build_sidebar_automation(&mut state, &layout, &model, &style);
     let source_list = child(&sources_node, "sources.source_list");
-    let folder_browser = child(&sources_node, "sources.folder_browser");
+    let folder_browser = upper_folder_browser(&sources_node);
     assert!(source_list.selected);
     assert!(!folder_browser.selected);
     assert_eq!(source_list.role, AutomationRole::Group);
@@ -87,7 +89,7 @@ fn sidebar_surface_exposes_distinct_source_list_and_folder_browser_focus_groups(
     model.focus_context = FocusContextModel::SourceFolders;
     let folders_node = build_sidebar_automation(&mut state, &layout, &model, &style);
     let source_list = child(&folders_node, "sources.source_list");
-    let folder_browser = child(&folders_node, "sources.folder_browser");
+    let folder_browser = upper_folder_browser(&folders_node);
     assert!(!source_list.selected);
     assert!(folder_browser.selected);
     assert_eq!(folder_browser.role, AutomationRole::Group);
@@ -98,28 +100,25 @@ fn sidebar_automation_exposes_inline_folder_create_row_metadata() {
     let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::create_draft(
-        1,
-        String::from("new folder"),
-        String::from("New folder name"),
-        Some(String::from("Folder already exists")),
-        true,
-    ));
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::create_draft(
+            1,
+            String::from("new folder"),
+            String::from("New folder name"),
+            Some(String::from("Folder already exists")),
+            true,
+        ),
+    );
     let mut state = NativeShellState::new();
 
     let node = build_sidebar_automation(&mut state, &layout, &model, &style);
-    let browser = child(&node, "sources.folder_browser");
-    let draft = child(browser, "sources.folder_row.1");
+    let browser = upper_folder_browser(&node);
+    let draft = child(browser, "sources.upper.folder_row.1");
 
     assert_eq!(draft.role, AutomationRole::SearchField);
     assert_eq!(draft.label.as_deref(), Some("New folder"));
@@ -144,28 +143,25 @@ fn sidebar_automation_exposes_inline_folder_rename_row_metadata() {
     let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::rename_draft(
-        1,
-        String::from("drums"),
-        String::from("Folder name"),
-        None,
-        true,
-    ));
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::rename_draft(
+            1,
+            String::from("drums"),
+            String::from("Folder name"),
+            None,
+            true,
+        ),
+    );
     let mut state = NativeShellState::new();
 
     let node = build_sidebar_automation(&mut state, &layout, &model, &style);
-    let browser = child(&node, "sources.folder_browser");
-    let draft = child(browser, "sources.folder_row.1");
+    let browser = upper_folder_browser(&node);
+    let draft = child(browser, "sources.upper.folder_row.1");
 
     assert_eq!(draft.role, AutomationRole::SearchField);
     assert_eq!(draft.label.as_deref(), Some("Rename folder"));
@@ -193,24 +189,18 @@ fn sidebar_automation_exposes_folder_flatten_toggle_metadata() {
     let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.can_toggle_show_all_folders = true;
-    model.sources.can_toggle_flattened_view = true;
-    model.sources.flattened_view = true;
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    model.sources.upper_folder_pane.can_toggle_show_all_folders = true;
+    model.sources.upper_folder_pane.can_toggle_flattened_view = true;
+    model.sources.upper_folder_pane.flattened_view = true;
     let mut state = NativeShellState::new();
 
     let node = build_sidebar_automation(&mut state, &layout, &model, &style);
-    let browser = child(&node, "sources.folder_browser");
-    let flatten = child(browser, "sources.folder_flatten_toggle");
+    let browser = upper_folder_browser(&node);
+    let flatten = child(browser, "sources.upper.folder_flatten_toggle");
 
     assert_eq!(flatten.role, AutomationRole::Button);
     assert_eq!(flatten.label.as_deref(), Some("Flattened view"));
@@ -222,6 +212,35 @@ fn sidebar_automation_exposes_folder_flatten_toggle_metadata() {
     assert_eq!(
         browser.metadata.get("flattened_view").map(String::as_str),
         Some("all_descendants")
+    );
+}
+
+#[test]
+fn sidebar_automation_folder_rows_expose_only_row_scoped_actions() {
+    let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_upper_folder_row(
+        &mut model,
+        FolderRowModel::new("Child", String::new(), 1, false, true, false, true, true),
+    );
+    let mut state = NativeShellState::new();
+
+    let node = build_sidebar_automation(&mut state, &layout, &model, &style);
+    let row = child(upper_folder_browser(&node), "sources.upper.folder_row.1");
+
+    assert_eq!(
+        row.available_actions,
+        vec![
+            String::from("focus_folder_row"),
+            String::from("activate_folder_row"),
+            String::from("start_new_folder_at_folder_row"),
+            String::from("toggle_folder_row_expanded"),
+        ]
     );
 }
 

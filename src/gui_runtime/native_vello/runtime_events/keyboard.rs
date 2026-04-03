@@ -66,7 +66,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         delta,
                     ) {
                         let viewport_len =
-                            this.shell_state.folder_viewport_len(layout, &this.model, pane);
+                            this.shell_state
+                                .folder_viewport_len(layout, &this.model, pane);
                         let current_view_start = this
                             .shell_state
                             .folder_viewport_start_row(layout, &this.model, pane)
@@ -77,7 +78,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                             viewport_len,
                             delta,
                         ) {
-                            let _ = this.process_folder_view_start_immediately(pane, view_start_row);
+                            let _ =
+                                this.process_folder_view_start_immediately(pane, view_start_row);
                         }
                         return;
                     }

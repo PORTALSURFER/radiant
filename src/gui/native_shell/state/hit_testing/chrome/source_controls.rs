@@ -171,7 +171,9 @@ impl NativeShellState {
             crate::app::FolderPaneIdModel::Upper,
             crate::app::FolderPaneIdModel::Lower,
         ] {
-            if sections.folder_header(pane).contains(point) || sections.folder_rows(pane).contains(point) {
+            if sections.folder_header(pane).contains(point)
+                || sections.folder_rows(pane).contains(point)
+            {
                 return Some(UiAction::FocusFolderPanel { pane: Some(pane) });
             }
         }

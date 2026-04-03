@@ -195,7 +195,10 @@ impl NativeShellState {
         }
     }
 
-    pub(super) fn folder_pane_runtime_state(&self, pane: FolderPaneIdModel) -> &FolderPaneRuntimeState {
+    pub(super) fn folder_pane_runtime_state(
+        &self,
+        pane: FolderPaneIdModel,
+    ) -> &FolderPaneRuntimeState {
         match pane {
             FolderPaneIdModel::Upper => &self.upper_folder_pane,
             FolderPaneIdModel::Lower => &self.lower_folder_pane,

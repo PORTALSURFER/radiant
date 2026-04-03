@@ -50,7 +50,9 @@ pub(super) fn build_sidebar_automation(
             pane,
             sections.folder_header(pane),
             sections.folder_rows(pane),
-            shell.cached_folder_rows(layout, style, model, pane).to_vec(),
+            shell
+                .cached_folder_rows(layout, style, model, pane)
+                .to_vec(),
             &pane_model.folder_rows,
             pane_model,
             style,
@@ -71,7 +73,11 @@ pub(super) fn build_sidebar_automation(
             ("source_search", model.sources.search_query.as_str()),
             (
                 "active_folder_search",
-                model.sources.active_folder_pane_model().folder_search_query.as_str(),
+                model
+                    .sources
+                    .active_folder_pane_model()
+                    .folder_search_query
+                    .as_str(),
             ),
         ]),
         children,
@@ -150,7 +156,10 @@ fn folder_browser_group(
     .visibility_toggle_button
     {
         children.push(simple_node(
-            format!("sources.{}.folder_visibility_toggle", folder_pane_slug(pane)),
+            format!(
+                "sources.{}.folder_visibility_toggle",
+                folder_pane_slug(pane)
+            ),
             AutomationRole::Button,
             Some(String::from("Folder visibility")),
             toggle_button.rect,
@@ -221,14 +230,11 @@ fn folder_browser_group(
                 } else {
                     let mut available_actions = vec![
                         String::from("focus_folder_row"),
-                        String::from("move_folder_focus"),
-                        String::from("start_folder_rename"),
-                        String::from("delete_focused_folder"),
+                        String::from("activate_folder_row"),
+                        String::from("start_new_folder_at_folder_row"),
                     ];
                     if row.has_children && !row.is_root {
                         available_actions.push(String::from("toggle_folder_row_expanded"));
-                        available_actions.push(String::from("expand_focused_folder"));
-                        available_actions.push(String::from("collapse_focused_folder"));
                     }
                     (
                         AutomationRole::Row,

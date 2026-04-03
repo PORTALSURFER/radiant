@@ -104,8 +104,7 @@ pub(super) fn render_state_overlay(
         shell_state.hovered_folder_pane(),
         shell_state.hovered_folder_row_index,
     ) {
-        let folder_rows =
-            shell_state.cached_folder_rows(layout, style, model, hovered_folder_pane);
+        let folder_rows = shell_state.cached_folder_rows(layout, style, model, hovered_folder_pane);
         if let (Some(row_rect), Some(row)) = (
             folder_rows
                 .iter()

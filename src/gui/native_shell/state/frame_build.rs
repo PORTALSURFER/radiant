@@ -91,24 +91,14 @@ impl NativeShellState {
                 Vec::new()
             },
             upper_folder_rows: if build_global_static {
-                self.cached_folder_rows(
-                    layout,
-                    style,
-                    model,
-                    crate::app::FolderPaneIdModel::Upper,
-                )
-                .to_vec()
+                self.cached_folder_rows(layout, style, model, crate::app::FolderPaneIdModel::Upper)
+                    .to_vec()
             } else {
                 Vec::new()
             },
             lower_folder_rows: if build_global_static {
-                self.cached_folder_rows(
-                    layout,
-                    style,
-                    model,
-                    crate::app::FolderPaneIdModel::Lower,
-                )
-                .to_vec()
+                self.cached_folder_rows(layout, style, model, crate::app::FolderPaneIdModel::Lower)
+                    .to_vec()
             } else {
                 Vec::new()
             },

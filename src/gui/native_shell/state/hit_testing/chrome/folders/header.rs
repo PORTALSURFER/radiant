@@ -63,10 +63,12 @@ fn folder_header_layout(
                 enabled: button.enabled,
             }
         }),
-        flatten_toggle_button: layout.flatten_toggle_button.map(|button| FolderHeaderHitButton {
-            rect: button.rect,
-            enabled: button.enabled,
-        }),
+        flatten_toggle_button: layout
+            .flatten_toggle_button
+            .map(|button| FolderHeaderHitButton {
+                rect: button.rect,
+                enabled: button.enabled,
+            }),
     }
 }
 

@@ -26,7 +26,10 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> (Option<(crate::app::FolderPaneIdModel, usize)>, Option<crate::app::FolderPaneIdModel>) {
+    ) -> (
+        Option<(crate::app::FolderPaneIdModel, usize)>,
+        Option<crate::app::FolderPaneIdModel>,
+    ) {
         let hovered_folder_row = self
             .folder_row_disclosure_at_point(layout, model, point)
             .or_else(|| self.folder_row_at_point(layout, model, point));

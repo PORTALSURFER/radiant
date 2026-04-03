@@ -40,6 +40,13 @@ pub(super) struct CachedFolderRow {
     pub(super) rect: Rect,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct CachedSourceRow {
+    pub(super) pane: FolderPaneIdModel,
+    pub(super) row_index: usize,
+    pub(super) rect: Rect,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(super) struct SidebarRowsCacheKey {
     pub(super) root_min_x: u32,
@@ -134,27 +141,39 @@ pub(super) struct WaveformToolbarButton {
     pub(super) text_color: Rgba8,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SidebarSections {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SidebarPaneSections {
+    pub(super) bounds: Rect,
     pub(super) source_rows: Rect,
-    pub(super) upper_folder_header: Rect,
-    pub(super) upper_folder_rows: Rect,
-    pub(super) lower_folder_header: Rect,
-    pub(super) lower_folder_rows: Rect,
+    pub(super) folder_header: Rect,
+    pub(super) folder_rows: Rect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SidebarSections {
+    pub(super) upper: SidebarPaneSections,
+    pub(super) lower: SidebarPaneSections,
 }
 
 impl SidebarSections {
+    pub(super) fn source_rows(self, pane: FolderPaneIdModel) -> Rect {
+        match pane {
+            FolderPaneIdModel::Upper => self.upper.source_rows,
+            FolderPaneIdModel::Lower => self.lower.source_rows,
+        }
+    }
+
     pub(super) fn folder_header(self, pane: FolderPaneIdModel) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper_folder_header,
-            FolderPaneIdModel::Lower => self.lower_folder_header,
+            FolderPaneIdModel::Upper => self.upper.folder_header,
+            FolderPaneIdModel::Lower => self.lower.folder_header,
         }
     }
 
     pub(super) fn folder_rows(self, pane: FolderPaneIdModel) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper_folder_rows,
-            FolderPaneIdModel::Lower => self.lower_folder_rows,
+            FolderPaneIdModel::Upper => self.upper.folder_rows,
+            FolderPaneIdModel::Lower => self.lower.folder_rows,
         }
     }
 }

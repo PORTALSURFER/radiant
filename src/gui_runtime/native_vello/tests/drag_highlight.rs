@@ -3,13 +3,29 @@ use crate::gui::types::Rect;
 
 fn browser_drag_model() -> AppModel {
     let mut model = browser_model_with_rows(4, 0);
+    let folder_rows = vec![
+        crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+            .with_source_index(0),
+        crate::app::FolderRowModel::new("Drums", "drums", 1, false, false, false, true, true)
+            .with_source_index(7),
+    ];
     model.sources = SourcesPanelModel {
-        folder_rows: vec![
-            crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
-                .with_source_index(0),
-            crate::app::FolderRowModel::new("Drums", "drums", 1, false, false, false, true, true)
-                .with_source_index(7),
-        ],
+        folder_rows: folder_rows.clone(),
+        upper_folder_pane: crate::app::FolderPaneModel {
+            pane: crate::app::FolderPaneIdModel::Upper,
+            title: String::from("Upper"),
+            active: true,
+            has_source: true,
+            folder_rows: folder_rows.clone(),
+            ..crate::app::FolderPaneModel::default()
+        },
+        lower_folder_pane: crate::app::FolderPaneModel {
+            pane: crate::app::FolderPaneIdModel::Lower,
+            title: String::from("Lower"),
+            has_source: true,
+            folder_rows,
+            ..crate::app::FolderPaneModel::default()
+        },
         ..SourcesPanelModel::default()
     };
     model

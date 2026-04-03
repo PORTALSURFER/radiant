@@ -1445,7 +1445,10 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
         runner.bridge.actions,
         vec![
             UiAction::CancelFolderCreate,
-            UiAction::FocusSourceRow { index: 0 },
+            UiAction::FocusSourceRow {
+                pane: Some(crate::app::FolderPaneIdModel::Upper),
+                index: 0,
+            },
         ]
     );
 }

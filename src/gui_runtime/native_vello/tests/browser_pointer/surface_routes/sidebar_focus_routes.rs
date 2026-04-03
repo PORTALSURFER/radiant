@@ -1,5 +1,5 @@
-use crate::app::FolderPaneIdModel;
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[test]
 fn source_row_click_routes_focus_source_row() {
@@ -7,7 +7,7 @@ fn source_row_click_routes_focus_source_row() {
     let mut shell_state = NativeShellState::new();
     let model = populated_sidebar_model();
     let row = shell_state
-        .rendered_source_row_rects(&layout, &model)
+        .rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Upper)
         .into_iter()
         .nth(1)
         .expect("second source row should be rendered");
@@ -21,7 +21,37 @@ fn source_row_click_routes_focus_source_row() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusSourceRow { index: 1 })
+        Some(UiAction::FocusSourceRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 1,
+        })
+    );
+}
+
+#[test]
+fn lower_source_row_click_routes_focus_source_row_for_lower_pane() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let row = shell_state
+        .rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Lower)
+        .into_iter()
+        .nth(1)
+        .expect("second lower source row should be rendered");
+    let point = Point::new((row.min.x + row.max.x) * 0.5, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusSourceRow {
+            pane: Some(FolderPaneIdModel::Lower),
+            index: 1,
+        })
     );
 }
 

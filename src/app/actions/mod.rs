@@ -127,11 +127,15 @@ pub enum UiAction {
     // Sources and folder tree actions.
     /// Focus a source row by index and make the sources list the active section.
     FocusSourceRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Select a source row by index.
     SelectSourceRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
@@ -150,21 +154,29 @@ pub enum UiAction {
     RemoveFocusedSourceRow,
     /// Reload wav entries for one source row.
     ReloadSourceRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Run a hard sync/rescan for one source row.
     HardSyncSourceRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Open one source row folder in the system file manager.
     OpenSourceFolderRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Remove one configured source row.
     RemoveSourceRow {
+        /// Pane containing the target source selector, or `None` for the active pane.
+        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },

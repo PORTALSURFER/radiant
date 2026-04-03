@@ -343,13 +343,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             *source_menu_state_changed |= self.shell_state.close_source_context_menu();
             return true;
         }
-        if let Some(index) = self
-            .shell_state
-            .source_row_at_point(layout, &self.model, point)
-        {
-            self.emit_model_action(UiAction::FocusSourceRow { index });
+        if let Some((pane, index)) =
             self.shell_state
-                .open_source_context_menu_for_row(index, point);
+                .source_row_at_point(layout, &self.model, point)
+        {
+            self.emit_model_action(UiAction::FocusSourceRow {
+                pane: Some(pane),
+                index,
+            });
+            self.shell_state
+                .open_source_context_menu_for_row(pane, index, point);
             *source_menu_state_changed = true;
             *action_emitted = true;
             return true;

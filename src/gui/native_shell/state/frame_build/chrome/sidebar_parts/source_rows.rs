@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::SourceRowModel;
+use crate::app::{FolderPaneIdModel, SourceRowModel};
 
 pub(super) fn render_source_rows(
     ctx: &StaticFrameCtx<'_>,
@@ -7,30 +7,42 @@ pub(super) fn render_source_rows(
     text_runs: &mut impl TextRunSink,
     data: &SidebarFrameData,
 ) -> usize {
-    for (row_index, row_rect) in data.source_row_rects.iter().copied().enumerate() {
-        let row = &ctx.model.sources.rows[row_index];
-        let row_selected = row.selected
-            || ctx
-                .model
-                .sources
-                .selected_row
-                .is_some_and(|selected| selected == row_index);
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: row_rect,
-                color: source_row_fill(ctx, row_selected),
-            }),
-        );
-        push_border(
-            primitives,
-            row_rect,
-            source_row_border(ctx, row, row_selected),
-            ctx.sizing.border_width,
-        );
-        emit_source_row_label(ctx, text_runs, row_rect, row, row_selected);
+    let mut rendered = 0;
+    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+        let pane_rows = match pane {
+            FolderPaneIdModel::Upper => &data.upper_source_rows,
+            FolderPaneIdModel::Lower => &data.lower_source_rows,
+        };
+        for rendered_row in pane_rows {
+            let Some(row) = ctx.model.sources.rows.get(rendered_row.row_index) else {
+                continue;
+            };
+            let row_selected = source_row_selected(row, pane);
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: rendered_row.rect,
+                    color: source_row_fill(ctx, row_selected),
+                }),
+            );
+            push_border(
+                primitives,
+                rendered_row.rect,
+                source_row_border(ctx, row, row_selected),
+                ctx.sizing.border_width,
+            );
+            emit_source_row_label(ctx, text_runs, rendered_row.rect, row, row_selected);
+            rendered += 1;
+        }
     }
-    data.source_row_rects.len()
+    rendered
+}
+
+fn source_row_selected(row: &SourceRowModel, pane: FolderPaneIdModel) -> bool {
+    match pane {
+        FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
+        FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
+    }
 }
 
 fn source_row_fill(ctx: &StaticFrameCtx<'_>, row_selected: bool) -> Rgba8 {

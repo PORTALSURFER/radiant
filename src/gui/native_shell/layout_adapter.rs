@@ -9,6 +9,7 @@ mod map_canvas;
 mod map_header;
 mod overlay_visuals;
 mod overlays;
+#[cfg(test)]
 mod row_hit_test;
 mod sidebar_bands;
 mod sidebar_chrome_text;
@@ -56,7 +57,6 @@ pub(super) use overlays::{
     compute_drag_overlay_text_layout, compute_progress_overlay_text_layout,
     compute_prompt_overlay_text_layout,
 };
-pub(super) use row_hit_test::compute_row_index_at_point;
 pub(crate) use sidebar_bands::{
     SIDEBAR_BANDS_ROOT_ID, SidebarBandSections, build_sidebar_bands_tree,
     compute_sidebar_band_sections_with_layout_engine,

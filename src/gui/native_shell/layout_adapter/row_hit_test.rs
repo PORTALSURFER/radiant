@@ -3,6 +3,7 @@
 use crate::gui::types::{Point, Rect};
 
 /// Resolve the first row index whose rect contains the pointer.
+#[cfg(test)]
 pub(crate) fn compute_row_index_at_point(row_rects: &[Rect], point: Point) -> Option<usize> {
     row_rects.iter().position(|rect| rect.contains(point))
 }

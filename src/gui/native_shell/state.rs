@@ -20,17 +20,17 @@ use super::{
         compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
         compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
         compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
-        compute_prompt_overlay_visual_layout, compute_row_index_at_point,
-        compute_sidebar_action_button_rects, compute_sidebar_folder_header_layout,
-        compute_sidebar_folder_row_depth_indent, compute_sidebar_folder_row_layout,
-        compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
-        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
-        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
-        compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_top_bar_controls_text_layout, compute_update_action_button_rects,
-        compute_waveform_annotation_rects_with_nanos, compute_waveform_header_text_layout,
-        compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
-        waveform_plot_x_for_micros, waveform_view_window_from_bounds,
+        compute_prompt_overlay_visual_layout, compute_sidebar_action_button_rects,
+        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_depth_indent,
+        compute_sidebar_folder_row_layout, compute_sidebar_footer_text_layout,
+        compute_sidebar_header_text_layout, compute_sidebar_recovery_badge_text_rect,
+        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
+        compute_source_section_divider_rect, compute_status_text_line_rect,
+        compute_top_bar_controls_sections, compute_top_bar_controls_text_layout,
+        compute_update_action_button_rects, compute_waveform_annotation_rects_with_nanos,
+        compute_waveform_header_text_layout, compute_waveform_slice_preview_rects,
+        waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
+        waveform_view_window_from_bounds,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     style::{SizingTokens, StyleTokens},
@@ -195,7 +195,7 @@ pub(crate) struct NativeShellState {
     startup_frame_ticks: u8,
     pulse_phase: f32,
     source_context_menu: Option<SourceContextMenuState>,
-    source_row_rects: Vec<Rect>,
+    source_row_rects: Vec<CachedSourceRow>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     upper_folder_pane: FolderPaneRuntimeState,
     lower_folder_pane: FolderPaneRuntimeState,
@@ -368,8 +368,17 @@ impl NativeShellState {
     }
 
     /// Open the transient source context menu for one source row.
-    pub(crate) fn open_source_context_menu_for_row(&mut self, row_index: usize, anchor: Point) {
-        self.source_context_menu = Some(SourceContextMenuState { row_index, anchor });
+    pub(crate) fn open_source_context_menu_for_row(
+        &mut self,
+        pane: crate::app::FolderPaneIdModel,
+        row_index: usize,
+        anchor: Point,
+    ) {
+        self.source_context_menu = Some(SourceContextMenuState {
+            pane,
+            row_index,
+            anchor,
+        });
     }
 
     /// Close the transient source context menu.

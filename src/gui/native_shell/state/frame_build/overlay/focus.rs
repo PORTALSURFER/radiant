@@ -23,7 +23,11 @@ fn render_sidebar_section_focus_overlay(
     let sections = sidebar_sections(layout, style, model);
     match model.focus_context {
         crate::app::FocusContextModel::SourcesList => {
-            render_section_focus_surface(primitives, sections.source_rows, style);
+            render_section_focus_surface(
+                primitives,
+                sections.source_rows(model.sources.active_folder_pane),
+                style,
+            );
         }
         crate::app::FocusContextModel::SourceFolders => {
             let active_pane = model.sources.active_folder_pane;
@@ -72,22 +76,23 @@ pub(super) fn render_source_focus_overlay(
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
-    let source_row_rects = shell_state.cached_source_row_rects(layout, style, model);
-    for (row_index, row_rect) in source_row_rects.iter().enumerate() {
-        let Some(row) = model.sources.rows.get(row_index) else {
+    let source_rows = shell_state
+        .cached_source_rows(layout, style, model)
+        .to_vec();
+    for rendered_row in source_rows {
+        let Some(row) = model.sources.rows.get(rendered_row.row_index) else {
             continue;
         };
-        let row_selected = row.selected
-            || model
-                .sources
-                .selected_row
-                .is_some_and(|selected| selected == row_index);
+        let row_selected = match rendered_row.pane {
+            crate::app::FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
+            crate::app::FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
+        };
         if !row_selected {
             continue;
         }
         push_border(
             primitives,
-            *row_rect,
+            rendered_row.rect,
             blend_color(
                 style.accent_mint,
                 style.text_primary,

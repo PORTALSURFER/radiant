@@ -26,7 +26,8 @@ struct BrowserFrameData {
 }
 
 struct SidebarFrameData {
-    source_row_rects: Vec<Rect>,
+    upper_source_rows: Vec<CachedSourceRow>,
+    lower_source_rows: Vec<CachedSourceRow>,
     upper_folder_rows: Vec<CachedFolderRow>,
     lower_folder_rows: Vec<CachedFolderRow>,
 }
@@ -85,8 +86,21 @@ impl NativeShellState {
             },
         };
         let sidebar_data = SidebarFrameData {
-            source_row_rects: if build_global_static {
-                rendered_source_row_rects(layout, style, model)
+            upper_source_rows: if build_global_static {
+                self.cached_source_rows(layout, style, model)
+                    .iter()
+                    .copied()
+                    .filter(|row| row.pane == crate::app::FolderPaneIdModel::Upper)
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            lower_source_rows: if build_global_static {
+                self.cached_source_rows(layout, style, model)
+                    .iter()
+                    .copied()
+                    .filter(|row| row.pane == crate::app::FolderPaneIdModel::Lower)
+                    .collect()
             } else {
                 Vec::new()
             },

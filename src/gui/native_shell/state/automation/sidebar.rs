@@ -11,7 +11,7 @@ pub(super) fn build_sidebar_automation(
     model: &AppModel,
     style: &StyleTokens,
 ) -> AutomationNodeSnapshot {
-    let source_rows = shell.cached_source_row_rects(layout, style, model).to_vec();
+    let source_rows = shell.cached_source_rows(layout, style, model).to_vec();
     let sections = sidebar_sections(layout, style, model);
     let mut children = Vec::new();
     if let Some(rect) = source_add_button_rect(layout.sidebar_header, style.sizing) {
@@ -26,12 +26,6 @@ pub(super) fn build_sidebar_automation(
             vec![String::from("open_add_source_dialog")],
         ));
     }
-    children.push(source_list_group(
-        sections.source_rows,
-        source_rows,
-        &model.sources.rows,
-        model.focus_context == crate::app::FocusContextModel::SourcesList,
-    ));
     for button in source_action_buttons(layout, style, model) {
         children.push(simple_node(
             format!("sources.action.{}", slug(button.label)),
@@ -46,6 +40,18 @@ pub(super) fn build_sidebar_automation(
     }
     for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
         let pane_model = model.sources.folder_pane(pane);
+        children.push(source_list_group(
+            pane,
+            sections.source_rows(pane),
+            source_rows
+                .iter()
+                .copied()
+                .filter(|row| row.pane == pane)
+                .collect(),
+            &model.sources.rows,
+            model.focus_context == crate::app::FocusContextModel::SourcesList
+                && model.sources.active_folder_pane == pane,
+        ));
         children.push(folder_browser_group(
             pane,
             sections.folder_header(pane),
@@ -85,24 +91,30 @@ pub(super) fn build_sidebar_automation(
 }
 
 fn source_list_group(
+    pane: FolderPaneIdModel,
     rect: Rect,
-    source_rows: Vec<Rect>,
+    source_rows: Vec<CachedSourceRow>,
     rows: &[crate::app::SourceRowModel],
     selected: bool,
 ) -> AutomationNodeSnapshot {
     let row_count = rows.len().to_string();
     let children = source_rows
         .into_iter()
-        .enumerate()
-        .filter_map(|(index, rect)| rows.get(index).map(|row| (index, rect, row)))
+        .filter_map(|rendered_row| {
+            rows.get(rendered_row.row_index)
+                .map(|row| (rendered_row.row_index, rendered_row.rect, row))
+        })
         .map(|(index, rect, row)| AutomationNodeSnapshot {
-            id: node_id(format!("sources.source_row.{index}")),
+            id: node_id(format!(
+                "sources.{}.source_row.{index}",
+                folder_pane_slug(pane)
+            )),
             role: AutomationRole::Row,
             label: Some(row.label.clone()),
             bounds: bounds(rect),
             value: (!row.detail.is_empty()).then(|| row.detail.clone()),
             enabled: true,
-            selected: row.selected,
+            selected: source_row_selected(row, pane),
             available_actions: vec![
                 String::from("select_source_row"),
                 String::from("reload_source_row"),
@@ -118,16 +130,23 @@ fn source_list_group(
         })
         .collect();
     AutomationNodeSnapshot {
-        id: node_id("sources.source_list"),
+        id: node_id(format!("sources.{}.source_list", folder_pane_slug(pane))),
         role: AutomationRole::Group,
-        label: Some(String::from("Source list")),
+        label: Some(format!("{} source list", folder_pane_slug(pane))),
         bounds: bounds(rect),
         value: None,
         enabled: true,
         selected,
         available_actions: vec![String::from("focus_sources_panel")],
-        metadata: metadata(&[("row_count", &row_count)]),
+        metadata: metadata(&[("row_count", &row_count), ("pane", folder_pane_slug(pane))]),
         children,
+    }
+}
+
+fn source_row_selected(row: &crate::app::SourceRowModel, pane: FolderPaneIdModel) -> bool {
+    match pane {
+        FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
+        FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
     }
 }
 

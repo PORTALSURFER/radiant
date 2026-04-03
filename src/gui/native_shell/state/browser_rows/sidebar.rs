@@ -69,14 +69,28 @@ pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-) -> Vec<Rect> {
+) -> Vec<CachedSourceRow> {
     let sections = sidebar_sections(layout, style, model);
-    build_stacked_rows(
-        sections.source_rows,
-        rendered_source_rows(style, model),
-        style.sizing.source_row_gap,
-        style.sizing.source_row_height,
-    )
+    let row_count = rendered_source_rows(style, model);
+    let mut rows = Vec::with_capacity(row_count.saturating_mul(2));
+    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+        rows.extend(
+            build_stacked_rows(
+                sections.source_rows(pane),
+                row_count,
+                style.sizing.source_row_gap,
+                style.sizing.source_row_height,
+            )
+            .into_iter()
+            .enumerate()
+            .map(|(row_index, rect)| CachedSourceRow {
+                pane,
+                row_index,
+                rect,
+            }),
+        );
+    }
+    rows
 }
 
 /// Return the visual folder-row paint bounds while preserving the sidebar seams.

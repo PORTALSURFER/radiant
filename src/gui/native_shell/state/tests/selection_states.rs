@@ -92,7 +92,9 @@ fn source_list_focus_overlay_draws_sidebar_source_band() {
     let color = section_focus_color(&style);
 
     assert!(frame.primitives.iter().any(|primitive| match primitive {
-        Primitive::Rect(rect) => rect.rect == sections.source_rows && rect.color == color,
+        Primitive::Rect(rect) => {
+            rect.rect == sections.source_rows(FolderPaneIdModel::Upper) && rect.color == color
+        }
         _ => false,
     }));
 }
@@ -123,12 +125,10 @@ fn source_row_selected_fill_is_translucent_overlay() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.sources.rows.push(SourceRowModel::new(
-        "selected source",
-        "detail",
-        true,
-        false,
-    ));
+    model.sources.rows.push(
+        SourceRowModel::new("selected source", "detail", false, false)
+            .with_pane_assignment(true, false),
+    );
 
     let selected_row = *state
         .rendered_source_row_rects(&layout, &model)

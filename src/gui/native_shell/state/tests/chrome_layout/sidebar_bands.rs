@@ -1,8 +1,7 @@
 use super::super::*;
 use crate::app::FolderPaneIdModel;
-
 #[test]
-fn sidebar_sections_keep_non_overlapping_bands_across_tiers() {
+fn sidebar_sections_keep_equal_height_panes_across_viewports() {
     let sizes = [
         Vector2::new(820.0, 520.0),
         Vector2::new(1280.0, 720.0),
@@ -14,43 +13,34 @@ fn sidebar_sections_keep_non_overlapping_bands_across_tiers() {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
         let sections = sidebar_sections(&layout, &style, &model);
-        let rendered_sources = state.rendered_source_row_rects(&layout, &model);
-        assert_rect_inside(layout.sidebar_rows, sections.source_rows);
-        assert_rect_inside(
-            layout.sidebar_rows,
-            sections.folder_header(FolderPaneIdModel::Upper),
+        let rendered_upper_sources =
+            state.rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Upper);
+        let rendered_lower_sources =
+            state.rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Lower);
+        assert_rect_inside(layout.sidebar_rows, sections.upper.bounds);
+        assert_rect_inside(layout.sidebar_rows, sections.lower.bounds);
+        assert_eq!(
+            sections.upper.bounds.height(),
+            sections.lower.bounds.height()
         );
-        assert_rect_inside(
-            layout.sidebar_rows,
-            sections.folder_rows(FolderPaneIdModel::Upper),
-        );
-        assert!(
-            sections.source_rows.max.y <= sections.folder_header(FolderPaneIdModel::Upper).min.y
-        );
-        assert!(
-            sections.folder_header(FolderPaneIdModel::Upper).max.y
-                <= sections.folder_rows(FolderPaneIdModel::Upper).min.y
-        );
-        assert!(!rendered_sources.is_empty());
+        assert_eq!(sections.upper.bounds.max.y, sections.lower.bounds.min.y);
+        assert!(!rendered_upper_sources.is_empty());
+        assert!(!rendered_lower_sources.is_empty());
     }
 }
 
 #[test]
-fn sidebar_sections_remain_stable_in_cramped_viewports() {
+fn sidebar_sections_keep_each_pane_contents_inside_its_half_when_cramped() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);
     let model = populated_sidebar_model();
     let sections = sidebar_sections(&layout, &style, &model);
-    assert_rect_inside(layout.sidebar_rows, sections.source_rows);
-    assert_rect_inside(
-        layout.sidebar_rows,
-        sections.folder_header(FolderPaneIdModel::Upper),
-    );
-    assert_rect_inside(
-        layout.sidebar_rows,
-        sections.folder_rows(FolderPaneIdModel::Upper),
-    );
-    assert!(sections.source_rows.max.y <= sections.folder_header(FolderPaneIdModel::Upper).min.y);
-    assert!(sections.folder_header(FolderPaneIdModel::Upper).max.y
-        <= sections.folder_rows(FolderPaneIdModel::Upper).min.y);
+    for pane_sections in [sections.upper, sections.lower] {
+        assert_rect_inside(layout.sidebar_rows, pane_sections.bounds);
+        assert_rect_inside(pane_sections.bounds, pane_sections.source_rows);
+        assert_rect_inside(pane_sections.bounds, pane_sections.folder_header);
+        assert_rect_inside(pane_sections.bounds, pane_sections.folder_rows);
+        assert!(pane_sections.source_rows.max.y <= pane_sections.folder_header.min.y);
+        assert!(pane_sections.folder_header.max.y <= pane_sections.folder_rows.min.y);
+    }
 }

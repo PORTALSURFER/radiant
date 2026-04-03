@@ -52,6 +52,10 @@ pub struct SourceRowModel {
     pub selected: bool,
     /// Whether the source is missing from disk.
     pub missing: bool,
+    /// Whether this source is assigned to the upper folder pane.
+    pub assigned_to_upper_pane: bool,
+    /// Whether this source is assigned to the lower folder pane.
+    pub assigned_to_lower_pane: bool,
 }
 
 impl SourceRowModel {
@@ -67,7 +71,16 @@ impl SourceRowModel {
             detail: detail.into(),
             selected,
             missing,
+            assigned_to_upper_pane: false,
+            assigned_to_lower_pane: false,
         }
+    }
+
+    /// Mark whether this source is assigned to either fixed folder pane.
+    pub fn with_pane_assignment(mut self, upper: bool, lower: bool) -> Self {
+        self.assigned_to_upper_pane = upper;
+        self.assigned_to_lower_pane = lower;
+        self
     }
 }
 

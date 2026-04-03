@@ -149,14 +149,14 @@ fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     let model = populated_sidebar_model();
     let sections = sidebar_sections(&layout, &style, &model);
     let divider = compute_source_section_divider_rect(
-        sections.source_rows,
+        sections.source_rows(FolderPaneIdModel::Upper),
         sections.folder_header(FolderPaneIdModel::Upper),
         style.sizing,
     )
     .expect("divider should exist");
     assert_rect_inside(layout.sidebar_rows, divider);
     assert!(divider.max.y <= sections.folder_rows(FolderPaneIdModel::Upper).min.y);
-    assert!(divider.min.y >= sections.source_rows.min.y);
+    assert!(divider.min.y >= sections.source_rows(FolderPaneIdModel::Upper).min.y);
 }
 
 #[test]
@@ -236,12 +236,10 @@ fn selected_source_row_uses_mint_label_text() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.sources.rows.push(SourceRowModel::new(
-        "selected source",
-        String::new(),
-        true,
-        false,
-    ));
+    model.sources.rows.push(
+        SourceRowModel::new("selected source", String::new(), false, false)
+            .with_pane_assignment(true, false),
+    );
 
     let frame = state.build_frame(&layout, &model);
     let selected_label = frame

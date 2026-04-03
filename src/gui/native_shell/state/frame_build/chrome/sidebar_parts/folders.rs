@@ -11,13 +11,13 @@ pub(super) fn render_folder_section(
     data: &SidebarFrameData,
 ) -> usize {
     let sections = sidebar_sections(ctx.layout, ctx.style, ctx.model);
-    render_source_section_divider(ctx, primitives, sections);
     let mut rendered_count = 0;
     for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
         let pane_rows = match pane {
             FolderPaneIdModel::Upper => &data.upper_folder_rows,
             FolderPaneIdModel::Lower => &data.lower_folder_rows,
         };
+        render_source_section_divider(ctx, primitives, sections, pane);
         header::render_folder_header(
             ctx,
             primitives,
@@ -56,10 +56,11 @@ fn render_source_section_divider(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     sections: SidebarSections,
+    pane: FolderPaneIdModel,
 ) {
     let Some(divider_rect) = compute_source_section_divider_rect(
-        sections.source_rows,
-        sections.upper_folder_header,
+        sections.source_rows(pane),
+        sections.folder_header(pane),
         ctx.sizing,
     ) else {
         return;

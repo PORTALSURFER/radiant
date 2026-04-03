@@ -7,10 +7,12 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<usize> {
+    ) -> Option<(crate::app::FolderPaneIdModel, usize)> {
         let style = style_for_layout(layout);
-        let source_rows = self.cached_source_row_rects(layout, &style, model);
-        compute_row_index_at_point(source_rows, point)
+        self.cached_source_rows(layout, &style, model)
+            .iter()
+            .find(|row| row.rect.contains(point))
+            .map(|row| (row.pane, row.row_index))
     }
 
     /// Resolve one source context-menu action at a pointer location.
@@ -53,8 +55,23 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Vec<Rect> {
+        self.rendered_source_row_rects_for_pane(layout, model, model.sources.active_folder_pane)
+    }
+
+    /// Return rendered source-row rectangles for one pane in geometry tests.
+    #[cfg(test)]
+    pub(crate) fn rendered_source_row_rects_for_pane(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        pane: crate::app::FolderPaneIdModel,
+    ) -> Vec<Rect> {
         let style = style_for_layout(layout);
-        self.cached_source_row_rects(layout, &style, model).to_vec()
+        self.cached_source_rows(layout, &style, model)
+            .iter()
+            .filter(|row| row.pane == pane)
+            .map(|row| row.rect)
+            .collect()
     }
 
     /// Return a source-action button rect for the provided action in tests.
@@ -164,13 +181,13 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        if sections.source_rows.contains(point) {
-            return Some(UiAction::FocusSourcesPanel);
-        }
         for pane in [
             crate::app::FolderPaneIdModel::Upper,
             crate::app::FolderPaneIdModel::Lower,
         ] {
+            if sections.source_rows(pane).contains(point) {
+                return Some(UiAction::FocusSourcesPanel);
+            }
             if sections.folder_header(pane).contains(point)
                 || sections.folder_rows(pane).contains(point)
             {

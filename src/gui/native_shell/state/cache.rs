@@ -4,12 +4,12 @@ use super::*;
 use crate::app::FolderPaneIdModel;
 
 impl NativeShellState {
-    pub(super) fn cached_source_row_rects(
+    pub(super) fn cached_source_rows(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> &[Rect] {
+    ) -> &[CachedSourceRow] {
         let cache_key = sidebar_rows_cache_key(layout, style, model);
         if self.source_row_cache_key != Some(cache_key) {
             self.source_row_rects = rendered_source_row_rects(layout, style, model);

@@ -1,5 +1,5 @@
-use crate::app::FolderPaneIdModel;
 use super::*;
+use crate::app::FolderPaneIdModel;
 
 #[test]
 fn source_action_hit_test_emits_folder_action() {
@@ -43,10 +43,12 @@ fn folder_row_hit_test_resolves_rendered_folder_row() {
     let mut model = crate::app::AppModel::default();
     model
         .sources
+        .upper_folder_pane
         .folder_rows
         .push(crate::app::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
         ));
+    model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
     let folder_rects = state.rendered_folder_row_rects(&layout, &model);
     assert_eq!(folder_rects.len(), 1);
     let folder_rect = folder_rects[0];
@@ -68,12 +70,15 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     model.sources.rows.push(crate::app::SourceRowModel::new(
         "Pack", "pack", false, false,
     ));
+    model.sources.rows[0].assigned_to_upper_pane = true;
     model
         .sources
+        .upper_folder_pane
         .folder_rows
         .push(crate::app::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
         ));
+    model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
 
     let source_rects = state.rendered_source_row_rects(&layout, &model);
     assert_eq!(source_rects.len(), 1);
@@ -83,7 +88,7 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     );
     assert_eq!(
         state.source_row_at_point(&layout, &model, source_point),
-        Some(0)
+        Some((FolderPaneIdModel::Upper, 0))
     );
 
     let folder_rects = state.rendered_folder_row_rects(&layout, &model);
@@ -106,6 +111,7 @@ fn folder_rows_fill_sidebar_width_and_touch_without_gap() {
     for index in 0..3 {
         model
             .sources
+            .upper_folder_pane
             .folder_rows
             .push(crate::app::FolderRowModel::new(
                 format!("Folder {index}"),
@@ -118,6 +124,7 @@ fn folder_rows_fill_sidebar_width_and_touch_without_gap() {
                 true,
             ));
     }
+    model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
 
     let folder_rects = state.rendered_folder_row_rects(&layout, &model);
     assert_eq!(folder_rects.len(), 3);

@@ -12,6 +12,7 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         false,
         false,
     ));
+    model.sources.rows[0].assigned_to_upper_pane = true;
     let row_rect = *state
         .rendered_source_row_rects(&layout, &model)
         .first()
@@ -20,10 +21,17 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         (row_rect.min.x + row_rect.max.x) * 0.5,
         (row_rect.min.y + row_rect.max.y) * 0.5,
     );
-    state.open_source_context_menu_for_row(0, anchor);
+    state.open_source_context_menu_for_row(crate::app::FolderPaneIdModel::Upper, 0, anchor);
 
     let reload_rect = state
-        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .source_context_menu_button_rect(
+            &layout,
+            &model,
+            UiAction::ReloadSourceRow {
+                pane: Some(crate::app::FolderPaneIdModel::Upper),
+                index: 0,
+            },
+        )
         .expect("reload action button should be present");
     let point = Point::new(
         (reload_rect.min.x + reload_rect.max.x) * 0.5,
@@ -31,7 +39,10 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
     );
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
-        Some(UiAction::ReloadSourceRow { index: 0 })
+        Some(UiAction::ReloadSourceRow {
+            pane: Some(crate::app::FolderPaneIdModel::Upper),
+            index: 0,
+        })
     );
 }
 
@@ -47,12 +58,21 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
         false,
         false,
     ));
+    model.sources.rows[0].assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
+        crate::app::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
     let reload_rect = state
-        .source_context_menu_button_rect(&layout, &model, UiAction::ReloadSourceRow { index: 0 })
+        .source_context_menu_button_rect(
+            &layout,
+            &model,
+            UiAction::ReloadSourceRow {
+                pane: Some(crate::app::FolderPaneIdModel::Upper),
+                index: 0,
+            },
+        )
         .expect("reload action button should be present");
     let point = Point::new(
         (reload_rect.min.x + reload_rect.max.x) * 0.5,
@@ -76,13 +96,22 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
         false,
         false,
     ));
+    model.sources.rows[0].assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
+        crate::app::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
 
     let remove_rect = state
-        .source_context_menu_button_rect(&layout, &model, UiAction::RemoveSourceRow { index: 0 })
+        .source_context_menu_button_rect(
+            &layout,
+            &model,
+            UiAction::RemoveSourceRow {
+                pane: Some(crate::app::FolderPaneIdModel::Upper),
+                index: 0,
+            },
+        )
         .expect("remove source action button should be present");
     let point = Point::new(
         (remove_rect.min.x + remove_rect.max.x) * 0.5,
@@ -90,7 +119,10 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
     );
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
-        Some(UiAction::RemoveSourceRow { index: 0 })
+        Some(UiAction::RemoveSourceRow {
+            pane: Some(crate::app::FolderPaneIdModel::Upper),
+            index: 0,
+        })
     );
 
     let frame = state.build_frame(&layout, &model);

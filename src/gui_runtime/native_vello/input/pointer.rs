@@ -143,8 +143,11 @@ fn route_sidebar_background(
     shell_state: &mut NativeShellState,
     point: Point,
 ) -> Option<UiAction> {
-    if let Some(index) = shell_state.source_row_at_point(layout, model, point) {
-        return Some(UiAction::FocusSourceRow { index });
+    if let Some((pane, index)) = shell_state.source_row_at_point(layout, model, point) {
+        return Some(UiAction::FocusSourceRow {
+            pane: Some(pane),
+            index,
+        });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
         return Some(folder_row_pointer_action(model, pane, index));

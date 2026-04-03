@@ -23,6 +23,14 @@ fn upper_folder_browser<'a>(node: &'a AutomationNodeSnapshot) -> &'a AutomationN
     child(node, "sources.upper.folder_browser")
 }
 
+fn upper_source_list<'a>(node: &'a AutomationNodeSnapshot) -> &'a AutomationNodeSnapshot {
+    child(node, "sources.upper.source_list")
+}
+
+fn lower_source_list<'a>(node: &'a AutomationNodeSnapshot) -> &'a AutomationNodeSnapshot {
+    child(node, "sources.lower.source_list")
+}
+
 fn push_upper_folder_row(model: &mut AppModel, row: FolderRowModel) {
     model.sources.upper_folder_pane.folder_rows.push(row);
 }
@@ -80,19 +88,46 @@ fn sidebar_surface_exposes_distinct_source_list_and_folder_browser_focus_groups(
 
     model.focus_context = FocusContextModel::SourcesList;
     let sources_node = build_sidebar_automation(&mut state, &layout, &model, &style);
-    let source_list = child(&sources_node, "sources.source_list");
+    let source_list = upper_source_list(&sources_node);
     let folder_browser = upper_folder_browser(&sources_node);
     assert!(source_list.selected);
+    assert!(!lower_source_list(&sources_node).selected);
     assert!(!folder_browser.selected);
     assert_eq!(source_list.role, AutomationRole::Group);
 
     model.focus_context = FocusContextModel::SourceFolders;
     let folders_node = build_sidebar_automation(&mut state, &layout, &model, &style);
-    let source_list = child(&folders_node, "sources.source_list");
+    let source_list = upper_source_list(&folders_node);
     let folder_browser = upper_folder_browser(&folders_node);
     assert!(!source_list.selected);
+    assert!(!lower_source_list(&folders_node).selected);
     assert!(folder_browser.selected);
     assert_eq!(folder_browser.role, AutomationRole::Group);
+}
+
+#[test]
+fn sidebar_automation_exposes_source_lists_for_both_panes() {
+    let layout = ShellLayout::build(Vector2::new(1440.0, 810.0));
+    let style = style_for_layout(&layout);
+    let model = populated_sidebar_model();
+    let mut state = NativeShellState::new();
+
+    let node = build_sidebar_automation(&mut state, &layout, &model, &style);
+    let upper = upper_source_list(&node);
+    let lower = lower_source_list(&node);
+
+    assert_eq!(upper.role, AutomationRole::Group);
+    assert_eq!(lower.role, AutomationRole::Group);
+    assert_eq!(
+        upper.metadata.get("pane").map(String::as_str),
+        Some("upper")
+    );
+    assert_eq!(
+        lower.metadata.get("pane").map(String::as_str),
+        Some("lower")
+    );
+    assert!(child(upper, "sources.upper.source_row.2").selected);
+    assert!(child(lower, "sources.lower.source_row.5").selected);
 }
 
 #[test]

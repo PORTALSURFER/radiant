@@ -11,12 +11,25 @@ fn populated_sidebar_model() -> AppModel {
         model.sources.rows.push(SourceRowModel::new(
             format!("source_{index:02}"),
             format!("detail_{index:02}"),
-            index == 2,
+            false,
             false,
         ));
     }
+    if let Some(row) = model.sources.rows.get_mut(2) {
+        row.assigned_to_upper_pane = true;
+    }
+    if let Some(row) = model.sources.rows.get_mut(5) {
+        row.assigned_to_lower_pane = true;
+    }
+    model.sources.upper_folder_pane.source_label = String::from("source_02");
+    model.sources.upper_folder_pane.source_detail = String::from("detail_02");
+    model.sources.upper_folder_pane.active = true;
+    model.sources.upper_folder_pane.has_source = true;
+    model.sources.lower_folder_pane.source_label = String::from("source_05");
+    model.sources.lower_folder_pane.source_detail = String::from("detail_05");
+    model.sources.lower_folder_pane.has_source = true;
     for index in 0..24 {
-        model.sources.folder_rows.push(FolderRowModel::new(
+        let row = FolderRowModel::new(
             format!("folder_{index:02}"),
             String::new(),
             index % 4,
@@ -25,8 +38,16 @@ fn populated_sidebar_model() -> AppModel {
             index == 0,
             true,
             true,
-        ));
+        );
+        model
+            .sources
+            .upper_folder_pane
+            .folder_rows
+            .push(row.clone());
+        model.sources.lower_folder_pane.folder_rows.push(row);
     }
+    model.sources.focused_folder_row = Some(3);
+    model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
     model.sources.folder_actions = FolderActionsModel {
         can_create_folder: true,
         can_create_folder_at_root: true,
@@ -36,8 +57,16 @@ fn populated_sidebar_model() -> AppModel {
         can_purge_retained_deletes: true,
         can_clear_recovery_log: true,
     };
+    model.sources.upper_folder_pane.folder_actions = model.sources.folder_actions.clone();
+    model.sources.lower_folder_pane.folder_actions = model.sources.folder_actions.clone();
     model.sources.can_toggle_show_all_folders = true;
     model.sources.can_toggle_flattened_view = true;
+    model.sources.upper_folder_pane.can_toggle_show_all_folders = true;
+    model.sources.upper_folder_pane.can_toggle_flattened_view = true;
+    model.sources.upper_folder_pane.focused_folder_row = Some(3);
+    model.sources.lower_folder_pane.can_toggle_show_all_folders = true;
+    model.sources.lower_folder_pane.can_toggle_flattened_view = true;
+    model.sources.lower_folder_pane.focused_folder_row = Some(3);
     model
 }
 

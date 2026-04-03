@@ -78,6 +78,8 @@ pub struct WaveformPanelModel {
     pub loaded_label: Option<String>,
     /// Whether a newly focused sample is still loading waveform data.
     pub loading: bool,
+    /// Whether a replacement waveform image is still rendering in the background.
+    pub image_rendering: bool,
     /// Cursor position in normalized milli-units.
     pub cursor_milli: Option<u16>,
     /// Playhead position in normalized milli-units.
@@ -188,6 +190,7 @@ impl Default for WaveformPanelModel {
         Self {
             loaded_label: None,
             loading: false,
+            image_rendering: false,
             cursor_milli: None,
             playhead_milli: None,
             playhead_micros: None,

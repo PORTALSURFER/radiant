@@ -246,6 +246,7 @@ impl Default for AppModel {
                 can_toggle_flattened_view: false,
                 selected_row: None,
                 loading_row: None,
+                mutation_busy_row: None,
                 focused_folder_row: None,
                 rows: Vec::new(),
                 folder_rows: Vec::new(),

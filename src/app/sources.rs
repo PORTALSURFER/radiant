@@ -296,6 +296,8 @@ pub struct FolderPaneModel {
     pub loading: bool,
     /// Whether this pane is asynchronously rebuilding its folder-tree rows.
     pub projecting: bool,
+    /// Whether this pane's source currently owns a background file or folder mutation.
+    pub mutation_busy: bool,
     /// Active folder-search query for this pane.
     pub folder_search_query: String,
     /// Whether the folder browser currently includes empty on-disk folders.
@@ -343,6 +345,8 @@ pub struct SourcesPanelModel {
     pub selected_row: Option<usize>,
     /// Source row currently hydrating in the background, if any.
     pub loading_row: Option<usize>,
+    /// Source row currently running a background file or folder mutation, if any.
+    pub mutation_busy_row: Option<usize>,
     /// Focused folder row index, if any.
     pub focused_folder_row: Option<usize>,
     /// Rows to render in the source panel.

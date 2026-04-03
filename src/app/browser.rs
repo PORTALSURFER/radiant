@@ -150,6 +150,10 @@ pub struct BrowserPanelModel {
     pub busy: bool,
     /// Whether the selected source is still hydrating before browser rows can project.
     pub source_loading: bool,
+    /// Whether optimistic metadata writes are still pending background persistence.
+    pub metadata_pending: bool,
+    /// Whether file or folder mutations are still running in the background.
+    pub file_op_pending: bool,
     /// Whether the browser is currently showing a similarity-filtered result set.
     pub similarity_filtered: bool,
     /// Whether browser duplicate cleanup mode is currently active.

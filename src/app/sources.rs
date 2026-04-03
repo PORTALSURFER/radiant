@@ -294,6 +294,8 @@ pub struct FolderPaneModel {
     pub has_source: bool,
     /// Whether this pane is hydrating its assigned source snapshot.
     pub loading: bool,
+    /// Whether this pane is asynchronously rebuilding its folder-tree rows.
+    pub projecting: bool,
     /// Active folder-search query for this pane.
     pub folder_search_query: String,
     /// Whether the folder browser currently includes empty on-disk folders.

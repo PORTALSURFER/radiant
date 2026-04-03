@@ -119,8 +119,9 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
+                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: true,
+                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -196,8 +197,9 @@ fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
+                hovered_folder_pane: None,
                 hovered_folder_row: None,
-                over_folder_panel: true,
+                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },

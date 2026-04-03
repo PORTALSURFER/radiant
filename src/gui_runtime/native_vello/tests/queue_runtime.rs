@@ -31,7 +31,10 @@ fn folder_row_point(
     for x in layout.sidebar_rows.min.x as i32..=layout.sidebar_rows.max.x as i32 {
         for y in layout.sidebar_rows.min.y as i32..=layout.sidebar_rows.max.y as i32 {
             let point = Point::new(x as f32, y as f32);
-            if shell_state.folder_row_at_point(layout, model, point) == Some(row_index) {
+            if shell_state
+                .folder_row_at_point(layout, model, point)
+                .is_some_and(|(_, found_row)| found_row == row_index)
+            {
                 return point;
             }
         }
@@ -335,8 +338,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
+                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: true,
+                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -356,8 +360,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
+                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: true,
+                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -393,8 +398,9 @@ fn browser_row_drag_reports_folder_panel_background_without_row() {
         UiAction::UpdateBrowserSampleDrag {
             pointer_x: drag_point.x.round() as u16,
             pointer_y: drag_point.y.round() as u16,
+            hovered_folder_pane: None,
             hovered_folder_row: None,
-            over_folder_panel: true,
+            over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
             shift_down: false,
             alt_down: false,
         }

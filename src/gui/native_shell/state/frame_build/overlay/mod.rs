@@ -174,10 +174,10 @@ pub(super) fn render_modal_overlay(
         model,
         shell_state.source_context_menu,
     );
-    render_options_panel(primitives, text_runs, layout, style, model);
     render_progress_overlay(primitives, text_runs, layout, style, model);
     render_confirm_prompt(primitives, text_runs, layout, style, model);
     render_drag_overlay(primitives, text_runs, layout, style, model);
+    render_options_panel(primitives, text_runs, layout, style, model);
 }
 
 #[cfg(test)]

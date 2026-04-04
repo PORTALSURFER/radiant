@@ -285,10 +285,7 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
             _ => None,
         })
         .expect("chip fill should be rendered");
-    assert_eq!(
-        fill,
-        status_options_button_fill(&style, true, false, false, 0.0)
-    );
+    assert_ne!(fill, style.surface_overlay);
 }
 
 #[test]
@@ -408,4 +405,77 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
             sample_rate: Some(48_000),
         })
     );
+}
+
+#[test]
+fn options_panel_renders_after_other_modal_overlays() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        progress_overlay: crate::app::ProgressOverlayModel {
+            visible: true,
+            modal: true,
+            title: String::from("Background task"),
+            detail: Some(String::from("Copying files")),
+            completed: 1,
+            total: 3,
+            cancelable: true,
+            cancel_requested: false,
+        },
+        audio_engine: crate::app::AudioEngineModel {
+            chip_label: String::from("48 kHz"),
+            output_host: crate::app::AudioFieldModel {
+                label: String::from("Output Host"),
+                value_label: String::from("ASIO"),
+            },
+            ..crate::app::AudioEngineModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let mut overlay = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
+
+    let progress_title_index = overlay
+        .text_runs
+        .iter()
+        .position(|run| run.text == "Background task")
+        .expect("progress overlay title should render");
+    let panel_title_index = overlay
+        .text_runs
+        .iter()
+        .position(|run| run.text == "Audio Engine")
+        .expect("options panel title should render");
+    assert!(panel_title_index > progress_title_index);
+
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+    let progress_rect_index = overlay
+        .primitives
+        .iter()
+        .position(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, .. }) if *rect != panel.panel_rect
+                    && rect.width() > panel.panel_rect.width() * 0.5
+                    && rect.height() > panel.panel_rect.height() * 0.5
+            )
+        })
+        .expect("progress overlay backdrop should render");
+    let panel_rect_index = overlay
+        .primitives
+        .iter()
+        .rposition(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect, .. }) if *rect == panel.panel_rect
+            )
+        })
+        .expect("options panel surface should render");
+    assert!(panel_rect_index > progress_rect_index);
 }

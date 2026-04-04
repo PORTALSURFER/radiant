@@ -42,8 +42,6 @@ pub(super) enum WaveformToolbarIcon {
     Play,
     /// Record icon placeholder.
     Record,
-    /// Status-bar options button icon.
-    Cog,
     /// Browser random-navigation toggle icon.
     Dice,
     /// Browser focused-row similarity-search icon.
@@ -167,7 +165,6 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
             include_str!("../../../../assets/icons/waveform_toolbar/loop.svg")
         }
         WaveformToolbarIcon::Lock => include_str!("../../../../assets/icons/ui/lock.svg"),
-        WaveformToolbarIcon::Cog => include_str!("../../../../assets/icons/ui/cog.svg"),
         WaveformToolbarIcon::Dice => include_str!("../../../../assets/icons/ui/dice.svg"),
         WaveformToolbarIcon::Similarity => {
             include_str!("../../../../assets/icons/ui/similarity.svg")
@@ -270,7 +267,6 @@ mod tests {
             WaveformToolbarIcon::Stop,
             WaveformToolbarIcon::Play,
             WaveformToolbarIcon::Record,
-            WaveformToolbarIcon::Cog,
             WaveformToolbarIcon::Dice,
             WaveformToolbarIcon::Similarity,
             WaveformToolbarIcon::Filter,

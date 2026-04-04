@@ -43,8 +43,15 @@ impl UiAction {
             | Self::OpenAddSourceDialog
             | Self::OpenOptionsMenu
             | Self::CloseOptionsPanel
+            | Self::ShowOptionsOverview
             | Self::PickTrashFolder
             | Self::OpenTrashFolder
+            | Self::OpenAudioOutputHostPicker
+            | Self::OpenAudioOutputDevicePicker
+            | Self::OpenAudioOutputSampleRatePicker
+            | Self::OpenAudioInputHostPicker
+            | Self::OpenAudioInputDevicePicker
+            | Self::OpenAudioInputSampleRatePicker
             | Self::FocusFolderSearch { .. }
             | Self::SetFolderSearch { .. } => UiActionFamily::Focus,
             Self::SelectSourceRow { .. }
@@ -129,6 +136,12 @@ impl UiAction {
             | Self::CancelPrompt
             | Self::CancelProgress => UiActionFamily::Prompt,
             Self::SetInputMonitoringEnabled { .. }
+            | Self::SetAudioOutputHost { .. }
+            | Self::SetAudioOutputDevice { .. }
+            | Self::SetAudioOutputSampleRate { .. }
+            | Self::SetAudioInputHost { .. }
+            | Self::SetAudioInputDevice { .. }
+            | Self::SetAudioInputSampleRate { .. }
             | Self::SetAdvanceAfterRatingEnabled { .. }
             | Self::SetDestructiveYoloMode { .. }
             | Self::SetInvertWaveformScroll { .. }

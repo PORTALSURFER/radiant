@@ -1,13 +1,15 @@
 //! Model-sync, editor-state, and animation bookkeeping for the native shell.
 
 use super::*;
-use crate::app::FolderPaneIdModel;
+use crate::app::{AudioEngineChipStateModel, FolderPaneIdModel};
 
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
     pub(crate) fn sync_from_model(&mut self, model: &AppModel) {
         self.selected_column = model.selected_column.min(2);
         self.transport_running = model.transport_running;
+        self.status_options_button_error =
+            model.audio_engine.chip_state == AudioEngineChipStateModel::Error;
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         if model.map.active {
             self.hovered_browser_visible_row = None;
@@ -195,6 +197,7 @@ impl NativeShellState {
             hovered_browser_marked_filter: self.hovered_browser_marked_filter,
             hovered_source_add_button: self.hovered_source_add_button,
             hovered_status_options_button: self.hovered_status_options_button,
+            status_options_button_error: self.status_options_button_error,
             hovered_browser_search_field: self.hovered_browser_search_field,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             flashed_source_add_button: self.source_add_button_flash_ticks > 0,

@@ -59,8 +59,10 @@ pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
 pub use hotkeys::{HotkeyBinding, HotkeyGesture, HotkeyScope, KeyPress, iter_hotkey_bindings};
 pub use motion::NativeMotionModel;
 pub use shell::{
-    AppModel, ConfirmPromptKind, ConfirmPromptModel, DEFAULT_APP_TITLE, DragOverlayModel,
-    OptionsPanelModel, ProgressOverlayModel, StatusBarModel, UpdatePanelModel, UpdateStatusModel,
+    AppModel, AudioEngineChipStateModel, AudioEngineModel, AudioFieldModel, AudioOptionItemModel,
+    AudioOptionValueModel, AudioPickerTargetModel, ConfirmPromptKind, ConfirmPromptModel,
+    DEFAULT_APP_TITLE, DragOverlayModel, OptionsPanelModel, ProgressOverlayModel, StatusBarModel,
+    UpdatePanelModel, UpdateStatusModel,
 };
 pub use sources::{
     ColumnModel, FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel,

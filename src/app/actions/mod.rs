@@ -101,6 +101,50 @@ pub enum UiAction {
     PickTrashFolder,
     /// Open the configured trash folder in the OS file explorer.
     OpenTrashFolder,
+    /// Return from one audio picker to the main options overview.
+    ShowOptionsOverview,
+    /// Expand the output-host picker inside the options panel.
+    OpenAudioOutputHostPicker,
+    /// Expand the output-device picker inside the options panel.
+    OpenAudioOutputDevicePicker,
+    /// Expand the output sample-rate picker inside the options panel.
+    OpenAudioOutputSampleRatePicker,
+    /// Expand the input-host picker inside the options panel.
+    OpenAudioInputHostPicker,
+    /// Expand the input-device picker inside the options panel.
+    OpenAudioInputDevicePicker,
+    /// Expand the input sample-rate picker inside the options panel.
+    OpenAudioInputSampleRatePicker,
+    /// Apply one output-host selection.
+    SetAudioOutputHost {
+        /// Selected host identifier, or `None` for the system default.
+        host_id: Option<String>,
+    },
+    /// Apply one output-device selection.
+    SetAudioOutputDevice {
+        /// Selected device name, or `None` for the host default.
+        device_name: Option<String>,
+    },
+    /// Apply one output sample-rate selection.
+    SetAudioOutputSampleRate {
+        /// Selected sample rate in Hz, or `None` for the device default.
+        sample_rate: Option<u32>,
+    },
+    /// Apply one input-host selection.
+    SetAudioInputHost {
+        /// Selected host identifier, or `None` for the system default.
+        host_id: Option<String>,
+    },
+    /// Apply one input-device selection.
+    SetAudioInputDevice {
+        /// Selected device name, or `None` for the host default.
+        device_name: Option<String>,
+    },
+    /// Apply one input sample-rate selection.
+    SetAudioInputSampleRate {
+        /// Selected sample rate in Hz, or `None` for the device default.
+        sample_rate: Option<u32>,
+    },
     /// Focus the source-folder search field.
     FocusFolderSearch {
         /// Pane whose folder-search field should receive focus, or `None` for the active pane.

@@ -1,10 +1,9 @@
 //! Primitive/text rendering for the native-shell options panel.
 
-use super::actions::options_panel_button_text;
 use super::geometry::options_panel_layout;
 use super::style::{
     inset_rect, status_options_button_border, status_options_button_fill,
-    status_options_button_icon_color,
+    status_options_button_label_color,
 };
 use super::*;
 
@@ -13,13 +12,14 @@ pub(super) fn render_status_options_button(
     style: &StyleTokens,
     sizing: SizingTokens,
     button_rect: Rect,
+    _chip_label: &str,
+    error: bool,
     hovered: bool,
     flashed: bool,
     motion_wave: f32,
 ) {
-    let fill = status_options_button_fill(style, hovered, flashed, motion_wave);
-    let border = status_options_button_border(style, hovered, flashed, motion_wave);
-    let icon_color = status_options_button_icon_color(style, hovered, flashed, motion_wave);
+    let fill = status_options_button_fill(style, error, hovered, flashed, motion_wave);
+    let border = status_options_button_border(style, error, hovered, flashed, motion_wave);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -28,12 +28,6 @@ pub(super) fn render_status_options_button(
         }),
     );
     push_border(primitives, button_rect, border, sizing.border_width);
-    let icon_rect = inset_rect(
-        button_rect,
-        sizing.text_inset_x.max(3.0),
-        sizing.text_inset_y.max(2.0),
-    );
-    let _ = emit_toolbar_svg_icon(primitives, WaveformToolbarIcon::Cog, icon_rect, icon_color);
 }
 
 pub(super) fn render_options_panel(
@@ -63,7 +57,7 @@ pub(super) fn render_options_panel(
     emit_text(
         text_runs,
         TextRun {
-            text: String::from("Options"),
+            text: panel.title.clone(),
             position: panel.title_rect.min,
             font_size: sizing.font_title,
             color: style.text_primary,
@@ -71,35 +65,84 @@ pub(super) fn render_options_panel(
             align: TextAlign::Left,
         },
     );
+    if let (Some(detail_rect), Some(detail)) = (
+        panel.detail_rect,
+        model.audio_engine.detail_label.as_deref(),
+    ) {
+        emit_text(
+            text_runs,
+            TextRun {
+                text: detail.to_string(),
+                position: detail_rect.min,
+                font_size: sizing.font_meta,
+                color: blend_color(style.accent_trash, style.text_primary, 0.25),
+                max_width: Some(detail_rect.width().max(36.0)),
+                align: TextAlign::Left,
+            },
+        );
+    }
     for button in &panel.buttons {
         let label_rect = compute_action_button_text_rect(button.rect, sizing);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect: button.rect,
-                color: style.surface_base,
+                color: if button.active {
+                    translucent_overlay_color(style.surface_base, style.accent_mint, 0.22)
+                } else {
+                    style.surface_base
+                },
             }),
         );
         push_border(
             primitives,
             button.rect,
-            blend_color(style.border_emphasis, style.text_primary, 0.18),
+            if button.active {
+                blend_color(style.accent_mint, style.text_primary, 0.28)
+            } else {
+                blend_color(style.border_emphasis, style.text_primary, 0.18)
+            },
             sizing.border_width,
         );
         emit_text(
             text_runs,
             TextRun {
-                text: options_panel_button_text(button.label, model),
+                text: button.text.clone(),
                 position: label_rect.min,
                 font_size: sizing.font_meta,
-                color: if button.label == "YOLO Edits" {
+                color: if button.text.starts_with("YOLO Edits: On") {
                     style.accent_warning
                 } else {
-                    button.text_color
+                    style.text_primary
                 },
                 max_width: Some(label_rect.width().max(12.0)),
                 align: TextAlign::Left,
             },
         );
     }
+}
+
+pub(super) fn render_status_options_button_label(
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    button_rect: Rect,
+    chip_label: &str,
+    error: bool,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) {
+    let label_rect = inset_rect(button_rect, sizing.text_inset_x.max(4.0), 0.0);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: chip_label.to_string(),
+            position: label_rect.min,
+            font_size: sizing.font_meta,
+            color: status_options_button_label_color(style, error, hovered, flashed, motion_wave),
+            max_width: Some(label_rect.width().max(24.0)),
+            align: TextAlign::Center,
+        },
+    );
 }

@@ -96,13 +96,13 @@ pub(super) fn options_panel_automation(
             .into_iter()
             .map(|button| {
                 simple_node(
-                    format!("overlay.options_panel.{}", slug(button.label)),
+                    format!("overlay.options_panel.{}", slug(&button.text)),
                     AutomationRole::Button,
-                    Some(String::from(button.label)),
+                    Some(button.text),
                     button.rect,
                     None,
-                    button.enabled,
-                    false,
+                    true,
+                    button.active,
                     vec![action_slug(&button.action)],
                 )
             })

@@ -254,3 +254,158 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
         Some(UiAction::OpenTrashFolder)
     );
 }
+
+#[test]
+fn status_options_chip_renders_audio_label_and_error_tint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let model = AppModel {
+        audio_engine: crate::app::AudioEngineModel {
+            chip_state: crate::app::AudioEngineChipStateModel::Error,
+            chip_label: String::from("Audio Err"),
+            ..crate::app::AudioEngineModel::default()
+        },
+        ..AppModel::default()
+    };
+    state.sync_from_model(&model);
+
+    let button = state
+        .status_options_button_rect(&layout)
+        .expect("status options chip should render");
+    let frame = state.build_frame(&layout, &model);
+
+    assert!(button.width() > button.height());
+    assert!(frame.text_runs.iter().any(|run| run.text == "Audio Err"));
+    let fill = frame
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            Primitive::Rect(FillRect { rect, color }) if *rect == button => Some(*color),
+            _ => None,
+        })
+        .expect("chip fill should be rendered");
+    assert_eq!(
+        fill,
+        status_options_button_fill(&style, true, false, false, 0.0)
+    );
+}
+
+#[test]
+fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        audio_engine: crate::app::AudioEngineModel {
+            output_host: crate::app::AudioFieldModel {
+                label: String::from("Output Host"),
+                value_label: String::from("ASIO"),
+            },
+            output_device: crate::app::AudioFieldModel {
+                label: String::from("Output Device"),
+                value_label: String::from("USB"),
+            },
+            output_sample_rate: crate::app::AudioFieldModel {
+                label: String::from("Output Sample Rate"),
+                value_label: String::from("48 kHz"),
+            },
+            input_host: crate::app::AudioFieldModel {
+                label: String::from("Input Host"),
+                value_label: String::from("WASAPI"),
+            },
+            input_device: crate::app::AudioFieldModel {
+                label: String::from("Input Device"),
+                value_label: String::from("Mic"),
+            },
+            input_sample_rate: crate::app::AudioFieldModel {
+                label: String::from("Input Sample Rate"),
+                value_label: String::from("44.1 kHz"),
+            },
+            ..crate::app::AudioEngineModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+    let actions = panel
+        .buttons
+        .iter()
+        .map(|button| button.action.clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(panel.title, "Audio Engine");
+    assert_eq!(
+        actions[..6],
+        [
+            UiAction::OpenAudioOutputHostPicker,
+            UiAction::OpenAudioOutputDevicePicker,
+            UiAction::OpenAudioOutputSampleRatePicker,
+            UiAction::OpenAudioInputHostPicker,
+            UiAction::OpenAudioInputDevicePicker,
+            UiAction::OpenAudioInputSampleRatePicker,
+        ]
+    );
+    assert_eq!(actions.last(), Some(&UiAction::CloseOptionsPanel));
+}
+
+#[test]
+fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            ..crate::app::OptionsPanelModel::default()
+        },
+        audio_engine: crate::app::AudioEngineModel {
+            active_picker: Some(crate::app::AudioPickerTargetModel::OutputSampleRate),
+            output_sample_rate_options: vec![
+                crate::app::AudioOptionItemModel {
+                    label: String::from("Device default"),
+                    selected: false,
+                    value: crate::app::AudioOptionValueModel::OutputSampleRate(None),
+                },
+                crate::app::AudioOptionItemModel {
+                    label: String::from("48 kHz"),
+                    selected: true,
+                    value: crate::app::AudioOptionValueModel::OutputSampleRate(Some(48_000)),
+                },
+            ],
+            ..crate::app::AudioEngineModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible picker panel should resolve layout");
+    assert_eq!(panel.title, "Output Sample Rate");
+    assert_eq!(panel.buttons[0].action, UiAction::ShowOptionsOverview);
+    assert!(panel.buttons[2 - 1].active);
+
+    let back_point = Point::new(
+        (panel.buttons[0].rect.min.x + panel.buttons[0].rect.max.x) * 0.5,
+        (panel.buttons[0].rect.min.y + panel.buttons[0].rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, back_point),
+        Some(UiAction::ShowOptionsOverview)
+    );
+
+    let sample_rate_button = &panel.buttons[1];
+    let sample_rate_point = Point::new(
+        (sample_rate_button.rect.min.x + sample_rate_button.rect.max.x) * 0.5,
+        (sample_rate_button.rect.min.y + sample_rate_button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, sample_rate_point),
+        Some(UiAction::SetAudioOutputSampleRate {
+            sample_rate: Some(48_000),
+        })
+    );
+}

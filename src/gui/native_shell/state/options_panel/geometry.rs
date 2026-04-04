@@ -1,6 +1,9 @@
 //! Geometry and hit-testing helpers for the native-shell options panel.
 
-use super::actions::options_panel_button_defs;
+use super::actions::{
+    audio_overview_button_defs, legacy_options_panel_button_defs, options_panel_title,
+    picker_action, picker_options,
+};
 use super::*;
 
 pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) -> Option<Rect> {
@@ -9,16 +12,17 @@ pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) ->
     }
     let inset_x = sizing.text_inset_x.max(3.0);
     let inset_y = sizing.text_inset_y.max(2.0);
-    let side = (segment.height() - (inset_y * 2.0))
+    let height = (segment.height() - (inset_y * 2.0))
         .floor()
-        .clamp(12.0, 20.0);
-    if side <= 0.0 || segment.width() <= side + inset_x {
+        .clamp(16.0, 24.0);
+    let width = (height * 4.0).clamp(72.0, segment.width().max(72.0));
+    if height <= 0.0 || segment.width() <= width + inset_x {
         return None;
     }
-    let min_x = (segment.max.x - inset_x - side).max(segment.min.x);
-    let min_y = (segment.min.y + ((segment.height() - side) * 0.5)).max(segment.min.y);
-    let max_x = (min_x + side).min(segment.max.x);
-    let max_y = (min_y + side).min(segment.max.y);
+    let min_x = (segment.max.x - inset_x - width).max(segment.min.x);
+    let min_y = (segment.min.y + ((segment.height() - height) * 0.5)).max(segment.min.y);
+    let max_x = (min_x + width).min(segment.max.x);
+    let max_y = (min_y + height).min(segment.max.y);
     (max_x > min_x && max_y > min_y).then_some(Rect::from_min_max(
         Point::new(min_x, min_y),
         Point::new(max_x, max_y),
@@ -50,16 +54,24 @@ pub(super) fn options_panel_layout(
     let sizing = style.sizing;
     let panel_padding = sizing.overlay_padding.max(10.0);
     let title_height = sizing.overlay_button_height.max(22.0);
+    let detail_height = if model.audio_engine.detail_label.is_some() {
+        sizing.overlay_button_height.max(20.0)
+    } else {
+        0.0
+    };
     let button_height = sizing.overlay_button_height.max(22.0);
     let button_gap = sizing.action_button_gap.max(4.0);
-    let button_width = 236.0_f32.min((layout.content.width() - panel_padding * 2.0).max(160.0));
+    let button_width = 268.0_f32.min((layout.content.width() - panel_padding * 2.0).max(180.0));
     let panel_width = button_width + (panel_padding * 2.0);
-    let definitions = options_panel_button_defs(model);
+    let buttons = build_options_panel_buttons(model);
+    let detail_gap = if detail_height > 0.0 { button_gap } else { 0.0 };
     let panel_height = panel_padding
         + title_height
+        + detail_gap
+        + detail_height
         + button_gap
-        + (button_height * definitions.len() as f32)
-        + (button_gap * definitions.len().saturating_sub(1) as f32)
+        + (button_height * buttons.len() as f32)
+        + (button_gap * buttons.len().saturating_sub(1) as f32)
         + panel_padding;
     let inset = sizing.panel_inset.max(6.0);
     let max_x = layout.top_bar.max.x - inset;
@@ -81,29 +93,41 @@ pub(super) fn options_panel_layout(
             panel_rect.min.y + panel_padding + title_height,
         ),
     );
+    let detail_rect = if detail_height > 0.0 {
+        Some(Rect::from_min_max(
+            Point::new(title_rect.min.x, title_rect.max.y + detail_gap),
+            Point::new(
+                title_rect.max.x,
+                title_rect.max.y + detail_gap + detail_height,
+            ),
+        ))
+    } else {
+        None
+    };
     let button_x = panel_rect.min.x + panel_padding;
-    let mut button_y = title_rect.max.y + button_gap;
-    let mut buttons = Vec::with_capacity(definitions.len());
-    for (label, action) in definitions {
+    let mut button_y = detail_rect
+        .map(|rect| rect.max.y + button_gap)
+        .unwrap_or(title_rect.max.y + button_gap);
+    let mut layout_buttons = Vec::with_capacity(buttons.len());
+    for (text, action, active) in buttons {
         let rect = Rect::from_min_max(
             Point::new(button_x, button_y),
             Point::new(button_x + button_width, button_y + button_height),
         );
-        buttons.push(ActionButton {
+        layout_buttons.push(OptionsPanelButton {
             rect,
-            label,
-            icon: None,
-            enabled: true,
-            active: false,
+            text,
             action,
-            text_color: style.text_primary,
+            active,
         });
         button_y += button_height + button_gap;
     }
     Some(OptionsPanelLayout {
         panel_rect,
         title_rect,
-        buttons,
+        detail_rect,
+        title: options_panel_title(model),
+        buttons: layout_buttons,
     })
 }
 
@@ -128,4 +152,30 @@ pub(super) fn options_panel_action_at_point(
         .into_iter()
         .find(|button| button.rect.contains(point))
         .map(|button| button.action)
+}
+
+fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)> {
+    if let Some(target) = model.audio_engine.active_picker {
+        let mut buttons = Vec::new();
+        buttons.push((String::from("Back"), UiAction::ShowOptionsOverview, false));
+        buttons.extend(picker_options(model, target).iter().map(|item| {
+            (
+                item.label.clone(),
+                picker_action(&item.value),
+                item.selected,
+            )
+        }));
+        return buttons;
+    }
+
+    let mut buttons = audio_overview_button_defs(model)
+        .into_iter()
+        .map(|(text, action)| (text, action, false))
+        .collect::<Vec<_>>();
+    buttons.extend(
+        legacy_options_panel_button_defs(model)
+            .into_iter()
+            .map(|(text, action)| (text, action, false)),
+    );
+    buttons
 }

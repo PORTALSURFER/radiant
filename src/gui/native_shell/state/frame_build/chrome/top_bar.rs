@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::AudioEngineChipStateModel;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,
@@ -7,6 +8,8 @@ pub(super) fn render_top_bar_controls(
     text_runs: &mut impl TextRunSink,
 ) {
     let top_controls = top_bar_controls_layout(ctx.layout, ctx.sizing);
+    let chip_error = ctx.model.audio_engine.chip_state == AudioEngineChipStateModel::Error;
+    let chip_label = ctx.model.audio_engine.chip_label.as_str();
     if top_controls.active {
         let top_controls_text = compute_top_bar_controls_text_layout(
             top_controls.options_label,
@@ -74,6 +77,19 @@ pub(super) fn render_top_bar_controls(
             ctx.style,
             ctx.sizing,
             button_rect,
+            chip_label,
+            chip_error,
+            state.hovered_status_options_button,
+            state.status_options_button_flash_ticks > 0,
+            ctx.motion_wave,
+        );
+        render_status_options_button_label(
+            text_runs,
+            ctx.style,
+            ctx.sizing,
+            button_rect,
+            chip_label,
+            chip_error,
             state.hovered_status_options_button,
             state.status_options_button_flash_ticks > 0,
             ctx.motion_wave,

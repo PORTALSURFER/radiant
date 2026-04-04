@@ -8,10 +8,20 @@ mod render;
 mod style;
 
 #[derive(Clone, Debug, PartialEq)]
+pub(super) struct OptionsPanelButton {
+    pub(super) rect: Rect,
+    pub(super) text: String,
+    pub(super) action: UiAction,
+    pub(super) active: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct OptionsPanelLayout {
     pub(super) panel_rect: Rect,
     pub(super) title_rect: Rect,
-    pub(super) buttons: Vec<ActionButton>,
+    pub(super) detail_rect: Option<Rect>,
+    pub(super) title: String,
+    pub(super) buttons: Vec<OptionsPanelButton>,
 }
 
 pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) -> Option<Rect> {
@@ -57,6 +67,8 @@ pub(super) fn render_status_options_button(
     style: &StyleTokens,
     sizing: SizingTokens,
     button_rect: Rect,
+    chip_label: &str,
+    error: bool,
     hovered: bool,
     flashed: bool,
     motion_wave: f32,
@@ -66,6 +78,8 @@ pub(super) fn render_status_options_button(
         style,
         sizing,
         button_rect,
+        chip_label,
+        error,
         hovered,
         flashed,
         motion_wave,
@@ -80,4 +94,28 @@ pub(super) fn render_options_panel(
     model: &AppModel,
 ) {
     render::render_options_panel(primitives, text_runs, layout, style, model);
+}
+
+pub(super) fn render_status_options_button_label(
+    text_runs: &mut impl TextRunSink,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+    button_rect: Rect,
+    chip_label: &str,
+    error: bool,
+    hovered: bool,
+    flashed: bool,
+    motion_wave: f32,
+) {
+    render::render_status_options_button_label(
+        text_runs,
+        style,
+        sizing,
+        button_rect,
+        chip_label,
+        error,
+        hovered,
+        flashed,
+        motion_wave,
+    );
 }

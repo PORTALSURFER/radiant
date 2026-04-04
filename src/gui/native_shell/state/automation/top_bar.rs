@@ -34,9 +34,9 @@ pub(super) fn build_top_bar_automation(
         children.push(simple_node(
             "shell.top_bar.options_button",
             AutomationRole::Button,
-            Some(String::from("Options")),
+            Some(String::from("Audio Engine")),
             button_rect,
-            None,
+            Some(model.audio_engine.chip_label.clone()),
             true,
             model.options_panel.visible,
             vec![String::from(if model.options_panel.visible {

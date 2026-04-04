@@ -21,6 +21,107 @@ pub struct StatusBarModel {
     pub right: String,
 }
 
+/// Health state of the compact audio-engine status chip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AudioEngineChipStateModel {
+    /// Output engine is active and matches the requested configuration.
+    #[default]
+    Healthy,
+    /// Output engine is unavailable or degraded.
+    Error,
+}
+
+/// Audio field currently expanded into a picker inside the options panel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AudioPickerTargetModel {
+    /// Output host/backend picker.
+    OutputHost,
+    /// Output device picker.
+    OutputDevice,
+    /// Output sample-rate picker.
+    OutputSampleRate,
+    /// Input host/backend picker.
+    InputHost,
+    /// Input device picker.
+    InputDevice,
+    /// Input sample-rate picker.
+    InputSampleRate,
+}
+
+/// Raw value carried by one audio picker option.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AudioOptionValueModel {
+    /// Output host identifier, or `None` for the system default.
+    OutputHost(Option<String>),
+    /// Output device name, or `None` for the host default.
+    OutputDevice(Option<String>),
+    /// Output sample rate in Hz, or `None` for the device default.
+    OutputSampleRate(Option<u32>),
+    /// Input host identifier, or `None` for the system default.
+    InputHost(Option<String>),
+    /// Input device name, or `None` for the host default.
+    InputDevice(Option<String>),
+    /// Input sample rate in Hz, or `None` for the device default.
+    InputSampleRate(Option<u32>),
+}
+
+/// One selectable item shown inside an audio picker.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AudioOptionItemModel {
+    /// Human-readable option label.
+    pub label: String,
+    /// Whether the option is currently selected.
+    pub selected: bool,
+    /// Raw value applied when the option is chosen.
+    pub value: AudioOptionValueModel,
+}
+
+/// Overview row shown for one audio field inside the options panel.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct AudioFieldModel {
+    /// Static row label.
+    pub label: String,
+    /// Current value summary.
+    pub value_label: String,
+}
+
+/// Output/input audio engine state projected into the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct AudioEngineModel {
+    /// Compact chip health state.
+    pub chip_state: AudioEngineChipStateModel,
+    /// Compact chip label shown in the top-right chrome.
+    pub chip_label: String,
+    /// Optional detail or error text shown inside the options overview.
+    pub detail_label: Option<String>,
+    /// Output host summary row.
+    pub output_host: AudioFieldModel,
+    /// Output device summary row.
+    pub output_device: AudioFieldModel,
+    /// Output sample-rate summary row.
+    pub output_sample_rate: AudioFieldModel,
+    /// Input host summary row.
+    pub input_host: AudioFieldModel,
+    /// Input device summary row.
+    pub input_device: AudioFieldModel,
+    /// Input sample-rate summary row.
+    pub input_sample_rate: AudioFieldModel,
+    /// Currently expanded picker, or `None` for the overview.
+    pub active_picker: Option<AudioPickerTargetModel>,
+    /// Output host choices.
+    pub output_host_options: Vec<AudioOptionItemModel>,
+    /// Output device choices.
+    pub output_device_options: Vec<AudioOptionItemModel>,
+    /// Output sample-rate choices.
+    pub output_sample_rate_options: Vec<AudioOptionItemModel>,
+    /// Input host choices.
+    pub input_host_options: Vec<AudioOptionItemModel>,
+    /// Input device choices.
+    pub input_device_options: Vec<AudioOptionItemModel>,
+    /// Input sample-rate choices.
+    pub input_sample_rate_options: Vec<AudioOptionItemModel>,
+}
+
 /// Update-check status projected into the native shell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum UpdateStatusModel {
@@ -164,6 +265,8 @@ pub struct AppModel {
     pub status_text: String,
     /// Structured footer status segments used by the native shell footer.
     pub status: StatusBarModel,
+    /// Output/input audio engine state rendered in the top-right chrome and options panel.
+    pub audio_engine: AudioEngineModel,
     /// Browser action availability for native action surfaces.
     pub browser_actions: BrowserActionsModel,
     /// Options-panel overlay projection.
@@ -212,6 +315,7 @@ impl Default for AppModel {
                 center: String::from("rows: 0 | selected: 0 | anchor: — | search: —"),
                 right: String::from("col: 2/3"),
             },
+            audio_engine: AudioEngineModel::default(),
             browser_actions: BrowserActionsModel::default(),
             options_panel: OptionsPanelModel::default(),
             progress_overlay: ProgressOverlayModel::default(),

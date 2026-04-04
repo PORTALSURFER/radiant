@@ -245,6 +245,8 @@ impl NativeShellState {
                     style,
                     sizing,
                     button_rect,
+                    "",
+                    self.status_options_button_error,
                     hovered,
                     flashed,
                     motion_wave,

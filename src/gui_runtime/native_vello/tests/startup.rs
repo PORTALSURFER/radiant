@@ -27,6 +27,15 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
 
     assert_eq!(runner.clear_color, style.clear_color);
     assert_eq!(runner.frame_cache.clear_color, style.clear_color);
+    assert_eq!(runner.frame_cache.text_runs.len(), 2);
+    assert_eq!(runner.hover_overlay_frame_cache.text_runs.len(), 0);
+    assert_eq!(runner.focus_overlay_frame_cache.text_runs.len(), 0);
+    assert_eq!(runner.modal_overlay_frame_cache.text_runs.len(), 0);
+    assert_eq!(
+        runner.waveform_motion_overlay_frame_cache.text_runs.len(),
+        0
+    );
+    assert_eq!(runner.chrome_motion_overlay_frame_cache.text_runs.len(), 0);
     assert!(
         runner
             .frame_cache

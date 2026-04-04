@@ -39,6 +39,8 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
         style.sizing,
     );
     assert_eq!(expected_chip_rects.len(), 3);
+    assert_eq!(row.inline_tag_labels, vec!["165 BPM", "LOOP", "LONG"]);
+    assert_eq!(row.inline_tag_rects, expected_chip_rects);
     for rect in expected_chip_rects {
         assert!(frame.primitives.iter().any(|primitive| {
             matches!(
@@ -52,6 +54,7 @@ fn browser_inline_metadata_tags_render_chip_backgrounds() {
     for label in ["165 BPM", "LOOP", "LONG"] {
         assert!(frame.text_runs.iter().any(|run| run.text == label));
     }
+    assert_eq!(row.visible_row_label, "0");
 }
 
 #[test]

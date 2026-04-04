@@ -96,8 +96,11 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
         .enumerate()
         .map(|(index, rect)| CachedBrowserRow {
             visible_row: index,
+            visible_row_label: index.to_string(),
             label: format!("row_{index}"),
             bucket_label: String::new(),
+            inline_tag_labels: Vec::new(),
+            inline_tag_rects: Vec::new(),
             playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
             column: 1,
             rating_level: 0,

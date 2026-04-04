@@ -204,10 +204,14 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     focus_overlay_scene: Scene,
     /// Cached encoded modal/popover overlay scene.
     modal_overlay_scene: Scene,
+    /// Cached encoded composite for hover/focus/modal overlays.
+    state_overlay_scene: Scene,
     /// Cached encoded waveform-motion overlay scene.
     waveform_motion_overlay_scene: Scene,
     /// Cached encoded chrome-motion overlay scene.
     chrome_motion_overlay_scene: Scene,
+    /// Cached encoded composite for waveform/chrome motion overlays.
+    motion_overlay_scene: Scene,
     /// Retained blobs for repeated image draw payload uploads.
     image_upload_blob_cache: HashMap<ImageUploadBlobCacheKey, Blob<u8>>,
     /// Recency queue for bounded retained image-upload blob eviction.

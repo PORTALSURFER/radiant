@@ -126,7 +126,7 @@ pub(super) fn render_browser_rows_window(
         emit_text(
             text_runs,
             TextRun {
-                text: row.visible_row.to_string(),
+                text: row.visible_row_label.clone(),
                 position: row_text_layout.index_label.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_muted,
@@ -213,15 +213,11 @@ pub(super) fn render_browser_rows_window(
             },
         );
         if !row.bucket_label.is_empty() {
-            let chip_rects = browser_inline_tag_chip_rects(
-                row_text_layout.sample_label,
-                &row.bucket_label,
-                0.0,
-                ctx.sizing,
-            );
-            for (chip_rect, chip_label) in chip_rects
-                .into_iter()
-                .zip(browser_inline_tag_labels(&row.bucket_label))
+            for (chip_rect, chip_label) in row
+                .inline_tag_rects
+                .iter()
+                .copied()
+                .zip(row.inline_tag_labels.iter())
             {
                 let text_origin = browser_inline_tag_text_origin(chip_rect, ctx.sizing);
                 emit_primitive(
@@ -240,7 +236,7 @@ pub(super) fn render_browser_rows_window(
                 emit_text(
                     text_runs,
                     TextRun {
-                        text: chip_label.to_owned(),
+                        text: chip_label.clone(),
                         position: text_origin,
                         font_size: ctx.sizing.font_meta,
                         color: ctx.style.text_primary,

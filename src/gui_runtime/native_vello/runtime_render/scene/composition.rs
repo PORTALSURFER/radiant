@@ -297,6 +297,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         rebuild_waveform_motion_overlay: bool,
         rebuild_chrome_motion_overlay: bool,
     ) {
+        if rebuild_state_overlay {
+            self.state_overlay_scene.reset();
+            self.state_overlay_scene
+                .append(&self.hover_overlay_scene, None);
+            self.state_overlay_scene
+                .append(&self.focus_overlay_scene, None);
+            self.state_overlay_scene
+                .append(&self.modal_overlay_scene, None);
+        }
+        if rebuild_waveform_motion_overlay || rebuild_chrome_motion_overlay {
+            self.motion_overlay_scene.reset();
+            self.motion_overlay_scene
+                .append(&self.waveform_motion_overlay_scene, None);
+            self.motion_overlay_scene
+                .append(&self.chrome_motion_overlay_scene, None);
+        }
         if rebuild_static
             || rebuild_state_overlay
             || rebuild_waveform_motion_overlay
@@ -304,11 +320,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         {
             self.scene.reset();
             self.scene.append(&self.static_scene, None);
-            self.scene.append(&self.hover_overlay_scene, None);
-            self.scene.append(&self.focus_overlay_scene, None);
-            self.scene.append(&self.modal_overlay_scene, None);
-            self.scene.append(&self.waveform_motion_overlay_scene, None);
-            self.scene.append(&self.chrome_motion_overlay_scene, None);
+            self.scene.append(&self.state_overlay_scene, None);
+            self.scene.append(&self.motion_overlay_scene, None);
         }
     }
 }

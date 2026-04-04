@@ -101,8 +101,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.hover_overlay_scene.reset();
         self.focus_overlay_scene.reset();
         self.modal_overlay_scene.reset();
+        self.state_overlay_scene.reset();
         self.waveform_motion_overlay_scene.reset();
         self.chrome_motion_overlay_scene.reset();
+        self.motion_overlay_scene.reset();
         self.scene.reset();
         self.scene.append(&self.static_scene, None);
     }

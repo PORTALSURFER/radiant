@@ -173,6 +173,9 @@ fn browser_row_label_truncation_uses_slotized_sample_width() {
         row.label,
         truncate_to_width(&label, sample_width, style.sizing.font_body)
     );
+    assert_eq!(row.visible_row_label, "0");
+    assert!(row.inline_tag_labels.is_empty());
+    assert!(row.inline_tag_rects.is_empty());
 }
 
 #[test]

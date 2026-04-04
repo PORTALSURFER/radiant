@@ -20,8 +20,11 @@ pub(in crate::gui::native_shell::state) use self::{
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct CachedBrowserRow {
     pub(super) visible_row: usize,
+    pub(super) visible_row_label: String,
     pub(super) label: String,
     pub(super) bucket_label: String,
+    pub(super) inline_tag_labels: Vec<String>,
+    pub(super) inline_tag_rects: Vec<Rect>,
     pub(super) column: usize,
     pub(super) rating_level: i8,
     pub(super) playback_age_bucket: crate::app::PlaybackAgeBucket,

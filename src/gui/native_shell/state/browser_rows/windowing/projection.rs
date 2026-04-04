@@ -177,13 +177,21 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         } else {
             String::new()
         };
+        let inline_tag_labels = browser_inline_tag_labels_owned(&bucket_label);
+        let inline_tag_rects = browser_inline_tag_chip_rects_for_labels(
+            row_text_layout.sample_label,
+            &inline_tag_labels,
+            0.0,
+            sizing,
+        );
         let label_width = (row_text_layout.sample_label.width()
             - rating_reserved_width
             - similarity_button_reserved_width
-            - browser_inline_tag_reserved_width(&bucket_label, sizing))
+            - browser_inline_tag_reserved_width_for_labels(&inline_tag_labels, sizing))
         .max(20.0);
         rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
+            visible_row_label: row.visible_row.to_string(),
             label: truncate_browser_row_text_cached(
                 truncation_cache,
                 frame_counts,
@@ -194,6 +202,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
                 sizing.font_body,
             ),
             bucket_label,
+            inline_tag_labels,
+            inline_tag_rects,
             column: row.column.min(2),
             rating_level: row.rating_level.clamp(-3, 3),
             playback_age_bucket: row.playback_age_bucket,

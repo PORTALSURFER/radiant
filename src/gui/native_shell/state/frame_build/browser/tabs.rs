@@ -48,52 +48,20 @@ pub(super) fn render_browser_table_header(
     );
 }
 
-pub(super) fn render_browser_footer(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl TextRunSink) {
-    let footer_text = if ctx.model.map.active {
-        let mut parts = Vec::new();
-        if !ctx.model.map.summary.is_empty() {
-            parts.push(ctx.model.map.summary.clone());
-        }
-        if !ctx.model.map.cluster_label.is_empty() {
-            parts.push(ctx.model.map.cluster_label.clone());
-        }
-        if !ctx.model.map.hover_label.is_empty() {
-            parts.push(ctx.model.map.hover_label.clone());
-        }
-        if !ctx.model.map.viewport_label.is_empty() {
-            parts.push(ctx.model.map.viewport_label.clone());
-        }
-        if parts.is_empty() {
-            ctx.model.map.summary.clone()
-        } else {
-            parts.join(" | ")
-        }
-    } else {
-        format!(
-            "{} | {} selected{}",
-            ctx.model.browser_chrome.item_count_label,
-            ctx.model.browser.selected_path_count,
-            if ctx.model.browser.busy {
-                " | filtering…"
-            } else {
-                ""
-            }
-        )
-    };
-    let browser_footer_text =
-        compute_browser_footer_text_rect(ctx.layout.browser_footer, ctx.sizing);
+pub(super) fn render_browser_footer(
+    state: &mut NativeShellState,
+    ctx: &StaticFrameCtx<'_>,
+    text_runs: &mut impl TextRunSink,
+) {
+    let cached_text = state.cached_browser_segment_text(ctx.layout, ctx.style, ctx.model);
     emit_text(
         text_runs,
         TextRun {
-            text: truncate_to_width(
-                &footer_text,
-                browser_footer_text.width().max(36.0),
-                ctx.sizing.font_meta,
-            ),
-            position: browser_footer_text.min,
+            text: cached_text.footer_label,
+            position: cached_text.footer_text_rect.min,
             font_size: ctx.sizing.font_meta,
             color: ctx.style.text_muted,
-            max_width: Some(browser_footer_text.width().max(36.0)),
+            max_width: Some(cached_text.footer_text_rect.width().max(36.0)),
             align: TextAlign::Left,
         },
     );
@@ -104,6 +72,7 @@ pub(super) fn render_browser_tabs(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     animated: bool,
+    cached_text: &BrowserSegmentTextCacheValue,
 ) {
     let tabs = compute_browser_tabs_rects(ctx.layout.browser_tabs, ctx.sizing);
     let wave = if animated { ctx.motion_wave * 0.1 } else { 0.0 };
@@ -165,35 +134,25 @@ pub(super) fn render_browser_tabs(
         ctx.sizing.border_width,
     );
     push_border(primitives, tabs.map, map_border, ctx.sizing.border_width);
-    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, ctx.sizing);
-    let samples_text = format!(
-        "{} ({})",
-        ctx.model.browser_chrome.samples_tab_label,
-        ctx.model.columns.get(1).map(|c| c.item_count).unwrap_or(0)
-    );
     emit_text(
         text_runs,
         TextRun {
-            text: truncate_to_width(
-                &samples_text,
-                tabs_text_layout.samples_label.width().max(40.0),
-                ctx.sizing.font_header,
-            ),
-            position: tabs_text_layout.samples_label.min,
+            text: cached_text.samples_tab_label.clone(),
+            position: cached_text.tabs_text_layout.samples_label.min,
             font_size: ctx.sizing.font_header,
             color: samples_text_color,
-            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
+            max_width: Some(cached_text.tabs_text_layout.samples_label.width().max(40.0)),
             align: TextAlign::Left,
         },
     );
     emit_text(
         text_runs,
         TextRun {
-            text: String::from(ctx.model.browser_chrome.map_tab_label.as_str()),
-            position: tabs_text_layout.map_label.min,
+            text: cached_text.map_tab_label.clone(),
+            position: cached_text.tabs_text_layout.map_label.min,
             font_size: ctx.sizing.font_header,
             color: map_text_color,
-            max_width: Some(tabs_text_layout.map_label.width().max(40.0)),
+            max_width: Some(cached_text.tabs_text_layout.map_label.width().max(40.0)),
             align: TextAlign::Left,
         },
     );

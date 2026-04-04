@@ -24,8 +24,12 @@ pub(super) fn render_browser_rows_window(
     rows::render_browser_rows_window(ctx, primitives, text_runs, browser_rows);
 }
 
-pub(super) fn render_browser_footer(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl TextRunSink) {
-    tabs::render_browser_footer(ctx, text_runs);
+pub(super) fn render_browser_footer(
+    state: &mut NativeShellState,
+    ctx: &StaticFrameCtx<'_>,
+    text_runs: &mut impl TextRunSink,
+) {
+    tabs::render_browser_footer(state, ctx, text_runs);
 }
 
 pub(super) fn render_browser_table_header(
@@ -41,6 +45,7 @@ pub(super) fn render_browser_tabs(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     animated: bool,
+    cached_text: &BrowserSegmentTextCacheValue,
 ) {
-    tabs::render_browser_tabs(primitives, text_runs, ctx, animated);
+    tabs::render_browser_tabs(primitives, text_runs, ctx, animated, cached_text);
 }

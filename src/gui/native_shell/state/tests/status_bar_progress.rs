@@ -78,3 +78,64 @@ fn determinate_analysis_progress_keeps_fraction_counter() {
         "status bar should keep determinate counters"
     );
 }
+
+#[test]
+fn status_bar_text_cache_reuses_and_invalidates_on_progress_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel {
+        progress_overlay: crate::app::ProgressOverlayModel {
+            visible: true,
+            modal: false,
+            title: String::from("Analyzing samples"),
+            detail: Some(String::from("Jobs 2/5 • Samples 3/8")),
+            completed: 2,
+            total: 5,
+            cancelable: true,
+            cancel_requested: false,
+        },
+        ..AppModel::default()
+    };
+    let mut segments = StaticFrameSegments::default();
+
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::StatusBar,
+        &mut segments,
+    );
+    let first = state.status_bar_text_frame_counts();
+    assert_eq!(first.lookup_count, 1);
+    assert_eq!(first.cache_hit_count, 0);
+    assert_eq!(first.cache_miss_count, 1);
+
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::StatusBar,
+        &mut segments,
+    );
+    let second = state.status_bar_text_frame_counts();
+    assert_eq!(second.lookup_count, 1);
+    assert_eq!(second.cache_hit_count, 1);
+    assert_eq!(second.cache_miss_count, 0);
+
+    model.progress_overlay.completed = 3;
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::StatusBar,
+        &mut segments,
+    );
+    let third = state.status_bar_text_frame_counts();
+    assert_eq!(third.lookup_count, 1);
+    assert_eq!(third.cache_hit_count, 0);
+    assert_eq!(third.cache_miss_count, 1);
+}

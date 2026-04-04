@@ -2,11 +2,13 @@
 
 use super::*;
 
+mod frame_text;
 mod interaction;
 mod overlay_fingerprints;
 mod segmented;
 mod truncation;
 
+pub(in crate::gui::native_shell::state) use frame_text::*;
 pub(in crate::gui::native_shell::state) use interaction::*;
 pub(crate) use overlay_fingerprints::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,

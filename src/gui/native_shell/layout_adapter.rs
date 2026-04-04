@@ -33,8 +33,8 @@ pub(crate) use bands::{
     compute_browser_band_sections_with_layout_engine,
 };
 pub(super) use browser_chrome_text::{
-    compute_browser_footer_text_rect, compute_browser_tabs_text_layout,
-    compute_browser_toolbar_text_layout,
+    BrowserTabsTextLayout, BrowserToolbarTextLayout, compute_browser_footer_text_rect,
+    compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
 };
 pub(super) use browser_tabs::{BrowserTabsRects, compute_browser_tabs_rects};
 pub(super) use browser_text::{

@@ -54,6 +54,12 @@ impl NativeShellState {
         let build_status_bar =
             static_segment_matches(static_segment_filter, StaticFrameSegment::StatusBar);
         let build_browser_rows_or_map = build_browser_rows_window || build_map_panel;
+        if build_browser_frame {
+            self.browser_segment_text_frame_counts = SegmentTextCacheFrameCounts::default();
+        }
+        if build_status_bar {
+            self.status_bar_text_frame_counts = SegmentTextCacheFrameCounts::default();
+        }
 
         render_static_shell_surfaces(&ctx, primitives);
 
@@ -88,7 +94,7 @@ impl NativeShellState {
             render_browser_table_header(&ctx, primitives, text_runs);
         }
         if build_browser_frame {
-            render_browser_footer(&ctx, text_runs);
+            render_browser_footer(self, &ctx, text_runs);
         }
 
         if build_status_bar {

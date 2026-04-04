@@ -69,3 +69,53 @@ fn browser_frame_build_reuses_cached_toolbar_geometry() {
     assert!(state.browser_toolbar_layout.is_some());
     assert!(!state.browser_action_buttons.is_empty());
 }
+
+#[test]
+fn browser_frame_text_cache_reuses_and_invalidates_on_search_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = browser_model_with_rows(24, 8);
+    model.browser.search_query = String::from("kick");
+    let mut state = NativeShellState::new();
+    let mut segments = StaticFrameSegments::default();
+
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::BrowserFrame,
+        &mut segments,
+    );
+    let first = state.browser_segment_text_frame_counts();
+    assert_eq!(first.lookup_count, 2);
+    assert_eq!(first.cache_hit_count, 1);
+    assert_eq!(first.cache_miss_count, 1);
+
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::BrowserFrame,
+        &mut segments,
+    );
+    let second = state.browser_segment_text_frame_counts();
+    assert_eq!(second.lookup_count, 2);
+    assert_eq!(second.cache_hit_count, 2);
+    assert_eq!(second.cache_miss_count, 0);
+
+    model.browser.search_query = String::from("snare");
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::BrowserFrame,
+        &mut segments,
+    );
+    let third = state.browser_segment_text_frame_counts();
+    assert_eq!(third.lookup_count, 2);
+    assert_eq!(third.cache_hit_count, 1);
+    assert_eq!(third.cache_miss_count, 1);
+}

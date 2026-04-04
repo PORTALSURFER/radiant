@@ -8,7 +8,8 @@ fn browser_row_click_modifiers_route_expected_actions() {
         browser: crate::app::BrowserPanelModel {
             rows: vec![crate::app::BrowserRowModel::new(
                 17, "kick-row", 0, false, false,
-            )],
+            )]
+            .into(),
             visible_count: 1,
             ..crate::app::BrowserPanelModel::default()
         },
@@ -84,7 +85,8 @@ fn focused_browser_row_similarity_button_routes_toggle_action() {
         browser: crate::app::BrowserPanelModel {
             rows: vec![crate::app::BrowserRowModel::new(
                 0, "kick-row", 1, true, true,
-            )],
+            )]
+            .into(),
             visible_count: 1,
             selected_visible_row: Some(0),
             similarity_filtered: true,
@@ -157,7 +159,8 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
         browser: crate::app::BrowserPanelModel {
             rows: vec![crate::app::BrowserRowModel::new(
                 5, "kick-row", 1, false, true,
-            )],
+            )]
+            .into(),
             visible_count: 1,
             duplicate_cleanup_active: true,
             ..crate::app::BrowserPanelModel::default()

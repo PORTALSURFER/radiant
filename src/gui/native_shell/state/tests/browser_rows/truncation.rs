@@ -242,7 +242,8 @@ fn browser_row_truncation_cache_invalidates_when_row_text_revision_changes() {
     let _ = state.cached_browser_rows(&layout, &style, &model);
     let _ = state.browser_row_truncation_frame_counts();
 
-    model.browser.rows[0].label = String::from("updated_long_browser_label_for_cache_reset");
+    model.browser.rows.make_mut()[0].label =
+        String::from("updated_long_browser_label_for_cache_reset").into();
     let _ = state.cached_browser_rows(&layout, &style, &model);
     let second = state.browser_row_truncation_frame_counts();
     assert!(second.lookup_count > 0);

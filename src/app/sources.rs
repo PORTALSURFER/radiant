@@ -1,5 +1,6 @@
 //! Source/sidebar-facing models exposed by the `radiant` app contract.
 
+use super::RetainedVec;
 use serde::{Deserialize, Serialize};
 
 /// Stable identifier for one of the two fixed folder panes in the sidebar.
@@ -311,7 +312,7 @@ pub struct FolderPaneModel {
     /// Focused folder row index, if any.
     pub focused_folder_row: Option<usize>,
     /// Folder rows to render in this pane.
-    pub folder_rows: Vec<FolderRowModel>,
+    pub folder_rows: RetainedVec<FolderRowModel>,
     /// Folder action availability projected for this pane.
     pub folder_actions: FolderActionsModel,
     /// Folder delete-recovery summary projected for this pane.
@@ -350,9 +351,9 @@ pub struct SourcesPanelModel {
     /// Focused folder row index, if any.
     pub focused_folder_row: Option<usize>,
     /// Rows to render in the source panel.
-    pub rows: Vec<SourceRowModel>,
+    pub rows: RetainedVec<SourceRowModel>,
     /// Folder rows to render in the folder browser section.
-    pub folder_rows: Vec<FolderRowModel>,
+    pub folder_rows: RetainedVec<FolderRowModel>,
     /// Folder action availability for native sidebar controls.
     pub folder_actions: FolderActionsModel,
     /// Folder delete-recovery summary for native sidebar status.

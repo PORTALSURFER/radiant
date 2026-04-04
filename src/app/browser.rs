@@ -1,6 +1,6 @@
 //! Browser/list/map-facing models exposed by the `radiant` app contract.
 
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,13 +31,112 @@ pub enum PlaybackAgeBucket {
     NeverPlayed,
 }
 
+/// Shared row storage used by retained app-model snapshots.
+///
+/// The native bridge frequently clones the top-level app model while segment
+/// payloads stay unchanged. Keeping row vectors behind a shared container makes
+/// those clones cheap while still allowing the active snapshot to mutate row
+/// content through `Arc::make_mut` when the browser row window changes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetainedVec<T>(Arc<Vec<T>>);
+
+impl<T> RetainedVec<T> {
+    /// Build an empty retained vector.
+    pub fn new() -> Self {
+        Self(Arc::new(Vec::new()))
+    }
+
+    /// Append one element, cloning the backing vector only when aliased.
+    pub fn push(&mut self, value: T)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).push(value);
+    }
+
+    /// Clear all elements, preserving retained storage when possible.
+    pub fn clear(&mut self)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).clear();
+    }
+
+    /// Truncate the vector to `len`.
+    pub fn truncate(&mut self, len: usize)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).truncate(len);
+    }
+
+    /// Return the number of retained elements.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Return whether the retained vector is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Borrow the retained contents as a slice.
+    pub fn as_slice(&self) -> &[T] {
+        self.0.as_slice()
+    }
+
+    /// Borrow one retained element by index.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.0.get(index)
+    }
+
+    /// Borrow one retained element mutably, cloning the backing vector only when aliased.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T>
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).get_mut(index)
+    }
+
+    /// Borrow the backing vector mutably for batched updates.
+    pub fn make_mut(&mut self) -> &mut Vec<T>
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl<T> Default for RetainedVec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Deref for RetainedVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T> From<Vec<T>> for RetainedVec<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserRowModel {
     /// Visible row index in the filtered browser list.
     pub visible_row: usize,
     /// Display label for the row.
-    pub label: String,
+    ///
+    /// This text is reference-counted so retained top-level app-model clones
+    /// can reuse browser row payloads without copying every row label.
+    pub label: Arc<str>,
     /// Triage column index (`0..=2`) that currently owns the row.
     pub column: usize,
     /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
@@ -49,7 +148,7 @@ pub struct BrowserRowModel {
     /// Hosts can use this for secondary metadata such as BPM or loop/length tags.
     /// Keep/trash text should usually stay empty because the shell already renders
     /// signed rating state via the right-edge indicator rectangles.
-    pub bucket_label: Option<String>,
+    pub bucket_label: Option<Arc<str>>,
     /// Whether this row is currently selected in multi-selection state.
     pub selected: bool,
     /// Whether this row currently has focus/caret.
@@ -73,7 +172,7 @@ impl BrowserRowModel {
     ) -> Self {
         Self {
             visible_row,
-            label: label.into(),
+            label: Arc::<str>::from(label.into()),
             column: column.min(2),
             rating_level: 0,
             playback_age_bucket: PlaybackAgeBucket::Fresh,
@@ -100,7 +199,7 @@ impl BrowserRowModel {
 
     /// Attach an explicit inline metadata label for this row.
     pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
-        self.bucket_label = Some(label.into());
+        self.bucket_label = Some(Arc::<str>::from(label.into()));
         self
     }
 
@@ -167,7 +266,7 @@ pub struct BrowserPanelModel {
     /// Selection anchor in visible-row space.
     pub anchor_visible_row: Option<usize>,
     /// Visible rows rendered by the native browser panel.
-    pub rows: Vec<BrowserRowModel>,
+    pub rows: RetainedVec<BrowserRowModel>,
 }
 
 /// Browser chrome copy used by the native shell toolbar and tab strip.

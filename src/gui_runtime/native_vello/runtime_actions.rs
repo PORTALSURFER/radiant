@@ -67,7 +67,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::AddRangeBrowserSelectionFromFocus { .. }
             | UiAction::ToggleFocusedBrowserRowSelection
             | UiAction::SelectAllBrowserRows
-            | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::StaticAndOverlays,
+            | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveformPrecise { .. }
             | UiAction::SetWaveformCursorPrecise { .. }
             | UiAction::SeekWaveform { .. }

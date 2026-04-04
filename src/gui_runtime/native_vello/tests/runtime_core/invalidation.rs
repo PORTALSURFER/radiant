@@ -82,19 +82,19 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::MoveBrowserFocus {
             delta: 1
         }),
-        RuntimeInvalidationScope::StaticAndOverlays
+        RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::FocusBrowserRow {
             visible_row: 12
         }),
-        RuntimeInvalidationScope::StaticAndOverlays
+        RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserViewStart {
             visible_row: 4
         }),
-        RuntimeInvalidationScope::StaticAndOverlays
+        RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
@@ -133,6 +133,26 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::StartNewFolder),
         RuntimeInvalidationScope::StaticAndOverlays
+    );
+}
+
+#[test]
+fn browser_navigation_selection_actions_use_model_overlay_scope() {
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::ToggleBrowserRowSelection { visible_row: 7 }
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(
+            &UiAction::ExtendBrowserSelectionToRow { visible_row: 9 }
+        ),
+        RuntimeInvalidationScope::ModelAndOverlays
+    );
+    assert_eq!(
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SelectAllBrowserRows),
+        RuntimeInvalidationScope::ModelAndOverlays
     );
 }
 

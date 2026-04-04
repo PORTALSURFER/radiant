@@ -92,25 +92,47 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         text_rect: UiRect,
     ) -> Option<TextFieldVisualState> {
         let text = self.current_text_value().unwrap_or_default();
+        let font_size =
+            StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
+                .sizing
+                .font_meta;
+        let available_width = text_rect.width();
         let mut editor = self
             .text_editor_state
             .take()
             .unwrap_or_else(|| SingleLineTextEditorState::collapsed_at_end(&text));
+        if let Some(cached) = self.cached_active_text_field_visual_state(
+            self.text_input_target,
+            &text,
+            &editor,
+            font_size,
+            available_width,
+        ) {
+            self.text_editor_state = Some(editor);
+            return Some(cached);
+        }
         let layout_state = build_text_field_layout(
             &mut self.text_renderer,
             &mut editor,
             &text,
-            StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
-                .sizing
-                .font_meta,
-            text_rect.width(),
+            font_size,
+            available_width,
         );
-        self.text_editor_state = Some(editor);
-        Some(TextFieldVisualState {
+        let visual = TextFieldVisualState {
             text: layout_state.visible_text,
             caret_offset: layout_state.caret_offset,
             selection_offsets: layout_state.selection_offsets,
-        })
+        };
+        self.active_text_field_visual_cache = Some(ActiveTextFieldVisualCacheEntry {
+            target: self.text_input_target,
+            text,
+            editor: editor.clone(),
+            font_size_bits: font_size.to_bits(),
+            available_width_bits: available_width.to_bits(),
+            visual: visual.clone(),
+        });
+        self.text_editor_state = Some(editor);
+        Some(visual)
     }
 
     pub(super) fn sync_waveform_bpm_editor_state(&mut self) {
@@ -309,6 +331,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.text_input_target = TextInputTarget::None;
         self.text_input_buffer = None;
         self.text_editor_state = None;
+        self.active_text_field_visual_cache = None;
         self.text_input_drag_active = false;
     }
 
@@ -344,5 +367,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.clipboard = Some(clipboard);
         }
         true
+    }
+
+    fn cached_active_text_field_visual_state(
+        &self,
+        target: TextInputTarget,
+        text: &str,
+        editor: &SingleLineTextEditorState,
+        font_size: f32,
+        available_width: f32,
+    ) -> Option<TextFieldVisualState> {
+        let cached = self.active_text_field_visual_cache.as_ref()?;
+        (cached.target == target
+            && cached.text == text
+            && cached.editor == *editor
+            && cached.font_size_bits == font_size.to_bits()
+            && cached.available_width_bits == available_width.to_bits())
+        .then(|| cached.visual.clone())
     }
 }

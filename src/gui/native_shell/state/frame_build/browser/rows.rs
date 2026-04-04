@@ -165,7 +165,7 @@ pub(super) fn render_browser_rows_window(
             label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
         }
         let inline_tag_reserved_width =
-            browser_inline_tag_reserved_width(&row.bucket_label, ctx.sizing);
+            browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
         let rating_reserved_width =
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
         let rating_indicator_layout = browser_rating_indicator_layout(

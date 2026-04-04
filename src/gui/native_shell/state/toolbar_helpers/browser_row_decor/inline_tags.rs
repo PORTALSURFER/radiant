@@ -1,14 +1,5 @@
 use super::*;
 
-/// Return width reserved for the inline browser metadata chip cluster plus its left gutter.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_reserved_width(
-    text: &str,
-    sizing: SizingTokens,
-) -> f32 {
-    let labels = browser_inline_tag_labels_owned(text);
-    browser_inline_tag_reserved_width_for_labels(&labels, sizing)
-}
-
 /// Approximate the rendered width of one inline browser metadata label.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_width(
     text: &str,

@@ -310,7 +310,7 @@ pub(super) fn render_browser_focus_overlay(
                 similarity_button_reserved_width,
             );
             let inline_tag_reserved_width =
-                browser_inline_tag_reserved_width(&row.bucket_label, sizing);
+                browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, sizing);
             let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
             if similarity_button_reserved_width > 0.0 {
                 label_position.x = (label_position.x + similarity_button_reserved_width)
@@ -347,7 +347,7 @@ pub(super) fn render_browser_focus_overlay(
             emit_text(
                 text_runs,
                 TextRun {
-                    text: row.visible_row.to_string(),
+                    text: row.visible_row_label.clone(),
                     position: row_text_layout.index_label.min,
                     font_size: sizing.font_meta,
                     color: blend_color(

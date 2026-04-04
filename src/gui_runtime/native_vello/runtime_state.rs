@@ -1,3 +1,5 @@
+use super::SingleLineTextEditorState;
+use crate::gui::native_shell::TextFieldVisualState;
 use crate::gui::types::Point;
 
 /// Active browser-scrollbar thumb drag state while the primary pointer is held.
@@ -62,6 +64,16 @@ pub(super) enum TextInputTarget {
     FolderCreate,
     PromptInput,
     WaveformBpm,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ActiveTextFieldVisualCacheEntry {
+    pub(super) target: TextInputTarget,
+    pub(super) text: String,
+    pub(super) editor: SingleLineTextEditorState,
+    pub(super) font_size_bits: u32,
+    pub(super) available_width_bits: u32,
+    pub(super) visual: TextFieldVisualState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

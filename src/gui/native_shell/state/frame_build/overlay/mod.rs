@@ -35,12 +35,13 @@ pub(super) fn render_hover_overlay(
 ) {
     let sizing = style.sizing;
     push_waveform_toolbar_hover_tooltip(primitives, text_runs, layout, style, model, shell_state);
-    if let Some(visual) = shell_state.browser_search_editor_visual.clone()
-        && let (Some(search_field_rect), Some(search_text_rect)) = (
-            shell_state.browser_search_field_rect(layout, model),
-            shell_state.browser_search_text_rect(layout, model),
-        )
-    {
+    let search_field_rect = shell_state.browser_search_field_rect(layout, model);
+    let search_text_rect = shell_state.browser_search_text_rect(layout, model);
+    if let (Some(search_field_rect), Some(search_text_rect), Some(visual)) = (
+        search_field_rect,
+        search_text_rect,
+        shell_state.browser_search_editor_visual.as_ref(),
+    ) {
         render_active_browser_search_editor(
             primitives,
             text_runs,
@@ -48,29 +49,31 @@ pub(super) fn render_hover_overlay(
             sizing,
             search_field_rect,
             search_text_rect,
-            &visual,
+            visual,
         );
     }
-    if let Some(visual) = shell_state.folder_create_editor_visual.clone()
-        && let (Some(input_rect), Some(text_rect), Some(draft_row)) = (
-            shell_state.folder_create_input_rect(layout, model),
-            shell_state.folder_create_text_rect(layout, model),
+    let folder_input_rect = shell_state.folder_create_input_rect(layout, model);
+    let folder_text_rect = shell_state.folder_create_text_rect(layout, model);
+    let folder_draft_row = model
+        .sources
+        .active_folder_pane_model()
+        .folder_rows
+        .iter()
+        .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+        .or_else(|| {
             model
                 .sources
                 .active_folder_pane_model()
                 .folder_rows
                 .iter()
-                .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
-                .or_else(|| {
-                    model
-                        .sources
-                        .active_folder_pane_model()
-                        .folder_rows
-                        .iter()
-                        .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
-                }),
-        )
-    {
+                .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+        });
+    if let (Some(input_rect), Some(text_rect), Some(draft_row), Some(visual)) = (
+        folder_input_rect,
+        folder_text_rect,
+        folder_draft_row,
+        shell_state.folder_create_editor_visual.as_ref(),
+    ) {
         render_active_folder_create_editor(
             primitives,
             text_runs,
@@ -78,7 +81,7 @@ pub(super) fn render_hover_overlay(
             sizing,
             input_rect,
             text_rect,
-            &visual,
+            visual,
             draft_row
                 .input_error
                 .as_ref()

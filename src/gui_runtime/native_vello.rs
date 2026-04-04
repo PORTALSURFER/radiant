@@ -286,6 +286,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     text_input_target: TextInputTarget,
     text_input_buffer: Option<String>,
     text_editor_state: Option<SingleLineTextEditorState>,
+    active_text_field_visual_cache: Option<ActiveTextFieldVisualCacheEntry>,
     text_input_drag_active: bool,
     waveform_bpm_input_buffer: Option<String>,
     clipboard: Option<arboard::Clipboard>,

@@ -35,12 +35,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         layout_height_bits: u32,
         layout_scale_bits: u32,
     ) -> HoverOverlayCacheFingerprint {
+        let shell = self.shell_state.hover_overlay_fingerprint();
         HoverOverlayCacheFingerprint {
             layout_width_bits,
             layout_height_bits,
             layout_scale_bits,
-            shell: self.shell_state.hover_overlay_fingerprint(),
-            model_signature: hover_overlay_model_signature(model),
+            model_signature: hover_overlay_model_signature(model, &shell),
+            shell,
         }
     }
 
@@ -52,12 +53,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         layout_height_bits: u32,
         layout_scale_bits: u32,
     ) -> FocusOverlayCacheFingerprint {
+        let shell = self.shell_state.focus_overlay_fingerprint();
         FocusOverlayCacheFingerprint {
             layout_width_bits,
             layout_height_bits,
             layout_scale_bits,
-            shell: self.shell_state.focus_overlay_fingerprint(),
-            model_signature: focus_overlay_model_signature(model),
+            model_signature: focus_overlay_model_signature(model, &shell),
+            shell,
         }
     }
 

@@ -37,6 +37,7 @@ pub(super) use browser_chrome_text::{
     compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
 };
 pub(super) use browser_tabs::{BrowserTabsRects, compute_browser_tabs_rects};
+pub(crate) use browser_text::BrowserRowTextLayout;
 pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
 };

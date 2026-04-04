@@ -72,7 +72,7 @@ pub(crate) use self::{
     cache_types::{
         ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
         HoverOverlayFingerprint, ModalOverlayFingerprint, StaticFrameSegment, StaticFrameSegments,
-        WaveformMotionOverlayFingerprint,
+        WaveformMotionOverlayFingerprint, WaveformToolbarHoverHint,
     },
     text_fields::TextFieldVisualState,
 };

@@ -107,8 +107,6 @@ pub(crate) struct HoverOverlayFingerprint {
 /// Compact focus-overlay fingerprint for selection and focus emphasis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct FocusOverlayFingerprint {
-    /// Selected browser column index.
-    pub selected_column: usize,
     /// Whether focused selection emphasis is active.
     pub has_focus_emphasis: bool,
 }

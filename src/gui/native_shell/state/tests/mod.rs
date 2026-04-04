@@ -90,26 +90,32 @@ pub(crate) fn browser_model_with_rows(total: usize, focused_visible_row: usize) 
 
 /// Build cached browser rows from rects for hit-test unit coverage.
 fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
+    let style = StyleTokens::default();
     rects
         .iter()
         .copied()
         .enumerate()
-        .map(|(index, rect)| CachedBrowserRow {
-            visible_row: index,
-            visible_row_label: index.to_string(),
-            label: format!("row_{index}"),
-            bucket_label: String::new(),
-            inline_tag_labels: Vec::new(),
-            inline_tag_rects: Vec::new(),
-            playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
-            column: 1,
-            rating_level: 0,
-            selected: false,
-            focused: false,
-            missing: false,
-            locked: false,
-            marked: false,
-            rect,
+        .map(|(index, rect)| {
+            let label = format!("row_{index}");
+            CachedBrowserRow {
+                visible_row: index,
+                visible_row_label: index.to_string(),
+                label_rendered_width: browser_approx_text_width(&label, style.sizing.font_body),
+                label,
+                bucket_label: String::new(),
+                inline_tag_labels: Vec::new(),
+                inline_tag_rects: Vec::new(),
+                text_layout: compute_browser_row_text_layout(rect, style.sizing),
+                playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
+                column: 1,
+                rating_level: 0,
+                selected: false,
+                focused: false,
+                missing: false,
+                locked: false,
+                marked: false,
+                rect,
+            }
         })
         .collect()
 }

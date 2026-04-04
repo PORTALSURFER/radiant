@@ -27,5 +27,6 @@ pub(crate) use state::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
     HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, StaticFrameSegment,
     StaticFrameSegments, TextFieldVisualState, WaveformMotionOverlayFingerprint,
+    WaveformToolbarHoverHint,
 };
 pub(crate) use style::StyleTokens;

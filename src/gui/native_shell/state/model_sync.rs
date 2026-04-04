@@ -266,7 +266,6 @@ impl NativeShellState {
     /// Return the current focus-overlay fingerprint.
     pub(crate) fn focus_overlay_fingerprint(&self) -> FocusOverlayFingerprint {
         FocusOverlayFingerprint {
-            selected_column: self.selected_column,
             has_focus_emphasis: self.has_focus_emphasis,
         }
     }

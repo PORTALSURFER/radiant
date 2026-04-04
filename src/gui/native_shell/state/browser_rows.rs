@@ -3,6 +3,7 @@
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
 use crate::app::FolderPaneIdModel;
+use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -25,6 +26,8 @@ pub(super) struct CachedBrowserRow {
     pub(super) bucket_label: String,
     pub(super) inline_tag_labels: Vec<String>,
     pub(super) inline_tag_rects: Vec<Rect>,
+    pub(super) text_layout: BrowserRowTextLayout,
+    pub(super) label_rendered_width: f32,
     pub(super) column: usize,
     pub(super) rating_level: i8,
     pub(super) playback_age_bucket: crate::app::PlaybackAgeBucket,
@@ -105,6 +108,7 @@ pub(super) struct BrowserRowsCacheKey {
     pub(super) focused_visible_row: u32,
     pub(super) selected_visible_hint: u32,
     pub(super) map_active: u32,
+    pub(super) duplicate_cleanup_active: u32,
     pub(super) visible_count: u32,
     pub(super) window_start: u32,
     pub(super) row_text_revision: u64,

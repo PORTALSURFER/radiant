@@ -1,6 +1,9 @@
 //! Stable signature builders used to decide whether retained scenes can be reused.
 
 use super::*;
+use crate::gui::native_shell::{
+    FocusOverlayFingerprint, HoverOverlayFingerprint, WaveformToolbarHoverHint,
+};
 
 const FINGERPRINT_FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FINGERPRINT_FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -157,80 +160,134 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
     state
 }
 
-pub(in super::super) fn hover_overlay_model_signature(model: &AppModel) -> u64 {
+pub(in super::super) fn hover_overlay_model_signature(
+    model: &AppModel,
+    shell: &HoverOverlayFingerprint,
+) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
-    fingerprint_mix_bool(&mut state, model.drag_overlay.active);
-    fingerprint_mix_bool(&mut state, model.drag_overlay.valid_target);
-    fingerprint_mix_bool(&mut state, model.transport_running);
-    fingerprint_mix_u8(
-        &mut state,
-        match model.waveform_chrome.channel_view {
-            crate::app::WaveformChannelViewModel::Mono => 0,
-            crate::app::WaveformChannelViewModel::Stereo => 1,
-        },
-    );
-    fingerprint_mix_bool(
-        &mut state,
-        model.waveform_chrome.normalized_audition_enabled,
-    );
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.bpm_snap_enabled);
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.relative_bpm_grid_enabled);
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.transient_snap_enabled);
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.transient_markers_enabled);
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.slice_mode_enabled);
-    fingerprint_mix_bool(
-        &mut state,
-        model.waveform_chrome.exact_duplicate_cleanup_available,
-    );
-    fingerprint_mix_bool(&mut state, model.waveform_chrome.loop_lock_enabled);
-    fingerprint_mix_option_string(&mut state, model.waveform.tempo_label.as_deref());
-    fingerprint_mix_option_string(
-        &mut state,
-        model.waveform_chrome.compare_anchor_label.as_deref(),
-    );
-    fingerprint_mix_bool(&mut state, model.waveform.loop_enabled);
-    fingerprint_mix_bool(&mut state, model.map.active);
-    fingerprint_mix_u8(
-        &mut state,
-        match model.sources.active_folder_pane {
-            crate::app::FolderPaneIdModel::Upper => 0,
-            crate::app::FolderPaneIdModel::Lower => 1,
-        },
-    );
-    let active_folder_rows = &model.sources.active_folder_pane_model().folder_rows;
-    let draft_row = active_folder_rows
-        .iter()
-        .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
-        .or_else(|| {
-            active_folder_rows
-                .iter()
-                .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
-        });
-    if let Some(row) = draft_row {
+    if let Some(hint) = shell.hovered_waveform_toolbar_hint {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_u8(&mut state, hint as u8);
+        match hint {
+            WaveformToolbarHoverHint::ChannelView => fingerprint_mix_u8(
+                &mut state,
+                match model.waveform_chrome.channel_view {
+                    crate::app::WaveformChannelViewModel::Mono => 0,
+                    crate::app::WaveformChannelViewModel::Stereo => 1,
+                },
+            ),
+            WaveformToolbarHoverHint::NormalizedAudition => fingerprint_mix_bool(
+                &mut state,
+                model.waveform_chrome.normalized_audition_enabled,
+            ),
+            WaveformToolbarHoverHint::BpmValue => {
+                fingerprint_mix_option_string(&mut state, model.waveform.tempo_label.as_deref())
+            }
+            WaveformToolbarHoverHint::BpmSnap => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.bpm_snap_enabled)
+            }
+            WaveformToolbarHoverHint::RelativeBpmGrid => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.relative_bpm_grid_enabled)
+            }
+            WaveformToolbarHoverHint::TransientSnap => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.transient_snap_enabled)
+            }
+            WaveformToolbarHoverHint::ShowTransients => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.transient_markers_enabled)
+            }
+            WaveformToolbarHoverHint::SliceMode => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.slice_mode_enabled)
+            }
+            WaveformToolbarHoverHint::Loop => {
+                fingerprint_mix_bool(&mut state, model.waveform_chrome.loop_lock_enabled);
+                fingerprint_mix_bool(&mut state, model.waveform.loop_enabled);
+            }
+            WaveformToolbarHoverHint::Compare => fingerprint_mix_option_string(
+                &mut state,
+                model.waveform_chrome.compare_anchor_label.as_deref(),
+            ),
+            WaveformToolbarHoverHint::Play => {
+                fingerprint_mix_bool(&mut state, model.transport_running)
+            }
+            WaveformToolbarHoverHint::SilenceSplit
+            | WaveformToolbarHoverHint::ExactDedupe
+            | WaveformToolbarHoverHint::CleanDuplicates
+            | WaveformToolbarHoverHint::Stop
+            | WaveformToolbarHoverHint::Record => {}
+        }
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
+    if let Some((pane, row_index)) = shell
+        .hovered_folder_pane
+        .zip(shell.hovered_folder_row_index)
+    {
+        fingerprint_mix_bool(&mut state, true);
+        fingerprint_mix_bool(&mut state, model.drag_overlay.active);
+        fingerprint_mix_bool(&mut state, model.drag_overlay.valid_target);
+        if let Some(row) = model.sources.folder_pane(pane).folder_rows.get(row_index) {
+            fingerprint_mix_u8(
+                &mut state,
+                match row.kind {
+                    crate::app::FolderRowKind::CreateDraft => 0,
+                    crate::app::FolderRowKind::RenameDraft => 1,
+                    crate::app::FolderRowKind::Existing => 2,
+                },
+            );
+        } else {
+            fingerprint_mix_u8(&mut state, u8::MAX);
+        }
+    } else {
+        fingerprint_mix_bool(&mut state, false);
+    }
+    if shell.folder_create_editor_signature != 0 {
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_u8(
             &mut state,
-            match row.kind {
-                crate::app::FolderRowKind::CreateDraft => 0,
-                crate::app::FolderRowKind::RenameDraft => 1,
-                crate::app::FolderRowKind::Existing => 2,
+            match model.sources.active_folder_pane {
+                crate::app::FolderPaneIdModel::Upper => 0,
+                crate::app::FolderPaneIdModel::Lower => 1,
             },
         );
-        fingerprint_mix_option_string(&mut state, row.input_error.as_deref());
+        let active_folder_rows = &model.sources.active_folder_pane_model().folder_rows;
+        let draft_row = active_folder_rows
+            .iter()
+            .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+            .or_else(|| {
+                active_folder_rows
+                    .iter()
+                    .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+            });
+        if let Some(row) = draft_row {
+            fingerprint_mix_bool(&mut state, true);
+            fingerprint_mix_u8(
+                &mut state,
+                match row.kind {
+                    crate::app::FolderRowKind::CreateDraft => 0,
+                    crate::app::FolderRowKind::RenameDraft => 1,
+                    crate::app::FolderRowKind::Existing => 2,
+                },
+            );
+            fingerprint_mix_option_string(&mut state, row.input_error.as_deref());
+        } else {
+            fingerprint_mix_bool(&mut state, false);
+        }
     } else {
         fingerprint_mix_bool(&mut state, false);
     }
     state
 }
 
-pub(in super::super) fn focus_overlay_model_signature(model: &AppModel) -> u64 {
+pub(in super::super) fn focus_overlay_model_signature(
+    model: &AppModel,
+    shell: &FocusOverlayFingerprint,
+) -> u64 {
+    if !shell.has_focus_emphasis {
+        return 0;
+    }
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
-    fingerprint_mix_option_usize(&mut state, model.browser.selected_visible_row);
-    fingerprint_mix_option_usize(&mut state, model.browser.anchor_visible_row);
     fingerprint_mix_bool(&mut state, model.browser.similarity_filtered);
     fingerprint_mix_bool(&mut state, model.browser.duplicate_cleanup_active);
-    fingerprint_mix_option_usize(&mut state, model.sources.selected_row);
-    fingerprint_mix_option_usize(&mut state, model.sources.focused_folder_row);
     fingerprint_mix_u8(
         &mut state,
         match model.focus_context {
@@ -251,11 +308,13 @@ pub(in super::super) fn focus_overlay_model_signature(model: &AppModel) -> u64 {
         fingerprint_mix_bool(&mut state, row.selected);
         fingerprint_mix_bool(&mut state, row.focused);
         fingerprint_mix_bool(&mut state, row.locked);
-        fingerprint_mix_bool(&mut state, row.missing);
-        fingerprint_mix_option_i8(&mut state, Some(row.rating_level));
         fingerprint_mix_u8(&mut state, row.playback_age_bucket as u8);
-        fingerprint_mix_string(&mut state, &row.label);
-        fingerprint_mix_option_string(&mut state, row.bucket_label.as_deref());
+        if row.focused {
+            fingerprint_mix_bool(&mut state, row.missing);
+            fingerprint_mix_option_i8(&mut state, Some(row.rating_level));
+            fingerprint_mix_string(&mut state, &row.label);
+            fingerprint_mix_option_string(&mut state, row.bucket_label.as_deref());
+        }
     }
     for (index, row) in model.sources.rows.iter().enumerate() {
         if row.assigned_to_upper_pane || row.assigned_to_lower_pane {
@@ -277,8 +336,10 @@ pub(in super::super) fn focus_overlay_model_signature(model: &AppModel) -> u64 {
             fingerprint_mix_usize(&mut state, index);
             fingerprint_mix_bool(&mut state, row.selected);
             fingerprint_mix_bool(&mut state, row.focused);
-            fingerprint_mix_string(&mut state, &row.label);
-            fingerprint_mix_usize(&mut state, row.depth);
+            if row.focused {
+                fingerprint_mix_string(&mut state, &row.label);
+                fingerprint_mix_usize(&mut state, row.depth);
+            }
         }
     }
     state

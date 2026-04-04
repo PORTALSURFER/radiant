@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::gui::native_shell::{FocusOverlayFingerprint, HoverOverlayFingerprint};
 
 fn test_segment_fingerprints(
     revision_seed: u64,
@@ -146,14 +147,23 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
         pointer_x: Some(320),
         pointer_y: Some(240),
     };
-    let baseline_signature = hover_overlay_model_signature(&baseline);
+    let shell = HoverOverlayFingerprint {
+        hovered: Some(ShellNodeKind::Sidebar),
+        hovered_browser_visible_row: None,
+        hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
+        hovered_folder_row_index: Some(0),
+        hovered_waveform_toolbar_hint: None,
+        browser_search_editor_signature: 0,
+        folder_create_editor_signature: 0,
+    };
+    let baseline_signature = hover_overlay_model_signature(&baseline, &shell);
 
     let mut changed = baseline;
     changed.drag_overlay.pointer_x = Some(321);
 
     assert_eq!(
         baseline_signature,
-        hover_overlay_model_signature(&changed),
+        hover_overlay_model_signature(&changed, &shell),
         "drag-chip pointer motion should not invalidate hover overlays"
     );
 }
@@ -169,15 +179,101 @@ fn focus_overlay_signature_ignores_drag_chip_pointer_motion() {
         pointer_x: Some(320),
         pointer_y: Some(240),
     };
-    let baseline_signature = focus_overlay_model_signature(&baseline);
+    let shell = FocusOverlayFingerprint {
+        has_focus_emphasis: true,
+    };
+    let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
 
     let mut changed = baseline;
     changed.drag_overlay.pointer_y = Some(241);
 
     assert_eq!(
         baseline_signature,
-        focus_overlay_model_signature(&changed),
+        focus_overlay_model_signature(&changed, &shell),
         "drag-chip pointer motion should not invalidate focus overlays"
+    );
+}
+
+#[test]
+fn hover_overlay_signature_ignores_waveform_text_without_hover_tooltip() {
+    let baseline = AppModel::default();
+    let shell = HoverOverlayFingerprint {
+        hovered: None,
+        hovered_browser_visible_row: None,
+        hovered_folder_pane: None,
+        hovered_folder_row_index: None,
+        hovered_waveform_toolbar_hint: None,
+        browser_search_editor_signature: 0,
+        folder_create_editor_signature: 0,
+    };
+    let baseline_signature = hover_overlay_model_signature(&baseline, &shell);
+
+    let mut changed = baseline.clone();
+    changed.transport_running = !baseline.transport_running;
+    changed.waveform.tempo_label = Some(String::from("128 BPM"));
+    changed.waveform_chrome.compare_anchor_label = Some(String::from("A1"));
+    changed.waveform.loop_enabled = !baseline.waveform.loop_enabled;
+
+    assert_eq!(
+        baseline_signature,
+        hover_overlay_model_signature(&changed, &shell),
+        "unhovered waveform chrome should not invalidate hover overlays"
+    );
+}
+
+#[test]
+fn focus_overlay_signature_ignores_selected_only_browser_text_changes() {
+    let mut baseline = AppModel::default();
+    baseline.browser.rows.push(crate::app::BrowserRowModel::new(
+        0,
+        String::from("kick"),
+        1,
+        true,
+        false,
+    ));
+    baseline.browser.rows[0].bucket_label = Some(String::from("drums").into());
+    baseline.browser.rows[0].rating_level = 3;
+    baseline.browser.rows[0].missing = true;
+    let shell = FocusOverlayFingerprint {
+        has_focus_emphasis: true,
+    };
+    let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
+
+    let mut changed = baseline.clone();
+    changed.browser.rows[0].label = String::from("snare").into();
+    changed.browser.rows[0].bucket_label = Some(String::from("perc").into());
+    changed.browser.rows[0].rating_level = -2;
+    changed.browser.rows[0].missing = false;
+
+    assert_eq!(
+        baseline_signature,
+        focus_overlay_model_signature(&changed, &shell),
+        "selected-only browser text metadata should not invalidate focus overlays"
+    );
+}
+
+#[test]
+fn focus_overlay_signature_changes_for_selected_only_browser_marker_state() {
+    let mut baseline = AppModel::default();
+    baseline.browser.rows.push(crate::app::BrowserRowModel::new(
+        0,
+        String::from("kick"),
+        1,
+        true,
+        false,
+    ));
+    let shell = FocusOverlayFingerprint {
+        has_focus_emphasis: true,
+    };
+    let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
+
+    let mut changed = baseline.clone();
+    changed.browser.rows[0].locked = true;
+
+    assert_ne!(
+        baseline_signature,
+        focus_overlay_model_signature(&changed, &shell),
+        "selected-only browser marker state should still invalidate focus overlays"
     );
 }
 

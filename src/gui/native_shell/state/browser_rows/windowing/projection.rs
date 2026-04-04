@@ -49,6 +49,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         focused_visible_row,
         selected_visible_hint,
         map_active: model.map.active as u32,
+        duplicate_cleanup_active: model.browser.duplicate_cleanup_active as u32,
         visible_count: model.browser.visible_count as u32,
         window_start: usize_to_u32(window_start),
         row_text_revision,
@@ -157,8 +158,10 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
         let rating_reserved_width =
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing);
-        let similarity_button_reserved_width =
-            browser_similarity_button_reserved_width(row.focused, sizing);
+        let similarity_button_reserved_width = browser_similarity_button_reserved_width(
+            row.focused && !model.browser.duplicate_cleanup_active,
+            sizing,
+        );
         let bucket_label_width = browser_inline_tag_max_width(
             row_text_layout.sample_label.width() - similarity_button_reserved_width,
             rating_reserved_width,
@@ -189,21 +192,24 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             - similarity_button_reserved_width
             - browser_inline_tag_reserved_width_for_labels(&inline_tag_labels, sizing))
         .max(20.0);
+        let label = truncate_browser_row_text_cached(
+            truncation_cache,
+            frame_counts,
+            row.visible_row,
+            BrowserRowTextKind::Sample,
+            &row.label,
+            label_width,
+            sizing.font_body,
+        );
         rendered.push(CachedBrowserRow {
             visible_row: row.visible_row,
             visible_row_label: row.visible_row.to_string(),
-            label: truncate_browser_row_text_cached(
-                truncation_cache,
-                frame_counts,
-                row.visible_row,
-                BrowserRowTextKind::Sample,
-                &row.label,
-                label_width,
-                sizing.font_body,
-            ),
+            label_rendered_width: browser_approx_text_width(&label, sizing.font_body),
+            label,
             bucket_label,
             inline_tag_labels,
             inline_tag_rects,
+            text_layout: row_text_layout,
             column: row.column.min(2),
             rating_level: row.rating_level.clamp(-3, 3),
             playback_age_bucket: row.playback_age_bucket,

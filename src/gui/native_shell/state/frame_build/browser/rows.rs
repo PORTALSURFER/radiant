@@ -8,10 +8,9 @@ pub(super) fn render_browser_rows_window(
 ) {
     let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
     for row in browser_rows {
-        let row_text_layout = compute_browser_row_text_layout(row.rect, ctx.sizing);
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
-        let row_columns = row_text_layout.columns;
+        let row_columns = row.text_layout.columns;
         let similarity_active =
             ctx.model.browser.similarity_filtered || ctx.model.browser.duplicate_cleanup_active;
         let similarity_button = (!ctx.model.browser.duplicate_cleanup_active)
@@ -104,7 +103,7 @@ pub(super) fn render_browser_rows_window(
                 right: false,
             },
         );
-        let chip_rect = row_text_layout.bucket_chip;
+        let chip_rect = row.text_layout.bucket_chip;
         let chip_color = match row.column {
             0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
             2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
@@ -127,24 +126,24 @@ pub(super) fn render_browser_rows_window(
             text_runs,
             TextRun {
                 text: row.visible_row_label.clone(),
-                position: row_text_layout.index_label.min,
+                position: row.text_layout.index_label.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_muted,
-                max_width: Some(row_text_layout.index_label.width().max(12.0)),
+                max_width: Some(row.text_layout.index_label.width().max(12.0)),
                 align: TextAlign::Right,
             },
         );
-        let mut label_position = row_text_layout.sample_label.min;
-        let mut label_max_width = row_text_layout.sample_label.width().max(20.0);
+        let mut label_position = row.text_layout.sample_label.min;
+        let mut label_max_width = row.text_layout.sample_label.width().max(20.0);
         if similarity_button_reserved_width > 0.0 {
             label_position.x = (label_position.x + similarity_button_reserved_width)
-                .min(row_text_layout.sample_label.max.x);
-            label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+                .min(row.text_layout.sample_label.max.x);
+            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
         }
         if age_marker_reserved_width > 0.0 {
             label_position.x = (label_position.x + age_marker_reserved_width)
-                .min(row_text_layout.sample_label.max.x);
-            label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+                .min(row.text_layout.sample_label.max.x);
+            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
         }
         if row.missing {
             let marker_advance =
@@ -161,8 +160,8 @@ pub(super) fn render_browser_rows_window(
                 },
             );
             label_position.x =
-                (label_position.x + marker_advance).min(row_text_layout.sample_label.max.x);
-            label_max_width = (row_text_layout.sample_label.max.x - label_position.x).max(4.0);
+                (label_position.x + marker_advance).min(row.text_layout.sample_label.max.x);
+            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
         }
         let inline_tag_reserved_width =
             browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
@@ -170,11 +169,10 @@ pub(super) fn render_browser_rows_window(
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
         let rating_indicator_layout = browser_rating_indicator_layout(
             BrowserRatingIndicatorAnchor {
-                sample_label: row_text_layout.sample_label,
+                sample_label: row.text_layout.sample_label,
                 label_origin_x: label_position.x,
-                label_rendered_width: browser_approx_text_width(&row.label, ctx.sizing.font_body)
-                    .min(label_max_width.max(0.0)),
-                right_limit_x: row_text_layout.sample_label.max.x - inline_tag_reserved_width,
+                label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
+                right_limit_x: row.text_layout.sample_label.max.x - inline_tag_reserved_width,
             },
             row.rating_level,
             row.locked,

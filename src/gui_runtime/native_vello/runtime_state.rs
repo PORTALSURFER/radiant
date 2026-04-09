@@ -177,6 +177,10 @@ impl<Bridge> super::NativeVelloRunner<Bridge>
 where
     Bridge: crate::app::NativeAppBridge,
 {
+    pub(super) fn has_external_drag_candidate(&self) -> bool {
+        self.browser_sample_drag.is_some() || self.selection_drag_active
+    }
+
     pub(super) fn maybe_launch_external_drag_session(
         &mut self,
         pointer_outside: bool,
@@ -184,7 +188,7 @@ where
     ) -> bool {
         #[cfg(target_os = "windows")]
         {
-            if self.browser_sample_drag.is_some() || self.selection_drag_active {
+            if self.has_external_drag_candidate() {
                 return self
                     .bridge
                     .maybe_launch_external_drag(pointer_outside, pointer_left);
@@ -193,6 +197,41 @@ where
         let _ = pointer_outside;
         let _ = pointer_left;
         false
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(super) fn poll_external_drag_window_state(&self) -> Option<(bool, bool)> {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        use windows_sys::Win32::Foundation::{POINT, RECT};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+
+        if !self.has_external_drag_candidate() {
+            return None;
+        }
+        let window = self.window.as_ref()?;
+        let handle = window.window_handle().ok()?;
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            return None;
+        };
+        let hwnd = handle.hwnd.get();
+        let mut cursor = POINT { x: 0, y: 0 };
+        if unsafe { GetCursorPos(&mut cursor) } == 0 {
+            return None;
+        }
+        let mut rect = RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        };
+        if unsafe { GetWindowRect(hwnd as *mut _, &mut rect) } == 0 {
+            return None;
+        }
+        let inside = cursor.x >= rect.left
+            && cursor.x < rect.right
+            && cursor.y >= rect.top
+            && cursor.y < rect.bottom;
+        Some((!inside, !inside))
     }
 
     pub(super) fn active_pointer_session(&self) -> ActivePointerSession {

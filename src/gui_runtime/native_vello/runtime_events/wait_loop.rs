@@ -11,11 +11,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_runtime_about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if self.last_cursor.is_none() && self.maybe_launch_external_drag_session(false, true) {
+        #[cfg(target_os = "windows")]
+        if let Some((pointer_outside, pointer_left)) = self.poll_external_drag_window_state()
+            && self.maybe_launch_external_drag_session(pointer_outside, pointer_left)
+        {
+            self.clear_pointer_drag_session();
+        } else if self.last_cursor.is_none() && self.maybe_launch_external_drag_session(false, true)
+        {
             self.clear_pointer_drag_session();
         }
         let has_pending_input = self.flush_pending_input();
         let needs_animation = self.shell_state.needs_animation();
+        let needs_drag_poll = self.has_external_drag_candidate();
         let now = Instant::now();
         self.maybe_force_reveal_startup_window_on_stall(now);
         let cursor_activity_redraw_deadline = if !needs_animation && !has_pending_input {
@@ -25,10 +32,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         let should_refresh_idle_status =
             !needs_animation && !has_pending_input && self.mark_idle_status_refresh_if_due(now);
-        if needs_animation || has_pending_input || cursor_activity_redraw_deadline.is_some() {
+        if needs_animation
+            || has_pending_input
+            || needs_drag_poll
+            || cursor_activity_redraw_deadline.is_some()
+        {
             self.request_redraw_if_needed();
             let mut next_redraw_at = if let Some(deadline) = cursor_activity_redraw_deadline {
                 deadline
+            } else if needs_drag_poll {
+                now + Duration::from_millis(16)
             } else {
                 let frame_interval = if self.shell_state.is_transport_running() {
                     self.target_frame_interval

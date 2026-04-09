@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(target_os = "windows")]
+use tracing::info;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(super) fn handle_runtime_user_event(&mut self, event: RuntimeUserEvent) {
@@ -15,9 +17,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if let Some((pointer_outside, pointer_left)) = self.poll_external_drag_window_state()
             && self.maybe_launch_external_drag_session(pointer_outside, pointer_left)
         {
+            info!(
+                pointer_outside,
+                pointer_left,
+                "radiant external drag: host consumed runtime drag session"
+            );
             self.clear_pointer_drag_session();
         } else if self.last_cursor.is_none() && self.maybe_launch_external_drag_session(false, true)
         {
+            info!("radiant external drag: host consumed runtime drag session after cursor leave");
             self.clear_pointer_drag_session();
         }
         let has_pending_input = self.flush_pending_input();

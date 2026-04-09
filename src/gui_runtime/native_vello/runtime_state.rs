@@ -1,6 +1,8 @@
 use super::SingleLineTextEditorState;
 use crate::gui::native_shell::TextFieldVisualState;
 use crate::gui::types::Point;
+#[cfg(target_os = "windows")]
+use tracing::{debug, info};
 
 /// Active browser-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -189,9 +191,18 @@ where
         #[cfg(target_os = "windows")]
         {
             if self.has_external_drag_candidate() {
-                return self
+                let consumed = self
                     .bridge
                     .maybe_launch_external_drag(pointer_outside, pointer_left);
+                debug!(
+                    pointer_outside,
+                    pointer_left,
+                    consumed,
+                    browser_sample_drag = self.browser_sample_drag.is_some(),
+                    selection_drag_active = self.selection_drag_active,
+                    "radiant external drag: host bridge launch poll"
+                );
+                return consumed;
             }
         }
         let _ = pointer_outside;
@@ -231,6 +242,19 @@ where
             && cursor.x < rect.right
             && cursor.y >= rect.top
             && cursor.y < rect.bottom;
+        debug!(
+            cursor_x = cursor.x,
+            cursor_y = cursor.y,
+            window_left = rect.left,
+            window_top = rect.top,
+            window_right = rect.right,
+            window_bottom = rect.bottom,
+            pointer_outside = !inside,
+            pointer_left = !inside,
+            browser_sample_drag = self.browser_sample_drag.is_some(),
+            selection_drag_active = self.selection_drag_active,
+            "radiant external drag: polled native window bounds"
+        );
         Some((!inside, !inside))
     }
 
@@ -279,6 +303,14 @@ where
     }
 
     pub(super) fn clear_pointer_drag_session(&mut self) {
+        #[cfg(target_os = "windows")]
+        if self.has_external_drag_candidate() {
+            info!(
+                browser_sample_drag = self.browser_sample_drag.is_some(),
+                selection_drag_active = self.selection_drag_active,
+                "radiant external drag: clearing runtime drag session"
+            );
+        }
         self.waveform_drag_mode = None;
         self.waveform_click_seek_press = None;
         self.browser_sample_drag = None;
@@ -343,6 +375,11 @@ where
 
     pub(super) fn begin_browser_sample_drag(&mut self, visible_row: usize) {
         self.browser_sample_drag = Some(BrowserSampleDragState { visible_row });
+        #[cfg(target_os = "windows")]
+        info!(
+            visible_row,
+            "radiant external drag: browser sample drag session started"
+        );
     }
 
     pub(super) fn begin_waveform_pointer_interaction(
@@ -375,5 +412,9 @@ where
             action,
             crate::app::UiAction::StartWaveformSelectionDrag { .. }
         );
+        #[cfg(target_os = "windows")]
+        if self.selection_drag_active {
+            info!("radiant external drag: waveform selection drag session started");
+        }
     }
 }

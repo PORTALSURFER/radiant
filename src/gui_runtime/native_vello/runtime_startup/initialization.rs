@@ -299,11 +299,17 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(target_os = "windows")]
     fn install_external_drag_hwnd(&mut self, window: &Window) {
         let Ok(handle) = window.window_handle() else {
+            info!("radiant external drag: window handle unavailable during HWND install");
             return;
         };
         let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            info!("radiant external drag: non-Win32 handle during HWND install");
             return;
         };
+        info!(
+            hwnd = handle.hwnd.get(),
+            "radiant external drag: installing host HWND for external drag"
+        );
         self.bridge.set_external_drag_hwnd(handle.hwnd.get());
     }
 }

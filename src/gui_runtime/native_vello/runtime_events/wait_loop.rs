@@ -15,14 +15,24 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(super) fn handle_runtime_about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         #[cfg(target_os = "windows")]
         if let Some((pointer_outside, pointer_left)) = self.poll_external_drag_window_state()
-            && self.maybe_launch_external_drag_session(pointer_outside, pointer_left)
         {
-            info!(
-                pointer_outside,
-                pointer_left,
-                "radiant external drag: host consumed runtime drag session"
-            );
-            self.clear_pointer_drag_session();
+            let consumed = self.maybe_launch_external_drag_session(pointer_outside, pointer_left);
+            if pointer_outside || pointer_left {
+                info!(
+                    pointer_outside,
+                    pointer_left,
+                    consumed,
+                    "radiant external drag: wait-loop handoff poll completed"
+                );
+            }
+            if consumed {
+                info!(
+                    pointer_outside,
+                    pointer_left,
+                    "radiant external drag: host consumed runtime drag session"
+                );
+                self.clear_pointer_drag_session();
+            }
         } else if self.last_cursor.is_none() && self.maybe_launch_external_drag_session(false, true)
         {
             info!("radiant external drag: host consumed runtime drag session after cursor leave");

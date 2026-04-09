@@ -1,6 +1,7 @@
 //! Pointer-release and deferred-input helpers for the native Vello runner.
 
 use super::super::*;
+use tracing::info;
 
 /// Horizontal click slop used to distinguish waveform clicks from drags.
 const WAVEFORM_CLICK_SEEK_SLOP_PX: f32 = 3.0;
@@ -74,6 +75,10 @@ where
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
         }
         if finish_browser_sample_drag {
+            info!(
+                last_cursor_present = self.last_cursor.is_some(),
+                "radiant external drag: releasing browser sample drag without external handoff"
+            );
             self.emit_model_action(UiAction::FinishBrowserSampleDrag);
         }
         if finish_selection_smart_scale_drag {

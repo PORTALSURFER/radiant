@@ -49,7 +49,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_cursor_left(&mut self) {
+        if self.has_external_drag_candidate() {
+            info!(
+                browser_sample_drag = self.browser_sample_drag.is_some(),
+                selection_drag_active = self.selection_drag_active,
+                "radiant external drag: cursor left window during active drag"
+            );
+        }
         let consumed_external_drag = self.maybe_launch_external_drag_session(false, true);
+        if self.has_external_drag_candidate() {
+            info!(
+                consumed_external_drag,
+                "radiant external drag: cursor-left handoff attempt completed"
+            );
+        }
         self.last_cursor = None;
         self.pending_cursor = None;
         if consumed_external_drag {

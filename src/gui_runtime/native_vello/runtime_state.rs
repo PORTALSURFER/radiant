@@ -177,6 +177,24 @@ impl<Bridge> super::NativeVelloRunner<Bridge>
 where
     Bridge: crate::app::NativeAppBridge,
 {
+    pub(super) fn maybe_launch_external_drag_session(
+        &mut self,
+        pointer_outside: bool,
+        pointer_left: bool,
+    ) -> bool {
+        #[cfg(target_os = "windows")]
+        {
+            if self.browser_sample_drag.is_some() || self.selection_drag_active {
+                return self
+                    .bridge
+                    .maybe_launch_external_drag(pointer_outside, pointer_left);
+            }
+        }
+        let _ = pointer_outside;
+        let _ = pointer_left;
+        false
+    }
+
     pub(super) fn active_pointer_session(&self) -> ActivePointerSession {
         if self.volume_drag_active {
             ActivePointerSession::Volume

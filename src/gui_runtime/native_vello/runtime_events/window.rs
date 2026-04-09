@@ -49,8 +49,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_cursor_left(&mut self) {
+        let consumed_external_drag = self.maybe_launch_external_drag_session(false, true);
         self.last_cursor = None;
         self.pending_cursor = None;
+        if consumed_external_drag {
+            self.clear_pointer_drag_session();
+        }
         self.set_cursor_icon(CursorIcon::Default);
     }
 }

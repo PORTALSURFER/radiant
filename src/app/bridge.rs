@@ -76,6 +76,20 @@ pub trait NativeAppBridge {
     /// worker systems so asynchronous completions can wake the UI runtime.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {}
 
+    /// Provide the native host window handle used for external drag operations.
+    #[cfg(target_os = "windows")]
+    fn set_external_drag_hwnd(&mut self, _hwnd: isize) {}
+
+    /// Ask the host to launch an external drag for the current active drag payload.
+    ///
+    /// Returns `true` when the request consumed the current runtime drag session,
+    /// either because an OS drag was launched or because the host queued the
+    /// selection-export path backing an external drag.
+    #[cfg(target_os = "windows")]
+    fn maybe_launch_external_drag(&mut self, _pointer_outside: bool, _pointer_left: bool) -> bool {
+        false
+    }
+
     /// Handle a user action emitted by runtime input processing.
     ///
     /// Compatibility shim that forwards to [`NativeAppBridge::reduce_action`].

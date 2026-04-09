@@ -11,6 +11,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn handle_runtime_about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.last_cursor.is_none() && self.maybe_launch_external_drag_session(false, true) {
+            self.clear_pointer_drag_session();
+        }
         let has_pending_input = self.flush_pending_input();
         let needs_animation = self.shell_state.needs_animation();
         let now = Instant::now();

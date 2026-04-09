@@ -86,9 +86,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             ActivePointerSession::BrowserSampleDrag => {
                 let _ = self.process_browser_sample_drag_immediately(point);
+                let _ = self.maybe_launch_external_drag_session(false, false);
             }
             ActivePointerSession::SelectionDrag => {
                 let _ = self.process_selection_drag_immediately(point);
+                let _ = self.maybe_launch_external_drag_session(false, false);
             }
             ActivePointerSession::MapFocusDrag => {
                 let _ = self.process_map_focus_drag_immediately(point);

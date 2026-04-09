@@ -1,4 +1,6 @@
 use super::super::*;
+#[cfg(target_os = "windows")]
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(in crate::gui_runtime::native_vello) fn new(options: NativeRunOptions, bridge: B) -> Self {
@@ -180,6 +182,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
 
         self.window_id = Some(window.id());
+        #[cfg(target_os = "windows")]
+        self.install_external_drag_hwnd(window.as_ref());
         self.window = Some(window);
         self.render_ctx = Some(render_ctx);
         self.render_surface = Some(render_surface);
@@ -290,5 +294,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.startup_timing.mark_renderer_ready();
         info!("radiant native vello: renderer created");
         Some(renderer)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn install_external_drag_hwnd(&mut self, window: &Window) {
+        let Ok(handle) = window.window_handle() else {
+            return;
+        };
+        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+            return;
+        };
+        self.bridge.set_external_drag_hwnd(handle.hwnd.get());
     }
 }

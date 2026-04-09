@@ -371,6 +371,35 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
     );
 }
 
+#[cfg(target_os = "windows")]
+#[test]
+fn cursor_left_polls_external_drag_for_active_browser_drag_session() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut runner = NativeVelloRunner::new(
+        NativeRunOptions::default(),
+        RecordingBridge {
+            external_drag_consume_next: true,
+            ..RecordingBridge::default()
+        },
+    );
+    runner.model = Arc::new(browser_drag_model());
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    let press_point = browser_row_point(&layout);
+    let drag_point = folder_row_point(&mut runner.shell_state, &layout, &runner.model, 1);
+    runner.last_cursor = Some(press_point);
+
+    assert!(
+        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+    );
+    runner.handle_cursor_moved_for_tests(drag_point);
+    assert!(runner.browser_sample_drag.is_some());
+
+    runner.handle_cursor_left();
+
+    assert_eq!(runner.bridge.external_drag_requests, vec![(false, true)]);
+    assert!(runner.browser_sample_drag.is_none());
+}
+
 #[test]
 fn browser_row_drag_reports_folder_panel_background_without_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

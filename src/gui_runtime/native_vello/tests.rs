@@ -18,6 +18,10 @@ fn milli(value: impl Into<i64>) -> u32 {
 #[derive(Default)]
 struct RecordingBridge {
     actions: Vec<UiAction>,
+    #[cfg(target_os = "windows")]
+    external_drag_requests: Vec<(bool, bool)>,
+    #[cfg(target_os = "windows")]
+    external_drag_consume_next: bool,
 }
 
 impl NativeAppBridge for RecordingBridge {
@@ -27,6 +31,13 @@ impl NativeAppBridge for RecordingBridge {
 
     fn reduce_action(&mut self, action: UiAction) {
         self.actions.push(action);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
+        self.external_drag_requests
+            .push((pointer_outside, pointer_left));
+        self.external_drag_consume_next
     }
 }
 

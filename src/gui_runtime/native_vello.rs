@@ -204,7 +204,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     focus_overlay_scene: Scene,
     /// Cached encoded modal/popover overlay scene.
     modal_overlay_scene: Scene,
-    /// Cached encoded composite for hover/focus/modal overlays.
+    /// Cached encoded composite for hover/editor and focus-emphasis overlays.
     state_overlay_scene: Scene,
     /// Cached encoded waveform-motion overlay scene.
     waveform_motion_overlay_scene: Scene,

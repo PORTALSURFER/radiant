@@ -303,8 +303,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .append(&self.hover_overlay_scene, None);
             self.state_overlay_scene
                 .append(&self.focus_overlay_scene, None);
-            self.state_overlay_scene
-                .append(&self.modal_overlay_scene, None);
         }
         if rebuild_waveform_motion_overlay || rebuild_chrome_motion_overlay {
             self.motion_overlay_scene.reset();
@@ -322,6 +320,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.scene.append(&self.static_scene, None);
             self.scene.append(&self.state_overlay_scene, None);
             self.scene.append(&self.motion_overlay_scene, None);
+            // Modal/popover surfaces must draw last so pickers stay above
+            // chrome-motion highlights, animated status adornments, and other
+            // non-modal overlay passes.
+            self.scene.append(&self.modal_overlay_scene, None);
         }
     }
 }

@@ -1,6 +1,20 @@
 use super::*;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
+    /// Reveal the startup window and request another redraw when the first present
+    /// still needs to land on a backend that may have throttled hidden-window work.
+    fn reveal_startup_window(&mut self) {
+        if let Some(window) = self.window.as_ref() {
+            window.set_visible(true);
+            if !self.first_frame_presented {
+                window.request_redraw();
+                self.redraw_requested = true;
+            }
+        }
+        self.startup_window_visible = true;
+        self.startup_reveal_deadline = None;
+    }
+
     /// Reveal the native window after startup sequencing reaches a stable frame.
     pub(in crate::gui_runtime::native_vello) fn maybe_reveal_startup_window(&mut self) {
         if self.startup_window_visible || !self.first_frame_presented {
@@ -9,11 +23,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.startup_model_pull_pending || self.startup_deferred_model_refresh_pending {
             return;
         }
-        if let Some(window) = self.window.as_ref() {
-            window.set_visible(true);
-        }
-        self.startup_window_visible = true;
-        self.startup_reveal_deadline = None;
+        self.reveal_startup_window();
     }
 
     /// Reveal the window once the first startup scene is ready.
@@ -26,11 +36,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         {
             return;
         }
-        if let Some(window) = self.window.as_ref() {
-            window.set_visible(true);
-        }
-        self.startup_window_visible = true;
-        self.startup_reveal_deadline = None;
+        self.reveal_startup_window();
     }
 
     /// Force startup reveal when redraw delivery stalls while hidden.
@@ -52,12 +58,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         }
         warn!("native vello startup reveal fallback: forcing window visible after stall");
-        if let Some(window) = self.window.as_ref() {
-            window.set_visible(true);
-        }
-        self.startup_window_visible = true;
-        self.startup_reveal_deadline = None;
-        self.request_redraw_if_needed();
+        self.reveal_startup_window();
     }
 
     /// Handle one successful first present and schedule deferred startup pulls.
@@ -65,12 +66,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if !self.first_frame_presented {
             self.first_frame_presented = true;
             self.startup_timing.mark_first_presented();
+            if !self.startup_window_visible {
+                self.reveal_startup_window();
+            }
             if self.startup_model_pull_pending {
                 self.startup_model_pull_pending = false;
                 self.startup_deferred_model_refresh_pending = true;
-                if !self.startup_window_visible {
-                    self.arm_startup_reveal_deadline(Instant::now());
-                }
                 self.apply_invalidation_scope(RuntimeInvalidationScope::ModelAndOverlays);
             }
         }

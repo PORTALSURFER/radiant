@@ -131,7 +131,8 @@ fn complete_first_present_schedules_deferred_model_pull() {
     assert!(runner.first_frame_presented);
     assert!(!runner.startup_model_pull_pending);
     assert!(runner.startup_deferred_model_refresh_pending);
-    assert!(!runner.startup_window_visible);
+    assert!(runner.startup_window_visible);
+    assert_eq!(runner.startup_reveal_deadline, None);
     assert!(runner.frame_state.take_model());
     assert!(!runner.frame_state.take_scene());
     assert!(runner.frame_state.take_state_overlay());
@@ -145,7 +146,7 @@ fn startup_window_reveals_after_deferred_model_refresh_present() {
     runner.startup_model_pull_pending = true;
 
     runner.complete_first_present();
-    assert!(!runner.startup_window_visible);
+    assert!(runner.startup_window_visible);
 
     runner.startup_deferred_model_refresh_pending = false;
     runner.complete_first_present();
@@ -172,17 +173,12 @@ fn startup_window_reveals_on_first_present_without_deferred_pull() {
 fn startup_window_force_reveal_fallback_unblocks_hidden_stalls() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
-    runner.startup_model_pull_pending = true;
-    runner.complete_first_present();
-
-    assert!(runner.startup_deferred_model_refresh_pending);
     assert!(!runner.startup_window_visible);
     runner.startup_reveal_deadline = Some(Instant::now() - Duration::from_millis(1));
 
     runner.maybe_force_reveal_startup_window_on_stall(Instant::now());
 
     assert!(runner.startup_window_visible);
-    assert!(runner.startup_deferred_model_refresh_pending);
     assert_eq!(runner.startup_reveal_deadline, None);
 }
 
@@ -226,6 +222,22 @@ fn startup_window_reveals_after_placeholder_scene_when_deferred_pull_is_enabled(
     runner.maybe_reveal_startup_window_after_first_scene_ready();
 
     assert!(runner.startup_window_visible);
+    assert_eq!(runner.startup_reveal_deadline, None);
+    assert!(runner.redraw_requested);
+}
+
+#[test]
+fn startup_window_reveals_on_first_present_even_with_deferred_refresh_pending() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
+    runner.startup_window_visible = false;
+
+    runner.complete_first_present();
+
+    assert!(runner.first_frame_presented);
+    assert!(runner.startup_window_visible);
+    assert!(runner.startup_deferred_model_refresh_pending);
     assert_eq!(runner.startup_reveal_deadline, None);
 }
 

@@ -14,16 +14,9 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         model.browser.visible_count,
         sizing,
     );
-    let selected_visible_row = model.browser.selected_visible_row.unwrap_or(usize::MAX);
-    let anchor_visible_row = model.browser.anchor_visible_row.unwrap_or(usize::MAX);
     let focused_visible_row = rows
         .iter()
         .find(|row| row.focused)
-        .map(|row| row.visible_row as u32)
-        .unwrap_or(u32::MAX);
-    let selected_visible_hint = rows
-        .iter()
-        .find(|row| row.selected)
         .map(|row| row.visible_row as u32)
         .unwrap_or(u32::MAX);
     let window_end = (window_start
@@ -44,10 +37,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         browser_rows_max_per_column: usize_to_u32(sizing.browser_rows_max_per_column),
         row_capacity,
         browser_row_count: rows.len() as u32,
-        selected_visible_row: usize_to_u32(selected_visible_row),
-        anchor_visible_row: usize_to_u32(anchor_visible_row),
         focused_visible_row,
-        selected_visible_hint,
         map_active: model.map.active as u32,
         duplicate_cleanup_active: model.browser.duplicate_cleanup_active as u32,
         visible_count: model.browser.visible_count as u32,

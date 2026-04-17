@@ -179,7 +179,7 @@ fn browser_row_label_truncation_uses_slotized_sample_width() {
 }
 
 #[test]
-fn browser_row_truncation_cache_reuses_entries_across_row_cache_rebuilds() {
+fn browser_row_selection_changes_reuse_cached_row_geometry() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
@@ -198,18 +198,26 @@ fn browser_row_truncation_cache_reuses_entries_across_row_cache_rebuilds() {
     }
     model.browser.visible_count = model.browser.rows.len();
     model.browser.selected_visible_row = Some(0);
-    let _ = state.cached_browser_rows(&layout, &style, &model);
+    let first_rows = state.cached_browser_rows(&layout, &style, &model);
+    let first_ptr = first_rows.as_ptr();
     let first = state.browser_row_truncation_frame_counts();
     assert!(first.lookup_count > 0);
     assert_eq!(first.cache_hit_count, 0);
     assert!(first.cache_miss_count > 0);
+    assert!(first_rows[0].selected);
+    assert!(!first_rows[1].selected);
 
+    model.browser.rows.make_mut()[0].selected = false;
+    model.browser.rows.make_mut()[1].selected = true;
     model.browser.selected_visible_row = Some(1);
-    let _ = state.cached_browser_rows(&layout, &style, &model);
+    let second_rows = state.cached_browser_rows(&layout, &style, &model);
     let second = state.browser_row_truncation_frame_counts();
-    assert!(second.lookup_count > 0);
-    assert!(second.cache_hit_count > 0);
+    assert_eq!(second_rows.as_ptr(), first_ptr);
+    assert!(!second_rows[0].selected);
+    assert!(second_rows[1].selected);
+    assert_eq!(second.lookup_count, 0);
     assert_eq!(second.cache_miss_count, 0);
+    assert_eq!(second.cache_hit_count, 0);
 }
 
 #[test]

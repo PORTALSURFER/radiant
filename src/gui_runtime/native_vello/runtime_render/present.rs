@@ -16,13 +16,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.startup_reveal_deadline = None;
     }
 
-    /// Reveal the window once the first full scene is ready on eager startup paths.
+    /// Reveal the window once the first startup scene is ready.
     pub(in crate::gui_runtime::native_vello) fn maybe_reveal_startup_window_after_first_scene_ready(
         &mut self,
     ) {
         if self.startup_window_visible
             || self.first_frame_presented
-            || self.startup_model_pull_pending
             || self.startup_deferred_model_refresh_pending
         {
             return;

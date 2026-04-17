@@ -6,10 +6,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
-    /// Use eager full-scene startup by default and reserve deferred placeholder
-    /// startup for explicit fallback paths only.
+    /// Use a placeholder-first startup path by default so the window can reveal
+    /// after a lightweight first scene while the full model refresh continues.
     pub(in crate::gui_runtime::native_vello) fn startup_should_defer_first_model_pull() -> bool {
-        false
+        true
     }
 
     /// Resolve a deterministic startup clear color used before style/layout are ready.

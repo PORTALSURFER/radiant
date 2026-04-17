@@ -102,8 +102,8 @@ fn startup_defaults_match_platform_startup_strategy() {
     let runner = NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
 
     assert!(!runner.startup_window_visible);
-    assert!(!runner.startup_model_pull_pending);
-    assert!(!NativeVelloRunner::<RecordingBridge>::startup_should_defer_first_model_pull());
+    assert!(runner.startup_model_pull_pending);
+    assert!(NativeVelloRunner::<RecordingBridge>::startup_should_defer_first_model_pull());
 }
 
 #[test]
@@ -209,6 +209,21 @@ fn startup_window_force_reveal_fallback_unblocks_pre_first_present_stalls() {
     runner.startup_reveal_deadline = Some(Instant::now() - Duration::from_millis(1));
 
     runner.maybe_force_reveal_startup_window_on_stall(Instant::now());
+
+    assert!(runner.startup_window_visible);
+    assert_eq!(runner.startup_reveal_deadline, None);
+}
+
+#[test]
+fn startup_window_reveals_after_placeholder_scene_when_deferred_pull_is_enabled() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = true;
+    runner.startup_deferred_model_refresh_pending = false;
+    runner.first_frame_presented = false;
+    runner.startup_window_visible = false;
+
+    runner.maybe_reveal_startup_window_after_first_scene_ready();
 
     assert!(runner.startup_window_visible);
     assert_eq!(runner.startup_reveal_deadline, None);

@@ -43,6 +43,7 @@ use crate::gui::{
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
+    sync::Arc,
 };
 
 mod automation;
@@ -211,13 +212,13 @@ pub(crate) struct NativeShellState {
     browser_action_hit_test_cache_key: Option<BrowserActionHitTestCacheKey>,
     waveform_toolbar_buttons: Vec<WaveformToolbarButton>,
     waveform_toolbar_hit_test_cache_key: Option<WaveformToolbarHitTestCacheKey>,
-    browser_segment_text_cache: Option<BrowserSegmentTextCacheValue>,
+    browser_segment_text_cache: Option<Arc<BrowserSegmentTextCacheValue>>,
     browser_segment_text_cache_key: Option<BrowserSegmentTextCacheKey>,
     browser_segment_text_frame_counts: SegmentTextCacheFrameCounts,
     browser_row_truncation_cache: BrowserRowTruncationCache,
     browser_row_truncation_cache_key: Option<BrowserRowTruncationCacheKey>,
     browser_row_truncation_frame_counts: BrowserRowTruncationFrameCounts,
-    status_bar_text_cache: Option<StatusBarTextCacheValue>,
+    status_bar_text_cache: Option<Arc<StatusBarTextCacheValue>>,
     status_bar_text_cache_key: Option<StatusBarTextCacheKey>,
     status_bar_text_frame_counts: SegmentTextCacheFrameCounts,
 }

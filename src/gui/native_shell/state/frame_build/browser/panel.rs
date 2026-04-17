@@ -250,13 +250,13 @@ pub(super) fn render_browser_frame(
         );
     }
     let cached_text = state.cached_browser_segment_text(ctx.layout, ctx.style, ctx.model);
-    render_browser_tabs(primitives, text_runs, ctx, true, &cached_text);
+    render_browser_tabs(primitives, text_runs, ctx, true, cached_text.as_ref());
 
     if toolbar.search_field.width() > 1.0 && !search_editor_active {
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.search_label,
+                text: cached_text.search_label.clone(),
                 position: cached_text.toolbar_text_layout.search_label.min,
                 font_size: ctx.sizing.font_meta,
                 color: if ctx.model.browser.search_query.is_empty() {
@@ -279,7 +279,7 @@ pub(super) fn render_browser_frame(
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.activity_label,
+                text: cached_text.activity_label.clone(),
                 position: cached_text.toolbar_text_layout.activity_label.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_primary,
@@ -298,7 +298,7 @@ pub(super) fn render_browser_frame(
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.sort_label,
+                text: cached_text.sort_label.clone(),
                 position: cached_text.toolbar_text_layout.sort_label.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_muted,

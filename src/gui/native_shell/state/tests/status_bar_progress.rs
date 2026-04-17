@@ -139,3 +139,55 @@ fn status_bar_text_cache_reuses_and_invalidates_on_progress_changes() {
     assert_eq!(third.cache_hit_count, 0);
     assert_eq!(third.cache_miss_count, 1);
 }
+#[test]
+fn status_bar_text_cache_invalidates_when_transport_state_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    let mut segments = StaticFrameSegments::default();
+
+    model.transport_running = false;
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::StatusBar,
+        &mut segments,
+    );
+    let stopped = segments.frame(StaticFrameSegment::StatusBar);
+    assert!(
+        stopped
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Transport: stopped | Selected column: 2"),
+        "status bar should report stopped transport in the default left label"
+    );
+    let first = state.status_bar_text_frame_counts();
+    assert_eq!(first.lookup_count, 1);
+    assert_eq!(first.cache_hit_count, 0);
+    assert_eq!(first.cache_miss_count, 1);
+
+    model.transport_running = true;
+    state.build_static_segment_with_style_into(
+        &layout,
+        &style,
+        &model,
+        None,
+        StaticFrameSegment::StatusBar,
+        &mut segments,
+    );
+    let running = segments.frame(StaticFrameSegment::StatusBar);
+    assert!(
+        running
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Transport: running | Selected column: 2"),
+        "status bar should rebuild when transport state changes"
+    );
+    let second = state.status_bar_text_frame_counts();
+    assert_eq!(second.lookup_count, 1);
+    assert_eq!(second.cache_hit_count, 0);
+    assert_eq!(second.cache_miss_count, 1);
+}

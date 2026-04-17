@@ -57,7 +57,7 @@ pub(super) fn render_browser_footer(
     emit_text(
         text_runs,
         TextRun {
-            text: cached_text.footer_label,
+            text: cached_text.footer_label.clone(),
             position: cached_text.footer_text_rect.min,
             font_size: ctx.sizing.font_meta,
             color: ctx.style.text_muted,

@@ -2,6 +2,7 @@
 
 use super::*;
 use std::collections::hash_map::DefaultHasher;
+use std::sync::Arc;
 
 impl NativeShellState {
     /// Resolve cached browser-segment text/layout payloads for the current frame.
@@ -10,15 +11,16 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> BrowserSegmentTextCacheValue {
+    ) -> Arc<BrowserSegmentTextCacheValue> {
         self.browser_segment_text_frame_counts.lookup_count = self
             .browser_segment_text_frame_counts
             .lookup_count
             .saturating_add(1);
         let key = browser_segment_text_cache_key(layout, style, model);
         if self.browser_segment_text_cache_key != Some(key) {
-            self.browser_segment_text_cache =
-                Some(build_browser_segment_text_cache(layout, style, model));
+            self.browser_segment_text_cache = Some(Arc::new(build_browser_segment_text_cache(
+                layout, style, model,
+            )));
             self.browser_segment_text_cache_key = Some(key);
             self.browser_segment_text_frame_counts.cache_miss_count = self
                 .browser_segment_text_frame_counts
@@ -31,8 +33,9 @@ impl NativeShellState {
                 .saturating_add(1);
         }
         self.browser_segment_text_cache
-            .clone()
-            .unwrap_or_else(|| build_browser_segment_text_cache(layout, style, model))
+            .as_ref()
+            .map(Arc::clone)
+            .unwrap_or_else(|| Arc::new(build_browser_segment_text_cache(layout, style, model)))
     }
 
     /// Resolve cached status-bar text/layout payloads for the current frame.
@@ -41,20 +44,26 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> StatusBarTextCacheValue {
+    ) -> Arc<StatusBarTextCacheValue> {
         self.status_bar_text_frame_counts.lookup_count = self
             .status_bar_text_frame_counts
             .lookup_count
             .saturating_add(1);
-        let key = status_bar_text_cache_key(layout, style, model, self.selected_column);
+        let key = status_bar_text_cache_key(
+            layout,
+            style,
+            model,
+            self.transport_running,
+            self.selected_column,
+        );
         if self.status_bar_text_cache_key != Some(key) {
-            self.status_bar_text_cache = Some(build_status_bar_text_cache(
+            self.status_bar_text_cache = Some(Arc::new(build_status_bar_text_cache(
                 layout,
                 style,
                 model,
                 self.transport_running,
                 self.selected_column,
-            ));
+            )));
             self.status_bar_text_cache_key = Some(key);
             self.status_bar_text_frame_counts.cache_miss_count = self
                 .status_bar_text_frame_counts
@@ -66,15 +75,18 @@ impl NativeShellState {
                 .cache_hit_count
                 .saturating_add(1);
         }
-        self.status_bar_text_cache.clone().unwrap_or_else(|| {
-            build_status_bar_text_cache(
-                layout,
-                style,
-                model,
-                self.transport_running,
-                self.selected_column,
-            )
-        })
+        self.status_bar_text_cache
+            .as_ref()
+            .map(Arc::clone)
+            .unwrap_or_else(|| {
+                Arc::new(build_status_bar_text_cache(
+                    layout,
+                    style,
+                    model,
+                    self.transport_running,
+                    self.selected_column,
+                ))
+            })
     }
 
     /// Return the latest browser-segment text-cache lookup counts in tests.
@@ -211,6 +223,7 @@ fn status_bar_text_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    transport_running: bool,
     selected_column: usize,
 ) -> StatusBarTextCacheKey {
     StatusBarTextCacheKey {
@@ -228,6 +241,7 @@ fn status_bar_text_cache_key(
         status_right_max_y: f32_to_bits(layout.status_right_segment.max.y),
         font_status_bits: f32_to_bits(style.sizing.font_status),
         ui_scale: f32_to_bits(layout.ui_scale),
+        transport_running,
         model_signature: status_bar_text_model_signature(model, selected_column),
     }
 }

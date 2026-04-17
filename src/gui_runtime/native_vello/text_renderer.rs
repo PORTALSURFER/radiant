@@ -195,4 +195,16 @@ mod tests {
         assert!(evictions > 0);
         assert!(renderer.atom_cache.len() <= TEXT_ATOM_CACHE_CAPACITY);
     }
+
+    #[test]
+    fn atom_cache_hit_queue_compacts_after_repeated_reuse() {
+        let mut renderer = NativeTextRenderer::new();
+        let _ = renderer.intern_text("browser");
+        for _ in 0..=TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
+            let _ = renderer.intern_text("browser");
+        }
+
+        assert_eq!(renderer.atom_cache.len(), 1);
+        assert!(renderer.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY);
+    }
 }

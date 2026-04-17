@@ -72,6 +72,7 @@ impl NativeTextRenderer {
                 *last_seen = stamp;
             }
             self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
+            self.compact_atom_cache_order_if_needed();
             self.text_atom_hits = self.text_atom_hits.saturating_add(1);
             return atom;
         }
@@ -82,6 +83,20 @@ impl NativeTextRenderer {
         self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
         self.evict_stale_atoms();
         atom
+    }
+
+    /// Compact queued atom-order metadata after repeated cache hits append stale stamps.
+    fn compact_atom_cache_order_if_needed(&mut self) {
+        if self.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
+            return;
+        }
+        let mut ordered_atoms: Vec<_> = self
+            .atom_cache
+            .iter()
+            .map(|(atom, stamp)| (Arc::clone(atom), *stamp))
+            .collect();
+        ordered_atoms.sort_by_key(|(_, stamp)| *stamp);
+        self.atom_cache_order = ordered_atoms.into_iter().collect();
     }
 
     /// Evict stale atom-cache entries using insertion stamps for bounded memory.

@@ -15,7 +15,7 @@ pub(super) fn render_status_bar(
     emit_text(
         text_runs,
         TextRun {
-            text: cached_text.left_label,
+            text: cached_text.left_label.clone(),
             position: cached_text.left_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_muted,
@@ -28,7 +28,7 @@ pub(super) fn render_status_bar(
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.progress_label,
+                text: cached_text.progress_label.clone(),
                 position: cached_text.progress_label_rect.min,
                 font_size: sizing.font_status,
                 color: style.text_primary,
@@ -39,7 +39,7 @@ pub(super) fn render_status_bar(
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.progress_counter,
+                text: cached_text.progress_counter.clone(),
                 position: cached_text.progress_counter_rect.min,
                 font_size: sizing.font_status,
                 color: style.text_muted,
@@ -71,7 +71,7 @@ pub(super) fn render_status_bar(
         emit_text(
             text_runs,
             TextRun {
-                text: cached_text.center_label,
+                text: cached_text.center_label.clone(),
                 position: cached_text.center_text_rect.min,
                 font_size: sizing.font_status,
                 color: style.text_primary,
@@ -83,7 +83,7 @@ pub(super) fn render_status_bar(
     emit_text(
         text_runs,
         TextRun {
-            text: cached_text.right_label,
+            text: cached_text.right_label.clone(),
             position: cached_text.right_text_rect.min,
             font_size: sizing.font_status,
             color: style.text_muted,

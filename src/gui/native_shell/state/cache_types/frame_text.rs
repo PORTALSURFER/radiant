@@ -102,6 +102,8 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheKey {
     pub font_status_bits: u32,
     /// Effective UI scale token bits.
     pub ui_scale: u32,
+    /// Whether transport playback is currently active.
+    pub transport_running: bool,
     /// Stable digest of footer text inputs.
     pub model_signature: u64,
 }

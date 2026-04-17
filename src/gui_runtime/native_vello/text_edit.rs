@@ -208,10 +208,14 @@ pub(super) fn build_text_field_layout(
     let visible_start_byte = layout.cursor_stops[visible_start_index].byte_index;
     let visible_end_byte = layout.cursor_stops[visible_end_index].byte_index;
     let visible_text = text[visible_start_byte..visible_end_byte].to_string();
-    let visible_layout = renderer
-        .layout_text(&visible_text, font_size)
-        .cloned()
-        .unwrap_or_else(|| TextLayout::empty_for(&visible_text));
+    let visible_stops = build_visible_cursor_stops(
+        &layout.cursor_stops,
+        visible_start_index,
+        visible_end_index,
+        visible_start_byte,
+        scroll_start_x,
+        width,
+    );
     let caret_offset = (caret_x - scroll_start_x).clamp(0.0, width);
     let (selection_start, selection_end) = editor.selection_range();
     let selection_offsets = if selection_start < selection_end {
@@ -228,7 +232,7 @@ pub(super) fn build_text_field_layout(
         caret_offset,
         selection_offsets,
         visible_start_byte,
-        visible_stops: visible_layout.cursor_stops,
+        visible_stops,
     }
 }
 
@@ -336,6 +340,23 @@ fn visible_end_stop_index(
     end
 }
 
+fn build_visible_cursor_stops(
+    stops: &[TextCursorStop],
+    visible_start_index: usize,
+    visible_end_index: usize,
+    visible_start_byte: usize,
+    scroll_start_x: f32,
+    width: f32,
+) -> Vec<TextCursorStop> {
+    stops[visible_start_index..=visible_end_index]
+        .iter()
+        .map(|stop| TextCursorStop {
+            byte_index: stop.byte_index.saturating_sub(visible_start_byte),
+            x: (stop.x - scroll_start_x).clamp(0.0, width),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,5 +391,21 @@ mod tests {
             sanitize_single_line_insert("ki\nc\tk\u{7}"),
             String::from("kic k")
         );
+    }
+
+    #[test]
+    fn build_text_field_layout_uses_one_full_layout_pass() {
+        let mut renderer = NativeTextRenderer::new();
+        let mut editor = SingleLineTextEditorState::collapsed_at_end("kick snare hats");
+
+        let layout =
+            build_text_field_layout(&mut renderer, &mut editor, "kick snare hats", 14.0, 48.0);
+
+        let (layout_hits, layout_misses, _, _, atom_misses, _) =
+            renderer.take_layout_profile_counters();
+        assert_eq!((layout_hits, layout_misses), (0, 1));
+        assert_eq!(atom_misses, 1);
+        assert!(!layout.visible_text.is_empty());
+        assert!(!layout.visible_stops.is_empty());
     }
 }

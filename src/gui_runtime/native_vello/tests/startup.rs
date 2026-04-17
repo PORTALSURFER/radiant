@@ -165,6 +165,7 @@ fn startup_window_reveals_on_first_present_without_deferred_pull() {
     assert!(runner.first_frame_presented);
     assert!(!runner.startup_deferred_model_refresh_pending);
     assert_eq!(runner.startup_reveal_deadline, None);
+    assert!(runner.startup_timing.did_emit_summary());
 }
 
 #[test]
@@ -211,4 +212,28 @@ fn startup_window_force_reveal_fallback_unblocks_pre_first_present_stalls() {
 
     assert!(runner.startup_window_visible);
     assert_eq!(runner.startup_reveal_deadline, None);
+}
+
+#[test]
+fn deferred_startup_summary_waits_for_follow_up_refresh() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_timing.mark_init_started();
+    runner.startup_timing.mark_window_created();
+    runner.startup_timing.mark_surface_ready();
+    runner.startup_timing.mark_renderer_ready();
+    runner.startup_timing.mark_first_scene_ready();
+    runner.startup_model_pull_pending = true;
+
+    runner.complete_first_present();
+
+    assert!(!runner.startup_timing.did_emit_summary());
+
+    runner.startup_deferred_model_refresh_pending = true;
+    runner.startup_deferred_model_refresh_pending = false;
+    runner.startup_reveal_deadline = None;
+    runner.startup_timing.mark_deferred_model_refresh_done();
+    runner.startup_timing.maybe_emit_summary();
+
+    assert!(runner.startup_timing.did_emit_summary());
 }

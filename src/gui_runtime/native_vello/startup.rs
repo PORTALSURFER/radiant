@@ -58,7 +58,6 @@ impl StartupTimingProfile {
             Some(renderer_ready_at),
             Some(first_scene_ready_at),
             Some(first_presented_at),
-            Some(deferred_model_refresh_done_at),
         ) = (
             self.init_started_at,
             self.window_created_at,
@@ -66,11 +65,13 @@ impl StartupTimingProfile {
             self.renderer_ready_at,
             self.first_scene_ready_at,
             self.first_presented_at,
-            self.deferred_model_refresh_done_at,
         )
         else {
             return;
         };
+        let deferred_model_refresh_done_at = self
+            .deferred_model_refresh_done_at
+            .unwrap_or(first_presented_at);
         let ms = |start: Instant, end: Instant| (end - start).as_secs_f64() * 1000.0;
         let window_create_ms = ms(init_started_at, window_created_at);
         let surface_ready_ms = ms(init_started_at, surface_ready_at);
@@ -99,5 +100,10 @@ deferred_model_refresh_total_ms={deferred_model_refresh_total_ms:.3}"
             );
         }
         self.summary_emitted = true;
+    }
+
+    #[cfg(test)]
+    pub(super) fn did_emit_summary(&self) -> bool {
+        self.summary_emitted
     }
 }

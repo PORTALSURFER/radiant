@@ -6,7 +6,8 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        ButtonWidget, TextInputWidget, TextWidget, WidgetMessageKind, WidgetSizing, WidgetSpec,
+        ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget, TextWidget, ToggleWidget,
+        WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 
@@ -27,6 +28,16 @@ fn public_widgets_compose_with_public_layout_containers() {
         "",
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(200.0, 28.0)),
     ));
+    let snap = WidgetSpec::Toggle(ToggleWidget::new(
+        5,
+        "Snap",
+        WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
+    ));
+    let scroll = WidgetSpec::Scrollbar(ScrollbarWidget::new(
+        6,
+        ScrollbarAxis::Vertical,
+        WidgetSizing::fixed(Vector2::new(12.0, 28.0)),
+    ));
 
     let root = LayoutNode::container(
         1,
@@ -39,17 +50,21 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), header.layout_node()),
             SlotChild::new(SlotParams::fill(), rename.layout_node()),
             SlotChild::new(SlotParams::fill(), filter.layout_node()),
+            SlotChild::new(SlotParams::fill(), snap.layout_node()),
+            SlotChild::new(SlotParams::fill(), scroll.layout_node()),
         ],
     );
 
     let output = layout_tree(
         &root,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(420.0, 32.0)),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(520.0, 32.0)),
     );
 
     assert!(output.rects.contains_key(&header.id()));
     assert!(output.rects.contains_key(&rename.id()));
     assert!(output.rects.contains_key(&filter.id()));
+    assert!(output.rects.contains_key(&snap.id()));
+    assert!(output.rects.contains_key(&scroll.id()));
     assert_eq!(
         rename.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
@@ -57,5 +72,68 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert_eq!(
         filter.common().emitted_messages,
         vec![WidgetMessageKind::TextEdited]
+    );
+    assert_eq!(
+        snap.common().emitted_messages,
+        vec![WidgetMessageKind::ValueChanged]
+    );
+    assert_eq!(
+        scroll.common().emitted_messages,
+        vec![WidgetMessageKind::ScrollRequested]
+    );
+}
+
+#[test]
+fn widget_spec_dispatches_public_messages_for_reusable_controls() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
+    let mut button = WidgetSpec::Button(ButtonWidget::new(
+        10,
+        "Import",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
+    let mut toggle = WidgetSpec::Toggle(ToggleWidget::new(
+        11,
+        "Loop",
+        WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
+    ));
+    let mut input = WidgetSpec::TextInput(TextInputWidget::new(
+        12,
+        "ab",
+        WidgetSizing::new(Vector2::new(96.0, 28.0), Vector2::new(160.0, 28.0)),
+    ));
+
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        button.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(WidgetOutput::Button(
+            radiant::widgets::ButtonMessage::Activate
+        ))
+    );
+
+    assert_eq!(
+        toggle.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        toggle.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Some(WidgetOutput::Toggle(
+            radiant::widgets::ToggleMessage::ValueChanged { checked: true }
+        ))
+    );
+
+    assert_eq!(
+        input.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        input.handle_input(bounds, WidgetInput::Character('z')),
+        Some(WidgetOutput::TextInput(
+            radiant::widgets::TextInputMessage::Changed {
+                value: String::from("abz"),
+            }
+        ))
     );
 }

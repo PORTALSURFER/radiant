@@ -57,13 +57,20 @@
 //! ```
 
 mod contract;
+mod interaction;
 mod primitives;
 
 pub use contract::{
     FocusBehavior, PaintBounds, PaintContract, WidgetId, WidgetKind, WidgetMessageKind,
     WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
 };
+pub use interaction::{
+    ButtonMessage, PointerButton, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetInput,
+    WidgetKey, WidgetOutput,
+};
 pub use primitives::{
-    ButtonWidget, CanvasWidget, ListItemWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget,
-    TextWidget, TextWrap, ToggleWidget, WidgetCommon, WidgetSpec,
+    ButtonProps, ButtonState, ButtonWidget, CanvasWidget, ListItemWidget, ScrollbarAxis,
+    ScrollbarProps, ScrollbarState, ScrollbarWidget, TextInputProps, TextInputState,
+    TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,
+    WidgetSpec,
 };

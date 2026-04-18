@@ -148,12 +148,18 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         let row_text_layout = compute_browser_row_text_layout(rect, sizing);
         let rating_reserved_width =
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing);
+        let similarity_strength_reserved_width = browser_similarity_strength_reserved_width(
+            row.similarity_display_strength.is_some(),
+            sizing,
+        );
         let similarity_button_reserved_width = browser_similarity_button_reserved_width(
             row.focused && !model.browser.duplicate_cleanup_active,
             sizing,
         );
         let bucket_label_width = browser_inline_tag_max_width(
-            row_text_layout.sample_label.width() - similarity_button_reserved_width,
+            row_text_layout.sample_label.width()
+                - similarity_button_reserved_width
+                - similarity_strength_reserved_width,
             rating_reserved_width,
         );
         let bucket_label_source = row.bucket_label.clone().unwrap_or_default();
@@ -174,12 +180,13 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         let inline_tag_rects = browser_inline_tag_chip_rects_for_labels(
             row_text_layout.sample_label,
             &inline_tag_labels,
-            0.0,
+            similarity_strength_reserved_width,
             sizing,
         );
         let label_width = (row_text_layout.sample_label.width()
             - rating_reserved_width
             - similarity_button_reserved_width
+            - similarity_strength_reserved_width
             - browser_inline_tag_reserved_width_for_labels(&inline_tag_labels, sizing))
         .max(20.0);
         let label = truncate_browser_row_text_cached(
@@ -203,6 +210,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             column: row.column.min(2),
             rating_level: row.rating_level.clamp(-3, 3),
             playback_age_bucket: row.playback_age_bucket,
+            similarity_display_strength: row.similarity_display_strength,
             selected: row.selected,
             focused: row.focused,
             missing: row.missing,

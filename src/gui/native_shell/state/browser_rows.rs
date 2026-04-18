@@ -31,6 +31,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) column: usize,
     pub(super) rating_level: i8,
     pub(super) playback_age_bucket: crate::app::PlaybackAgeBucket,
+    pub(super) similarity_display_strength: Option<u8>,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,

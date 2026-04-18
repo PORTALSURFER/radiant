@@ -249,6 +249,19 @@ fn browser_row_text_revision_changes_when_locked_state_changes() {
 }
 
 #[test]
+fn browser_row_text_revision_changes_when_similarity_strength_changes() {
+    let weaker =
+        [BrowserRowModel::new(0, "row", 1, false, false).with_similarity_display_strength(0.2)];
+    let stronger =
+        [BrowserRowModel::new(0, "row", 1, false, false).with_similarity_display_strength(0.9)];
+
+    assert_ne!(
+        browser_row_text_revision(&weaker),
+        browser_row_text_revision(&stronger)
+    );
+}
+
+#[test]
 fn browser_row_selected_state_does_not_draw_mint_border() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

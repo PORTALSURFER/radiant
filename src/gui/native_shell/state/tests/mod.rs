@@ -107,6 +107,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
                 inline_tag_rects: Vec::new(),
                 text_layout: compute_browser_row_text_layout(rect, style.sizing),
                 playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
+                similarity_display_strength: None,
                 column: 1,
                 rating_level: 0,
                 selected: false,

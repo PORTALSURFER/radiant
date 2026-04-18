@@ -11,6 +11,17 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_wi
     browser_similarity_button_width(sizing) + browser_similarity_button_gap(sizing)
 }
 
+/// Return the width reserved for the compact right-edge similarity strength bar.
+pub(in crate::gui::native_shell::state) fn browser_similarity_strength_reserved_width(
+    visible: bool,
+    sizing: SizingTokens,
+) -> f32 {
+    if !visible {
+        return 0.0;
+    }
+    browser_similarity_strength_width(sizing) + browser_similarity_strength_gap(sizing)
+}
+
 /// Return the leading sample-column button rect used to trigger row similarity mode.
 pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     row_rect: Rect,
@@ -37,6 +48,47 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     Some(Rect::from_min_max(
         Point::new(min_x, min_y),
         Point::new(min_x + width, (min_y + height).min(row_rect.max.y - inset)),
+    ))
+}
+
+/// Return the compact right-edge track rect used to show row similarity strength.
+pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rect(
+    sample_label: Rect,
+    sizing: SizingTokens,
+) -> Option<Rect> {
+    if sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+        return None;
+    }
+    let width = browser_similarity_strength_width(sizing).min(sample_label.width().max(0.0));
+    let height = browser_similarity_strength_height(sample_label, sizing);
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    let inset = sizing.text_inset_x.min(4.0).max(2.0);
+    let max_x = (sample_label.max.x - inset).max(sample_label.min.x);
+    let min_x = (max_x - width).max(sample_label.min.x);
+    let min_y = sample_label.min.y + ((sample_label.height() - height) * 0.5).floor();
+    let max_y = (min_y + height).min(sample_label.max.y);
+    (max_x > min_x && max_y > min_y).then_some(Rect::from_min_max(
+        Point::new(min_x, min_y),
+        Point::new(max_x, max_y),
+    ))
+}
+
+/// Return the fill rect used inside the compact similarity strength track.
+pub(in crate::gui::native_shell::state) fn browser_similarity_strength_fill_rect(
+    track_rect: Rect,
+    strength: u8,
+) -> Option<Rect> {
+    if track_rect.width() <= 0.0 || track_rect.height() <= 0.0 || strength == 0 {
+        return None;
+    }
+    let fill_width = (track_rect.width() * (f32::from(strength) / 255.0))
+        .round()
+        .clamp(0.0, track_rect.width());
+    (fill_width > 0.0).then_some(Rect::from_min_max(
+        track_rect.min,
+        Point::new(track_rect.min.x + fill_width, track_rect.max.y),
     ))
 }
 
@@ -106,4 +158,18 @@ fn browser_similarity_button_height(row_rect: Rect, sizing: SizingTokens) -> f32
 
 fn browser_similarity_button_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(6.0).max(4.0)
+}
+
+fn browser_similarity_strength_width(sizing: SizingTokens) -> f32 {
+    (sizing.font_meta * 1.45).round().clamp(12.0, 16.0)
+}
+
+fn browser_similarity_strength_height(sample_label: Rect, sizing: SizingTokens) -> f32 {
+    (sizing.font_meta * 0.42)
+        .round()
+        .clamp(3.0, sample_label.height().max(3.0).min(6.0))
+}
+
+fn browser_similarity_strength_gap(sizing: SizingTokens) -> f32 {
+    sizing.text_inset_x.min(5.0).max(3.0)
 }

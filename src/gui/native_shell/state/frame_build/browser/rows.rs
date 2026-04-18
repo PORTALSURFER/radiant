@@ -19,6 +19,10 @@ pub(super) fn render_browser_rows_window(
             .and_then(|row| browser_similarity_button_rect(row.rect, ctx.sizing));
         let similarity_button_reserved_width =
             browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
+        let similarity_strength_reserved_width = browser_similarity_strength_reserved_width(
+            row.similarity_display_strength.is_some(),
+            ctx.sizing,
+        );
         let base_fill = if row.marked && similarity_active {
             browser_marked_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
         } else if row.marked {
@@ -172,15 +176,20 @@ pub(super) fn render_browser_rows_window(
                 sample_label: row.text_layout.sample_label,
                 label_origin_x: label_position.x,
                 label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
-                right_limit_x: row.text_layout.sample_label.max.x - inline_tag_reserved_width,
+                right_limit_x: row.text_layout.sample_label.max.x
+                    - inline_tag_reserved_width
+                    - similarity_strength_reserved_width,
             },
             row.rating_level,
             row.locked,
             ctx.sizing,
         );
         if let Some(indicators) = rating_indicator_layout {
-            label_max_width =
-                (label_max_width - rating_reserved_width - inline_tag_reserved_width).max(4.0);
+            label_max_width = (label_max_width
+                - rating_reserved_width
+                - inline_tag_reserved_width
+                - similarity_strength_reserved_width)
+                .max(4.0);
             for rect in indicators.rects.into_iter().take(indicators.count) {
                 emit_primitive(
                     primitives,
@@ -197,7 +206,9 @@ pub(super) fn render_browser_rows_window(
                 );
             }
         } else {
-            label_max_width = (label_max_width - inline_tag_reserved_width).max(4.0);
+            label_max_width =
+                (label_max_width - inline_tag_reserved_width - similarity_strength_reserved_width)
+                    .max(4.0);
         }
         emit_text(
             text_runs,
@@ -242,6 +253,37 @@ pub(super) fn render_browser_rows_window(
                         align: TextAlign::Left,
                     },
                 );
+            }
+        }
+        if let Some(strength) = row.similarity_display_strength {
+            if let Some(track_rect) =
+                browser_similarity_strength_track_rect(row.text_layout.sample_label, ctx.sizing)
+            {
+                emit_primitive(
+                    primitives,
+                    Primitive::Rect(FillRect {
+                        rect: track_rect,
+                        color: translucent_overlay_color(
+                            ctx.style.surface_overlay,
+                            ctx.style.text_muted,
+                            0.12,
+                        ),
+                    }),
+                );
+                if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength)
+                {
+                    emit_primitive(
+                        primitives,
+                        Primitive::Rect(FillRect {
+                            rect: fill_rect,
+                            color: blend_color(
+                                ctx.style.highlight_cyan_soft,
+                                ctx.style.highlight_cyan,
+                                0.38,
+                            ),
+                        }),
+                    );
+                }
             }
         }
         if let Some(button_rect) = similarity_button {

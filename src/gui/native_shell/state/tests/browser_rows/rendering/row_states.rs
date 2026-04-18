@@ -29,6 +29,15 @@ fn has_fill_rect(frame: &NativeViewFrame, rect: Rect, color: Rgba8) -> bool {
     })
 }
 
+fn has_any_rect(frame: &NativeViewFrame, rect: Rect) -> bool {
+    frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect: fill_rect, .. }) if *fill_rect == rect
+        )
+    })
+}
+
 fn color_luma(color: Rgba8) -> u16 {
     ((u16::from(color.r) * 54) + (u16::from(color.g) * 183) + (u16::from(color.b) * 19)) / 256
 }
@@ -225,12 +234,10 @@ fn focused_browser_rows_render_similarity_button_on_far_left() {
     assert!(frame.primitives.iter().any(|primitive| {
         matches!(primitive, Primitive::Rect(FillRect { rect, .. }) if *rect == button_rect)
     }));
-    assert!(
-        frame
-            .primitives
-            .iter()
-            .any(|primitive| { matches!(primitive, Primitive::Image(DrawImage { .. })) })
-    );
+    assert!(frame
+        .primitives
+        .iter()
+        .any(|primitive| { matches!(primitive, Primitive::Image(DrawImage { .. })) }));
     assert!(!frame.text_runs.iter().any(|run| run.text == "SIM"));
 }
 
@@ -272,6 +279,76 @@ fn similarity_filtered_browser_rows_use_highlighted_fill() {
                 if *rect == match_rect && *color == match_fill
         )
     }));
+}
+
+#[test]
+fn similarity_filtered_browser_rows_render_compact_similarity_strength_bars() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.similarity_filtered = true;
+    model.browser.rows.push(
+        BrowserRowModel::new(0, "anchor", 1, true, true).with_similarity_display_strength(1.0),
+    );
+    model.browser.rows.push(
+        BrowserRowModel::new(1, "close", 1, false, false)
+            .with_bucket_label("165 BPM")
+            .with_similarity_display_strength(0.35),
+    );
+    model.browser.visible_count = model.browser.rows.len();
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let frame = state.build_frame(&layout, &model);
+    let track_color = translucent_overlay_color(style.surface_overlay, style.text_muted, 0.12);
+    let fill_color = blend_color(style.highlight_cyan_soft, style.highlight_cyan, 0.38);
+    let anchor_track =
+        browser_similarity_strength_track_rect(rendered[0].text_layout.sample_label, style.sizing)
+            .expect("anchor track");
+    let anchor_fill = browser_similarity_strength_fill_rect(
+        anchor_track,
+        rendered[0].similarity_display_strength.unwrap(),
+    )
+    .expect("anchor fill");
+    let close_track =
+        browser_similarity_strength_track_rect(rendered[1].text_layout.sample_label, style.sizing)
+            .expect("close track");
+    let close_fill = browser_similarity_strength_fill_rect(
+        close_track,
+        rendered[1].similarity_display_strength.unwrap(),
+    )
+    .expect("close fill");
+
+    assert!(has_fill_rect(&frame, anchor_track, track_color));
+    assert!(has_fill_rect(&frame, anchor_fill, fill_color));
+    assert!(has_fill_rect(&frame, close_track, track_color));
+    assert!(has_fill_rect(&frame, close_fill, fill_color));
+    assert!(anchor_fill.width() > close_fill.width());
+    assert!(rendered[1]
+        .inline_tag_rects
+        .iter()
+        .all(|rect| rect.max.x <= close_track.min.x));
+}
+
+#[test]
+fn browser_rows_skip_similarity_strength_bar_without_strength_value() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.similarity_filtered = true;
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "plain row", 1, false, false));
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let frame = state.build_frame(&layout, &model);
+    let hypothetical_track =
+        browser_similarity_strength_track_rect(rendered[0].text_layout.sample_label, style.sizing)
+            .expect("hypothetical track");
+
+    assert!(!has_any_rect(&frame, hypothetical_track));
 }
 
 #[test]

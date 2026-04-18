@@ -149,6 +149,13 @@ pub struct BrowserRowModel {
     /// Keep/trash text should usually stay empty because the shell already renders
     /// signed rating state via the right-edge indicator rectangles.
     pub bucket_label: Option<Arc<str>>,
+    /// Optional normalized similarity fill amount for the right-edge browser bar.
+    ///
+    /// This encodes one display strength in the inclusive `[0, 255]` range,
+    /// where `0` means an empty bar and `255` means a full bar. Hosts should
+    /// populate it only for list modes that explicitly present similarity
+    /// ordering relative to an anchor sample.
+    pub similarity_display_strength: Option<u8>,
     /// Whether this row is currently selected in multi-selection state.
     pub selected: bool,
     /// Whether this row currently has focus/caret.
@@ -177,6 +184,7 @@ impl BrowserRowModel {
             rating_level: 0,
             playback_age_bucket: PlaybackAgeBucket::Fresh,
             bucket_label: None,
+            similarity_display_strength: None,
             selected,
             focused,
             missing: false,
@@ -201,6 +209,28 @@ impl BrowserRowModel {
     pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
         self.bucket_label = Some(Arc::<str>::from(label.into()));
         self
+    }
+
+    /// Attach a normalized similarity display strength for the compact row bar.
+    ///
+    /// Values are clamped into `[0.0, 1.0]` and encoded into the integer-backed
+    /// `similarity_display_strength` field so retained app-model snapshots can
+    /// keep `Eq` semantics.
+    pub fn with_similarity_display_strength(mut self, display_strength: f32) -> Self {
+        self.similarity_display_strength =
+            Some(Self::encode_similarity_display_strength(display_strength));
+        self
+    }
+
+    /// Encode one normalized similarity display strength into the stored byte range.
+    pub fn encode_similarity_display_strength(display_strength: f32) -> u8 {
+        (display_strength.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
+
+    /// Decode the stored similarity display strength into a normalized fill amount.
+    pub fn similarity_display_strength_ratio(&self) -> Option<f32> {
+        self.similarity_display_strength
+            .map(|strength| f32::from(strength) / 255.0)
     }
 
     /// Mark whether the backing sample file is missing on disk.

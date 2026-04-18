@@ -42,9 +42,9 @@ pub(super) fn render_folder_header(
             Primitive::Rect(FillRect {
                 rect: badge.rect,
                 color: if badge.active {
-                    ctx.style.source_recovery_badge_active
+                    ctx.style.chrome.source_recovery_badge_active
                 } else {
-                    ctx.style.source_recovery_badge_idle
+                    ctx.style.chrome.source_recovery_badge_idle
                 },
             }),
         );

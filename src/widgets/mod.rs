@@ -59,6 +59,7 @@
 mod contract;
 mod interaction;
 mod primitives;
+mod theme;
 
 pub use contract::{
     FocusBehavior, PaintBounds, PaintContract, WidgetId, WidgetKind, WidgetMessageKind,
@@ -74,3 +75,4 @@ pub use primitives::{
     TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,
     WidgetSpec,
 };
+pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

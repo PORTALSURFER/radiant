@@ -1,7 +1,11 @@
 //! Shared style tokens for the native shell renderer.
 
-use crate::gui::types::Rgba8;
+use std::ops::Deref;
 
+use crate::theme::ThemeTokens;
+
+/// Compatibility-only shell chrome tokens that do not belong in core theming.
+mod chrome;
 /// Semantic color tokens used by the retained shell paint pass.
 mod palette;
 /// Geometry and typography sizing tokens plus UI-scale inflation rules.
@@ -9,90 +13,33 @@ mod sizing;
 /// Viewport tier selection and non-geometric tier policy values.
 mod tier;
 
+pub(crate) use chrome::ShellChromeTokens;
 pub(crate) use sizing::SizingTokens;
 pub(crate) use tier::LayoutScaleTier;
 
 /// Style tokens consumed by the retained shell paint pass.
+///
+/// Generic colors and motion live in [`ThemeTokens`]. Shell-only sidebar chrome
+/// stays in [`ShellChromeTokens`], which makes the compatibility boundary
+/// explicit while preserving the existing Sempal shell behavior.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct StyleTokens {
     /// Viewport scale tier used to derive the token set.
     pub layout_tier: LayoutScaleTier,
-    /// Root clear color for the frame.
-    pub clear_color: Rgba8,
-    /// Primary surface fill.
-    pub bg_primary: Rgba8,
-    /// Secondary surface fill.
-    pub bg_secondary: Rgba8,
-    /// Tertiary/raised surface fill.
-    pub bg_tertiary: Rgba8,
-    /// Base shell surface for content-heavy regions.
-    pub surface_base: Rgba8,
-    /// Raised shell surface for cards/chrome regions.
-    pub surface_raised: Rgba8,
-    /// Overlay/dialog surface fill.
-    pub surface_overlay: Rgba8,
-    /// Standard border color.
-    pub border: Rgba8,
-    /// Emphasized border color for clustered chrome boundaries.
-    pub border_emphasis: Rgba8,
-    /// Divider color used between source-management sidebar sections.
-    pub source_section_divider: Rgba8,
-    /// Recovery badge fill color when entries are present but idle.
-    pub source_recovery_badge_idle: Rgba8,
-    /// Recovery badge fill color while recovery is actively running.
-    pub source_recovery_badge_active: Rgba8,
-    /// Disabled control fill color for action buttons.
-    pub control_disabled_fill: Rgba8,
-    /// Primary grid line color.
-    pub grid_strong: Rgba8,
-    /// Secondary grid line color.
-    pub grid_soft: Rgba8,
-    /// Primary selection accent.
-    pub accent_mint: Rgba8,
-    /// Secondary accent.
-    pub accent_copper: Rgba8,
-    /// Negative/trash accent used for destructive triage indicators.
-    pub accent_trash: Rgba8,
-    /// Warning/hover accent.
-    pub accent_warning: Rgba8,
-    /// Vibrant orange highlight used for strong warning emphasis.
-    pub highlight_orange: Rgba8,
-    /// Softer orange highlight used for secondary warning emphasis.
-    pub highlight_orange_soft: Rgba8,
-    /// Vibrant cobalt-blue highlight used for transport and loop accents.
-    pub highlight_blue: Rgba8,
-    /// Softer azure-blue highlight used for secondary focus feedback.
-    pub highlight_blue_soft: Rgba8,
-    /// Vibrant cyan highlight used for positive active emphasis.
-    pub highlight_cyan: Rgba8,
-    /// Softer aqua-cyan highlight used for secondary positive emphasis.
-    pub highlight_cyan_soft: Rgba8,
-    /// High-contrast text color.
-    pub text_primary: Rgba8,
-    /// Secondary muted text color.
-    pub text_muted: Rgba8,
-    /// Blend amount for subtle hover states.
-    pub state_hover_soft: f32,
-    /// Blend amount for stronger hover states.
-    pub state_hover_strong: f32,
-    /// Blend amount for selected-state fills.
-    pub state_selected_blend: f32,
-    /// Blend amount for pulsing focused-state fills/borders.
-    pub state_focus_pulse_blend: f32,
-    /// Pulse speed used while transport is running.
-    pub motion_speed_transport: f32,
-    /// Pulse speed used while transport is stopped but focus emphasis is active.
-    pub motion_speed_idle: f32,
-    /// Additional blend amplitude injected into focused row/card fills.
-    pub motion_focus_wave_amp: f32,
-    /// Additional blend amplitude injected into focused text emphasis.
-    pub motion_focus_text_wave_amp: f32,
-    /// Alpha used by non-modal background scrims.
-    pub scrim_soft_alpha: u8,
-    /// Alpha used by modal-blocking background scrims.
-    pub scrim_modal_alpha: u8,
+    /// Generic reusable theme tokens for widgets, containers, and runtimes.
+    pub theme: ThemeTokens,
+    /// Shell-only chrome tokens that remain behind the compatibility boundary.
+    pub chrome: ShellChromeTokens,
     /// Compact sizing tokens for layout rhythm and element scale.
     pub sizing: SizingTokens,
+}
+
+impl Deref for StyleTokens {
+    type Target = ThemeTokens;
+
+    fn deref(&self) -> &Self::Target {
+        &self.theme
+    }
 }
 
 impl Default for StyleTokens {
@@ -122,47 +69,22 @@ impl StyleTokens {
 
     /// Build style tokens for an explicit scale tier.
     pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
-        let palette = palette::palette_for_tier(layout_tier);
+        let (mut theme, chrome) = palette::tokens_for_tier(layout_tier);
         let motion = tier::visual_policy_for_tier(layout_tier);
+        theme.state_hover_soft = motion.state_hover_soft;
+        theme.state_hover_strong = motion.state_hover_strong;
+        theme.state_selected_blend = motion.state_selected_blend;
+        theme.state_focus_pulse_blend = motion.state_focus_pulse_blend;
+        theme.scrim_soft_alpha = motion.scrim_soft_alpha;
+        theme.scrim_modal_alpha = motion.scrim_modal_alpha;
+        theme.motion_speed_transport = motion.motion_speed_transport;
+        theme.motion_speed_idle = motion.motion_speed_idle;
+        theme.motion_focus_wave_amp = motion.motion_focus_wave_amp;
+        theme.motion_focus_text_wave_amp = motion.motion_focus_text_wave_amp;
         Self {
             layout_tier,
-            clear_color: palette.clear_color,
-            bg_primary: palette.bg_primary,
-            bg_secondary: palette.bg_secondary,
-            bg_tertiary: palette.bg_tertiary,
-            surface_base: palette.surface_base,
-            surface_raised: palette.surface_raised,
-            surface_overlay: palette.surface_overlay,
-            border: palette.border,
-            border_emphasis: palette.border_emphasis,
-            source_section_divider: palette.source_section_divider,
-            source_recovery_badge_idle: palette.source_recovery_badge_idle,
-            source_recovery_badge_active: palette.source_recovery_badge_active,
-            control_disabled_fill: palette.control_disabled_fill,
-            grid_strong: palette.grid_strong,
-            grid_soft: palette.grid_soft,
-            accent_mint: palette.accent_mint,
-            accent_copper: palette.accent_copper,
-            accent_trash: palette.accent_trash,
-            accent_warning: palette.accent_warning,
-            highlight_orange: palette.highlight_orange,
-            highlight_orange_soft: palette.highlight_orange_soft,
-            highlight_blue: palette.highlight_blue,
-            highlight_blue_soft: palette.highlight_blue_soft,
-            highlight_cyan: palette.highlight_cyan,
-            highlight_cyan_soft: palette.highlight_cyan_soft,
-            text_primary: palette.text_primary,
-            text_muted: palette.text_muted,
-            state_hover_soft: motion.state_hover_soft,
-            state_hover_strong: motion.state_hover_strong,
-            state_selected_blend: motion.state_selected_blend,
-            state_focus_pulse_blend: motion.state_focus_pulse_blend,
-            motion_speed_transport: motion.motion_speed_transport,
-            motion_speed_idle: motion.motion_speed_idle,
-            motion_focus_wave_amp: motion.motion_focus_wave_amp,
-            motion_focus_text_wave_amp: motion.motion_focus_text_wave_amp,
-            scrim_soft_alpha: motion.scrim_soft_alpha,
-            scrim_modal_alpha: motion.scrim_modal_alpha,
+            theme,
+            chrome,
             sizing: sizing::sizing_for_tier(layout_tier),
         }
     }
@@ -304,8 +226,18 @@ mod tests {
         assert!(narrow.sizing.status_segment_gap < wide.sizing.status_segment_gap);
         assert!(narrow.sizing.recovery_badge_height < wide.sizing.recovery_badge_height);
         assert!(narrow.sizing.recovery_badge_min_width < wide.sizing.recovery_badge_min_width);
-        assert!(narrow.state_hover_strong < wide.state_hover_strong);
-        assert!(narrow.motion_speed_transport < wide.motion_speed_transport);
-        assert!(narrow.motion_focus_wave_amp < wide.motion_focus_wave_amp);
+        assert!(narrow.theme.state_hover_strong < wide.theme.state_hover_strong);
+        assert!(narrow.theme.motion_speed_transport < wide.theme.motion_speed_transport);
+        assert!(narrow.theme.motion_focus_wave_amp < wide.theme.motion_focus_wave_amp);
+    }
+
+    #[test]
+    fn shell_specific_sidebar_chrome_stays_outside_core_theme() {
+        let tokens = StyleTokens::for_viewport_width(1280.0);
+        assert_eq!(
+            tokens.chrome.source_recovery_badge_active,
+            tokens.theme.accent_warning
+        );
+        assert_ne!(tokens.chrome.source_section_divider, tokens.theme.border);
     }
 }

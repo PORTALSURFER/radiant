@@ -56,5 +56,7 @@ pub mod layout {
 pub mod gui_runtime;
 /// Generic declarative view/message runtime surface for new hosts.
 pub mod runtime;
+/// Generic theme tokens for reusable Radiant widgets and containers.
+pub mod theme;
 /// Stable public widget taxonomy and contracts.
 pub mod widgets;

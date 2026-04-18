@@ -66,7 +66,7 @@ fn render_source_section_divider(
         primitives,
         Primitive::Rect(FillRect {
             rect: divider_rect,
-            color: ctx.style.source_section_divider,
+            color: ctx.style.chrome.source_section_divider,
         }),
     );
 }

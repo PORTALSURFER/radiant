@@ -274,7 +274,7 @@ fn folder_recovery_badge_renders_idle_count_label() {
         matches!(
             primitive,
             Primitive::Rect(FillRect { color, .. })
-                if *color == style.source_recovery_badge_idle
+                if *color == style.chrome.source_recovery_badge_idle
         )
     }));
 }

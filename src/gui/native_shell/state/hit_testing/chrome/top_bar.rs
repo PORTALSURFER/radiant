@@ -5,13 +5,18 @@ impl NativeShellState {
     pub(crate) fn top_bar_volume_action_at_point(
         &self,
         layout: &ShellLayout,
+        model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
-        if !controls.active || !controls.volume_meter.contains(point) {
+        let surface = resolve_top_bar_surface_layout(
+            layout.top_bar,
+            style_for_layout(layout).sizing,
+            &top_bar_surface_content(model),
+        );
+        if !surface.volume_meter_rect.contains(point) {
             return None;
         }
-        Some(volume_action_for_meter(controls.volume_meter, point))
+        Some(volume_action_for_meter(surface.volume_meter_rect, point))
     }
 
     /// Resolve a drag point against the top-bar volume meter.
@@ -21,12 +26,17 @@ impl NativeShellState {
     pub(crate) fn top_bar_volume_drag_action(
         &self,
         layout: &ShellLayout,
+        model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let controls = top_bar_controls_layout(layout, style_for_layout(layout).sizing);
-        if !controls.active {
+        let surface = resolve_top_bar_surface_layout(
+            layout.top_bar,
+            style_for_layout(layout).sizing,
+            &top_bar_surface_content(model),
+        );
+        if surface.volume_meter_rect.width() <= 0.0 || surface.volume_meter_rect.height() <= 0.0 {
             return None;
         }
-        Some(volume_action_for_meter(controls.volume_meter, point))
+        Some(volume_action_for_meter(surface.volume_meter_rect, point))
     }
 }

@@ -64,7 +64,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         match session {
             ActivePointerSession::Volume => {
                 if let Some(layout) = self.shell_layout.as_ref()
-                    && let Some(action) = self.shell_state.top_bar_volume_drag_action(layout, point)
+                    && let Some(action) = self
+                        .shell_state
+                        .top_bar_volume_drag_action(layout, &self.model, point)
                 {
                     if let UiAction::SetVolume { value_milli } = action {
                         if self.last_emitted_volume_milli != Some(value_milli) {
@@ -245,7 +247,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if let Some(action) = self
             .shell_state
-            .top_bar_volume_action_at_point(layout, point)
+            .top_bar_volume_action_at_point(layout, &self.model, point)
         {
             if let UiAction::SetVolume { value_milli } = action {
                 self.last_emitted_volume_milli = Some(value_milli);

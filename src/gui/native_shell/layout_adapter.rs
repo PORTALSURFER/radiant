@@ -17,7 +17,6 @@ mod sidebar_header;
 mod sidebar_sections;
 mod sidebar_text;
 mod status_bar;
-mod top_controls;
 mod waveform_annotations;
 mod waveform_header;
 use super::style::StyleTokens;
@@ -42,7 +41,7 @@ pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
 };
 pub(super) use control_text::{
-    compute_action_button_text_rect, compute_top_bar_controls_text_layout,
+    compute_action_button_text_rect,
 };
 pub(super) use controls::{
     compute_browser_toolbar_sections, compute_sidebar_action_button_rects,
@@ -75,7 +74,6 @@ pub(super) use sidebar_text::{
     compute_sidebar_source_row_text_rect,
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
-pub(super) use top_controls::compute_top_bar_controls_sections;
 #[cfg(test)]
 pub(crate) use waveform_annotations::compute_waveform_annotation_rects;
 pub(crate) use waveform_annotations::{

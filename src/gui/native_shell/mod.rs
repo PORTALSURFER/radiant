@@ -12,6 +12,7 @@ mod paint;
 mod shots;
 mod state;
 mod status_surface;
+mod top_bar_surface;
 mod style;
 #[cfg(test)]
 mod tests;

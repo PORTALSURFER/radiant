@@ -26,8 +26,7 @@ use super::{
         compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
         compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
         compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
-        compute_status_text_line_rect, compute_top_bar_controls_sections,
-        compute_top_bar_controls_text_layout, compute_update_action_button_rects,
+        compute_status_text_line_rect, compute_update_action_button_rects,
         compute_waveform_annotation_rects_with_nanos, compute_waveform_header_text_layout,
         compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
         waveform_plot_x_for_micros, waveform_view_window_from_bounds,
@@ -35,6 +34,10 @@ use super::{
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
     status_surface::{StatusSurfaceContent, resolve_status_surface_layout},
     style::{SizingTokens, StyleTokens},
+    top_bar_surface::{
+        TopBarSurfaceLayout, top_bar_options_button_rect, top_bar_surface_content,
+        resolve_top_bar_surface_layout,
+    },
 };
 use crate::app::{AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction};
 use crate::gui::{

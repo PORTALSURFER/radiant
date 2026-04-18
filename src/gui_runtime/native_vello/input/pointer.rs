@@ -39,7 +39,10 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, point) {
+    if let Some(action) = shell_state.top_bar_update_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, model, point) {
         return Some(action);
     }
     if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {

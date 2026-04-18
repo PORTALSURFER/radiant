@@ -4,14 +4,7 @@ use super::helpers::{
     action_slug, bounds, metadata, node_id, simple_node, slug, update_status_text,
 };
 use super::*;
-use crate::app::{AutomationRole, UpdateStatusModel};
-
-struct UpdateButtonSpec<'a> {
-    label: &'a str,
-    node_slug: &'a str,
-    action_id: &'a str,
-    enabled: bool,
-}
+use crate::app::AutomationRole;
 
 /// Build semantic automation for the update panel embedded in the top bar.
 pub(super) fn update_panel_automation(
@@ -19,32 +12,29 @@ pub(super) fn update_panel_automation(
     model: &AppModel,
     style: &StyleTokens,
 ) -> AutomationNodeSnapshot {
-    let button_specs = update_button_specs(model);
-    let labels: Vec<_> = button_specs.iter().map(|spec| spec.label).collect();
-    let button_rects = compute_update_action_button_rects(
+    let surface = resolve_top_bar_surface_layout(
         layout.top_bar,
-        layout.top_bar_action_cluster,
         style.sizing,
-        &labels,
+        &top_bar_surface_content(model),
     );
     let mut children = Vec::new();
-    for (spec, rect) in button_specs.into_iter().zip(button_rects) {
+    for button in surface.update_buttons {
         children.push(simple_node(
-            format!("shell.top_bar.update.{}", spec.node_slug),
+            format!("shell.top_bar.update.{}", button.spec.node_slug),
             AutomationRole::Button,
-            Some(String::from(spec.label)),
-            rect,
+            Some(String::from(button.spec.label)),
+            button.rect,
             None,
-            spec.enabled,
+            button.spec.enabled,
             false,
-            vec![String::from(spec.action_id)],
+            vec![action_slug(&button.spec.action)],
         ));
     }
     AutomationNodeSnapshot {
         id: node_id("shell.top_bar.update_panel"),
         role: AutomationRole::Group,
         label: Some(String::from("Updates")),
-        bounds: bounds(layout.top_bar_action_cluster),
+        bounds: bounds(surface.action_cluster),
         value: Some(model.update.status_label.clone()),
         enabled: true,
         selected: !children.is_empty(),
@@ -230,46 +220,4 @@ pub(super) fn progress_automation(
             Vec::new()
         },
     })
-}
-
-fn update_button_specs(model: &AppModel) -> Vec<UpdateButtonSpec<'static>> {
-    match model.update.status {
-        UpdateStatusModel::Idle => vec![UpdateButtonSpec {
-            label: "Check",
-            node_slug: "check",
-            action_id: "check_for_updates",
-            enabled: true,
-        }],
-        UpdateStatusModel::Checking => Vec::new(),
-        UpdateStatusModel::Available => {
-            let mut buttons = Vec::new();
-            if model.update.available_url.is_some() {
-                buttons.push(UpdateButtonSpec {
-                    label: "Open",
-                    node_slug: "open",
-                    action_id: "open_update_link",
-                    enabled: true,
-                });
-                buttons.push(UpdateButtonSpec {
-                    label: "Install",
-                    node_slug: "install",
-                    action_id: "install_update",
-                    enabled: true,
-                });
-            }
-            buttons.push(UpdateButtonSpec {
-                label: "Dismiss",
-                node_slug: "dismiss",
-                action_id: "dismiss_update",
-                enabled: true,
-            });
-            buttons
-        }
-        UpdateStatusModel::Error => vec![UpdateButtonSpec {
-            label: "Retry",
-            node_slug: "check",
-            action_id: "check_for_updates",
-            enabled: true,
-        }],
-    }
 }

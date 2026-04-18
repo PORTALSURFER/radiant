@@ -7,53 +7,10 @@ use crate::gui::layout_core::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
-const TOP_CONTROLS_OPTIONS_TEXT_ID: u64 = 1600;
-const TOP_CONTROLS_VALUE_TEXT_ID: u64 = 1601;
-const TOP_CONTROLS_LABEL_TEXT_ID: u64 = 1602;
 const ACTION_BUTTON_TEXT_BASE_ID: u64 = 1610;
 const TEXT_ROOT_ID: u64 = 1620;
 const TEXT_ALIGN_ID: u64 = 1621;
 const TEXT_LINE_ID: u64 = 1622;
-
-/// Slot-resolved text-line bounds for top-bar controls labels.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct TopBarControlsTextLayout {
-    pub options_label: Rect,
-    pub volume_value: Rect,
-    pub volume_label: Rect,
-}
-
-/// Compute top-bar control labels through strict slotized text-line layout.
-pub(crate) fn compute_top_bar_controls_text_layout(
-    options_label: Rect,
-    volume_value: Rect,
-    volume_label: Rect,
-    sizing: SizingTokens,
-) -> TopBarControlsTextLayout {
-    TopBarControlsTextLayout {
-        options_label: compute_text_line_rect(
-            options_label,
-            sizing,
-            sizing.font_meta,
-            0.0,
-            TOP_CONTROLS_OPTIONS_TEXT_ID,
-        ),
-        volume_value: compute_text_line_rect(
-            volume_value,
-            sizing,
-            sizing.font_meta,
-            0.0,
-            TOP_CONTROLS_VALUE_TEXT_ID,
-        ),
-        volume_label: compute_text_line_rect(
-            volume_label,
-            sizing,
-            sizing.font_meta,
-            0.0,
-            TOP_CONTROLS_LABEL_TEXT_ID,
-        ),
-    }
-}
 
 /// Compute an action-button label line rect with horizontal inset.
 pub(crate) fn compute_action_button_text_rect(rect: Rect, sizing: SizingTokens) -> Rect {
@@ -180,18 +137,6 @@ mod tests {
         assert!(inner.min.y >= outer.min.y);
         assert!(inner.max.x <= outer.max.x);
         assert!(inner.max.y <= outer.max.y);
-    }
-
-    #[test]
-    fn top_controls_text_layout_stays_inside_sections() {
-        let style = StyleTokens::for_viewport_width(1280.0);
-        let options = Rect::from_min_max(Point::new(960.0, 44.0), Point::new(1020.0, 60.0));
-        let value = Rect::from_min_max(Point::new(1120.0, 44.0), Point::new(1160.0, 60.0));
-        let label = Rect::from_min_max(Point::new(1170.0, 44.0), Point::new(1200.0, 60.0));
-        let text_layout = compute_top_bar_controls_text_layout(options, value, label, style.sizing);
-        assert_inside(options, text_layout.options_label);
-        assert_inside(value, text_layout.volume_value);
-        assert_inside(label, text_layout.volume_label);
     }
 
     #[test]

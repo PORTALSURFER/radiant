@@ -235,8 +235,7 @@ impl NativeShellState {
                 );
             }
         }
-        if let Some(button_rect) = status_options_button_rect(layout.top_bar_action_cluster, sizing)
-        {
+        if let Some(button_rect) = top_bar_options_button_rect(layout.top_bar, sizing) {
             let hovered = self.hovered_status_options_button;
             let flashed = self.status_options_button_flash_ticks > 0;
             if hovered || flashed {

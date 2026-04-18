@@ -6,29 +6,6 @@ use super::actions::{
 };
 use super::*;
 
-pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) -> Option<Rect> {
-    if segment.width() <= 1.0 || segment.height() <= 1.0 {
-        return None;
-    }
-    let inset_x = sizing.text_inset_x.max(3.0);
-    let inset_y = sizing.text_inset_y.max(2.0);
-    let height = (segment.height() - (inset_y * 2.0))
-        .floor()
-        .clamp(16.0, 24.0);
-    let width = (height * 4.0).clamp(72.0, segment.width().max(72.0));
-    if height <= 0.0 || segment.width() <= width + inset_x {
-        return None;
-    }
-    let min_x = (segment.max.x - inset_x - width).max(segment.min.x);
-    let min_y = (segment.min.y + ((segment.height() - height) * 0.5)).max(segment.min.y);
-    let max_x = (min_x + width).min(segment.max.x);
-    let max_y = (min_y + height).min(segment.max.y);
-    (max_x > min_x && max_y > min_y).then_some(Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(max_x, max_y),
-    ))
-}
-
 pub(super) fn status_right_text_rect(
     segment: Rect,
     sizing: SizingTokens,

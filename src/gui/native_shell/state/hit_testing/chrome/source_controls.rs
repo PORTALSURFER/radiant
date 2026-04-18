@@ -97,11 +97,36 @@ impl NativeShellState {
 
     /// Return the top-right options button rect in tests.
     #[cfg(test)]
-    pub(crate) fn status_options_button_rect(&self, layout: &ShellLayout) -> Option<Rect> {
-        status_options_button_rect(
-            layout.top_bar_action_cluster,
+    pub(crate) fn status_options_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        resolve_top_bar_surface_layout(
+            layout.top_bar,
             style_for_layout(layout).sizing,
+            &top_bar_surface_content(model),
         )
+        .options_button_rect
+    }
+
+    /// Return an update-action button rect for one action in tests.
+    #[cfg(test)]
+    pub(crate) fn top_bar_update_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        resolve_top_bar_surface_layout(
+            layout.top_bar,
+            style_for_layout(layout).sizing,
+            &top_bar_surface_content(model),
+        )
+        .update_buttons
+        .into_iter()
+        .find(|button| button.spec.action == action)
+        .map(|button| button.rect)
     }
 
     /// Return whether a point falls inside the visible options panel.
@@ -204,10 +229,13 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        let Some(button_rect) = status_options_button_rect(
-            layout.top_bar_action_cluster,
+        let Some(button_rect) = resolve_top_bar_surface_layout(
+            layout.top_bar,
             style_for_layout(layout).sizing,
-        ) else {
+            &top_bar_surface_content(model),
+        )
+        .options_button_rect
+        else {
             return None;
         };
         if !button_rect.contains(point) {
@@ -219,5 +247,23 @@ impl NativeShellState {
         } else {
             UiAction::OpenOptionsMenu
         })
+    }
+
+    /// Resolve a click inside the top-bar update-action cluster.
+    pub(crate) fn top_bar_update_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        resolve_top_bar_surface_layout(
+            layout.top_bar,
+            style_for_layout(layout).sizing,
+            &top_bar_surface_content(model),
+        )
+        .update_buttons
+        .into_iter()
+        .find(|button| button.spec.enabled && button.rect.contains(point))
+        .map(|button| button.spec.action)
     }
 }

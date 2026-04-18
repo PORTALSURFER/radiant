@@ -216,11 +216,3 @@ const FOLDER_VIEW_EDGE_MARGIN_ROWS: usize = 2;
 /// Horizontal gap left between folder rows and the visual scrollbar lane.
 const FOLDER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 
-#[derive(Clone, Copy, Debug)]
-pub(super) struct TopBarControlsLayout {
-    pub(super) active: bool,
-    pub(super) options_label: Rect,
-    pub(super) volume_meter: Rect,
-    pub(super) volume_value: Rect,
-    pub(super) volume_label: Rect,
-}

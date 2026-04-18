@@ -208,14 +208,19 @@ fn tick_with_style_uses_tier_motion_speed_tokens() {
 fn top_bar_volume_click_maps_to_set_volume_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let controls = top_bar_controls_layout(&layout, style_for_layout(&layout).sizing);
-    assert!(controls.active);
+    let model = AppModel::default();
+    let controls = resolve_top_bar_surface_layout(
+        layout.top_bar,
+        style_for_layout(&layout).sizing,
+        &top_bar_surface_content(&model),
+    );
+    assert!(controls.volume_meter_rect.width() > 0.0);
     let point = Point::new(
-        controls.volume_meter.min.x + (controls.volume_meter.width() * 0.75),
-        controls.volume_meter.min.y + (controls.volume_meter.height() * 0.5),
+        controls.volume_meter_rect.min.x + (controls.volume_meter_rect.width() * 0.75),
+        controls.volume_meter_rect.min.y + (controls.volume_meter_rect.height() * 0.5),
     );
     let action = state
-        .top_bar_volume_action_at_point(&layout, point)
+        .top_bar_volume_action_at_point(&layout, &model, point)
         .expect("volume click should produce action");
     assert_eq!(action, UiAction::SetVolume { value_milli: 750 });
 }
@@ -226,7 +231,7 @@ fn status_options_click_maps_to_open_options_menu_action() {
     let mut state = NativeShellState::new();
     let model = AppModel::default();
     let button = state
-        .status_options_button_rect(&layout)
+        .status_options_button_rect(&layout, &model)
         .expect("status options button should render");
     let point = Point::new(
         button.min.x + (button.width() * 0.5),
@@ -344,7 +349,7 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
     state.sync_from_model(&model);
 
     let button = state
-        .status_options_button_rect(&layout)
+        .status_options_button_rect(&layout, &model)
         .expect("status options chip should render");
     let frame = state.build_frame(&layout, &model);
 
@@ -359,6 +364,42 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
         })
         .expect("chip fill should be rendered");
     assert_ne!(fill, style.surface_overlay);
+}
+
+#[test]
+fn top_bar_update_buttons_emit_expected_actions() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let state = NativeShellState::new();
+    let model = AppModel {
+        update: crate::app::UpdatePanelModel {
+            status: crate::app::UpdateStatusModel::Available,
+            status_label: String::from("Update available: v20.1.0"),
+            action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
+            release_notes_label: String::from("Release: v20.1.0"),
+            available_tag: Some(String::from("v20.1.0")),
+            available_url: Some(String::from("https://example.invalid/release")),
+            last_error: None,
+        },
+        ..AppModel::default()
+    };
+
+    for action in [
+        UiAction::OpenUpdateLink,
+        UiAction::InstallUpdate,
+        UiAction::DismissUpdate,
+    ] {
+        let button = state
+            .top_bar_update_button_rect(&layout, &model, action.clone())
+            .expect("update action should resolve button rect");
+        let point = Point::new(
+            (button.min.x + button.max.x) * 0.5,
+            (button.min.y + button.max.y) * 0.5,
+        );
+        assert_eq!(
+            state.top_bar_update_action_at_point(&layout, &model, point),
+            Some(action)
+        );
+    }
 }
 
 #[test]

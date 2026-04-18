@@ -11,14 +11,18 @@ pub(super) fn build_top_bar_automation(
     model: &AppModel,
 ) -> AutomationNodeSnapshot {
     let style = style_for_layout(layout);
-    let controls = top_bar_controls_layout(layout, style.sizing);
+    let surface = resolve_top_bar_surface_layout(
+        layout.top_bar,
+        style.sizing,
+        &top_bar_surface_content(model),
+    );
     let mut children = Vec::new();
-    if controls.active {
+    if surface.volume_meter_rect.width() > 0.0 && surface.volume_meter_rect.height() > 0.0 {
         children.push(simple_node(
             "shell.top_bar.volume_slider",
             AutomationRole::Slider,
             Some(String::from("Volume")),
-            controls.volume_meter,
+            surface.volume_meter_rect,
             Some(format!("{:.3}", model.volume.clamp(0.0, 1.0))),
             true,
             false,
@@ -28,9 +32,7 @@ pub(super) fn build_top_bar_automation(
             ],
         ));
     }
-    if let Some(button_rect) =
-        status_options_button_rect(layout.top_bar_action_cluster, style.sizing)
-    {
+    if let Some(button_rect) = surface.options_button_rect {
         children.push(simple_node(
             "shell.top_bar.options_button",
             AutomationRole::Button,
@@ -46,9 +48,7 @@ pub(super) fn build_top_bar_automation(
             })],
         ));
     }
-    children.push(super::dialogs::update_panel_automation(
-        layout, model, &style,
-    ));
+    children.push(super::dialogs::update_panel_automation(layout, model, &style));
     AutomationNodeSnapshot {
         id: super::helpers::node_id("shell.top_bar"),
         role: AutomationRole::Panel,

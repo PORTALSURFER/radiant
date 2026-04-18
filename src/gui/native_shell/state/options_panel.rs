@@ -24,10 +24,6 @@ pub(super) struct OptionsPanelLayout {
     pub(super) buttons: Vec<OptionsPanelButton>,
 }
 
-pub(super) fn status_options_button_rect(segment: Rect, sizing: SizingTokens) -> Option<Rect> {
-    geometry::status_options_button_rect(segment, sizing)
-}
-
 pub(super) fn status_right_text_rect(
     segment: Rect,
     sizing: SizingTokens,

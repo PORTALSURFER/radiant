@@ -165,14 +165,15 @@ fn top_bar_controls_fit_inside_control_row() {
     ] {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
-        let controls = top_bar_controls_layout(&layout, style.sizing);
-        if !controls.active {
-            continue;
-        }
-        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_meter);
-        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_value);
-        assert_rect_inside(layout.top_bar_title_cluster, controls.volume_label);
-        assert!(controls.volume_meter.max.x <= controls.volume_value.min.x);
-        assert!(controls.volume_value.max.x <= controls.volume_label.min.x);
+        let controls = resolve_top_bar_surface_layout(
+            layout.top_bar,
+            style.sizing,
+            &top_bar_surface_content(&AppModel::default()),
+        );
+        assert_rect_inside(controls.title_cluster, controls.volume_meter_rect);
+        assert_rect_inside(controls.title_cluster, controls.volume_value_rect);
+        assert_rect_inside(controls.title_cluster, controls.volume_label_rect);
+        assert!(controls.volume_meter_rect.max.x <= controls.volume_value_rect.min.x);
+        assert!(controls.volume_value_rect.max.x <= controls.volume_label_rect.min.x);
     }
 }

@@ -237,11 +237,8 @@ impl NativeShellState {
         if hover != Some(ShellNodeKind::TopBar) {
             return false;
         }
-        status_options_button_rect(
-            layout.top_bar_action_cluster,
-            style_for_layout(layout).sizing,
-        )
-        .is_some_and(|rect| rect.contains(point))
+        top_bar_options_button_rect(layout.top_bar, style_for_layout(layout).sizing)
+            .is_some_and(|rect| rect.contains(point))
     }
 
     fn resolve_hovered_waveform_toolbar_hint(

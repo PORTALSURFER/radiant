@@ -13,7 +13,7 @@ fn browser_action_buttons_stay_inside_toolbar() {
     ] {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
-        let toolbar = browser_toolbar_layout(&layout, &style);
+        let toolbar = browser_toolbar_layout(&layout, &style, &model);
         let buttons = browser_action_buttons(&layout, &style, &model, &toolbar);
         assert_eq!(buttons.len(), 3);
         assert_eq!(buttons[0].label, "Random");
@@ -42,7 +42,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     model.browser_actions.can_delete = true;
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
-    let controls = browser_toolbar_layout(&layout, &style);
+    let controls = browser_toolbar_layout(&layout, &style, &model);
     let buttons = browser_action_buttons(&layout, &style, &model, &controls);
     assert_eq!(buttons.len(), 3);
     assert!(
@@ -77,7 +77,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
 fn browser_toolbar_places_playback_age_chips_between_rating_and_mark_controls() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
-    let controls = browser_toolbar_layout(&layout, &style);
+    let controls = browser_toolbar_layout(&layout, &style, &AppModel::default());
     let rating_gap = controls.rating_filter_chips[1].min.x - controls.rating_filter_chips[0].max.x;
     let age_gap =
         controls.playback_age_filter_chips[1].min.x - controls.playback_age_filter_chips[0].max.x;
@@ -103,7 +103,7 @@ fn browser_toolbar_right_side_does_not_hit_search_field() {
     let mut state = NativeShellState::new();
     let model = AppModel::default();
     let style = style_for_layout(&layout);
-    let controls = browser_toolbar_layout(&layout, &style);
+    let controls = browser_toolbar_layout(&layout, &style, &model);
     let point = Point::new(
         (controls.search_field.max.x + layout.browser_toolbar.max.x) * 0.5,
         (layout.browser_toolbar.min.y + layout.browser_toolbar.max.y) * 0.5,
@@ -119,7 +119,7 @@ fn browser_toolbar_right_side_does_not_hit_search_field() {
 fn browser_toolbar_tags_button_sits_right_of_search_field() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
-    let controls = browser_toolbar_layout(&layout, &style);
+    let controls = browser_toolbar_layout(&layout, &style, &AppModel::default());
     assert!(controls.action_slots[2].width() > 1.0);
     assert!(controls.search_field.width() > 1.0);
     assert!(controls.search_field.max.x <= controls.action_slots[2].min.x);

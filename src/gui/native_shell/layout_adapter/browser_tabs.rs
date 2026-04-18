@@ -1,4 +1,5 @@
 //! Slotized geometry helpers for browser tab surfaces.
+#![allow(dead_code)]
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{

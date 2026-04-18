@@ -74,7 +74,11 @@ pub(super) fn render_browser_tabs(
     animated: bool,
     cached_text: &BrowserSegmentTextCacheValue,
 ) {
-    let tabs = compute_browser_tabs_rects(ctx.layout.browser_tabs, ctx.sizing);
+    let tabs = resolve_browser_tabs_surface_layout(
+        ctx.layout.browser_tabs,
+        ctx.sizing,
+        &browser_tabs_surface_content(ctx.model),
+    );
     let wave = if animated { ctx.motion_wave * 0.1 } else { 0.0 };
     let map_active = ctx.model.map.active;
     let (samples_fill, map_fill, samples_border, map_border, samples_text_color, map_text_color) =

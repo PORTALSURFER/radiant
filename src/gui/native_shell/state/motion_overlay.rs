@@ -253,7 +253,14 @@ impl NativeShellState {
             }
         }
 
-        let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
+        let tabs = resolve_browser_tabs_surface_layout(
+            layout.browser_tabs,
+            sizing,
+            &BrowserTabsSurfaceContent {
+                samples_label: String::new(),
+                map_label: String::new(),
+            },
+        );
         let (samples_fill, map_fill) = if !model.map_active {
             (
                 blend_color(

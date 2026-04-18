@@ -37,12 +37,14 @@ pub(super) use browser_chrome_text::{
     BrowserTabsTextLayout, BrowserToolbarTextLayout, compute_browser_footer_text_rect,
     compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
 };
+#[allow(unused_imports)]
 pub(super) use browser_tabs::{BrowserTabsRects, compute_browser_tabs_rects};
 pub(crate) use browser_text::BrowserRowTextLayout;
 pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
 };
 pub(super) use control_text::compute_action_button_text_rect;
+#[allow(unused_imports)]
 pub(super) use controls::{compute_browser_toolbar_sections, compute_update_action_button_rects};
 pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
 pub(super) use map_header::compute_browser_map_header_text_layout;

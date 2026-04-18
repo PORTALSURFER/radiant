@@ -8,7 +8,11 @@ pub(super) fn render_browser_tab_overlay(
     model: &AppModel,
 ) {
     let sizing = style.sizing;
-    let tabs = compute_browser_tabs_rects(layout.browser_tabs, sizing);
+    let tabs = resolve_browser_tabs_surface_layout(
+        layout.browser_tabs,
+        sizing,
+        &browser_tabs_surface_content(model),
+    );
     let (samples_fill, map_fill, samples_text_color, map_text_color) = if !model.map.active {
         (
             blend_color(

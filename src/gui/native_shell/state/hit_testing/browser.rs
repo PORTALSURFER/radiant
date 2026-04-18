@@ -10,7 +10,7 @@ impl NativeShellState {
         column: usize,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
-        let toolbar = browser_toolbar_layout(layout, &style);
+        let toolbar = browser_toolbar_layout(layout, &style, model);
         let buttons = browser_action_buttons(layout, &style, model, &toolbar);
         browser_column_chips(layout, &style, model, &buttons)
             .into_iter()
@@ -255,8 +255,21 @@ impl NativeShellState {
         layout: &ShellLayout,
         point: Point,
     ) -> Option<UiAction> {
-        let tabs: BrowserTabsRects =
-            compute_browser_tabs_rects(layout.browser_tabs, style_for_layout(layout).sizing);
+        let tabs: BrowserTabsRects = {
+            let style = style_for_layout(layout);
+            let tabs = resolve_browser_tabs_surface_layout(
+                layout.browser_tabs,
+                style.sizing,
+                &BrowserTabsSurfaceContent {
+                    samples_label: String::new(),
+                    map_label: String::new(),
+                },
+            );
+            BrowserTabsRects {
+                samples: tabs.samples,
+                map: tabs.map,
+            }
+        };
         if tabs.samples.contains(point) {
             return Some(UiAction::SetBrowserTab { map: false });
         }
@@ -328,7 +341,7 @@ impl NativeShellState {
         label: &str,
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
-        let toolbar = browser_toolbar_layout(layout, &style);
+        let toolbar = browser_toolbar_layout(layout, &style, model);
         browser_action_buttons(layout, &style, model, &toolbar)
             .into_iter()
             .find(|button| button.label == label)

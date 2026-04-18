@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use super::super::super::style::SizingTokens;
 use super::shared::{
     center_square_rect, clamp_rect_to_bounds, empty_rect, layout_left_aligned_fixed_widths,

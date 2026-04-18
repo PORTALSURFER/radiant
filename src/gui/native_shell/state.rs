@@ -9,6 +9,10 @@
 #[cfg(test)]
 use super::layout_adapter::compute_waveform_annotation_rects;
 use super::{
+    browser_chrome_surface::{
+        BrowserTabsSurfaceContent, browser_tabs_surface_content, browser_toolbar_surface_content,
+        resolve_browser_tabs_surface_layout, resolve_browser_toolbar_surface_layout,
+    },
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, BrowserTabsTextLayout, BrowserToolbarTextLayout, SidebarFolderRowLayout,
@@ -16,8 +20,7 @@ use super::{
         compute_browser_footer_text_rect, compute_browser_header_text_layout,
         compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
         compute_browser_map_point_center, compute_browser_row_text_layout,
-        compute_browser_tabs_rects, compute_browser_tabs_text_layout,
-        compute_browser_toolbar_sections, compute_browser_toolbar_text_layout,
+        compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
         compute_drag_overlay_text_layout, compute_drag_overlay_visual_layout,
         compute_progress_overlay_text_layout, compute_progress_overlay_visual_layout,
         compute_prompt_overlay_text_layout, compute_prompt_overlay_visual_layout,

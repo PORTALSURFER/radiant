@@ -13,9 +13,13 @@ pub(super) fn build_browser_automation(
     model: &AppModel,
     style: &StyleTokens,
 ) -> AutomationNodeSnapshot {
-    let toolbar = browser_toolbar_layout(layout, style);
+    let toolbar = browser_toolbar_layout(layout, style, model);
     let buttons = browser_action_buttons(layout, style, model, &toolbar);
-    let tabs = compute_browser_tabs_rects(layout.browser_tabs, style.sizing);
+    let tabs = resolve_browser_tabs_surface_layout(
+        layout.browser_tabs,
+        style.sizing,
+        &browser_tabs_surface_content(model),
+    );
     let mut children = vec![
         simple_node(
             "browser.tab.samples",

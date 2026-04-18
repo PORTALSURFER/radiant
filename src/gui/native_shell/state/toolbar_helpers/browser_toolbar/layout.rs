@@ -5,8 +5,13 @@ use super::super::super::*;
 pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
+    model: &AppModel,
 ) -> BrowserToolbarLayout {
-    let sections = compute_browser_toolbar_sections(layout.browser_toolbar, style.sizing);
+    let sections = resolve_browser_toolbar_surface_layout(
+        layout.browser_toolbar,
+        style.sizing,
+        &browser_toolbar_surface_content(model),
+    );
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
         playback_age_filter_chips: sections.playback_age_filter_chips,

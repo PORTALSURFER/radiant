@@ -1,6 +1,5 @@
 //! Static-frame segment routing and waveform overlay emit helpers.
 
-use super::browser_rows::format_milli_value;
 use super::*;
 
 mod fades;

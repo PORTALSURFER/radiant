@@ -19,6 +19,7 @@ mod sidebar_sections;
 mod sidebar_text;
 mod status_bar;
 mod waveform_annotations;
+#[cfg(test)]
 mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
@@ -74,7 +75,6 @@ pub(crate) use waveform_annotations::{
     compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
     waveform_plot_x_for_micros, waveform_view_window_from_bounds,
 };
-pub(super) use waveform_header::compute_waveform_header_text_layout;
 
 pub(crate) const SHELL_ROOT_ID: u64 = 1;
 const TOP_BAR_ID: u64 = 2;

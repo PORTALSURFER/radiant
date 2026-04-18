@@ -2,10 +2,6 @@
 
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn format_milli_value(value: u16) -> String {
-    format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
-}
-
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,
     point: Point,

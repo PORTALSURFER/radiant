@@ -11,6 +11,7 @@ mod paint;
 #[cfg(test)]
 mod shots;
 mod state;
+mod status_surface;
 mod style;
 #[cfg(test)]
 mod tests;

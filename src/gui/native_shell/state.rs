@@ -33,6 +33,7 @@ use super::{
         waveform_plot_x_for_micros, waveform_view_window_from_bounds,
     },
     paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
+    status_surface::{StatusSurfaceContent, resolve_status_surface_layout},
     style::{SizingTokens, StyleTokens},
 };
 use crate::app::{AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction};

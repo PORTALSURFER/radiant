@@ -127,6 +127,8 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheValue {
     pub right_text_rect: Rect,
     /// Precomputed progress-slot counter rect.
     pub progress_text_rect: Rect,
+    /// Precomputed progress-track canvas rect.
+    pub progress_track_rect: Rect,
     /// Final left-side footer label.
     pub left_label: String,
     /// Final center footer label when inline progress is inactive.

@@ -1,5 +1,6 @@
 //! Slotized helpers for status-bar segment and text-line geometry.
 
+use super::super::status_surface::{StatusSurfaceContent, resolve_status_surface_layout};
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
@@ -7,23 +8,9 @@ use crate::gui::layout_core::{
 };
 use crate::gui::types::{Point, Rect, Vector2};
 
-const STATUS_ROOT_ID: u64 = 900;
-const STATUS_ROW_ID: u64 = 901;
-const STATUS_LEFT_ID: u64 = 902;
-const STATUS_GAP_LEFT_ID: u64 = 903;
-const STATUS_CENTER_ID: u64 = 904;
-const STATUS_GAP_RIGHT_ID: u64 = 905;
-const STATUS_RIGHT_ID: u64 = 906;
-const STATUS_GAP_PROGRESS_ID: u64 = 907;
-const STATUS_PROGRESS_ID: u64 = 908;
 const STATUS_TEXT_ROOT_ID: u64 = 920;
 const STATUS_TEXT_ALIGN_ID: u64 = 921;
 const STATUS_TEXT_LINE_ID: u64 = 922;
-const STATUS_LEFT_RATIO: f32 = 0.30;
-const STATUS_RIGHT_RATIO: f32 = 0.22;
-const STATUS_PROGRESS_RATIO: f32 = 0.16;
-const STATUS_PROGRESS_MIN_WIDTH: f32 = 84.0;
-const STATUS_PROGRESS_MAX_WIDTH: f32 = 144.0;
 
 /// Slot-resolved left/center/right status-bar segment geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -39,72 +26,13 @@ pub(crate) fn compute_status_bar_segments(
     status_bar: Rect,
     sizing: SizingTokens,
 ) -> StatusBarSegments {
-    let empty = empty_rect(status_bar);
-    if status_bar.width() <= 0.0 || status_bar.height() <= 0.0 {
-        return StatusBarSegments {
-            left: empty,
-            center: empty,
-            right: empty,
-            progress: empty,
-        };
-    }
-    let inner_width = (status_bar.width() - (sizing.panel_inset.max(0.0) * 2.0)).max(0.0);
-    let progress_width = (inner_width * STATUS_PROGRESS_RATIO)
-        .clamp(STATUS_PROGRESS_MIN_WIDTH, STATUS_PROGRESS_MAX_WIDTH);
-    let row = LayoutNode::container(
-        STATUS_ROW_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: 0.0,
-            align_main: MainAlign::Start,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![
-            percent_child(STATUS_LEFT_ID, STATUS_LEFT_RATIO),
-            fixed_gap_child(STATUS_GAP_LEFT_ID, sizing.status_segment_gap),
-            SlotChild {
-                slot: SlotParams::fill(),
-                child: LayoutNode::widget(STATUS_CENTER_ID, Vector2::new(1.0, 1.0)),
-            },
-            fixed_gap_child(STATUS_GAP_RIGHT_ID, sizing.status_segment_gap),
-            percent_child(STATUS_RIGHT_ID, STATUS_RIGHT_RATIO),
-            fixed_gap_child(STATUS_GAP_PROGRESS_ID, sizing.status_segment_gap),
-            fixed_width_child(STATUS_PROGRESS_ID, progress_width),
-        ],
-    );
-    let tree = LayoutNode::container(
-        STATUS_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.panel_inset.max(0.0),
-                right: sizing.panel_inset.max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: row,
-        }],
-    );
-    let output = layout_tree(&tree, status_bar);
-    let left = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_LEFT_ID, empty), status_bar);
-    let center = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_CENTER_ID, empty), status_bar);
-    let right = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_RIGHT_ID, empty), status_bar);
-    let progress = clamp_rect_to_bounds(
-        rect_for(&output.rects, STATUS_PROGRESS_ID, empty),
-        status_bar,
-    );
+    let layout =
+        resolve_status_surface_layout(status_bar, sizing, &StatusSurfaceContent::default());
     StatusBarSegments {
-        left,
-        center,
-        right,
-        progress,
+        left: layout.left_segment,
+        center: layout.center_segment,
+        right: layout.right_segment,
+        progress: layout.progress_segment,
     }
 }
 
@@ -167,39 +95,6 @@ pub(crate) fn compute_status_text_line_rect(
     );
     let output = layout_tree(&segment_tree, segment);
     clamp_rect_to_bounds(rect_for(&output.rects, STATUS_TEXT_LINE_ID, empty), segment)
-}
-
-fn percent_child(node_id: u64, ratio: f32) -> SlotChild {
-    SlotChild {
-        slot: SlotParams {
-            size_main: SizeModeMain::Percent(ratio.max(0.0)),
-            size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, 0.0, f32::INFINITY),
-            margin: Insets::default(),
-            align_cross_override: Some(CrossAlign::Stretch),
-            allow_fixed_compress: false,
-        },
-        child: LayoutNode::widget(node_id, Vector2::new(1.0, 1.0)),
-    }
-}
-
-fn fixed_gap_child(node_id: u64, width: f32) -> SlotChild {
-    fixed_width_child(node_id, width)
-}
-
-fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
-    let width = width.max(0.0);
-    SlotChild {
-        slot: SlotParams {
-            size_main: SizeModeMain::Fixed(width),
-            size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(width, width, 0.0, f32::INFINITY),
-            margin: Insets::default(),
-            align_cross_override: Some(CrossAlign::Stretch),
-            allow_fixed_compress: false,
-        },
-        child: LayoutNode::widget(node_id, Vector2::new(width.max(1.0), 1.0)),
-    }
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {

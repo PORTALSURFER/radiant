@@ -24,8 +24,6 @@ pub(super) fn render_status_bar(
         },
     );
     if cached_text.inline_progress_active {
-        let progress_track_rect =
-            status_progress_track_rect(layout.status_progress_segment, sizing);
         emit_text(
             text_runs,
             TextRun {
@@ -40,12 +38,12 @@ pub(super) fn render_status_bar(
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: progress_track_rect,
+                rect: cached_text.progress_track_rect,
                 color: blend_color(style.grid_soft, style.surface_overlay, 0.35),
             }),
         );
         if let Some(fill_rect) = status_progress_fill_rect(
-            progress_track_rect,
+            cached_text.progress_track_rect,
             model,
             interaction_wave(state.pulse_phase),
         ) {
@@ -92,22 +90,6 @@ pub(super) fn render_status_bar(
             align: TextAlign::Right,
         },
     );
-}
-
-/// Resolve the compact footer progress-track rect inside the status center segment.
-pub(super) fn status_progress_track_rect(segment: Rect, sizing: SizingTokens) -> Rect {
-    let inset_left = (sizing.text_inset_x + sizing.header_label_gutter).max(0.0);
-    let inset_right = sizing.text_inset_x.max(0.0);
-    let track_height = (sizing.border_width * 2.0).max(4.0);
-    let max_y = (segment.max.y - sizing.text_inset_y.max(1.0)).min(segment.max.y - 1.0);
-    let min_y = (max_y - track_height).max(segment.min.y + 1.0);
-    Rect::from_min_max(
-        Point::new(segment.min.x + inset_left, min_y),
-        Point::new(
-            (segment.max.x - inset_right).max(segment.min.x + inset_left),
-            max_y,
-        ),
-    )
 }
 
 /// Resolve the filled portion of the footer progress track.

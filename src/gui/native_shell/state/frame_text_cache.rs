@@ -151,42 +151,50 @@ fn build_status_bar_text_cache(
     selected_column: usize,
 ) -> StatusBarTextCacheValue {
     let sizing = style.sizing;
-    let left_text_rect =
-        compute_status_text_line_rect(layout.status_left_segment, sizing, sizing.font_status);
-    let center_text_rect =
-        compute_status_text_line_rect(layout.status_center_segment, sizing, sizing.font_status);
-    let right_text_rect = status_right_text_rect(layout.status_right_segment, sizing, None);
     let inline_progress_active = model.progress_overlay.visible && !model.progress_overlay.modal;
-    let progress_text_rect =
-        compute_status_text_line_rect(layout.status_progress_segment, sizing, sizing.font_status);
+    let status_surface = resolve_status_surface_layout(
+        layout.status_bar,
+        sizing,
+        &StatusSurfaceContent {
+            left_label: status_left_text(model, transport_running, selected_column),
+            center_label: if inline_progress_active {
+                cached_status_progress_label(model)
+            } else {
+                status_center_text(model)
+            },
+            right_label: status_right_label(model, selected_column),
+            progress_counter: cached_status_progress_counter(model),
+        },
+    );
     StatusBarTextCacheValue {
-        left_text_rect,
-        center_text_rect,
-        right_text_rect,
-        progress_text_rect,
+        left_text_rect: status_surface.left_text_rect,
+        center_text_rect: status_surface.center_text_rect,
+        right_text_rect: status_surface.right_text_rect,
+        progress_text_rect: status_surface.progress_text_rect,
+        progress_track_rect: status_surface.progress_track_rect,
         left_label: truncate_to_width(
             &status_left_text(model, transport_running, selected_column),
-            left_text_rect.width().max(36.0),
+            status_surface.left_text_rect.width().max(36.0),
             sizing.font_status,
         ),
         center_label: truncate_to_width(
             &status_center_text(model),
-            center_text_rect.width().max(36.0),
+            status_surface.center_text_rect.width().max(36.0),
             sizing.font_status,
         ),
         right_label: truncate_to_width(
             &status_right_label(model, selected_column),
-            right_text_rect.width().max(36.0),
+            status_surface.right_text_rect.width().max(36.0),
             sizing.font_status,
         ),
         progress_label: truncate_to_width(
             &cached_status_progress_label(model),
-            center_text_rect.width().max(36.0),
+            status_surface.center_text_rect.width().max(36.0),
             sizing.font_status,
         ),
         progress_counter: truncate_to_width(
             &cached_status_progress_counter(model),
-            progress_text_rect.width().max(24.0),
+            status_surface.progress_text_rect.width().max(24.0),
             sizing.font_status,
         ),
         inline_progress_active,
@@ -225,23 +233,28 @@ fn status_bar_text_cache_key(
     transport_running: bool,
     selected_column: usize,
 ) -> StatusBarTextCacheKey {
+    let status_surface = resolve_status_surface_layout(
+        layout.status_bar,
+        style.sizing,
+        &StatusSurfaceContent::default(),
+    );
     StatusBarTextCacheKey {
-        status_left_min_x: f32_to_bits(layout.status_left_segment.min.x),
-        status_left_min_y: f32_to_bits(layout.status_left_segment.min.y),
-        status_left_max_x: f32_to_bits(layout.status_left_segment.max.x),
-        status_left_max_y: f32_to_bits(layout.status_left_segment.max.y),
-        status_center_min_x: f32_to_bits(layout.status_center_segment.min.x),
-        status_center_min_y: f32_to_bits(layout.status_center_segment.min.y),
-        status_center_max_x: f32_to_bits(layout.status_center_segment.max.x),
-        status_center_max_y: f32_to_bits(layout.status_center_segment.max.y),
-        status_right_min_x: f32_to_bits(layout.status_right_segment.min.x),
-        status_right_min_y: f32_to_bits(layout.status_right_segment.min.y),
-        status_right_max_x: f32_to_bits(layout.status_right_segment.max.x),
-        status_right_max_y: f32_to_bits(layout.status_right_segment.max.y),
-        status_progress_min_x: f32_to_bits(layout.status_progress_segment.min.x),
-        status_progress_min_y: f32_to_bits(layout.status_progress_segment.min.y),
-        status_progress_max_x: f32_to_bits(layout.status_progress_segment.max.x),
-        status_progress_max_y: f32_to_bits(layout.status_progress_segment.max.y),
+        status_left_min_x: f32_to_bits(status_surface.left_text_rect.min.x),
+        status_left_min_y: f32_to_bits(status_surface.left_text_rect.min.y),
+        status_left_max_x: f32_to_bits(status_surface.left_text_rect.max.x),
+        status_left_max_y: f32_to_bits(status_surface.left_text_rect.max.y),
+        status_center_min_x: f32_to_bits(status_surface.center_text_rect.min.x),
+        status_center_min_y: f32_to_bits(status_surface.center_text_rect.min.y),
+        status_center_max_x: f32_to_bits(status_surface.center_text_rect.max.x),
+        status_center_max_y: f32_to_bits(status_surface.center_text_rect.max.y),
+        status_right_min_x: f32_to_bits(status_surface.right_text_rect.min.x),
+        status_right_min_y: f32_to_bits(status_surface.right_text_rect.min.y),
+        status_right_max_x: f32_to_bits(status_surface.right_text_rect.max.x),
+        status_right_max_y: f32_to_bits(status_surface.right_text_rect.max.y),
+        status_progress_min_x: f32_to_bits(status_surface.progress_text_rect.min.x),
+        status_progress_min_y: f32_to_bits(status_surface.progress_text_rect.min.y),
+        status_progress_max_x: f32_to_bits(status_surface.progress_text_rect.max.x),
+        status_progress_max_y: f32_to_bits(status_surface.progress_text_rect.max.y),
         font_status_bits: f32_to_bits(style.sizing.font_status),
         ui_scale: f32_to_bits(layout.ui_scale),
         transport_running,

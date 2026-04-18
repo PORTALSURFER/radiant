@@ -224,6 +224,9 @@ pub(super) fn render_browser_focus_overlay(
         if !(row.selected || row.focused) {
             continue;
         }
+        let similarity_anchor_active = (model.browser.similarity_filtered
+            || model.browser.duplicate_cleanup_active)
+            && row.visible_row == 0;
         let row_border_stroke = browser_row_border_stroke(layout);
         let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
         if row.focused {
@@ -252,7 +255,11 @@ pub(super) fn render_browser_focus_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.text_layout.columns.index,
-                    color: selected_browser_index_fill(style),
+                    color: if similarity_anchor_active {
+                        similarity_anchor_browser_index_fill(style)
+                    } else {
+                        selected_browser_index_fill(style)
+                    },
                 }),
             );
         }

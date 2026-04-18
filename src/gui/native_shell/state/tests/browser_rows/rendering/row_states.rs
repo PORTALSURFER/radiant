@@ -234,10 +234,12 @@ fn focused_browser_rows_render_similarity_button_on_far_left() {
     assert!(frame.primitives.iter().any(|primitive| {
         matches!(primitive, Primitive::Rect(FillRect { rect, .. }) if *rect == button_rect)
     }));
-    assert!(frame
-        .primitives
-        .iter()
-        .any(|primitive| { matches!(primitive, Primitive::Image(DrawImage { .. })) }));
+    assert!(
+        frame
+            .primitives
+            .iter()
+            .any(|primitive| { matches!(primitive, Primitive::Image(DrawImage { .. })) })
+    );
     assert!(!frame.text_runs.iter().any(|run| run.text == "SIM"));
 }
 
@@ -277,6 +279,14 @@ fn similarity_filtered_browser_rows_use_highlighted_fill() {
             primitive,
             Primitive::Rect(FillRect { rect, color })
                 if *rect == match_rect && *color == match_fill
+        )
+    }));
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == rendered[0].text_layout.columns.index
+                    && *color == similarity_anchor_browser_index_fill(&style)
         )
     }));
 }
@@ -326,10 +336,12 @@ fn similarity_filtered_browser_rows_render_compact_similarity_strength_bars() {
     assert!(anchor_fill.width() > close_fill.width());
     assert!(anchor_track.width() >= 36.0);
     assert!(anchor_track.height() >= 6.0);
-    assert!(rendered[1]
-        .inline_tag_rects
-        .iter()
-        .all(|rect| rect.max.x <= close_track.min.x));
+    assert!(
+        rendered[1]
+            .inline_tag_rects
+            .iter()
+            .all(|rect| rect.max.x <= close_track.min.x)
+    );
 }
 
 #[test]

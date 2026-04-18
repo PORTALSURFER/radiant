@@ -44,6 +44,15 @@ pub(super) fn render_browser_rows_window(
                 color: base_fill,
             }),
         );
+        if similarity_active && row.visible_row == 0 {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: row.text_layout.columns.index,
+                    color: similarity_anchor_browser_index_fill(ctx.style),
+                }),
+            );
+        }
         if let Some(marker_rect) =
             browser_playback_age_marker_rect(row.rect, ctx.sizing, similarity_button_reserved_width)
         {

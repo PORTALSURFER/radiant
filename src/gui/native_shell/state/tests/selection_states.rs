@@ -497,3 +497,37 @@ fn browser_row_selected_focused_state_keeps_index_highlight() {
         )
     }));
 }
+
+#[test]
+fn similarity_anchor_selected_focused_state_uses_blue_index_highlight() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.similarity_filtered = true;
+    model.browser.rows.push(BrowserRowModel::new(
+        0,
+        "focused selected anchor",
+        1,
+        true,
+        true,
+    ));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "match row", 1, false, false));
+    state.sync_from_model(&model);
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == row.text_layout.columns.index
+                    && *color == similarity_anchor_browser_index_fill(&style)
+        )
+    }));
+}

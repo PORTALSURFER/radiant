@@ -1,12 +1,19 @@
 //! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
 //! The crate is organized as a thin runtime boundary:
-//! - `app`: model/action contracts emitted and consumed by the host.
+//! - `app`: compatibility-facing Sempal shell contracts emitted and consumed by the host.
 //! - `gui`: retained layout, input mapping, and paint generation.
 //! - `gui_runtime`: platform host bindings and frame scheduling.
+//! - `runtime`: generic declarative view/message surfaces for new host applications.
 //!
-//! The host builds an [`AppModel`](crate::app::AppModel) for each frame and applies
-//! [`UiAction`](crate::app::UiAction) events produced by input and interactions.
+//! New host applications should prefer [`runtime`](crate::runtime), which lets
+//! them project generic declarative UI trees built from public containers and
+//! widgets, then reduce host-defined messages without depending on
+//! Sempal-specific [`AppModel`](crate::app::AppModel) or
+//! [`UiAction`](crate::app::UiAction) shapes.
+//!
+//! The legacy [`app`](crate::app) surface remains available as the
+//! compatibility path while Sempal migrates onto the generic surface.
 //! All GUI-specific layout, diffing, and render orchestration stay inside `radiant`.
 //!
 //! Generic host-facing entry points:
@@ -14,6 +21,7 @@
 //! - [`widgets`]: first-class reusable widget taxonomy and contracts
 //! - [`app`]: compatibility-facing app model and action contracts
 //! - [`gui_runtime`]: backend runtimes and scheduling
+//! - [`runtime`]: generic declarative view/message bridge for new hosts
 
 // `radiant` still carries several large transitional runtime and native-shell
 // modules. Keep this list narrow while the active cleanup lane continues to
@@ -42,5 +50,7 @@ pub mod layout {
 }
 /// Shared runtime host implementations.
 pub mod gui_runtime;
+/// Generic declarative view/message runtime surface for new hosts.
+pub mod runtime;
 /// Stable public widget taxonomy and contracts.
 pub mod widgets;

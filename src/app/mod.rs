@@ -1,4 +1,4 @@
-//! App-facing contracts between the `radiant` runtime and a host application.
+//! Compatibility-facing contracts between `radiant` and the current Sempal shell.
 //!
 //! The host provides one immutable [`AppModel`](crate::app::AppModel) snapshot per frame.
 //! `radiant` consumes that snapshot to:
@@ -9,6 +9,10 @@
 //! Each action is routed back through the host bridge so state updates remain
 //! in application code. This keeps GUI-specific input handling and event propagation
 //! in `radiant` while preserving a one-way data flow for business logic.
+//!
+//! New host applications should prefer [`crate::runtime`], which exposes a
+//! generic declarative view tree plus host-defined message reduction without
+//! depending on Sempal-shaped top-level models or action enums.
 //!
 //! ## Diff/update model
 //! The update model is explicit and incremental:

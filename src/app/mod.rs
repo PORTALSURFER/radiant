@@ -14,6 +14,11 @@
 //! generic declarative view tree plus host-defined message reduction without
 //! depending on Sempal-shaped top-level models or action enums.
 //!
+//! This module remains as the legacy path for existing callers. The preferred
+//! compatibility entry point for shell-specific code is now
+//! [`crate::compat::sempal_shell`], which re-exports these contracts together
+//! with the matching native runtime helpers.
+//!
 //! ## Diff/update model
 //! The update model is explicit and incremental:
 //! - `AppModel`: snapshot of current application state for rendering.

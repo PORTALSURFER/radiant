@@ -9,6 +9,11 @@
 //! Render work is intentionally performed through feature-gated hooks in the
 //! underlying backend (for example `gui-performance`) so release builds that do
 //! not request profiling have no measurable instrumentation overhead.
+//!
+//! The current native Vello entry points still drive the Sempal compatibility
+//! shell. New generic host applications should treat [`crate::runtime`] as the
+//! preferred top-level API and reach shell-specific runtime helpers through
+//! [`crate::compat::sempal_shell`].
 
 mod native_vello;
 
@@ -45,7 +50,7 @@ pub struct NativeRunOptions {
 impl Default for NativeRunOptions {
     fn default() -> Self {
         Self {
-            title: String::from(crate::app::DEFAULT_APP_TITLE),
+            title: String::from(crate::compat::sempal_shell::DEFAULT_APP_TITLE),
             inner_size: None,
             min_inner_size: None,
             maximized: false,

@@ -21,7 +21,7 @@
 pub mod input;
 /// Public slot-based layout engine and container model.
 pub mod layout_core;
-/// Native shell layout + scene model used by the Vello backend.
+/// Native shell layout + scene model kept as Sempal compatibility infrastructure.
 pub(crate) mod native_shell;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.
 pub mod repaint;

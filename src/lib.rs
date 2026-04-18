@@ -1,7 +1,8 @@
 //! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
 //! The crate is organized as a thin runtime boundary:
-//! - `app`: compatibility-facing Sempal shell contracts emitted and consumed by the host.
+//! - `compat::sempal_shell`: compatibility-facing Sempal shell contracts and host/runtime entry points.
+//! - `app`: legacy alias for the same Sempal compatibility model/action types.
 //! - `gui`: retained layout, input mapping, and paint generation.
 //! - `gui_runtime`: platform host bindings and frame scheduling.
 //! - `runtime`: generic declarative view/message surfaces for new host applications.
@@ -9,17 +10,18 @@
 //! New host applications should prefer [`runtime`](crate::runtime), which lets
 //! them project generic declarative UI trees built from public containers and
 //! widgets, then reduce host-defined messages without depending on
-//! Sempal-specific [`AppModel`](crate::app::AppModel) or
-//! [`UiAction`](crate::app::UiAction) shapes.
+//! Sempal-specific [`AppModel`](crate::compat::sempal_shell::AppModel) or
+//! [`UiAction`](crate::compat::sempal_shell::UiAction) shapes.
 //!
-//! The legacy [`app`](crate::app) surface remains available as the
-//! compatibility path while Sempal migrates onto the generic surface.
+//! The legacy [`app`](crate::app) surface remains available as an alias to the
+//! Sempal compatibility path while Sempal migrates onto the generic surface.
 //! All GUI-specific layout, diffing, and render orchestration stay inside `radiant`.
 //!
 //! Generic host-facing entry points:
 //! - [`layout`]: stable slot-based layout primitives
 //! - [`widgets`]: first-class reusable widget taxonomy and contracts
-//! - [`app`]: compatibility-facing app model and action contracts
+//! - [`compat`]: explicit compatibility namespace for the current Sempal shell
+//! - [`app`]: legacy compatibility alias for existing callers
 //! - [`gui_runtime`]: backend runtimes and scheduling
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 
@@ -40,6 +42,8 @@
 
 /// App-facing model/action contracts for runtime integration.
 pub mod app;
+/// Explicit compatibility namespace for migration-time Sempal shell APIs.
+pub mod compat;
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;
 /// Backend-agnostic GUI primitives.

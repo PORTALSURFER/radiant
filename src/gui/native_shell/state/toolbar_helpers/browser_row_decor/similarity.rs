@@ -161,13 +161,13 @@ fn browser_similarity_button_gap(sizing: SizingTokens) -> f32 {
 }
 
 fn browser_similarity_strength_width(sizing: SizingTokens) -> f32 {
-    (sizing.font_meta * 1.45).round().clamp(12.0, 16.0)
+    (sizing.font_meta * 4.2).round().clamp(36.0, 48.0)
 }
 
 fn browser_similarity_strength_height(sample_label: Rect, sizing: SizingTokens) -> f32 {
-    (sizing.font_meta * 0.42)
+    (sizing.font_meta * 0.84)
         .round()
-        .clamp(3.0, sample_label.height().max(3.0).min(6.0))
+        .clamp(6.0, sample_label.height().max(6.0).min(10.0))
 }
 
 fn browser_similarity_strength_gap(sizing: SizingTokens) -> f32 {

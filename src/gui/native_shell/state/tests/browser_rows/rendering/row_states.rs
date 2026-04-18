@@ -324,6 +324,8 @@ fn similarity_filtered_browser_rows_render_compact_similarity_strength_bars() {
     assert!(has_fill_rect(&frame, close_track, track_color));
     assert!(has_fill_rect(&frame, close_fill, fill_color));
     assert!(anchor_fill.width() > close_fill.width());
+    assert!(anchor_track.width() >= 36.0);
+    assert!(anchor_track.height() >= 6.0);
     assert!(rendered[1]
         .inline_tag_rects
         .iter()

@@ -125,6 +125,7 @@ impl UiAction {
             | Self::StartBrowserRename
             | Self::ConfirmBrowserRename
             | Self::CancelBrowserRename
+            | Self::AutoRenameBrowserSelection { .. }
             | Self::TagBrowserSelection { .. }
             | Self::DeleteBrowserSelection
             | Self::NormalizeFocusedBrowserSample

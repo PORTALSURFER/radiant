@@ -199,6 +199,7 @@ pub(crate) struct NativeShellState {
     startup_frame_ticks: u8,
     pulse_phase: f32,
     source_context_menu: Option<SourceContextMenuState>,
+    browser_context_menu: Option<BrowserContextMenuState>,
     source_row_rects: Vec<CachedSourceRow>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     upper_folder_pane: FolderPaneRuntimeState,
@@ -267,6 +268,7 @@ impl NativeShellState {
             startup_frame_ticks: 2,
             pulse_phase: 0.0,
             source_context_menu: None,
+            browser_context_menu: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
             upper_folder_pane: FolderPaneRuntimeState::default(),
@@ -404,6 +406,23 @@ impl NativeShellState {
     pub(crate) fn close_source_context_menu(&mut self) -> bool {
         if self.source_context_menu.is_some() {
             self.source_context_menu = None;
+            return true;
+        }
+        false
+    }
+
+    /// Open the transient browser context menu for one browser row.
+    pub(crate) fn open_browser_context_menu_for_row(&mut self, visible_row: usize, anchor: Point) {
+        self.browser_context_menu = Some(BrowserContextMenuState {
+            visible_row,
+            anchor,
+        });
+    }
+
+    /// Close the transient browser context menu.
+    pub(crate) fn close_browser_context_menu(&mut self) -> bool {
+        if self.browser_context_menu.is_some() {
+            self.browser_context_menu = None;
             return true;
         }
         false

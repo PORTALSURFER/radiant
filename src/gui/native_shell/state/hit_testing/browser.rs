@@ -53,6 +53,56 @@ impl NativeShellState {
             .map(|_| UiAction::ToggleFindSimilarFocusedSample)
     }
 
+    /// Resolve one browser context-menu action at a pointer location.
+    pub(crate) fn browser_context_menu_action_at_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)?;
+        buttons
+            .into_iter()
+            .find(|button| button.enabled && button.rect.contains(point))
+            .map(|button| button.action)
+    }
+
+    /// Return `true` when a point lands inside the visible browser context menu panel.
+    #[cfg(test)]
+    pub(crate) fn browser_context_menu_contains_point(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> bool {
+        let style = style_for_layout(layout);
+        let Some((panel_rect, _)) =
+            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)
+        else {
+            return false;
+        };
+        panel_rect.contains(point)
+    }
+
+    /// Return a browser-context-menu button rect for one action in tests.
+    #[cfg(test)]
+    pub(crate) fn browser_context_menu_button_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        action: UiAction,
+    ) -> Option<Rect> {
+        let style = style_for_layout(layout);
+        let (_, buttons) =
+            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)?;
+        buttons
+            .into_iter()
+            .find(|button| button.action == action)
+            .map(|button| button.rect)
+    }
+
     /// Return the current rendered browser viewport length.
     pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
         let style = style_for_layout(layout);

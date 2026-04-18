@@ -38,6 +38,12 @@ impl NativeShellState {
         {
             self.source_context_menu = None;
         }
+        if self
+            .browser_context_menu
+            .is_some_and(|menu| menu.visible_row >= model.browser.rows.len())
+        {
+            self.browser_context_menu = None;
+        }
         self.has_focus_emphasis = model.focus_context != crate::app::FocusContextModel::None
             || model
                 .browser
@@ -280,6 +286,13 @@ impl NativeShellState {
                 .map(|menu| menu.anchor.x.to_bits()),
             source_context_menu_anchor_y_bits: self
                 .source_context_menu
+                .map(|menu| menu.anchor.y.to_bits()),
+            browser_context_menu_row_index: self.browser_context_menu.map(|menu| menu.visible_row),
+            browser_context_menu_anchor_x_bits: self
+                .browser_context_menu
+                .map(|menu| menu.anchor.x.to_bits()),
+            browser_context_menu_anchor_y_bits: self
+                .browser_context_menu
                 .map(|menu| menu.anchor.y.to_bits()),
         }
     }

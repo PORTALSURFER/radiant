@@ -122,6 +122,12 @@ pub(crate) struct ModalOverlayFingerprint {
     pub source_context_menu_anchor_x_bits: Option<u32>,
     /// Source-context-menu anchor y-position bits, if any.
     pub source_context_menu_anchor_y_bits: Option<u32>,
+    /// Active browser-context-menu row, if any.
+    pub browser_context_menu_row_index: Option<usize>,
+    /// Browser-context-menu anchor x-position bits, if any.
+    pub browser_context_menu_anchor_x_bits: Option<u32>,
+    /// Browser-context-menu anchor y-position bits, if any.
+    pub browser_context_menu_anchor_y_bits: Option<u32>,
 }
 
 /// Compact motion-overlay fingerprint for runtime overlay skip checks.

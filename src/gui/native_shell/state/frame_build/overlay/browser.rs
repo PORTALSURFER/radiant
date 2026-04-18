@@ -166,3 +166,71 @@ pub(super) fn render_source_context_menu(
         );
     }
 }
+
+pub(super) fn render_browser_context_menu(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    browser_context_menu: Option<BrowserContextMenuState>,
+) {
+    let Some((menu_panel, menu_buttons)) =
+        browser_context_menu_spec(layout, style, model, browser_context_menu)
+    else {
+        return;
+    };
+    let sizing = style.sizing;
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: menu_panel,
+            color: style.surface_overlay,
+        }),
+    );
+    push_border(
+        primitives,
+        menu_panel,
+        style.border_emphasis,
+        sizing.border_width,
+    );
+    for button in menu_buttons {
+        let label_rect = compute_action_button_text_rect(button.rect, sizing);
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: button.rect,
+                color: if button.enabled {
+                    blend_color(style.surface_base, style.bg_secondary, 0.36)
+                } else {
+                    style.control_disabled_fill
+                },
+            }),
+        );
+        push_border(
+            primitives,
+            button.rect,
+            if button.enabled {
+                style.border
+            } else {
+                style.grid_soft
+            },
+            sizing.border_width,
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: button.label.to_string(),
+                position: label_rect.min,
+                font_size: sizing.font_meta,
+                color: if button.enabled {
+                    button.text_color
+                } else {
+                    style.text_muted
+                },
+                max_width: Some(label_rect.width().max(16.0)),
+                align: TextAlign::Center,
+            },
+        );
+    }
+}

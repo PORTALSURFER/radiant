@@ -168,6 +168,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::MoveBrowserFocus { .. } => "move_browser_focus",
         UiAction::SetBrowserViewStart { .. } => "set_browser_view_start",
         UiAction::FocusBrowserRow { .. } => "focus_browser_row",
+        UiAction::AutoRenameBrowserSelection { .. } => "auto_rename_browser_selection",
         UiAction::SetCompareAnchorFromFocusedBrowserSample => {
             "set_compare_anchor_from_focused_browser_sample"
         }

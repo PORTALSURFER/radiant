@@ -144,6 +144,48 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
 }
 
 #[test]
+fn browser_context_menu_exposes_auto_rename_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "kick.wav", 1, true, true));
+    let row_rect = state
+        .cached_browser_rows(&layout, &style_for_layout(&layout), &model)
+        .first()
+        .expect("browser row should be rendered")
+        .rect;
+    let anchor = Point::new(
+        (row_rect.min.x + row_rect.max.x) * 0.5,
+        (row_rect.min.y + row_rect.max.y) * 0.5,
+    );
+    state.open_browser_context_menu_for_row(0, anchor);
+
+    let button_rect = state
+        .browser_context_menu_button_rect(
+            &layout,
+            &model,
+            UiAction::AutoRenameBrowserSelection {
+                visible_row: Some(0),
+            },
+        )
+        .expect("auto rename action button should be present");
+    let point = Point::new(
+        (button_rect.min.x + button_rect.max.x) * 0.5,
+        (button_rect.min.y + button_rect.max.y) * 0.5,
+    );
+    assert!(state.browser_context_menu_contains_point(&layout, &model, point));
+    assert_eq!(
+        state.browser_context_menu_action_at_point(&layout, &model, point),
+        Some(UiAction::AutoRenameBrowserSelection {
+            visible_row: Some(0),
+        })
+    );
+}
+
+#[test]
 fn tick_with_style_uses_tier_motion_speed_tokens() {
     let mut model = AppModel::default();
     model.transport_running = true;

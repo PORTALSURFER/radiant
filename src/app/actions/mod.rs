@@ -461,6 +461,11 @@ pub enum UiAction {
     ConfirmBrowserRename,
     /// Cancel the currently pending browser rename prompt.
     CancelBrowserRename,
+    /// Run deterministic auto rename for the active browser selection snapshot.
+    AutoRenameBrowserSelection {
+        /// Optional visible row that should join the current multi-selection.
+        visible_row: Option<usize>,
+    },
     /// Apply a triage tag to focused/selected browser rows.
     TagBrowserSelection {
         /// Triage bucket applied to focused/selected browser rows.

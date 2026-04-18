@@ -30,7 +30,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.begin_pointer_press_cycle();
         self.last_cursor = Some(point);
         self.refresh_cached_model_for_pending_input();
-        self.handle_right_pointer_press(layout, point, action_emitted, source_menu_state_changed)
+        let mut browser_menu_state_changed = false;
+        self.handle_right_pointer_press(
+            layout,
+            point,
+            action_emitted,
+            source_menu_state_changed,
+            &mut browser_menu_state_changed,
+        )
     }
 
     /// Route one cursor-move event through the production pointer path in tests.
@@ -124,6 +131,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             let mut handled = false;
             let mut action_emitted = false;
             let mut source_menu_state_changed = false;
+            let mut browser_menu_state_changed = false;
             match button {
                 MouseButton::Left => {
                     this.refresh_cached_model_for_pending_input();
@@ -139,8 +147,18 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         action_emitted = true;
                         source_menu_state_changed |= this.shell_state.close_source_context_menu();
                         handled = true;
+                    } else if let Some(action) = this.shell_state.browser_context_menu_action_at_point(
+                        layout,
+                        &this.model,
+                        point,
+                    ) {
+                        this.emit_model_action(action);
+                        action_emitted = true;
+                        browser_menu_state_changed |= this.shell_state.close_browser_context_menu();
+                        handled = true;
                     } else {
                         source_menu_state_changed |= this.shell_state.close_source_context_menu();
+                        browser_menu_state_changed |= this.shell_state.close_browser_context_menu();
                     }
                     if !handled {
                         if this.handle_folder_create_pointer_press(
@@ -180,6 +198,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         point,
                         &mut action_emitted,
                         &mut source_menu_state_changed,
+                        &mut browser_menu_state_changed,
                     );
                 }
                 MouseButton::Middle => {
@@ -190,7 +209,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 }
                 _ => {}
             }
-            if source_menu_state_changed {
+            if source_menu_state_changed || browser_menu_state_changed {
                 this.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
             } else if action_emitted && handled && !this.frame_state.has_pending_rebuild() {
                 this.apply_invalidation_scope(RuntimeInvalidationScope::OverlayStateOnly);
@@ -335,6 +354,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         point: Point,
         action_emitted: &mut bool,
         source_menu_state_changed: &mut bool,
+        browser_menu_state_changed: &mut bool,
     ) -> bool {
         if let Some(action) =
             self.shell_state
@@ -343,6 +363,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.emit_model_action(action);
             *action_emitted = true;
             *source_menu_state_changed |= self.shell_state.close_source_context_menu();
+            return true;
+        }
+        if let Some(action) =
+            self.shell_state
+                .browser_context_menu_action_at_point(layout, &self.model, point)
+        {
+            self.emit_model_action(action);
+            *action_emitted = true;
+            *browser_menu_state_changed |= self.shell_state.close_browser_context_menu();
             return true;
         }
         if let Some((pane, index)) =
@@ -359,7 +388,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             *action_emitted = true;
             return true;
         }
+        if let Some(visible_row) = self
+            .shell_state
+            .browser_row_at_point(layout, &self.model, point)
+        {
+            *source_menu_state_changed |= self.shell_state.close_source_context_menu();
+            self.shell_state
+                .open_browser_context_menu_for_row(visible_row, point);
+            *browser_menu_state_changed = true;
+            *action_emitted = true;
+            return true;
+        }
         *source_menu_state_changed |= self.shell_state.close_source_context_menu();
+        *browser_menu_state_changed |= self.shell_state.close_browser_context_menu();
         if self.model.browser.duplicate_cleanup_active
             && let Some(visible_row) =
                 self.shell_state

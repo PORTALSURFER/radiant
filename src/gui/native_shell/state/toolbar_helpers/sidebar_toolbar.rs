@@ -308,3 +308,64 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
     }
     Some((panel_rect, buttons))
 }
+
+/// Build browser context-menu panel geometry and action buttons.
+pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    menu: Option<BrowserContextMenuState>,
+) -> Option<(Rect, Vec<ActionButton>)> {
+    let menu = menu?;
+    if model.map.active || menu.visible_row >= model.browser.rows.len() {
+        return None;
+    }
+    let definitions = [(
+        "Auto Rename",
+        true,
+        UiAction::AutoRenameBrowserSelection {
+            visible_row: Some(menu.visible_row),
+        },
+        style.accent_mint,
+    )];
+    let sizing = style.sizing;
+    let panel_padding = sizing.panel_inset.max(4.0);
+    let button_width = sizing.sidebar_action_button_width.max(168.0);
+    let button_height = sizing.sidebar_action_button_height.max(18.0);
+    let panel_width = button_width + panel_padding * 2.0;
+    let panel_height = button_height + panel_padding * 2.0;
+    let min_x = layout.browser_rows.min.x + sizing.panel_inset;
+    let max_x = (layout.browser_rows.max.x - sizing.panel_inset - panel_width).max(min_x);
+    let min_y = layout.browser_rows.min.y + sizing.panel_inset;
+    let max_y = (layout.browser_rows.max.y - sizing.panel_inset - panel_height).max(min_y);
+    let panel_min = Point::new(
+        menu.anchor.x.clamp(min_x, max_x),
+        menu.anchor.y.clamp(min_y, max_y),
+    );
+    let panel_rect = Rect::from_min_max(
+        panel_min,
+        Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
+    );
+    let rect = Rect::from_min_max(
+        Point::new(panel_rect.min.x + panel_padding, panel_rect.min.y + panel_padding),
+        Point::new(
+            panel_rect.min.x + panel_padding + button_width,
+            panel_rect.min.y + panel_padding + button_height,
+        ),
+    );
+    Some((
+        panel_rect,
+        definitions
+            .into_iter()
+            .map(|(label, enabled, action, text_color)| ActionButton {
+                rect,
+                label,
+                icon: None,
+                enabled,
+                active: false,
+                action,
+                text_color,
+            })
+            .collect(),
+    ))
+}

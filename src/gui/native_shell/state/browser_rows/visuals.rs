@@ -126,6 +126,13 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
     )
 }
 
+/// Return the accent fill used for the selected browser-row index cell.
+pub(in crate::gui::native_shell::state) fn selected_browser_index_fill(
+    style: &StyleTokens,
+) -> Rgba8 {
+    style.highlight_orange
+}
+
 /// Return the left-edge browser age marker color for the playback-age bucket.
 pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,

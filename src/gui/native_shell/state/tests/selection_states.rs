@@ -184,6 +184,46 @@ fn browser_row_selected_fill_uses_stronger_neutral_overlay() {
 }
 
 #[test]
+fn browser_row_selected_state_highlights_index_column() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_width(1280.0);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "selected row", 1, true, false));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "plain row", 1, false, false));
+
+    let rendered = rendered_browser_rows(&layout, &model, &style);
+    let selected_index_rect = rendered[0].text_layout.columns.index;
+    let plain_index_rect = rendered[1].text_layout.columns.index;
+    state.sync_from_model(&model);
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == selected_index_rect
+                    && *color == selected_browser_index_fill(&style)
+        )
+    }));
+    assert!(!frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == plain_index_rect
+                    && *color == selected_browser_index_fill(&style)
+        )
+    }));
+}
+
+#[test]
 fn browser_row_locked_selected_fill_matches_standard_selection_fill() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
@@ -423,4 +463,37 @@ fn browser_row_locked_focused_state_draws_offset_left_marker() {
         marker_rect.min.x >= border_rect.min.x + stroke,
         "locked marker should sit to the right of the focus border"
     );
+}
+
+#[test]
+fn browser_row_selected_focused_state_keeps_index_highlight() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut state = NativeShellState::new();
+    let mut model = AppModel::default();
+    model.browser.rows.push(BrowserRowModel::new(
+        0,
+        "focused selected row",
+        1,
+        true,
+        true,
+    ));
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(1, "next row", 1, false, false));
+    state.sync_from_model(&model);
+
+    let row = &rendered_browser_rows(&layout, &model, &style)[0];
+    let mut frame = NativeViewFrame::default();
+    state.build_state_overlay_into(&layout, &style, &model, &mut frame);
+
+    assert!(frame.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            Primitive::Rect(FillRect { rect, color })
+                if *rect == row.text_layout.columns.index
+                    && *color == selected_browser_index_fill(&style)
+        )
+    }));
 }

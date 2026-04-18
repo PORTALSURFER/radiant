@@ -247,6 +247,15 @@ pub(super) fn render_browser_focus_overlay(
                 }),
             );
         }
+        if row.selected {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: row.text_layout.columns.index,
+                    color: selected_browser_index_fill(style),
+                }),
+            );
+        }
         let focus_similarity_reserved_width =
             if row.focused && !model.browser.duplicate_cleanup_active {
                 browser_similarity_button_reserved_width(true, sizing)

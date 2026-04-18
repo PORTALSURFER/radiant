@@ -1,10 +1,11 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
 use crate::{
+    gui::types::Rect,
     layout::{ContainerPolicy, LayoutNode, NodeId, SlotChild, SlotParams},
     widgets::{
-        ButtonMessage, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId, WidgetOutput,
-        WidgetSpec,
+        ButtonMessage, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId, WidgetInput,
+        WidgetOutput, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -105,6 +106,17 @@ impl<Message> SurfaceWidget<Message> {
 
     fn layout_node(&self) -> LayoutNode {
         self.widget.layout_node()
+    }
+
+    fn handle_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        (self.id() == widget_id)
+            .then(|| self.widget.handle_input(bounds, input))
+            .flatten()
     }
 
     fn dispatch_output(&self, widget_id: WidgetId, output: WidgetOutput) -> Option<Message> {
@@ -221,6 +233,21 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    fn handle_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        match self {
+            Self::Container(container) => container
+                .children
+                .iter_mut()
+                .find_map(|child| child.child.handle_input(widget_id, bounds, input)),
+            Self::Widget(widget) => widget.handle_input(widget_id, bounds, input),
+        }
+    }
+
     fn dispatch_output(&self, widget_id: WidgetId, output: &WidgetOutput) -> Option<Message> {
         match self {
             Self::Container(container) => container
@@ -237,6 +264,16 @@ impl<Message> SurfaceNode<Message> {
                 .children
                 .iter()
                 .find_map(|child| child.child.find_widget(widget_id)),
+            Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
+        }
+    }
+
+    fn find_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut SurfaceWidget<Message>> {
+        match self {
+            Self::Container(container) => container
+                .children
+                .iter_mut()
+                .find_map(|child| child.child.find_widget_mut(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
         }
     }
@@ -280,8 +317,23 @@ impl<Message> UiSurface<Message> {
         self.root.dispatch_output(widget_id, &output)
     }
 
+    /// Route one backend-neutral interaction into a projected widget.
+    pub fn dispatch_widget_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        self.root.handle_input(widget_id, bounds, input)
+    }
+
     /// Find one projected widget by stable id.
     pub fn find_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
         self.root.find_widget(widget_id)
+    }
+
+    /// Find one projected widget by stable id for in-place runtime interaction.
+    pub fn find_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut SurfaceWidget<Message>> {
+        self.root.find_widget_mut(widget_id)
     }
 }

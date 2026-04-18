@@ -3,12 +3,12 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
         declarative_runtime_bridge,
     },
     widgets::{
-        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetSizing,
-        WidgetSpec,
+        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetInput,
+        WidgetKey, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -85,6 +85,59 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
     }
     match field {
         WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Folders"),
+        other => panic!("expected text input widget, got {other:?}"),
+    }
+}
+
+#[test]
+fn surface_runtime_routes_widget_input_and_reprojects_surface() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+    let input_bounds = runtime
+        .layout()
+        .rects
+        .get(&12)
+        .copied()
+        .expect("text input should have layout bounds");
+    let input_point = Point::new(
+        input_bounds.min.x + input_bounds.width() * 0.5,
+        input_bounds.min.y + input_bounds.height() * 0.5,
+    );
+
+    assert_eq!(runtime.widget_at(Point::new(150.0, 10.0)), Some(11));
+    assert!(runtime.dispatch_input(12, WidgetInput::FocusChanged(true)));
+    assert!(runtime.dispatch_input(12, WidgetInput::Character('F')));
+    assert!(runtime.dispatch_input(11, WidgetInput::FocusChanged(true)));
+    assert_eq!(
+        runtime.dispatch_input_at(input_point, WidgetInput::FocusChanged(true)),
+        Some(12)
+    );
+    assert!(runtime.dispatch_input(11, WidgetInput::KeyPress(WidgetKey::Enter)));
+
+    let title = runtime
+        .surface()
+        .find_widget(10)
+        .expect("title widget should still be present")
+        .widget();
+    let field = runtime
+        .surface()
+        .find_widget(12)
+        .expect("text input widget should still be present")
+        .widget();
+
+    match title {
+        WidgetSpec::Text(text) => assert_eq!(text.text, "F (1)"),
+        other => panic!("expected text widget, got {other:?}"),
+    }
+    match field {
+        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "F"),
         other => panic!("expected text input widget, got {other:?}"),
     }
 }

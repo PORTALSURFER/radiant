@@ -11,6 +11,7 @@
 //!
 //! Generic host-facing entry points:
 //! - [`layout`]: stable slot-based layout primitives
+//! - [`widgets`]: first-class reusable widget taxonomy and contracts
 //! - [`app`]: compatibility-facing app model and action contracts
 //! - [`gui_runtime`]: backend runtimes and scheduling
 
@@ -41,3 +42,5 @@ pub mod layout {
 }
 /// Shared runtime host implementations.
 pub mod gui_runtime;
+/// Stable public widget taxonomy and contracts.
+pub mod widgets;

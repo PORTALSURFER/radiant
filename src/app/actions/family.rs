@@ -143,6 +143,7 @@ impl UiAction {
             | Self::SetAudioInputHost { .. }
             | Self::SetAudioInputDevice { .. }
             | Self::SetAudioInputSampleRate { .. }
+            | Self::EditDefaultIdentifier
             | Self::SetAdvanceAfterRatingEnabled { .. }
             | Self::SetDestructiveYoloMode { .. }
             | Self::SetInvertWaveformScroll { .. }

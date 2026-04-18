@@ -101,6 +101,8 @@ pub enum UiAction {
     PickTrashFolder,
     /// Open the configured trash folder in the OS file explorer.
     OpenTrashFolder,
+    /// Open the default-identifier prompt inside the options panel.
+    EditDefaultIdentifier,
     /// Return from one audio picker to the main options overview.
     ShowOptionsOverview,
     /// Expand the output-host picker inside the options panel.

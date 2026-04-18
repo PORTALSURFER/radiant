@@ -55,6 +55,13 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
 pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
     vec![
         (
+            format!(
+                "Auto Rename Identifier: {}",
+                model.options_panel.default_identifier
+            ),
+            UiAction::EditDefaultIdentifier,
+        ),
+        (
             on_off_text(
                 "Input Monitor",
                 model.options_panel.input_monitoring_enabled,

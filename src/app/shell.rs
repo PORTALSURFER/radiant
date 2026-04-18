@@ -181,6 +181,8 @@ pub struct ProgressOverlayModel {
 pub struct OptionsPanelModel {
     /// Whether the panel is currently visible.
     pub visible: bool,
+    /// Current default identifier used by auto rename.
+    pub default_identifier: String,
     /// Whether input monitoring is enabled.
     pub input_monitoring_enabled: bool,
     /// Whether rating advances browser focus.
@@ -208,6 +210,8 @@ pub enum ConfirmPromptKind {
     RestoreRetainedFolderDeletes,
     /// Pending retained folder-delete purge prompt.
     PurgeRetainedFolderDeletes,
+    /// Pending options-panel default-identifier prompt.
+    OptionsDefaultIdentifier,
 }
 
 /// Modal confirmation prompt projected into the native shell.

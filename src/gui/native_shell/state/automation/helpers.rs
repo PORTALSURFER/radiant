@@ -116,6 +116,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::OpenAddSourceDialog => "open_add_source_dialog",
         UiAction::OpenOptionsMenu => "open_options_menu",
         UiAction::CloseOptionsPanel => "close_options_panel",
+        UiAction::EditDefaultIdentifier => "edit_default_identifier",
         UiAction::ShowOptionsOverview => "show_options_overview",
         UiAction::PickTrashFolder => "pick_trash_folder",
         UiAction::OpenTrashFolder => "open_trash_folder",

@@ -298,6 +298,37 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
 }
 
 #[test]
+fn options_panel_default_identifier_button_emits_edit_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let state = NativeShellState::new();
+    let model = AppModel {
+        options_panel: crate::app::OptionsPanelModel {
+            visible: true,
+            default_identifier: String::from("portal"),
+            ..crate::app::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+    let button = panel
+        .buttons
+        .iter()
+        .find(|button| button.action == UiAction::EditDefaultIdentifier)
+        .expect("default identifier button should be present");
+    let point = Point::new(
+        (button.rect.min.x + button.rect.max.x) * 0.5,
+        (button.rect.min.y + button.rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, point),
+        Some(UiAction::EditDefaultIdentifier)
+    );
+}
+
+#[test]
 fn status_options_chip_renders_audio_label_and_error_tint() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

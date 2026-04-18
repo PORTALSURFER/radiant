@@ -120,6 +120,7 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
             Some(crate::app::ConfirmPromptKind::FolderCreate) => 4,
             Some(crate::app::ConfirmPromptKind::RestoreRetainedFolderDeletes) => 5,
             Some(crate::app::ConfirmPromptKind::PurgeRetainedFolderDeletes) => 6,
+            Some(crate::app::ConfirmPromptKind::OptionsDefaultIdentifier) => 7,
         },
     );
     fingerprint_mix_string(&mut state, &model.confirm_prompt.title);
@@ -348,6 +349,7 @@ pub(in super::super) fn focus_overlay_model_signature(
 pub(in super::super) fn modal_overlay_model_signature(model: &AppModel) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
     fingerprint_mix_bool(&mut state, model.options_panel.visible);
+    fingerprint_mix_string(&mut state, &model.options_panel.default_identifier);
     fingerprint_mix_bool(&mut state, model.options_panel.input_monitoring_enabled);
     fingerprint_mix_bool(&mut state, model.options_panel.advance_after_rating_enabled);
     fingerprint_mix_bool(

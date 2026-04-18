@@ -18,7 +18,7 @@ use std::collections::{BTreeSet, HashMap};
 use context::LayoutContext;
 pub use types::{
     DebugPrimitiveKind, LayoutDebugOptions, LayoutDebugPrimitive, LayoutDiagnostic,
-    LayoutDiagnosticCode, LayoutOutput, LayoutState, OverflowInfo, VirtualWindowInfo,
+    LayoutDiagnosticCode, LayoutOutput, LayoutState, LayoutStats, OverflowInfo, VirtualWindowInfo,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -116,6 +116,7 @@ pub(super) struct CachedVirtualMetrics {
     pub(super) dependencies: BTreeSet<NodeId>,
 }
 
+/// Reusable stateful layout engine with measurement and virtualization caches.
 #[derive(Default)]
 pub struct LayoutEngine {
     measure_cache: HashMap<MeasureCacheKey, Vector2>,
@@ -320,7 +321,9 @@ pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
 }
 
 /// Measure and layout a strict slot tree with stateful container input.
-#[cfg(test)]
+///
+/// This is the one-shot entry point for callers that want scroll offsets or
+/// debug primitives without manually reusing a [`LayoutEngine`].
 pub fn layout_tree_with_state(
     root: &LayoutNode,
     root_rect: Rect,

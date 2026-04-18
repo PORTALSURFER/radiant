@@ -8,6 +8,11 @@
 //! The host builds an [`AppModel`](crate::app::AppModel) for each frame and applies
 //! [`UiAction`](crate::app::UiAction) events produced by input and interactions.
 //! All GUI-specific layout, diffing, and render orchestration stay inside `radiant`.
+//!
+//! Generic host-facing entry points:
+//! - [`layout`]: stable slot-based layout primitives
+//! - [`app`]: compatibility-facing app model and action contracts
+//! - [`gui_runtime`]: backend runtimes and scheduling
 
 // `radiant` still carries several large transitional runtime and native-shell
 // modules. Keep this list narrow while the active cleanup lane continues to
@@ -30,5 +35,9 @@ pub mod app;
 mod env_flags;
 /// Backend-agnostic GUI primitives.
 pub mod gui;
+/// Stable public slot-based layout API.
+pub mod layout {
+    pub use crate::gui::layout_core::*;
+}
 /// Shared runtime host implementations.
 pub mod gui_runtime;

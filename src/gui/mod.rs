@@ -19,8 +19,8 @@
 
 /// Input event primitives shared by UI code.
 pub mod input;
-/// Strict slot-based layout core used by retained containers.
-pub(crate) mod layout_core;
+/// Public slot-based layout engine and container model.
+pub mod layout_core;
 /// Native shell layout + scene model used by the Vello backend.
 pub(crate) mod native_shell;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.

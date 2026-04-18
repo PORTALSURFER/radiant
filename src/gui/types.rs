@@ -3,47 +3,53 @@ use std::sync::Arc;
 
 /// 2D point in logical UI coordinates.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Point {
+pub struct Point {
+    /// Horizontal coordinate in logical pixels.
     pub x: f32,
+    /// Vertical coordinate in logical pixels.
     pub y: f32,
 }
 
 impl Point {
     /// Construct a point from x/y coordinates.
-    pub(crate) fn new(x: f32, y: f32) -> Self {
+    pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 }
 
 /// 2D vector in logical UI coordinates.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Vector2 {
+pub struct Vector2 {
+    /// Horizontal component in logical pixels.
     pub x: f32,
+    /// Vertical component in logical pixels.
     pub y: f32,
 }
 
 impl Vector2 {
     /// Construct a vector from x/y components.
-    pub(crate) fn new(x: f32, y: f32) -> Self {
+    pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 }
 
 /// Axis-aligned rectangle in logical UI coordinates.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Rect {
+pub struct Rect {
+    /// Minimum corner of the rectangle.
     pub min: Point,
+    /// Maximum corner of the rectangle.
     pub max: Point,
 }
 
 impl Rect {
     /// Construct a rectangle from minimum and maximum corners.
-    pub(crate) fn from_min_max(min: Point, max: Point) -> Self {
+    pub fn from_min_max(min: Point, max: Point) -> Self {
         Self { min, max }
     }
 
     /// Construct a rectangle from a minimum corner and size.
-    pub(crate) fn from_min_size(min: Point, size: Vector2) -> Self {
+    pub fn from_min_size(min: Point, size: Vector2) -> Self {
         Self {
             min,
             max: Point::new(min.x + size.x, min.y + size.y),
@@ -51,17 +57,17 @@ impl Rect {
     }
 
     /// Rectangle width in logical coordinates.
-    pub(crate) fn width(self) -> f32 {
+    pub fn width(self) -> f32 {
         self.max.x - self.min.x
     }
 
     /// Rectangle height in logical coordinates.
-    pub(crate) fn height(self) -> f32 {
+    pub fn height(self) -> f32 {
         self.max.y - self.min.y
     }
 
     /// Return whether the point lies inside the rectangle bounds.
-    pub(crate) fn contains(self, point: Point) -> bool {
+    pub fn contains(self, point: Point) -> bool {
         point.x >= self.min.x
             && point.x <= self.max.x
             && point.y >= self.min.y

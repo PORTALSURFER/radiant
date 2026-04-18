@@ -15,6 +15,13 @@ pub struct SlotChild {
     pub child: LayoutNode,
 }
 
+impl SlotChild {
+    /// Build a parent-owned slot attachment.
+    pub fn new(slot: SlotParams, child: LayoutNode) -> Self {
+        Self { slot, child }
+    }
+}
+
 /// A container node with deterministic layout policy and slot children.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContainerNode {
@@ -24,6 +31,17 @@ pub struct ContainerNode {
     pub policy: ContainerPolicy,
     /// Ordered slot children.
     pub children: Vec<SlotChild>,
+}
+
+impl ContainerNode {
+    /// Construct a container node with ordered slot children.
+    pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
+        Self {
+            id,
+            policy,
+            children,
+        }
+    }
 }
 
 /// A widget node with intrinsic size hints.
@@ -37,10 +55,23 @@ pub struct WidgetNode {
     pub state_version: u64,
 }
 
+impl WidgetNode {
+    /// Construct a widget node with an intrinsic size hint.
+    pub fn new(id: NodeId, intrinsic: Vector2) -> Self {
+        Self {
+            id,
+            intrinsic,
+            state_version: 0,
+        }
+    }
+}
+
 /// A layout node in the strict slot-based tree.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutNode {
+    /// A container that owns slots and lays out child nodes.
     Container(ContainerNode),
+    /// A widget leaf that contributes intrinsic sizing information.
     Widget(WidgetNode),
 }
 
@@ -63,19 +94,11 @@ impl LayoutNode {
 
     /// Convenience constructor for a leaf widget node.
     pub fn widget(id: NodeId, intrinsic: Vector2) -> Self {
-        Self::Widget(WidgetNode {
-            id,
-            intrinsic,
-            state_version: 0,
-        })
+        Self::Widget(WidgetNode::new(id, intrinsic))
     }
 
     /// Convenience constructor for a container node.
     pub fn container(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
-        Self::Container(ContainerNode {
-            id,
-            policy,
-            children,
-        })
+        Self::Container(ContainerNode::new(id, policy, children))
     }
 }

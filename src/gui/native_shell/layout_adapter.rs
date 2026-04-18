@@ -12,6 +12,7 @@ mod overlays;
 #[cfg(test)]
 mod row_hit_test;
 mod sidebar_bands;
+#[cfg(test)]
 mod sidebar_chrome_text;
 mod sidebar_header;
 mod sidebar_sections;
@@ -40,13 +41,8 @@ pub(crate) use browser_text::BrowserRowTextLayout;
 pub(super) use browser_text::{
     compute_browser_header_text_layout, compute_browser_row_text_layout,
 };
-pub(super) use control_text::{
-    compute_action_button_text_rect,
-};
-pub(super) use controls::{
-    compute_browser_toolbar_sections, compute_sidebar_action_button_rects,
-    compute_update_action_button_rects,
-};
+pub(super) use control_text::compute_action_button_text_rect;
+pub(super) use controls::{compute_browser_toolbar_sections, compute_update_action_button_rects};
 pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
 pub(super) use map_header::compute_browser_map_header_text_layout;
 pub(super) use overlay_visuals::{
@@ -60,9 +56,6 @@ pub(super) use overlays::{
 pub(crate) use sidebar_bands::{
     SIDEBAR_BANDS_ROOT_ID, SidebarBandSections, build_sidebar_bands_tree,
     compute_sidebar_band_sections_with_layout_engine,
-};
-pub(super) use sidebar_chrome_text::{
-    compute_sidebar_footer_text_layout, compute_sidebar_header_text_layout,
 };
 pub(super) use sidebar_header::{
     compute_sidebar_folder_header_layout, compute_source_section_divider_rect,

@@ -17,6 +17,7 @@ pub(super) fn center_square_rect(rect: Rect, side: f32) -> Rect {
     )
 }
 
+#[cfg(test)]
 pub(super) fn clamp_rect_right_edge(rect: Rect, bounds: Rect, right_edge: f32) -> Rect {
     let clamped = clamp_rect_to_bounds(rect, bounds);
     let max_x = clamped.max.x.min(right_edge.max(bounds.min.x));

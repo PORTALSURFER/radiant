@@ -7,8 +7,11 @@ pub(super) fn render_sidebar_footer(
     rendered_sources: usize,
     rendered_folders: usize,
 ) {
+    let content = sidebar_footer_surface_content(ctx.model, rendered_sources, rendered_folders);
+    let surface =
+        resolve_sidebar_footer_surface_layout(ctx.layout.sidebar_footer, ctx.sizing, &content);
     render_source_action_buttons(ctx, primitives, text_runs);
-    render_sidebar_footer_text(ctx, text_runs, rendered_sources, rendered_folders);
+    render_sidebar_footer_text(ctx, text_runs, &content, &surface);
 }
 
 fn render_source_action_buttons(
@@ -64,55 +67,31 @@ fn render_source_action_buttons(
 fn render_sidebar_footer_text(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
-    rendered_sources: usize,
-    rendered_folders: usize,
+    content: &SidebarFooterSurfaceContent,
+    surface: &SidebarFooterSurfaceLayout,
 ) {
-    let active_pane = ctx.model.sources.active_folder_pane_model();
-    let footer_text = compute_sidebar_footer_text_layout(ctx.layout.sidebar_footer, ctx.sizing);
-    let primary_width = footer_text.primary_row.width().max(56.0);
-    let secondary_width = footer_text.secondary_row.width().max(56.0);
-    if ctx.model.sources.rows.len() > rendered_sources {
+    if !content.primary_summary.is_empty() {
         emit_text(
             text_runs,
             TextRun {
-                text: format!("+{} more…", ctx.model.sources.rows.len() - rendered_sources),
-                position: footer_text.primary_row.min,
+                text: content.primary_summary.clone(),
+                position: surface.primary_text_rect.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_muted,
-                max_width: Some(primary_width),
+                max_width: Some(surface.primary_text_rect.width().max(56.0)),
                 align: TextAlign::Left,
             },
         );
     }
-    if active_pane.folder_rows.len() > rendered_folders {
+    if !content.secondary_summary.is_empty() {
         emit_text(
             text_runs,
             TextRun {
-                text: format!(
-                    "folders: +{} more…",
-                    active_pane.folder_rows.len() - rendered_folders
-                ),
-                position: footer_text.secondary_row.min,
+                text: content.secondary_summary.clone(),
+                position: surface.secondary_text_rect.min,
                 font_size: ctx.sizing.font_meta,
                 color: ctx.style.text_muted,
-                max_width: Some(secondary_width),
-                align: TextAlign::Left,
-            },
-        );
-        return;
-    }
-    if active_pane.folder_recovery.entry_count > 0 {
-        emit_text(
-            text_runs,
-            TextRun {
-                text: format!(
-                    "recovery entries: {}",
-                    active_pane.folder_recovery.entry_count
-                ),
-                position: footer_text.secondary_row.min,
-                font_size: ctx.sizing.font_meta,
-                color: ctx.style.text_muted,
-                max_width: Some(secondary_width),
+                max_width: Some(surface.secondary_text_rect.width().max(56.0)),
                 align: TextAlign::Left,
             },
         );

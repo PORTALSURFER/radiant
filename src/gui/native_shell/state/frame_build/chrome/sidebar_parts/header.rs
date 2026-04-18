@@ -5,53 +5,36 @@ pub(super) fn render_sidebar_header(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    let sources_header = if ctx.model.sources.header.is_empty() {
-        ctx.model.sources_label.as_str()
-    } else {
-        ctx.model.sources.header.as_str()
-    };
-    let header_text = compute_sidebar_header_text_layout(ctx.layout.sidebar_header, ctx.sizing);
-    let add_button = source_add_button_rect(ctx.layout.sidebar_header, ctx.sizing);
-    let title_width = add_button
-        .map(|button| {
-            (button.min.x - header_text.title_row.min.x - ctx.sizing.text_inset_x).max(24.0)
-        })
-        .unwrap_or_else(|| header_text.title_row.width().max(72.0));
-    let query_width = add_button
-        .map(|button| {
-            (button.min.x - header_text.query_row.min.x - ctx.sizing.text_inset_x).max(24.0)
-        })
-        .unwrap_or_else(|| header_text.query_row.width().max(72.0));
+    let content = sidebar_header_surface_content(ctx.model);
+    let surface =
+        resolve_sidebar_header_surface_layout(ctx.layout.sidebar_header, ctx.sizing, &content);
     emit_text(
         text_runs,
         TextRun {
-            text: truncate_to_width(sources_header, title_width, ctx.sizing.font_header),
-            position: header_text.title_row.min,
+            text: truncate_to_width(
+                &content.title,
+                surface.title_text_rect.width().max(24.0),
+                ctx.sizing.font_header,
+            ),
+            position: surface.title_text_rect.min,
             font_size: ctx.sizing.font_header,
             color: ctx.style.text_primary,
-            max_width: Some(title_width),
+            max_width: Some(surface.title_text_rect.width().max(24.0)),
             align: TextAlign::Left,
         },
     );
     emit_text(
         text_runs,
         TextRun {
-            text: format!(
-                "search: {}",
-                if ctx.model.sources.search_query.is_empty() {
-                    "—"
-                } else {
-                    ctx.model.sources.search_query.as_str()
-                }
-            ),
-            position: header_text.query_row.min,
+            text: content.query,
+            position: surface.query_text_rect.min,
             font_size: ctx.sizing.font_meta,
             color: ctx.style.text_muted,
-            max_width: Some(query_width),
+            max_width: Some(surface.query_text_rect.width().max(24.0)),
             align: TextAlign::Left,
         },
     );
-    render_source_add_button(ctx, primitives, text_runs, add_button);
+    render_source_add_button(ctx, primitives, text_runs, surface.add_button_rect);
 }
 
 fn render_source_add_button(

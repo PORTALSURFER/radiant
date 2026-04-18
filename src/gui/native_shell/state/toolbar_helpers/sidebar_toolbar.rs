@@ -97,22 +97,12 @@ pub(in crate::gui::native_shell::state) fn source_add_button_rect(
     header_rect: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
-    if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
-        return None;
-    }
-    let side = (sizing.font_header + (sizing.text_inset_y * 1.5))
-        .round()
-        .clamp(12.0, header_rect.height().max(12.0));
-    if header_rect.width() < side + (sizing.text_inset_x * 2.0) {
-        return None;
-    }
-    let max_x = header_rect.max.x - sizing.text_inset_x.max(0.0);
-    let min_x = (max_x - side).max(header_rect.min.x);
-    let min_y = header_rect.min.y + ((header_rect.height() - side) * 0.5).floor();
-    Some(Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(max_x, (min_y + side).min(header_rect.max.y)),
-    ))
+    resolve_sidebar_header_surface_layout(
+        header_rect,
+        sizing,
+        &SidebarHeaderSurfaceContent::default(),
+    )
+    .add_button_rect
 }
 
 pub(in crate::gui::native_shell::state) fn sidebar_sections(
@@ -194,15 +184,24 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
             style.text_muted,
         ),
     ];
-    let rects =
-        compute_sidebar_action_button_rects(layout.sidebar_footer, style.sizing, definitions.len());
-    let start_index = definitions.len().saturating_sub(rects.len());
-    rects
+    let action_layouts = resolve_sidebar_footer_surface_layout(
+        layout.sidebar_footer,
+        style.sizing,
+        &SidebarFooterSurfaceContent {
+            actions: definitions
+                .iter()
+                .map(|(label, _, _, _)| SidebarFooterActionSpec { label })
+                .collect(),
+            ..SidebarFooterSurfaceContent::default()
+        },
+    )
+    .action_buttons;
+    action_layouts
         .into_iter()
-        .zip(definitions.into_iter().skip(start_index))
+        .zip(definitions.into_iter())
         .map(
-            |(rect, (label, enabled, action, text_color))| ActionButton {
-                rect,
+            |(layout, (label, enabled, action, text_color))| ActionButton {
+                rect: layout.rect,
                 label,
                 icon: None,
                 enabled,

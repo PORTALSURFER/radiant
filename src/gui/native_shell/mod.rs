@@ -10,12 +10,13 @@ mod layout_runtime;
 mod paint;
 #[cfg(test)]
 mod shots;
+mod sidebar_surface;
 mod state;
 mod status_surface;
-mod top_bar_surface;
 mod style;
 #[cfg(test)]
 mod tests;
+mod top_bar_surface;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;

@@ -62,12 +62,16 @@ pub(super) fn current_text_value<B: NativeAppBridge>(
     match runner.text_input_target {
         TextInputTarget::None => None,
         TextInputTarget::BrowserSearch
+        | TextInputTarget::BrowserTagSidebar
         | TextInputTarget::FolderSearch
         | TextInputTarget::FolderCreate
         | TextInputTarget::PromptInput => runner.text_input_buffer.clone().or_else(|| match runner
             .text_input_target
         {
             TextInputTarget::BrowserSearch => Some(runner.model.browser.search_query.clone()),
+            TextInputTarget::BrowserTagSidebar => {
+                Some(runner.model.browser.tag_sidebar.input_value.clone())
+            }
             TextInputTarget::FolderSearch => Some(runner.model.sources.folder_search_query.clone()),
             TextInputTarget::PromptInput => runner.model.confirm_prompt.input_value.clone(),
             TextInputTarget::FolderCreate => runner
@@ -104,12 +108,16 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
     if runner.text_input_target != TextInputTarget::None {
         match runner.text_input_target {
             TextInputTarget::BrowserSearch
+            | TextInputTarget::BrowserTagSidebar
             | TextInputTarget::FolderSearch
             | TextInputTarget::FolderCreate
             | TextInputTarget::PromptInput => {
                 if runner.text_input_buffer.is_none() {
                     runner.text_input_buffer = Some(match runner.text_input_target {
                         TextInputTarget::BrowserSearch => runner.model.browser.search_query.clone(),
+                        TextInputTarget::BrowserTagSidebar => {
+                            runner.model.browser.tag_sidebar.input_value.clone()
+                        }
                         TextInputTarget::FolderSearch => {
                             runner.model.sources.folder_search_query.clone()
                         }
@@ -170,6 +178,7 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
     }
     runner.sync_waveform_bpm_editor_state();
     runner.sync_browser_search_editor_state();
+    runner.sync_browser_tag_sidebar_editor_state();
     runner.sync_folder_create_editor_state();
 }
 
@@ -182,6 +191,10 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         TextInputTarget::BrowserSearch => {
             runner.text_input_buffer = Some(value.clone());
             UiAction::SetBrowserSearch { query: value }
+        }
+        TextInputTarget::BrowserTagSidebar => {
+            runner.text_input_buffer = Some(value.clone());
+            UiAction::SetBrowserTagSidebarInput { value }
         }
         TextInputTarget::FolderSearch => {
             runner.text_input_buffer = Some(value.clone());
@@ -213,6 +226,7 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
     };
     runner.emit_model_action(action);
     runner.sync_browser_search_editor_state();
+    runner.sync_browser_tag_sidebar_editor_state();
     runner.sync_folder_create_editor_state();
     true
 }

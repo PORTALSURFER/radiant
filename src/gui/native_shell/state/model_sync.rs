@@ -110,6 +110,14 @@ impl NativeShellState {
         self.browser_search_editor_visual = visual;
     }
 
+    /// Update the active browser-tag-sidebar editor visuals shown in state overlays.
+    pub(crate) fn set_browser_tag_sidebar_editor_state(
+        &mut self,
+        visual: Option<TextFieldVisualState>,
+    ) {
+        self.browser_tag_sidebar_editor_visual = visual;
+    }
+
     /// Update the active inline folder-create editor visuals shown in sidebar overlays.
     pub(crate) fn set_folder_create_editor_state(&mut self, visual: Option<TextFieldVisualState>) {
         self.folder_create_editor_visual = visual;
@@ -161,6 +169,9 @@ impl NativeShellState {
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             browser_search_editor_signature: text_field_visual_signature(
                 self.browser_search_editor_visual.as_ref(),
+            ),
+            browser_search_sidebar_signature: text_field_visual_signature(
+                self.browser_tag_sidebar_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
                 self.folder_create_editor_visual.as_ref(),

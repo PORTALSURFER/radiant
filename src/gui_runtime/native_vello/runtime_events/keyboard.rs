@@ -249,9 +249,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if matches!(
             self.text_input_target,
             TextInputTarget::BrowserSearch
+                | TextInputTarget::BrowserTagSidebar
                 | TextInputTarget::FolderSearch
                 | TextInputTarget::WaveformBpm
         ) {
+            if self.text_input_target == TextInputTarget::BrowserTagSidebar {
+                self.emit_keyboard_action(UiAction::CommitBrowserTagSidebarInput);
+            }
             self.deactivate_text_input_target();
             return true;
         }

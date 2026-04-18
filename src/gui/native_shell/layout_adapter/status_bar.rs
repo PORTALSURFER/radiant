@@ -14,11 +14,16 @@ const STATUS_GAP_LEFT_ID: u64 = 903;
 const STATUS_CENTER_ID: u64 = 904;
 const STATUS_GAP_RIGHT_ID: u64 = 905;
 const STATUS_RIGHT_ID: u64 = 906;
+const STATUS_GAP_PROGRESS_ID: u64 = 907;
+const STATUS_PROGRESS_ID: u64 = 908;
 const STATUS_TEXT_ROOT_ID: u64 = 920;
 const STATUS_TEXT_ALIGN_ID: u64 = 921;
 const STATUS_TEXT_LINE_ID: u64 = 922;
 const STATUS_LEFT_RATIO: f32 = 0.30;
 const STATUS_RIGHT_RATIO: f32 = 0.22;
+const STATUS_PROGRESS_RATIO: f32 = 0.16;
+const STATUS_PROGRESS_MIN_WIDTH: f32 = 84.0;
+const STATUS_PROGRESS_MAX_WIDTH: f32 = 144.0;
 
 /// Slot-resolved left/center/right status-bar segment geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -26,6 +31,7 @@ pub(crate) struct StatusBarSegments {
     pub left: Rect,
     pub center: Rect,
     pub right: Rect,
+    pub progress: Rect,
 }
 
 /// Compute left/center/right status-bar segments through slotized layout.
@@ -39,8 +45,12 @@ pub(crate) fn compute_status_bar_segments(
             left: empty,
             center: empty,
             right: empty,
+            progress: empty,
         };
     }
+    let inner_width = (status_bar.width() - (sizing.panel_inset.max(0.0) * 2.0)).max(0.0);
+    let progress_width = (inner_width * STATUS_PROGRESS_RATIO)
+        .clamp(STATUS_PROGRESS_MIN_WIDTH, STATUS_PROGRESS_MAX_WIDTH);
     let row = LayoutNode::container(
         STATUS_ROW_ID,
         ContainerPolicy {
@@ -60,6 +70,8 @@ pub(crate) fn compute_status_bar_segments(
             },
             fixed_gap_child(STATUS_GAP_RIGHT_ID, sizing.status_segment_gap),
             percent_child(STATUS_RIGHT_ID, STATUS_RIGHT_RATIO),
+            fixed_gap_child(STATUS_GAP_PROGRESS_ID, sizing.status_segment_gap),
+            fixed_width_child(STATUS_PROGRESS_ID, progress_width),
         ],
     );
     let tree = LayoutNode::container(
@@ -84,10 +96,15 @@ pub(crate) fn compute_status_bar_segments(
     let left = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_LEFT_ID, empty), status_bar);
     let center = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_CENTER_ID, empty), status_bar);
     let right = clamp_rect_to_bounds(rect_for(&output.rects, STATUS_RIGHT_ID, empty), status_bar);
+    let progress = clamp_rect_to_bounds(
+        rect_for(&output.rects, STATUS_PROGRESS_ID, empty),
+        status_bar,
+    );
     StatusBarSegments {
         left,
         center,
         right,
+        progress,
     }
 }
 
@@ -167,6 +184,10 @@ fn percent_child(node_id: u64, ratio: f32) -> SlotChild {
 }
 
 fn fixed_gap_child(node_id: u64, width: f32) -> SlotChild {
+    fixed_width_child(node_id, width)
+}
+
+fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
     let width = width.max(0.0);
     SlotChild {
         slot: SlotParams {
@@ -218,8 +239,10 @@ mod tests {
         assert_inside(bar, segments.left);
         assert_inside(bar, segments.center);
         assert_inside(bar, segments.right);
+        assert_inside(bar, segments.progress);
         assert!(segments.left.max.x <= segments.center.min.x);
         assert!(segments.center.max.x <= segments.right.min.x);
+        assert!(segments.right.max.x <= segments.progress.min.x);
     }
 
     #[test]
@@ -230,6 +253,7 @@ mod tests {
         assert_inside(bar, segments.left);
         assert_inside(bar, segments.center);
         assert_inside(bar, segments.right);
+        assert_inside(bar, segments.progress);
     }
 
     #[test]

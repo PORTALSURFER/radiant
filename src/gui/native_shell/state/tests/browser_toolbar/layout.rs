@@ -15,7 +15,7 @@ fn browser_action_buttons_stay_inside_toolbar() {
         let style = style_for_layout(&layout);
         let toolbar = browser_toolbar_layout(&layout, &style);
         let buttons = browser_action_buttons(&layout, &style, &model, &toolbar);
-        assert_eq!(buttons.len(), 2);
+        assert_eq!(buttons.len(), 3);
         assert_eq!(buttons[0].label, "Random");
         assert_eq!(buttons[0].icon, Some(WaveformToolbarIcon::Dice));
         assert!(buttons[0].enabled);
@@ -24,8 +24,13 @@ fn browser_action_buttons_stay_inside_toolbar() {
         assert_eq!(buttons[1].icon, Some(WaveformToolbarIcon::Filter));
         assert!(buttons[1].enabled);
         assert!(!buttons[1].active);
+        assert_eq!(buttons[2].label, "Tags");
+        assert_eq!(buttons[2].icon, None);
+        assert!(buttons[2].enabled);
+        assert!(!buttons[2].active);
         assert_rect_inside(layout.browser_toolbar, buttons[0].rect);
         assert_rect_inside(layout.browser_toolbar, buttons[1].rect);
+        assert_rect_inside(layout.browser_toolbar, buttons[2].rect);
     }
 }
 
@@ -39,7 +44,7 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let style = style_for_layout(&layout);
     let controls = browser_toolbar_layout(&layout, &style);
     let buttons = browser_action_buttons(&layout, &style, &model, &controls);
-    assert_eq!(buttons.len(), 2);
+    assert_eq!(buttons.len(), 3);
     assert!(
         controls
             .rating_filter_chips
@@ -52,9 +57,11 @@ fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     );
     assert_eq!(buttons[0].rect, controls.action_slots[0]);
     assert_eq!(buttons[1].rect, controls.action_slots[1]);
+    assert_eq!(buttons[2].rect, controls.action_slots[2]);
     assert!(controls.rating_filter_chips[7].max.x <= buttons[0].rect.min.x);
     assert!(buttons[0].rect.max.x <= buttons[1].rect.min.x);
     assert!(buttons[1].rect.max.x <= controls.search_field.min.x);
+    assert!(controls.search_field.max.x <= buttons[2].rect.min.x);
     assert!(controls.search_field.width() < layout.browser_toolbar.width());
     assert!(controls.activity_chip.width() <= 0.0);
     assert!(controls.sort_chip.width() <= 0.0);
@@ -106,6 +113,47 @@ fn browser_toolbar_right_side_does_not_hit_search_field() {
         state.browser_action_at_point(&layout, &model, point, false),
         None
     );
+}
+
+#[test]
+fn browser_toolbar_tags_button_sits_right_of_search_field() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let controls = browser_toolbar_layout(&layout, &style);
+    assert!(controls.action_slots[2].width() > 1.0);
+    assert!(controls.search_field.width() > 1.0);
+    assert!(controls.search_field.max.x <= controls.action_slots[2].min.x);
+}
+
+#[test]
+fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.browser.tag_sidebar.open = true;
+    model
+        .browser
+        .rows
+        .push(BrowserRowModel::new(0, "Kick 01", 1, false, true));
+    model.browser.visible_count = model.browser.rows.len();
+    let mut state = NativeShellState::new();
+
+    let input_rect = state
+        .browser_tag_sidebar_input_rect(&layout, &model)
+        .expect("sidebar input should render");
+    let point = Point::new(
+        (input_rect.min.x + input_rect.max.x) * 0.5,
+        (input_rect.min.y + input_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(state.browser_row_at_point(&layout, &model, point), None);
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(UiAction::FocusBrowserTagSidebarInput)
+    );
+
+    let rows = state.cached_browser_rows(&layout, &style, &model);
+    assert!(rows.iter().all(|row| row.rect.max.x <= input_rect.min.x));
 }
 
 #[test]

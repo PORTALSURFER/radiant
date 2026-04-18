@@ -34,11 +34,15 @@ fn indeterminate_scan_progress_renders_scan_label_and_file_counter() {
         "status bar should show the scanned-file counter"
     );
     assert!(
+        frame.text_runs.iter().any(|run| run.text == "col: 2/3"),
+        "status bar should keep the right-side status text visible"
+    );
+    assert!(
         frame.primitives.iter().any(|primitive| matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x >= layout.status_center_segment.min.x
-                    && rect.rect.max.x <= layout.status_center_segment.max.x
+                if rect.rect.min.x >= layout.status_progress_segment.min.x
+                    && rect.rect.max.x <= layout.status_progress_segment.max.x
                     && rect.color == blend_color(style.accent_mint, style.text_primary, 0.18)
         )),
         "status bar should render an indeterminate progress fill"
@@ -76,6 +80,10 @@ fn determinate_analysis_progress_keeps_fraction_counter() {
     assert!(
         frame.text_runs.iter().any(|run| run.text == "2/5"),
         "status bar should keep determinate counters"
+    );
+    assert!(
+        frame.text_runs.iter().any(|run| run.text == "col: 2/3"),
+        "status bar should keep the right-side status text visible"
     );
 }
 
@@ -139,6 +147,7 @@ fn status_bar_text_cache_reuses_and_invalidates_on_progress_changes() {
     assert_eq!(third.cache_hit_count, 0);
     assert_eq!(third.cache_miss_count, 1);
 }
+
 #[test]
 fn status_bar_text_cache_invalidates_when_transport_state_changes() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -169,6 +178,7 @@ fn status_bar_text_cache_invalidates_when_transport_state_changes() {
     assert_eq!(first.cache_hit_count, 0);
     assert_eq!(first.cache_miss_count, 1);
 
+    segments = StaticFrameSegments::default();
     model.transport_running = true;
     state.build_static_segment_with_style_into(
         &layout,

@@ -10,6 +10,55 @@ pub(in crate::gui::native_shell::state) fn rendered_source_rows(
     model.sources.rows.len().min(style.sizing.source_rows_max)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui::native_shell::state) struct BrowserRowsSplitRects {
+    pub list: Rect,
+    pub sidebar: Option<Rect>,
+}
+
+pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
+    rows_rect: Rect,
+    sizing: SizingTokens,
+    model: &AppModel,
+) -> BrowserRowsSplitRects {
+    let sidebar = browser_tag_sidebar_panel_rect(rows_rect, sizing, model);
+    let list = if let Some(sidebar_rect) = sidebar {
+        Rect::from_min_max(
+            rows_rect.min,
+            Point::new(sidebar_rect.min.x.max(rows_rect.min.x), rows_rect.max.y),
+        )
+    } else {
+        rows_rect
+    };
+    BrowserRowsSplitRects { list, sidebar }
+}
+
+pub(in crate::gui::native_shell::state) fn browser_rows_list_rect(
+    rows_rect: Rect,
+    sizing: SizingTokens,
+    model: &AppModel,
+) -> Rect {
+    browser_rows_split_rects(rows_rect, sizing, model).list
+}
+
+pub(in crate::gui::native_shell::state) fn browser_tag_sidebar_panel_rect(
+    rows_rect: Rect,
+    _sizing: SizingTokens,
+    model: &AppModel,
+) -> Option<Rect> {
+    if !model.browser.tag_sidebar.open || model.map.active || rows_rect.width() <= 1.0 {
+        return None;
+    }
+    let width = (rows_rect.width() * 0.34).clamp(220.0, 320.0);
+    Some(Rect::from_min_max(
+        Point::new(
+            (rows_rect.max.x - width).max(rows_rect.min.x),
+            rows_rect.min.y,
+        ),
+        rows_rect.max,
+    ))
+}
+
 pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,

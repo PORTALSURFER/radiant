@@ -157,14 +157,13 @@ fn build_status_bar_text_cache(
         compute_status_text_line_rect(layout.status_center_segment, sizing, sizing.font_status);
     let right_text_rect = status_right_text_rect(layout.status_right_segment, sizing, None);
     let inline_progress_active = model.progress_overlay.visible && !model.progress_overlay.modal;
-    let (progress_label_rect, progress_counter_rect) =
-        cached_status_progress_text_rects(layout.status_center_segment, sizing);
+    let progress_text_rect =
+        compute_status_text_line_rect(layout.status_progress_segment, sizing, sizing.font_status);
     StatusBarTextCacheValue {
         left_text_rect,
         center_text_rect,
         right_text_rect,
-        progress_label_rect,
-        progress_counter_rect,
+        progress_text_rect,
         left_label: truncate_to_width(
             &status_left_text(model, transport_running, selected_column),
             left_text_rect.width().max(36.0),
@@ -182,12 +181,12 @@ fn build_status_bar_text_cache(
         ),
         progress_label: truncate_to_width(
             &cached_status_progress_label(model),
-            progress_label_rect.width().max(36.0),
+            center_text_rect.width().max(36.0),
             sizing.font_status,
         ),
         progress_counter: truncate_to_width(
             &cached_status_progress_counter(model),
-            progress_counter_rect.width().max(24.0),
+            progress_text_rect.width().max(24.0),
             sizing.font_status,
         ),
         inline_progress_active,
@@ -239,6 +238,10 @@ fn status_bar_text_cache_key(
         status_right_min_y: f32_to_bits(layout.status_right_segment.min.y),
         status_right_max_x: f32_to_bits(layout.status_right_segment.max.x),
         status_right_max_y: f32_to_bits(layout.status_right_segment.max.y),
+        status_progress_min_x: f32_to_bits(layout.status_progress_segment.min.x),
+        status_progress_min_y: f32_to_bits(layout.status_progress_segment.min.y),
+        status_progress_max_x: f32_to_bits(layout.status_progress_segment.max.x),
+        status_progress_max_y: f32_to_bits(layout.status_progress_segment.max.y),
         font_status_bits: f32_to_bits(style.sizing.font_status),
         ui_scale: f32_to_bits(layout.ui_scale),
         transport_running,
@@ -442,18 +445,6 @@ fn cached_status_progress_counter(model: &AppModel) -> String {
     format!(
         "{}/{}",
         model.progress_overlay.completed, model.progress_overlay.total
-    )
-}
-
-fn cached_status_progress_text_rects(segment: Rect, sizing: SizingTokens) -> (Rect, Rect) {
-    let text_rect = compute_status_text_line_rect(segment, sizing, sizing.font_status);
-    let counter_width = (text_rect.width() * 0.24).clamp(52.0, 84.0);
-    let gap = sizing.status_segment_gap.max(6.0);
-    let counter_min_x = (text_rect.max.x - counter_width).max(text_rect.min.x);
-    let label_max_x = (counter_min_x - gap).max(text_rect.min.x);
-    (
-        Rect::from_min_max(text_rect.min, Point::new(label_max_x, text_rect.max.y)),
-        Rect::from_min_max(Point::new(counter_min_x, text_rect.min.y), text_rect.max),
     )
 }
 

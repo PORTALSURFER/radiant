@@ -24,6 +24,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .is_some_and(|row| row.select_all_on_focus);
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
+            TextInputTarget::BrowserTagSidebar => {
+                self.model.browser.tag_sidebar.input_value.clone()
+            }
             TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
             TextInputTarget::FolderCreate => self
                 .folder_inline_edit_row()
@@ -47,6 +50,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.waveform_bpm_input_buffer = None;
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_browser_tag_sidebar_editor_state();
         self.sync_folder_create_editor_state();
     }
 
@@ -56,6 +60,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.clear_text_input_target_state();
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_browser_tag_sidebar_editor_state();
         self.sync_folder_create_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
             self.emit_model_action(UiAction::BlurBrowserSearch);
@@ -176,6 +181,23 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.shell_state.set_browser_search_editor_state(visual);
     }
 
+    pub(super) fn sync_browser_tag_sidebar_editor_state(&mut self) {
+        if self.text_input_target != TextInputTarget::BrowserTagSidebar {
+            self.shell_state.set_browser_tag_sidebar_editor_state(None);
+            return;
+        }
+        let Some(visual) = self.with_shell_layout(|this, layout| {
+            this.shell_state
+                .browser_tag_sidebar_text_rect(layout, &this.model)
+                .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
+        }) else {
+            self.shell_state.set_browser_tag_sidebar_editor_state(None);
+            return;
+        };
+        self.shell_state
+            .set_browser_tag_sidebar_editor_state(visual);
+    }
+
     pub(super) fn sync_folder_create_editor_state(&mut self) {
         if self.text_input_target != TextInputTarget::FolderCreate {
             self.shell_state.set_folder_create_editor_state(None);
@@ -292,6 +314,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::FocusBrowserSearch => {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
+            UiAction::FocusBrowserTagSidebarInput => {
+                self.activate_text_input_target(TextInputTarget::BrowserTagSidebar)
+            }
             UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
             UiAction::FocusFolderSearch { .. } => {
                 self.activate_text_input_target(TextInputTarget::FolderSearch)
@@ -306,7 +331,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::ConfirmPrompt
             | UiAction::CancelPrompt
             | UiAction::ConfirmFolderCreate
-            | UiAction::CancelFolderCreate => self.clear_text_input_target_state(),
+            | UiAction::CancelFolderCreate
+            | UiAction::CommitBrowserTagSidebarInput => self.clear_text_input_target_state(),
             _ => {}
         }
         if self.text_input_target != TextInputTarget::WaveformBpm {
@@ -317,10 +343,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.text_editor_state = None;
             self.text_input_drag_active = false;
             self.shell_state.set_browser_search_editor_state(None);
+            self.shell_state.set_browser_tag_sidebar_editor_state(None);
             self.shell_state.set_folder_create_editor_state(None);
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
+        self.sync_browser_tag_sidebar_editor_state();
         self.sync_folder_create_editor_state();
     }
 

@@ -24,27 +24,17 @@ pub(super) fn render_status_bar(
         },
     );
     if cached_text.inline_progress_active {
-        let progress_track_rect = status_progress_track_rect(layout.status_center_segment, sizing);
+        let progress_track_rect =
+            status_progress_track_rect(layout.status_progress_segment, sizing);
         emit_text(
             text_runs,
             TextRun {
                 text: cached_text.progress_label.clone(),
-                position: cached_text.progress_label_rect.min,
+                position: cached_text.center_text_rect.min,
                 font_size: sizing.font_status,
                 color: style.text_primary,
-                max_width: Some(cached_text.progress_label_rect.width().max(36.0)),
-                align: TextAlign::Left,
-            },
-        );
-        emit_text(
-            text_runs,
-            TextRun {
-                text: cached_text.progress_counter.clone(),
-                position: cached_text.progress_counter_rect.min,
-                font_size: sizing.font_status,
-                color: style.text_muted,
-                max_width: Some(cached_text.progress_counter_rect.width().max(24.0)),
-                align: TextAlign::Right,
+                max_width: Some(cached_text.center_text_rect.width().max(36.0)),
+                align: TextAlign::Center,
             },
         );
         emit_primitive(
@@ -67,6 +57,17 @@ pub(super) fn render_status_bar(
                 }),
             );
         }
+        emit_text(
+            text_runs,
+            TextRun {
+                text: cached_text.progress_counter.clone(),
+                position: cached_text.progress_text_rect.min,
+                font_size: sizing.font_status,
+                color: style.text_muted,
+                max_width: Some(cached_text.progress_text_rect.width().max(24.0)),
+                align: TextAlign::Center,
+            },
+        );
     } else {
         emit_text(
             text_runs,

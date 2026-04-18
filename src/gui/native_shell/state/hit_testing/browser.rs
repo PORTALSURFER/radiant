@@ -29,9 +29,15 @@ impl NativeShellState {
             return None;
         }
         let style = style_for_layout(layout);
+        if let Some(sidebar_rect) =
+            browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, model)
+            && sidebar_rect.contains(point)
+        {
+            return None;
+        }
+        let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
         let rows = self.cached_browser_rows(layout, &style, model);
-        row_index_for_visible_rows(rows, point, layout.browser_rows)
-            .map(|index| rows[index].visible_row)
+        row_index_for_visible_rows(rows, point, list_rect).map(|index| rows[index].visible_row)
     }
 
     /// Resolve the focused-row similarity button into its native action.
@@ -202,6 +208,11 @@ impl NativeShellState {
         alt_down: bool,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
+        if let Some(action) =
+            browser_tag_sidebar_action_at_point(layout.browser_rows, style.sizing, model, point)
+        {
+            return Some(action);
+        }
         let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         if let Some(level) =
             browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
@@ -344,6 +355,26 @@ impl NativeShellState {
         Some(toolbar_text_layout.search_label)
     }
 
+    /// Return the browser tag-sidebar input rect when the sidebar is visible.
+    pub(crate) fn browser_tag_sidebar_input_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        browser_tag_sidebar_layout(layout.browser_rows, style_for_layout(layout).sizing, model)
+            .map(|layout| layout.input_rect)
+    }
+
+    /// Return the browser tag-sidebar input text rect when the sidebar is visible.
+    pub(crate) fn browser_tag_sidebar_text_rect(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        browser_tag_sidebar_layout(layout.browser_rows, style_for_layout(layout).sizing, model)
+            .map(|layout| layout.input_text_rect)
+    }
+
     /// Return the focused-row similarity button rect when present.
     #[cfg(test)]
     pub(crate) fn browser_similarity_button_rect(
@@ -371,6 +402,135 @@ impl NativeShellState {
         map_sample_id_at_point(layout, model, point)
             .map(|sample_id| UiAction::FocusMapSample { sample_id })
     }
+}
+
+#[derive(Clone, Debug)]
+struct BrowserTagSidebarLayout {
+    input_rect: Rect,
+    input_text_rect: Rect,
+    playback_rects: [Rect; 2],
+    sound_type_rects: Vec<Rect>,
+    custom_rect: Option<Rect>,
+}
+
+fn browser_tag_sidebar_rect(
+    rows_rect: Rect,
+    _sizing: SizingTokens,
+    model: &AppModel,
+) -> Option<Rect> {
+    browser_tag_sidebar_panel_rect(rows_rect, _sizing, model)
+}
+
+fn browser_tag_sidebar_layout(
+    rows_rect: Rect,
+    sizing: SizingTokens,
+    model: &AppModel,
+) -> Option<BrowserTagSidebarLayout> {
+    let rect = browser_tag_sidebar_rect(rows_rect, sizing, model)?;
+    let pad = sizing.panel_inset.max(8.0);
+    let content_min_x = rect.min.x + pad;
+    let content_max_x = rect.max.x - pad;
+    let field_height = sizing.browser_row_height.max(22.0);
+    let input_rect = Rect::from_min_max(
+        Point::new(content_min_x, rect.min.y + pad + sizing.font_body + 10.0),
+        Point::new(
+            content_max_x,
+            rect.min.y + pad + sizing.font_body + 10.0 + field_height,
+        ),
+    );
+    let input_text_rect = Rect::from_min_max(
+        Point::new(
+            input_rect.min.x + sizing.text_inset_x,
+            input_rect.min.y + sizing.text_inset_y,
+        ),
+        Point::new(
+            input_rect.max.x - sizing.text_inset_x,
+            input_rect.max.y - sizing.text_inset_y,
+        ),
+    );
+    let pill_gap = sizing.border_width.max(1.0) + 4.0;
+    let two_col_width = ((content_max_x - content_min_x - pill_gap) * 0.5).max(40.0);
+    let playback_top = input_rect.max.y + 10.0;
+    let playback_rects = [
+        Rect::from_min_max(
+            Point::new(content_min_x, playback_top),
+            Point::new(content_min_x + two_col_width, playback_top + field_height),
+        ),
+        Rect::from_min_max(
+            Point::new(content_min_x + two_col_width + pill_gap, playback_top),
+            Point::new(content_max_x, playback_top + field_height),
+        ),
+    ];
+    let sound_top = playback_rects[0].max.y + 12.0;
+    let sound_cols = 3usize;
+    let sound_width = ((content_max_x - content_min_x - pill_gap * (sound_cols - 1) as f32)
+        / sound_cols as f32)
+        .max(40.0);
+    let mut sound_type_rects = Vec::with_capacity(model.browser.tag_sidebar.sound_type_pills.len());
+    for index in 0..model.browser.tag_sidebar.sound_type_pills.len() {
+        let col = index % sound_cols;
+        let row = index / sound_cols;
+        let min_x = content_min_x + (sound_width + pill_gap) * col as f32;
+        let min_y = sound_top + (field_height + pill_gap) * row as f32;
+        sound_type_rects.push(Rect::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new(
+                (min_x + sound_width).min(content_max_x),
+                min_y + field_height,
+            ),
+        ));
+    }
+    let custom_rect = model.browser.tag_sidebar.custom_tag_pill.as_ref().map(|_| {
+        let y = sound_type_rects
+            .last()
+            .map(|rect| rect.max.y + 12.0)
+            .unwrap_or(sound_top);
+        Rect::from_min_max(
+            Point::new(content_min_x, y),
+            Point::new(content_max_x, y + field_height),
+        )
+    });
+    Some(BrowserTagSidebarLayout {
+        input_rect,
+        input_text_rect,
+        playback_rects,
+        sound_type_rects,
+        custom_rect,
+    })
+}
+
+fn browser_tag_sidebar_action_at_point(
+    rows_rect: Rect,
+    sizing: SizingTokens,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let layout = browser_tag_sidebar_layout(rows_rect, sizing, model)?;
+    if layout.input_rect.contains(point) {
+        return Some(UiAction::FocusBrowserTagSidebarInput);
+    }
+    for (index, rect) in layout.playback_rects.iter().enumerate() {
+        if rect.contains(point) {
+            return Some(UiAction::SetBrowserSidebarLooped { looped: index == 0 });
+        }
+    }
+    for (pill, rect) in model
+        .browser
+        .tag_sidebar
+        .sound_type_pills
+        .iter()
+        .zip(layout.sound_type_rects.iter())
+    {
+        if rect.contains(point) {
+            return Some(UiAction::SetBrowserSidebarSoundType {
+                token: pill.id.clone(),
+            });
+        }
+    }
+    if layout.custom_rect.is_some_and(|rect| rect.contains(point)) {
+        return Some(UiAction::ClearBrowserTagSidebarUserTag);
+    }
+    None
 }
 
 pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(

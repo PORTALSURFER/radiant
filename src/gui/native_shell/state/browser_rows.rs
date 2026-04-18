@@ -188,7 +188,7 @@ pub(super) struct BrowserToolbarLayout {
     pub(super) rating_filter_chips: [Rect; 8],
     pub(super) playback_age_filter_chips: [Rect; 3],
     pub(super) marked_filter_chip: Rect,
-    pub(super) action_slots: [Rect; 2],
+    pub(super) action_slots: [Rect; 3],
     pub(super) search_field: Rect,
     pub(super) activity_chip: Rect,
     pub(super) sort_chip: Rect,

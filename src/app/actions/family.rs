@@ -109,6 +109,7 @@ impl UiAction {
             | Self::ToggleBrowserSampleMark
             | Self::ToggleBrowserMarkedFilter
             | Self::ToggleRandomNavigationMode
+            | Self::ToggleBrowserTagSidebar
             | Self::ToggleBrowserDuplicateCleanupMode
             | Self::FocusPreviousBrowserHistory
             | Self::FocusNextBrowserHistory
@@ -119,6 +120,12 @@ impl UiAction {
             | Self::PlayPreviousRandomSample
             | Self::CopySelectionToClipboard
             | Self::AdjustSelectedBrowserRating { .. }
+            | Self::FocusBrowserTagSidebarInput
+            | Self::SetBrowserTagSidebarInput { .. }
+            | Self::CommitBrowserTagSidebarInput
+            | Self::ClearBrowserTagSidebarUserTag
+            | Self::SetBrowserSidebarLooped { .. }
+            | Self::SetBrowserSidebarSoundType { .. }
             | Self::SetBrowserTab { .. }
             | Self::FocusMapSample { .. } => UiActionFamily::Browser,
             Self::SetPromptInput { .. }

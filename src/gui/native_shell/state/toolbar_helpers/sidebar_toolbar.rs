@@ -347,7 +347,10 @@ pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
         Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
     );
     let rect = Rect::from_min_max(
-        Point::new(panel_rect.min.x + panel_padding, panel_rect.min.y + panel_padding),
+        Point::new(
+            panel_rect.min.x + panel_padding,
+            panel_rect.min.y + panel_padding,
+        ),
         Point::new(
             panel_rect.min.x + panel_padding + button_width,
             panel_rect.min.y + panel_padding + button_height,

@@ -43,5 +43,20 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
             },
         });
     }
+    if toolbar.action_slots[2].width() > 1.0 {
+        buttons.push(ActionButton {
+            rect: toolbar.action_slots[2],
+            label: "Tags",
+            icon: None,
+            enabled: true,
+            active: model.browser_actions.tag_sidebar_open,
+            action: UiAction::ToggleBrowserTagSidebar,
+            text_color: if model.browser_actions.tag_sidebar_open {
+                style.highlight_cyan
+            } else {
+                style.text_primary
+            },
+        });
+    }
     buttons
 }

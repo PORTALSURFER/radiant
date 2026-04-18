@@ -41,11 +41,15 @@ fn non_modal_progress_renders_status_bar_indicator_without_overlay_dialog() {
         "status bar should show progress counts"
     );
     assert!(
+        frame.text_runs.iter().any(|run| run.text == "col: 2/3"),
+        "status bar should keep the right-side status text visible"
+    );
+    assert!(
         frame.primitives.iter().any(|primitive| matches!(
             primitive,
             Primitive::Rect(rect)
-                if rect.rect.min.x >= layout.status_center_segment.min.x
-                    && rect.rect.max.x <= layout.status_center_segment.max.x
+                if rect.rect.min.x >= layout.status_progress_segment.min.x
+                    && rect.rect.max.x <= layout.status_progress_segment.max.x
                     && rect.color == style.accent_mint
         )),
         "status bar should render an inline progress fill"

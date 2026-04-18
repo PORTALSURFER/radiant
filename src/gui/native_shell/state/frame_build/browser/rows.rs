@@ -332,4 +332,235 @@ pub(super) fn render_browser_rows_window(
             }),
         );
     }
+    render_browser_tag_sidebar_overlay(ctx, primitives, text_runs);
+}
+
+fn render_browser_tag_sidebar_overlay(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+) {
+    let Some(layout) = browser_tag_sidebar_layout(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+    else {
+        return;
+    };
+    let sidebar = &ctx.model.browser.tag_sidebar;
+    let panel_rect = browser_tag_sidebar_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+        .unwrap_or(ctx.layout.browser_rows);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: panel_rect,
+            color: ctx.style.surface_overlay,
+        }),
+    );
+    push_border(
+        primitives,
+        panel_rect,
+        ctx.style.border_emphasis,
+        ctx.sizing.border_width,
+    );
+    emit_text(
+        text_runs,
+        TextRun {
+            text: sidebar.header_label.clone(),
+            position: Point::new(
+                layout.input_rect.min.x,
+                panel_rect.min.y + ctx.sizing.panel_inset.max(8.0),
+            ),
+            font_size: ctx.sizing.font_body,
+            color: ctx.style.text_primary,
+            max_width: Some((panel_rect.width() - ctx.sizing.panel_inset * 2.0).max(24.0)),
+            align: TextAlign::Left,
+        },
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: layout.input_rect,
+            color: ctx.style.surface_base,
+        }),
+    );
+    push_border(
+        primitives,
+        layout.input_rect,
+        ctx.style.border,
+        ctx.sizing.border_width,
+    );
+    emit_text(
+        text_runs,
+        TextRun {
+            text: if sidebar.input_value.is_empty() {
+                sidebar.input_placeholder.clone()
+            } else {
+                sidebar.input_value.clone()
+            },
+            position: layout.input_text_rect.min,
+            font_size: ctx.sizing.font_meta,
+            color: if sidebar.input_value.is_empty() {
+                ctx.style.text_muted
+            } else {
+                ctx.style.text_primary
+            },
+            max_width: Some(layout.input_text_rect.width().max(20.0)),
+            align: TextAlign::Left,
+        },
+    );
+    for (pill, rect) in sidebar
+        .playback_type_pills
+        .iter()
+        .zip(layout.playback_rects.iter())
+    {
+        render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
+    }
+    for (pill, rect) in sidebar
+        .sound_type_pills
+        .iter()
+        .zip(layout.sound_type_rects.iter())
+    {
+        render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
+    }
+    if let (Some(custom), Some(rect)) = (sidebar.custom_tag_pill.as_ref(), layout.custom_rect) {
+        render_sidebar_tag_pill(primitives, text_runs, ctx, rect, custom);
+    }
+}
+
+fn render_sidebar_tag_pill(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    ctx: &StaticFrameCtx<'_>,
+    rect: Rect,
+    pill: &crate::app::BrowserTagPillModel,
+) {
+    let (fill, border, text) = match pill.state {
+        crate::app::BrowserTagState::Off => (
+            ctx.style.surface_base,
+            ctx.style.border,
+            ctx.style.text_muted,
+        ),
+        crate::app::BrowserTagState::On => (
+            blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.24),
+            blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32),
+            ctx.style.text_primary,
+        ),
+        crate::app::BrowserTagState::Mixed => (
+            blend_color(
+                ctx.style.highlight_orange_soft,
+                ctx.style.surface_overlay,
+                0.26,
+            ),
+            blend_color(ctx.style.highlight_orange, ctx.style.text_primary, 0.26),
+            ctx.style.text_primary,
+        ),
+    };
+    emit_primitive(primitives, Primitive::Rect(FillRect { rect, color: fill }));
+    push_border(primitives, rect, border, ctx.sizing.border_width);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: pill.label.clone(),
+            position: Point::new(
+                rect.min.x + ctx.sizing.text_inset_x,
+                rect.min.y + ctx.sizing.text_inset_y,
+            ),
+            font_size: ctx.sizing.font_meta,
+            color: text,
+            max_width: Some((rect.width() - ctx.sizing.text_inset_x * 2.0).max(10.0)),
+            align: TextAlign::Left,
+        },
+    );
+}
+
+struct BrowserTagSidebarLayout {
+    input_rect: Rect,
+    input_text_rect: Rect,
+    playback_rects: [Rect; 2],
+    sound_type_rects: Vec<Rect>,
+    custom_rect: Option<Rect>,
+}
+
+fn browser_tag_sidebar_rect(
+    rows_rect: Rect,
+    _sizing: SizingTokens,
+    model: &AppModel,
+) -> Option<Rect> {
+    browser_tag_sidebar_panel_rect(rows_rect, _sizing, model)
+}
+
+fn browser_tag_sidebar_layout(
+    rows_rect: Rect,
+    sizing: SizingTokens,
+    model: &AppModel,
+) -> Option<BrowserTagSidebarLayout> {
+    let rect = browser_tag_sidebar_rect(rows_rect, sizing, model)?;
+    let pad = sizing.panel_inset.max(8.0);
+    let content_min_x = rect.min.x + pad;
+    let content_max_x = rect.max.x - pad;
+    let field_height = sizing.browser_row_height.max(22.0);
+    let input_rect = Rect::from_min_max(
+        Point::new(content_min_x, rect.min.y + pad + sizing.font_body + 10.0),
+        Point::new(
+            content_max_x,
+            rect.min.y + pad + sizing.font_body + 10.0 + field_height,
+        ),
+    );
+    let input_text_rect = Rect::from_min_max(
+        Point::new(
+            input_rect.min.x + sizing.text_inset_x,
+            input_rect.min.y + sizing.text_inset_y,
+        ),
+        Point::new(
+            input_rect.max.x - sizing.text_inset_x,
+            input_rect.max.y - sizing.text_inset_y,
+        ),
+    );
+    let pill_gap = sizing.border_width.max(1.0) + 4.0;
+    let two_col_width = ((content_max_x - content_min_x - pill_gap) * 0.5).max(40.0);
+    let playback_top = input_rect.max.y + 10.0;
+    let playback_rects = [
+        Rect::from_min_max(
+            Point::new(content_min_x, playback_top),
+            Point::new(content_min_x + two_col_width, playback_top + field_height),
+        ),
+        Rect::from_min_max(
+            Point::new(content_min_x + two_col_width + pill_gap, playback_top),
+            Point::new(content_max_x, playback_top + field_height),
+        ),
+    ];
+    let sound_top = playback_rects[0].max.y + 12.0;
+    let sound_cols = 3usize;
+    let sound_width = ((content_max_x - content_min_x - pill_gap * (sound_cols - 1) as f32)
+        / sound_cols as f32)
+        .max(40.0);
+    let mut sound_type_rects = Vec::with_capacity(model.browser.tag_sidebar.sound_type_pills.len());
+    for index in 0..model.browser.tag_sidebar.sound_type_pills.len() {
+        let col = index % sound_cols;
+        let row = index / sound_cols;
+        let min_x = content_min_x + (sound_width + pill_gap) * col as f32;
+        let min_y = sound_top + (field_height + pill_gap) * row as f32;
+        sound_type_rects.push(Rect::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new(
+                (min_x + sound_width).min(content_max_x),
+                min_y + field_height,
+            ),
+        ));
+    }
+    let custom_rect = model.browser.tag_sidebar.custom_tag_pill.as_ref().map(|_| {
+        let y = sound_type_rects
+            .last()
+            .map(|rect| rect.max.y + 12.0)
+            .unwrap_or(sound_top);
+        Rect::from_min_max(
+            Point::new(content_min_x, y),
+            Point::new(content_max_x, y + field_height),
+        )
+    });
+    Some(BrowserTagSidebarLayout {
+        input_rect,
+        input_text_rect,
+        playback_rects,
+        sound_type_rects,
+        custom_rect,
+    })
 }

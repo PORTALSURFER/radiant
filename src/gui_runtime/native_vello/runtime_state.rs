@@ -62,6 +62,7 @@ pub(super) enum TextInputTarget {
     #[default]
     None,
     BrowserSearch,
+    BrowserTagSidebar,
     FolderSearch,
     FolderCreate,
     PromptInput,

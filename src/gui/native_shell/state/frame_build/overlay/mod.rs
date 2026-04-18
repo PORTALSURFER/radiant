@@ -7,7 +7,9 @@ mod focus;
 mod waveform;
 
 use self::{
-    browser::{render_browser_context_menu, render_browser_tab_overlay, render_source_context_menu},
+    browser::{
+        render_browser_context_menu, render_browser_tab_overlay, render_source_context_menu,
+    },
     focus::{
         render_browser_focus_overlay, render_folder_focus_overlay, render_source_focus_overlay,
         render_waveform_focus_overlay,
@@ -50,6 +52,27 @@ pub(super) fn render_hover_overlay(
             search_field_rect,
             search_text_rect,
             visual,
+        );
+    }
+    let sidebar_input_rect = shell_state.browser_tag_sidebar_input_rect(layout, model);
+    let sidebar_text_rect = shell_state.browser_tag_sidebar_text_rect(layout, model);
+    if let (Some(input_rect), Some(text_rect), Some(visual)) = (
+        sidebar_input_rect,
+        sidebar_text_rect,
+        shell_state.browser_tag_sidebar_editor_visual.as_ref(),
+    ) {
+        render_active_text_field(
+            primitives,
+            text_runs,
+            style,
+            sizing,
+            input_rect,
+            text_rect,
+            visual,
+            browser_search_field_active_fill(style),
+            browser_search_field_active_border(style),
+            translucent_overlay_color(style.highlight_orange_soft, style.text_primary, 0.22),
+            blend_color(style.text_primary, style.highlight_orange, 0.24),
         );
     }
     let folder_input_rect = shell_state.folder_create_input_rect(layout, model);

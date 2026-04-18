@@ -293,6 +293,8 @@ pub struct BrowserPanelModel {
     pub active_tab_label: Option<String>,
     /// Display label for the currently focused sample, when known.
     pub focused_sample_label: Option<String>,
+    /// Metadata-tag editor sidebar projection scoped to the list tab.
+    pub tag_sidebar: BrowserTagSidebarModel,
     /// Selection anchor in visible-row space.
     pub anchor_visible_row: Option<usize>,
     /// Visible rows rendered by the native browser panel.
@@ -357,6 +359,52 @@ pub struct BrowserActionsModel {
     pub random_navigation_enabled: bool,
     /// Whether browser duplicate cleanup mode is currently enabled.
     pub duplicate_cleanup_active: bool,
+    /// Whether the browser-local tag sidebar is currently open.
+    pub tag_sidebar_open: bool,
+}
+
+/// Tri-state pill state used by the browser metadata editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BrowserTagState {
+    /// No selected rows currently carry the value.
+    #[default]
+    Off,
+    /// Every selected row currently carries the value.
+    On,
+    /// Selected rows disagree about the value.
+    Mixed,
+}
+
+/// One clickable tag pill projected into the browser metadata sidebar.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserTagPillModel {
+    /// Stable identifier for hit testing and automation.
+    pub id: String,
+    /// User-facing pill label.
+    pub label: String,
+    /// Tri-state selection value for the current browser target set.
+    pub state: BrowserTagState,
+}
+
+/// Browser-local metadata sidebar shown beside the sample list.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserTagSidebarModel {
+    /// Whether the sidebar should render in the current browser view.
+    pub open: bool,
+    /// Count of selected rows represented by the sidebar target set.
+    pub selected_count: usize,
+    /// Header line describing the current selection/focus context.
+    pub header_label: String,
+    /// Current custom-tag input value.
+    pub input_value: String,
+    /// Placeholder shown for the custom-tag input when empty.
+    pub input_placeholder: String,
+    /// Exclusive playback-type pills.
+    pub playback_type_pills: [BrowserTagPillModel; 2],
+    /// Exclusive sound-type pills.
+    pub sound_type_pills: Vec<BrowserTagPillModel>,
+    /// Active custom-tag pill when present in the selection.
+    pub custom_tag_pill: Option<BrowserTagPillModel>,
 }
 
 /// Render mode label for the map panel.

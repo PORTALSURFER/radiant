@@ -8,9 +8,10 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
 ) -> BrowserRowsCacheKey {
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
-    let row_capacity = super::scrollbars::browser_rows_capacity(layout.browser_rows, sizing) as u32;
+    let list_rect = browser_rows_list_rect(layout.browser_rows, sizing, model);
+    let row_capacity = super::scrollbars::browser_rows_capacity(list_rect, sizing) as u32;
     let content_rect = super::scrollbars::browser_rows_content_rect(
-        layout.browser_rows,
+        list_rect,
         model.browser.visible_count,
         sizing,
     );
@@ -19,9 +20,8 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         .find(|row| row.focused)
         .map(|row| row.visible_row as u32)
         .unwrap_or(u32::MAX);
-    let window_end = (window_start
-        + super::scrollbars::browser_rows_capacity(layout.browser_rows, sizing))
-    .min(model.browser.rows.len());
+    let window_end = (window_start + super::scrollbars::browser_rows_capacity(list_rect, sizing))
+        .min(model.browser.rows.len());
     let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
     BrowserRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),
@@ -132,7 +132,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     );
     let window = &model.browser.rows[window_start..window_end];
     let content_rect = super::scrollbars::browser_rows_content_rect(
-        layout.browser_rows,
+        browser_rows_list_rect(layout.browser_rows, sizing, model),
         model.browser.visible_count,
         sizing,
     );

@@ -262,12 +262,14 @@ fn top_bar_clusters_reserve_minimum_title_and_action_widths() {
 fn status_segments_remain_non_overlapping_and_bounded() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     assert!(layout.status_left_segment.min.x >= layout.status_bar.min.x);
-    assert!(layout.status_right_segment.max.x <= layout.status_bar.max.x);
+    assert!(layout.status_progress_segment.max.x <= layout.status_bar.max.x);
     assert!(layout.status_left_segment.max.x <= layout.status_center_segment.min.x);
     assert!(layout.status_center_segment.max.x <= layout.status_right_segment.min.x);
+    assert!(layout.status_right_segment.max.x <= layout.status_progress_segment.min.x);
     assert!(layout.status_left_segment.max.y <= layout.status_bar.max.y);
     assert!(layout.status_center_segment.max.y <= layout.status_bar.max.y);
     assert!(layout.status_right_segment.max.y <= layout.status_bar.max.y);
+    assert!(layout.status_progress_segment.max.y <= layout.status_bar.max.y);
 }
 
 #[test]

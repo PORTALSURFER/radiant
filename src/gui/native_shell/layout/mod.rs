@@ -93,6 +93,7 @@ pub(crate) struct ShellLayout {
     pub status_left_segment: Rect,
     pub status_center_segment: Rect,
     pub status_right_segment: Rect,
+    pub status_progress_segment: Rect,
     /// UI scale factor used to derive the layout’s active token set.
     pub ui_scale: f32,
 }
@@ -147,6 +148,7 @@ impl ShellLayout {
         let status_left_segment = status_segments.left;
         let status_center_segment = status_segments.center;
         let status_right_segment = status_segments.right;
+        let status_progress_segment = status_segments.progress;
         let body_min_y = top_bar.max.y;
         let body_max_y = status_bar.min.y;
         let sidebar = Rect::from_min_max(
@@ -293,6 +295,7 @@ impl ShellLayout {
             status_left_segment,
             status_center_segment,
             status_right_segment,
+            status_progress_segment,
             ui_scale,
         }
     }

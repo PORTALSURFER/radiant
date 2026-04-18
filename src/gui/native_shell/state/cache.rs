@@ -128,12 +128,9 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let rows = self.cached_browser_rows(layout, &style, model);
         let viewport_len = rows.len().min(model.browser.visible_count);
-        let scrollbar = browser_scrollbar_layout(
-            layout.browser_rows,
-            rows,
-            model.browser.visible_count,
-            style.sizing,
-        )?;
+        let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
+        let scrollbar =
+            browser_scrollbar_layout(list_rect, rows, model.browser.visible_count, style.sizing)?;
         Some((scrollbar, viewport_len))
     }
 
@@ -214,7 +211,9 @@ fn sync_cached_browser_row_selection(
     window_start: usize,
 ) {
     let model_rows = model.browser.rows.as_slice();
-    let window_end = window_start.saturating_add(rows.len()).min(model_rows.len());
+    let window_end = window_start
+        .saturating_add(rows.len())
+        .min(model_rows.len());
     if window_end.saturating_sub(window_start) == rows.len() {
         for (row, model_row) in rows.iter_mut().zip(&model_rows[window_start..window_end]) {
             row.selected = model_row.selected;

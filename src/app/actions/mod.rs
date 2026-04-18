@@ -416,6 +416,8 @@ pub enum UiAction {
     ToggleBrowserMarkedFilter,
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
+    /// Toggle the browser-local metadata tag sidebar.
+    ToggleBrowserTagSidebar,
     /// Toggle browser duplicate-cleanup mode for the focused browser sample.
     ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous browser sample from focus history.
@@ -444,6 +446,27 @@ pub enum UiAction {
     SetBrowserTab {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
+    },
+    /// Focus the browser metadata custom-tag input field.
+    FocusBrowserTagSidebarInput,
+    /// Set the browser metadata custom-tag input value.
+    SetBrowserTagSidebarInput {
+        /// Full custom-tag input text.
+        value: String,
+    },
+    /// Commit the browser metadata custom-tag input value.
+    CommitBrowserTagSidebarInput,
+    /// Clear the current custom user tag for the browser selection.
+    ClearBrowserTagSidebarUserTag,
+    /// Apply one playback-type value to the browser selection.
+    SetBrowserSidebarLooped {
+        /// Playback type to apply.
+        looped: bool,
+    },
+    /// Apply one sound-type value to the browser selection.
+    SetBrowserSidebarSoundType {
+        /// Canonical sound-type token to apply.
+        token: String,
     },
     /// Focus a specific map sample by stable sample id.
     FocusMapSample {

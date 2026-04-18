@@ -98,6 +98,14 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheKey {
     pub status_right_max_x: u32,
     /// Status right-segment region maximum y-coordinate.
     pub status_right_max_y: u32,
+    /// Status progress-segment region minimum x-coordinate.
+    pub status_progress_min_x: u32,
+    /// Status progress-segment region minimum y-coordinate.
+    pub status_progress_min_y: u32,
+    /// Status progress-segment region maximum x-coordinate.
+    pub status_progress_max_x: u32,
+    /// Status progress-segment region maximum y-coordinate.
+    pub status_progress_max_y: u32,
     /// Status-font size token bits.
     pub font_status_bits: u32,
     /// Effective UI scale token bits.
@@ -117,10 +125,8 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheValue {
     pub center_text_rect: Rect,
     /// Precomputed right status-label rect.
     pub right_text_rect: Rect,
-    /// Precomputed inline progress-label rect.
-    pub progress_label_rect: Rect,
-    /// Precomputed inline progress-counter rect.
-    pub progress_counter_rect: Rect,
+    /// Precomputed progress-slot counter rect.
+    pub progress_text_rect: Rect,
     /// Final left-side footer label.
     pub left_label: String,
     /// Final center footer label when inline progress is inactive.
@@ -129,7 +135,7 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheValue {
     pub right_label: String,
     /// Final inline progress label.
     pub progress_label: String,
-    /// Final inline progress counter.
+    /// Final progress-slot counter.
     pub progress_counter: String,
     /// Whether inline progress copy replaces the center label.
     pub inline_progress_active: bool,

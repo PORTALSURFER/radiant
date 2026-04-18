@@ -147,11 +147,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         action_emitted = true;
                         source_menu_state_changed |= this.shell_state.close_source_context_menu();
                         handled = true;
-                    } else if let Some(action) = this.shell_state.browser_context_menu_action_at_point(
-                        layout,
-                        &this.model,
-                        point,
-                    ) {
+                    } else if let Some(action) = this
+                        .shell_state
+                        .browser_context_menu_action_at_point(layout, &this.model, point)
+                    {
                         this.emit_model_action(action);
                         action_emitted = true;
                         browser_menu_state_changed |= this.shell_state.close_browser_context_menu();

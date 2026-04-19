@@ -15,7 +15,8 @@ fn hovered_folder_row_n_creates_under_hovered_folder() {
                     "Drums", "drums", 1, false, true, false, true, true,
                 )
                 .with_source_index(4),
-            ],
+            ]
+            .into(),
             ..SourcesPanelModel::default()
         },
         ..AppModel::default()
@@ -66,7 +67,8 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
                     root_folder_row(),
                     crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true)
                         .with_source_index(1),
-                ],
+                ]
+                .into(),
                 ..SourcesPanelModel::default()
             },
             ..AppModel::default()

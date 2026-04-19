@@ -290,7 +290,8 @@ mod tests {
     #[test]
     fn copy_hotkey_resolves_in_browser_and_waveform_scopes() {
         for (focus, expected) in COPY_CASES {
-            let resolution = resolve_hotkey_press(None, KeyPress::with_command(KeyCode::C), focus);
+            let resolution =
+                resolve_hotkey_press(None, KeyPress::with_command(KeyCode::C), *focus);
             assert_eq!(resolution.action, *expected, "focus: {focus:?}");
             assert!(resolution.handled, "focus: {focus:?}");
         }
@@ -299,7 +300,8 @@ mod tests {
     #[test]
     fn semicolon_hotkey_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
         for (focus, expected, handled) in SEMICOLON_CASES {
-            let resolution = resolve_hotkey_press(None, KeyPress::new(KeyCode::Semicolon), focus);
+            let resolution =
+                resolve_hotkey_press(None, KeyPress::new(KeyCode::Semicolon), *focus);
             assert_eq!(resolution.action, *expected, "focus: {focus:?}");
             assert_eq!(resolution.handled, *handled, "focus: {focus:?}");
         }

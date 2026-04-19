@@ -10,20 +10,20 @@ fn browser_drag_model() -> AppModel {
             .with_source_index(7),
     ];
     model.sources = SourcesPanelModel {
-        folder_rows: folder_rows.clone(),
+        folder_rows: folder_rows.clone().into(),
         upper_folder_pane: crate::app::FolderPaneModel {
             pane: crate::app::FolderPaneIdModel::Upper,
             title: String::from("Upper"),
             active: true,
             has_source: true,
-            folder_rows: folder_rows.clone(),
+            folder_rows: folder_rows.clone().into(),
             ..crate::app::FolderPaneModel::default()
         },
         lower_folder_pane: crate::app::FolderPaneModel {
             pane: crate::app::FolderPaneIdModel::Lower,
             title: String::from("Lower"),
             has_source: true,
-            folder_rows,
+            folder_rows: folder_rows.into(),
             ..crate::app::FolderPaneModel::default()
         },
         ..SourcesPanelModel::default()

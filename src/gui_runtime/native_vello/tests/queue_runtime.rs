@@ -8,7 +8,8 @@ fn browser_drag_model() -> AppModel {
                 .with_source_index(0),
             crate::app::FolderRowModel::new("Drums", "drums", 1, false, false, false, true, true)
                 .with_source_index(7),
-        ],
+        ]
+        .into(),
         ..SourcesPanelModel::default()
     };
     model
@@ -1436,7 +1437,8 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
                 String::from("/tmp/source_a"),
                 false,
                 false,
-            )],
+            )]
+            .into(),
             folder_rows: vec![
                 crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true),
                 crate::app::FolderRowModel::create_draft(
@@ -1446,7 +1448,8 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
                     None,
                     true,
                 ),
-            ],
+            ]
+            .into(),
             ..SourcesPanelModel::default()
         },
         ..AppModel::default()

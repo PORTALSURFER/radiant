@@ -70,7 +70,12 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     model.sources.rows.push(crate::app::SourceRowModel::new(
         "Pack", "pack", false, false,
     ));
-    model.sources.rows[0].assigned_to_upper_pane = true;
+    model
+        .sources
+        .rows
+        .get_mut(0)
+        .expect("source row should exist")
+        .assigned_to_upper_pane = true;
     model
         .sources
         .upper_folder_pane

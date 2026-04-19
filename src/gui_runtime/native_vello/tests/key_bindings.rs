@@ -32,7 +32,7 @@ impl ImmediateFolderCreateBridge {
             model: AppModel {
                 focus_context: crate::app::FocusContextModel::SourceFolders,
                 sources: SourcesPanelModel {
-                    folder_rows: vec![root_folder_row()],
+                    folder_rows: vec![root_folder_row()].into(),
                     ..SourcesPanelModel::default()
                 },
                 ..AppModel::default()
@@ -63,11 +63,11 @@ impl ImmediateFolderCreateBridge {
                 true,
             )
         };
-        self.model.sources.folder_rows = vec![root_folder_row(), draft];
+        self.model.sources.folder_rows = vec![root_folder_row(), draft].into();
     }
 
     fn clear_draft(&mut self) {
-        self.model.sources.folder_rows.retain(|row| row.is_root);
+        self.model.sources.folder_rows.make_mut().retain(|row| row.is_root);
     }
 
     fn add_created_folder(&mut self, value: String) {
@@ -84,7 +84,8 @@ impl ImmediateFolderCreateBridge {
                 false,
             )
             .with_source_index(1),
-        ];
+        ]
+        .into();
     }
 }
 

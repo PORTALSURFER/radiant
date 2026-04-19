@@ -49,8 +49,8 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
             folder_search_query: String::from(query),
             selected_row: Some(0),
             focused_folder_row: Some(1),
-            rows: vec![source_a, source_b],
-            folder_rows: folder_rows.clone(),
+            rows: vec![source_a, source_b].into(),
+            folder_rows: folder_rows.clone().into(),
             upper_folder_pane: crate::app::FolderPaneModel {
                 pane: crate::app::FolderPaneIdModel::Upper,
                 title: String::from("Upper"),
@@ -60,7 +60,7 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
                 has_source: true,
                 folder_search_query: String::from(query),
                 focused_folder_row: Some(1),
-                folder_rows: folder_rows.clone(),
+                folder_rows: folder_rows.clone().into(),
                 ..crate::app::FolderPaneModel::default()
             },
             lower_folder_pane: crate::app::FolderPaneModel {
@@ -71,7 +71,7 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
                 active: false,
                 has_source: true,
                 focused_folder_row: Some(1),
-                folder_rows,
+                folder_rows: folder_rows.into(),
                 ..crate::app::FolderPaneModel::default()
             },
             ..SourcesPanelModel::default()

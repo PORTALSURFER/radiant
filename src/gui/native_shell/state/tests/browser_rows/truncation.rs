@@ -198,23 +198,36 @@ fn browser_row_selection_changes_reuse_cached_row_geometry() {
     }
     model.browser.visible_count = model.browser.rows.len();
     model.browser.selected_visible_row = Some(0);
-    let first_rows = state.cached_browser_rows(&layout, &style, &model);
-    let first_ptr = first_rows.as_ptr();
+    let (first_ptr, first_selected, second_selected) = {
+        let first_rows = state.cached_browser_rows(&layout, &style, &model);
+        (
+            first_rows.as_ptr(),
+            first_rows[0].selected,
+            first_rows[1].selected,
+        )
+    };
     let first = state.browser_row_truncation_frame_counts();
     assert!(first.lookup_count > 0);
     assert_eq!(first.cache_hit_count, 0);
     assert!(first.cache_miss_count > 0);
-    assert!(first_rows[0].selected);
-    assert!(!first_rows[1].selected);
+    assert!(first_selected);
+    assert!(!second_selected);
 
     model.browser.rows.make_mut()[0].selected = false;
     model.browser.rows.make_mut()[1].selected = true;
     model.browser.selected_visible_row = Some(1);
-    let second_rows = state.cached_browser_rows(&layout, &style, &model);
+    let (second_ptr, second_selected, third_selected) = {
+        let second_rows = state.cached_browser_rows(&layout, &style, &model);
+        (
+            second_rows.as_ptr(),
+            second_rows[0].selected,
+            second_rows[1].selected,
+        )
+    };
     let second = state.browser_row_truncation_frame_counts();
-    assert_eq!(second_rows.as_ptr(), first_ptr);
-    assert!(!second_rows[0].selected);
-    assert!(second_rows[1].selected);
+    assert_eq!(second_ptr, first_ptr);
+    assert!(!second_selected);
+    assert!(third_selected);
     assert_eq!(second.lookup_count, 0);
     assert_eq!(second.cache_miss_count, 0);
     assert_eq!(second.cache_hit_count, 0);

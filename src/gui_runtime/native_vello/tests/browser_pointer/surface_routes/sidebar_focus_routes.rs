@@ -62,11 +62,12 @@ fn empty_source_list_click_routes_focus_sources_panel() {
     let model = AppModel {
         sources: SourcesPanelModel {
             header: String::from("0 sources"),
-            rows: Vec::new(),
+            rows: Vec::new().into(),
             folder_rows: vec![
                 crate::app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
                 crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
-            ],
+            ]
+            .into(),
             ..SourcesPanelModel::default()
         },
         ..AppModel::default()
@@ -232,7 +233,7 @@ fn inline_folder_create_row_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.insert(
+    model.sources.folder_rows.make_mut().insert(
         2,
         crate::app::FolderRowModel::create_draft(
             2,
@@ -266,7 +267,7 @@ fn inline_folder_rename_row_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.insert(
+    model.sources.folder_rows.make_mut().insert(
         2,
         crate::app::FolderRowModel::rename_draft(
             2,

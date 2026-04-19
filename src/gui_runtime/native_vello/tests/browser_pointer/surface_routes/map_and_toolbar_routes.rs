@@ -56,7 +56,7 @@ fn top_bar_volume_meter_click_routes_set_volume_action() {
     while x <= layout.top_bar.max.x {
         let point = Point::new(x, y);
         if shell_state
-            .top_bar_volume_action_at_point(&layout, point)
+            .top_bar_volume_action_at_point(&layout, &model, point)
             .is_some()
         {
             if first_hit_x.is_none() {
@@ -90,7 +90,7 @@ fn status_options_click_routes_open_options_menu_action() {
     let mut shell_state = NativeShellState::new();
     let model = AppModel::default();
     let button = shell_state
-        .status_options_button_rect(&layout)
+        .status_options_button_rect(&layout, &model)
         .expect("status options button should render");
     let point = Point::new(
         (button.min.x + button.max.x) * 0.5,

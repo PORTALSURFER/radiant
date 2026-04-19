@@ -231,19 +231,19 @@ fn focus_overlay_signature_ignores_selected_only_browser_text_changes() {
         true,
         false,
     ));
-    baseline.browser.rows[0].bucket_label = Some(String::from("drums").into());
-    baseline.browser.rows[0].rating_level = 3;
-    baseline.browser.rows[0].missing = true;
+    baseline.browser.rows.make_mut()[0].bucket_label = Some(String::from("drums").into());
+    baseline.browser.rows.make_mut()[0].rating_level = 3;
+    baseline.browser.rows.make_mut()[0].missing = true;
     let shell = FocusOverlayFingerprint {
         has_focus_emphasis: true,
     };
     let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
 
     let mut changed = baseline.clone();
-    changed.browser.rows[0].label = String::from("snare").into();
-    changed.browser.rows[0].bucket_label = Some(String::from("perc").into());
-    changed.browser.rows[0].rating_level = -2;
-    changed.browser.rows[0].missing = false;
+    changed.browser.rows.make_mut()[0].label = String::from("snare").into();
+    changed.browser.rows.make_mut()[0].bucket_label = Some(String::from("perc").into());
+    changed.browser.rows.make_mut()[0].rating_level = -2;
+    changed.browser.rows.make_mut()[0].missing = false;
 
     assert_eq!(
         baseline_signature,
@@ -268,7 +268,7 @@ fn focus_overlay_signature_changes_for_selected_only_browser_marker_state() {
     let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
 
     let mut changed = baseline.clone();
-    changed.browser.rows[0].locked = true;
+    changed.browser.rows.make_mut()[0].locked = true;
 
     assert_ne!(
         baseline_signature,

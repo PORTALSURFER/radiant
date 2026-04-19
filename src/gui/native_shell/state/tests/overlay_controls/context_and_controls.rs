@@ -12,7 +12,12 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         false,
         false,
     ));
-    model.sources.rows[0].assigned_to_upper_pane = true;
+    model
+        .sources
+        .rows
+        .get_mut(0)
+        .expect("source row should exist")
+        .assigned_to_upper_pane = true;
     let row_rect = *state
         .rendered_source_row_rects(&layout, &model)
         .first()
@@ -58,7 +63,12 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
         false,
         false,
     ));
-    model.sources.rows[0].assigned_to_upper_pane = true;
+    model
+        .sources
+        .rows
+        .get_mut(0)
+        .expect("source row should exist")
+        .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
         crate::app::FolderPaneIdModel::Upper,
         0,
@@ -96,7 +106,12 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
         false,
         false,
     ));
-    model.sources.rows[0].assigned_to_upper_pane = true;
+    model
+        .sources
+        .rows
+        .get_mut(0)
+        .expect("source row should exist")
+        .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
         crate::app::FolderPaneIdModel::Upper,
         0,

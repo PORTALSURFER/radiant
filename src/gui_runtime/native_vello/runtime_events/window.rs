@@ -51,7 +51,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
-    pub(super) fn handle_cursor_left(&mut self) {
+    pub(crate) fn handle_cursor_left(&mut self) {
         if self.has_external_drag_candidate() {
             info!(
                 browser_sample_drag = self.browser_sample_drag.is_some(),

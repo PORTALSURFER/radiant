@@ -67,7 +67,11 @@ impl ImmediateFolderCreateBridge {
     }
 
     fn clear_draft(&mut self) {
-        self.model.sources.folder_rows.make_mut().retain(|row| row.is_root);
+        self.model
+            .sources
+            .folder_rows
+            .make_mut()
+            .retain(|row| row.is_root);
     }
 
     fn add_created_folder(&mut self, value: String) {

@@ -242,24 +242,28 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             style.highlight_blue_soft,
         ),
     ];
-    let label_strings: Vec<String> = specs
+    let content = WaveformToolbarSurfaceContent {
+        items: specs
+            .iter()
+            .map(
+                |(label, _, _, display_text, enabled, active, _, _)| WaveformToolbarSurfaceItem {
+                    label: (*label).to_string(),
+                    kind: waveform_toolbar_surface_item_kind(label),
+                    value: display_text.clone(),
+                    enabled: *enabled,
+                    active: *active,
+                },
+            )
+            .collect(),
+    };
+    let surface_layout =
+        resolve_waveform_toolbar_surface_layout(layout.waveform_header, style.sizing, &content);
+    surface_layout
+        .item_rects
         .iter()
-        .map(|(label, _, _, display_text, ..)| waveform_toolbar_layout_label(label, display_text))
-        .collect();
-    let labels: Vec<&str> = label_strings.iter().map(String::as_str).collect();
-    let cluster = Rect::from_min_max(
-        Point::new(
-            layout.waveform_header.min.x + (layout.waveform_header.width() * 0.32),
-            layout.waveform_header.min.y,
-        ),
-        layout.waveform_header.max,
-    );
-    let rects =
-        compute_update_action_button_rects(layout.waveform_header, cluster, style.sizing, &labels);
-    let start_index = specs.len().saturating_sub(rects.len());
-    rects
-        .into_iter()
-        .zip(specs.into_iter().skip(start_index))
+        .copied()
+        .zip(specs)
+        .filter(|(rect, _)| rect.width() > 1.0 && rect.height() > 1.0)
         .map(
             |(
                 rect,
@@ -281,16 +285,14 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         .collect()
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_layout_label(
-    label: &str,
-    display_text: &Option<String>,
-) -> String {
-    if label == "BPM Value" {
-        return display_text
-            .clone()
-            .unwrap_or_else(|| String::from("120.0"));
+fn waveform_toolbar_surface_item_kind(label: &str) -> WaveformToolbarSurfaceItemKind {
+    match label {
+        "BPM Value" => WaveformToolbarSurfaceItemKind::TextInput,
+        "Channel" | "Norm" | "BPM Snap" | "Rel Grid" | "Tr Snap" | "Show Tr" | "Slice" | "Loop" => {
+            WaveformToolbarSurfaceItemKind::Toggle
+        }
+        _ => WaveformToolbarSurfaceItemKind::Button,
     }
-    String::from("Mono")
 }
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_bpm_value_label(

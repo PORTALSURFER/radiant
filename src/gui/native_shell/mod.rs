@@ -19,6 +19,7 @@ mod style;
 mod tests;
 mod top_bar_surface;
 mod waveform_header_surface;
+mod waveform_toolbar_surface;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;

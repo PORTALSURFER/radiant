@@ -3,7 +3,7 @@
 //! This keeps the waveform title/metadata band on the same public
 //! `radiant::layout`, `radiant::runtime`, and `radiant::widgets` hosting
 //! pattern used by the top bar, status bar, and sidebar chrome bands while the
-//! waveform plot and toolbar remain on the compatibility path.
+//! waveform plot, overlays, and edit geometry remain on the compatibility path.
 
 use super::style::SizingTokens;
 use crate::{

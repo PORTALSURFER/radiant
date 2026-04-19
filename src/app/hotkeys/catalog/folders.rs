@@ -3,7 +3,7 @@
 use crate::app::UiAction;
 use crate::gui::input::KeyCode;
 
-use super::super::{HotkeyBinding, HotkeyGesture, FOLDERS_SCOPE};
+use super::super::{FOLDERS_SCOPE, HotkeyBinding, HotkeyGesture};
 
 pub(crate) const TOGGLE_FOLDER_SELECT: HotkeyBinding = HotkeyBinding {
     id: "toggle-folder-select",

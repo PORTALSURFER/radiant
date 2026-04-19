@@ -1,4 +1,4 @@
-use crate::app::{hotkeys::iter_hotkey_bindings, FocusContextModel, UiAction};
+use crate::app::{FocusContextModel, UiAction, hotkeys::iter_hotkey_bindings};
 
 use super::HOTKEY_BINDINGS;
 
@@ -34,12 +34,16 @@ fn source_list_actions_are_scoped_to_sources_focus() {
         .filter(|binding| binding.scope == super::super::SOURCES_SCOPE)
         .collect();
     assert!(!source_actions.is_empty());
-    assert!(source_actions
-        .iter()
-        .any(|binding| matches!(binding.action, UiAction::ReloadFocusedSourceRow)));
-    assert!(source_actions
-        .iter()
-        .any(|binding| matches!(binding.action, UiAction::MoveSourceFocus { delta: -1 })));
+    assert!(
+        source_actions
+            .iter()
+            .any(|binding| matches!(binding.action, UiAction::ReloadFocusedSourceRow))
+    );
+    assert!(
+        source_actions
+            .iter()
+            .any(|binding| matches!(binding.action, UiAction::MoveSourceFocus { delta: -1 }))
+    );
     assert!(iter_hotkey_bindings().all(|binding| {
         binding.scope != super::super::SOURCES_SCOPE
             || binding.scope.matches(FocusContextModel::SourcesList)

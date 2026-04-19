@@ -48,7 +48,9 @@ pub(super) fn build_top_bar_automation(
             })],
         ));
     }
-    children.push(super::dialogs::update_panel_automation(layout, model, &style));
+    children.push(super::dialogs::update_panel_automation(
+        layout, model, &style,
+    ));
     AutomationNodeSnapshot {
         id: super::helpers::node_id("shell.top_bar"),
         role: AutomationRole::Panel,

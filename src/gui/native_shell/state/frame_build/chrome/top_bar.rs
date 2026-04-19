@@ -13,7 +13,13 @@ pub(super) fn render_top_bar_controls(
         &top_bar_surface_content(ctx.model),
     );
     render_volume_controls(state, ctx, primitives, text_runs, &surface);
-    render_options_button(state, ctx, primitives, text_runs, surface.options_button_rect);
+    render_options_button(
+        state,
+        ctx,
+        primitives,
+        text_runs,
+        surface.options_button_rect,
+    );
     render_update_buttons(ctx, primitives, text_runs, &surface.update_buttons);
 }
 

@@ -3,7 +3,7 @@
 use crate::app::{BrowserTagTarget, UiAction};
 use crate::gui::input::KeyCode;
 
-use super::super::{HotkeyBinding, HotkeyGesture, KeyPress, GLOBAL_SCOPE};
+use super::super::{GLOBAL_SCOPE, HotkeyBinding, HotkeyGesture, KeyPress};
 
 pub(crate) const UNDO_CTRL_Z: HotkeyBinding = HotkeyBinding {
     id: "undo-ctrl-z",

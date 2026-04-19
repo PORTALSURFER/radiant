@@ -152,8 +152,14 @@ pub(crate) fn resolve_top_bar_surface_layout(
     let surface = build_top_bar_surface(content, sizing, top_bar.width());
     let output = layout_tree(&surface.layout_node(), top_bar);
     let empty = Rect::from_min_max(top_bar.min, top_bar.min);
-    let title_cluster = clamp_rect_to_bounds(rect_for(&output.rects, TOP_TITLE_CLUSTER_ID, empty), top_bar);
-    let action_cluster = clamp_rect_to_bounds(rect_for(&output.rects, TOP_ACTION_CLUSTER_ID, empty), top_bar);
+    let title_cluster = clamp_rect_to_bounds(
+        rect_for(&output.rects, TOP_TITLE_CLUSTER_ID, empty),
+        top_bar,
+    );
+    let action_cluster = clamp_rect_to_bounds(
+        rect_for(&output.rects, TOP_ACTION_CLUSTER_ID, empty),
+        top_bar,
+    );
     let options_button_rect = rect_for(&output.rects, TOP_OPTIONS_BUTTON_ID, empty);
     let update_buttons = content
         .update_actions
@@ -161,7 +167,11 @@ pub(crate) fn resolve_top_bar_surface_layout(
         .enumerate()
         .filter_map(|(index, spec)| {
             let rect = clamp_rect_to_bounds(
-                rect_for(&output.rects, TOP_UPDATE_BUTTON_BASE_ID + index as u64, empty),
+                rect_for(
+                    &output.rects,
+                    TOP_UPDATE_BUTTON_BASE_ID + index as u64,
+                    empty,
+                ),
                 top_bar,
             );
             (rect.width() > 0.0 && rect.height() > 0.0).then(|| TopBarUpdateButtonLayout {
@@ -173,11 +183,24 @@ pub(crate) fn resolve_top_bar_surface_layout(
     TopBarSurfaceLayout {
         title_cluster,
         action_cluster,
-        title_text_rect: clamp_rect_to_bounds(rect_for(&output.rects, TOP_TITLE_TEXT_ID, empty), top_bar),
-        volume_meter_rect: clamp_rect_to_bounds(rect_for(&output.rects, TOP_VOLUME_METER_ID, empty), top_bar),
-        volume_value_rect: clamp_rect_to_bounds(rect_for(&output.rects, TOP_VOLUME_VALUE_ID, empty), top_bar),
-        volume_label_rect: clamp_rect_to_bounds(rect_for(&output.rects, TOP_VOLUME_LABEL_ID, empty), top_bar),
-        options_button_rect: (options_button_rect.width() > 0.0 && options_button_rect.height() > 0.0)
+        title_text_rect: clamp_rect_to_bounds(
+            rect_for(&output.rects, TOP_TITLE_TEXT_ID, empty),
+            top_bar,
+        ),
+        volume_meter_rect: clamp_rect_to_bounds(
+            rect_for(&output.rects, TOP_VOLUME_METER_ID, empty),
+            top_bar,
+        ),
+        volume_value_rect: clamp_rect_to_bounds(
+            rect_for(&output.rects, TOP_VOLUME_VALUE_ID, empty),
+            top_bar,
+        ),
+        volume_label_rect: clamp_rect_to_bounds(
+            rect_for(&output.rects, TOP_VOLUME_LABEL_ID, empty),
+            top_bar,
+        ),
+        options_button_rect: (options_button_rect.width() > 0.0
+            && options_button_rect.height() > 0.0)
             .then_some(clamp_rect_to_bounds(options_button_rect, top_bar)),
         update_buttons,
     }
@@ -213,7 +236,12 @@ fn build_top_bar_surface(
     let volume_gap = sizing.action_button_gap.max(2.0);
     let button_height = top_bar_button_height(sizing);
     let options_button_width = top_bar_options_button_width(sizing, button_height);
-    let update_widths = visible_update_widths(&content.update_actions, action_cluster_width, options_button_width, sizing);
+    let update_widths = visible_update_widths(
+        &content.update_actions,
+        action_cluster_width,
+        options_button_width,
+        sizing,
+    );
     let visible_update_count = update_widths.len();
 
     UiSurface::new(SurfaceNode::container(
@@ -313,18 +341,31 @@ fn build_title_cluster(
                         SurfaceNode::widget(
                             WidgetSpec::Canvas(CanvasWidget::new(
                                 TOP_VOLUME_METER_ID,
-                                WidgetSizing::fixed(Vector2::new(meter_width.max(1.0), meter_height.max(1.0))),
+                                WidgetSizing::fixed(Vector2::new(
+                                    meter_width.max(1.0),
+                                    meter_height.max(1.0),
+                                )),
                             )),
                             WidgetMessageMapper::None,
                         ),
                     ),
                     SurfaceChild::new(
                         fixed_slot(value_width),
-                        text_widget(TOP_VOLUME_VALUE_ID, &content.volume_value, value_width, sizing.font_meta),
+                        text_widget(
+                            TOP_VOLUME_VALUE_ID,
+                            &content.volume_value,
+                            value_width,
+                            sizing.font_meta,
+                        ),
                     ),
                     SurfaceChild::new(
                         fixed_slot(label_width),
-                        text_widget(TOP_VOLUME_LABEL_ID, &content.volume_label, label_width, sizing.font_meta),
+                        text_widget(
+                            TOP_VOLUME_LABEL_ID,
+                            &content.volume_label,
+                            label_width,
+                            sizing.font_meta,
+                        ),
                     ),
                     SurfaceChild::new(
                         SlotParams::fill(),
@@ -349,7 +390,10 @@ fn build_action_cluster(
         SlotParams::fill(),
         spacer_widget(TOP_ACTION_SPACER_ID),
     ));
-    let hidden_count = content.update_actions.len().saturating_sub(visible_update_count);
+    let hidden_count = content
+        .update_actions
+        .len()
+        .saturating_sub(visible_update_count);
     for (index, width) in update_widths.iter().enumerate() {
         let spec = &content.update_actions[hidden_count + index];
         children.push(SurfaceChild::new(
@@ -431,11 +475,13 @@ fn visible_update_widths(
     options_width: f32,
     sizing: SizingTokens,
 ) -> Vec<f32> {
-    let available_width = (action_cluster_width - options_width - sizing.action_button_gap.max(1.0)).max(0.0);
+    let available_width =
+        (action_cluster_width - options_width - sizing.action_button_gap.max(1.0)).max(0.0);
     let widths: Vec<f32> = actions
         .iter()
         .map(|spec| {
-            (spec.label.chars().count() as f32 * (sizing.font_meta * 0.62) + (sizing.text_inset_x * 2.0))
+            (spec.label.chars().count() as f32 * (sizing.font_meta * 0.62)
+                + (sizing.text_inset_x * 2.0))
                 .clamp(42.0, 84.0)
         })
         .collect();
@@ -566,15 +612,27 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_top_bar_surface(&content(), style.sizing, 1280.0);
         assert_eq!(
-            surface.find_widget(TOP_TITLE_TEXT_ID).expect("title").widget().kind(),
+            surface
+                .find_widget(TOP_TITLE_TEXT_ID)
+                .expect("title")
+                .widget()
+                .kind(),
             WidgetKind::Text
         );
         assert_eq!(
-            surface.find_widget(TOP_VOLUME_METER_ID).expect("meter").widget().kind(),
+            surface
+                .find_widget(TOP_VOLUME_METER_ID)
+                .expect("meter")
+                .widget()
+                .kind(),
             WidgetKind::Canvas
         );
         assert_eq!(
-            surface.find_widget(TOP_OPTIONS_BUTTON_ID).expect("options").widget().kind(),
+            surface
+                .find_widget(TOP_OPTIONS_BUTTON_ID)
+                .expect("options")
+                .widget()
+                .kind(),
             WidgetKind::Button
         );
     }
@@ -583,7 +641,10 @@ mod tests {
     fn top_bar_surface_layout_keeps_clusters_and_controls_inside_band() {
         for viewport_width in [820.0, 1280.0, 2300.0] {
             let style = StyleTokens::for_viewport_width(viewport_width);
-            let bar = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(viewport_width, style.sizing.top_bar_height));
+            let bar = Rect::from_min_max(
+                Point::new(0.0, 0.0),
+                Point::new(viewport_width, style.sizing.top_bar_height),
+            );
             let layout = resolve_top_bar_surface_layout(bar, style.sizing, &content());
             assert_inside(bar, layout.title_cluster);
             assert_inside(bar, layout.action_cluster);
@@ -604,7 +665,10 @@ mod tests {
     #[test]
     fn top_bar_surface_preserves_rightmost_options_button() {
         let style = StyleTokens::for_viewport_width(1280.0);
-        let bar = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(1280.0, style.sizing.top_bar_height));
+        let bar = Rect::from_min_max(
+            Point::new(0.0, 0.0),
+            Point::new(1280.0, style.sizing.top_bar_height),
+        );
         let layout = resolve_top_bar_surface_layout(bar, style.sizing, &content());
         let options = layout.options_button_rect.expect("options button");
         let rightmost_update = layout

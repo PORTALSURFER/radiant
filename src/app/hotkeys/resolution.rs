@@ -4,7 +4,7 @@
 //! so tests can lock down overloaded gesture behavior without depending on how
 //! the bindings are declared.
 
-use super::{FocusContextModel, KeyPress, HOTKEY_BINDINGS};
+use super::{FocusContextModel, HOTKEY_BINDINGS, KeyPress};
 
 /// Result of resolving one keypress against the catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,7 +91,7 @@ mod tests {
     use crate::app::{FocusContextModel, UiAction};
     use crate::gui::input::KeyCode;
 
-    use super::{resolve_hotkey_press, HotkeyResolution, KeyPress};
+    use super::{HotkeyResolution, KeyPress, resolve_hotkey_press};
 
     const COPY_CASES: &[(FocusContextModel, Option<UiAction>)] = &[
         (

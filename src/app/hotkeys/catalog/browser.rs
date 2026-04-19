@@ -3,7 +3,7 @@
 use crate::app::UiAction;
 use crate::gui::input::KeyCode;
 
-use super::super::{HotkeyBinding, HotkeyGesture, KeyPress, BROWSER_SCOPE};
+use super::super::{BROWSER_SCOPE, HotkeyBinding, HotkeyGesture, KeyPress};
 
 pub(crate) const SEARCH_BROWSER: HotkeyBinding = HotkeyBinding {
     id: "search-browser",

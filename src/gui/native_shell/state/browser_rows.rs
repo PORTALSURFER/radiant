@@ -215,4 +215,3 @@ const BROWSER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 const FOLDER_VIEW_EDGE_MARGIN_ROWS: usize = 2;
 /// Horizontal gap left between folder rows and the visual scrollbar lane.
 const FOLDER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
-

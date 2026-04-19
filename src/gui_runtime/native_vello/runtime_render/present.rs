@@ -82,6 +82,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(in crate::gui_runtime::native_vello) fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+        if !self.first_frame_presented {
+            self.startup_timing.mark_first_redraw_started();
+        }
         self.redraw_count = self.redraw_count.saturating_add(1);
         self.redraw_requested = false;
         let now = Instant::now();

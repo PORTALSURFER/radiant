@@ -20,6 +20,13 @@ fn standard_present_mode_candidates_use_vsync_only() {
 }
 
 #[test]
+fn startup_renderer_options_only_enable_area_antialiasing() {
+    let options = startup_renderer_options();
+
+    assert_eq!(options.antialiasing_support, AaSupport::area_only());
+}
+
+#[test]
 fn select_present_mode_prefers_mailbox_for_high_refresh_when_supported() {
     let supported_present_modes = [
         wgpu::PresentMode::Mailbox,

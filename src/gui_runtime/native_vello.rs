@@ -32,7 +32,7 @@ use std::{
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
-    AaConfig, Glyph, RenderParams, Renderer, RendererOptions, Scene,
+    AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
     kurbo::{Affine, Circle, Rect as KurboRect},
     peniko::{Blob, Color, Fill, FontData, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
@@ -126,6 +126,17 @@ fn present_mode_is_supported(
         present_mode,
         wgpu::PresentMode::AutoVsync | wgpu::PresentMode::AutoNoVsync
     ) || supported_present_modes.contains(&present_mode)
+}
+
+/// Build renderer startup options for the native shell's fixed AA strategy.
+///
+/// The native runtime currently renders every frame with [`AaConfig::Area`], so
+/// startup should avoid compiling MSAA shader variants that will never be used.
+fn startup_renderer_options() -> RendererOptions {
+    RendererOptions {
+        antialiasing_support: AaSupport::area_only(),
+        ..RendererOptions::default()
+    }
 }
 
 /// Convert one logical pointer point into lossless-enough action coordinates.

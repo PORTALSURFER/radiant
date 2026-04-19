@@ -234,6 +234,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 return None;
             }
         };
+        self.startup_timing.mark_wgpu_surface_created();
         let dev_id = match pollster::block_on(render_ctx.device(Some(&surface))) {
             Some(dev_id) => dev_id,
             None => {
@@ -242,6 +243,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 return None;
             }
         };
+        self.startup_timing.mark_wgpu_device_ready();
         let supported_present_modes = surface
             .get_capabilities(render_ctx.devices[dev_id].adapter())
             .present_modes;
@@ -283,7 +285,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     ) -> Option<Renderer> {
         let dev_handle = &render_ctx.devices[render_surface.dev_id];
         info!("radiant native vello: creating renderer");
-        let renderer = match Renderer::new(&dev_handle.device, RendererOptions::default()) {
+        self.startup_timing.mark_renderer_started();
+        let renderer = match Renderer::new(&dev_handle.device, startup_renderer_options()) {
             Ok(renderer) => renderer,
             Err(err) => {
                 error!("radiant native vello: failed to create renderer: {:?}", err);

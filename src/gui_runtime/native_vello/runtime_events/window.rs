@@ -11,6 +11,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if self.window.is_none() {
             self.initialize_runtime(event_loop);
+            if !self.first_frame_presented {
+                self.redraw(event_loop);
+            }
             self.request_redraw_if_needed();
         }
     }

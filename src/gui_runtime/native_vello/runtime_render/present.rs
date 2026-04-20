@@ -3,7 +3,7 @@ use super::*;
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Reveal the startup window and request another redraw when the first present
     /// still needs to land on a backend that may have throttled hidden-window work.
-    fn reveal_startup_window(&mut self) {
+    pub(in crate::gui_runtime::native_vello) fn reveal_startup_window(&mut self) {
         if let Some(window) = self.window.as_ref() {
             window.set_visible(true);
             if !self.first_frame_presented {
@@ -13,6 +13,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.startup_window_visible = true;
         self.startup_reveal_deadline = None;
+        self.startup_timing.mark_window_revealed();
     }
 
     /// Reveal the native window after startup sequencing reaches a stable frame.

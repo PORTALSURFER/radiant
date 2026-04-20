@@ -3,4 +3,5 @@
 mod first_frame;
 mod initialization;
 mod layout;
+mod native_shell;
 mod policy;

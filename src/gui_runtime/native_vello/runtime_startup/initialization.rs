@@ -160,6 +160,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let Some(window) = self.create_startup_window(event_loop) else {
             return;
         };
+        self.window_id = Some(window.id());
+        #[cfg(target_os = "windows")]
+        self.install_external_drag_hwnd(window.as_ref());
+        self.window = Some(Arc::clone(&window));
+        self.maybe_reveal_startup_window_before_renderer_ready();
 
         let mut render_ctx = RenderContext::new();
         let size = window.inner_size();
@@ -181,9 +186,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         };
 
-        self.window_id = Some(window.id());
-        #[cfg(target_os = "windows")]
-        self.install_external_drag_hwnd(window.as_ref());
         self.window = Some(window);
         self.render_ctx = Some(render_ctx);
         self.render_surface = Some(render_surface);

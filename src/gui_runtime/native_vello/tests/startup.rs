@@ -107,6 +107,25 @@ fn startup_defaults_match_platform_startup_strategy() {
 }
 
 #[test]
+fn pre_renderer_startup_reveal_marks_window_visible_and_requests_redraw() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    runner.maybe_reveal_startup_window_before_renderer_ready();
+
+    #[cfg(target_os = "windows")]
+    {
+        assert!(runner.startup_window_visible);
+        assert_eq!(runner.redraw_requested, runner.window.is_some());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        assert!(!runner.startup_window_visible);
+        assert!(!runner.redraw_requested);
+    }
+}
+
+#[test]
 fn hidden_startup_arms_reveal_deadline_before_first_present() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
@@ -159,6 +178,11 @@ fn startup_window_reveals_on_first_present_without_deferred_pull() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.startup_model_pull_pending = false;
+    runner.startup_timing.mark_init_started();
+    runner.startup_timing.mark_window_created();
+    runner.startup_timing.mark_surface_ready();
+    runner.startup_timing.mark_renderer_ready();
+    runner.startup_timing.mark_first_scene_ready();
 
     runner.complete_first_present();
 
@@ -166,6 +190,22 @@ fn startup_window_reveals_on_first_present_without_deferred_pull() {
     assert!(runner.first_frame_presented);
     assert!(!runner.startup_deferred_model_refresh_pending);
     assert_eq!(runner.startup_reveal_deadline, None);
+    assert!(runner.startup_timing.did_emit_summary());
+}
+
+#[test]
+fn startup_summary_falls_back_to_first_present_when_window_reveal_is_untracked() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = false;
+    runner.startup_timing.mark_init_started();
+    runner.startup_timing.mark_window_created();
+    runner.startup_timing.mark_surface_ready();
+    runner.startup_timing.mark_renderer_ready();
+    runner.startup_timing.mark_first_scene_ready();
+
+    runner.complete_first_present();
+
     assert!(runner.startup_timing.did_emit_summary());
 }
 
@@ -223,7 +263,7 @@ fn startup_window_reveals_after_placeholder_scene_when_deferred_pull_is_enabled(
 
     assert!(runner.startup_window_visible);
     assert_eq!(runner.startup_reveal_deadline, None);
-    assert!(runner.redraw_requested);
+    assert_eq!(runner.redraw_requested, runner.window.is_some());
 }
 
 #[test]

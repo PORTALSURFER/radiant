@@ -36,11 +36,13 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
         0
     );
     assert_eq!(runner.chrome_motion_overlay_frame_cache.text_runs.len(), 0);
-    assert!(runner
-        .frame_cache
-        .text_runs
-        .iter()
-        .any(|run| run.text == crate::app::DEFAULT_APP_TITLE));
+    assert!(
+        runner
+            .frame_cache
+            .text_runs
+            .iter()
+            .any(|run| run.text == crate::app::DEFAULT_APP_TITLE)
+    );
 }
 
 #[test]
@@ -60,11 +62,13 @@ fn deferred_startup_fallback_rebuild_uses_placeholder_scene_before_first_present
 
     runner.rebuild_scene_if_needed();
 
-    assert!(runner
-        .frame_cache
-        .text_runs
-        .iter()
-        .any(|run| run.text.contains("Starting interface")));
+    assert!(
+        runner
+            .frame_cache
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Starting interface"))
+    );
 }
 
 #[test]
@@ -84,11 +88,13 @@ fn startup_default_rebuild_skips_placeholder_scene_before_first_present() {
 
     runner.rebuild_scene_if_needed();
 
-    assert!(!runner
-        .frame_cache
-        .text_runs
-        .iter()
-        .any(|run| run.text.contains("Starting interface")));
+    assert!(
+        !runner
+            .frame_cache
+            .text_runs
+            .iter()
+            .any(|run| run.text.contains("Starting interface"))
+    );
 }
 
 #[test]

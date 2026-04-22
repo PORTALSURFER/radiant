@@ -77,9 +77,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
         }
         self.maybe_reveal_startup_window();
-        if !self.startup_deferred_model_refresh_pending {
-            self.startup_timing.maybe_emit_summary();
-        }
+        self.startup_timing.maybe_emit_summary();
     }
 
     pub(in crate::gui_runtime::native_vello) fn redraw(&mut self, event_loop: &ActiveEventLoop) {

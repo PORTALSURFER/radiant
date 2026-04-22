@@ -1,6 +1,7 @@
 use super::*;
 
 const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
+const STARTUP_PROFILE_LOG_PREFIX: &str = "[native-vello-startup]";
 
 /// Startup lifecycle timing breakdown for first paint and deferred refresh.
 #[derive(Debug, Default)]
@@ -72,24 +73,16 @@ impl StartupTimingProfile {
         if self.summary_emitted {
             return;
         }
-        let (
-            Some(init_started_at),
-            Some(window_created_at),
-            Some(surface_ready_at),
-            Some(renderer_ready_at),
-            Some(first_scene_ready_at),
-            Some(first_presented_at),
-        ) = (
+        let (Some(init_started_at), Some(window_created_at), Some(first_presented_at)) = (
             self.init_started_at,
             self.window_created_at,
-            self.surface_ready_at,
-            self.renderer_ready_at,
-            self.first_scene_ready_at,
             self.first_presented_at,
-        )
-        else {
+        ) else {
             return;
         };
+        let surface_ready_at = self.surface_ready_at.unwrap_or(first_presented_at);
+        let renderer_ready_at = self.renderer_ready_at.unwrap_or(first_presented_at);
+        let first_scene_ready_at = self.first_scene_ready_at.unwrap_or(first_presented_at);
         let deferred_model_refresh_done_at = self
             .deferred_model_refresh_done_at
             .unwrap_or(first_presented_at);
@@ -143,7 +136,7 @@ impl StartupTimingProfile {
         );
         if self.enabled {
             eprintln!(
-                "[native-vello-startup] window_create_ms={window_create_ms:.3} \
+                "{STARTUP_PROFILE_LOG_PREFIX} window_create_ms={window_create_ms:.3} \
 window_revealed_ms={window_revealed_ms:.3} \
 wgpu_surface_create_ms={wgpu_surface_create_ms:.3} \
 wgpu_device_ready_ms={wgpu_device_ready_ms:.3} \
@@ -158,8 +151,40 @@ deferred_model_refresh_total_ms={deferred_model_refresh_total_ms:.3}"
         self.summary_emitted = true;
     }
 
+    /// Return the explicit startup-profile failure reason for a run that exited
+    /// before first present, if startup had already begun.
+    fn failure_reason(&self) -> Option<&'static str> {
+        if self.summary_emitted
+            || self.first_presented_at.is_some()
+            || self.init_started_at.is_none()
+        {
+            return None;
+        }
+        Some("startup_exited_before_first_present")
+    }
+
+    fn emit_failure_reason_if_needed(&self) {
+        let Some(reason) = self.failure_reason() else {
+            return;
+        };
+        if self.enabled {
+            eprintln!("{STARTUP_PROFILE_LOG_PREFIX} status=failed reason={reason}");
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn did_emit_summary(&self) -> bool {
         self.summary_emitted
+    }
+
+    #[cfg(test)]
+    pub(super) fn failure_reason_for_test(&self) -> Option<&'static str> {
+        self.failure_reason()
+    }
+}
+
+impl Drop for StartupTimingProfile {
+    fn drop(&mut self) {
+        self.emit_failure_reason_if_needed();
     }
 }

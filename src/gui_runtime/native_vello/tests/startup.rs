@@ -36,13 +36,11 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
         0
     );
     assert_eq!(runner.chrome_motion_overlay_frame_cache.text_runs.len(), 0);
-    assert!(
-        runner
-            .frame_cache
-            .text_runs
-            .iter()
-            .any(|run| run.text == crate::app::DEFAULT_APP_TITLE)
-    );
+    assert!(runner
+        .frame_cache
+        .text_runs
+        .iter()
+        .any(|run| run.text == crate::app::DEFAULT_APP_TITLE));
 }
 
 #[test]
@@ -62,13 +60,11 @@ fn deferred_startup_fallback_rebuild_uses_placeholder_scene_before_first_present
 
     runner.rebuild_scene_if_needed();
 
-    assert!(
-        runner
-            .frame_cache
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Starting interface"))
-    );
+    assert!(runner
+        .frame_cache
+        .text_runs
+        .iter()
+        .any(|run| run.text.contains("Starting interface")));
 }
 
 #[test]
@@ -88,13 +84,11 @@ fn startup_default_rebuild_skips_placeholder_scene_before_first_present() {
 
     runner.rebuild_scene_if_needed();
 
-    assert!(
-        !runner
-            .frame_cache
-            .text_runs
-            .iter()
-            .any(|run| run.text.contains("Starting interface"))
-    );
+    assert!(!runner
+        .frame_cache
+        .text_runs
+        .iter()
+        .any(|run| run.text.contains("Starting interface")));
 }
 
 #[test]
@@ -294,13 +288,49 @@ fn deferred_startup_summary_waits_for_follow_up_refresh() {
 
     runner.complete_first_present();
 
-    assert!(!runner.startup_timing.did_emit_summary());
+    assert!(runner.startup_timing.did_emit_summary());
+}
 
-    runner.startup_deferred_model_refresh_pending = true;
-    runner.startup_deferred_model_refresh_pending = false;
-    runner.startup_reveal_deadline = None;
-    runner.startup_timing.mark_deferred_model_refresh_done();
-    runner.startup_timing.maybe_emit_summary();
+#[test]
+fn startup_summary_emits_after_first_present_even_without_first_scene_marker() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    runner.startup_model_pull_pending = false;
+    runner.startup_timing.mark_init_started();
+    runner.startup_timing.mark_window_created();
+    runner.startup_timing.mark_surface_ready();
+    runner.startup_timing.mark_renderer_ready();
+
+    runner.complete_first_present();
 
     assert!(runner.startup_timing.did_emit_summary());
+}
+
+#[test]
+fn startup_profile_failure_reason_is_explicit_before_first_present() {
+    let mut timing = StartupTimingProfile::default();
+    timing.mark_init_started();
+    timing.mark_window_created();
+    timing.mark_surface_ready();
+    timing.mark_renderer_ready();
+    timing.mark_first_scene_ready();
+
+    assert_eq!(
+        timing.failure_reason_for_test(),
+        Some("startup_exited_before_first_present")
+    );
+}
+
+#[test]
+fn startup_profile_failure_reason_clears_after_summary_emits() {
+    let mut timing = StartupTimingProfile::default();
+    timing.mark_init_started();
+    timing.mark_window_created();
+    timing.mark_surface_ready();
+    timing.mark_renderer_ready();
+    timing.mark_first_scene_ready();
+    timing.mark_first_presented();
+    timing.maybe_emit_summary();
+
+    assert_eq!(timing.failure_reason_for_test(), None);
 }

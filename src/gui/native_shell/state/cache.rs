@@ -210,17 +210,17 @@ fn sync_cached_browser_row_selection(
     model: &AppModel,
     window_start: usize,
 ) {
+    let selected_visible_row = model.browser.selected_visible_row;
     let model_rows = model.browser.rows.as_slice();
     let window_end = window_start
         .saturating_add(rows.len())
         .min(model_rows.len());
     if window_end.saturating_sub(window_start) == rows.len() {
         for (row, model_row) in rows.iter_mut().zip(&model_rows[window_start..window_end]) {
-            row.selected = model_row.selected;
+            row.selected = model_row.selected || selected_visible_row == Some(row.visible_row);
         }
         return;
     }
-    let selected_visible_row = model.browser.selected_visible_row;
     for row in rows {
         let selected = selected_visible_row == Some(row.visible_row);
         row.selected = selected;

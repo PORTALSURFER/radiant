@@ -75,7 +75,18 @@ fn toolbar_search_field_uses_ratio_width_inside_full_host() {
         sections
             .action_slots
             .iter()
+            .take(2)
             .all(|rect| (rect.width() - rect.height()).abs() <= 0.01)
+    );
+    assert!(
+        sections.action_slots[2].width() >= sections.action_slots[0].width(),
+        "right-side status slot should remain at least as wide as the square action buttons"
+    );
+    assert!(
+        sections
+            .action_slots
+            .iter()
+            .all(|rect| rect.min.y >= toolbar.min.y && rect.max.y <= toolbar.max.y)
     );
     assert!(
         sections

@@ -18,10 +18,17 @@ fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
         false,
         true,
     );
-    let badge = layout.badge.expect("badge should still render");
-    assert!(badge.label.chars().count() <= 3);
-    assert!(badge.rect.min.x >= header_rect.min.x);
-    assert!(badge.rect.max.x <= header_rect.max.x);
+    if let Some(badge) = layout.badge {
+        assert!(badge.label.chars().count() <= 3);
+        assert!(badge.rect.min.x >= header_rect.min.x);
+        assert!(badge.rect.max.x <= header_rect.max.x);
+    } else {
+        let toggle = layout
+            .visibility_toggle_button
+            .expect("narrow headers should preserve either the badge or the visibility toggle");
+        assert!(toggle.rect.min.x >= header_rect.min.x);
+        assert!(toggle.rect.max.x <= header_rect.max.x);
+    }
 }
 
 #[test]

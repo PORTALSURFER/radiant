@@ -135,6 +135,47 @@ fn assert_text_run_inside_band(run: &TextRun, band: Rect) {
     assert!(run.position.y + run.font_size <= band.max.y + 0.5);
 }
 
+fn playhead_trail_primitive_bounds(
+    primitive: &Primitive,
+    playhead_rect: Rect,
+    style: &StyleTokens,
+) -> Option<(f32, f32)> {
+    match primitive {
+        Primitive::Rect(rect)
+            if rect.rect.min.y == playhead_rect.min.y
+                && rect.rect.max.y == playhead_rect.max.y
+                && rect.color.a > 0
+                && rect.color != style.accent_copper =>
+        {
+            Some((rect.rect.min.x, rect.rect.max.x))
+        }
+        Primitive::LinearGradient(gradient)
+            if gradient.rect.min.y == playhead_rect.min.y
+                && gradient.rect.max.y == playhead_rect.max.y
+                && (gradient.start_color.a > 0 || gradient.end_color.a > 0)
+                && gradient.start_color != style.accent_copper
+                && gradient.end_color != style.accent_copper =>
+        {
+            Some((gradient.rect.min.x, gradient.rect.max.x))
+        }
+        _ => None,
+    }
+}
+
+fn playhead_trail_primitive_count(
+    frame: &NativeViewFrame,
+    playhead_rect: Rect,
+    style: &StyleTokens,
+) -> usize {
+    frame
+        .primitives
+        .iter()
+        .filter(|primitive| {
+            playhead_trail_primitive_bounds(primitive, playhead_rect, style).is_some()
+        })
+        .count()
+}
+
 mod browser_rows;
 mod browser_scrollbars;
 mod browser_toolbar;

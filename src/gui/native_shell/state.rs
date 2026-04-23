@@ -32,7 +32,10 @@ use super::{
         waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
         waveform_view_window_from_bounds,
     },
-    paint::{DrawImage, FillCircle, FillRect, NativeViewFrame, Primitive, TextAlign, TextRun},
+    paint::{
+        DrawImage, FillCircle, FillLinearGradient, FillRect, NativeViewFrame, Primitive, TextAlign,
+        TextRun,
+    },
     sidebar_surface::{
         SidebarFooterActionSpec, SidebarFooterSurfaceContent, SidebarFooterSurfaceLayout,
         SidebarHeaderSurfaceContent, resolve_sidebar_footer_surface_layout,

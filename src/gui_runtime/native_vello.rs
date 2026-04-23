@@ -33,8 +33,8 @@ use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, Circle, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData, ImageAlphaType, ImageData, ImageFormat},
+    kurbo::{Affine, Circle, Point as KurboPoint, Rect as KurboRect},
+    peniko::{Blob, Color, Fill, FontData, Gradient, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{

@@ -34,6 +34,25 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         ),
                     );
                 }
+                Primitive::LinearGradient(fill) => {
+                    let mut gradient = Gradient::new_linear(
+                        KurboPoint::new(fill.start.x as f64, fill.start.y as f64),
+                        KurboPoint::new(fill.end.x as f64, fill.end.y as f64),
+                    );
+                    gradient
+                        .stops
+                        .push((0.0, color_from_rgba(fill.start_color)).into());
+                    gradient
+                        .stops
+                        .push((1.0, color_from_rgba(fill.end_color)).into());
+                    scene.fill(
+                        Fill::NonZero,
+                        Affine::IDENTITY,
+                        &gradient,
+                        None,
+                        &to_kurbo_rect(fill.rect),
+                    );
+                }
                 Primitive::Image(draw) => {
                     let (Ok(width), Ok(height)) = (
                         u32::try_from(draw.image.width),

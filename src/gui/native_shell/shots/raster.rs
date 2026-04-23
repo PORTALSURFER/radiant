@@ -28,6 +28,21 @@ fn blend_pixel(target: &mut Rgba<u8>, source: &ShotColor) {
     ]);
 }
 
+fn lerp_channel(start: u8, end: u8, amount: f32) -> u8 {
+    (start as f32 + ((end as f32 - start as f32) * amount.clamp(0.0, 1.0)))
+        .round()
+        .clamp(0.0, 255.0) as u8
+}
+
+fn lerp_color(start: &ShotColor, end: &ShotColor, amount: f32) -> ShotColor {
+    ShotColor {
+        r: lerp_channel(start.r, end.r, amount),
+        g: lerp_channel(start.g, end.g, amount),
+        b: lerp_channel(start.b, end.b, amount),
+        a: lerp_channel(start.a, end.a, amount),
+    }
+}
+
 pub(super) fn rasterize_shot(snapshot: &ShotSnapshot) -> RgbaImage {
     let mut image = RgbaImage::from_pixel(
         snapshot.viewport_width,
@@ -83,6 +98,39 @@ pub(super) fn rasterize_shot(snapshot: &ShotSnapshot) -> RgbaImage {
                             );
                             blend_pixel(pixel, color);
                         }
+                    }
+                }
+            }
+            ShotPrimitive::LinearGradient {
+                rect,
+                start,
+                end,
+                start_color,
+                end_color,
+            } => {
+                let left = rect.x.floor().clamp(0.0, width as f32) as i64;
+                let right = (rect.x + rect.width).ceil().clamp(0.0, width as f32) as i64;
+                let top = rect.y.floor().clamp(0.0, height as f32) as i64;
+                let bottom = (rect.y + rect.height).ceil().clamp(0.0, height as f32) as i64;
+                let dx = end.x - start.x;
+                let dy = end.y - start.y;
+                let len_sq = dx * dx + dy * dy;
+
+                for y in top.max(0)..bottom.min(height) {
+                    for x in left.max(0)..right.min(width) {
+                        let amount = if len_sq > 0.0 {
+                            let px = x as f32 + 0.5 - start.x;
+                            let py = y as f32 + 0.5 - start.y;
+                            ((px * dx) + (py * dy)) / len_sq
+                        } else {
+                            0.0
+                        };
+                        let color = lerp_color(start_color, end_color, amount);
+                        let pixel = image.get_pixel_mut(
+                            u32::try_from(x).unwrap_or(0),
+                            u32::try_from(y).unwrap_or(0),
+                        );
+                        blend_pixel(pixel, &color);
                     }
                 }
             }

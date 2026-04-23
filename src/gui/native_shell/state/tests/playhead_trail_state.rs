@@ -26,21 +26,7 @@ fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
     .playhead
     .expect("playhead marker");
 
-    let trail_rect_count = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == running_playhead_rect.min.y
-                    && rect.rect.max.y == running_playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_rect_count = playhead_trail_primitive_count(&frame, running_playhead_rect, &style);
     assert!(
         trail_rect_count > 0,
         "expected running ghost lines before stop"
@@ -61,21 +47,8 @@ fn waveform_motion_overlay_clears_playhead_trail_when_transport_stops() {
     )
     .playhead
     .expect("playhead marker");
-    let cleared_trail_rect_count = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == stopped_playhead_rect.min.y
-                    && rect.rect.max.y == stopped_playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let cleared_trail_rect_count =
+        playhead_trail_primitive_count(&frame, stopped_playhead_rect, &style);
     assert_eq!(cleared_trail_rect_count, 0);
 }
 
@@ -104,42 +77,14 @@ fn waveform_motion_overlay_fades_playhead_trail_by_elapsed_time() {
     )
     .playhead
     .expect("playhead marker");
-    let trail_before_fade = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_before_fade = playhead_trail_primitive_count(&frame, playhead_rect, &style);
     assert!(trail_before_fade > 0, "expected baseline running trail");
 
     state.tick_with_style(PLAYHEAD_TRAIL_FADE_SECONDS + 0.05, &style);
     let motion = NativeMotionModel::from_app_model(&model);
     state.build_motion_overlay_into(&layout, &style, &motion, &mut frame);
 
-    let trail_after_fade = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_after_fade = playhead_trail_primitive_count(&frame, playhead_rect, &style);
     assert_eq!(trail_after_fade, 0);
 }
 
@@ -169,21 +114,7 @@ fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
     )
     .playhead
     .expect("playhead marker");
-    let trail_before_jump = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_before_jump = playhead_trail_primitive_count(&frame, playhead_rect, &style);
     assert!(trail_before_jump > 0, "expected baseline running trail");
 
     model.waveform.playhead_milli = Some(840);
@@ -200,21 +131,7 @@ fn waveform_motion_overlay_clears_trail_on_large_playhead_jump() {
     )
     .playhead
     .expect("jumped playhead marker");
-    let trail_after_jump = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == jumped_playhead_rect.min.y
-                    && rect.rect.max.y == jumped_playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_after_jump = playhead_trail_primitive_count(&frame, jumped_playhead_rect, &style);
     assert_eq!(trail_after_jump, 0);
 }
 
@@ -244,21 +161,7 @@ fn waveform_motion_overlay_clears_trail_when_view_window_changes() {
     )
     .playhead
     .expect("playhead marker");
-    let trail_before_view_change = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_before_view_change = playhead_trail_primitive_count(&frame, playhead_rect, &style);
     assert!(
         trail_before_view_change > 0,
         "expected baseline running trail before panning"
@@ -282,21 +185,8 @@ fn waveform_motion_overlay_clears_trail_when_view_window_changes() {
     )
     .playhead
     .expect("panned playhead marker");
-    let trail_after_view_change = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == panned_playhead_rect.min.y
-                    && rect.rect.max.y == panned_playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_after_view_change =
+        playhead_trail_primitive_count(&frame, panned_playhead_rect, &style);
     assert_eq!(trail_after_view_change, 0);
 }
 
@@ -325,21 +215,7 @@ fn waveform_motion_overlay_omits_playhead_trail_when_transport_stopped_without_h
     .playhead
     .expect("playhead marker");
 
-    let trail_rect_count = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_rect_count = playhead_trail_primitive_count(&frame, playhead_rect, &style);
 
     assert_eq!(trail_rect_count, 0);
 }

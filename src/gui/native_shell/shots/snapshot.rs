@@ -35,6 +35,13 @@ pub(super) enum ShotPrimitive {
         radius: f32,
         color: ShotColor,
     },
+    LinearGradient {
+        rect: ShotRect,
+        start: ShotPoint,
+        end: ShotPoint,
+        start_color: ShotColor,
+        end_color: ShotColor,
+    },
     Image {
         rect: ShotRect,
         width: u32,
@@ -133,6 +140,13 @@ pub(super) fn build_snapshot(name: &str, viewport: Vector2, model: &AppModel) ->
                 center: snap_point(fill_circle.center),
                 radius: quantize(fill_circle.radius),
                 color: snap_color(fill_circle.color),
+            },
+            Primitive::LinearGradient(fill_gradient) => ShotPrimitive::LinearGradient {
+                rect: snap_rect(fill_gradient.rect),
+                start: snap_point(fill_gradient.start),
+                end: snap_point(fill_gradient.end),
+                start_color: snap_color(fill_gradient.start_color),
+                end_color: snap_color(fill_gradient.end_color),
             },
             Primitive::Image(draw_image) => ShotPrimitive::Image {
                 rect: snap_rect(draw_image.rect),

@@ -26,25 +26,11 @@ fn waveform_motion_overlay_draws_playhead_trail_when_transport_running() {
     .playhead
     .expect("playhead marker");
 
-    let trail_rect_count = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_primitive_count = playhead_trail_primitive_count(&frame, playhead_rect, &style);
 
     assert!(
-        trail_rect_count >= 8,
-        "expected many retained ghost lines, got {trail_rect_count}"
+        trail_primitive_count >= 4,
+        "expected retained ghost-line primitives, got {trail_primitive_count}"
     );
 }
 
@@ -78,17 +64,7 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
     let trail_bounds = frame
         .primitives
         .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some((rect.rect.min.x, rect.rect.max.x))
-            }
-            _ => None,
-        })
+        .filter_map(|primitive| playhead_trail_primitive_bounds(primitive, playhead_rect, &style))
         .fold(None::<(f32, f32)>, |bounds, (min_x, max_x)| {
             Some(match bounds {
                 Some((current_min, current_max)) => {
@@ -105,6 +81,13 @@ fn waveform_motion_overlay_draws_contiguous_playhead_trail_spans_for_fast_motion
         "expected fast trail coverage to span a large contiguous range, got width {} vs marker {}",
         trail_span_width,
         playhead_rect.width()
+    );
+    assert!(
+        frame
+            .primitives
+            .iter()
+            .any(|primitive| matches!(primitive, Primitive::LinearGradient(_))),
+        "expected fast playhead motion to use a direct gradient primitive"
     );
 }
 
@@ -167,23 +150,9 @@ fn waveform_motion_overlay_omits_playhead_trail_when_playhead_is_stationary() {
     .playhead
     .expect("playhead marker");
 
-    let trail_rect_count = frame
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            Primitive::Rect(rect)
-                if rect.rect.min.y == playhead_rect.min.y
-                    && rect.rect.max.y == playhead_rect.max.y
-                    && rect.color.a > 0
-                    && rect.color != style.accent_copper =>
-            {
-                Some(())
-            }
-            _ => None,
-        })
-        .count();
+    let trail_primitive_count = playhead_trail_primitive_count(&frame, playhead_rect, &style);
 
-    assert_eq!(trail_rect_count, 0);
+    assert_eq!(trail_primitive_count, 0);
 }
 
 #[test]
@@ -254,7 +223,7 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
     .playhead
     .expect("playhead marker");
 
-    let trail_rect_count = frame
+    let trail_primitive_count = frame
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
@@ -267,12 +236,22 @@ fn waveform_motion_overlay_draws_backward_playhead_trail() {
             {
                 Some(())
             }
+            Primitive::LinearGradient(gradient)
+                if gradient.rect.min.y == playhead_rect.min.y
+                    && gradient.rect.max.y == playhead_rect.max.y
+                    && gradient.rect.min.x >= playhead_rect.max.x
+                    && (gradient.start_color.a > 0 || gradient.end_color.a > 0)
+                    && gradient.start_color != style.accent_copper
+                    && gradient.end_color != style.accent_copper =>
+            {
+                Some(())
+            }
             _ => None,
         })
         .count();
 
     assert!(
-        trail_rect_count >= 3,
-        "expected backward ghost lines, got {trail_rect_count}"
+        trail_primitive_count >= 1,
+        "expected backward ghost-line primitives, got {trail_primitive_count}"
     );
 }

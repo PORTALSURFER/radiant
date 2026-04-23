@@ -1,8 +1,5 @@
 use super::*;
 
-/// Maximum number of gradient slices used for one fast playhead trail segment.
-const PLAYHEAD_TRAIL_MAX_GRADIENT_SLICES: usize = 96;
-
 /// One retained ghost line for the dynamic playhead trail.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct PlayheadTrailLine {
@@ -145,40 +142,37 @@ fn emit_waveform_playhead_trail_segment(
     end_rect: Rect,
     end_alpha: f32,
 ) {
-    let span_width = (start_rect.min.x - end_rect.min.x)
-        .abs()
-        .max((start_rect.max.x - end_rect.max.x).abs());
-    let slice_width = start_rect.width().max(end_rect.width()).max(1.0);
-    let slices = ((span_width / slice_width.max(1.0)).ceil() as usize)
-        .clamp(1, PLAYHEAD_TRAIL_MAX_GRADIENT_SLICES);
-    for slice in 0..slices {
-        let progress_start = slice as f32 / slices as f32;
-        let progress_end = (slice + 1) as f32 / slices as f32;
-        let progress_mid = (progress_start + progress_end) * 0.5;
-        let alpha = (start_alpha + ((end_alpha - start_alpha) * progress_mid)).clamp(0.0, 1.0);
-        if alpha <= 0.0 {
-            continue;
-        }
-        let slice_rect = Rect::from_min_max(
-            Point::new(
-                lerp(start_rect.min.x, end_rect.min.x, progress_start),
+    let start_alpha = start_alpha.clamp(0.0, 1.0);
+    let end_alpha = end_alpha.clamp(0.0, 1.0);
+    if start_alpha <= 0.0 && end_alpha <= 0.0 {
+        return;
+    }
+    let rect = Rect::from_min_max(
+        Point::new(start_rect.min.x.min(end_rect.min.x), waveform_plot.min.y),
+        Point::new(start_rect.max.x.max(end_rect.max.x), waveform_plot.max.y),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::LinearGradient(FillLinearGradient {
+            rect,
+            start: Point::new(
+                start_rect.min.x + (start_rect.width() * 0.5),
                 waveform_plot.min.y,
             ),
-            Point::new(
-                lerp(start_rect.max.x, end_rect.max.x, progress_end),
-                waveform_plot.max.y,
+            end: Point::new(
+                end_rect.min.x + (end_rect.width() * 0.5),
+                waveform_plot.min.y,
             ),
-        );
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: slice_rect,
-                color: translucent_overlay_color(style.surface_overlay, style.accent_copper, alpha),
-            }),
-        );
-    }
-}
-
-fn lerp(start: f32, end: f32, progress: f32) -> f32 {
-    start + ((end - start) * progress.clamp(0.0, 1.0))
+            start_color: translucent_overlay_color(
+                style.surface_overlay,
+                style.accent_copper,
+                start_alpha,
+            ),
+            end_color: translucent_overlay_color(
+                style.surface_overlay,
+                style.accent_copper,
+                end_alpha,
+            ),
+        }),
+    );
 }

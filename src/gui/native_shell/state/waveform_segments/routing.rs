@@ -11,6 +11,7 @@ pub(in crate::gui::native_shell::state) fn static_segment_for_primitive(
     let anchor = match primitive {
         Primitive::Rect(fill) => rect_center(fill.rect),
         Primitive::Circle(fill) => fill.center,
+        Primitive::LinearGradient(fill) => rect_center(fill.rect),
         Primitive::Image(image) => rect_center(image.rect),
     };
     static_segment_for_point(layout, model, anchor)

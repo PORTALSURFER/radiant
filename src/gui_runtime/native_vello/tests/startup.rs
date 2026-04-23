@@ -340,3 +340,41 @@ fn startup_profile_failure_reason_clears_after_summary_emits() {
 
     assert_eq!(timing.failure_reason_for_test(), None);
 }
+
+#[test]
+fn startup_profile_exports_complete_artifact_after_first_present() {
+    let mut timing = StartupTimingProfile::default();
+    timing.mark_init_started();
+    timing.mark_window_created();
+    timing.mark_surface_ready();
+    timing.mark_renderer_started();
+    timing.mark_renderer_ready();
+    timing.mark_first_scene_ready();
+    timing.mark_first_redraw_started();
+    timing.mark_first_presented();
+    timing.maybe_emit_summary();
+
+    let artifact = timing.export_artifact().expect("startup timing artifact");
+    assert_eq!(artifact.status, "complete");
+    assert_eq!(artifact.failure_reason, None);
+    assert!(artifact.first_present_ms.is_some());
+    assert!(artifact.window_revealed_ms.is_some());
+}
+
+#[test]
+fn startup_profile_exports_incomplete_artifact_before_first_present() {
+    let mut timing = StartupTimingProfile::default();
+    timing.mark_init_started();
+    timing.mark_window_created();
+    timing.mark_surface_ready();
+    timing.mark_renderer_ready();
+
+    let artifact = timing.export_artifact().expect("startup timing artifact");
+    assert_eq!(artifact.status, "incomplete");
+    assert_eq!(
+        artifact.failure_reason.as_deref(),
+        Some("startup_exited_before_first_present")
+    );
+    assert!(artifact.window_create_ms.is_some());
+    assert_eq!(artifact.first_present_ms, None);
+}

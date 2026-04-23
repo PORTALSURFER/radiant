@@ -66,6 +66,8 @@ use self::{
     input::*, profiling::*, runtime_state::*, scene_cache::*, scene_rebuild::*, startup::*,
     text_bpm::*, text_edit::*, text_renderer::*,
 };
+
+pub use self::startup::NativeStartupTimingArtifact;
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 /// Short-lived redraw cadence used immediately after cursor movement.
@@ -89,6 +91,22 @@ const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeUserEvent {
     RepaintRequested,
+}
+
+/// Structured runtime artifacts exported after one native run completes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NativeRuntimeArtifacts {
+    /// Native startup timing artifact captured for this run, when startup began.
+    pub startup_timing: Option<NativeStartupTimingArtifact>,
+}
+
+/// Result plus structured artifacts returned by one native runtime execution.
+#[derive(Debug)]
+pub struct NativeRunReport {
+    /// Structured artifacts captured during the run.
+    pub artifacts: NativeRuntimeArtifacts,
+    /// Native runtime success or error outcome.
+    pub result: Result<(), String>,
 }
 
 fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
@@ -343,15 +361,21 @@ impl NativeAppBridge for PreviewBridge {
 /// closes. The host receives user input each frame through the bridge-driven
 /// action path, and this function returns the host result from the event loop
 /// invocation.
-pub fn run_native_vello_app<B: NativeAppBridge>(
+pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
-) -> Result<(), String> {
+) -> NativeRunReport {
     info!("radiant native vello: creating event loop");
     let run_started = Instant::now();
-    let event_loop = EventLoop::<RuntimeUserEvent>::with_user_event()
-        .build()
-        .map_err(|err| err.to_string())?;
+    let event_loop = match EventLoop::<RuntimeUserEvent>::with_user_event().build() {
+        Ok(event_loop) => event_loop,
+        Err(err) => {
+            return NativeRunReport {
+                artifacts: NativeRuntimeArtifacts::default(),
+                result: Err(err.to_string()),
+            };
+        }
+    };
     info!(
         "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
         options.inner_size, options.min_inner_size, options.target_fps
@@ -379,8 +403,27 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
         ),
     }
     info!("radiant native vello: event loop finished");
+    let artifacts = NativeRuntimeArtifacts {
+        startup_timing: runner.startup_timing.export_artifact(),
+    };
     runner.bridge.on_runtime_exit();
-    run_result
+    NativeRunReport {
+        artifacts,
+        result: run_result,
+    }
+}
+
+/// Run the native Vello backend window with a host-provided app bridge.
+///
+/// The runtime loop is owned by winit and blocks until the native window
+/// closes. The host receives user input each frame through the bridge-driven
+/// action path, and this function returns the host result from the event loop
+/// invocation.
+pub fn run_native_vello_app<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> Result<(), String> {
+    run_native_vello_app_with_artifacts(options, bridge).result
 }
 
 /// Run the native Vello backend using a declarative state+reducer bridge.
@@ -392,6 +435,15 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     run_native_vello_app(options, bridge)
+}
+
+/// Run the native Vello backend using a declarative state+reducer bridge and
+/// return structured runtime artifacts together with the result.
+pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> NativeRunReport {
+    run_native_vello_app_with_artifacts(options, bridge)
 }
 
 /// Run the experimental native Vello backend window for backend-selection testing.

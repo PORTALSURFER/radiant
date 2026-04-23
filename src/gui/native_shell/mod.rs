@@ -23,11 +23,16 @@ mod waveform_toolbar_surface;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
+#[cfg(test)]
+pub(crate) use layout_adapter::BROWSER_BANDS_ROOT_ID;
 pub(crate) use layout_adapter::{
     WaveformPixelSnap, compute_waveform_slice_preview_rects, waveform_plot_x_for_micros,
     waveform_view_window_from_bounds,
 };
-pub(crate) use layout_runtime::{ShellLayoutDirtyKind, ShellLayoutRuntime};
+pub(crate) use layout_runtime::{
+    ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,
+    dirty_segments_for_layout_subtree,
+};
 pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
 pub(crate) use state::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,

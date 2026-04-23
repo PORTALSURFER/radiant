@@ -30,7 +30,8 @@ use crate::gui::layout_core::{
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::compute_top_bar_band_sections;
 pub(crate) use bands::{
-    BROWSER_BANDS_ROOT_ID, BrowserBandSections, build_browser_bands_tree,
+    BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ROWS_ID,
+    BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, BrowserBandSections, build_browser_bands_tree,
     compute_browser_band_sections_with_layout_engine,
 };
 pub(super) use browser_chrome_text::{
@@ -57,7 +58,8 @@ pub(super) use overlays::{
     compute_prompt_overlay_text_layout,
 };
 pub(crate) use sidebar_bands::{
-    SIDEBAR_BANDS_ROOT_ID, SidebarBandSections, build_sidebar_bands_tree,
+    SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ROWS_ID,
+    SidebarBandSections, build_sidebar_bands_tree,
     compute_sidebar_band_sections_with_layout_engine,
 };
 pub(super) use sidebar_header::{
@@ -79,13 +81,13 @@ pub(crate) use waveform_annotations::{
 };
 
 pub(crate) const SHELL_ROOT_ID: u64 = 1;
-const TOP_BAR_ID: u64 = 2;
-const SIDEBAR_ID: u64 = 3;
-const CONTENT_ID: u64 = 4;
-const WAVEFORM_ID: u64 = 5;
-const STATUS_ID: u64 = 6;
-const BODY_ID: u64 = 40;
-const BROWSER_ID: u64 = 100;
+pub(crate) const TOP_BAR_ID: u64 = 2;
+pub(crate) const SIDEBAR_ID: u64 = 3;
+pub(crate) const CONTENT_ID: u64 = 4;
+pub(crate) const WAVEFORM_ID: u64 = 5;
+pub(crate) const STATUS_ID: u64 = 6;
+pub(crate) const BODY_ID: u64 = 40;
+pub(crate) const BROWSER_ID: u64 = 100;
 
 /// Top-level section rectangles used by `ShellLayout`.
 #[derive(Clone, Copy, Debug, PartialEq)]

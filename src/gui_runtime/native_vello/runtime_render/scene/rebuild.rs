@@ -9,6 +9,7 @@ struct SceneRebuildRequests {
     rebuild_static: bool,
     rebuild_state_overlay: bool,
     rebuild_motion_overlay: bool,
+    layout_dirty_segments: DirtySegments,
 }
 
 #[derive(Clone, Copy)]
@@ -27,6 +28,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         rebuild_static: bool,
         rebuild_state_overlay: bool,
         rebuild_motion_overlay: bool,
+        layout_dirty_segments: DirtySegments,
     ) {
         let requests = SceneRebuildRequests {
             model_refresh_requested,
@@ -34,6 +36,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             rebuild_static,
             rebuild_state_overlay,
             rebuild_motion_overlay,
+            layout_dirty_segments,
         };
         let refresh = self.refresh_scene_rebuild_outcome(requests);
         let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
@@ -130,7 +133,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.model = self.bridge.project_model();
         self.waveform_view_refresh_pending = false;
-        let bridge_dirty_segments = self.bridge.take_dirty_segments();
+        let mut bridge_dirty_segments = self.bridge.take_dirty_segments();
+        bridge_dirty_segments.insert(requests.layout_dirty_segments.bits());
         self.refresh_segment_revisions_from_bridge();
         let pull_duration = pull_start.map_or(Duration::ZERO, |start| start.elapsed());
         self.profiler.add_model_pull(pull_duration);
@@ -199,7 +203,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.motion_model_supported = false;
         self.model = self.bridge.project_model();
         self.waveform_view_refresh_pending = false;
-        let bridge_dirty_segments = self.bridge.take_dirty_segments();
+        let mut bridge_dirty_segments = self.bridge.take_dirty_segments();
+        bridge_dirty_segments.insert(requests.layout_dirty_segments.bits());
         self.refresh_segment_revisions_from_bridge();
         let model_pull_duration = model_pull_start.map_or(Duration::ZERO, |start| start.elapsed());
         self.profiler.add_model_pull(model_pull_duration);

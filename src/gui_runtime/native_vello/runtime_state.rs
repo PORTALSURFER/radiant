@@ -1,8 +1,13 @@
 use super::SingleLineTextEditorState;
-use crate::gui::native_shell::TextFieldVisualState;
+use crate::app::DirtySegments;
+use crate::gui::native_shell::{
+    ShellLayoutDirtyKind, ShellLayoutTreeKind, TextFieldVisualState,
+    dirty_segments_for_layout_subtree,
+};
 use crate::gui::types::Point;
 #[cfg(target_os = "windows")]
 use tracing::{debug, info};
+use std::mem;
 
 /// Active browser-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -86,6 +91,68 @@ pub(super) enum RuntimeInvalidationScope {
     ModelAndOverlays,
     StaticAndOverlays,
     LayoutAndAll,
+    #[cfg_attr(not(test), allow(dead_code))]
+    LayoutSubtreeAndAll(RuntimeLayoutSubtreeInvalidation),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RuntimeLayoutSubtreeInvalidation {
+    pub(super) tree_kind: ShellLayoutTreeKind,
+    pub(super) node_id: u64,
+    pub(super) dirty_kind: ShellLayoutDirtyKind,
+}
+
+impl RuntimeLayoutSubtreeInvalidation {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(super) fn new(
+        tree_kind: ShellLayoutTreeKind,
+        node_id: u64,
+        dirty_kind: ShellLayoutDirtyKind,
+    ) -> Self {
+        Self {
+            tree_kind,
+            node_id,
+            dirty_kind,
+        }
+    }
+
+    pub(super) fn dirty_segments(self) -> DirtySegments {
+        dirty_segments_for_layout_subtree(self.tree_kind, self.node_id)
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct RuntimeLayoutInvalidation {
+    pub(super) full_rebuild: bool,
+    pub(super) dirty_segments: DirtySegments,
+    pub(super) subtrees: Vec<RuntimeLayoutSubtreeInvalidation>,
+}
+
+impl RuntimeLayoutInvalidation {
+    pub(super) fn is_pending(&self) -> bool {
+        self.full_rebuild || !self.subtrees.is_empty()
+    }
+
+    pub(super) fn mark_full(&mut self) {
+        self.full_rebuild = true;
+        self.subtrees.clear();
+        self.dirty_segments.insert(
+            DirtySegments::STATUS_BAR
+                | DirtySegments::BROWSER_FRAME
+                | DirtySegments::BROWSER_ROWS_WINDOW
+                | DirtySegments::MAP_PANEL
+                | DirtySegments::WAVEFORM_OVERLAY
+                | DirtySegments::GLOBAL_STATIC,
+        );
+    }
+
+    pub(super) fn mark_subtree(&mut self, invalidation: RuntimeLayoutSubtreeInvalidation) {
+        if self.full_rebuild {
+            return;
+        }
+        self.dirty_segments.insert(invalidation.dirty_segments().bits());
+        self.subtrees.push(invalidation);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,9 +170,9 @@ pub(super) enum ActivePointerSession {
     Hover,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct NativeVelloFrameState {
-    pub(crate) layout_dirty: bool,
+    pub(crate) layout_invalidation: RuntimeLayoutInvalidation,
     pub(crate) scene_dirty: bool,
     pub(crate) state_overlay_dirty: bool,
     pub(crate) motion_overlay_dirty: bool,
@@ -114,7 +181,17 @@ pub(super) struct NativeVelloFrameState {
 
 impl NativeVelloFrameState {
     pub(super) fn mark_layout_dirty(&mut self) {
-        self.layout_dirty = true;
+        self.layout_invalidation.mark_full();
+        self.scene_dirty = true;
+        self.state_overlay_dirty = true;
+        self.motion_overlay_dirty = true;
+    }
+
+    pub(super) fn mark_layout_subtree_dirty(
+        &mut self,
+        invalidation: RuntimeLayoutSubtreeInvalidation,
+    ) {
+        self.layout_invalidation.mark_subtree(invalidation);
         self.scene_dirty = true;
         self.state_overlay_dirty = true;
         self.motion_overlay_dirty = true;
@@ -126,8 +203,8 @@ impl NativeVelloFrameState {
     pub(super) fn mark_motion_overlay_dirty(&mut self) {
         self.motion_overlay_dirty = true;
     }
-    pub(super) fn clear_layout_dirty(&mut self) {
-        self.layout_dirty = false;
+    pub(super) fn take_layout_invalidation(&mut self) -> RuntimeLayoutInvalidation {
+        mem::take(&mut self.layout_invalidation)
     }
 
     pub(super) fn mark_model_dirty(&mut self) {
@@ -168,7 +245,7 @@ impl NativeVelloFrameState {
     }
 
     pub(super) fn has_pending_rebuild(&self) -> bool {
-        self.layout_dirty
+        self.layout_invalidation.is_pending()
             || self.scene_dirty
             || self.state_overlay_dirty
             || self.motion_overlay_dirty

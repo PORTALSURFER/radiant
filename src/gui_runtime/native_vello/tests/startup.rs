@@ -17,6 +17,25 @@ fn deferred_startup_fallback_defers_model_and_overlay_pulls() {
 }
 
 #[test]
+fn startup_layout_dirty_marks_full_layout_rebuild_contract() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    runner.frame_state.mark_layout_dirty();
+
+    assert!(runner.frame_state.layout_invalidation.full_rebuild);
+    assert_eq!(
+        runner.frame_state.layout_invalidation.dirty_segments.bits(),
+        DirtySegments::STATUS_BAR
+            | DirtySegments::BROWSER_FRAME
+            | DirtySegments::BROWSER_ROWS_WINDOW
+            | DirtySegments::MAP_PANEL
+            | DirtySegments::WAVEFORM_OVERLAY
+            | DirtySegments::GLOBAL_STATIC
+    );
+}
+
+#[test]
 fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

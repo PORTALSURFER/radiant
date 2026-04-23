@@ -2,8 +2,16 @@ use super::*;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(in crate::gui_runtime::native_vello) fn rebuild_scene_if_needed(&mut self) {
-        if self.shell_layout.is_none() || self.frame_state.layout_dirty {
-            self.rebuild_layout();
+        let mut layout_dirty_segments = DirtySegments::empty();
+        let layout_invalidation = if self.shell_layout.is_none() {
+            let mut invalidation = self.frame_state.take_layout_invalidation();
+            invalidation.mark_full();
+            invalidation
+        } else {
+            self.frame_state.take_layout_invalidation()
+        };
+        if layout_invalidation.is_pending() {
+            layout_dirty_segments = self.rebuild_layout(layout_invalidation);
         }
         let model_refresh_requested = self.frame_state.take_model();
         let static_rebuild_requested = self.frame_state.take_scene();
@@ -36,6 +44,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             rebuild_static,
             rebuild_state_overlay,
             rebuild_motion_overlay,
+            layout_dirty_segments,
         );
     }
 
@@ -59,9 +68,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             RuntimeInvalidationScope::LayoutAndAll => {
                 self.frame_state.mark_layout_dirty();
                 self.frame_state.mark_model_dirty();
-                self.layout_runtime.reset();
-                self.layout_runtime
-                    .mark_all_dirty(ShellLayoutDirtyKind::Measure);
+            }
+            RuntimeInvalidationScope::LayoutSubtreeAndAll(invalidation) => {
+                self.frame_state.mark_layout_subtree_dirty(invalidation);
+                self.frame_state.mark_model_dirty();
             }
         }
         self.request_redraw_if_needed();

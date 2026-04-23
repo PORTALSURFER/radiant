@@ -1,4 +1,7 @@
 use super::super::*;
+use crate::gui::native_shell::{
+    BROWSER_BANDS_ROOT_ID, ShellLayoutTreeKind, dirty_segments_for_layout_subtree,
+};
 use crate::gui::native_shell::{FocusOverlayFingerprint, HoverOverlayFingerprint};
 
 fn test_segment_fingerprints(
@@ -390,4 +393,27 @@ fn static_segment_graph_diff_targets_dirty_and_changed_segments() {
             assert!(!changed_plan.should_rebuild(segment));
         }
     }
+}
+
+#[test]
+fn static_segment_graph_diff_targets_browser_band_layout_dirty_segments() {
+    let mut graph = StaticSegmentStateGraph::default();
+    let fingerprints = test_segment_fingerprints(40);
+    let first_plan = graph.diff(DirtySegments::empty(), false, fingerprints.clone());
+    for segment in StaticFrameSegment::ALL {
+        graph.commit_segment(segment, first_plan.fingerprint(segment));
+    }
+
+    let dirty = dirty_segments_for_layout_subtree(
+        ShellLayoutTreeKind::BrowserBands,
+        BROWSER_BANDS_ROOT_ID,
+    );
+    let dirty_plan = graph.diff(dirty, false, fingerprints);
+
+    assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserFrame));
+    assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserRowsWindow));
+    assert!(dirty_plan.should_rebuild(StaticFrameSegment::MapPanel));
+    assert!(!dirty_plan.should_rebuild(StaticFrameSegment::GlobalStatic));
+    assert!(!dirty_plan.should_rebuild(StaticFrameSegment::WaveformOverlay));
+    assert!(!dirty_plan.should_rebuild(StaticFrameSegment::StatusBar));
 }

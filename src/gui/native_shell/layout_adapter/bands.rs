@@ -15,11 +15,11 @@ const TOP_ACTION_CLUSTER_ID: u64 = 613;
 
 pub(crate) const BROWSER_BANDS_ROOT_ID: u64 = 620;
 const BROWSER_BANDS_COLUMN_ID: u64 = 621;
-const BROWSER_TABS_ID: u64 = 622;
-const BROWSER_TOOLBAR_ID: u64 = 623;
-const BROWSER_HEADER_ID: u64 = 624;
+pub(crate) const BROWSER_TABS_ID: u64 = 622;
+pub(crate) const BROWSER_TOOLBAR_ID: u64 = 623;
+pub(crate) const BROWSER_HEADER_ID: u64 = 624;
 pub(crate) const BROWSER_ROWS_ID: u64 = 625;
-const BROWSER_FOOTER_ID: u64 = 626;
+pub(crate) const BROWSER_FOOTER_ID: u64 = 626;
 
 /// Slot-resolved top-bar band rectangles.
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -5,16 +5,21 @@
 //! target specific layout trees on hot interaction paths.
 
 use super::layout_adapter::{
-    BrowserBandSections, SHELL_ROOT_ID, ShellSectionRects, SidebarBandSections,
+    BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID, BROWSER_ROWS_ID,
+    BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, BODY_ID, BrowserBandSections, CONTENT_ID, SHELL_ROOT_ID,
+    SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID, SIDEBAR_ROWS_ID,
+    STATUS_ID, ShellSectionRects, SidebarBandSections, TOP_BAR_ID, WAVEFORM_ID,
     build_browser_bands_tree, build_shell_sections_tree, build_sidebar_bands_tree,
     compute_browser_band_sections_with_layout_engine, compute_shell_sections_with_layout_engine,
     compute_sidebar_band_sections_with_layout_engine,
 };
 use super::style::{SizingTokens, StyleTokens};
+use crate::app::DirtySegments;
 use crate::gui::layout_core::{LayoutEngine, LayoutNode, LayoutState};
 use crate::gui::types::{Rect, Vector2};
 
 /// Native-shell layout tree families with independent persistent caches.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ShellLayoutTreeKind {
     /// Top-level shell sections (`top_bar`, `sidebar`, `content`, `status`).
@@ -33,6 +38,7 @@ pub(crate) enum ShellLayoutDirtyKind {
     #[cfg_attr(not(test), allow(dead_code))]
     Layout,
     /// Intrinsic measure dirty marker.
+    #[cfg_attr(not(test), allow(dead_code))]
     Measure,
 }
 
@@ -152,6 +158,7 @@ impl ShellLayoutRuntime {
     }
 
     /// Mark all tracked trees dirty with the provided dirty class.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn mark_all_dirty(&mut self, dirty_kind: ShellLayoutDirtyKind) {
         self.mark_subtree_dirty(
             ShellLayoutTreeKind::ShellSections,
@@ -178,9 +185,70 @@ impl ShellLayoutRuntime {
     }
 }
 
+pub(crate) fn dirty_segments_for_layout_subtree(
+    tree_kind: ShellLayoutTreeKind,
+    node_id: u64,
+) -> DirtySegments {
+    let bits = match tree_kind {
+        ShellLayoutTreeKind::ShellSections => match node_id {
+            STATUS_ID => DirtySegments::STATUS_BAR,
+            WAVEFORM_ID => DirtySegments::WAVEFORM_OVERLAY,
+            BROWSER_ID => {
+                DirtySegments::BROWSER_FRAME
+                    | DirtySegments::BROWSER_ROWS_WINDOW
+                    | DirtySegments::MAP_PANEL
+            }
+            TOP_BAR_ID | SIDEBAR_ID => DirtySegments::GLOBAL_STATIC,
+            BODY_ID | CONTENT_ID | SHELL_ROOT_ID => {
+                DirtySegments::STATUS_BAR
+                    | DirtySegments::BROWSER_FRAME
+                    | DirtySegments::BROWSER_ROWS_WINDOW
+                    | DirtySegments::MAP_PANEL
+                    | DirtySegments::WAVEFORM_OVERLAY
+                    | DirtySegments::GLOBAL_STATIC
+            }
+            _ => {
+                DirtySegments::STATUS_BAR
+                    | DirtySegments::BROWSER_FRAME
+                    | DirtySegments::BROWSER_ROWS_WINDOW
+                    | DirtySegments::MAP_PANEL
+                    | DirtySegments::WAVEFORM_OVERLAY
+                    | DirtySegments::GLOBAL_STATIC
+            }
+        },
+        ShellLayoutTreeKind::BrowserBands => match node_id {
+            BROWSER_ROWS_ID => DirtySegments::BROWSER_ROWS_WINDOW | DirtySegments::MAP_PANEL,
+            BROWSER_TABS_ID | BROWSER_TOOLBAR_ID | BROWSER_HEADER_ID | BROWSER_FOOTER_ID => {
+                DirtySegments::BROWSER_FRAME
+            }
+            BROWSER_BANDS_ROOT_ID => {
+                DirtySegments::BROWSER_FRAME
+                    | DirtySegments::BROWSER_ROWS_WINDOW
+                    | DirtySegments::MAP_PANEL
+            }
+            _ => {
+                DirtySegments::BROWSER_FRAME
+                    | DirtySegments::BROWSER_ROWS_WINDOW
+                    | DirtySegments::MAP_PANEL
+            }
+        },
+        ShellLayoutTreeKind::SidebarBands => match node_id {
+            SIDEBAR_HEADER_ID | SIDEBAR_ROWS_ID | SIDEBAR_FOOTER_ID | SIDEBAR_BANDS_ROOT_ID => {
+                DirtySegments::GLOBAL_STATIC
+            }
+            _ => DirtySegments::GLOBAL_STATIC,
+        },
+    };
+    DirtySegments::from_bits(bits)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ShellLayoutDirtyKind, ShellLayoutRuntime};
+    use super::{
+        ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,
+        dirty_segments_for_layout_subtree,
+    };
+    use crate::app::DirtySegments;
     use crate::gui::native_shell::{ShellLayout, StyleTokens};
     use crate::gui::types::Vector2;
 
@@ -211,5 +279,20 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(second, third);
+    }
+
+    #[test]
+    fn browser_band_subtree_maps_to_browser_segments_only() {
+        let dirty = dirty_segments_for_layout_subtree(
+            ShellLayoutTreeKind::BrowserBands,
+            crate::gui::native_shell::layout_adapter::BROWSER_BANDS_ROOT_ID,
+        );
+
+        assert_eq!(
+            dirty.bits(),
+            DirtySegments::BROWSER_FRAME
+                | DirtySegments::BROWSER_ROWS_WINDOW
+                | DirtySegments::MAP_PANEL
+        );
     }
 }

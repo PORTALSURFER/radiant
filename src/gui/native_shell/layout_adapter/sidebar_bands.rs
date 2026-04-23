@@ -9,9 +9,9 @@ use crate::gui::layout_core::{
 use crate::gui::types::{Point, Rect, Vector2};
 
 pub(crate) const SIDEBAR_BANDS_ROOT_ID: u64 = 630;
-const SIDEBAR_HEADER_ID: u64 = 632;
+pub(crate) const SIDEBAR_HEADER_ID: u64 = 632;
 pub(crate) const SIDEBAR_ROWS_ID: u64 = 633;
-const SIDEBAR_FOOTER_ID: u64 = 634;
+pub(crate) const SIDEBAR_FOOTER_ID: u64 = 634;
 
 /// Slot-resolved sidebar band rectangles.
 #[derive(Clone, Copy, Debug, PartialEq)]

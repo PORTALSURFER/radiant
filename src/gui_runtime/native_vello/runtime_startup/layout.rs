@@ -11,24 +11,56 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .unwrap_or(1.0)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn rebuild_layout(&mut self) {
+    pub(in crate::gui_runtime::native_vello) fn rebuild_layout(
+        &mut self,
+        invalidation: RuntimeLayoutInvalidation,
+    ) -> DirtySegments {
         let Some(surface) = self.render_surface.as_ref() else {
-            return;
+            return DirtySegments::empty();
         };
 
         let viewport = Vector2::new(surface.config.width as f32, surface.config.height as f32);
         let style = StyleTokens::for_viewport_with_scale(viewport.x, self.ui_scale_factor());
+        let existing_layout = self.shell_layout.as_ref().map(Arc::clone);
+        let existing_viewport = existing_layout
+            .as_ref()
+            .map(|layout| Vector2::new(layout.root.rect.width(), layout.root.rect.height()));
+        let existing_scale = existing_layout.as_ref().map(|layout| layout.ui_scale);
+        let base_style = StyleTokens::for_viewport_width(viewport.x);
+        let next_ui_scale = if base_style.sizing.font_title > 0.0 {
+            (style.sizing.font_title / base_style.sizing.font_title).clamp(1.0, 3.0)
+        } else {
+            1.0
+        };
+        let must_reset_runtime = invalidation.full_rebuild
+            || existing_layout.is_none()
+            || existing_viewport != Some(viewport)
+            || existing_scale != Some(next_ui_scale);
+
+        if must_reset_runtime {
+            self.layout_runtime.reset();
+        } else {
+            for subtree in &invalidation.subtrees {
+                self.layout_runtime.mark_subtree_dirty(
+                    subtree.tree_kind,
+                    subtree.node_id,
+                    subtree.dirty_kind,
+                );
+            }
+        }
         self.style_cache = Some(style);
         self.shell_layout = Some(Arc::new(ShellLayout::build_with_style_and_runtime(
             viewport,
             &style,
             &mut self.layout_runtime,
         )));
-        self.static_segment_graph.clear();
-        self.frame_state.clear_layout_dirty();
+        if must_reset_runtime {
+            self.static_segment_graph.clear();
+        }
         if let Some(point) = self.pending_cursor.take() {
             let _ = self.process_cursor_move_immediately(point);
         }
+        invalidation.dirty_segments
     }
 
     /// Borrow the retained shell layout while mutating runtime state without

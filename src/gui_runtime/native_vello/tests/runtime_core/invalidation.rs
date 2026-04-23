@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::gui::native_shell::{ShellLayoutDirtyKind, ShellLayoutTreeKind};
 
 #[test]
 fn action_scope_classification_routes_waveform_actions_by_cost() {
@@ -199,4 +200,49 @@ fn static_rebuild_from_dirty_mask_requires_model_refresh_without_explicit_reques
     assert!(static_rebuild_from_dirty_mask(true, false, dirty));
     assert!(!static_rebuild_from_dirty_mask(false, false, dirty));
     assert!(!static_rebuild_from_dirty_mask(true, true, dirty));
+}
+
+#[test]
+fn partial_layout_invalidation_marks_only_affected_static_segments() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    runner.apply_invalidation_scope(RuntimeInvalidationScope::LayoutSubtreeAndAll(
+        RuntimeLayoutSubtreeInvalidation::new(
+            ShellLayoutTreeKind::BrowserBands,
+            crate::gui::native_shell::BROWSER_BANDS_ROOT_ID,
+            ShellLayoutDirtyKind::Measure,
+        ),
+    ));
+
+    assert!(!runner.frame_state.layout_invalidation.full_rebuild);
+    assert_eq!(
+        runner.frame_state.layout_invalidation.dirty_segments.bits(),
+        DirtySegments::BROWSER_FRAME
+            | DirtySegments::BROWSER_ROWS_WINDOW
+            | DirtySegments::MAP_PANEL
+    );
+    assert!(runner.frame_state.scene_dirty);
+    assert!(runner.frame_state.state_overlay_dirty);
+    assert!(runner.frame_state.motion_overlay_dirty);
+    assert!(runner.frame_state.model_dirty);
+}
+
+#[test]
+fn full_layout_invalidation_keeps_full_rebuild_escape_hatch() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+
+    runner.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
+
+    assert!(runner.frame_state.layout_invalidation.full_rebuild);
+    assert_eq!(
+        runner.frame_state.layout_invalidation.dirty_segments.bits(),
+        DirtySegments::STATUS_BAR
+            | DirtySegments::BROWSER_FRAME
+            | DirtySegments::BROWSER_ROWS_WINDOW
+            | DirtySegments::MAP_PANEL
+            | DirtySegments::WAVEFORM_OVERLAY
+            | DirtySegments::GLOBAL_STATIC
+    );
 }

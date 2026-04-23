@@ -1,7 +1,8 @@
+use super::super::super::micro_layout::{TextLineInsets, centered_text_line, top_text_line};
 use super::super::shared;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
 use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Rect, Vector2};
@@ -16,11 +17,13 @@ pub(super) fn centered_line_in_rect(
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let output = layout_tree(
-        &centered_line_tree(node_id, sizing, font_size),
+    centered_text_line(
         shared::clamp_rect_to_bounds(rect, rect),
-    );
-    shared::rect_for(&output.rects, node_id, empty)
+        font_size,
+        TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
+        0.0,
+        node_id,
+    )
 }
 
 pub(super) fn fixed_height_child(node_id: u64, height: f32) -> SlotChild {
@@ -42,8 +45,7 @@ pub(super) fn top_line_in_bounds(bounds: Rect, font_size: f32, node_id: u64) -> 
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let output = layout_tree(&top_line_tree(node_id, 0.0, font_size), bounds);
-    shared::rect_for(&output.rects, node_id, empty)
+    top_text_line(bounds, font_size, TextLineInsets::horizontal(0.0), node_id)
 }
 
 pub(super) fn top_line_in_rect(
@@ -56,42 +58,11 @@ pub(super) fn top_line_in_rect(
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let output = layout_tree(
-        &top_line_tree(node_id, sizing.text_inset_x.max(0.0), font_size),
+    top_text_line(
         shared::clamp_rect_to_bounds(rect, rect),
-    );
-    shared::rect_for(&output.rects, node_id, empty)
-}
-
-fn centered_line_tree(node_id: u64, sizing: SizingTokens, font_size: f32) -> LayoutNode {
-    LayoutNode::container(
-        node_id + 100,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.text_inset_x.max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: LayoutNode::container(
-                node_id + 101,
-                ContainerPolicy {
-                    kind: ContainerKind::AlignBox,
-                    align_main: MainAlign::Center,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![fixed_height_child(node_id, font_size.max(1.0))],
-            ),
-        }],
+        font_size,
+        TextLineInsets::horizontal(sizing.text_inset_x.max(0.0)),
+        node_id,
     )
 }
 
@@ -106,36 +77,5 @@ pub(super) fn column_tree(root_id: u64, children: Vec<SlotChild>) -> LayoutNode 
             ..ContainerPolicy::default()
         },
         children,
-    )
-}
-
-fn top_line_tree(node_id: u64, horizontal_inset: f32, font_size: f32) -> LayoutNode {
-    let horizontal = Insets {
-        left: horizontal_inset.max(0.0),
-        right: horizontal_inset.max(0.0),
-        ..Insets::default()
-    };
-    LayoutNode::container(
-        node_id + 200,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: horizontal,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: column_tree(
-                node_id + 201,
-                vec![
-                    fixed_height_child(node_id, font_size.max(1.0)),
-                    SlotChild {
-                        slot: SlotParams::fill(),
-                        child: LayoutNode::widget(node_id + 202, Vector2::new(1.0, 1.0)),
-                    },
-                ],
-            ),
-        }],
     )
 }

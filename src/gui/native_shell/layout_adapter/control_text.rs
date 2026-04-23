@@ -1,16 +1,10 @@
 //! Slotized text-line geometry helpers for control rows and action buttons.
 
 use super::super::style::SizingTokens;
-use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
-};
-use crate::gui::types::{Point, Rect, Vector2};
+use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::types::{Point, Rect};
 
 const ACTION_BUTTON_TEXT_BASE_ID: u64 = 1610;
-const TEXT_ROOT_ID: u64 = 1620;
-const TEXT_ALIGN_ID: u64 = 1621;
-const TEXT_LINE_ID: u64 = 1622;
 
 /// Compute an action-button label line rect with horizontal inset.
 pub(crate) fn compute_action_button_text_rect(rect: Rect, sizing: SizingTokens) -> Rect {
@@ -38,66 +32,12 @@ fn compute_text_line_rect(
     if text_bounds.width() <= 0.0 || text_bounds.height() <= 0.0 {
         return empty;
     }
-    let output = layout_tree(&centered_line_tree(font_size, node_id), text_bounds);
-    let centered = clamp_rect_to_bounds(rect_for(&output.rects, TEXT_LINE_ID, empty), text_bounds);
-    clamp_line_top_inset(centered, text_bounds, sizing.text_inset_y.max(0.0))
-}
-
-fn centered_line_tree(font_size: f32, node_id: u64) -> LayoutNode {
-    LayoutNode::container(
-        TEXT_ROOT_ID + node_id,
-        ContainerPolicy {
-            kind: ContainerKind::AlignBox,
-            align_main: MainAlign::Center,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams {
-                size_main: SizeModeMain::Fixed(font_size.max(1.0)),
-                size_cross: SizeModeCross::Fill,
-                constraints: Constraints::new(
-                    0.0,
-                    f32::INFINITY,
-                    font_size.max(1.0),
-                    font_size.max(1.0),
-                ),
-                margin: Insets::default(),
-                align_cross_override: Some(CrossAlign::Stretch),
-                allow_fixed_compress: false,
-            },
-            child: LayoutNode::container(
-                TEXT_ALIGN_ID + node_id,
-                ContainerPolicy {
-                    kind: ContainerKind::PaddingBox,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![SlotChild {
-                    slot: SlotParams::fill(),
-                    child: LayoutNode::widget(TEXT_LINE_ID, Vector2::new(1.0, font_size.max(1.0))),
-                }],
-            ),
-        }],
-    )
-}
-
-fn clamp_line_top_inset(line: Rect, bounds: Rect, inset_y: f32) -> Rect {
-    let min_y = (bounds.min.y + inset_y).min(bounds.max.y);
-    if line.min.y >= min_y {
-        return line;
-    }
-    let height = line.height().max(0.0);
-    let shifted_min_y = min_y;
-    let shifted_max_y = (shifted_min_y + height).min(bounds.max.y);
-    clamp_rect_to_bounds(
-        Rect::from_min_max(
-            Point::new(line.min.x, shifted_min_y),
-            Point::new(line.max.x, shifted_max_y),
-        ),
-        bounds,
+    centered_text_line(
+        text_bounds,
+        font_size,
+        TextLineInsets::horizontal(0.0),
+        sizing.text_inset_y.max(0.0),
+        node_id,
     )
 }
 
@@ -108,19 +48,6 @@ fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
         Point::new(min_x, rect.min.y),
         Point::new(max_x, rect.max.y.max(rect.min.y)),
     )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

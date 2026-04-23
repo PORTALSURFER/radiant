@@ -1,6 +1,7 @@
 //! Slotized browser table column, header-label, and row-label geometry helpers.
 
 use super::super::style::SizingTokens;
+use super::micro_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
@@ -11,8 +12,6 @@ const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
 const BROWSER_COL_INDEX_ID: u64 = 1201;
 const BROWSER_COL_SAMPLE_ID: u64 = 1202;
 const BROWSER_TEXT_ROOT_ID: u64 = 1210;
-const BROWSER_TEXT_ALIGN_ID: u64 = 1211;
-const BROWSER_TEXT_LINE_ID: u64 = 1212;
 
 /// Slot-resolved browser table columns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -157,55 +156,13 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> R
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let tree = LayoutNode::container(
+    centered_text_line(
+        rect,
+        font_size,
+        TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
+        0.0,
         BROWSER_TEXT_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.text_inset_x.max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: LayoutNode::container(
-                BROWSER_TEXT_ALIGN_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::AlignBox,
-                    align_main: MainAlign::Center,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![SlotChild {
-                    slot: SlotParams {
-                        size_main: SizeModeMain::Fixed(font_size.max(1.0)),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: Constraints::new(
-                            0.0,
-                            f32::INFINITY,
-                            font_size.max(1.0),
-                            font_size.max(1.0),
-                        ),
-                        margin: Insets::default(),
-                        align_cross_override: Some(CrossAlign::Stretch),
-                        allow_fixed_compress: false,
-                    },
-                    child: LayoutNode::widget(
-                        BROWSER_TEXT_LINE_ID,
-                        Vector2::new(1.0, font_size.max(1.0)),
-                    ),
-                }],
-            ),
-        }],
-    );
-    let output = layout_tree(&tree, rect);
-    clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_TEXT_LINE_ID, empty), rect)
+    )
 }
 
 /// Snap a browser-row label line so the rendered text baseline lands on a full

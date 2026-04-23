@@ -1,14 +1,9 @@
 //! Slotized sidebar row and recovery-badge text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
-};
-use crate::gui::types::{Point, Rect, Vector2};
+use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::types::{Point, Rect};
 
-const SIDEBAR_TEXT_ROOT_ID: u64 = 1700;
-const SIDEBAR_TEXT_ALIGN_ID: u64 = 1701;
 const SIDEBAR_TEXT_LINE_ID: u64 = 1702;
 const SIDEBAR_BADGE_TEXT_ID: u64 = 1710;
 
@@ -95,75 +90,13 @@ fn compute_sidebar_text_line(rect: Rect, font_size: f32, inset_y: f32, node_seed
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let tree = build_sidebar_text_tree(font_size, node_seed);
-    let output = layout_tree(&tree, rect);
-    let line = rect_for(&output.rects, SIDEBAR_TEXT_LINE_ID + node_seed, empty);
-    clamp_top_inset(line, rect, inset_y.max(0.0))
-}
-
-fn build_sidebar_text_tree(font_size: f32, node_seed: u64) -> LayoutNode {
-    let line_height = font_size.max(1.0);
-    LayoutNode::container(
-        SIDEBAR_TEXT_ROOT_ID + node_seed,
-        align_box_policy(),
-        vec![SlotChild {
-            slot: text_line_slot(line_height),
-            child: LayoutNode::container(
-                SIDEBAR_TEXT_ALIGN_ID + node_seed,
-                padding_box_policy(),
-                vec![SlotChild {
-                    slot: SlotParams::fill(),
-                    child: LayoutNode::widget(
-                        SIDEBAR_TEXT_LINE_ID + node_seed,
-                        Vector2::new(1.0, line_height),
-                    ),
-                }],
-            ),
-        }],
+    centered_text_line(
+        rect,
+        font_size,
+        TextLineInsets::horizontal(0.0),
+        inset_y.max(0.0),
+        SIDEBAR_TEXT_LINE_ID + node_seed,
     )
-}
-
-fn align_box_policy() -> ContainerPolicy {
-    ContainerPolicy {
-        kind: ContainerKind::AlignBox,
-        align_main: MainAlign::Center,
-        align_cross: CrossAlign::Stretch,
-        overflow: OverflowPolicy::Clip,
-        ..ContainerPolicy::default()
-    }
-}
-
-fn padding_box_policy() -> ContainerPolicy {
-    ContainerPolicy {
-        kind: ContainerKind::PaddingBox,
-        align_cross: CrossAlign::Stretch,
-        overflow: OverflowPolicy::Clip,
-        ..ContainerPolicy::default()
-    }
-}
-
-fn text_line_slot(line_height: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fixed(line_height),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, line_height, line_height),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-fn clamp_top_inset(line: Rect, bounds: Rect, inset_y: f32) -> Rect {
-    let min_y = (bounds.min.y + inset_y).min(bounds.max.y);
-    if line.min.y >= min_y {
-        return clamp_rect_to_bounds(line, bounds);
-    }
-    let height = line.height().max(0.0);
-    let shifted = Rect::from_min_max(
-        Point::new(line.min.x, min_y),
-        Point::new(line.max.x, (min_y + height).min(bounds.max.y)),
-    );
-    clamp_rect_to_bounds(shifted, bounds)
 }
 
 fn inset_rect_horizontal(rect: Rect, left: f32, right: f32) -> Rect {
@@ -183,19 +116,6 @@ fn folder_row_disclosure_gutter_width(sizing: SizingTokens) -> f32 {
 
 fn folder_row_disclosure_spacing(sizing: SizingTokens) -> f32 {
     (sizing.text_inset_x * 0.4).max(4.0)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

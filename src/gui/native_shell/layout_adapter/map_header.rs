@@ -1,6 +1,7 @@
 //! Slotized browser map-header text layout helpers.
 
 use super::super::style::SizingTokens;
+use super::micro_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
@@ -11,8 +12,6 @@ const MAP_HEADER_ROOT_ID: u64 = 1300;
 const MAP_HEADER_ROW_ID: u64 = 1301;
 const MAP_HEADER_LEFT_ID: u64 = 1302;
 const MAP_HEADER_RIGHT_ID: u64 = 1303;
-const MAP_HEADER_TEXT_ROOT_ID: u64 = 1310;
-const MAP_HEADER_TEXT_ALIGN_ID: u64 = 1311;
 const MAP_HEADER_TEXT_LINE_ID: u64 = 1312;
 const RIGHT_LABEL_RATIO: f32 = 0.42;
 const RIGHT_LABEL_MIN_WIDTH: f32 = 36.0;
@@ -109,57 +108,17 @@ fn compute_map_header_text_line(rect: Rect, sizing: SizingTokens, font_size: f32
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let tree = LayoutNode::container(
-        MAP_HEADER_TEXT_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: 0.0,
-                right: 0.0,
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: LayoutNode::container(
-                MAP_HEADER_TEXT_ALIGN_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::AlignBox,
-                    align_main: MainAlign::Center,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![SlotChild {
-                    slot: SlotParams {
-                        size_main: SizeModeMain::Fixed(font_size.max(1.0)),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: Constraints::new(
-                            0.0,
-                            f32::INFINITY,
-                            font_size.max(1.0),
-                            font_size.max(1.0),
-                        ),
-                        margin: Insets::default(),
-                        align_cross_override: Some(CrossAlign::Stretch),
-                        allow_fixed_compress: false,
-                    },
-                    child: LayoutNode::widget(
-                        MAP_HEADER_TEXT_LINE_ID,
-                        Vector2::new(1.0, font_size.max(1.0)),
-                    ),
-                }],
-            ),
-        }],
-    );
-    let output = layout_tree(&tree, rect);
-    clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_HEADER_TEXT_LINE_ID, empty),
+    centered_text_line(
         rect,
+        font_size,
+        TextLineInsets {
+            left: 0.0,
+            right: 0.0,
+            top: sizing.text_inset_y.max(0.0),
+            bottom: sizing.text_inset_y.max(0.0),
+        },
+        0.0,
+        MAP_HEADER_TEXT_LINE_ID,
     )
 }
 

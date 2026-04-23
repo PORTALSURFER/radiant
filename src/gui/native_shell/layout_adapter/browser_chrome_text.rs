@@ -1,11 +1,8 @@
 //! Slotized browser chrome text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
-};
-use crate::gui::types::{Point, Rect, Vector2};
+use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::types::Rect;
 
 const TABS_TEXT_SAMPLE_ID: u64 = 1500;
 const TABS_TEXT_MAP_ID: u64 = 1501;
@@ -13,8 +10,6 @@ const TOOLBAR_TEXT_SEARCH_ID: u64 = 1510;
 const TOOLBAR_TEXT_ACTIVITY_ID: u64 = 1511;
 const TOOLBAR_TEXT_SORT_ID: u64 = 1512;
 const FOOTER_TEXT_SUMMARY_ID: u64 = 1520;
-const TEXT_LINE_ROOT_ID: u64 = 1530;
-const TEXT_LINE_ALIGN_ID: u64 = 1531;
 
 /// Slot-resolved browser-tab label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -87,65 +82,13 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32, node
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let tree = LayoutNode::container(
-        TEXT_LINE_ROOT_ID + node_id,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.text_inset_x.max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SlotChild {
-            slot: SlotParams::fill(),
-            child: LayoutNode::container(
-                TEXT_LINE_ALIGN_ID + node_id,
-                ContainerPolicy {
-                    kind: ContainerKind::AlignBox,
-                    align_main: MainAlign::Center,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![SlotChild {
-                    slot: SlotParams {
-                        size_main: SizeModeMain::Fixed(font_size.max(1.0)),
-                        size_cross: SizeModeCross::Fill,
-                        constraints: Constraints::new(
-                            0.0,
-                            f32::INFINITY,
-                            font_size.max(1.0),
-                            font_size.max(1.0),
-                        ),
-                        margin: Insets::default(),
-                        align_cross_override: Some(CrossAlign::Stretch),
-                        allow_fixed_compress: false,
-                    },
-                    child: LayoutNode::widget(node_id, Vector2::new(1.0, font_size.max(1.0))),
-                }],
-            ),
-        }],
-    );
-    let output = layout_tree(&tree, rect);
-    clamp_rect_to_bounds(rect_for(&output.rects, node_id, empty), rect)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
+    centered_text_line(
+        rect,
+        font_size,
+        TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
+        0.0,
+        node_id,
+    )
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
@@ -156,6 +99,7 @@ fn empty_rect(bounds: Rect) -> Rect {
 mod tests {
     use super::*;
     use crate::gui::native_shell::style::StyleTokens;
+    use crate::gui::types::Point;
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);

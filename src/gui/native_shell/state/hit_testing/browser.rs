@@ -4,16 +4,14 @@ impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
     #[cfg(test)]
     pub(crate) fn browser_column_chip_rect(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         column: usize,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let toolbar = browser_toolbar_layout(layout, &style, model);
-        let buttons = browser_action_buttons(layout, &style, model, &toolbar);
-        browser_column_chips(layout, &style, model, &buttons)
-            .into_iter()
+        self.cached_browser_interaction_geometry(layout, model)
+            .chips
+            .iter()
             .find(|chip| chip.column == column)
             .map(|chip| chip.rect)
     }
@@ -28,15 +26,15 @@ impl NativeShellState {
         if model.map.active {
             return None;
         }
-        let style = style_for_layout(layout);
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
         if let Some(sidebar_rect) =
-            browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, model)
+            browser_tag_sidebar_panel_rect(layout.browser_rows, geometry.style.sizing, model)
             && sidebar_rect.contains(point)
         {
             return None;
         }
-        let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
-        let rows = self.cached_browser_rows(layout, &style, model);
+        let list_rect = browser_rows_list_rect(layout.browser_rows, geometry.style.sizing, model);
+        let rows = geometry.rows;
         row_index_for_visible_rows(rows, point, list_rect).map(|index| rows[index].visible_row)
     }
 
@@ -50,11 +48,12 @@ impl NativeShellState {
         if model.map.active || model.browser.duplicate_cleanup_active {
             return None;
         }
-        let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model)
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        geometry
+            .rows
             .iter()
             .find(|row| row.focused)
-            .and_then(|row| browser_similarity_button_rect(row.rect, style.sizing))
+            .and_then(|row| browser_similarity_button_rect(row.rect, geometry.style.sizing))
             .filter(|rect| rect.contains(point))
             .map(|_| UiAction::ToggleFindSimilarFocusedSample)
     }
@@ -111,8 +110,8 @@ impl NativeShellState {
 
     /// Return the current rendered browser viewport length.
     pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
-        let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model)
+        self.cached_browser_interaction_geometry(layout, model)
+            .rows
             .len()
             .min(model.browser.visible_count)
     }
@@ -128,8 +127,8 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<usize> {
-        let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model)
+        self.cached_browser_interaction_geometry(layout, model)
+            .rows
             .first()
             .map(|row| row.visible_row)
     }
@@ -141,7 +140,8 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<f32> {
-        let (scrollbar, _) = self.cached_browser_scrollbar(layout, model)?;
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let scrollbar = geometry.scrollbar?;
         let hit_rect = Rect::from_min_max(
             Point::new(
                 scrollbar.track.min.x - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
@@ -165,10 +165,11 @@ impl NativeShellState {
         pointer_y: f32,
         thumb_pointer_offset_y: f32,
     ) -> Option<usize> {
-        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let scrollbar = geometry.scrollbar?;
         browser_scrollbar_view_start_for_pointer(
             scrollbar,
-            viewport_len,
+            geometry.scrollbar_viewport_len,
             model.browser.visible_count,
             pointer_y,
             thumb_pointer_offset_y,
@@ -186,13 +187,14 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
-        let (scrollbar, viewport_len) = self.cached_browser_scrollbar(layout, model)?;
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let scrollbar = geometry.scrollbar?;
         if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
             return None;
         }
         browser_scrollbar_view_start_for_pointer(
             scrollbar,
-            viewport_len,
+            geometry.scrollbar_viewport_len,
             model.browser.visible_count,
             point.y,
             scrollbar.thumb.height() * 0.5,
@@ -207,44 +209,51 @@ impl NativeShellState {
         point: Point,
         alt_down: bool,
     ) -> Option<UiAction> {
-        let style = style_for_layout(layout);
-        if let Some(action) =
-            browser_tag_sidebar_action_at_point(layout.browser_rows, style.sizing, model, point)
-        {
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        if let Some(action) = browser_tag_sidebar_action_at_point(
+            layout.browser_rows,
+            geometry.style.sizing,
+            model,
+            point,
+        ) {
             return Some(action);
         }
-        let (buttons, chips, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
         if let Some(level) =
-            browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+            browser_rating_filter_level_at_point(geometry.toolbar.rating_filter_chips, point)
         {
             return Some(UiAction::ToggleBrowserRatingFilter {
                 level,
                 invert: alt_down,
             });
         }
-        if let Some(bucket) =
-            browser_playback_age_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
-        {
+        if let Some(bucket) = browser_playback_age_filter_chip_at_point(
+            geometry.toolbar.playback_age_filter_chips,
+            point,
+        ) {
             return Some(UiAction::ToggleBrowserPlaybackAgeFilter {
                 bucket,
                 invert: alt_down,
             });
         }
-        if browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point) {
+        if browser_marked_filter_chip_contains_point(geometry.toolbar.marked_filter_chip, point) {
             return Some(UiAction::ToggleBrowserMarkedFilter);
         }
-        if toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point) {
+        if geometry.toolbar.search_field.width() > 1.0
+            && geometry.toolbar.search_field.contains(point)
+        {
             return Some(UiAction::FocusBrowserSearch);
         }
-        if let Some(action) = chips
-            .into_iter()
+        if let Some(action) = geometry
+            .chips
+            .iter()
             .find(|chip| chip.rect.contains(point))
             .map(|chip| UiAction::SelectColumn { index: chip.column })
         {
             return Some(action);
         }
-        buttons
-            .into_iter()
+        geometry
+            .buttons
+            .iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| button.action.clone())
     }
@@ -285,9 +294,8 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
-        (toolbar.search_field.width() > 1.0).then_some(toolbar.search_field)
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        (geometry.toolbar.search_field.width() > 1.0).then_some(geometry.toolbar.search_field)
     }
 
     /// Return one browser rating-filter chip rect for the given signed level.
@@ -298,8 +306,9 @@ impl NativeShellState {
         model: &AppModel,
         level: i8,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         let index = browser_rating_filter_chip_index(level)?;
         let rect = toolbar.rating_filter_chips[index];
         (rect.width() > 1.0).then_some(rect)
@@ -312,8 +321,9 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         (toolbar.marked_filter_chip.width() > 1.0).then_some(toolbar.marked_filter_chip)
     }
 
@@ -325,8 +335,9 @@ impl NativeShellState {
         model: &AppModel,
         chip: crate::app::PlaybackAgeFilterChip,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         let index = browser_playback_age_filter_chip_index(chip)?;
         let rect = toolbar.playback_age_filter_chips[index];
         (rect.width() > 1.0).then_some(rect)
@@ -335,15 +346,14 @@ impl NativeShellState {
     /// Return one browser action-button rect for the given label.
     #[cfg(test)]
     pub(crate) fn browser_action_button_rect(
-        &self,
+        &mut self,
         layout: &ShellLayout,
         model: &AppModel,
         label: &str,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let toolbar = browser_toolbar_layout(layout, &style, model);
-        browser_action_buttons(layout, &style, model, &toolbar)
-            .into_iter()
+        self.cached_browser_interaction_geometry(layout, model)
+            .buttons
+            .iter()
             .find(|button| button.label == label)
             .map(|button| button.rect)
     }
@@ -354,16 +364,15 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
-        if toolbar.search_field.width() <= 1.0 {
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        if geometry.toolbar.search_field.width() <= 1.0 {
             return None;
         }
         let toolbar_text_layout = compute_browser_toolbar_text_layout(
-            toolbar.search_field,
-            toolbar.activity_chip,
-            toolbar.sort_chip,
-            style.sizing,
+            geometry.toolbar.search_field,
+            geometry.toolbar.activity_chip,
+            geometry.toolbar.sort_chip,
+            geometry.style.sizing,
         );
         Some(toolbar_text_layout.search_label)
     }
@@ -374,7 +383,10 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        browser_tag_sidebar_layout(layout.browser_rows, style_for_layout(layout).sizing, model)
+        let style = self
+            .cached_browser_interaction_geometry(layout, model)
+            .style;
+        browser_tag_sidebar_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_rect)
     }
 
@@ -384,7 +396,10 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        browser_tag_sidebar_layout(layout.browser_rows, style_for_layout(layout).sizing, model)
+        let style = self
+            .cached_browser_interaction_geometry(layout, model)
+            .style;
+        browser_tag_sidebar_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_text_rect)
     }
 
@@ -395,11 +410,14 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model)
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        geometry
+            .rows
             .iter()
             .find(|row| row.focused)
-            .and_then(|row| super::super::browser_similarity_button_rect(row.rect, style.sizing))
+            .and_then(|row| {
+                super::super::browser_similarity_button_rect(row.rect, geometry.style.sizing)
+            })
     }
 
     /// Resolve a map-point click to a sample-id action when map tab is active.
@@ -573,9 +591,18 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
         .browser_actions
         .duplicate_cleanup_active
         .hash(&mut hasher);
+    model.browser_actions.tag_sidebar_open.hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
     model.browser.active_playback_age_filters.hash(&mut hasher);
     model.browser.marked_filter_active.hash(&mut hasher);
+    model.browser.search_query.hash(&mut hasher);
+    model.browser.busy.hash(&mut hasher);
+    model.browser.sort_label.hash(&mut hasher);
+    model.browser_chrome.search_placeholder.hash(&mut hasher);
+    model.browser_chrome.activity_ready_label.hash(&mut hasher);
+    model.browser_chrome.activity_busy_label.hash(&mut hasher);
+    model.browser_chrome.sort_prefix_label.hash(&mut hasher);
+    model.browser_chrome.sort_order_label.hash(&mut hasher);
     model.selected_column.min(2).hash(&mut hasher);
     for index in 0..3 {
         if let Some(column) = model.columns.get(index) {

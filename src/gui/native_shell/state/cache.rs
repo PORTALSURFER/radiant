@@ -3,6 +3,16 @@
 use super::*;
 use crate::app::FolderPaneIdModel;
 
+pub(super) struct BrowserInteractionGeometry<'a> {
+    pub(super) style: StyleTokens,
+    pub(super) rows: &'a [CachedBrowserRow],
+    pub(super) scrollbar: Option<BrowserScrollbarLayout>,
+    pub(super) scrollbar_viewport_len: usize,
+    pub(super) buttons: &'a [ActionButton],
+    pub(super) chips: &'a [BrowserColumnChip],
+    pub(super) toolbar: BrowserToolbarLayout,
+}
+
 impl NativeShellState {
     pub(super) fn cached_source_rows(
         &mut self,
@@ -126,12 +136,38 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<(BrowserScrollbarLayout, usize)> {
         let style = style_for_layout(layout);
-        let rows = self.cached_browser_rows(layout, &style, model);
-        let viewport_len = rows.len().min(model.browser.visible_count);
-        let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
-        let scrollbar =
-            browser_scrollbar_layout(list_rect, rows, model.browser.visible_count, style.sizing)?;
-        Some((scrollbar, viewport_len))
+        self.cached_browser_scrollbar_for_style(layout, &style, model)
+    }
+
+    pub(super) fn cached_browser_scrollbar_for_style(
+        &mut self,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+        model: &AppModel,
+    ) -> Option<(BrowserScrollbarLayout, usize)> {
+        self.cached_browser_rows(layout, style, model);
+        let Some(rows_key) = self.browser_rows_cache_key else {
+            self.browser_scrollbar = None;
+            self.browser_scrollbar_viewport_len = 0;
+            self.browser_scrollbar_cache_key = None;
+            return None;
+        };
+        let cache_key = BrowserScrollbarCacheKey { rows_key };
+        if self.browser_scrollbar_cache_key != Some(cache_key) {
+            let rows = &self.browser_rows;
+            let viewport_len = rows.len().min(model.browser.visible_count);
+            let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
+            self.browser_scrollbar = browser_scrollbar_layout(
+                list_rect,
+                rows,
+                model.browser.visible_count,
+                style.sizing,
+            );
+            self.browser_scrollbar_viewport_len = viewport_len;
+            self.browser_scrollbar_cache_key = Some(cache_key);
+        }
+        self.browser_scrollbar
+            .map(|scrollbar| (scrollbar, self.browser_scrollbar_viewport_len))
     }
 
     pub(super) fn cached_browser_action_hit_test(
@@ -148,15 +184,40 @@ impl NativeShellState {
                 browser_column_chips(layout, style, model, &self.browser_action_buttons);
             self.browser_toolbar_layout = Some(toolbar);
             self.browser_action_hit_test_cache_key = Some(cache_key);
+        } else if self.browser_toolbar_layout.is_none() {
+            let toolbar = browser_toolbar_layout(layout, style, model);
+            self.browser_toolbar_layout = Some(toolbar);
         }
         let toolbar = self
             .browser_toolbar_layout
-            .unwrap_or_else(|| browser_toolbar_layout(layout, style, model));
+            .expect("browser action hit-test cache must retain toolbar layout");
         (
             &self.browser_action_buttons,
             &self.browser_column_chips,
             toolbar,
         )
+    }
+
+    pub(super) fn cached_browser_interaction_geometry(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> BrowserInteractionGeometry<'_> {
+        let style = style_for_layout(layout);
+        self.cached_browser_rows(layout, &style, model);
+        self.cached_browser_scrollbar_for_style(layout, &style, model);
+        self.cached_browser_action_hit_test(layout, &style, model);
+        BrowserInteractionGeometry {
+            style,
+            rows: &self.browser_rows,
+            scrollbar: self.browser_scrollbar,
+            scrollbar_viewport_len: self.browser_scrollbar_viewport_len,
+            buttons: &self.browser_action_buttons,
+            chips: &self.browser_column_chips,
+            toolbar: self
+                .browser_toolbar_layout
+                .expect("browser interaction geometry must retain toolbar layout"),
+        }
     }
 
     pub(super) fn cached_waveform_toolbar_buttons(

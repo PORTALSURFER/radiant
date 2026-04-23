@@ -20,6 +20,13 @@ pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
     pub anchor: Point,
 }
 
+/// Invalidation key for the retained browser scrollbar interaction geometry.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(in crate::gui::native_shell::state) struct BrowserScrollbarCacheKey {
+    /// The resolved browser-row cache key the scrollbar is derived from.
+    pub rows_key: BrowserRowsCacheKey,
+}
+
 /// One retained playhead x-position sample used to build ghost-line trails.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct PlayheadTrailSample {

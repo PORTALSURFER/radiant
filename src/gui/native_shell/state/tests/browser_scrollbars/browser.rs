@@ -228,6 +228,54 @@ fn browser_scrollbar_track_click_maps_to_centered_view_start() {
 }
 
 #[test]
+fn browser_scrollbar_hit_testing_reuses_retained_row_geometry() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = browser_model_with_rows(500, 120);
+    let mut state = NativeShellState::new();
+
+    assert!(state.browser_scrollbar_cache_key.is_none());
+    let (scrollbar, viewport_len) = state
+        .cached_browser_scrollbar(&layout, &model)
+        .expect("overflowing browser list should render a scrollbar");
+    let retained_key = state.browser_scrollbar_cache_key;
+    assert!(retained_key.is_some());
+    assert_eq!(viewport_len, state.browser_viewport_len(&layout, &model));
+
+    let point = Point::new(
+        (scrollbar.thumb.min.x + scrollbar.thumb.max.x) * 0.5,
+        (scrollbar.thumb.min.y + scrollbar.thumb.max.y) * 0.5,
+    );
+    assert!(
+        state
+            .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+            .is_some()
+    );
+    assert_eq!(state.browser_scrollbar_cache_key, retained_key);
+}
+
+#[test]
+fn browser_scrollbar_cache_invalidates_with_visible_window_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let top_model = browser_model_with_rows(500, 12);
+    let bottom_model = browser_model_with_rows(500, 420);
+    let mut state = NativeShellState::new();
+
+    let (top_scrollbar, _) = state
+        .cached_browser_scrollbar(&layout, &top_model)
+        .expect("top browser list should render a scrollbar");
+    let top_key = state
+        .browser_scrollbar_cache_key
+        .expect("top scrollbar should populate cache key");
+
+    let (bottom_scrollbar, _) = state
+        .cached_browser_scrollbar(&layout, &bottom_model)
+        .expect("bottom browser list should render a scrollbar");
+
+    assert_ne!(state.browser_scrollbar_cache_key, Some(top_key));
+    assert!(bottom_scrollbar.thumb.min.y > top_scrollbar.thumb.min.y);
+}
+
+#[test]
 fn browser_scrollbar_thumb_reaches_track_end_at_bottom() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

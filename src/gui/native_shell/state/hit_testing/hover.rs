@@ -152,8 +152,8 @@ impl NativeShellState {
         if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
             return None;
         }
-        let style = style_for_layout(layout);
-        let rows = self.cached_browser_rows(layout, &style, model);
+        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let rows = geometry.rows;
         row_index_for_visible_rows(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
     }
@@ -177,8 +177,9 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> bool {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
     }
 
@@ -188,8 +189,9 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> bool {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
     }
 
@@ -199,8 +201,9 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<i8> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
     }
 
@@ -210,8 +213,9 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<crate::app::PlaybackAgeFilterChip> {
-        let style = style_for_layout(layout);
-        let (_, _, toolbar) = self.cached_browser_action_hit_test(layout, &style, model);
+        let toolbar = self
+            .cached_browser_interaction_geometry(layout, model)
+            .toolbar;
         browser_playback_age_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
     }
 

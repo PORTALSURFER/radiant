@@ -132,7 +132,7 @@ fn toolbar_hit_test_ignores_empty_right_host_area() {
 #[test]
 fn browser_toolbar_exposes_no_column_chip_hit_targets() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let state = NativeShellState::new();
+    let mut state = NativeShellState::new();
     let mut model = crate::app::AppModel::default();
     model.columns[2].item_count = 42;
     assert!(state.browser_column_chip_rect(&layout, &model, 2).is_none());

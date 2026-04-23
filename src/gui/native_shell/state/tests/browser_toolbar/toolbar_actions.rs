@@ -67,6 +67,57 @@ fn browser_tags_action_button_click_maps_to_toggle_action() {
 }
 
 #[test]
+fn browser_action_helpers_share_retained_interaction_geometry() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+
+    assert!(state.browser_action_hit_test_cache_key.is_none());
+    let button = state
+        .browser_action_button_rect(&layout, &model, "Random")
+        .expect("random button should render");
+    let retained_key = state.browser_action_hit_test_cache_key;
+    assert!(retained_key.is_some());
+    assert!(state.browser_toolbar_layout.is_some());
+    assert!(!state.browser_action_buttons.is_empty());
+
+    let point = Point::new(
+        (button.min.x + button.max.x) * 0.5,
+        (button.min.y + button.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(UiAction::ToggleRandomNavigationMode)
+    );
+    assert_eq!(state.browser_action_hit_test_cache_key, retained_key);
+}
+
+#[test]
+fn browser_action_cache_invalidates_when_toolbar_model_state_changes() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    let mut state = NativeShellState::new();
+
+    let _ = state
+        .browser_action_button_rect(&layout, &model, "Tags")
+        .expect("tags button should render");
+    let closed_key = state
+        .browser_action_hit_test_cache_key
+        .expect("closed toolbar state should populate action cache");
+
+    model.browser_actions.tag_sidebar_open = true;
+    let _ = state
+        .browser_action_button_rect(&layout, &model, "Tags")
+        .expect("tags button should still render");
+
+    assert_ne!(
+        state.browser_action_hit_test_cache_key,
+        Some(closed_key),
+        "toolbar state changes must refresh the retained action geometry snapshot"
+    );
+}
+
+#[test]
 fn browser_marked_filter_chip_click_maps_to_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();

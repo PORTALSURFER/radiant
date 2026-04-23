@@ -36,8 +36,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.profiler.add_explicit_static_rebuild();
         }
         let rebuild_static = static_rebuild_requested || model_refresh_requested;
-        let rebuild_state_overlay = state_overlay_requested || rebuild_static;
-        let rebuild_motion_overlay = motion_overlay_requested || rebuild_static;
+        let rebuild_state_overlay = state_overlay_requested;
+        let rebuild_motion_overlay = motion_overlay_requested;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
             return self.frame_result_base();
         }
@@ -68,14 +68,20 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             }
             RuntimeInvalidationScope::StaticAndOverlays => {
                 self.frame_state.mark_model_dirty();
+                self.frame_state.mark_state_overlay_dirty();
+                self.frame_state.mark_motion_overlay_dirty();
             }
             RuntimeInvalidationScope::LayoutAndAll => {
                 self.frame_state.mark_layout_dirty();
                 self.frame_state.mark_model_dirty();
+                self.frame_state.mark_state_overlay_dirty();
+                self.frame_state.mark_motion_overlay_dirty();
             }
             RuntimeInvalidationScope::LayoutSubtreeAndAll(invalidation) => {
                 self.frame_state.mark_layout_subtree_dirty(invalidation);
                 self.frame_state.mark_model_dirty();
+                self.frame_state.mark_state_overlay_dirty();
+                self.frame_state.mark_motion_overlay_dirty();
             }
         }
         self.request_redraw_if_needed();

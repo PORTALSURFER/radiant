@@ -9,6 +9,36 @@ fn install_test_layout(runner: &mut NativeVelloRunner<RecordingBridge>) {
     runner.motion_model = Some(NativeMotionModel::from_app_model(&runner.model));
 }
 
+fn install_clean_test_layout(runner: &mut NativeVelloRunner<CleanBridge>) {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.style_cache = Some(style);
+    runner.motion_model = Some(NativeMotionModel::from_app_model(&runner.model));
+}
+
+#[derive(Default)]
+struct CleanBridge {
+    model: Arc<AppModel>,
+    dirty_segments: DirtySegments,
+}
+
+impl NativeAppBridge for CleanBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::clone(&self.model)
+    }
+
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        Some(NativeMotionModel::from_app_model(&self.model))
+    }
+
+    fn take_dirty_segments(&mut self) -> DirtySegments {
+        let dirty_segments = self.dirty_segments;
+        self.dirty_segments = DirtySegments::empty();
+        dirty_segments
+    }
+}
+
 #[test]
 fn action_scope_classification_routes_waveform_actions_by_cost() {
     assert_eq!(
@@ -185,6 +215,30 @@ fn model_overlay_dirty_does_not_force_static_scene_rebuild() {
 }
 
 #[test]
+fn layout_dirty_only_requests_layout_and_static_scene_work() {
+    let mut state = NativeVelloFrameState::default();
+    state.mark_layout_dirty();
+
+    assert!(state.take_layout_invalidation().is_pending());
+    assert!(state.take_scene());
+    assert!(!state.take_model());
+    assert!(!state.take_state_overlay());
+    assert!(!state.take_motion_overlay());
+}
+
+#[test]
+fn model_dirty_only_requests_model_and_static_scene_work() {
+    let mut state = NativeVelloFrameState::default();
+    state.mark_model_dirty();
+
+    assert!(!state.take_layout_invalidation().is_pending());
+    assert!(state.take_model());
+    assert!(state.take_scene());
+    assert!(!state.take_state_overlay());
+    assert!(!state.take_motion_overlay());
+}
+
+#[test]
 fn resolve_static_rebuild_skips_static_for_model_overlay_when_bridge_clean() {
     let dirty = DirtySegments::empty();
     assert!(!resolve_static_rebuild(true, false, dirty));
@@ -297,4 +351,39 @@ fn frame_result_marks_overlay_only_redraws_without_static_or_layout_rebuilds() {
     assert!(!result.static_rebuild);
     assert!(!result.state_overlay_rebuild);
     assert!(result.motion_overlay_rebuild);
+}
+
+#[test]
+fn static_scene_dirty_does_not_rebuild_warm_overlay_caches() {
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), CleanBridge::default());
+    install_clean_test_layout(&mut runner);
+    runner.frame_state.scene_dirty = true;
+    runner.frame_state.state_overlay_dirty = true;
+    runner.frame_state.motion_overlay_dirty = true;
+    let _ = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    runner.frame_state.scene_dirty = true;
+    let (redrew, result) = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    assert!(redrew);
+    assert!(!result.layout_rebuild);
+    assert!(result.static_rebuild);
+    assert!(!result.state_overlay_rebuild);
+    assert!(!result.motion_overlay_rebuild);
+}
+
+#[test]
+fn static_model_dirty_does_not_force_state_overlay_rebuild_when_bridge_reports_no_overlay_delta() {
+    let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), CleanBridge::default());
+    install_clean_test_layout(&mut runner);
+    runner.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
+    let _ = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    runner.frame_state.mark_model_dirty();
+    let (redrew, result) = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    assert!(redrew);
+    assert!(!result.layout_rebuild);
+    assert!(result.static_rebuild);
+    assert!(!result.state_overlay_rebuild);
 }

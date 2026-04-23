@@ -5,9 +5,9 @@ use crate::gui::native_shell::{
     dirty_segments_for_layout_subtree,
 };
 use crate::gui::types::Point;
+use std::mem;
 #[cfg(target_os = "windows")]
 use tracing::{debug, info};
-use std::mem;
 
 /// Active browser-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,7 +150,8 @@ impl RuntimeLayoutInvalidation {
         if self.full_rebuild {
             return;
         }
-        self.dirty_segments.insert(invalidation.dirty_segments().bits());
+        self.dirty_segments
+            .insert(invalidation.dirty_segments().bits());
         self.subtrees.push(invalidation);
     }
 }
@@ -183,8 +184,6 @@ impl NativeVelloFrameState {
     pub(super) fn mark_layout_dirty(&mut self) {
         self.layout_invalidation.mark_full();
         self.scene_dirty = true;
-        self.state_overlay_dirty = true;
-        self.motion_overlay_dirty = true;
     }
 
     pub(super) fn mark_layout_subtree_dirty(
@@ -193,8 +192,6 @@ impl NativeVelloFrameState {
     ) {
         self.layout_invalidation.mark_subtree(invalidation);
         self.scene_dirty = true;
-        self.state_overlay_dirty = true;
-        self.motion_overlay_dirty = true;
     }
 
     pub(super) fn mark_state_overlay_dirty(&mut self) {
@@ -210,8 +207,6 @@ impl NativeVelloFrameState {
     pub(super) fn mark_model_dirty(&mut self) {
         self.model_dirty = true;
         self.scene_dirty = true;
-        self.state_overlay_dirty = true;
-        self.motion_overlay_dirty = true;
     }
 
     pub(super) fn mark_model_overlay_dirty(&mut self) {

@@ -355,6 +355,10 @@ pub struct BrowserActionsModel {
     pub can_delete: bool,
     /// Whether tag actions can be applied to focused/selected rows.
     pub can_tag: bool,
+    /// Whether the focused browser row can be normalized in place.
+    pub can_normalize_focused_sample: bool,
+    /// Whether the focused browser row can open the seamless loop-crossfade flow.
+    pub can_loop_crossfade_focused_sample: bool,
     /// Whether sticky random navigation mode is currently enabled.
     pub random_navigation_enabled: bool,
     /// Whether browser duplicate cleanup mode is currently enabled.

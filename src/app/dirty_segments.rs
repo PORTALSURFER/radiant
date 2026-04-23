@@ -7,6 +7,14 @@ pub struct FrameBuildResult {
     pub primitive_count: usize,
     /// Number of generated text runs.
     pub text_run_count: usize,
+    /// Whether this redraw included a layout-driven static rebuild.
+    pub layout_rebuild: bool,
+    /// Whether this redraw rebuilt any static scene content.
+    pub static_rebuild: bool,
+    /// Whether this redraw rebuilt any state-overlay scene content.
+    pub state_overlay_rebuild: bool,
+    /// Whether this redraw rebuilt any motion-overlay scene content.
+    pub motion_overlay_rebuild: bool,
     /// Whether runtime should keep animating while idle.
     pub needs_animation: bool,
     /// End-to-end frame time in microseconds for the redraw pass.

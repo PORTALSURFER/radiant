@@ -45,6 +45,22 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
     }
 
+    /// Build one frame-result payload with redraw attribution bits set.
+    pub(in crate::gui_runtime::native_vello) fn frame_result_with_rebuilds(
+        &self,
+        layout_rebuild: bool,
+        static_rebuild: bool,
+        state_overlay_rebuild: bool,
+        motion_overlay_rebuild: bool,
+    ) -> FrameBuildResult {
+        let mut result = self.frame_result_base();
+        result.layout_rebuild = layout_rebuild;
+        result.static_rebuild = static_rebuild;
+        result.state_overlay_rebuild = state_overlay_rebuild;
+        result.motion_overlay_rebuild = motion_overlay_rebuild;
+        result
+    }
+
     /// Convert one duration to microseconds while saturating at `u32::MAX`.
     fn duration_us_u32(duration: Duration) -> u32 {
         duration.as_micros().min(u128::from(u32::MAX)) as u32

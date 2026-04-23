@@ -1,7 +1,9 @@
 use super::*;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
-    pub(in crate::gui_runtime::native_vello) fn rebuild_scene_if_needed(&mut self) {
+    pub(in crate::gui_runtime::native_vello) fn rebuild_scene_if_needed(
+        &mut self,
+    ) -> FrameBuildResult {
         let mut layout_dirty_segments = DirtySegments::empty();
         let layout_invalidation = if self.shell_layout.is_none() {
             let mut invalidation = self.frame_state.take_layout_invalidation();
@@ -10,6 +12,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         } else {
             self.frame_state.take_layout_invalidation()
         };
+        let layout_rebuild = layout_invalidation.is_pending();
         if layout_invalidation.is_pending() {
             layout_dirty_segments = self.rebuild_layout(layout_invalidation);
         }
@@ -23,11 +26,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             && static_rebuild_requested
         {
             let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
-                return;
+                return self.frame_result_base();
             };
             let style = self.cached_style_for_layout(layout.as_ref());
             self.build_startup_placeholder_scene(layout.as_ref(), &style);
-            return;
+            return self.frame_result_with_rebuilds(layout_rebuild, true, false, false);
         }
         if static_rebuild_requested {
             self.profiler.add_explicit_static_rebuild();
@@ -36,7 +39,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let rebuild_state_overlay = state_overlay_requested || rebuild_static;
         let rebuild_motion_overlay = motion_overlay_requested || rebuild_static;
         if !rebuild_static && !rebuild_state_overlay && !rebuild_motion_overlay {
-            return;
+            return self.frame_result_base();
         }
         self.rebuild_scene(
             model_refresh_requested,
@@ -45,7 +48,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             rebuild_state_overlay,
             rebuild_motion_overlay,
             layout_dirty_segments,
-        );
+            layout_rebuild,
+        )
     }
 
     pub(in crate::gui_runtime::native_vello) fn apply_invalidation_scope(
@@ -84,7 +88,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     fn rebuild_scene_for_tick(&mut self) {
         self.frame_state.mark_motion_overlay_dirty();
-        self.rebuild_scene_if_needed();
+        let _ = self.rebuild_scene_if_needed();
     }
 
     pub(in crate::gui_runtime::native_vello) fn rebuild_scene_for_redraw(
@@ -94,8 +98,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     ) -> (bool, FrameBuildResult) {
         if !needs_animation {
             if self.frame_state.has_pending_rebuild() {
-                self.rebuild_scene_if_needed();
-                return (true, self.frame_result_base());
+                return (true, self.rebuild_scene_if_needed());
             }
             return (false, self.frame_result_base());
         }

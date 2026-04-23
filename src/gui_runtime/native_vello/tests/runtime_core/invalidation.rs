@@ -1,6 +1,14 @@
 use super::super::*;
 use crate::gui::native_shell::{ShellLayoutDirtyKind, ShellLayoutTreeKind};
 
+fn install_test_layout(runner: &mut NativeVelloRunner<RecordingBridge>) {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale);
+    runner.shell_layout = Some(Arc::new(layout));
+    runner.style_cache = Some(style);
+    runner.motion_model = Some(NativeMotionModel::from_app_model(&runner.model));
+}
+
 #[test]
 fn action_scope_classification_routes_waveform_actions_by_cost() {
     assert_eq!(
@@ -245,4 +253,48 @@ fn full_layout_invalidation_keeps_full_rebuild_escape_hatch() {
             | DirtySegments::WAVEFORM_OVERLAY
             | DirtySegments::GLOBAL_STATIC
     );
+}
+
+#[test]
+fn frame_result_marks_layout_and_static_rebuilds_for_layout_invalidations() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    install_test_layout(&mut runner);
+
+    runner.apply_invalidation_scope(RuntimeInvalidationScope::LayoutSubtreeAndAll(
+        RuntimeLayoutSubtreeInvalidation::new(
+            ShellLayoutTreeKind::BrowserBands,
+            crate::gui::native_shell::BROWSER_BANDS_ROOT_ID,
+            ShellLayoutDirtyKind::Measure,
+        ),
+    ));
+
+    let (redrew, result) = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    assert!(redrew);
+    assert!(result.layout_rebuild);
+    assert!(result.static_rebuild);
+    assert!(result.state_overlay_rebuild);
+    assert!(result.motion_overlay_rebuild);
+}
+
+#[test]
+fn frame_result_marks_overlay_only_redraws_without_static_or_layout_rebuilds() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    install_test_layout(&mut runner);
+    runner.frame_state.scene_dirty = true;
+    let _ = runner.rebuild_scene_for_redraw(false, 0.0);
+    runner.frame_state.scene_dirty = false;
+    runner.frame_state.model_dirty = false;
+    runner.frame_state.state_overlay_dirty = false;
+    runner.frame_state.motion_overlay_dirty = true;
+
+    let (redrew, result) = runner.rebuild_scene_for_redraw(false, 0.0);
+
+    assert!(redrew);
+    assert!(!result.layout_rebuild);
+    assert!(!result.static_rebuild);
+    assert!(!result.state_overlay_rebuild);
+    assert!(result.motion_overlay_rebuild);
 }

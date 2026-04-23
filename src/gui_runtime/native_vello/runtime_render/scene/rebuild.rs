@@ -10,6 +10,7 @@ struct SceneRebuildRequests {
     rebuild_state_overlay: bool,
     rebuild_motion_overlay: bool,
     layout_dirty_segments: DirtySegments,
+    layout_rebuild: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -29,7 +30,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         rebuild_state_overlay: bool,
         rebuild_motion_overlay: bool,
         layout_dirty_segments: DirtySegments,
-    ) {
+        layout_rebuild: bool,
+    ) -> FrameBuildResult {
         let requests = SceneRebuildRequests {
             model_refresh_requested,
             static_rebuild_requested,
@@ -37,10 +39,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             rebuild_state_overlay,
             rebuild_motion_overlay,
             layout_dirty_segments,
+            layout_rebuild,
         };
         let refresh = self.refresh_scene_rebuild_outcome(requests);
         let Some(layout) = self.shell_layout.as_ref().map(Arc::clone) else {
-            return;
+            return self.frame_result_base();
         };
         let layout = layout.as_ref();
         let layout_width_bits = layout.root.rect.width().to_bits();
@@ -86,6 +89,12 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             rebuild_waveform_motion_overlay,
             rebuild_chrome_motion_overlay,
         );
+        self.frame_result_with_rebuilds(
+            requests.layout_rebuild && refresh.rebuild_static,
+            refresh.rebuild_static,
+            rebuild_state_overlay,
+            rebuild_waveform_motion_overlay || rebuild_chrome_motion_overlay,
+        )
     }
 
     fn refresh_scene_rebuild_outcome(

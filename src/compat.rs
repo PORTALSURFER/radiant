@@ -14,9 +14,10 @@
 pub mod sempal_shell {
     pub use crate::app::*;
     pub use crate::gui_runtime::{
-        NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, NativeStartupTimingArtifact,
-        WindowIconRgba, capture_gui_automation_snapshot, run_native_vello_app,
-        run_native_vello_app_declarative, run_native_vello_app_declarative_with_artifacts,
-        run_native_vello_app_with_artifacts, run_native_vello_preview,
+        NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, NativeShutdownTimingArtifact,
+        NativeStartupTimingArtifact, WindowIconRgba, capture_gui_automation_snapshot,
+        run_native_vello_app, run_native_vello_app_declarative,
+        run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
+        run_native_vello_preview,
     };
 }

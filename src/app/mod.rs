@@ -58,7 +58,7 @@ pub use automation::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     GuiAutomationSnapshot,
 };
-pub use bridge::NativeAppBridge;
+pub use bridge::{NativeAppBridge, NativeShutdownTimingArtifact};
 pub use browser::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
     BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState, MapPanelModel, MapPointModel,

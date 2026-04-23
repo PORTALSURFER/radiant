@@ -3,7 +3,7 @@
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::compat::sempal_shell::{
     self as sempal_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
-    NativeMotionModel, SegmentRevisions, UiAction,
+    NativeMotionModel, NativeShutdownTimingArtifact, SegmentRevisions, UiAction,
 };
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
@@ -98,6 +98,8 @@ enum RuntimeUserEvent {
 pub struct NativeRuntimeArtifacts {
     /// Native startup timing artifact captured for this run, when startup began.
     pub startup_timing: Option<NativeStartupTimingArtifact>,
+    /// Native shutdown timing artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<NativeShutdownTimingArtifact>,
 }
 
 /// Result plus structured artifacts returned by one native runtime execution.
@@ -403,10 +405,12 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
         ),
     }
     info!("radiant native vello: event loop finished");
+    let startup_timing = runner.startup_timing.export_artifact();
+    let shutdown_timing = runner.bridge.on_runtime_exit();
     let artifacts = NativeRuntimeArtifacts {
-        startup_timing: runner.startup_timing.export_artifact(),
+        startup_timing,
+        shutdown_timing,
     };
-    runner.bridge.on_runtime_exit();
     NativeRunReport {
         artifacts,
         result: run_result,

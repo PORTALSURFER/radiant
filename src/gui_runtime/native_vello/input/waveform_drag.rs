@@ -14,41 +14,41 @@ pub(in crate::gui_runtime::native_vello) enum WaveformPointerDragMode {
     },
     /// Drag extends playback selection from a fixed anchor micro value.
     Selection {
-        /// Fixed anchor micro position captured at drag start.
+        /// Fixed anchor nanounit position captured at drag start.
         anchor_micros: u32,
         /// Optional stable clamp captured while the pointer remains off-plot.
         boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag resizes a playback selection without snapping and recomputes BPM from a 4-beat span.
     SelectionSmartScale {
-        /// Fixed anchor micro position captured at drag start.
+        /// Fixed anchor nanounit position captured at drag start.
         anchor_micros: u32,
         /// Optional stable clamp captured while the pointer remains off-plot.
         boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag shifts the playback selection while preserving its width.
     SelectionShift {
-        /// Pointer micro position captured at drag start.
+        /// Pointer nanounit position captured at drag start.
         pointer_micros: u32,
-        /// Original playback-selection start micro position.
+        /// Original playback-selection start nanounit position.
         start_micros: u32,
-        /// Original playback-selection end micro position.
+        /// Original playback-selection end nanounit position.
         end_micros: u32,
     },
     /// Drag extends edit selection from a fixed anchor micro value.
     EditSelection {
-        /// Fixed anchor micro position captured at drag start.
+        /// Fixed anchor nanounit position captured at drag start.
         anchor_micros: u32,
         /// Optional stable clamp captured while the pointer remains off-plot.
         boundary_lock: Option<WaveformSelectionBoundaryLock>,
     },
     /// Drag shifts the edit selection while preserving its width.
     EditSelectionShift {
-        /// Pointer micro position captured at drag start.
+        /// Pointer nanounit position captured at drag start.
         pointer_micros: u32,
-        /// Original edit-selection start micro position.
+        /// Original edit-selection start nanounit position.
         start_micros: u32,
-        /// Original edit-selection end micro position.
+        /// Original edit-selection end nanounit position.
         end_micros: u32,
     },
     /// Drag updates the edit fade-in end handle.
@@ -79,8 +79,8 @@ pub(in crate::gui_runtime::native_vello) enum WaveformOutsidePlotSide {
 pub(in crate::gui_runtime::native_vello) struct WaveformSelectionBoundaryLock {
     /// Horizontal plot edge the pointer is currently beyond.
     pub(in crate::gui_runtime::native_vello) side: WaveformOutsidePlotSide,
-    /// Absolute waveform micro position captured for the drag.
-    pub(in crate::gui_runtime::native_vello) position_micros: u32,
+    /// Absolute waveform nanounit position captured for the drag.
+    pub(in crate::gui_runtime::native_vello) position_nanos: u32,
 }
 
 /// Half-width in pixels used for fade-handle hit testing.

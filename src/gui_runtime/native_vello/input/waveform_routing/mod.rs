@@ -30,10 +30,9 @@ pub(super) fn waveform_action_from_pointer(
     point: Point,
     modifiers: ModifiersState,
 ) -> UiAction {
-    // Preserve the initial click/press anchor at micro precision for selection
+    // Preserve the initial click/press anchor at nano precision for selection
     // creation and extension so zoomed-in gestures start exactly under the pointer.
     let pointer_position = waveform_pointer_position_from_point(layout, model, point);
-    let position_micros = pointer_position.position_micros;
     let position_nanos = pointer_position.position_nanos;
     let alt = modifiers.alt_key();
     let shift = modifiers.shift_key();
@@ -84,15 +83,15 @@ pub(super) fn waveform_action_from_pointer(
     if command {
         UiAction::SetWaveformCursorPrecise { position_nanos }
     } else if shift {
-        UiAction::SetWaveformSelectionRange {
-            start_micros: waveform_anchor_micros(model),
-            end_micros: position_micros,
+        UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos: waveform_anchor_micros(model).saturating_mul(1000),
+            end_nanos: position_nanos,
             snap_override: false,
             preserve_view_edge: false,
         }
     } else {
-        UiAction::BeginWaveformSelectionAt {
-            anchor_micros: position_micros,
+        UiAction::BeginWaveformSelectionAtPrecise {
+            anchor_nanos: position_nanos,
         }
     }
 }
@@ -171,10 +170,10 @@ pub(super) fn waveform_edit_action_from_pointer(
     {
         return UiAction::ClearWaveformEditSelection;
     }
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
-    UiAction::SetWaveformEditSelectionRange {
-        start_micros: position_micros,
-        end_micros: position_micros,
+    let position_nanos = waveform_position_nanos_from_point(layout, model, point);
+    UiAction::SetWaveformEditSelectionRangePrecise {
+        start_nanos: position_nanos,
+        end_nanos: position_nanos,
         preserve_view_edge: false,
     }
 }

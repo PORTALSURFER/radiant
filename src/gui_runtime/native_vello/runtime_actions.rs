@@ -27,9 +27,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::UpdateWaveformCircularSlide { .. }
             | UiAction::FinishWaveformCircularSlide
             | UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::BeginWaveformSelectionAtPrecise { .. }
             | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangePrecise { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRangePrecise { .. }
             | UiAction::DetectWaveformSilenceSlices
             | UiAction::DetectWaveformExactDuplicateSlices
             | UiAction::CleanWaveformExactDuplicateSlices
@@ -106,11 +110,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::FinishWaveformCircularSlide
             | UiAction::SetWaveformViewCenter { .. }
             | UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::BeginWaveformSelectionAtPrecise { .. }
             | UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangePrecise { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
             | UiAction::SetWaveformBpmValue { .. }
             | UiAction::AdjustWaveformBpm { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRangePrecise { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }

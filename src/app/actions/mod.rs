@@ -691,6 +691,11 @@ pub enum UiAction {
         /// Exact anchor position in normalized micro-units.
         anchor_micros: u32,
     },
+    /// Arm a new playback-selection drag from one exact nanounit anchor point.
+    BeginWaveformSelectionAtPrecise {
+        /// Exact anchor position in normalized nanounits.
+        anchor_nanos: u32,
+    },
     /// Begin one circular waveform-slide gesture from an exact anchor point.
     ///
     /// Hosts use this for wrap-drag sample rotation: while the gesture is
@@ -722,12 +727,30 @@ pub enum UiAction {
         /// instead of BPM-snapping that edge back inward.
         preserve_view_edge: bool,
     },
+    /// Set waveform selection bounds in normalized nano space (`0..=1_000_000_000`).
+    SetWaveformSelectionRangePrecise {
+        /// Selection start position in normalized nanounits.
+        start_nanos: u32,
+        /// Selection end position in normalized nanounits.
+        end_nanos: u32,
+        /// When true, bypass BPM snapping for this playback drag update.
+        snap_override: bool,
+        /// When true, keep an out-of-bounds drag clamped to the current viewport edge.
+        preserve_view_edge: bool,
+    },
     /// Set waveform selection bounds without BPM snapping and recalculate BPM for a 4-beat span.
     SetWaveformSelectionRangeSmartScale {
         /// Selection anchor/start position in normalized micro-units.
         start_micros: u32,
         /// Selection dragged edge position in normalized micro-units.
         end_micros: u32,
+    },
+    /// Set waveform selection bounds with nano precision and smart-scale BPM behavior.
+    SetWaveformSelectionRangeSmartScalePrecise {
+        /// Selection anchor/start position in normalized nanounits.
+        start_nanos: u32,
+        /// Selection dragged edge position in normalized nanounits.
+        end_nanos: u32,
     },
     /// Set waveform edit-selection bounds in normalized micro space (`0..=1_000_000`).
     SetWaveformEditSelectionRange {
@@ -737,6 +760,15 @@ pub enum UiAction {
         end_micros: u32,
         /// When true, keep an out-of-bounds drag clamped to the current viewport edge
         /// instead of BPM-snapping that edge back inward.
+        preserve_view_edge: bool,
+    },
+    /// Set waveform edit-selection bounds in normalized nano space (`0..=1_000_000_000`).
+    SetWaveformEditSelectionRangePrecise {
+        /// Edit-selection start position in normalized nanounits.
+        start_nanos: u32,
+        /// Edit-selection end position in normalized nanounits.
+        end_nanos: u32,
+        /// When true, keep an out-of-bounds drag clamped to the current viewport edge.
         preserve_view_edge: bool,
     },
     /// Set the edit fade-in end handle in normalized micro space (`0..=1_000_000`).
@@ -815,6 +847,15 @@ pub enum UiAction {
         /// Selection end preserved across the translate gesture.
         end_micros: u32,
     },
+    /// Arm a playback-selection translate gesture from the bottom-center handle with nano precision.
+    BeginWaveformSelectionShiftPrecise {
+        /// Pointer nanounit position captured at press time.
+        pointer_nanos: u32,
+        /// Selection start preserved across the translate gesture.
+        start_nanos: u32,
+        /// Selection end preserved across the translate gesture.
+        end_nanos: u32,
+    },
     /// Arm an edit-selection translate gesture from the bottom-center handle.
     BeginWaveformEditSelectionShift {
         /// Pointer micro position captured at press time.
@@ -823,6 +864,15 @@ pub enum UiAction {
         start_micros: u32,
         /// Edit-selection end preserved across the translate gesture.
         end_micros: u32,
+    },
+    /// Arm an edit-selection translate gesture from the bottom-center handle with nano precision.
+    BeginWaveformEditSelectionShiftPrecise {
+        /// Pointer nanounit position captured at press time.
+        pointer_nanos: u32,
+        /// Edit-selection start preserved across the translate gesture.
+        start_nanos: u32,
+        /// Edit-selection end preserved across the translate gesture.
+        end_nanos: u32,
     },
     /// Finish an active edit-selection range drag gesture.
     ///

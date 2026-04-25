@@ -471,7 +471,7 @@ where
                     )
                     .then_some(
                         super::input::WaveformPointerDragMode::Selection {
-                            anchor_micros: press.position_micros,
+                            anchor_micros: press.position_nanos,
                             boundary_lock: None,
                         },
                     )

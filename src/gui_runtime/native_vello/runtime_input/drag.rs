@@ -333,7 +333,8 @@ where
         point: Point,
     ) -> Option<WaveformClickSeekPress> {
         let clear_selection_on_release = match action {
-            UiAction::BeginWaveformSelectionAt { .. } => true,
+            UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::BeginWaveformSelectionAtPrecise { .. } => true,
             UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections => false,

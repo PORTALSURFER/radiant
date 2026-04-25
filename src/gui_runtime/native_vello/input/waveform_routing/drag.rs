@@ -22,8 +22,9 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
 ) -> (UiAction, WaveformPointerDragMode) {
     let pointer_position = waveform_pointer_position_from_point(layout, model, point);
     let position_nanos = pointer_position.position_nanos;
-    let (position_micros, next_mode) =
+    let (position_nanos_for_selection, next_mode) =
         waveform_drag_position_and_mode_for_point(layout, model, point, mode);
+    let position_micros = nanos_to_micros(position_nanos_for_selection);
     let preserve_view_edge = waveform_point_is_outside_plot_x(layout, point);
     let action = match next_mode {
         WaveformPointerDragMode::Seek => UiAction::SeekWaveformPrecise { position_nanos },
@@ -32,17 +33,17 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
             UiAction::UpdateWaveformCircularSlide { position_micros }
         }
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
-            UiAction::SetWaveformSelectionRange {
-                start_micros: anchor_micros,
-                end_micros: position_micros,
+            UiAction::SetWaveformSelectionRangePrecise {
+                start_nanos: anchor_micros,
+                end_nanos: position_nanos_for_selection,
                 snap_override: modifiers.alt_key(),
                 preserve_view_edge,
             }
         }
         WaveformPointerDragMode::SelectionSmartScale { anchor_micros, .. } => {
-            UiAction::SetWaveformSelectionRangeSmartScale {
-                start_micros: anchor_micros,
-                end_micros: position_micros,
+            UiAction::SetWaveformSelectionRangeSmartScalePrecise {
+                start_nanos: anchor_micros,
+                end_nanos: position_nanos_for_selection,
             }
         }
         WaveformPointerDragMode::SelectionShift {
@@ -50,23 +51,23 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
             start_micros,
             end_micros,
         } => {
-            let (start_micros, end_micros) = shift_waveform_range_micros(
+            let (start_nanos, end_nanos) = shift_waveform_range_nanos(
                 pointer_micros,
-                position_micros,
+                position_nanos_for_selection,
                 start_micros,
                 end_micros,
             );
-            UiAction::SetWaveformSelectionRange {
-                start_micros,
-                end_micros,
+            UiAction::SetWaveformSelectionRangePrecise {
+                start_nanos,
+                end_nanos,
                 snap_override: modifiers.alt_key(),
                 preserve_view_edge: false,
             }
         }
         WaveformPointerDragMode::EditSelection { anchor_micros, .. } => {
-            UiAction::SetWaveformEditSelectionRange {
-                start_micros: anchor_micros,
-                end_micros: position_micros,
+            UiAction::SetWaveformEditSelectionRangePrecise {
+                start_nanos: anchor_micros,
+                end_nanos: position_nanos_for_selection,
                 preserve_view_edge,
             }
         }
@@ -75,15 +76,15 @@ pub(super) fn waveform_drag_action_and_mode_for_point(
             start_micros,
             end_micros,
         } => {
-            let (start_micros, end_micros) = shift_waveform_range_micros(
+            let (start_nanos, end_nanos) = shift_waveform_range_nanos(
                 pointer_micros,
-                position_micros,
+                position_nanos_for_selection,
                 start_micros,
                 end_micros,
             );
-            UiAction::SetWaveformEditSelectionRange {
-                start_micros,
-                end_micros,
+            UiAction::SetWaveformEditSelectionRangePrecise {
+                start_nanos,
+                end_nanos,
                 preserve_view_edge: false,
             }
         }
@@ -123,7 +124,8 @@ pub(super) fn waveform_drag_exceeds_click_slop(
     match mode {
         WaveformPointerDragMode::CircularSlide { .. } => true,
         WaveformPointerDragMode::Selection { anchor_micros, .. } => {
-            let anchor_x = waveform_x_for_micros(layout.waveform_plot, model, anchor_micros);
+            let anchor_x =
+                waveform_x_for_micros(layout.waveform_plot, model, nanos_to_micros(anchor_micros));
             (point.x - anchor_x).abs() > WAVEFORM_SELECTION_CLICK_SLOP_PX
         }
         _ => true,
@@ -146,19 +148,37 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
         }
         UiAction::BeginWaveformSelectionAt { anchor_micros } => {
             Some(WaveformPointerDragMode::Selection {
-                anchor_micros: *anchor_micros,
+                anchor_micros: anchor_micros.saturating_mul(1000),
+                boundary_lock: None,
+            })
+        }
+        UiAction::BeginWaveformSelectionAtPrecise { anchor_nanos } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_micros: *anchor_nanos,
                 boundary_lock: None,
             })
         }
         UiAction::SetWaveformSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::Selection {
-                anchor_micros: *start_micros,
+                anchor_micros: start_micros.saturating_mul(1000),
+                boundary_lock: None,
+            })
+        }
+        UiAction::SetWaveformSelectionRangePrecise { start_nanos, .. } => {
+            Some(WaveformPointerDragMode::Selection {
+                anchor_micros: *start_nanos,
                 boundary_lock: None,
             })
         }
         UiAction::SetWaveformSelectionRangeSmartScale { start_micros, .. } => {
             Some(WaveformPointerDragMode::SelectionSmartScale {
-                anchor_micros: *start_micros,
+                anchor_micros: start_micros.saturating_mul(1000),
+                boundary_lock: None,
+            })
+        }
+        UiAction::SetWaveformSelectionRangeSmartScalePrecise { start_nanos, .. } => {
+            Some(WaveformPointerDragMode::SelectionSmartScale {
+                anchor_micros: *start_nanos,
                 boundary_lock: None,
             })
         }
@@ -167,13 +187,28 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
             start_micros,
             end_micros,
         } => Some(WaveformPointerDragMode::SelectionShift {
-            pointer_micros: *pointer_micros,
-            start_micros: *start_micros,
-            end_micros: *end_micros,
+            pointer_micros: pointer_micros.saturating_mul(1000),
+            start_micros: start_micros.saturating_mul(1000),
+            end_micros: end_micros.saturating_mul(1000),
+        }),
+        UiAction::BeginWaveformSelectionShiftPrecise {
+            pointer_nanos,
+            start_nanos,
+            end_nanos,
+        } => Some(WaveformPointerDragMode::SelectionShift {
+            pointer_micros: *pointer_nanos,
+            start_micros: *start_nanos,
+            end_micros: *end_nanos,
         }),
         UiAction::SetWaveformEditSelectionRange { start_micros, .. } => {
             Some(WaveformPointerDragMode::EditSelection {
-                anchor_micros: *start_micros,
+                anchor_micros: start_micros.saturating_mul(1000),
+                boundary_lock: None,
+            })
+        }
+        UiAction::SetWaveformEditSelectionRangePrecise { start_nanos, .. } => {
+            Some(WaveformPointerDragMode::EditSelection {
+                anchor_micros: *start_nanos,
                 boundary_lock: None,
             })
         }
@@ -182,9 +217,18 @@ pub(super) fn waveform_drag_mode_for_action(action: &UiAction) -> Option<Wavefor
             start_micros,
             end_micros,
         } => Some(WaveformPointerDragMode::EditSelectionShift {
-            pointer_micros: *pointer_micros,
-            start_micros: *start_micros,
-            end_micros: *end_micros,
+            pointer_micros: pointer_micros.saturating_mul(1000),
+            start_micros: start_micros.saturating_mul(1000),
+            end_micros: end_micros.saturating_mul(1000),
+        }),
+        UiAction::BeginWaveformEditSelectionShiftPrecise {
+            pointer_nanos,
+            start_nanos,
+            end_nanos,
+        } => Some(WaveformPointerDragMode::EditSelectionShift {
+            pointer_micros: *pointer_nanos,
+            start_micros: *start_nanos,
+            end_micros: *end_nanos,
         }),
         UiAction::SetWaveformEditFadeInEnd { .. } => Some(WaveformPointerDragMode::EditFadeInEnd),
         UiAction::SetWaveformEditFadeInMuteStart { .. } => {
@@ -229,11 +273,17 @@ pub(super) fn waveform_press_action_emits_immediately(action: &UiAction) -> bool
     !matches!(
         action,
         UiAction::SetWaveformSelectionRange { .. }
+            | UiAction::SetWaveformSelectionRangePrecise { .. }
             | UiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | UiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
             | UiAction::BeginWaveformSelectionShift { .. }
+            | UiAction::BeginWaveformSelectionShiftPrecise { .. }
             | UiAction::BeginWaveformSelectionAt { .. }
+            | UiAction::BeginWaveformSelectionAtPrecise { .. }
             | UiAction::SetWaveformEditSelectionRange { .. }
+            | UiAction::SetWaveformEditSelectionRangePrecise { .. }
             | UiAction::BeginWaveformEditSelectionShift { .. }
+            | UiAction::BeginWaveformEditSelectionShiftPrecise { .. }
             | UiAction::SetWaveformEditFadeInEnd { .. }
             | UiAction::SetWaveformEditFadeInMuteStart { .. }
             | UiAction::SetWaveformEditFadeInCurve { .. }
@@ -255,10 +305,10 @@ fn waveform_drag_position_and_mode_for_point(
             anchor_micros,
             boundary_lock,
         } => {
-            let (position_micros, boundary_lock) =
+            let (position_nanos, boundary_lock) =
                 waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
             (
-                position_micros,
+                position_nanos,
                 WaveformPointerDragMode::Selection {
                     anchor_micros,
                     boundary_lock,
@@ -269,10 +319,10 @@ fn waveform_drag_position_and_mode_for_point(
             anchor_micros,
             boundary_lock,
         } => {
-            let (position_micros, boundary_lock) =
+            let (position_nanos, boundary_lock) =
                 waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
             (
-                position_micros,
+                position_nanos,
                 WaveformPointerDragMode::SelectionSmartScale {
                     anchor_micros,
                     boundary_lock,
@@ -283,10 +333,10 @@ fn waveform_drag_position_and_mode_for_point(
             anchor_micros,
             boundary_lock,
         } => {
-            let (position_micros, boundary_lock) =
+            let (position_nanos, boundary_lock) =
                 waveform_selection_boundary_lock_for_point(layout, model, point, boundary_lock);
             (
-                position_micros,
+                position_nanos,
                 WaveformPointerDragMode::EditSelection {
                     anchor_micros,
                     boundary_lock,
@@ -294,7 +344,7 @@ fn waveform_drag_position_and_mode_for_point(
             )
         }
         _ => (
-            waveform_position_micros_from_point(layout, model, point),
+            waveform_position_nanos_from_point(layout, model, point),
             mode,
         ),
     }
@@ -309,19 +359,19 @@ fn waveform_selection_boundary_lock_for_point(
 ) -> (u32, Option<WaveformSelectionBoundaryLock>) {
     let Some(side) = waveform_outside_plot_side(layout, point) else {
         return (
-            waveform_position_micros_from_point(layout, model, point),
+            waveform_position_nanos_from_point(layout, model, point),
             None,
         );
     };
     if let Some(boundary_lock) = boundary_lock.filter(|lock| lock.side == side) {
-        return (boundary_lock.position_micros, Some(boundary_lock));
+        return (boundary_lock.position_nanos, Some(boundary_lock));
     }
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    let position_nanos = waveform_position_nanos_from_point(layout, model, point);
     (
-        position_micros,
+        position_nanos,
         Some(WaveformSelectionBoundaryLock {
             side,
-            position_micros,
+            position_nanos,
         }),
     )
 }

@@ -350,3 +350,70 @@ fn handle_pointer_press_action_clears_waveform_hover_feedback_for_resize_drag() 
     assert!(cleared.hovered_waveform_resize_edge.is_none());
     assert!(cleared.waveform_hover_x_bits.is_none());
 }
+
+#[test]
+fn selection_drag_after_deep_zoom_uses_precise_pointer_endpoint() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.waveform.view_start_micros = 500_000;
+    model.waveform.view_end_micros = 500_000;
+    model.waveform.view_start_nanos = 500_000_000;
+    model.waveform.view_end_nanos = 500_000_200;
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            point,
+            WaveformPointerDragMode::Selection {
+                anchor_micros: 500_000_025,
+                boundary_lock: None,
+            },
+            ModifiersState::default(),
+        ),
+        UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos: 500_000_025,
+            end_nanos: 500_000_150,
+            snap_override: false,
+            preserve_view_edge: false,
+        }
+    );
+}
+
+#[test]
+fn selection_shift_after_deep_zoom_preserves_nano_width() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.waveform.view_start_micros = 500_000;
+    model.waveform.view_end_micros = 500_000;
+    model.waveform.view_start_nanos = 500_000_000;
+    model.waveform.view_end_nanos = 500_000_200;
+    let point = Point::new(
+        layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.75),
+        layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
+    );
+
+    assert_eq!(
+        waveform_drag_action_for_mode(
+            &layout,
+            &model,
+            point,
+            WaveformPointerDragMode::SelectionShift {
+                pointer_micros: 500_000_050,
+                start_micros: 500_000_020,
+                end_micros: 500_000_080,
+            },
+            ModifiersState::default(),
+        ),
+        UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos: 500_000_120,
+            end_nanos: 500_000_180,
+            snap_override: false,
+            preserve_view_edge: false,
+        }
+    );
+}

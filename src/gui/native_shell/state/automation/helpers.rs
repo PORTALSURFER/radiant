@@ -283,11 +283,19 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::UpdateWaveformCircularSlide { .. } => "update_waveform_circular_slide",
         UiAction::FinishWaveformCircularSlide => "finish_waveform_circular_slide",
         UiAction::BeginWaveformSelectionAt { .. } => "begin_waveform_selection_at",
+        UiAction::BeginWaveformSelectionAtPrecise { .. } => "begin_waveform_selection_at_precise",
         UiAction::SetWaveformSelectionRange { .. } => "set_waveform_selection_range",
+        UiAction::SetWaveformSelectionRangePrecise { .. } => "set_waveform_selection_range_precise",
         UiAction::SetWaveformSelectionRangeSmartScale { .. } => {
             "set_waveform_selection_range_smart_scale"
         }
+        UiAction::SetWaveformSelectionRangeSmartScalePrecise { .. } => {
+            "set_waveform_selection_range_smart_scale_precise"
+        }
         UiAction::SetWaveformEditSelectionRange { .. } => "set_waveform_edit_selection_range",
+        UiAction::SetWaveformEditSelectionRangePrecise { .. } => {
+            "set_waveform_edit_selection_range_precise"
+        }
         UiAction::SetWaveformEditFadeInEnd { .. } => "set_waveform_edit_fade_in_end",
         UiAction::SetWaveformEditFadeInMuteStart { .. } => "set_waveform_edit_fade_in_mute_start",
         UiAction::SetWaveformEditFadeInCurve { .. } => "set_waveform_edit_fade_in_curve",
@@ -303,7 +311,13 @@ pub(super) fn action_slug(action: &UiAction) -> String {
             "finish_waveform_selection_smart_scale_drag"
         }
         UiAction::BeginWaveformSelectionShift { .. } => "begin_waveform_selection_shift",
+        UiAction::BeginWaveformSelectionShiftPrecise { .. } => {
+            "begin_waveform_selection_shift_precise"
+        }
         UiAction::BeginWaveformEditSelectionShift { .. } => "begin_waveform_edit_selection_shift",
+        UiAction::BeginWaveformEditSelectionShiftPrecise { .. } => {
+            "begin_waveform_edit_selection_shift_precise"
+        }
         UiAction::FinishWaveformEditSelectionDrag => "finish_waveform_edit_selection_drag",
         UiAction::ClearWaveformSelection => "clear_waveform_selection",
         UiAction::ClearWaveformEditSelection => "clear_waveform_edit_selection",

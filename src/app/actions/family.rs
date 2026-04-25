@@ -178,12 +178,16 @@ impl UiAction {
             | Self::SeekWaveform { .. }
             | Self::SetWaveformCursor { .. }
             | Self::BeginWaveformSelectionAt { .. }
+            | Self::BeginWaveformSelectionAtPrecise { .. }
             | Self::BeginWaveformCircularSlide { .. }
             | Self::UpdateWaveformCircularSlide { .. }
             | Self::FinishWaveformCircularSlide
             | Self::SetWaveformSelectionRange { .. }
+            | Self::SetWaveformSelectionRangePrecise { .. }
             | Self::SetWaveformSelectionRangeSmartScale { .. }
+            | Self::SetWaveformSelectionRangeSmartScalePrecise { .. }
             | Self::SetWaveformEditSelectionRange { .. }
+            | Self::SetWaveformEditSelectionRangePrecise { .. }
             | Self::CommitWaveformEditFades
             | Self::DetectWaveformExactDuplicateSlices
             | Self::CleanWaveformExactDuplicateSlices
@@ -200,7 +204,9 @@ impl UiAction {
             | Self::FinishWaveformSelectionRangeDrag
             | Self::FinishWaveformSelectionSmartScaleDrag
             | Self::BeginWaveformSelectionShift { .. }
+            | Self::BeginWaveformSelectionShiftPrecise { .. }
             | Self::BeginWaveformEditSelectionShift { .. }
+            | Self::BeginWaveformEditSelectionShiftPrecise { .. }
             | Self::FinishWaveformEditSelectionDrag
             | Self::ClearWaveformSelection
             | Self::ClearWaveformEditSelection

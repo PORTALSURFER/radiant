@@ -81,9 +81,9 @@ pub(super) fn waveform_selection_edge_adjust_action_from_pointer(
         model.waveform.selection_milli,
         point,
         shift,
-        |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
-            start_micros,
-            end_micros,
+        |start_nanos, end_nanos| UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
             snap_override: false,
             preserve_view_edge: false,
         },
@@ -103,9 +103,9 @@ pub(super) fn waveform_edit_selection_edge_adjust_action_from_pointer(
         model.waveform.edit_selection_milli,
         point,
         shift,
-        |start_micros, end_micros| UiAction::SetWaveformEditSelectionRange {
-            start_micros,
-            end_micros,
+        |start_nanos, end_nanos| UiAction::SetWaveformEditSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
             preserve_view_edge: false,
         },
     )
@@ -122,9 +122,9 @@ pub(super) fn waveform_selection_slide_action_from_pointer(
         model,
         model.waveform.selection_milli,
         point,
-        |start_micros, end_micros| UiAction::SetWaveformSelectionRange {
-            start_micros,
-            end_micros,
+        |start_nanos, end_nanos| UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
             snap_override: false,
             preserve_view_edge: false,
         },
@@ -142,9 +142,9 @@ pub(super) fn waveform_edit_selection_slide_action_from_pointer(
         model,
         model.waveform.edit_selection_milli,
         point,
-        |start_micros, end_micros| UiAction::SetWaveformEditSelectionRange {
-            start_micros,
-            end_micros,
+        |start_nanos, end_nanos| UiAction::SetWaveformEditSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
             preserve_view_edge: false,
         },
     )
@@ -188,10 +188,10 @@ pub(super) fn waveform_selection_shift_action_from_pointer(
     let selection = model.waveform.selection_milli?;
     waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
         rect.contains(point)
-            .then_some(UiAction::BeginWaveformSelectionShift {
-                pointer_micros: waveform_position_micros_from_point(layout, model, point),
-                start_micros: selection.start_micros,
-                end_micros: selection.end_micros,
+            .then_some(UiAction::BeginWaveformSelectionShiftPrecise {
+                pointer_nanos: waveform_position_nanos_from_point(layout, model, point),
+                start_nanos: selection.start_nanos,
+                end_nanos: selection.end_nanos,
             })
     })
 }
@@ -205,10 +205,10 @@ pub(super) fn waveform_edit_selection_shift_action_from_pointer(
     let selection = model.waveform.edit_selection_milli?;
     waveform_selection_shift_handle_hit_rect(layout, model, selection).and_then(|rect| {
         rect.contains(point)
-            .then_some(UiAction::BeginWaveformEditSelectionShift {
-                pointer_micros: waveform_position_micros_from_point(layout, model, point),
-                start_micros: selection.start_micros,
-                end_micros: selection.end_micros,
+            .then_some(UiAction::BeginWaveformEditSelectionShiftPrecise {
+                pointer_nanos: waveform_position_nanos_from_point(layout, model, point),
+                start_nanos: selection.start_nanos,
+                end_nanos: selection.end_nanos,
             })
     })
 }
@@ -244,31 +244,31 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
     if !left_hit && !right_hit {
         return None;
     }
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
+    let position_nanos = waveform_position_nanos_from_point(layout, model, point);
     if left_hit && (!right_hit || left_distance <= right_distance) {
         return Some(if smart_scale {
-            UiAction::SetWaveformSelectionRangeSmartScale {
-                start_micros: selection.end_micros,
-                end_micros: position_micros,
+            UiAction::SetWaveformSelectionRangeSmartScalePrecise {
+                start_nanos: selection.end_nanos,
+                end_nanos: position_nanos,
             }
         } else {
-            UiAction::SetWaveformSelectionRange {
-                start_micros: selection.end_micros,
-                end_micros: position_micros,
+            UiAction::SetWaveformSelectionRangePrecise {
+                start_nanos: selection.end_nanos,
+                end_nanos: position_nanos,
                 snap_override: false,
                 preserve_view_edge: false,
             }
         });
     }
     Some(if smart_scale {
-        UiAction::SetWaveformSelectionRangeSmartScale {
-            start_micros: selection.start_micros,
-            end_micros: position_micros,
+        UiAction::SetWaveformSelectionRangeSmartScalePrecise {
+            start_nanos: selection.start_nanos,
+            end_nanos: position_nanos,
         }
     } else {
-        UiAction::SetWaveformSelectionRange {
-            start_micros: selection.start_micros,
-            end_micros: position_micros,
+        UiAction::SetWaveformSelectionRangePrecise {
+            start_nanos: selection.start_nanos,
+            end_nanos: position_nanos,
             snap_override: false,
             preserve_view_edge: false,
         }
@@ -288,31 +288,31 @@ fn waveform_edge_adjust_action(
         return None;
     }
     let selection = selection?;
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
-    let selection_start = selection.start_micros.min(selection.end_micros);
-    let selection_end = selection.start_micros.max(selection.end_micros);
-    let (start_micros, end_micros) = if shift {
-        if position_micros < selection_start {
-            shift_waveform_range_micros(
+    let position_nanos = waveform_position_nanos_from_point(layout, model, point);
+    let selection_start = selection.start_nanos.min(selection.end_nanos);
+    let selection_end = selection.start_nanos.max(selection.end_nanos);
+    let (start_nanos, end_nanos) = if shift {
+        if position_nanos < selection_start {
+            shift_waveform_range_nanos(
                 selection_end,
-                position_micros,
+                position_nanos,
                 selection_start,
                 selection_end,
             )
         } else {
-            (selection_start, position_micros)
+            (selection_start, position_nanos)
         }
-    } else if position_micros > selection_end {
-        shift_waveform_range_micros(
+    } else if position_nanos > selection_end {
+        shift_waveform_range_nanos(
             selection_start,
-            position_micros,
+            position_nanos,
             selection_start,
             selection_end,
         )
     } else {
-        (position_micros, selection_end)
+        (position_nanos, selection_end)
     };
-    Some(build(start_micros, end_micros))
+    Some(build(start_nanos, end_nanos))
 }
 
 /// Build one direct slide action that moves the selection start to the click position.
@@ -327,12 +327,12 @@ fn waveform_slide_action_from_pointer(
         return None;
     }
     let selection = selection?;
-    let position_micros = waveform_position_micros_from_point(layout, model, point);
-    let (start_micros, end_micros) = shift_waveform_range_micros(
-        selection.start_micros,
-        position_micros,
-        selection.start_micros,
-        selection.end_micros,
+    let position_nanos = waveform_position_nanos_from_point(layout, model, point);
+    let (start_nanos, end_nanos) = shift_waveform_range_nanos(
+        selection.start_nanos,
+        position_nanos,
+        selection.start_nanos,
+        selection.end_nanos,
     );
-    Some(build(start_micros, end_micros))
+    Some(build(start_nanos, end_nanos))
 }

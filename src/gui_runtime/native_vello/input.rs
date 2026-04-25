@@ -182,6 +182,7 @@ pub(super) fn waveform_anchor_micros(model: &AppModel) -> u32 {
     waveform_geometry::waveform_anchor_micros(model)
 }
 
+#[cfg(test)]
 pub(super) fn shift_waveform_range_micros(
     pointer_micros: u32,
     position_micros: u32,
@@ -194,6 +195,24 @@ pub(super) fn shift_waveform_range_micros(
         start_micros,
         end_micros,
     )
+}
+
+pub(super) fn shift_waveform_range_nanos(
+    pointer_nanos: u32,
+    position_nanos: u32,
+    start_nanos: u32,
+    end_nanos: u32,
+) -> (u32, u32) {
+    waveform_geometry::shift_waveform_range_nanos(
+        pointer_nanos,
+        position_nanos,
+        start_nanos,
+        end_nanos,
+    )
+}
+
+pub(super) fn nanos_to_micros(value_nanos: u32) -> u32 {
+    waveform_geometry::nanos_to_micros(value_nanos)
 }
 
 pub(super) fn waveform_point_is_outside_plot_x(layout: &ShellLayout, point: Point) -> bool {

@@ -109,6 +109,7 @@ pub(super) fn waveform_anchor_micros(model: &AppModel) -> u32 {
 }
 
 /// Shift one micro-based waveform range while preserving width and clamping to bounds.
+#[cfg(test)]
 pub(super) fn shift_waveform_range_micros(
     pointer_micros: u32,
     position_micros: u32,
@@ -125,6 +126,29 @@ pub(super) fn shift_waveform_range_micros(
     let shifted_start = (original_start + delta).clamp(0, 1_000_000 - width);
     let shifted_end = shifted_start + width;
     (shifted_start as u32, shifted_end as u32)
+}
+
+/// Shift one nano-based waveform range while preserving width and clamping to bounds.
+pub(super) fn shift_waveform_range_nanos(
+    pointer_nanos: u32,
+    position_nanos: u32,
+    start_nanos: u32,
+    end_nanos: u32,
+) -> (u32, u32) {
+    let original_start = i64::from(start_nanos.min(end_nanos));
+    let original_end = i64::from(start_nanos.max(end_nanos));
+    let width = original_end - original_start;
+    if width <= 0 {
+        return (start_nanos, end_nanos);
+    }
+    let delta = i64::from(position_nanos) - i64::from(pointer_nanos);
+    let shifted_start = (original_start + delta).clamp(0, 1_000_000_000 - width);
+    let shifted_end = shifted_start + width;
+    (shifted_start as u32, shifted_end as u32)
+}
+
+pub(super) fn nanos_to_micros(value_nanos: u32) -> u32 {
+    ((value_nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000)
 }
 
 /// Convert a normalized waveform micro position into plot-space x.

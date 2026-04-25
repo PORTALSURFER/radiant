@@ -5,10 +5,10 @@
 //! target specific layout trees on hot interaction paths.
 
 use super::layout_adapter::{
-    BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID, BROWSER_ROWS_ID,
-    BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, BODY_ID, BrowserBandSections, CONTENT_ID, SHELL_ROOT_ID,
-    SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID, SIDEBAR_ROWS_ID,
-    STATUS_ID, ShellSectionRects, SidebarBandSections, TOP_BAR_ID, WAVEFORM_ID,
+    BODY_ID, BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID,
+    BROWSER_ROWS_ID, BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, BrowserBandSections, CONTENT_ID,
+    SHELL_ROOT_ID, SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID,
+    SIDEBAR_ROWS_ID, STATUS_ID, ShellSectionRects, SidebarBandSections, TOP_BAR_ID, WAVEFORM_ID,
     build_browser_bands_tree, build_shell_sections_tree, build_sidebar_bands_tree,
     compute_browser_band_sections_with_layout_engine, compute_shell_sections_with_layout_engine,
     compute_sidebar_band_sections_with_layout_engine,

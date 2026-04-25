@@ -404,10 +404,8 @@ fn static_segment_graph_diff_targets_browser_band_layout_dirty_segments() {
         graph.commit_segment(segment, first_plan.fingerprint(segment));
     }
 
-    let dirty = dirty_segments_for_layout_subtree(
-        ShellLayoutTreeKind::BrowserBands,
-        BROWSER_BANDS_ROOT_ID,
-    );
+    let dirty =
+        dirty_segments_for_layout_subtree(ShellLayoutTreeKind::BrowserBands, BROWSER_BANDS_ROOT_ID);
     let dirty_plan = graph.diff(dirty, false, fingerprints);
 
     assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserFrame));

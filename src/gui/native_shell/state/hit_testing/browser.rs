@@ -437,6 +437,7 @@ impl NativeShellState {
 
 #[derive(Clone, Debug)]
 struct BrowserTagSidebarLayout {
+    auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
     playback_rects: [Rect; 2],
@@ -462,12 +463,15 @@ fn browser_tag_sidebar_layout(
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
     let field_height = sizing.browser_row_height.max(22.0);
+    let auto_rename_top = rect.min.y + pad + sizing.font_body + 10.0;
+    let auto_rename_rect = Rect::from_min_max(
+        Point::new(content_min_x, auto_rename_top),
+        Point::new(content_max_x, auto_rename_top + field_height),
+    );
+    let input_top = auto_rename_rect.max.y + 8.0;
     let input_rect = Rect::from_min_max(
-        Point::new(content_min_x, rect.min.y + pad + sizing.font_body + 10.0),
-        Point::new(
-            content_max_x,
-            rect.min.y + pad + sizing.font_body + 10.0 + field_height,
-        ),
+        Point::new(content_min_x, input_top),
+        Point::new(content_max_x, input_top + field_height),
     );
     let input_text_rect = Rect::from_min_max(
         Point::new(
@@ -522,6 +526,7 @@ fn browser_tag_sidebar_layout(
         )
     });
     Some(BrowserTagSidebarLayout {
+        auto_rename_rect,
         input_rect,
         input_text_rect,
         playback_rects,
@@ -537,6 +542,9 @@ fn browser_tag_sidebar_action_at_point(
     point: Point,
 ) -> Option<UiAction> {
     let layout = browser_tag_sidebar_layout(rows_rect, sizing, model)?;
+    if layout.auto_rename_rect.contains(point) {
+        return Some(UiAction::ToggleBrowserTagSidebarAutoRename);
+    }
     if layout.input_rect.contains(point) {
         return Some(UiAction::FocusBrowserTagSidebarInput);
     }

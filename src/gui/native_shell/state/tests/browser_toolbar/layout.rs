@@ -157,6 +157,28 @@ fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
 }
 
 #[test]
+fn tag_sidebar_auto_rename_button_maps_to_toggle_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = AppModel::default();
+    model.browser.tag_sidebar.open = true;
+    let mut state = NativeShellState::new();
+    let input_rect = state
+        .browser_tag_sidebar_input_rect(&layout, &model)
+        .expect("sidebar input should render");
+    let field_height = style.sizing.browser_row_height.max(22.0);
+    let point = Point::new(
+        (input_rect.min.x + input_rect.max.x) * 0.5,
+        input_rect.min.y - 4.0 - field_height * 0.5,
+    );
+
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(UiAction::ToggleBrowserTagSidebarAutoRename)
+    );
+}
+
+#[test]
 fn top_bar_controls_fit_inside_control_row() {
     for viewport in [
         Vector2::new(820.0, 520.0),

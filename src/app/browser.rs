@@ -399,6 +399,8 @@ pub struct BrowserTagSidebarModel {
     pub selected_count: usize,
     /// Header line describing the current selection/focus context.
     pub header_label: String,
+    /// Whether sidebar metadata edits should trigger auto-rename.
+    pub auto_rename_enabled: bool,
     /// Current custom-tag input value.
     pub input_value: String,
     /// Placeholder shown for the custom-tag input when empty.

@@ -110,6 +110,7 @@ impl UiAction {
             | Self::ToggleBrowserMarkedFilter
             | Self::ToggleRandomNavigationMode
             | Self::ToggleBrowserTagSidebar
+            | Self::ToggleBrowserTagSidebarAutoRename
             | Self::ToggleBrowserDuplicateCleanupMode
             | Self::FocusPreviousBrowserHistory
             | Self::FocusNextBrowserHistory

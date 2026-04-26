@@ -374,6 +374,14 @@ fn render_browser_tag_sidebar_overlay(
             align: TextAlign::Left,
         },
     );
+    render_sidebar_toggle_button(
+        primitives,
+        text_runs,
+        ctx,
+        layout.auto_rename_rect,
+        "Auto-rename",
+        sidebar.auto_rename_enabled,
+    );
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -425,6 +433,45 @@ fn render_browser_tag_sidebar_overlay(
     }
 }
 
+fn render_sidebar_toggle_button(
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    ctx: &StaticFrameCtx<'_>,
+    rect: Rect,
+    label: &str,
+    active: bool,
+) {
+    let (fill, border, text) = if active {
+        (
+            blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.24),
+            blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32),
+            ctx.style.text_primary,
+        )
+    } else {
+        (
+            ctx.style.surface_base,
+            ctx.style.border,
+            ctx.style.text_muted,
+        )
+    };
+    emit_primitive(primitives, Primitive::Rect(FillRect { rect, color: fill }));
+    push_border(primitives, rect, border, ctx.sizing.border_width);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: label.to_string(),
+            position: Point::new(
+                rect.min.x + ctx.sizing.text_inset_x,
+                rect.min.y + ctx.sizing.text_inset_y,
+            ),
+            font_size: ctx.sizing.font_meta,
+            color: text,
+            max_width: Some((rect.width() - ctx.sizing.text_inset_x * 2.0).max(10.0)),
+            align: TextAlign::Left,
+        },
+    );
+}
+
 fn render_sidebar_tag_pill(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
@@ -472,6 +519,7 @@ fn render_sidebar_tag_pill(
 }
 
 struct BrowserTagSidebarLayout {
+    auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
     playback_rects: [Rect; 2],
@@ -497,12 +545,15 @@ fn browser_tag_sidebar_layout(
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
     let field_height = sizing.browser_row_height.max(22.0);
+    let auto_rename_top = rect.min.y + pad + sizing.font_body + 10.0;
+    let auto_rename_rect = Rect::from_min_max(
+        Point::new(content_min_x, auto_rename_top),
+        Point::new(content_max_x, auto_rename_top + field_height),
+    );
+    let input_top = auto_rename_rect.max.y + 8.0;
     let input_rect = Rect::from_min_max(
-        Point::new(content_min_x, rect.min.y + pad + sizing.font_body + 10.0),
-        Point::new(
-            content_max_x,
-            rect.min.y + pad + sizing.font_body + 10.0 + field_height,
-        ),
+        Point::new(content_min_x, input_top),
+        Point::new(content_max_x, input_top + field_height),
     );
     let input_text_rect = Rect::from_min_max(
         Point::new(
@@ -557,6 +608,7 @@ fn browser_tag_sidebar_layout(
         )
     });
     Some(BrowserTagSidebarLayout {
+        auto_rename_rect,
         input_rect,
         input_text_rect,
         playback_rects,

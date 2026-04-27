@@ -344,7 +344,11 @@ fn rewrite_folder_create_hotkey_action(
     };
     let pane = hovered_folder_pane.unwrap_or(model.sources.active_folder_pane);
     let pane_model = model.sources.folder_pane(pane);
-    let Some(row) = pane_model.folder_rows.get(row_index) else {
+    let Some(row) = pane_model
+        .folder_rows
+        .get(row_index)
+        .or_else(|| model.sources.folder_rows.get(row_index))
+    else {
         return action;
     };
     if matches!(

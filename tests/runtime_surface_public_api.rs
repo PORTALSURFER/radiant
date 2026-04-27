@@ -1,16 +1,16 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
 use radiant::{
-    app,
-    compat::sempal_shell,
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
         declarative_runtime_bridge,
     },
+    theme::ThemeTokens,
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetInput,
-        WidgetKey, WidgetSizing, WidgetSpec,
+        WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -145,22 +145,18 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
 }
 
 #[test]
-fn compat_sempal_shell_reexports_legacy_shell_contracts_and_runtime_helpers() {
-    let compat_model = sempal_shell::AppModel::default();
-    let legacy_model: app::AppModel = compat_model.clone();
-    let compat_options = sempal_shell::NativeRunOptions::default();
-    let legacy_action: app::UiAction = sempal_shell::UiAction::ToggleTransport;
-    let preview: fn(sempal_shell::NativeRunOptions) -> Result<(), String> =
-        sempal_shell::run_native_vello_preview;
-    let snapshot: fn([f32; 2], &sempal_shell::AppModel) -> sempal_shell::GuiAutomationSnapshot =
-        sempal_shell::capture_gui_automation_snapshot;
+fn generic_public_surface_resolves_theme_without_legacy_shell_contracts() {
+    let theme = ThemeTokens::default();
+    let visuals = resolve_widget_visual_tokens(
+        &theme,
+        WidgetStyle::default(),
+        WidgetState {
+            focused: true,
+            ..WidgetState::default()
+        },
+    );
 
-    assert_eq!(compat_model.title, sempal_shell::DEFAULT_APP_TITLE);
-    assert_eq!(legacy_model.title, sempal_shell::DEFAULT_APP_TITLE);
-    assert_eq!(compat_options.title, sempal_shell::DEFAULT_APP_TITLE);
-    assert_eq!(legacy_action, app::UiAction::ToggleTransport);
-
-    let _ = (preview, snapshot);
+    assert_eq!(visuals.border, theme.border_emphasis);
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {

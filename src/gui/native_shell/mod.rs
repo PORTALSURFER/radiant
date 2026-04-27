@@ -9,8 +9,6 @@ mod layout;
 mod layout_adapter;
 mod layout_runtime;
 mod paint;
-#[cfg(test)]
-mod shots;
 mod sidebar_surface;
 mod state;
 mod status_surface;

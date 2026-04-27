@@ -103,7 +103,3 @@ impl NativeShellState {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "tests/automation.rs"]
-mod tests;

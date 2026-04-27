@@ -56,6 +56,7 @@ mod runtime_startup;
 mod runtime_state;
 mod scene_cache;
 mod scene_rebuild;
+mod shell_snapshot;
 mod startup;
 mod text_bpm;
 mod text_edit;
@@ -67,7 +68,9 @@ use self::{
     text_bpm::*, text_edit::*, text_renderer::*,
 };
 
-pub use self::startup::NativeStartupTimingArtifact;
+pub use self::{
+    shell_snapshot::capture_native_shell_shot_snapshot, startup::NativeStartupTimingArtifact,
+};
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 /// Short-lived redraw cadence used immediately after cursor movement.

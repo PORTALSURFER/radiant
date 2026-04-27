@@ -11,6 +11,8 @@ pub(super) fn should_emit_waveform_range_adjust_immediately<B: NativeAppBridge>(
             action,
             UiAction::SetWaveformSelectionRange { .. }
                 | UiAction::SetWaveformEditSelectionRange { .. }
+                | UiAction::SetWaveformSelectionRangePrecise { .. }
+                | UiAction::SetWaveformEditSelectionRangePrecise { .. }
         )
     {
         if command {
@@ -18,10 +20,12 @@ pub(super) fn should_emit_waveform_range_adjust_immediately<B: NativeAppBridge>(
         }
         if runner.modifiers.shift_key() {
             return match action {
-                UiAction::SetWaveformSelectionRange { .. } => {
+                UiAction::SetWaveformSelectionRange { .. }
+                | UiAction::SetWaveformSelectionRangePrecise { .. } => {
                     runner.model.waveform.selection_milli.is_some()
                 }
-                UiAction::SetWaveformEditSelectionRange { .. } => {
+                UiAction::SetWaveformEditSelectionRange { .. }
+                | UiAction::SetWaveformEditSelectionRangePrecise { .. } => {
                     runner.model.waveform.edit_selection_milli.is_some()
                 }
                 _ => false,

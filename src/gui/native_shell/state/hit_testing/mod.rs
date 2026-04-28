@@ -9,6 +9,7 @@ mod chrome;
 mod hover;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/map.rs"]
 mod map;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/waveform.rs"]
 mod waveform;
 
 pub(in crate::gui::native_shell::state) use self::browser::browser_action_hit_test_cache_key;

@@ -77,15 +77,18 @@ mod frame_entrypoints;
 mod frame_text_cache;
 mod hit_testing;
 mod model_sync;
+#[path = "../../../../../src/app_core/native_shell/composition/state/motion_overlay.rs"]
 mod motion_overlay;
 #[path = "../../../../../src/app_core/native_shell/composition/state/options_panel.rs"]
 mod options_panel;
 #[path = "../../../../../src/app_core/native_shell/composition/state/overlays.rs"]
 mod overlays;
+#[path = "../../../../../src/app_core/native_shell/composition/state/svg_icons.rs"]
 mod svg_icons;
 #[path = "../../../../../src/app_core/native_shell/composition/state/text_fields.rs"]
 mod text_fields;
 mod toolbar_helpers;
+#[path = "../../../../../src/app_core/native_shell/composition/state/waveform_segments/mod.rs"]
 mod waveform_segments;
 
 #[cfg(test)]

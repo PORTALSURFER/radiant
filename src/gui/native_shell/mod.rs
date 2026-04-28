@@ -20,7 +20,9 @@ mod style;
 mod tests;
 #[path = "../../../../../src/app_core/native_shell/composition/top_bar_surface.rs"]
 mod top_bar_surface;
+#[path = "../../../../../src/app_core/native_shell/composition/waveform_header_surface.rs"]
 mod waveform_header_surface;
+#[path = "../../../../../src/app_core/native_shell/composition/waveform_toolbar_surface.rs"]
 mod waveform_toolbar_surface;
 
 pub(crate) use layout::ShellLayout;

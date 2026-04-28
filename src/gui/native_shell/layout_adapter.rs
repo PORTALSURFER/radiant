@@ -36,8 +36,10 @@ mod sidebar_sections;
 mod sidebar_text;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/status_bar.rs"]
 mod status_bar;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/waveform_annotations.rs"]
 mod waveform_annotations;
 #[cfg(test)]
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/waveform_header.rs"]
 mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{

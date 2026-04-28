@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn status_surface_text_and_progress_widgets_stay_inside_footer() {
         let style = StyleTokens::for_viewport_width(820.0);
-        let bar = Rect::from_min_max(Point::new(10.0, 5.0), Point::new(260.0, 24.0));
+        let bar = Rect::from_min_max(Point::new(10.0, 5.0), Point::new(360.0, 24.0));
         let layout =
             resolve_status_surface_layout(bar, style.sizing, &StatusSurfaceContent::default());
         assert_inside(layout.left_segment, layout.left_text_rect);

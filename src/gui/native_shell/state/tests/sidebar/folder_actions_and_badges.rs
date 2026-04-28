@@ -6,23 +6,20 @@ fn folder_create_editor_overlay_renders_selection_and_caret() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::create_draft(
-        1,
-        String::from("new folder"),
-        String::from("New folder name"),
-        Some(String::from("Folder already exists")),
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::create_draft(
+            1,
+            String::from("new folder"),
+            String::from("New folder name"),
+            Some(String::from("Folder already exists")),
+            true,
+        ),
+    );
     let input_rect = state
         .folder_create_input_rect(&layout, &model)
         .expect("draft input should render");
@@ -77,23 +74,20 @@ fn folder_rename_editor_overlay_renders_selection_and_caret() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::rename_draft(
-        1,
-        String::from("drums"),
-        String::from("Folder name"),
-        Some(String::from("Folder already exists")),
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::rename_draft(
+            1,
+            String::from("drums"),
+            String::from("Folder name"),
+            Some(String::from("Folder already exists")),
+            true,
+        ),
+    );
     let input_rect = state
         .folder_create_input_rect(&layout, &model)
         .expect("rename draft input should render");
@@ -165,7 +159,7 @@ fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
     let style = style_for_layout(&layout);
     let header_rect = Rect::from_min_max(
         Point::new(0.0, 0.0),
-        Point::new(58.0, style.sizing.folder_header_block_height),
+        Point::new(72.0, style.sizing.folder_header_block_height),
     );
     let header_layout = compute_sidebar_folder_header_layout(
         header_rect,
@@ -261,6 +255,7 @@ fn folder_recovery_badge_renders_idle_count_label() {
     let mut state = NativeShellState::new();
     let mut model = populated_sidebar_model();
     model.sources.folder_recovery.entry_count = 153;
+    model.sources.upper_folder_pane.folder_recovery = model.sources.folder_recovery.clone();
 
     let frame = state.build_frame(&layout, &model);
     let badge_label = frame

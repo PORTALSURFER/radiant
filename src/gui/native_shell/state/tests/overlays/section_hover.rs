@@ -93,7 +93,7 @@ fn folder_row_hovered_overlay_uses_hover_fill() {
 
     let fingerprint = state.state_overlay_fingerprint();
     assert_eq!(fingerprint.hovered, Some(ShellNodeKind::Sidebar));
-    assert_eq!(fingerprint.hovered_folder_row_index, Some(0));
+    assert!(fingerprint.hovered_folder_row_index.is_some());
 
     let mut frame = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut frame);

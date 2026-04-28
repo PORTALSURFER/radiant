@@ -157,6 +157,7 @@ fn status_bar_text_cache_invalidates_when_transport_state_changes() {
     let mut segments = StaticFrameSegments::default();
 
     model.transport_running = false;
+    model.status.left = String::from("Transport: stopped | Selected column: 2");
     state.build_static_segment_with_style_into(
         &layout,
         &style,
@@ -180,6 +181,7 @@ fn status_bar_text_cache_invalidates_when_transport_state_changes() {
 
     segments = StaticFrameSegments::default();
     model.transport_running = true;
+    model.status.left = String::from("Transport: running | Selected column: 2");
     state.build_static_segment_with_style_into(
         &layout,
         &style,

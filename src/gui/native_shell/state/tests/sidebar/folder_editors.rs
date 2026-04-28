@@ -4,13 +4,16 @@ fn inline_folder_draft_fill_insets_from_sidebar_seams() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::create_draft(
-        0,
-        String::from("new folder"),
-        String::from("New folder name"),
-        None,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::create_draft(
+            0,
+            String::from("new folder"),
+            String::from("New folder name"),
+            None,
+            true,
+        ),
+    );
 
     let row_rect = rendered_folder_row_rects(&layout, &style, &model)[0];
     let visual_rect = folder_row_visual_rect(row_rect, style.sizing);
@@ -125,23 +128,20 @@ fn waveform_bpm_editor_overlay_renders_selection_and_caret() {
 fn folder_create_draft_row_ignores_disclosure_hit_testing() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::create_draft(
-        1,
-        String::from("new folder"),
-        String::from("New folder name"),
-        None,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::create_draft(
+            1,
+            String::from("new folder"),
+            String::from("New folder name"),
+            None,
+            true,
+        ),
+    );
     let mut state = NativeShellState::new();
     let disclosure = state
         .folder_row_disclosure_rect(&layout, &model, 1)
@@ -161,23 +161,20 @@ fn folder_create_draft_row_ignores_disclosure_hit_testing() {
 fn folder_rename_draft_row_ignores_disclosure_hit_testing() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::rename_draft(
-        1,
-        String::from("Drums"),
-        String::from("Folder name"),
-        None,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::rename_draft(
+            1,
+            String::from("Drums"),
+            String::from("Folder name"),
+            None,
+            true,
+        ),
+    );
     let mut state = NativeShellState::new();
     let disclosure = state
         .folder_row_disclosure_rect(&layout, &model, 1)

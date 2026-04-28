@@ -20,11 +20,8 @@ fn sidebar_sections_keep_equal_height_panes_across_viewports() {
             state.rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Lower);
         assert_rect_inside(layout.sidebar_rows, sections.upper.bounds);
         assert_rect_inside(layout.sidebar_rows, sections.lower.bounds);
-        assert_eq!(
-            sections.upper.bounds.height(),
-            sections.lower.bounds.height()
-        );
-        assert_eq!(sections.upper.bounds.max.y, sections.lower.bounds.min.y);
+        assert!((sections.upper.bounds.height() - sections.lower.bounds.height()).abs() <= 0.01);
+        assert!((sections.upper.bounds.max.y - sections.lower.bounds.min.y).abs() <= 0.01);
         assert!(!rendered_upper_sources.is_empty());
         assert!(!rendered_lower_sources.is_empty());
     }

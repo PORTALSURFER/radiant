@@ -70,6 +70,18 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
     model
 }
 
+pub(crate) fn push_active_folder_row(model: &mut AppModel, row: FolderRowModel) {
+    model.sources.folder_rows.push(row.clone());
+    model
+        .sources
+        .upper_folder_pane
+        .folder_rows
+        .push(row.clone());
+    model.sources.lower_folder_pane.folder_rows.push(row);
+    model.sources.upper_folder_pane.active = true;
+    model.sources.upper_folder_pane.has_source = true;
+}
+
 pub(crate) fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
     let mut model = AppModel::default();
     for visible_row in 0..total {

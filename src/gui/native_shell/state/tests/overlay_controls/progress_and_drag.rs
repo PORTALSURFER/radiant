@@ -274,5 +274,10 @@ fn state_overlay_renders_options_panel_when_visible() {
     let mut overlay = NativeViewFrame::default();
     state.build_state_overlay_into(&layout, &style, &model, &mut overlay);
 
-    assert!(overlay.text_runs.iter().any(|run| run.text == "Options"));
+    assert!(
+        overlay
+            .text_runs
+            .iter()
+            .any(|run| run.text == "Audio Engine")
+    );
 }

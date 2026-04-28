@@ -512,7 +512,7 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
         .expect("visible picker panel should resolve layout");
     assert_eq!(panel.title, "Output Sample Rate");
     assert_eq!(panel.buttons[0].action, UiAction::ShowOptionsOverview);
-    assert!(panel.buttons[2 - 1].active);
+    assert!(panel.buttons[2].active);
 
     let back_point = Point::new(
         (panel.buttons[0].rect.min.x + panel.buttons[0].rect.max.x) * 0.5,
@@ -523,7 +523,7 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
         Some(UiAction::ShowOptionsOverview)
     );
 
-    let sample_rate_button = &panel.buttons[1];
+    let sample_rate_button = &panel.buttons[2];
     let sample_rate_point = Point::new(
         (sample_rate_button.rect.min.x + sample_rate_button.rect.max.x) * 0.5,
         (sample_rate_button.rect.min.y + sample_rate_button.rect.max.y) * 0.5,

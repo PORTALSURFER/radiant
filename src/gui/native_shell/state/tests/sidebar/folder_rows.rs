@@ -5,26 +5,14 @@ fn folder_row_label_rect_indents_children_beyond_root() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Drums",
-        String::new(),
-        1,
-        false,
-        true,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+    );
 
     let rows = rendered_folder_row_rects(&layout, &style, &model);
     let root_layout = compute_sidebar_folder_row_layout(
@@ -46,26 +34,14 @@ fn folder_row_label_rect_indents_children_beyond_root() {
 fn folder_rows_render_plain_labels_without_fallback_glyph_prefixes() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Drums",
-        String::new(),
-        1,
-        false,
-        true,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+    );
 
     let mut state = NativeShellState::new();
     let frame = state.build_frame(&layout, &model);
@@ -81,36 +57,27 @@ fn folder_rows_render_plain_labels_without_fallback_glyph_prefixes() {
 fn disclosure_gutter_hit_target_is_reserved_only_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Root",
-        String::new(),
-        0,
-        false,
-        false,
-        true,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "Drums",
-        String::new(),
-        1,
-        false,
-        true,
-        false,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "OneShots",
-        String::new(),
-        2,
-        false,
-        false,
-        false,
-        false,
-        false,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "OneShots",
+            String::new(),
+            2,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ),
+    );
 
     let mut state = NativeShellState::new();
     assert!(
@@ -139,26 +106,32 @@ fn folder_rows_use_single_pixel_shared_separator() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_a",
-        String::new(),
-        0,
-        false,
-        false,
-        false,
-        true,
-        true,
-    ));
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_b",
-        String::new(),
-        0,
-        false,
-        false,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "folder_a",
+            String::new(),
+            0,
+            false,
+            false,
+            false,
+            true,
+            true,
+        ),
+    );
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "folder_b",
+            String::new(),
+            0,
+            false,
+            false,
+            false,
+            true,
+            true,
+        ),
+    );
 
     let folder_rows = rendered_folder_row_rects(&layout, &style, &model);
     assert!(folder_rows.len() >= 2, "expected at least two folder rows");
@@ -215,16 +188,19 @@ fn plain_folder_row_fill_insets_from_sidebar_seams() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_plain",
-        String::new(),
-        0,
-        false,
-        false,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "folder_plain",
+            String::new(),
+            0,
+            false,
+            false,
+            false,
+            true,
+            true,
+        ),
+    );
 
     let row_rect = rendered_folder_row_rects(&layout, &style, &model)[0];
     let visual_rect = folder_row_visual_rect(row_rect, style.sizing);
@@ -254,16 +230,19 @@ fn selected_folder_row_fill_insets_from_sidebar_seams() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_selected",
-        String::new(),
-        0,
-        true,
-        false,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "folder_selected",
+            String::new(),
+            0,
+            true,
+            false,
+            false,
+            true,
+            true,
+        ),
+    );
 
     let row_rect = rendered_folder_row_rects(&layout, &style, &model)[0];
     let visual_rect = folder_row_visual_rect(row_rect, style.sizing);
@@ -297,16 +276,19 @@ fn focused_folder_overlay_fill_insets_from_sidebar_seams() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut model = AppModel::default();
     model.focus_context = crate::app::FocusContextModel::SourceFolders;
-    model.sources.folder_rows.push(FolderRowModel::new(
-        "folder_focused",
-        String::new(),
-        0,
-        false,
-        true,
-        false,
-        true,
-        true,
-    ));
+    push_active_folder_row(
+        &mut model,
+        FolderRowModel::new(
+            "folder_focused",
+            String::new(),
+            0,
+            false,
+            true,
+            false,
+            true,
+            true,
+        ),
+    );
 
     let row_rect = rendered_folder_row_rects(&layout, &style, &model)[0];
     let visual_rect = folder_row_visual_rect(row_rect, style.sizing);

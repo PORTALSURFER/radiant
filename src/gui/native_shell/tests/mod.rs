@@ -27,6 +27,11 @@ fn canonical_shell_model() -> crate::app::AppModel {
     model.sources.folder_actions.can_rename_folder = true;
     model.sources.folder_actions.can_delete_folder = true;
     model.sources.folder_actions.can_clear_recovery_log = true;
+    model.sources.upper_folder_pane.folder_search_query = model.sources.folder_search_query.clone();
+    model.sources.upper_folder_pane.folder_actions = model.sources.folder_actions.clone();
+    model.sources.upper_folder_pane.active = true;
+    model.sources.upper_folder_pane.has_source = true;
+    model.sources.upper_folder_pane.source_label = String::from("source_02");
     for index in 0..10 {
         model.sources.rows.push(crate::app::SourceRowModel::new(
             format!("source_{index:02}"),
@@ -49,6 +54,14 @@ fn canonical_shell_model() -> crate::app::AppModel {
                 true,
                 true,
             ));
+        model.sources.upper_folder_pane.folder_rows.push(
+            model
+                .sources
+                .folder_rows
+                .last()
+                .expect("folder row was just inserted")
+                .clone(),
+        );
     }
     for index in 0..36 {
         model.browser.rows.push(crate::app::BrowserRowModel::new(

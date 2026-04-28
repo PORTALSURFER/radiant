@@ -67,7 +67,7 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
-    let top_model = folder_model_with_rows(80, 6);
+    let top_model = folder_model_with_rows(240, 6);
     let top_rows = state
         .cached_folder_rows(&layout, &style, &top_model, FolderPaneIdModel::Upper)
         .to_vec();
@@ -85,7 +85,7 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     )
     .expect("overflowing folder list should render a scrollbar");
 
-    let lower_model = folder_model_with_rows(80, 48);
+    let lower_model = folder_model_with_rows(240, 148);
     let lower_rows = state
         .cached_folder_rows(&layout, &style, &lower_model, FolderPaneIdModel::Lower)
         .to_vec();
@@ -144,7 +144,7 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
 fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
-    let mut model = folder_model_with_rows(90, 0);
+    let mut model = folder_model_with_rows(240, 0);
     model.sources.focused_folder_row = Some(0);
     let mut state = NativeShellState::new();
     let initial_rows = state
@@ -246,7 +246,7 @@ fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
     let mut model = AppModel::default();
     model.sources.focused_folder_row = Some(focused_row.min(total_rows.saturating_sub(1)));
     for row_index in 0..total_rows {
-        model.sources.folder_rows.push(FolderRowModel::new(
+        let row = FolderRowModel::new(
             format!("folder_{row_index:03}"),
             format!("folder_{row_index:03}"),
             0,
@@ -255,7 +255,16 @@ fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
             row_index == 0,
             row_index < total_rows.saturating_sub(1),
             true,
-        ));
+        );
+        model.sources.folder_rows.push(row.clone());
+        model
+            .sources
+            .upper_folder_pane
+            .folder_rows
+            .push(row.clone());
+        model.sources.lower_folder_pane.folder_rows.push(row);
     }
+    model.sources.upper_folder_pane.focused_folder_row = model.sources.focused_folder_row;
+    model.sources.lower_folder_pane.focused_folder_row = model.sources.focused_folder_row;
     model
 }

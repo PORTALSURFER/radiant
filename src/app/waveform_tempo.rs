@@ -1,4 +1,4 @@
-//! Shared waveform tempo parsing helpers used by shell projections and runtime editing.
+//! Legacy Sempal-shell compatibility helpers for waveform tempo text input.
 
 /// Extract the numeric BPM portion from one host-projected tempo label.
 ///

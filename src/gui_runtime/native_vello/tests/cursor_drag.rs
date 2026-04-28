@@ -168,10 +168,10 @@ fn process_waveform_drag_immediately_ignores_tiny_selection_wobble() {
         layout.waveform_card.min.x + layout.waveform_card.width() * 0.5,
         layout.waveform_card.min.y + layout.waveform_card.height() * 0.5,
     );
-    let anchor_micros = waveform_position_micros_from_point(&layout, &runner.model, anchor);
+    let anchor_nanos = waveform_position_nanos_from_point(&layout, &runner.model, anchor);
     runner.shell_layout = Some(Arc::new(layout));
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
-        anchor_micros,
+        anchor_micros: anchor_nanos,
         boundary_lock: None,
     });
 
@@ -197,7 +197,7 @@ fn finish_volume_drag_small_waveform_wobble_still_plays_from_click() {
     runner.shell_layout = Some(Arc::new(layout));
     runner.last_cursor = Some(release);
     runner.waveform_drag_mode = Some(WaveformPointerDragMode::Selection {
-        anchor_micros,
+        anchor_micros: anchor_nanos,
         boundary_lock: None,
     });
     runner.waveform_click_seek_press = Some(WaveformClickSeekPress {

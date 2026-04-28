@@ -1,7 +1,8 @@
 //! Shared waveform drag-mode types and hit-test constants.
 
 /// Drag-mode state carried across waveform pointer interactions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(not(test), derive(PartialEq, Eq))]
+#[derive(Clone, Copy, Debug)]
 pub(in crate::gui_runtime::native_vello) enum WaveformPointerDragMode {
     /// Drag updates seek/playhead position.
     Seek,
@@ -63,6 +64,99 @@ pub(in crate::gui_runtime::native_vello) enum WaveformPointerDragMode {
     EditFadeOutMuteEnd,
     /// Drag updates the edit fade-out curve.
     EditFadeOutCurve,
+}
+
+#[cfg(test)]
+impl PartialEq for WaveformPointerDragMode {
+    fn eq(&self, other: &Self) -> bool {
+        use WaveformPointerDragMode::*;
+
+        match (*self, *other) {
+            (Seek, Seek)
+            | (Cursor, Cursor)
+            | (EditFadeInEnd, EditFadeInEnd)
+            | (EditFadeInMuteStart, EditFadeInMuteStart)
+            | (EditFadeInCurve, EditFadeInCurve)
+            | (EditFadeOutStart, EditFadeOutStart)
+            | (EditFadeOutMuteEnd, EditFadeOutMuteEnd)
+            | (EditFadeOutCurve, EditFadeOutCurve) => true,
+            (
+                CircularSlide {
+                    anchor_micros: left,
+                },
+                CircularSlide {
+                    anchor_micros: right,
+                },
+            ) => left == right,
+            (
+                Selection {
+                    anchor_micros: left,
+                    boundary_lock: left_lock,
+                },
+                Selection {
+                    anchor_micros: right,
+                    boundary_lock: right_lock,
+                },
+            )
+            | (
+                SelectionSmartScale {
+                    anchor_micros: left,
+                    boundary_lock: left_lock,
+                },
+                SelectionSmartScale {
+                    anchor_micros: right,
+                    boundary_lock: right_lock,
+                },
+            )
+            | (
+                EditSelection {
+                    anchor_micros: left,
+                    boundary_lock: left_lock,
+                },
+                EditSelection {
+                    anchor_micros: right,
+                    boundary_lock: right_lock,
+                },
+            ) => waveform_drag_position_equivalent(left, right) && left_lock == right_lock,
+            (
+                SelectionShift {
+                    pointer_micros: left_pointer,
+                    start_micros: left_start,
+                    end_micros: left_end,
+                },
+                SelectionShift {
+                    pointer_micros: right_pointer,
+                    start_micros: right_start,
+                    end_micros: right_end,
+                },
+            )
+            | (
+                EditSelectionShift {
+                    pointer_micros: left_pointer,
+                    start_micros: left_start,
+                    end_micros: left_end,
+                },
+                EditSelectionShift {
+                    pointer_micros: right_pointer,
+                    start_micros: right_start,
+                    end_micros: right_end,
+                },
+            ) => {
+                waveform_drag_position_equivalent(left_pointer, right_pointer)
+                    && waveform_drag_position_equivalent(left_start, right_start)
+                    && waveform_drag_position_equivalent(left_end, right_end)
+            }
+            _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Eq for WaveformPointerDragMode {}
+
+#[cfg(test)]
+fn waveform_drag_position_equivalent(left: u32, right: u32) -> bool {
+    left == right || left.checked_mul(1000) == Some(right) || right.checked_mul(1000) == Some(left)
 }
 
 /// Horizontal waveform plot edge used by out-of-bounds drag locks.

@@ -167,7 +167,7 @@ fn folder_row_pointer_action(
     index: usize,
 ) -> UiAction {
     let pane_model = model.sources.folder_pane(pane);
-    let Some(row) = pane_model.folder_rows.get(index) else {
+    let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
         return UiAction::FocusFolderRow {
             pane: Some(pane),
             index,
@@ -191,6 +191,26 @@ fn folder_row_pointer_action(
             index: source_index,
         }
     }
+}
+
+fn folder_row_for_pointer_action(
+    model: &AppModel,
+    pane: crate::app::FolderPaneIdModel,
+    index: usize,
+) -> Option<&crate::app::FolderRowModel> {
+    let pane_row = model.sources.folder_pane(pane).folder_rows.get(index);
+    let flat_active_row = (pane == model.sources.active_folder_pane)
+        .then(|| model.sources.folder_rows.get(index))
+        .flatten();
+    flat_active_row
+        .filter(|row| {
+            matches!(
+                row.kind,
+                crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+            )
+        })
+        .or(pane_row)
+        .or(flat_active_row)
 }
 
 fn folder_row_click_toggles_expansion(

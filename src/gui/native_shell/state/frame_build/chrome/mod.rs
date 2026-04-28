@@ -3,6 +3,7 @@ use super::*;
 
 mod modals;
 mod shell;
+#[path = "../../../../../../../../src/app_core/native_shell/composition/state/frame_build/chrome/sidebar.rs"]
 mod sidebar;
 mod top_bar;
 

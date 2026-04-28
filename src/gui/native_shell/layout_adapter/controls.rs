@@ -4,6 +4,7 @@
 mod browser_toolbar;
 mod shared;
 #[cfg(test)]
+#[path = "../../../../../../src/app_core/native_shell/composition/layout_adapter/controls/sidebar_buttons.rs"]
 mod sidebar_buttons;
 mod update_buttons;
 

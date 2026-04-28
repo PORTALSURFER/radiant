@@ -18,11 +18,16 @@ mod overlays;
 #[cfg(test)]
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/row_hit_test.rs"]
 mod row_hit_test;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_bands.rs"]
 mod sidebar_bands;
 #[cfg(test)]
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_chrome_text.rs"]
 mod sidebar_chrome_text;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_header.rs"]
 mod sidebar_header;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_sections.rs"]
 mod sidebar_sections;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_text.rs"]
 mod sidebar_text;
 mod status_bar;
 mod waveform_annotations;

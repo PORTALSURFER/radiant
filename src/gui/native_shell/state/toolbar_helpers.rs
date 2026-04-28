@@ -4,6 +4,7 @@
 mod browser_row_decor;
 #[path = "../../../../../../src/app_core/native_shell/composition/state/toolbar_helpers/browser_toolbar/mod.rs"]
 mod browser_toolbar;
+#[path = "../../../../../../src/app_core/native_shell/composition/state/toolbar_helpers/sidebar_toolbar.rs"]
 mod sidebar_toolbar;
 mod waveform_toolbar;
 mod waveform_visuals;

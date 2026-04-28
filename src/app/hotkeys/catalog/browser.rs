@@ -1,7 +1,7 @@
 //! Sample-browser hotkeys and related row-navigation gestures.
 
-use crate::app::UiAction;
 use crate::gui::input::KeyCode;
+use crate::sempal_app::UiAction;
 
 use super::super::{BROWSER_SCOPE, HotkeyBinding, HotkeyGesture, KeyPress};
 

@@ -4,7 +4,7 @@ use super::helpers::{
     action_slug, bool_text, bounds, circle_rect, metadata, node_id, simple_node, slug,
 };
 use super::*;
-use crate::app::AutomationRole;
+use crate::sempal_app::AutomationRole;
 
 /// Build semantic automation for the browser panel and its active content.
 pub(super) fn build_browser_automation(
@@ -84,9 +84,11 @@ pub(super) fn build_browser_automation(
         }
         let bucket = super::super::BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
         let (slug, label) = match bucket {
-            crate::app::PlaybackAgeFilterChip::NeverPlayed => ("never", "Never played"),
-            crate::app::PlaybackAgeFilterChip::OlderThanMonth => ("month", "Older than month"),
-            crate::app::PlaybackAgeFilterChip::OlderThanWeek => ("week", "Older than week"),
+            crate::sempal_app::PlaybackAgeFilterChip::NeverPlayed => ("never", "Never played"),
+            crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth => {
+                ("month", "Older than month")
+            }
+            crate::sempal_app::PlaybackAgeFilterChip::OlderThanWeek => ("week", "Older than week"),
         };
         children.push(simple_node(
             format!("browser.playback_age_filter.{slug}"),
@@ -137,7 +139,7 @@ pub(super) fn build_browser_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::app::FocusContextModel::SampleBrowser
+            crate::sempal_app::FocusContextModel::SampleBrowser
         ),
         available_actions: vec![String::from("focus_browser_panel")],
         metadata: metadata(&[
@@ -196,7 +198,7 @@ fn build_browser_table_automation(
         true,
         matches!(
             model.focus_context,
-            crate::app::FocusContextModel::SampleBrowser
+            crate::sempal_app::FocusContextModel::SampleBrowser
         ),
         vec![
             String::from("focus_browser_panel"),
@@ -233,10 +235,10 @@ fn build_browser_table_automation(
                 (
                     "playback_age_bucket",
                     match row.playback_age_bucket {
-                        crate::app::PlaybackAgeBucket::Fresh => "fresh",
-                        crate::app::PlaybackAgeBucket::OlderThanWeek => "week",
-                        crate::app::PlaybackAgeBucket::OlderThanMonth => "month",
-                        crate::app::PlaybackAgeBucket::NeverPlayed => "never",
+                        crate::sempal_app::PlaybackAgeBucket::Fresh => "fresh",
+                        crate::sempal_app::PlaybackAgeBucket::OlderThanWeek => "week",
+                        crate::sempal_app::PlaybackAgeBucket::OlderThanMonth => "month",
+                        crate::sempal_app::PlaybackAgeBucket::NeverPlayed => "never",
                     },
                 ),
             ]),

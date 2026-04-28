@@ -1,4 +1,4 @@
-use crate::app::{FocusContextModel, UiAction, hotkeys::iter_hotkey_bindings};
+use crate::sempal_app::{FocusContextModel, UiAction, hotkeys::iter_hotkey_bindings};
 
 use super::HOTKEY_BINDINGS;
 

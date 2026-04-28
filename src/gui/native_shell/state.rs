@@ -56,11 +56,11 @@ use super::{
         resolve_waveform_toolbar_surface_layout,
     },
 };
-use crate::app::{AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction};
 use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
 };
+use crate::sempal_app::{AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction};
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -138,10 +138,10 @@ const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::app::PlaybackAgeFilterChip; 3] = [
-    crate::app::PlaybackAgeFilterChip::NeverPlayed,
-    crate::app::PlaybackAgeFilterChip::OlderThanMonth,
-    crate::app::PlaybackAgeFilterChip::OlderThanWeek,
+const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::sempal_app::PlaybackAgeFilterChip; 3] = [
+    crate::sempal_app::PlaybackAgeFilterChip::NeverPlayed,
+    crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth,
+    crate::sempal_app::PlaybackAgeFilterChip::OlderThanWeek,
 ];
 /// Additional hit slop for the narrow browser scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
@@ -191,13 +191,13 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_browser_rating_filter_level: Option<i8>,
-    hovered_browser_playback_age_filter_chip: Option<crate::app::PlaybackAgeFilterChip>,
+    hovered_browser_playback_age_filter_chip: Option<crate::sempal_app::PlaybackAgeFilterChip>,
     hovered_browser_marked_filter: bool,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
     browser_tag_sidebar_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
-    hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
+    hovered_folder_pane: Option<crate::sempal_app::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -343,7 +343,7 @@ impl NativeShellState {
     }
 
     /// Return the pane currently associated with the hovered folder row, when any.
-    pub(crate) fn hovered_folder_pane(&self) -> Option<crate::app::FolderPaneIdModel> {
+    pub(crate) fn hovered_folder_pane(&self) -> Option<crate::sempal_app::FolderPaneIdModel> {
         self.hovered_folder_pane
     }
 
@@ -425,7 +425,7 @@ impl NativeShellState {
     /// Open the transient source context menu for one source row.
     pub(crate) fn open_source_context_menu_for_row(
         &mut self,
-        pane: crate::app::FolderPaneIdModel,
+        pane: crate::sempal_app::FolderPaneIdModel,
         row_index: usize,
         anchor: Point,
     ) {

@@ -1,7 +1,7 @@
 //! Source-folder pane hotkeys and folder-tree navigation gestures.
 
-use crate::app::UiAction;
 use crate::gui::input::KeyCode;
+use crate::sempal_app::UiAction;
 
 use super::super::{FOLDERS_SCOPE, HotkeyBinding, HotkeyGesture};
 

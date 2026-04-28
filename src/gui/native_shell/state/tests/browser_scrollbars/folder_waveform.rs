@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::FolderPaneIdModel;
+use crate::sempal_app::FolderPaneIdModel;
 
 #[allow(dead_code)]
 fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {

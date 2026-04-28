@@ -3,8 +3,8 @@ use super::super::*;
 #[test]
 fn top_bar_surface_layout_stays_ordered_across_density_tiers() {
     let model = AppModel {
-        update: crate::app::UpdatePanelModel {
-            status: crate::app::UpdateStatusModel::Available,
+        update: crate::sempal_app::UpdatePanelModel {
+            status: crate::sempal_app::UpdateStatusModel::Available,
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),

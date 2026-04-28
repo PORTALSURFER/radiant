@@ -82,7 +82,7 @@ fn waveform_bpm_grid_lines_reuse_last_selection_origin_after_clear() {
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = true;
     model.waveform_chrome.relative_bpm_grid_enabled = true;
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(125, 375));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(125, 375));
 
     let selected_frame = state.build_frame(&layout, &model);
     let selected_positions = waveform_bpm_grid_positions(&selected_frame, &layout, &style);
@@ -294,7 +294,7 @@ fn waveform_bpm_grid_lines_ignore_selection_origin_in_global_mode() {
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = true;
     model.waveform_chrome.relative_bpm_grid_enabled = false;
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(125, 375));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(125, 375));
     model.waveform.bpm_grid_origin_micros = 250_000;
 
     let frame = state.build_frame(&layout, &model);

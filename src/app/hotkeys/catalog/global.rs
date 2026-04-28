@@ -1,7 +1,7 @@
 //! Global hotkeys that remain active regardless of focus scope.
 
-use crate::app::{BrowserTagTarget, UiAction};
 use crate::gui::input::KeyCode;
+use crate::sempal_app::{BrowserTagTarget, UiAction};
 
 use super::super::{GLOBAL_SCOPE, HotkeyBinding, HotkeyGesture, KeyPress};
 

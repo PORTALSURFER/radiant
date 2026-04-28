@@ -1,9 +1,9 @@
 use super::*;
-use crate::app::{
+use crate::gui::types::{ImageRgba, Point, Rgba8, Vector2};
+use crate::sempal_app::{
     BrowserRowModel, FolderActionsModel, FolderRowModel, NativeMotionModel, NormalizedRangeModel,
     SourceRowModel,
 };
-use crate::gui::types::{ImageRgba, Point, Rgba8, Vector2};
 
 pub(crate) fn populated_sidebar_model() -> AppModel {
     let mut model = AppModel::default();
@@ -118,7 +118,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
                 inline_tag_labels: Vec::new(),
                 inline_tag_rects: Vec::new(),
                 text_layout: compute_browser_row_text_layout(rect, style.sizing),
-                playback_age_bucket: crate::app::PlaybackAgeBucket::Fresh,
+                playback_age_bucket: crate::sempal_app::PlaybackAgeBucket::Fresh,
                 similarity_display_strength: None,
                 column: 1,
                 rating_level: 0,

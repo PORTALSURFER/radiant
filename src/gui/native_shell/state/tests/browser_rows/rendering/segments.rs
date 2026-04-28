@@ -45,7 +45,7 @@ fn static_segments_include_map_panel_when_map_tab_is_active() {
     model.map.summary = String::from("Map summary");
     model.map.selected_sample_id = Some(String::from("kick"));
     model.map.focused_sample_id = Some(String::from("kick"));
-    model.map.points = std::sync::Arc::from(vec![crate::app::MapPointModel {
+    model.map.points = std::sync::Arc::from(vec![crate::sempal_app::MapPointModel {
         sample_id: std::sync::Arc::<str>::from("kick"),
         x_milli: 512,
         y_milli: 480,

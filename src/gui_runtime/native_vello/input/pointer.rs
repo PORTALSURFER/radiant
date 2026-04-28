@@ -163,7 +163,7 @@ fn route_sidebar_background(
 
 fn folder_row_pointer_action(
     model: &AppModel,
-    pane: crate::app::FolderPaneIdModel,
+    pane: crate::sempal_app::FolderPaneIdModel,
     index: usize,
 ) -> UiAction {
     let pane_model = model.sources.folder_pane(pane);
@@ -175,7 +175,8 @@ fn folder_row_pointer_action(
     };
     if matches!(
         row.kind,
-        crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+        crate::sempal_app::FolderRowKind::CreateDraft
+            | crate::sempal_app::FolderRowKind::RenameDraft
     ) {
         return UiAction::FocusFolderCreateInput;
     }
@@ -195,9 +196,9 @@ fn folder_row_pointer_action(
 
 fn folder_row_for_pointer_action(
     model: &AppModel,
-    pane: crate::app::FolderPaneIdModel,
+    pane: crate::sempal_app::FolderPaneIdModel,
     index: usize,
-) -> Option<&crate::app::FolderRowModel> {
+) -> Option<&crate::sempal_app::FolderRowModel> {
     let pane_row = model.sources.folder_pane(pane).folder_rows.get(index);
     let flat_active_row = (pane == model.sources.active_folder_pane)
         .then(|| model.sources.folder_rows.get(index))
@@ -206,7 +207,8 @@ fn folder_row_for_pointer_action(
         .filter(|row| {
             matches!(
                 row.kind,
-                crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+                crate::sempal_app::FolderRowKind::CreateDraft
+                    | crate::sempal_app::FolderRowKind::RenameDraft
             )
         })
         .or(pane_row)
@@ -214,7 +216,7 @@ fn folder_row_for_pointer_action(
 }
 
 fn folder_row_click_toggles_expansion(
-    pane_model: &crate::app::FolderPaneModel,
+    pane_model: &crate::sempal_app::FolderPaneModel,
     index: usize,
 ) -> bool {
     let Some(row) = pane_model.folder_rows.get(index) else {
@@ -224,7 +226,8 @@ fn folder_row_click_toggles_expansion(
         && !row.is_root
         && !matches!(
             row.kind,
-            crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+            crate::sempal_app::FolderRowKind::CreateDraft
+                | crate::sempal_app::FolderRowKind::RenameDraft
         )
         && pane_model.folder_search_query.trim().is_empty()
 }

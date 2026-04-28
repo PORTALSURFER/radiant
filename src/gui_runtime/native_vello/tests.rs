@@ -1,9 +1,9 @@
 use super::*;
-pub(super) use crate::app::{
+use crate::gui::types::Vector2;
+pub(super) use crate::sempal_app::{
     BrowserPanelModel, BrowserRowModel, ColumnModel, MapPanelModel, MapPointModel,
     SourcesPanelModel, WaveformPanelModel,
 };
-use crate::gui::types::Vector2;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{
     Arc,

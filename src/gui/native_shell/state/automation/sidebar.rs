@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bool_text, bounds, metadata, node_id, simple_node, slug};
 use super::*;
-use crate::app::{AutomationRole, FolderPaneIdModel, FolderPaneModel};
+use crate::sempal_app::{AutomationRole, FolderPaneIdModel, FolderPaneModel};
 
 /// Build semantic automation for the sources/sidebar panel.
 pub(super) fn build_sidebar_automation(
@@ -49,7 +49,7 @@ pub(super) fn build_sidebar_automation(
                 .filter(|row| row.pane == pane)
                 .collect(),
             &model.sources.rows,
-            model.focus_context == crate::app::FocusContextModel::SourcesList
+            model.focus_context == crate::sempal_app::FocusContextModel::SourcesList
                 && model.sources.active_folder_pane == pane,
         ));
         children.push(folder_browser_group(
@@ -62,7 +62,7 @@ pub(super) fn build_sidebar_automation(
             &pane_model.folder_rows,
             pane_model,
             style,
-            model.focus_context == crate::app::FocusContextModel::SourceFolders
+            model.focus_context == crate::sempal_app::FocusContextModel::SourceFolders
                 && model.sources.active_folder_pane == pane,
         ));
     }
@@ -94,7 +94,7 @@ fn source_list_group(
     pane: FolderPaneIdModel,
     rect: Rect,
     source_rows: Vec<CachedSourceRow>,
-    rows: &[crate::app::SourceRowModel],
+    rows: &[crate::sempal_app::SourceRowModel],
     selected: bool,
 ) -> AutomationNodeSnapshot {
     let row_count = rows.len().to_string();
@@ -143,7 +143,7 @@ fn source_list_group(
     }
 }
 
-fn source_row_selected(row: &crate::app::SourceRowModel, pane: FolderPaneIdModel) -> bool {
+fn source_row_selected(row: &crate::sempal_app::SourceRowModel, pane: FolderPaneIdModel) -> bool {
     match pane {
         FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
         FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
@@ -155,7 +155,7 @@ fn folder_browser_group(
     header_rect: Rect,
     folder_rows_band: Rect,
     folder_rows: Vec<CachedFolderRow>,
-    rows: &[crate::app::FolderRowModel],
+    rows: &[crate::sempal_app::FolderRowModel],
     pane_model: &FolderPaneModel,
     style: &StyleTokens,
     selected: bool,
@@ -229,15 +229,18 @@ fn folder_browser_group(
             .map(|(row_index, rect, row)| {
                 let (role, label, value, available_actions) = if matches!(
                     row.kind,
-                    crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+                    crate::sempal_app::FolderRowKind::CreateDraft
+                        | crate::sempal_app::FolderRowKind::RenameDraft
                 ) {
                     (
                         AutomationRole::SearchField,
-                        Some(if row.kind == crate::app::FolderRowKind::RenameDraft {
-                            String::from("Rename folder")
-                        } else {
-                            String::from("New folder")
-                        }),
+                        Some(
+                            if row.kind == crate::sempal_app::FolderRowKind::RenameDraft {
+                                String::from("Rename folder")
+                            } else {
+                                String::from("New folder")
+                            },
+                        ),
                         row.input_value.clone(),
                         vec![
                             String::from("focus_folder_create_input"),
@@ -282,9 +285,9 @@ fn folder_browser_group(
                         (
                             "kind",
                             match row.kind {
-                                crate::app::FolderRowKind::CreateDraft => "create_draft",
-                                crate::app::FolderRowKind::RenameDraft => "rename_draft",
-                                crate::app::FolderRowKind::Existing => "existing",
+                                crate::sempal_app::FolderRowKind::CreateDraft => "create_draft",
+                                crate::sempal_app::FolderRowKind::RenameDraft => "rename_draft",
+                                crate::sempal_app::FolderRowKind::Existing => "existing",
                             },
                         ),
                         ("input_error", row.input_error.as_deref().unwrap_or("")),

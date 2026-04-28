@@ -52,7 +52,7 @@ pub(super) fn waveform_bpm_text_from_model<B: NativeAppBridge>(
         .waveform
         .tempo_label
         .as_deref()
-        .and_then(crate::app::parse_waveform_tempo_number_text)
+        .and_then(crate::sempal_app::parse_waveform_tempo_number_text)
         .unwrap_or_else(|| String::from("120.0"))
 }
 

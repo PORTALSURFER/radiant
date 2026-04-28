@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::app::FolderPaneIdModel;
+use crate::sempal_app::FolderPaneIdModel;
 
 #[test]
 fn sidebar_sections_keep_equal_height_panes_across_viewports() {

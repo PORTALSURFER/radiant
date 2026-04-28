@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::hotkeys::{HotkeyResolution, KeyPress, resolve_hotkey_press};
+use crate::sempal_app::hotkeys::{HotkeyResolution, KeyPress, resolve_hotkey_press};
 
 pub(super) fn keypress_from_input(key: KeyCode, modifiers: ModifiersState) -> KeyPress {
     KeyPress {

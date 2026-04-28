@@ -267,7 +267,7 @@ pub(super) fn waveform_selection_drag_handle_hit_rect(
 pub(super) fn waveform_selection_shift_handle_hit_rect(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: crate::app::NormalizedRangeModel,
+    selection: crate::sempal_app::NormalizedRangeModel,
 ) -> Option<UiRect> {
     let start_micros = selection.start_micros.min(selection.end_micros);
     let end_micros = selection.start_micros.max(selection.end_micros);

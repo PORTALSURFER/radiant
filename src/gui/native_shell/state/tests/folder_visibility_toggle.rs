@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::FolderPaneIdModel;
+use crate::sempal_app::FolderPaneIdModel;
 
 #[test]
 fn folder_visibility_toggle_button_click_maps_to_toggle_action() {

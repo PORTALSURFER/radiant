@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::hotkeys::HotkeyResolution;
+use crate::sempal_app::hotkeys::HotkeyResolution;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(test)]
@@ -164,7 +164,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn handle_hotkey_press(&mut self, key: KeyCode) -> bool {
         let handled_by_shell = matches!(
             self.model.focus_context,
-            crate::app::FocusContextModel::None
+            crate::sempal_app::FocusContextModel::None
         ) && self.shell_state.handle_key(key);
         if handled_by_shell {
             return true;
@@ -268,7 +268,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.text_input_target == TextInputTarget::None
             && matches!(
                 self.model.focus_context,
-                crate::app::FocusContextModel::SampleBrowser
+                crate::sempal_app::FocusContextModel::SampleBrowser
             )
             && self.model.browser.duplicate_cleanup_active
         {
@@ -318,7 +318,8 @@ fn folder_create_confirm_enabled(model: &AppModel) -> bool {
         .find(|row| {
             matches!(
                 row.kind,
-                crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+                crate::sempal_app::FolderRowKind::CreateDraft
+                    | crate::sempal_app::FolderRowKind::RenameDraft
             )
         })
         .and_then(|row| row.input_error.as_ref())
@@ -328,13 +329,13 @@ fn folder_create_confirm_enabled(model: &AppModel) -> bool {
 fn rewrite_folder_create_hotkey_action(
     action: UiAction,
     model: &AppModel,
-    hovered_folder_pane: Option<crate::app::FolderPaneIdModel>,
+    hovered_folder_pane: Option<crate::sempal_app::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
 ) -> UiAction {
     if action != UiAction::StartNewFolder
         || !matches!(
             model.focus_context,
-            crate::app::FocusContextModel::SourceFolders
+            crate::sempal_app::FocusContextModel::SourceFolders
         )
     {
         return action;
@@ -353,7 +354,8 @@ fn rewrite_folder_create_hotkey_action(
     };
     if matches!(
         row.kind,
-        crate::app::FolderRowKind::CreateDraft | crate::app::FolderRowKind::RenameDraft
+        crate::sempal_app::FolderRowKind::CreateDraft
+            | crate::sempal_app::FolderRowKind::RenameDraft
     ) {
         return action;
     }

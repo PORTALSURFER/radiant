@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::AutomationNodeSnapshot;
+use crate::sempal_app::AutomationNodeSnapshot;
 
 fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
     parent
@@ -155,7 +155,10 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     let table = child(browser, "browser.table");
     let row = child(table, "browser.row.0");
 
-    assert_eq!(marked_filter.role, crate::app::AutomationRole::Button);
+    assert_eq!(
+        marked_filter.role,
+        crate::sempal_app::AutomationRole::Button
+    );
     assert!(marked_filter.selected);
     assert_eq!(
         marked_filter.available_actions,
@@ -171,7 +174,7 @@ fn browser_automation_exposes_playback_age_filters_and_row_bucket_metadata() {
     model.browser.active_playback_age_filters = [true, false, true];
     model.browser.rows.push(
         BrowserRowModel::new(0, "Never played row", 1, false, true)
-            .with_playback_age_bucket(crate::app::PlaybackAgeBucket::NeverPlayed),
+            .with_playback_age_bucket(crate::sempal_app::PlaybackAgeBucket::NeverPlayed),
     );
     model.browser.visible_count = model.browser.rows.len();
     let mut state = NativeShellState::new();

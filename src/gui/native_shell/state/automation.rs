@@ -1,7 +1,7 @@
 //! Deterministic automation snapshot builders for the native shell.
 
 use super::*;
-use crate::app::{AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot};
+use crate::sempal_app::{AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot};
 use std::collections::BTreeMap;
 
 #[path = "automation/browser.rs"]

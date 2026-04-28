@@ -30,7 +30,7 @@ impl ImmediateFolderCreateBridge {
     fn with_root() -> Self {
         Self {
             model: AppModel {
-                focus_context: crate::app::FocusContextModel::SourceFolders,
+                focus_context: crate::sempal_app::FocusContextModel::SourceFolders,
                 sources: SourcesPanelModel {
                     folder_rows: vec![root_folder_row()].into(),
                     ..SourcesPanelModel::default()
@@ -47,7 +47,7 @@ impl ImmediateFolderCreateBridge {
 
     fn set_inline_draft(&mut self, value: String, rename: bool) {
         let draft = if rename {
-            crate::app::FolderRowModel::rename_draft(
+            crate::sempal_app::FolderRowModel::rename_draft(
                 1,
                 value.clone(),
                 String::from("Folder name"),
@@ -55,7 +55,7 @@ impl ImmediateFolderCreateBridge {
                 true,
             )
         } else {
-            crate::app::FolderRowModel::create_draft(
+            crate::sempal_app::FolderRowModel::create_draft(
                 1,
                 value.clone(),
                 String::from("New folder name"),
@@ -77,7 +77,7 @@ impl ImmediateFolderCreateBridge {
     fn add_created_folder(&mut self, value: String) {
         self.model.sources.folder_rows = vec![
             root_folder_row(),
-            crate::app::FolderRowModel::new(
+            crate::sempal_app::FolderRowModel::new(
                 value.clone(),
                 value,
                 1,
@@ -121,7 +121,7 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
                     .sources
                     .folder_rows
                     .iter()
-                    .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == crate::sempal_app::FolderRowKind::CreateDraft)
                     .and_then(|row| row.input_value.clone())
                     .map(|value| value.trim().to_string())
                     .unwrap_or_default();
@@ -136,8 +136,8 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
     }
 }
 
-fn root_folder_row() -> crate::app::FolderRowModel {
-    crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+fn root_folder_row() -> crate::sempal_app::FolderRowModel {
+    crate::sempal_app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
         .with_source_index(0)
 }
 

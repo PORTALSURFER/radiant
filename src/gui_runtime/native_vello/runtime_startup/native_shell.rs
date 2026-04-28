@@ -35,7 +35,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             return;
         };
         let title = if self.options.title.trim().is_empty() {
-            crate::app::DEFAULT_APP_TITLE
+            crate::sempal_app::DEFAULT_APP_TITLE
         } else {
             self.options.title.as_str()
         };

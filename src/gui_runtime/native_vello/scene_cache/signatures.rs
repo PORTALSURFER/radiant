@@ -95,7 +95,7 @@ fn fingerprint_mix_option_i8(state: &mut u64, value: Option<i8>) {
     fingerprint_mix_bool(state, false);
 }
 
-fn fingerprint_mix_range(state: &mut u64, range: &crate::app::NormalizedRangeModel) {
+fn fingerprint_mix_range(state: &mut u64, range: &crate::sempal_app::NormalizedRangeModel) {
     fingerprint_mix_u16(state, range.start_milli);
     fingerprint_mix_u16(state, range.end_milli);
     fingerprint_mix_u32(state, range.start_micros);
@@ -114,13 +114,13 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
         &mut state,
         match model.confirm_prompt.kind {
             None => 0,
-            Some(crate::app::ConfirmPromptKind::DestructiveEdit) => 1,
-            Some(crate::app::ConfirmPromptKind::BrowserRename) => 2,
-            Some(crate::app::ConfirmPromptKind::FolderRename) => 3,
-            Some(crate::app::ConfirmPromptKind::FolderCreate) => 4,
-            Some(crate::app::ConfirmPromptKind::RestoreRetainedFolderDeletes) => 5,
-            Some(crate::app::ConfirmPromptKind::PurgeRetainedFolderDeletes) => 6,
-            Some(crate::app::ConfirmPromptKind::OptionsDefaultIdentifier) => 7,
+            Some(crate::sempal_app::ConfirmPromptKind::DestructiveEdit) => 1,
+            Some(crate::sempal_app::ConfirmPromptKind::BrowserRename) => 2,
+            Some(crate::sempal_app::ConfirmPromptKind::FolderRename) => 3,
+            Some(crate::sempal_app::ConfirmPromptKind::FolderCreate) => 4,
+            Some(crate::sempal_app::ConfirmPromptKind::RestoreRetainedFolderDeletes) => 5,
+            Some(crate::sempal_app::ConfirmPromptKind::PurgeRetainedFolderDeletes) => 6,
+            Some(crate::sempal_app::ConfirmPromptKind::OptionsDefaultIdentifier) => 7,
         },
     );
     fingerprint_mix_string(&mut state, &model.confirm_prompt.title);
@@ -151,10 +151,10 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
     fingerprint_mix_u8(
         &mut state,
         match model.update.status {
-            crate::app::UpdateStatusModel::Idle => 0,
-            crate::app::UpdateStatusModel::Checking => 1,
-            crate::app::UpdateStatusModel::Available => 2,
-            crate::app::UpdateStatusModel::Error => 3,
+            crate::sempal_app::UpdateStatusModel::Idle => 0,
+            crate::sempal_app::UpdateStatusModel::Checking => 1,
+            crate::sempal_app::UpdateStatusModel::Available => 2,
+            crate::sempal_app::UpdateStatusModel::Error => 3,
         },
     );
     fingerprint_mix_bool(&mut state, model.map.active);
@@ -173,8 +173,8 @@ pub(in super::super) fn hover_overlay_model_signature(
             WaveformToolbarHoverHint::ChannelView => fingerprint_mix_u8(
                 &mut state,
                 match model.waveform_chrome.channel_view {
-                    crate::app::WaveformChannelViewModel::Mono => 0,
-                    crate::app::WaveformChannelViewModel::Stereo => 1,
+                    crate::sempal_app::WaveformChannelViewModel::Mono => 0,
+                    crate::sempal_app::WaveformChannelViewModel::Stereo => 1,
                 },
             ),
             WaveformToolbarHoverHint::NormalizedAudition => fingerprint_mix_bool(
@@ -230,9 +230,9 @@ pub(in super::super) fn hover_overlay_model_signature(
             fingerprint_mix_u8(
                 &mut state,
                 match row.kind {
-                    crate::app::FolderRowKind::CreateDraft => 0,
-                    crate::app::FolderRowKind::RenameDraft => 1,
-                    crate::app::FolderRowKind::Existing => 2,
+                    crate::sempal_app::FolderRowKind::CreateDraft => 0,
+                    crate::sempal_app::FolderRowKind::RenameDraft => 1,
+                    crate::sempal_app::FolderRowKind::Existing => 2,
                 },
             );
         } else {
@@ -246,27 +246,27 @@ pub(in super::super) fn hover_overlay_model_signature(
         fingerprint_mix_u8(
             &mut state,
             match model.sources.active_folder_pane {
-                crate::app::FolderPaneIdModel::Upper => 0,
-                crate::app::FolderPaneIdModel::Lower => 1,
+                crate::sempal_app::FolderPaneIdModel::Upper => 0,
+                crate::sempal_app::FolderPaneIdModel::Lower => 1,
             },
         );
         let active_folder_rows = &model.sources.active_folder_pane_model().folder_rows;
         let draft_row = active_folder_rows
             .iter()
-            .find(|row| row.kind == crate::app::FolderRowKind::RenameDraft)
+            .find(|row| row.kind == crate::sempal_app::FolderRowKind::RenameDraft)
             .or_else(|| {
                 active_folder_rows
                     .iter()
-                    .find(|row| row.kind == crate::app::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == crate::sempal_app::FolderRowKind::CreateDraft)
             });
         if let Some(row) = draft_row {
             fingerprint_mix_bool(&mut state, true);
             fingerprint_mix_u8(
                 &mut state,
                 match row.kind {
-                    crate::app::FolderRowKind::CreateDraft => 0,
-                    crate::app::FolderRowKind::RenameDraft => 1,
-                    crate::app::FolderRowKind::Existing => 2,
+                    crate::sempal_app::FolderRowKind::CreateDraft => 0,
+                    crate::sempal_app::FolderRowKind::RenameDraft => 1,
+                    crate::sempal_app::FolderRowKind::Existing => 2,
                 },
             );
             fingerprint_mix_option_string(&mut state, row.input_error.as_deref());
@@ -292,11 +292,11 @@ pub(in super::super) fn focus_overlay_model_signature(
     fingerprint_mix_u8(
         &mut state,
         match model.focus_context {
-            crate::app::FocusContextModel::None => 0,
-            crate::app::FocusContextModel::SourcesList => 1,
-            crate::app::FocusContextModel::SourceFolders => 2,
-            crate::app::FocusContextModel::SampleBrowser => 3,
-            crate::app::FocusContextModel::Waveform => 4,
+            crate::sempal_app::FocusContextModel::None => 0,
+            crate::sempal_app::FocusContextModel::SourcesList => 1,
+            crate::sempal_app::FocusContextModel::SourceFolders => 2,
+            crate::sempal_app::FocusContextModel::SampleBrowser => 3,
+            crate::sempal_app::FocusContextModel::Waveform => 4,
         },
     );
     for row in model
@@ -440,8 +440,8 @@ pub(in super::super) fn chrome_motion_overlay_model_signature(model: &NativeMoti
     fingerprint_mix_u8(
         &mut state,
         match model.waveform_channel_view {
-            crate::app::WaveformChannelViewModel::Mono => 0,
-            crate::app::WaveformChannelViewModel::Stereo => 1,
+            crate::sempal_app::WaveformChannelViewModel::Mono => 0,
+            crate::sempal_app::WaveformChannelViewModel::Stereo => 1,
         },
     );
     fingerprint_mix_bool(&mut state, model.waveform_normalized_audition_enabled);

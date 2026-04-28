@@ -25,8 +25,8 @@ pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
     model: &AppModel,
-    pending_chord: Option<crate::app::KeyPress>,
-) -> crate::app::hotkeys::HotkeyResolution {
+    pending_chord: Option<crate::sempal_app::KeyPress>,
+) -> crate::sempal_app::hotkeys::HotkeyResolution {
     key::action_from_key(key, modifiers, model, pending_chord)
 }
 
@@ -281,7 +281,7 @@ pub(super) fn waveform_selection_drag_handle_hit_rect(
 pub(super) fn waveform_selection_shift_handle_hit_rect(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: crate::app::NormalizedRangeModel,
+    selection: crate::sempal_app::NormalizedRangeModel,
 ) -> Option<UiRect> {
     waveform_handles::waveform_selection_shift_handle_hit_rect(layout, model, selection)
 }

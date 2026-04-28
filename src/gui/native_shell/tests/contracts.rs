@@ -10,19 +10,21 @@ const OWNERSHIP_INVENTORY: &str = include_str!("../ownership_inventory.tsv");
 #[test]
 fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
     let mut state = NativeShellState::new();
-    let mut model = crate::app::AppModel::default();
+    let mut model = crate::sempal_app::AppModel::default();
     model.transport_running = false;
     model
         .browser
         .rows
-        .push(crate::app::BrowserRowModel::new(0, "kick", 1, false, true));
+        .push(crate::sempal_app::BrowserRowModel::new(
+            0, "kick", 1, false, true,
+        ));
     state.sync_from_model(&model);
     state.sync_from_model(&model);
     assert!(!state.needs_animation());
 
-    let mut idle_model = crate::app::AppModel::default();
+    let mut idle_model = crate::sempal_app::AppModel::default();
     idle_model.transport_running = false;
-    let mut playing_model = crate::app::AppModel::default();
+    let mut playing_model = crate::sempal_app::AppModel::default();
     playing_model.transport_running = true;
     state.sync_from_model(&playing_model);
     assert!(state.needs_animation());
@@ -34,8 +36,8 @@ fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
 fn long_browser_labels_are_truncated_with_ellipsis() {
     let layout = ShellLayout::build(Vector2::new(620.0, 420.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::app::AppModel::default();
-    model.browser.rows.push(crate::app::BrowserRowModel::new(
+    let mut model = crate::sempal_app::AppModel::default();
+    model.browser.rows.push(crate::sempal_app::BrowserRowModel::new(
         0,
         "this_is_a_very_long_browser_row_label_that_should_truncate_in_native_shell_rendering_and_is_intentionally_longer_than_any_practical_row_width_even_on_narrow_compact_views.wav",
         1,
@@ -239,8 +241,7 @@ fn native_shell_rs_modules() -> Vec<String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/native_shell");
     let mut modules = Vec::new();
     collect_rs_modules(&root, &root, &mut modules);
-    let sempal_composition_root =
-        root.join("../../../../../src/app_core/native_shell/composition");
+    let sempal_composition_root = root.join("../../../../../src/app_core/native_shell/composition");
     if sempal_composition_root.exists() {
         collect_rs_modules(
             &sempal_composition_root,

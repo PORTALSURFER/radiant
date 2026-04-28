@@ -1,7 +1,7 @@
 //! Sources-list hotkeys for source-row maintenance and navigation.
 
-use crate::app::UiAction;
 use crate::gui::input::KeyCode;
+use crate::sempal_app::UiAction;
 
 use super::super::{HotkeyBinding, HotkeyGesture, SOURCES_SCOPE};
 

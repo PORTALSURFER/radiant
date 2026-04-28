@@ -1,9 +1,12 @@
 //! Public API coverage for the Sempal compatibility namespace.
 
+#![allow(deprecated)]
+
 use radiant::compat::sempal_shell::{
     AppModel, DEFAULT_APP_TITLE, NativeRunOptions, UiAction, capture_gui_automation_snapshot,
     run_native_vello_preview,
 };
+use std::fs;
 
 #[test]
 fn sempal_shell_namespace_exposes_legacy_shell_runtime_contract() {
@@ -27,4 +30,25 @@ fn legacy_app_alias_and_compat_namespace_share_the_same_shell_contract() {
     assert_eq!(legacy_action, radiant::app::UiAction::ToggleTransport);
 
     let _ = preview;
+}
+
+#[test]
+fn legacy_app_alias_is_marked_deprecated_at_the_crate_root() {
+    let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
+        .expect("crate root should be readable");
+    let deprecated = lib_rs
+        .find("#[deprecated(")
+        .expect("crate root app alias should carry a deprecation marker");
+    let app_alias = lib_rs[deprecated..]
+        .find("pub mod app")
+        .expect("deprecated marker should apply to the app alias");
+
+    assert!(
+        app_alias < 512,
+        "radiant::app should remain the explicitly deprecated compatibility alias"
+    );
+    assert!(
+        lib_rs.contains("radiant::compat::sempal_shell"),
+        "deprecation guidance should point compatibility callers at compat::sempal_shell"
+    );
 }

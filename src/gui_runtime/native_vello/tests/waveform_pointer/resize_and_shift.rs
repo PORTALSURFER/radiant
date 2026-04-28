@@ -4,7 +4,7 @@ use super::*;
 fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
@@ -32,7 +32,7 @@ fn waveform_left_click_on_selection_edge_maps_to_resize_action() {
 fn waveform_left_click_just_outside_selection_edge_clears_selection() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
@@ -53,7 +53,7 @@ fn waveform_left_click_just_outside_selection_edge_clears_selection() {
 fn waveform_alt_click_on_selection_edge_maps_to_free_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
@@ -81,7 +81,7 @@ fn waveform_alt_click_on_selection_edge_maps_to_free_resize_action() {
 fn waveform_shift_click_on_selection_edge_maps_to_smart_scale_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
@@ -107,7 +107,8 @@ fn waveform_shift_click_on_selection_edge_maps_to_smart_scale_resize_action() {
 fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_selection_milli =
+        Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);
     let point = Point::new(start_x + 2.0, y);
@@ -127,8 +128,9 @@ fn waveform_right_click_on_edit_selection_edge_maps_to_resize_action() {
 fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
-    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(300, 700));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_selection_milli =
+        Some(crate::sempal_app::NormalizedRangeModel::new(300, 700));
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let edit_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.3) + 2.0;
     let playback_left_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2) + 2.0;
@@ -152,7 +154,7 @@ fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
     let top_y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.1);
     let mut playback_only_model = AppModel::default();
     playback_only_model.waveform.selection_milli =
-        Some(crate::app::NormalizedRangeModel::new(200, 800));
+        Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     assert!(!waveform_resize_handle_hovered(
         &layout,
         &playback_only_model,
@@ -164,7 +166,7 @@ fn waveform_resize_handle_hover_detects_edit_and_playback_handles() {
 fn waveform_left_click_on_selection_drag_handle_starts_drag() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.8) - 4.0,
@@ -190,7 +192,7 @@ fn waveform_left_click_on_selection_drag_handle_starts_drag() {
 fn waveform_left_click_on_selection_shift_handle_starts_shift_gesture() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
@@ -217,7 +219,8 @@ fn waveform_left_click_on_selection_shift_handle_starts_shift_gesture() {
 fn waveform_left_click_on_edit_selection_shift_handle_starts_shift_gesture() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(300, 700));
+    model.waveform.edit_selection_milli =
+        Some(crate::sempal_app::NormalizedRangeModel::new(300, 700));
     let mut shell_state = NativeShellState::new();
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
@@ -244,7 +247,7 @@ fn waveform_left_click_on_edit_selection_shift_handle_starts_shift_gesture() {
 fn narrow_playback_selection_shift_handle_hit_rect_stays_stable() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    let selection = crate::app::NormalizedRangeModel::from_micros(500_000, 500_001);
+    let selection = crate::sempal_app::NormalizedRangeModel::from_micros(500_000, 500_001);
     model.waveform.selection_milli = Some(selection);
 
     let rect = waveform_selection_shift_handle_hit_rect(&layout, &model, selection)
@@ -261,9 +264,9 @@ fn narrow_playback_selection_shift_handle_hit_rect_stays_stable() {
 fn narrow_edit_selection_shift_handle_starts_gesture_without_panicking() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::from_micros(
-        500_000, 500_001,
-    ));
+    model.waveform.edit_selection_milli = Some(
+        crate::sempal_app::NormalizedRangeModel::from_micros(500_000, 500_001),
+    );
     let point = Point::new(
         layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.5),
         layout.waveform_plot.max.y - 2.0,
@@ -283,8 +286,9 @@ fn narrow_edit_selection_shift_handle_starts_gesture_without_panicking() {
 fn waveform_left_click_prefers_edit_resize_when_both_selection_types_exist() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
-    model.waveform.edit_selection_milli = Some(crate::app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    model.waveform.edit_selection_milli =
+        Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
     let mut shell_state = NativeShellState::new();
     let y = (layout.waveform_plot.min.y + layout.waveform_plot.max.y) * 0.5;
     let start_x = layout.waveform_plot.min.x + (layout.waveform_plot.width() * 0.2);

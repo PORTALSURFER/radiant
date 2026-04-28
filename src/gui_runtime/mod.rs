@@ -60,7 +60,7 @@ impl Default for NativeRunOptions {
     }
 }
 
-pub use crate::app::NativeShutdownTimingArtifact;
+pub use crate::sempal_app::NativeShutdownTimingArtifact;
 pub use native_vello::{
     NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeRunReport, NativeRuntimeArtifacts,
     NativeStartupTimingArtifact, capture_gui_automation_snapshot,

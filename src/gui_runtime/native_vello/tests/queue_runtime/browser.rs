@@ -226,9 +226,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
-                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
+                hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -248,9 +248,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
-                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
+                hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -317,7 +317,7 @@ fn browser_row_drag_reports_folder_panel_background_without_row() {
             pointer_y: drag_point.y.round() as u16,
             hovered_folder_pane: None,
             hovered_folder_row: None,
-            over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
+            over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
             shift_down: false,
             alt_down: false,
         }
@@ -366,7 +366,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
         .model
         .sources
         .rows
-        .push(crate::app::SourceRowModel::new(
+        .push(crate::sempal_app::SourceRowModel::new(
             "source_a",
             String::from("/tmp/source_a"),
             false,
@@ -375,7 +375,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = Arc::new(AppModel {
         sources: SourcesPanelModel {
-            rows: vec![crate::app::SourceRowModel::new(
+            rows: vec![crate::sempal_app::SourceRowModel::new(
                 "source_a",
                 String::from("/tmp/source_a"),
                 false,
@@ -383,8 +383,10 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
             )]
             .into(),
             folder_rows: vec![
-                crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true),
-                crate::app::FolderRowModel::create_draft(
+                crate::sempal_app::FolderRowModel::new(
+                    "Root", "", 0, false, false, true, true, true,
+                ),
+                crate::sempal_app::FolderRowModel::create_draft(
                     1,
                     String::from("new folder"),
                     String::from("New folder name"),
@@ -421,7 +423,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
         vec![
             UiAction::CancelFolderCreate,
             UiAction::FocusSourceRow {
-                pane: Some(crate::app::FolderPaneIdModel::Upper),
+                pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 index: 0,
             },
         ]

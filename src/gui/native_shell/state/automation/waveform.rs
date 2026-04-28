@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
-use crate::app::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
+use crate::sempal_app::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
 
 /// Build semantic automation for the waveform panel.
 pub(super) fn build_waveform_automation(
@@ -46,7 +46,10 @@ pub(super) fn build_waveform_automation(
         bounds: bounds(layout.waveform_plot),
         value: model.waveform.loaded_label.clone(),
         enabled: true,
-        selected: matches!(model.focus_context, crate::app::FocusContextModel::Waveform),
+        selected: matches!(
+            model.focus_context,
+            crate::sempal_app::FocusContextModel::Waveform
+        ),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
             String::from("detect_waveform_exact_duplicate_slices"),
@@ -138,7 +141,10 @@ pub(super) fn build_waveform_automation(
         bounds: bounds(layout.waveform_card),
         value: model.waveform.loaded_label.clone(),
         enabled: true,
-        selected: matches!(model.focus_context, crate::app::FocusContextModel::Waveform),
+        selected: matches!(
+            model.focus_context,
+            crate::sempal_app::FocusContextModel::Waveform
+        ),
         available_actions: vec![String::from("focus_waveform_panel")],
         metadata: std::collections::BTreeMap::new(),
         children,

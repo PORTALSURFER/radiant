@@ -37,8 +37,12 @@ fn waveform_toolbar_model_flags_change_with_channel_and_toggle_state() {
 
     let mut changed_channel = baseline.clone();
     changed_channel.waveform_channel_view = match baseline.waveform_channel_view {
-        crate::app::WaveformChannelViewModel::Mono => crate::app::WaveformChannelViewModel::Stereo,
-        crate::app::WaveformChannelViewModel::Stereo => crate::app::WaveformChannelViewModel::Mono,
+        crate::sempal_app::WaveformChannelViewModel::Mono => {
+            crate::sempal_app::WaveformChannelViewModel::Stereo
+        }
+        crate::sempal_app::WaveformChannelViewModel::Stereo => {
+            crate::sempal_app::WaveformChannelViewModel::Mono
+        }
     };
     assert_ne!(
         baseline_flags,

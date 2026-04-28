@@ -5,13 +5,13 @@ fn browser_row_click_modifiers_route_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
-        browser: crate::app::BrowserPanelModel {
-            rows: vec![crate::app::BrowserRowModel::new(
+        browser: crate::sempal_app::BrowserPanelModel {
+            rows: vec![crate::sempal_app::BrowserRowModel::new(
                 17, "kick-row", 0, false, false,
             )]
             .into(),
             visible_count: 1,
-            ..crate::app::BrowserPanelModel::default()
+            ..crate::sempal_app::BrowserPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -82,15 +82,15 @@ fn focused_browser_row_similarity_button_routes_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
-        browser: crate::app::BrowserPanelModel {
-            rows: vec![crate::app::BrowserRowModel::new(
+        browser: crate::sempal_app::BrowserPanelModel {
+            rows: vec![crate::sempal_app::BrowserRowModel::new(
                 0, "kick-row", 1, true, true,
             )]
             .into(),
             visible_count: 1,
             selected_visible_row: Some(0),
             similarity_filtered: true,
-            ..crate::app::BrowserPanelModel::default()
+            ..crate::sempal_app::BrowserPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -121,13 +121,16 @@ fn browser_row_click_targets_interior_row_after_downward_autoscroll() {
     let mut shell_state = NativeShellState::new();
     let mut model = AppModel::default();
     for visible_row in 0..40 {
-        model.browser.rows.push(crate::app::BrowserRowModel::new(
-            visible_row,
-            format!("row_{visible_row:02}"),
-            1,
-            false,
-            visible_row == 18,
-        ));
+        model
+            .browser
+            .rows
+            .push(crate::sempal_app::BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:02}"),
+                1,
+                false,
+                visible_row == 18,
+            ));
     }
     model.browser.visible_count = model.browser.rows.len();
     model.browser.autoscroll = true;
@@ -156,16 +159,16 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
-        browser: crate::app::BrowserPanelModel {
-            rows: vec![crate::app::BrowserRowModel::new(
+        browser: crate::sempal_app::BrowserPanelModel {
+            rows: vec![crate::sempal_app::BrowserRowModel::new(
                 5, "kick-row", 1, false, true,
             )]
             .into(),
             visible_count: 1,
             duplicate_cleanup_active: true,
-            ..crate::app::BrowserPanelModel::default()
+            ..crate::sempal_app::BrowserPanelModel::default()
         },
-        focus_context: crate::app::FocusContextModel::SampleBrowser,
+        focus_context: crate::sempal_app::FocusContextModel::SampleBrowser,
         ..AppModel::default()
     });
     runner.frame_state.model_dirty = false;

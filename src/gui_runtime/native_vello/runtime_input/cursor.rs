@@ -129,7 +129,7 @@ where
         }
         if self.modifiers.alt_key() {
             return !self.modifiers.shift_key()
-                && self.model.focus_context == crate::app::FocusContextModel::Waveform
+                && self.model.focus_context == crate::sempal_app::FocusContextModel::Waveform
                 && matches!(key, KeyCode::ArrowLeft | KeyCode::ArrowRight);
         }
         if self.modifiers.shift_key() {

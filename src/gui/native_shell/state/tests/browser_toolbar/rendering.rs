@@ -22,9 +22,9 @@ fn browser_filter_icons_replace_legacy_age_and_mark_labels() {
     );
 
     for chip in [
-        crate::app::PlaybackAgeFilterChip::NeverPlayed,
-        crate::app::PlaybackAgeFilterChip::OlderThanMonth,
-        crate::app::PlaybackAgeFilterChip::OlderThanWeek,
+        crate::sempal_app::PlaybackAgeFilterChip::NeverPlayed,
+        crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth,
+        crate::sempal_app::PlaybackAgeFilterChip::OlderThanWeek,
     ] {
         let chip_rect = state
             .browser_playback_age_filter_chip_rect(&layout, &model, chip)

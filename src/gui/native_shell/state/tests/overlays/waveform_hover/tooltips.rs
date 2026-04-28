@@ -22,7 +22,7 @@ fn waveform_toolbar_channel_button_toggles_channel_view_action() {
     );
     assert_eq!(mono_button.icon, Some(WaveformToolbarIcon::Mono));
 
-    model.waveform_chrome.channel_view = crate::app::WaveformChannelViewModel::Stereo;
+    model.waveform_chrome.channel_view = crate::sempal_app::WaveformChannelViewModel::Stereo;
     let stereo_buttons = waveform_toolbar_buttons(
         &layout,
         &style,
@@ -140,8 +140,8 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
     model
         .waveform
         .slices
-        .push(crate::app::WaveformSlicePreviewModel {
-            range: crate::app::NormalizedRangeModel::new(180, 420),
+        .push(crate::sempal_app::WaveformSlicePreviewModel {
+            range: crate::sempal_app::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
             marked_for_export: false,

@@ -4,27 +4,29 @@ use crate::gui::types::Rect;
 fn browser_drag_model() -> AppModel {
     let mut model = browser_model_with_rows(4, 0);
     let folder_rows = vec![
-        crate::app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+        crate::sempal_app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
             .with_source_index(0),
-        crate::app::FolderRowModel::new("Drums", "drums", 1, false, false, false, true, true)
-            .with_source_index(7),
+        crate::sempal_app::FolderRowModel::new(
+            "Drums", "drums", 1, false, false, false, true, true,
+        )
+        .with_source_index(7),
     ];
     model.sources = SourcesPanelModel {
         folder_rows: folder_rows.clone().into(),
-        upper_folder_pane: crate::app::FolderPaneModel {
-            pane: crate::app::FolderPaneIdModel::Upper,
+        upper_folder_pane: crate::sempal_app::FolderPaneModel {
+            pane: crate::sempal_app::FolderPaneIdModel::Upper,
             title: String::from("Upper"),
             active: true,
             has_source: true,
             folder_rows: folder_rows.clone().into(),
-            ..crate::app::FolderPaneModel::default()
+            ..crate::sempal_app::FolderPaneModel::default()
         },
-        lower_folder_pane: crate::app::FolderPaneModel {
-            pane: crate::app::FolderPaneIdModel::Lower,
+        lower_folder_pane: crate::sempal_app::FolderPaneModel {
+            pane: crate::sempal_app::FolderPaneIdModel::Lower,
             title: String::from("Lower"),
             has_source: true,
             folder_rows: folder_rows.into(),
-            ..crate::app::FolderPaneModel::default()
+            ..crate::sempal_app::FolderPaneModel::default()
         },
         ..SourcesPanelModel::default()
     };
@@ -135,9 +137,9 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
-                hovered_folder_pane: Some(crate::app::FolderPaneIdModel::Upper),
+                hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -146,7 +148,7 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
     assert_eq!(runner.shell_state.hovered_folder_row_index(), Some(1));
 
     let mut drag_model = Arc::unwrap_or_clone(runner.model.clone());
-    drag_model.drag_overlay = crate::app::DragOverlayModel {
+    drag_model.drag_overlay = crate::sempal_app::DragOverlayModel {
         active: true,
         label: String::from("row_0000"),
         target_label: String::from("Folder: drums"),
@@ -215,7 +217,7 @@ fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
                 pointer_y: drag_point.y.round() as u16,
                 hovered_folder_pane: None,
                 hovered_folder_row: None,
-                over_folder_panel: Some(crate::app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -224,7 +226,7 @@ fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
     assert_eq!(runner.shell_state.hovered_folder_row_index(), None);
 
     let mut drag_model = Arc::unwrap_or_clone(runner.model.clone());
-    drag_model.drag_overlay = crate::app::DragOverlayModel {
+    drag_model.drag_overlay = crate::sempal_app::DragOverlayModel {
         active: true,
         label: String::from("row_0000"),
         target_label: String::from("Folder panel"),

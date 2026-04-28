@@ -279,7 +279,7 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
 fn waveform_edge_adjust_action(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: Option<crate::app::NormalizedRangeModel>,
+    selection: Option<crate::sempal_app::NormalizedRangeModel>,
     point: Point,
     shift: bool,
     build: impl FnOnce(u32, u32) -> UiAction,
@@ -319,7 +319,7 @@ fn waveform_edge_adjust_action(
 fn waveform_slide_action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: Option<crate::app::NormalizedRangeModel>,
+    selection: Option<crate::sempal_app::NormalizedRangeModel>,
     point: Point,
     build: impl FnOnce(u32, u32) -> UiAction,
 ) -> Option<UiAction> {

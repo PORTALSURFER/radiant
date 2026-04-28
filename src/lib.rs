@@ -1,29 +1,22 @@
 //! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
-//! The crate is organized as a thin runtime boundary:
-//! - `compat::sempal_shell`: compatibility-facing Sempal shell contracts and host/runtime entry points.
-//! - `app`: legacy alias for the same Sempal compatibility model/action types.
-//! - `gui`: retained layout, input mapping, and paint generation.
-//! - `gui_runtime`: platform host bindings and frame scheduling.
-//! - `runtime`: generic declarative view/message surfaces for new host applications.
+//! New host applications should start with [`runtime`](crate::runtime),
+//! [`widgets`](crate::widgets), [`layout`](crate::layout), and
+//! [`theme`](crate::theme). That path lets hosts project generic declarative UI
+//! trees, reduce host-defined messages, and run through the native Vello backend
+//! without depending on Sempal-specific shell DTOs. See the checked
+//! `generic_native` example for a small standalone native app.
 //!
-//! New host applications should prefer [`runtime`](crate::runtime), which lets
-//! them project generic declarative UI trees built from public containers and
-//! widgets, then reduce host-defined messages without depending on
-//! Sempal-specific [`AppModel`](crate::compat::sempal_shell::AppModel) or
-//! [`UiAction`](crate::compat::sempal_shell::UiAction) shapes.
-//!
-//! The legacy [`app`](crate::app) surface remains available as an alias to the
-//! Sempal compatibility path while Sempal migrates onto the generic surface.
-//! All GUI-specific layout, diffing, and render orchestration stay inside `radiant`.
-//!
-//! Generic host-facing entry points:
+//! Generic host-facing modules:
 //! - [`layout`]: stable slot-based layout primitives
 //! - [`widgets`]: first-class reusable widget taxonomy and contracts
-//! - [`compat`]: explicit compatibility namespace for the current Sempal shell
-//! - [`app`]: legacy compatibility alias for existing callers
 //! - [`gui_runtime`]: backend runtimes and scheduling
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
+//! - [`theme`]: reusable visual tokens for generic widgets and containers
+//!
+//! Transitional compatibility lives under [`compat::sempal_shell`](crate::compat::sempal_shell).
+//! The crate-root [`app`](crate::app) module is a deprecated alias for that
+//! Sempal compatibility contract and should not be used by new code.
 
 // `radiant` still carries several large transitional runtime and native-shell
 // modules. Keep this list narrow while the active cleanup lane continues to
@@ -39,9 +32,23 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::question_mark)]
 #![allow(clippy::too_many_arguments)]
+// Transitional compatibility internals still include Sempal-owned shared
+// modules that refer to the crate-root alias when compiled inside Radiant.
+// External callers still see the deprecation warning on `radiant::app`.
+#![allow(deprecated)]
 
-/// App-facing model/action contracts for runtime integration.
-pub mod app;
+/// Deprecated alias for the Sempal compatibility model/action contract.
+///
+/// New host applications should use [`runtime`], [`widgets`], [`layout`], and
+/// [`theme`]. Migration-time Sempal shell consumers should import the explicit
+/// [`compat::sempal_shell`] namespace instead.
+#[deprecated(
+    since = "0.1.0",
+    note = "use radiant::runtime for generic apps, or radiant::compat::sempal_shell for the transitional Sempal shell"
+)]
+pub mod app {
+    pub use crate::sempal_app::*;
+}
 /// Explicit compatibility namespace for migration-time Sempal shell APIs.
 pub mod compat;
 /// Shared environment-flag parsing helpers used by runtime internals.
@@ -56,6 +63,8 @@ pub mod layout {
 pub mod gui_runtime;
 /// Generic declarative view/message runtime surface for new hosts.
 pub mod runtime;
+#[path = "app/mod.rs"]
+pub(crate) mod sempal_app;
 /// Generic theme tokens for reusable Radiant widgets and containers.
 pub mod theme;
 /// Stable public widget taxonomy and contracts.

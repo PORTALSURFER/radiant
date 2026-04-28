@@ -35,13 +35,13 @@ fn populated_sidebar_model() -> AppModel {
 
 fn populated_sidebar_model_with_search(query: &str) -> AppModel {
     let folder_rows = vec![
-        crate::app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
-        crate::app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
-        crate::app::FolderRowModel::new("Kicks", "", 2, false, false, false, false, false),
+        crate::sempal_app::FolderRowModel::new("Root", "", 0, true, false, true, true, true),
+        crate::sempal_app::FolderRowModel::new("Drums", "", 1, false, true, false, true, true),
+        crate::sempal_app::FolderRowModel::new("Kicks", "", 2, false, false, false, false, false),
     ];
-    let mut source_a = crate::app::SourceRowModel::new("Source A", "ready", false, false);
+    let mut source_a = crate::sempal_app::SourceRowModel::new("Source A", "ready", false, false);
     source_a.assigned_to_upper_pane = true;
-    let mut source_b = crate::app::SourceRowModel::new("Source B", "ready", false, false);
+    let mut source_b = crate::sempal_app::SourceRowModel::new("Source B", "ready", false, false);
     source_b.assigned_to_lower_pane = true;
     AppModel {
         sources: SourcesPanelModel {
@@ -51,8 +51,8 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
             focused_folder_row: Some(1),
             rows: vec![source_a, source_b].into(),
             folder_rows: folder_rows.clone().into(),
-            upper_folder_pane: crate::app::FolderPaneModel {
-                pane: crate::app::FolderPaneIdModel::Upper,
+            upper_folder_pane: crate::sempal_app::FolderPaneModel {
+                pane: crate::sempal_app::FolderPaneIdModel::Upper,
                 title: String::from("Upper"),
                 source_label: String::from("Source A"),
                 source_detail: String::from("ready"),
@@ -61,10 +61,10 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
                 folder_search_query: String::from(query),
                 focused_folder_row: Some(1),
                 folder_rows: folder_rows.clone().into(),
-                ..crate::app::FolderPaneModel::default()
+                ..crate::sempal_app::FolderPaneModel::default()
             },
-            lower_folder_pane: crate::app::FolderPaneModel {
-                pane: crate::app::FolderPaneIdModel::Lower,
+            lower_folder_pane: crate::sempal_app::FolderPaneModel {
+                pane: crate::sempal_app::FolderPaneIdModel::Lower,
                 title: String::from("Lower"),
                 source_label: String::from("Source B"),
                 source_detail: String::from("ready"),
@@ -72,7 +72,7 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
                 has_source: true,
                 focused_folder_row: Some(1),
                 folder_rows: folder_rows.into(),
-                ..crate::app::FolderPaneModel::default()
+                ..crate::sempal_app::FolderPaneModel::default()
             },
             ..SourcesPanelModel::default()
         },

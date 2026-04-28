@@ -88,8 +88,8 @@ pub(crate) fn resolve_hotkey_press(
 
 #[cfg(test)]
 mod tests {
-    use crate::app::{FocusContextModel, UiAction};
     use crate::gui::input::KeyCode;
+    use crate::sempal_app::{FocusContextModel, UiAction};
 
     use super::{HotkeyResolution, KeyPress, resolve_hotkey_press};
 

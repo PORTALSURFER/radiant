@@ -1,10 +1,10 @@
 //! Compatibility-facing contracts between `radiant` and the current Sempal shell.
 //!
-//! The host provides one immutable [`AppModel`](crate::app::AppModel) snapshot per frame.
+//! The host provides one immutable [`AppModel`](crate::compat::sempal_shell::AppModel) snapshot per frame.
 //! `radiant` consumes that snapshot to:
 //! 1. derive a frame from the retained shell model,
 //! 2. run input hit-testing and command handling,
-//! 3. emit [`UiAction`](crate::app::UiAction) values describing intent.
+//! 3. emit [`UiAction`](crate::compat::sempal_shell::UiAction) values describing intent.
 //!
 //! Each action is routed back through the host bridge so state updates remain
 //! in application code. This keeps GUI-specific input handling and event propagation
@@ -35,10 +35,10 @@
 //! ## Boundary layout
 //! The public contract is grouped by responsibility:
 //! - shell/source/browser/map/waveform models describe immutable render state.
-//! - [`UiAction`](crate::app::UiAction) describes user intent emitted by the runtime.
-//! - [`NativeMotionModel`](crate::app::NativeMotionModel) exposes motion-only projection for retained overlays.
-//! - [`DirtySegments`](crate::app::DirtySegments) and [`SegmentRevisions`](crate::app::SegmentRevisions) describe incremental rebuild hints.
-//! - [`NativeAppBridge`](crate::app::NativeAppBridge) defines the host/runtime integration boundary.
+//! - [`UiAction`](crate::compat::sempal_shell::UiAction) describes user intent emitted by the runtime.
+//! - [`NativeMotionModel`](crate::compat::sempal_shell::NativeMotionModel) exposes motion-only projection for retained overlays.
+//! - [`DirtySegments`](crate::compat::sempal_shell::DirtySegments) and [`SegmentRevisions`](crate::compat::sempal_shell::SegmentRevisions) describe incremental rebuild hints.
+//! - [`NativeAppBridge`](crate::compat::sempal_shell::NativeAppBridge) defines the host/runtime integration boundary.
 
 mod actions;
 mod automation;

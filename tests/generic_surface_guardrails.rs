@@ -27,6 +27,8 @@ const COMPAT_INTEGRATION_TESTS: &[&str] = &[
 const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
     "crate::app",
     "crate::{app",
+    "crate::sempal_app",
+    "crate::{sempal_app",
     "crate::compat::sempal_shell",
     "crate::{compat::sempal_shell",
     "compat::sempal_shell",

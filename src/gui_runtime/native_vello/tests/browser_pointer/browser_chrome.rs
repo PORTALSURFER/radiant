@@ -37,7 +37,7 @@ fn browser_toolbar_click_maps_to_playback_age_filter_action() {
         .browser_playback_age_filter_chip_rect(
             &layout,
             &model,
-            crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+            crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth,
         )
         .expect("month playback-age filter chip should exist");
     let point = Point::new(
@@ -54,7 +54,7 @@ fn browser_toolbar_click_maps_to_playback_age_filter_action() {
             ModifiersState::default(),
         ),
         Some(UiAction::ToggleBrowserPlaybackAgeFilter {
-            bucket: crate::app::PlaybackAgeFilterChip::OlderThanMonth,
+            bucket: crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth,
             invert: false,
         })
     );

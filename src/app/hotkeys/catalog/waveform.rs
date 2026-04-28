@@ -1,7 +1,7 @@
 //! Waveform hotkeys for editing, export, and focused selection movement.
 
-use crate::app::UiAction;
 use crate::gui::input::KeyCode;
+use crate::sempal_app::UiAction;
 
 use super::super::{HotkeyBinding, HotkeyGesture, WAVEFORM_SCOPE};
 

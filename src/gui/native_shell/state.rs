@@ -78,7 +78,9 @@ mod frame_text_cache;
 mod hit_testing;
 mod model_sync;
 mod motion_overlay;
+#[path = "../../../../../src/app_core/native_shell/composition/state/options_panel.rs"]
 mod options_panel;
+#[path = "../../../../../src/app_core/native_shell/composition/state/overlays.rs"]
 mod overlays;
 mod svg_icons;
 #[path = "../../../../../src/app_core/native_shell/composition/state/text_fields.rs"]

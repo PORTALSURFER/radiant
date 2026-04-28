@@ -13,10 +13,12 @@ mod paint;
 #[path = "../../../../../src/app_core/native_shell/composition/sidebar_surface.rs"]
 mod sidebar_surface;
 mod state;
+#[path = "../../../../../src/app_core/native_shell/composition/status_surface.rs"]
 mod status_surface;
 mod style;
 #[cfg(test)]
 mod tests;
+#[path = "../../../../../src/app_core/native_shell/composition/top_bar_surface.rs"]
 mod top_bar_surface;
 mod waveform_header_surface;
 mod waveform_toolbar_surface;

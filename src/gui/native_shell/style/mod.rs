@@ -5,8 +5,10 @@ use std::ops::Deref;
 use crate::theme::ThemeTokens;
 
 /// Compatibility-only shell chrome tokens that do not belong in core theming.
+#[path = "../../../../../../src/app_core/native_shell/composition/style/chrome.rs"]
 mod chrome;
 /// Semantic color tokens used by the retained shell paint pass.
+#[path = "../../../../../../src/app_core/native_shell/composition/style/palette.rs"]
 mod palette;
 /// Geometry and typography sizing tokens plus UI-scale inflation rules.
 mod sizing;

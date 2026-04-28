@@ -1,4 +1,5 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/bands.rs"]
 mod bands;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_chrome_text.rs"]
 mod browser_chrome_text;
@@ -6,14 +7,18 @@ mod browser_chrome_text;
 mod browser_tabs;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_text.rs"]
 mod browser_text;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/control_text.rs"]
 mod control_text;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/controls.rs"]
 mod controls;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_canvas.rs"]
 mod map_canvas;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_header.rs"]
 mod map_header;
 mod micro_layout;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlay_visuals.rs"]
 mod overlay_visuals;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlays.rs"]
 mod overlays;
 #[cfg(test)]
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/row_hit_test.rs"]
@@ -29,6 +34,7 @@ mod sidebar_header;
 mod sidebar_sections;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_text.rs"]
 mod sidebar_text;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/status_bar.rs"]
 mod status_bar;
 mod waveform_annotations;
 #[cfg(test)]

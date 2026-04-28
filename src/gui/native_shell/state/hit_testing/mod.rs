@@ -4,6 +4,7 @@ use super::*;
 
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/browser.rs"]
 mod browser;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/chrome.rs"]
 mod chrome;
 mod hover;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/map.rs"]

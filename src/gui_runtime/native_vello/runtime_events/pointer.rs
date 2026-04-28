@@ -389,17 +389,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             *action_emitted = true;
             return true;
         }
-        if let Some(visible_row) = self
-            .shell_state
-            .browser_row_at_point(layout, &self.model, point)
-        {
-            *source_menu_state_changed |= self.shell_state.close_source_context_menu();
-            self.shell_state
-                .open_browser_context_menu_for_row(visible_row, point);
-            *browser_menu_state_changed = true;
-            *action_emitted = true;
-            return true;
-        }
         *source_menu_state_changed |= self.shell_state.close_source_context_menu();
         *browser_menu_state_changed |= self.shell_state.close_browser_context_menu();
         if self.model.browser.duplicate_cleanup_active
@@ -408,6 +397,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .browser_row_at_point(layout, &self.model, point)
         {
             self.emit_model_action(UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row });
+            *action_emitted = true;
+            return true;
+        }
+        if let Some(visible_row) = self
+            .shell_state
+            .browser_row_at_point(layout, &self.model, point)
+        {
+            self.shell_state
+                .open_browser_context_menu_for_row(visible_row, point);
+            *browser_menu_state_changed = true;
             *action_emitted = true;
             return true;
         }

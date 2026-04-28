@@ -1,16 +1,22 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
 mod bands;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_chrome_text.rs"]
 mod browser_chrome_text;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_tabs.rs"]
 mod browser_tabs;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_text.rs"]
 mod browser_text;
 mod control_text;
 mod controls;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_canvas.rs"]
 mod map_canvas;
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_header.rs"]
 mod map_header;
 mod micro_layout;
 mod overlay_visuals;
 mod overlays;
 #[cfg(test)]
+#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/row_hit_test.rs"]
 mod row_hit_test;
 mod sidebar_bands;
 #[cfg(test)]

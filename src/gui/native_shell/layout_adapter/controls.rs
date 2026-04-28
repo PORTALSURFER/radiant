@@ -1,5 +1,6 @@
 //! Slotized helpers for native-shell action-button rows and toolbar partitions.
 
+#[path = "../../../../../../src/app_core/native_shell/composition/layout_adapter/controls/browser_toolbar.rs"]
 mod browser_toolbar;
 mod shared;
 #[cfg(test)]

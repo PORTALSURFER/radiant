@@ -2,9 +2,11 @@
 
 use super::*;
 
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/browser.rs"]
 mod browser;
 mod chrome;
 mod hover;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/hit_testing/map.rs"]
 mod map;
 mod waveform;
 

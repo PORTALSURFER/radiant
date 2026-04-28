@@ -2,8 +2,10 @@
 
 use super::*;
 
+#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/browser/mod.rs"]
 mod browser;
 mod chrome;
+#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/map.rs"]
 mod map;
 mod overlay;
 mod status_bar;

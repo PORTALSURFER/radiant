@@ -2,6 +2,7 @@
 
 use super::*;
 
+#[path = "../../../../../../../../src/app_core/native_shell/composition/state/frame_build/overlay/browser.rs"]
 mod browser;
 mod focus;
 mod waveform;

@@ -68,6 +68,7 @@ use std::{
 };
 
 mod automation;
+#[path = "../../../../../src/app_core/native_shell/composition/state/browser_rows.rs"]
 mod browser_rows;
 mod cache;
 mod cache_types;
@@ -80,6 +81,7 @@ mod motion_overlay;
 mod options_panel;
 mod overlays;
 mod svg_icons;
+#[path = "../../../../../src/app_core/native_shell/composition/state/text_fields.rs"]
 mod text_fields;
 mod toolbar_helpers;
 mod waveform_segments;

@@ -7,10 +7,10 @@
 //! This module is intentionally additive and design-focused:
 //! - it defines the public widget taxonomy
 //! - it documents the shared sizing, focus, paint, and message contracts
-//! - it lets follow-up implementation work split cleanly by primitive type
+//! - it lets the generic runtime project reusable widgets into paint data
 //!
-//! It does not yet replace the current Sempal-shaped runtime/view bridge. That
-//! runtime migration stays in the later generic view/message work.
+//! It does not yet replace the current Sempal-shaped native runtime. That
+//! migration stays behind the generic runtime and compatibility boundary work.
 //!
 //! # Example
 //!

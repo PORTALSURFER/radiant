@@ -3,8 +3,8 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        declarative_runtime_bridge,
+        PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
+        WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -157,6 +157,56 @@ fn generic_public_surface_resolves_theme_without_legacy_shell_contracts() {
     );
 
     assert_eq!(visuals.border, theme.border_emphasis);
+}
+
+#[test]
+fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts() {
+    let theme = ThemeTokens::default();
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            count: 2,
+            name: String::from("Crates"),
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let direct_plan = runtime.surface().paint_plan(runtime.layout(), &theme);
+    let runtime_plan = runtime.paint_plan(&theme);
+
+    assert_eq!(runtime_plan, direct_plan);
+    assert_eq!(runtime_plan.clear_color, theme.clear_color);
+    assert_eq!(runtime_plan.primitives.len(), 7);
+
+    let texts: Vec<_> = runtime_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) => Some((text.widget_id, text.text.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        vec![(10, "Crates (2)"), (11, "Increment"), (12, "Crates")]
+    );
+
+    let fills: Vec<_> = runtime_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) => Some((fill.widget_id, fill.color)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        fills,
+        vec![(11, theme.surface_raised), (12, theme.surface_raised)]
+    );
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {

@@ -4,10 +4,11 @@
 //! layout output together so backends can route normalized widget input without
 //! depending on the legacy Sempal shell contract.
 
-use super::{RuntimeBridge, UiSurface};
+use super::{RuntimeBridge, SurfacePaintPlan, UiSurface};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutOutput, layout_tree},
+    theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput},
 };
 
@@ -55,6 +56,11 @@ where
     /// Return the current layout output for the projected surface.
     pub fn layout(&self) -> &LayoutOutput {
         &self.layout
+    }
+
+    /// Project the current surface and layout into backend-neutral paint data.
+    pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
+        self.surface.paint_plan(&self.layout, theme)
     }
 
     /// Return the current logical viewport size.

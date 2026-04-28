@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(
             message,
             Some(ScrollbarMessage::OffsetChanged {
-                offset_fraction: 0.8,
+                offset_fraction: 0.9,
             })
         );
     }

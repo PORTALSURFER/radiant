@@ -1,8 +1,10 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
+use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
     gui::types::Rect,
-    layout::{ContainerPolicy, LayoutNode, NodeId, SlotChild, SlotParams},
+    layout::{ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams},
+    theme::ThemeTokens,
     widgets::{
         ButtonMessage, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId, WidgetInput,
         WidgetOutput, WidgetSpec,
@@ -277,6 +279,24 @@ impl<Message> SurfaceNode<Message> {
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
         }
     }
+
+    fn append_paint(
+        &self,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        match self {
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.append_paint(layout, theme, plan);
+                }
+            }
+            Self::Widget(widget) => {
+                push_widget_paint(&mut plan.primitives, widget.widget(), layout, theme);
+            }
+        }
+    }
 }
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
@@ -306,6 +326,16 @@ impl<Message> UiSurface<Message> {
     /// Project the surface into the public layout tree consumed by layout engines.
     pub fn layout_node(&self) -> LayoutNode {
         self.root.layout_node()
+    }
+
+    /// Project the surface and its layout output into backend-neutral paint data.
+    ///
+    /// Primitives are emitted in declarative tree order so backends and tests can
+    /// compare output deterministically without depending on the native shell.
+    pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
+        let mut plan = SurfacePaintPlan::empty(theme);
+        self.root.append_paint(layout, theme, &mut plan);
+        plan
     }
 
     /// Map one widget output back into a host-defined message.

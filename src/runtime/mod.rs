@@ -8,8 +8,9 @@
 //!
 //! [`SurfaceRuntime`] closes the generic declarative loop by running public
 //! layout, routing backend-neutral widget input, mapping widget outputs into
-//! host-defined messages, reducing those messages, and reprojecting the next
-//! immutable surface snapshot.
+//! host-defined messages, reducing those messages, reprojecting the next
+//! immutable surface snapshot, and exposing deterministic backend-neutral paint
+//! plans for generic renderers.
 //!
 //! The current native window runtime still consumes the compatibility bridge.
 //! Those shell-specific entry points live under
@@ -19,11 +20,16 @@
 
 mod bridge;
 mod controller;
+mod paint;
 mod surface;
 
 pub use crate::gui_runtime::{NativeRunOptions, WindowIconRgba};
 pub use bridge::{DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
 pub use controller::SurfaceRuntime;
+pub use paint::{
+    PaintCustomSurface, PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign,
+    PaintTextRun, SurfacePaintPlan,
+};
 pub use surface::{
     MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,
     WidgetMessageMapper,

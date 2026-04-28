@@ -19,6 +19,11 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/layout_core",
 ];
 
+const COMPAT_INTEGRATION_TESTS: &[&str] = &[
+    "compat_sempal_shell_public_api.rs",
+    "compat_status_bar_pilot.rs",
+];
+
 const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
     "crate::app",
     "crate::{app",
@@ -36,6 +41,18 @@ const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
     "UiAction",
 ];
 
+const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
+    "radiant::app",
+    "radiant::{app",
+    "radiant::compat::sempal_shell",
+    "radiant::{compat::sempal_shell",
+    "compat::sempal_shell",
+    "Sempal",
+    "sempal",
+    "capture_gui_automation_snapshot",
+    "capture_native_shell_shot_snapshot",
+];
+
 #[test]
 fn generic_sources_do_not_import_sempal_shell_contracts() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -49,6 +66,52 @@ fn generic_sources_do_not_import_sempal_shell_contracts() {
         violations.is_empty(),
         "generic Radiant modules must stay independent from Sempal compatibility contracts; \
          move transitional shell code under app, compat::sempal_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn generic_integration_tests_do_not_reintroduce_sempal_shell_fixtures() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let tests_dir = manifest_dir.join("tests");
+    let mut violations = Vec::new();
+
+    assert!(
+        !tests_dir.join("shots").exists(),
+        "Sempal visual snapshot fixtures belong in the host app test tree, not Radiant tests/shots"
+    );
+
+    let entries = fs::read_dir(&tests_dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_dir.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", tests_dir.display()))
+            .path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+            continue;
+        }
+        if path
+            .file_name()
+            .and_then(|file_name| file_name.to_str())
+            .is_some_and(|file_name| {
+                file_name == "generic_surface_guardrails.rs"
+                    || COMPAT_INTEGRATION_TESTS.contains(&file_name)
+            })
+        {
+            continue;
+        }
+        collect_token_violations(
+            &path,
+            &manifest_dir,
+            FORBIDDEN_GENERIC_TEST_TOKENS,
+            &mut violations,
+        );
+    }
+
+    assert!(
+        violations.is_empty(),
+        "generic Radiant integration tests must stay neutral; keep Sempal shell coverage in \
+         host-owned tests or the explicit compat tests:\n{}",
         violations.join("\n")
     );
 }
@@ -76,6 +139,15 @@ fn collect_violations(path: &Path, manifest_dir: &Path, violations: &mut Vec<Str
         return;
     }
 
+    collect_token_violations(path, manifest_dir, FORBIDDEN_GENERIC_TOKENS, violations);
+}
+
+fn collect_token_violations(
+    path: &Path,
+    manifest_dir: &Path,
+    forbidden_tokens: &[&str],
+    violations: &mut Vec<String>,
+) {
     let source = fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
     let uncommented = strip_rust_comments(&source);
@@ -84,7 +156,7 @@ fn collect_violations(path: &Path, manifest_dir: &Path, violations: &mut Vec<Str
             .chars()
             .filter(|ch| !ch.is_whitespace())
             .collect::<String>();
-        for token in FORBIDDEN_GENERIC_TOKENS {
+        for token in forbidden_tokens {
             if normalized.contains(token) {
                 let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
                 violations.push(format!(

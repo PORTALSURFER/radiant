@@ -16,6 +16,9 @@ use crate::gui::{
     repaint::RepaintSignal,
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
+use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
+use crate::theme::ThemeTokens;
+use crate::widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey};
 use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},
@@ -46,6 +49,7 @@ use winit::{
     window::{CursorIcon, Icon, Window, WindowAttributes, WindowId},
 };
 
+mod generic_runtime;
 mod input;
 mod profiling;
 mod runtime_actions;
@@ -69,7 +73,12 @@ use self::{
 };
 
 pub use self::{
-    shell_snapshot::capture_native_shell_shot_snapshot, startup::NativeStartupTimingArtifact,
+    generic_runtime::{
+        NativeGenericRunReport, NativeGenericRuntimeArtifacts, run_native_vello_runtime,
+        run_native_vello_runtime_with_artifacts,
+    },
+    shell_snapshot::capture_native_shell_shot_snapshot,
+    startup::NativeStartupTimingArtifact,
 };
 const FOCUS_PULSE_HZ: u64 = 60;
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;

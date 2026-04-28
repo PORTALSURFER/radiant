@@ -10,10 +10,9 @@
 //! underlying backend (for example `gui-performance`) so release builds that do
 //! not request profiling have no measurable instrumentation overhead.
 //!
-//! The current native Vello entry points still drive the Sempal compatibility
-//! shell. New generic host applications should treat [`crate::runtime`] as the
-//! preferred top-level API and reach shell-specific runtime helpers through
-//! [`crate::compat::sempal_shell`].
+//! Native Vello exposes both a generic [`crate::runtime::RuntimeBridge`]
+//! entrypoint for reusable host applications and compatibility shell helpers
+//! through [`crate::compat::sempal_shell`].
 
 mod native_vello;
 
@@ -63,8 +62,9 @@ impl Default for NativeRunOptions {
 
 pub use crate::app::NativeShutdownTimingArtifact;
 pub use native_vello::{
-    NativeRunReport, NativeRuntimeArtifacts, NativeStartupTimingArtifact,
-    capture_gui_automation_snapshot, capture_native_shell_shot_snapshot, run_native_vello_app,
-    run_native_vello_app_declarative, run_native_vello_app_declarative_with_artifacts,
-    run_native_vello_app_with_artifacts, run_native_vello_preview,
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeRunReport, NativeRuntimeArtifacts,
+    NativeStartupTimingArtifact, capture_gui_automation_snapshot,
+    capture_native_shell_shot_snapshot, run_native_vello_app, run_native_vello_app_declarative,
+    run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
+    run_native_vello_preview, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };

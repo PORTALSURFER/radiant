@@ -23,7 +23,11 @@ mod controller;
 mod paint;
 mod surface;
 
-pub use crate::gui_runtime::{NativeRunOptions, WindowIconRgba};
+pub use crate::gui_runtime::{
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeRunOptions,
+    NativeStartupTimingArtifact, WindowIconRgba, run_native_vello_runtime,
+    run_native_vello_runtime_with_artifacts,
+};
 pub use bridge::{DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
 pub use controller::SurfaceRuntime;
 pub use paint::{

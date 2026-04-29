@@ -1,4 +1,5 @@
 use super::*;
+use crate::layout::Rect;
 use crate::sempal_app::FolderPaneIdModel;
 
 #[test]
@@ -123,18 +124,36 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
     );
 }
 
+fn rect_center(rect: Rect) -> Point {
+    Point::new(
+        (rect.min.x + rect.max.x) * 0.5,
+        (rect.min.y + rect.max.y) * 0.5,
+    )
+}
+
+fn disclosure_point_for_row(
+    layout: &ShellLayout,
+    model: &AppModel,
+    shell_state: &mut NativeShellState,
+    row_index: usize,
+) -> Point {
+    rect_center(
+        shell_state
+            .folder_row_disclosure_rect(layout, model, row_index)
+            .expect("folder disclosure rect should be rendered"),
+    )
+}
+
 #[test]
 fn folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
-    let model = populated_sidebar_model();
-    let disclosure = shell_state
-        .folder_row_disclosure_rect(&layout, &model, 1)
-        .expect("folder disclosure should be rendered");
-    let point = Point::new(
-        (disclosure.min.x + disclosure.max.x) * 0.5,
-        (disclosure.min.y + disclosure.max.y) * 0.5,
-    );
+    let mut model = populated_sidebar_model();
+    model.sources.upper_folder_pane.folder_rows.make_mut()[1] =
+        model.sources.upper_folder_pane.folder_rows[1]
+            .clone()
+            .with_source_index(42);
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 1);
 
     assert_eq!(
         action_from_pointer(
@@ -146,7 +165,7 @@ fn folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows
         ),
         Some(UiAction::ToggleFolderRowExpanded {
             pane: Some(FolderPaneIdModel::Upper),
-            index: 1,
+            index: 42,
         })
     );
 }
@@ -157,13 +176,7 @@ fn lower_folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandabl
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
     model.sources.active_folder_pane = FolderPaneIdModel::Lower;
-    let disclosure = shell_state
-        .folder_row_disclosure_rect(&layout, &model, 1)
-        .expect("lower folder disclosure should be rendered");
-    let point = Point::new(
-        (disclosure.min.x + disclosure.max.x) * 0.5,
-        (disclosure.min.y + disclosure.max.y) * 0.5,
-    );
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 1);
 
     assert_eq!(
         action_from_pointer(
@@ -176,6 +189,28 @@ fn lower_folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandabl
         Some(UiAction::ToggleFolderRowExpanded {
             pane: Some(FolderPaneIdModel::Lower),
             index: 1,
+        })
+    );
+}
+
+#[test]
+fn root_folder_disclosure_gutter_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 0);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 0,
         })
     );
 }
@@ -208,6 +243,28 @@ fn folder_row_body_click_keeps_focus_row_behavior_for_expandable_rows() {
 }
 
 #[test]
+fn leaf_folder_disclosure_gutter_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model();
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 2);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 2,
+        })
+    );
+}
+
+#[test]
 fn leaf_folder_row_click_keeps_focus_row_behavior() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
@@ -230,6 +287,28 @@ fn leaf_folder_row_click_keeps_focus_row_behavior() {
         Some(UiAction::FocusFolderRow {
             pane: Some(FolderPaneIdModel::Upper),
             index: 2,
+        })
+    );
+}
+
+#[test]
+fn searchable_folder_disclosure_gutter_click_keeps_focus_row_behavior() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let model = populated_sidebar_model_with_search("drum");
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 1);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderRow {
+            pane: Some(FolderPaneIdModel::Upper),
+            index: 1,
         })
     );
 }
@@ -262,6 +341,35 @@ fn searchable_folder_row_click_keeps_focus_row_behavior() {
 }
 
 #[test]
+fn inline_folder_create_disclosure_gutter_click_focuses_folder_create_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.folder_rows.make_mut().insert(
+        2,
+        crate::sempal_app::FolderRowModel::create_draft(
+            2,
+            String::from("new folder"),
+            String::from("New folder name"),
+            None,
+            true,
+        ),
+    );
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 2);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderCreateInput)
+    );
+}
+
+#[test]
 fn inline_folder_create_row_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
@@ -282,6 +390,35 @@ fn inline_folder_create_row_click_focuses_folder_create_input() {
         .nth(2)
         .expect("draft folder row should be rendered");
     let point = Point::new(row.max.x - 8.0, (row.min.y + row.max.y) * 0.5);
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::FocusFolderCreateInput)
+    );
+}
+
+#[test]
+fn inline_folder_rename_disclosure_gutter_click_focuses_folder_create_input() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.folder_rows.make_mut().insert(
+        2,
+        crate::sempal_app::FolderRowModel::rename_draft(
+            2,
+            String::from("drums"),
+            String::from("Folder name"),
+            None,
+            true,
+        ),
+    );
+    let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 2);
 
     assert_eq!(
         action_from_pointer(

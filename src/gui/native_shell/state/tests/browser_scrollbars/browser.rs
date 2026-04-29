@@ -87,6 +87,79 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
 }
 
 #[test]
+fn browser_scrollbar_stays_visible_and_hittable_with_tag_sidebar_open() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let mut model = browser_model_with_rows(500, 120);
+    model.browser.tag_sidebar.open = true;
+    let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, &model);
+    let sidebar_rect = browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, &model)
+        .expect("tag sidebar should reserve a panel");
+    let rows = rendered_browser_rows(&layout, &model, &style);
+    let content_rect =
+        browser_rows_content_rect(list_rect, model.browser.visible_count, style.sizing);
+    let scrollbar =
+        browser_scrollbar_layout(list_rect, &rows, model.browser.visible_count, style.sizing)
+            .expect("overflowing browser list should render a scrollbar");
+
+    assert_rect_inside(list_rect, scrollbar.track);
+    assert_rect_inside(list_rect, scrollbar.thumb);
+    assert!(scrollbar.track.max.x <= sidebar_rect.min.x);
+    assert!(scrollbar.thumb.max.x <= sidebar_rect.min.x);
+    assert!(content_rect.max.x < scrollbar.track.min.x);
+    assert!(rows.iter().all(|row| row.rect.max.x <= content_rect.max.x));
+
+    let mut state = NativeShellState::new();
+    let frame = state.build_frame(&layout, &model);
+    let track_color = blend_color(style.border, style.bg_secondary, 0.22);
+    let thumb_color = blend_color(style.text_muted, style.text_primary, 0.32);
+    assert!(frame.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect)
+            if rect.rect == scrollbar.track && rect.color == track_color
+    )));
+    assert!(frame.primitives.iter().any(|primitive| matches!(
+        primitive,
+        Primitive::Rect(rect)
+            if rect.rect == scrollbar.thumb && rect.color == thumb_color
+    )));
+
+    let scrollbar_point = Point::new(
+        (scrollbar.thumb.min.x + scrollbar.thumb.max.x) * 0.5,
+        (scrollbar.thumb.min.y + scrollbar.thumb.max.y) * 0.5,
+    );
+    let offset = state
+        .browser_scrollbar_thumb_offset_at_point(&layout, &model, scrollbar_point)
+        .expect("sidebar-open thumb center should remain draggable");
+    assert!((offset - (scrollbar.thumb.height() * 0.5)).abs() <= 0.001);
+    assert_eq!(
+        state.browser_row_at_point(&layout, &model, scrollbar_point),
+        None
+    );
+
+    let input_rect = state
+        .browser_tag_sidebar_input_rect(&layout, &model)
+        .expect("sidebar input should render");
+    let sidebar_point = Point::new(
+        (input_rect.min.x + input_rect.max.x) * 0.5,
+        (input_rect.min.y + input_rect.max.y) * 0.5,
+    );
+    assert!(sidebar_rect.contains(sidebar_point));
+    assert_eq!(
+        state.browser_row_at_point(&layout, &model, sidebar_point),
+        None
+    );
+    assert_eq!(
+        state.browser_scrollbar_thumb_offset_at_point(&layout, &model, sidebar_point),
+        None
+    );
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, sidebar_point, false),
+        Some(UiAction::FocusBrowserTagSidebarInput)
+    );
+}
+
+#[test]
 fn browser_row_hit_test_ignores_scrollbar_gutter() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

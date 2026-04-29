@@ -415,6 +415,11 @@ pub enum UiAction {
     ToggleBrowserSampleMark,
     /// Toggle whether the browser shows only session-marked samples.
     ToggleBrowserMarkedFilter,
+    /// Toggle whether the browser shows samples already named from tags.
+    ToggleBrowserTagNamedFilter {
+        /// Whether the click should show samples not yet named from tags.
+        invert: bool,
+    },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
     /// Toggle the browser-local metadata tag sidebar.

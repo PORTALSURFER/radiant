@@ -137,6 +137,29 @@ fn browser_marked_filter_chip_click_maps_to_toggle_action() {
 }
 
 #[test]
+fn browser_tag_named_filter_chip_click_maps_to_toggle_action() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let model = AppModel::default();
+    let mut state = NativeShellState::new();
+    let chip = state
+        .browser_tag_named_filter_chip_rect(&layout, &model)
+        .expect("tag-named filter chip should render");
+    let point = Point::new(
+        (chip.min.x + chip.max.x) * 0.5,
+        (chip.min.y + chip.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, false),
+        Some(UiAction::ToggleBrowserTagNamedFilter { invert: false })
+    );
+    assert_eq!(
+        state.browser_action_at_point(&layout, &model, point, true),
+        Some(UiAction::ToggleBrowserTagNamedFilter { invert: true })
+    );
+}
+
+#[test]
 fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
@@ -152,6 +175,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     let snapshot = state.automation_snapshot(&layout, &model);
     let browser = child(&snapshot.root, "browser.panel");
     let marked_filter = child(browser, "browser.marked_filter");
+    let tag_named_filter = child(browser, "browser.tag_named_filter");
     let table = child(browser, "browser.table");
     let row = child(table, "browser.row.0");
 
@@ -163,6 +187,14 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     assert_eq!(
         marked_filter.available_actions,
         vec![String::from("toggle_browser_marked_filter")]
+    );
+    assert_eq!(
+        tag_named_filter.role,
+        crate::sempal_app::AutomationRole::Button
+    );
+    assert_eq!(
+        tag_named_filter.available_actions,
+        vec![String::from("toggle_browser_tag_named_filter")]
     );
     assert_eq!(row.metadata.get("marked").map(String::as_str), Some("true"));
 }

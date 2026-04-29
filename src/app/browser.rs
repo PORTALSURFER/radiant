@@ -273,6 +273,10 @@ pub struct BrowserPanelModel {
     pub active_playback_age_filters: [bool; 3],
     /// Whether the browser is currently filtering down to only marked rows.
     pub marked_filter_active: bool,
+    /// Whether the browser is currently filtering to tag-named rows.
+    pub tag_named_filter_active: bool,
+    /// Whether the tag-named filter is currently inverted.
+    pub tag_named_filter_negated: bool,
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.

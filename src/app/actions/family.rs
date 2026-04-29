@@ -108,6 +108,7 @@ impl UiAction {
             | Self::ToggleBrowserPlaybackAgeFilter { .. }
             | Self::ToggleBrowserSampleMark
             | Self::ToggleBrowserMarkedFilter
+            | Self::ToggleBrowserTagNamedFilter { .. }
             | Self::ToggleRandomNavigationMode
             | Self::ToggleBrowserTagSidebar
             | Self::ToggleBrowserTagSidebarAutoRename

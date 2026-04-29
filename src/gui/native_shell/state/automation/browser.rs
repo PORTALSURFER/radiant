@@ -114,6 +114,18 @@ pub(super) fn build_browser_automation(
             vec![String::from("toggle_browser_marked_filter")],
         ));
     }
+    if toolbar.tag_named_filter_chip.width() > 1.0 {
+        children.push(simple_node(
+            "browser.tag_named_filter",
+            AutomationRole::Button,
+            Some(String::from("Tag-named filter")),
+            toolbar.tag_named_filter_chip,
+            None,
+            true,
+            model.browser.tag_named_filter_active,
+            vec![String::from("toggle_browser_tag_named_filter")],
+        ));
+    }
     for button in buttons {
         children.push(simple_node(
             format!("browser.action.{}", slug(button.label)),

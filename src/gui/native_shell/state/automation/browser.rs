@@ -5,6 +5,7 @@ use super::helpers::{
 };
 use super::*;
 use crate::sempal_app::AutomationRole;
+use crate::sempal_app::BrowserTagState;
 
 /// Build semantic automation for the browser panel and its active content.
 pub(super) fn build_browser_automation(
@@ -129,6 +130,9 @@ pub(super) fn build_browser_automation(
         children.push(map_canvas_automation(layout, model, style));
     } else {
         children.push(build_browser_table_automation(shell, layout, model, style));
+        if let Some(tag_sidebar) = build_browser_tag_sidebar_automation(layout, model, style) {
+            children.push(tag_sidebar);
+        }
     }
     AutomationNodeSnapshot {
         id: node_id("browser.panel"),
@@ -267,6 +271,110 @@ fn build_browser_table_automation(
     }
     table_node.children = children;
     table_node
+}
+
+fn build_browser_tag_sidebar_automation(
+    layout: &ShellLayout,
+    model: &AppModel,
+    style: &StyleTokens,
+) -> Option<AutomationNodeSnapshot> {
+    let rect = browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, model)?;
+    let sidebar = &model.browser.tag_sidebar;
+    let normal_tag_labels = sidebar
+        .normal_tag_pills
+        .iter()
+        .map(|pill| pill.label.as_str())
+        .collect::<Vec<_>>()
+        .join("|");
+    let mut children = vec![
+        simple_node(
+            "browser.tag_sidebar.input",
+            AutomationRole::SearchField,
+            Some(sidebar.input_placeholder.clone()),
+            rect,
+            Some(sidebar.input_value.clone()),
+            true,
+            false,
+            vec![
+                String::from("focus_browser_tag_sidebar_input"),
+                String::from("set_browser_tag_sidebar_input"),
+                String::from("commit_browser_tag_sidebar_input"),
+            ],
+        ),
+        browser_tag_sidebar_pill_node(
+            "browser.tag_sidebar.playback.loop",
+            &sidebar.playback_type_pills[0],
+            rect,
+            vec![String::from("set_browser_sidebar_looped")],
+        ),
+        browser_tag_sidebar_pill_node(
+            "browser.tag_sidebar.playback.one_shot",
+            &sidebar.playback_type_pills[1],
+            rect,
+            vec![String::from("set_browser_sidebar_looped")],
+        ),
+    ];
+    children.extend(sidebar.normal_tag_pills.iter().map(|pill| {
+        browser_tag_sidebar_pill_node(
+            format!("browser.tag_sidebar.normal_tag.{}", slug(&pill.label)),
+            pill,
+            rect,
+            vec![String::from("toggle_browser_sidebar_normal_tag")],
+        )
+    }));
+    if let Some(pill) = sidebar.create_tag_pill.as_ref() {
+        children.push(browser_tag_sidebar_pill_node(
+            format!("browser.tag_sidebar.create_tag.{}", slug(&pill.id)),
+            pill,
+            rect,
+            vec![String::from("toggle_browser_sidebar_normal_tag")],
+        ));
+    }
+    let mut node = simple_node(
+        "browser.tag_sidebar",
+        AutomationRole::Panel,
+        Some(String::from("Tag sidebar")),
+        rect,
+        Some(sidebar.header_label.clone()),
+        true,
+        false,
+        Vec::new(),
+    );
+    node.metadata = metadata(&[
+        ("selected_count", &sidebar.selected_count.to_string()),
+        (
+            "auto_rename_enabled",
+            bool_text(sidebar.auto_rename_enabled),
+        ),
+        ("normal_tag_labels", &normal_tag_labels),
+    ]);
+    node.children = children;
+    Some(node)
+}
+
+fn browser_tag_sidebar_pill_node(
+    id: impl Into<String>,
+    pill: &crate::sempal_app::BrowserTagPillModel,
+    rect: Rect,
+    available_actions: Vec<String>,
+) -> AutomationNodeSnapshot {
+    let state = match pill.state {
+        BrowserTagState::Off => "off",
+        BrowserTagState::On => "on",
+        BrowserTagState::Mixed => "mixed",
+    };
+    let mut node = simple_node(
+        id,
+        AutomationRole::Button,
+        Some(pill.label.clone()),
+        rect,
+        Some(state.to_string()),
+        true,
+        pill.state == BrowserTagState::On,
+        available_actions,
+    );
+    node.metadata = metadata(&[("tag_state", state), ("tag_id", pill.id.as_str())]);
+    node
 }
 
 fn browser_scrollbar_automation(

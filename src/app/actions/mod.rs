@@ -450,26 +450,24 @@ pub enum UiAction {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
     },
-    /// Focus the browser metadata custom-tag input field.
+    /// Focus the browser metadata tag input field.
     FocusBrowserTagSidebarInput,
-    /// Set the browser metadata custom-tag input value.
+    /// Set the browser metadata tag input value.
     SetBrowserTagSidebarInput {
-        /// Full custom-tag input text.
+        /// Full tag input text.
         value: String,
     },
-    /// Commit the browser metadata custom-tag input value.
+    /// Commit the browser metadata tag input value.
     CommitBrowserTagSidebarInput,
-    /// Clear the current custom user tag for the browser selection.
-    ClearBrowserTagSidebarUserTag,
     /// Apply one playback-type value to the browser selection.
     SetBrowserSidebarLooped {
         /// Playback type to apply.
         looped: bool,
     },
-    /// Apply one sound-type value to the browser selection.
-    SetBrowserSidebarSoundType {
-        /// Canonical sound-type token to apply.
-        token: String,
+    /// Toggle one normal tag candidate for the browser selection.
+    ToggleBrowserSidebarNormalTag {
+        /// Normal tag label to assign or remove.
+        label: String,
     },
     /// Focus a specific map sample by stable sample id.
     FocusMapSample {

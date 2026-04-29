@@ -124,9 +124,8 @@ impl UiAction {
             | Self::FocusBrowserTagSidebarInput
             | Self::SetBrowserTagSidebarInput { .. }
             | Self::CommitBrowserTagSidebarInput
-            | Self::ClearBrowserTagSidebarUserTag
             | Self::SetBrowserSidebarLooped { .. }
-            | Self::SetBrowserSidebarSoundType { .. }
+            | Self::ToggleBrowserSidebarNormalTag { .. }
             | Self::SetBrowserTab { .. }
             | Self::FocusMapSample { .. } => UiActionFamily::Browser,
             Self::SetPromptInput { .. }

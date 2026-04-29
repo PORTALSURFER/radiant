@@ -401,16 +401,16 @@ pub struct BrowserTagSidebarModel {
     pub header_label: String,
     /// Whether sidebar metadata edits should trigger auto-rename.
     pub auto_rename_enabled: bool,
-    /// Current custom-tag input value.
+    /// Current tag search/create input value.
     pub input_value: String,
-    /// Placeholder shown for the custom-tag input when empty.
+    /// Placeholder shown for the tag input when empty.
     pub input_placeholder: String,
     /// Exclusive playback-type pills.
     pub playback_type_pills: [BrowserTagPillModel; 2],
-    /// Exclusive sound-type pills.
-    pub sound_type_pills: Vec<BrowserTagPillModel>,
-    /// Active custom-tag pill when present in the selection.
-    pub custom_tag_pill: Option<BrowserTagPillModel>,
+    /// Normal tag candidates from common usage or search.
+    pub normal_tag_pills: Vec<BrowserTagPillModel>,
+    /// Create-new candidate when the input does not exactly match an existing tag.
+    pub create_tag_pill: Option<BrowserTagPillModel>,
 }
 
 /// Render mode label for the map panel.

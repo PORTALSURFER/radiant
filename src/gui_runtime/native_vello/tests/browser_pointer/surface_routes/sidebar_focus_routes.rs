@@ -124,7 +124,7 @@ fn empty_folder_section_click_routes_focus_folder_panel() {
 }
 
 #[test]
-fn folder_disclosure_click_routes_activate_folder_row_for_expandable_rows() {
+fn folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = populated_sidebar_model();
@@ -144,7 +144,7 @@ fn folder_disclosure_click_routes_activate_folder_row_for_expandable_rows() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ActivateFolderRow {
+        Some(UiAction::ToggleFolderRowExpanded {
             pane: Some(FolderPaneIdModel::Upper),
             index: 1,
         })
@@ -152,7 +152,36 @@ fn folder_disclosure_click_routes_activate_folder_row_for_expandable_rows() {
 }
 
 #[test]
-fn folder_row_body_click_routes_activate_folder_row_for_expandable_rows() {
+fn lower_folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut shell_state = NativeShellState::new();
+    let mut model = populated_sidebar_model();
+    model.sources.active_folder_pane = FolderPaneIdModel::Lower;
+    let disclosure = shell_state
+        .folder_row_disclosure_rect(&layout, &model, 1)
+        .expect("lower folder disclosure should be rendered");
+    let point = Point::new(
+        (disclosure.min.x + disclosure.max.x) * 0.5,
+        (disclosure.min.y + disclosure.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        action_from_pointer(
+            &layout,
+            &model,
+            &mut shell_state,
+            point,
+            ModifiersState::default(),
+        ),
+        Some(UiAction::ToggleFolderRowExpanded {
+            pane: Some(FolderPaneIdModel::Lower),
+            index: 1,
+        })
+    );
+}
+
+#[test]
+fn folder_row_body_click_keeps_focus_row_behavior_for_expandable_rows() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = populated_sidebar_model();
@@ -171,7 +200,7 @@ fn folder_row_body_click_routes_activate_folder_row_for_expandable_rows() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ActivateFolderRow {
+        Some(UiAction::FocusFolderRow {
             pane: Some(FolderPaneIdModel::Upper),
             index: 1,
         })

@@ -104,11 +104,11 @@ fn route_browser_or_folder_row(
         });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, pane, index));
+        return Some(folder_row_disclosure_action(model, pane, index));
     }
     shell_state
         .folder_row_at_point(layout, model, point)
-        .map(|(pane, index)| folder_row_pointer_action(model, pane, index))
+        .map(|(pane, index)| folder_row_body_action(model, pane, index))
 }
 
 fn route_shell_background(
@@ -153,15 +153,15 @@ fn route_sidebar_background(
         });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, pane, index));
+        return Some(folder_row_disclosure_action(model, pane, index));
     }
     if let Some((pane, index)) = shell_state.folder_row_at_point(layout, model, point) {
-        return Some(folder_row_pointer_action(model, pane, index));
+        return Some(folder_row_body_action(model, pane, index));
     }
     shell_state.sidebar_focus_action_at_point(layout, model, point)
 }
 
-fn folder_row_pointer_action(
+fn folder_row_disclosure_action(
     model: &AppModel,
     pane: crate::sempal_app::FolderPaneIdModel,
     index: usize,
@@ -181,8 +181,8 @@ fn folder_row_pointer_action(
         return UiAction::FocusFolderCreateInput;
     }
     let source_index = row.source_index.unwrap_or(index);
-    if folder_row_click_toggles_expansion(pane_model, index) {
-        UiAction::ActivateFolderRow {
+    if folder_row_disclosure_toggles_expansion(pane_model, index) {
+        UiAction::ToggleFolderRowExpanded {
             pane: Some(pane),
             index: source_index,
         }
@@ -191,6 +191,31 @@ fn folder_row_pointer_action(
             pane: Some(pane),
             index: source_index,
         }
+    }
+}
+
+fn folder_row_body_action(
+    model: &AppModel,
+    pane: crate::sempal_app::FolderPaneIdModel,
+    index: usize,
+) -> UiAction {
+    let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
+        return UiAction::FocusFolderRow {
+            pane: Some(pane),
+            index,
+        };
+    };
+    if matches!(
+        row.kind,
+        crate::sempal_app::FolderRowKind::CreateDraft
+            | crate::sempal_app::FolderRowKind::RenameDraft
+    ) {
+        return UiAction::FocusFolderCreateInput;
+    }
+    let source_index = row.source_index.unwrap_or(index);
+    UiAction::FocusFolderRow {
+        pane: Some(pane),
+        index: source_index,
     }
 }
 
@@ -215,7 +240,7 @@ fn folder_row_for_pointer_action(
         .or(flat_active_row)
 }
 
-fn folder_row_click_toggles_expansion(
+fn folder_row_disclosure_toggles_expansion(
     pane_model: &crate::sempal_app::FolderPaneModel,
     index: usize,
 ) -> bool {

@@ -127,6 +127,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
                 missing: false,
                 locked: false,
                 marked: false,
+                processing_state: crate::sempal_app::BrowserRowProcessingState::None,
                 rect,
             }
         })

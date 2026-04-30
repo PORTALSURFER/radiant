@@ -61,8 +61,9 @@ pub use automation::{
 pub use bridge::{NativeAppBridge, NativeShutdownTimingArtifact};
 pub use browser::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
-    BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState, MapPanelModel, MapPointModel,
-    MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip, RetainedVec,
+    BrowserRowProcessingState, BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState,
+    MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
+    RetainedVec,
 };
 pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};

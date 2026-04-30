@@ -31,6 +31,26 @@ pub enum PlaybackAgeBucket {
     NeverPlayed,
 }
 
+/// Transient browser row processing states for batch file operations.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum BrowserRowProcessingState {
+    /// The row is not part of an active row-scoped operation.
+    #[default]
+    None,
+    /// The row is waiting in the current batch.
+    Queued,
+    /// The row is currently being processed.
+    Active,
+    /// The row completed successfully.
+    Completed,
+    /// The row was skipped by the batch.
+    Skipped,
+    /// The row failed during processing.
+    Failed,
+}
+
 /// Shared row storage used by retained app-model snapshots.
 ///
 /// The native bridge frequently clones the top-level app model while segment
@@ -166,6 +186,8 @@ pub struct BrowserRowModel {
     pub locked: bool,
     /// Whether the backing sample is session-marked for later review.
     pub marked: bool,
+    /// Transient row-scoped processing state for active batch operations.
+    pub processing_state: BrowserRowProcessingState,
 }
 
 impl BrowserRowModel {
@@ -190,6 +212,7 @@ impl BrowserRowModel {
             missing: false,
             locked: false,
             marked: false,
+            processing_state: BrowserRowProcessingState::None,
         }
     }
 
@@ -248,6 +271,12 @@ impl BrowserRowModel {
     /// Mark whether the backing sample should render with the session mark treatment.
     pub fn with_marked(mut self, marked: bool) -> Self {
         self.marked = marked;
+        self
+    }
+
+    /// Attach a transient row-scoped processing state.
+    pub fn with_processing_state(mut self, processing_state: BrowserRowProcessingState) -> Self {
+        self.processing_state = processing_state;
         self
     }
 }

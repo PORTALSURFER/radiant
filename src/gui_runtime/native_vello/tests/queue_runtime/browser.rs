@@ -431,6 +431,62 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
 }
 
 #[test]
+fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
+    let mut runner =
+        NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let mut model = AppModel::default();
+    model.browser.tag_sidebar.open = true;
+    model.browser.tag_sidebar.input_value = String::from("rfx");
+    model
+        .browser
+        .tag_sidebar
+        .normal_tag_pills
+        .push(crate::sempal_app::BrowserTagPillModel {
+            id: String::from("rare_fx"),
+            label: String::from("Rare FX"),
+            state: crate::sempal_app::BrowserTagState::Off,
+        });
+    runner.model = Arc::new(model);
+    runner.shell_layout = Some(Arc::new(layout.clone()));
+    runner.frame_state.model_dirty = false;
+    runner.text_input_target = TextInputTarget::BrowserTagSidebar;
+    runner.text_input_buffer = Some(String::from("rfx"));
+    let point = (layout.browser_rows.min.x as i32..=layout.browser_rows.max.x as i32)
+        .find_map(|x| {
+            (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
+                let point = Point::new(x as f32, y as f32);
+                matches!(
+                    runner.shell_state.browser_action_at_point(
+                        &layout,
+                        &runner.model,
+                        point,
+                        false,
+                    ),
+                    Some(UiAction::ToggleBrowserSidebarNormalTag { ref label })
+                        if label == "Rare FX"
+                )
+                .then_some(point)
+            })
+        })
+        .expect("normal tag pill should be hittable");
+    let mut action_emitted = false;
+
+    assert!(
+        runner.handle_left_pointer_press_for_tests(&layout, point, false, &mut action_emitted,)
+    );
+
+    assert!(action_emitted);
+    assert_eq!(runner.text_input_target, TextInputTarget::None);
+    assert_eq!(
+        runner.bridge.actions,
+        vec![UiAction::ToggleBrowserSidebarNormalTag {
+            label: String::from("Rare FX")
+        }]
+    );
+}
+
+#[test]
 fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());

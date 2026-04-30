@@ -243,7 +243,6 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if self.text_input_target != TextInputTarget::None {
             self.deactivate_text_input_target();
-            return false;
         }
         if let Some(action) =
             self.shell_state

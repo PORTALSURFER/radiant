@@ -21,13 +21,13 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
     if let Some(row) = model.sources.rows.get_mut(5) {
         row.assigned_to_lower_pane = true;
     }
-    model.sources.upper_folder_pane.source_label = String::from("source_02");
-    model.sources.upper_folder_pane.source_detail = String::from("detail_02");
+    model.sources.upper_folder_pane.item_label = String::from("source_02");
+    model.sources.upper_folder_pane.item_detail = String::from("detail_02");
     model.sources.upper_folder_pane.active = true;
-    model.sources.upper_folder_pane.has_source = true;
-    model.sources.lower_folder_pane.source_label = String::from("source_05");
-    model.sources.lower_folder_pane.source_detail = String::from("detail_05");
-    model.sources.lower_folder_pane.has_source = true;
+    model.sources.upper_folder_pane.has_item = true;
+    model.sources.lower_folder_pane.item_label = String::from("source_05");
+    model.sources.lower_folder_pane.item_detail = String::from("detail_05");
+    model.sources.lower_folder_pane.has_item = true;
     for index in 0..24 {
         let row = FolderRowModel::new(
             format!("folder_{index:02}"),
@@ -39,16 +39,12 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
             true,
             true,
         );
-        model
-            .sources
-            .upper_folder_pane
-            .folder_rows
-            .push(row.clone());
-        model.sources.lower_folder_pane.folder_rows.push(row);
+        model.sources.upper_folder_pane.tree_rows.push(row.clone());
+        model.sources.lower_folder_pane.tree_rows.push(row);
     }
-    model.sources.focused_folder_row = Some(3);
-    model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
-    model.sources.folder_actions = FolderActionsModel {
+    model.sources.focused_tree_row = Some(3);
+    model.sources.tree_rows = model.sources.upper_folder_pane.tree_rows.clone();
+    model.sources.tree_actions = FolderActionsModel {
         can_create_child: true,
         can_create_root: true,
         can_rename: true,
@@ -57,29 +53,25 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
         can_purge_retained: true,
         can_clear_history: true,
     };
-    model.sources.upper_folder_pane.folder_actions = model.sources.folder_actions.clone();
-    model.sources.lower_folder_pane.folder_actions = model.sources.folder_actions.clone();
-    model.sources.can_toggle_show_all_folders = true;
+    model.sources.upper_folder_pane.tree_actions = model.sources.tree_actions.clone();
+    model.sources.lower_folder_pane.tree_actions = model.sources.tree_actions.clone();
+    model.sources.can_toggle_show_all_items = true;
     model.sources.can_toggle_flattened_view = true;
-    model.sources.upper_folder_pane.can_toggle_show_all_folders = true;
+    model.sources.upper_folder_pane.can_toggle_show_all_items = true;
     model.sources.upper_folder_pane.can_toggle_flattened_view = true;
-    model.sources.upper_folder_pane.focused_folder_row = Some(3);
-    model.sources.lower_folder_pane.can_toggle_show_all_folders = true;
+    model.sources.upper_folder_pane.focused_tree_row = Some(3);
+    model.sources.lower_folder_pane.can_toggle_show_all_items = true;
     model.sources.lower_folder_pane.can_toggle_flattened_view = true;
-    model.sources.lower_folder_pane.focused_folder_row = Some(3);
+    model.sources.lower_folder_pane.focused_tree_row = Some(3);
     model
 }
 
 pub(crate) fn push_active_folder_row(model: &mut AppModel, row: FolderRowModel) {
-    model.sources.folder_rows.push(row.clone());
-    model
-        .sources
-        .upper_folder_pane
-        .folder_rows
-        .push(row.clone());
-    model.sources.lower_folder_pane.folder_rows.push(row);
+    model.sources.tree_rows.push(row.clone());
+    model.sources.upper_folder_pane.tree_rows.push(row.clone());
+    model.sources.lower_folder_pane.tree_rows.push(row);
     model.sources.upper_folder_pane.active = true;
-    model.sources.upper_folder_pane.has_source = true;
+    model.sources.upper_folder_pane.has_item = true;
 }
 
 pub(crate) fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {

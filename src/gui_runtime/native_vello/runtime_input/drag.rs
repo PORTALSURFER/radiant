@@ -193,7 +193,7 @@ where
                 self.model
                     .sources
                     .folder_pane(pane)
-                    .folder_rows
+                    .tree_rows
                     .get(projected_index)
                     .and_then(|row| row.backing_index)
                     .or(Some(projected_index))

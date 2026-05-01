@@ -382,7 +382,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
                 false,
             )]
             .into(),
-            folder_rows: vec![
+            tree_rows: vec![
                 crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, false, false, true, true, true,
                 ),

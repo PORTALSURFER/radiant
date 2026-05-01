@@ -17,24 +17,24 @@ fn folder_browser_focus_rect(layout: &ShellLayout, style: &StyleTokens, model: &
                 .folder_header(FolderPaneIdModel::Upper)
                 .min
                 .x
-                .min(sections.folder_rows(FolderPaneIdModel::Upper).min.x),
+                .min(sections.tree_rows(FolderPaneIdModel::Upper).min.x),
             sections
                 .folder_header(FolderPaneIdModel::Upper)
                 .min
                 .y
-                .min(sections.folder_rows(FolderPaneIdModel::Upper).min.y),
+                .min(sections.tree_rows(FolderPaneIdModel::Upper).min.y),
         ),
         Point::new(
             sections
                 .folder_header(FolderPaneIdModel::Upper)
                 .max
                 .x
-                .max(sections.folder_rows(FolderPaneIdModel::Upper).max.x),
+                .max(sections.tree_rows(FolderPaneIdModel::Upper).max.x),
             sections
                 .folder_header(FolderPaneIdModel::Upper)
                 .max
                 .y
-                .max(sections.folder_rows(FolderPaneIdModel::Upper).max.y),
+                .max(sections.tree_rows(FolderPaneIdModel::Upper).max.y),
         ),
     )
 }

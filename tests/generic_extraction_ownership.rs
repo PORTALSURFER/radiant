@@ -135,12 +135,17 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 
     assert!(!sources_mod.contains("pub enum FolderPaneIdModel"));
     assert!(!sources_mod.contains("pub struct SourceRowModel"));
+    assert!(!sources_mod.contains("pub struct FolderPaneModel"));
     assert!(
         sources_mod.contains("pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;")
     );
     assert!(sources_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
+    assert!(sources_mod.contains(
+        "pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;"
+    ));
     assert!(panel_mod.contains("pub enum SplitPaneSlot"));
     assert!(panel_mod.contains("pub struct SplitPaneAssignedRow"));
+    assert!(panel_mod.contains("pub struct SplitPaneTreePanel<Row = EditableTreeRow>"));
 }
 
 #[test]

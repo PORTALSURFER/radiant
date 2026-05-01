@@ -69,46 +69,46 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     let mut state = NativeShellState::new();
     let top_model = folder_model_with_rows(240, 6);
     let top_rows = state
-        .cached_folder_rows(&layout, &style, &top_model, FolderPaneIdModel::Upper)
+        .cached_tree_rows(&layout, &style, &top_model, FolderPaneIdModel::Upper)
         .to_vec();
     let top_sections = sidebar_sections(&layout, &style, &top_model);
-    let top_content_rect = folder_rows_content_rect(
-        top_sections.folder_rows(FolderPaneIdModel::Upper),
-        top_model.sources.folder_rows.len(),
+    let top_content_rect = tree_rows_content_rect(
+        top_sections.tree_rows(FolderPaneIdModel::Upper),
+        top_model.sources.tree_rows.len(),
         style.sizing,
     );
     let top_scrollbar = folder_scrollbar_layout(
-        top_sections.folder_rows(FolderPaneIdModel::Upper),
+        top_sections.tree_rows(FolderPaneIdModel::Upper),
         &top_rows,
-        top_model.sources.folder_rows.len(),
+        top_model.sources.tree_rows.len(),
         style.sizing,
     )
     .expect("overflowing folder list should render a scrollbar");
 
     let lower_model = folder_model_with_rows(240, 148);
     let lower_rows = state
-        .cached_folder_rows(&layout, &style, &lower_model, FolderPaneIdModel::Lower)
+        .cached_tree_rows(&layout, &style, &lower_model, FolderPaneIdModel::Lower)
         .to_vec();
     let lower_sections = sidebar_sections(&layout, &style, &lower_model);
-    let lower_content_rect = folder_rows_content_rect(
-        lower_sections.folder_rows(FolderPaneIdModel::Lower),
-        lower_model.sources.folder_rows.len(),
+    let lower_content_rect = tree_rows_content_rect(
+        lower_sections.tree_rows(FolderPaneIdModel::Lower),
+        lower_model.sources.tree_rows.len(),
         style.sizing,
     );
     let lower_scrollbar = folder_scrollbar_layout(
-        lower_sections.folder_rows(FolderPaneIdModel::Lower),
+        lower_sections.tree_rows(FolderPaneIdModel::Lower),
         &lower_rows,
-        lower_model.sources.folder_rows.len(),
+        lower_model.sources.tree_rows.len(),
         style.sizing,
     )
     .expect("overflowing folder list should render a scrollbar");
 
     assert_rect_inside(
-        top_sections.folder_rows(FolderPaneIdModel::Upper),
+        top_sections.tree_rows(FolderPaneIdModel::Upper),
         top_scrollbar.track,
     );
     assert_rect_inside(
-        top_sections.folder_rows(FolderPaneIdModel::Upper),
+        top_sections.tree_rows(FolderPaneIdModel::Upper),
         top_scrollbar.thumb,
     );
     assert!(top_content_rect.max.x < top_scrollbar.track.min.x);
@@ -145,23 +145,23 @@ fn prewindowed_folder_scrollbar_uses_manual_view_start_at_bottom() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = folder_model_with_rows(240, 0);
-    model.sources.focused_folder_row = Some(0);
+    model.sources.focused_tree_row = Some(0);
     let mut state = NativeShellState::new();
     let initial_rows = state
-        .cached_folder_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+        .cached_tree_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
         .to_vec();
     let viewport_len = initial_rows.len();
-    let requested_view_start = model.sources.folder_rows.len().saturating_sub(viewport_len);
+    let requested_view_start = model.sources.tree_rows.len().saturating_sub(viewport_len);
     assert!(state.set_folder_view_start_row(FolderPaneIdModel::Upper, requested_view_start));
 
     let rows = state
-        .cached_folder_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+        .cached_tree_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
         .to_vec();
     let sections = sidebar_sections(&layout, &style, &model);
     let scrollbar = folder_scrollbar_layout(
-        sections.folder_rows(FolderPaneIdModel::Upper),
+        sections.tree_rows(FolderPaneIdModel::Upper),
         &rows,
-        model.sources.folder_rows.len(),
+        model.sources.tree_rows.len(),
         style.sizing,
     )
     .expect("overflowing folder list should render a scrollbar");
@@ -244,7 +244,7 @@ fn waveform_scrollbar_track_click_maps_to_centered_view() {
 
 fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
     let mut model = AppModel::default();
-    model.sources.focused_folder_row = Some(focused_row.min(total_rows.saturating_sub(1)));
+    model.sources.focused_tree_row = Some(focused_row.min(total_rows.saturating_sub(1)));
     for row_index in 0..total_rows {
         let row = FolderRowModel::new(
             format!("folder_{row_index:03}"),
@@ -256,15 +256,11 @@ fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
             row_index < total_rows.saturating_sub(1),
             true,
         );
-        model.sources.folder_rows.push(row.clone());
-        model
-            .sources
-            .upper_folder_pane
-            .folder_rows
-            .push(row.clone());
-        model.sources.lower_folder_pane.folder_rows.push(row);
+        model.sources.tree_rows.push(row.clone());
+        model.sources.upper_folder_pane.tree_rows.push(row.clone());
+        model.sources.lower_folder_pane.tree_rows.push(row);
     }
-    model.sources.upper_folder_pane.focused_folder_row = model.sources.focused_folder_row;
-    model.sources.lower_folder_pane.focused_folder_row = model.sources.focused_folder_row;
+    model.sources.upper_folder_pane.focused_tree_row = model.sources.focused_tree_row;
+    model.sources.lower_folder_pane.focused_tree_row = model.sources.focused_tree_row;
     model
 }

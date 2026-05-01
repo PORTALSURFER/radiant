@@ -20,13 +20,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     ) -> Option<&crate::compat_app_contract::FolderRowModel> {
         self.model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft)
             .or_else(|| {
                 self.model
                     .sources
-                    .folder_rows
+                    .tree_rows
                     .iter()
                     .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
             })

@@ -137,7 +137,7 @@ fn folder_rename_editor_overlay_renders_selection_and_caret() {
 }
 
 #[test]
-fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
+fn source_divider_remains_above_tree_rows_in_cramped_viewports() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);
     let model = populated_sidebar_model();
@@ -149,12 +149,12 @@ fn source_divider_remains_above_folder_rows_in_cramped_viewports() {
     )
     .expect("divider should exist");
     assert_rect_inside(layout.sidebar_rows, divider);
-    assert!(divider.max.y <= sections.folder_rows(FolderPaneIdModel::Upper).min.y);
+    assert!(divider.max.y <= sections.tree_rows(FolderPaneIdModel::Upper).min.y);
     assert!(divider.min.y >= sections.source_rows(FolderPaneIdModel::Upper).min.y);
 }
 
 #[test]
-fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
+fn recovery_badge_compacts_label_when_header_is_narrow() {
     let layout = ShellLayout::build(Vector2::new(820.0, 520.0));
     let style = style_for_layout(&layout);
     let header_rect = Rect::from_min_max(
@@ -249,13 +249,13 @@ fn selected_source_row_uses_mint_label_text() {
 }
 
 #[test]
-fn folder_recovery_badge_renders_idle_count_label() {
+fn recovery_badge_renders_idle_count_label() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_recovery.entry_count = 153;
-    model.sources.upper_folder_pane.folder_recovery = model.sources.folder_recovery.clone();
+    model.sources.recovery.entry_count = 153;
+    model.sources.upper_folder_pane.recovery = model.sources.recovery.clone();
 
     let frame = state.build_frame(&layout, &model);
     let badge_label = frame

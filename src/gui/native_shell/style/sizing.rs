@@ -101,9 +101,9 @@ pub(crate) struct SizingTokens {
     /// Folder row card height.
     pub folder_row_height: f32,
     /// Maximum number of folder rows rendered in the sidebar tree.
-    pub folder_rows_max: usize,
+    pub tree_rows_max: usize,
     /// Minimum number of folder rows preserved when source rows are visible.
-    pub folder_rows_min: usize,
+    pub tree_rows_min: usize,
     /// Gap between source/folder sections in the sidebar.
     pub sidebar_section_gap: f32,
     /// Stroke width for source/folder section dividers.

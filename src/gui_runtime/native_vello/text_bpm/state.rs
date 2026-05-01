@@ -84,7 +84,7 @@ pub(super) fn current_text_value<B: NativeAppBridge>(
             TextInputTarget::BrowserTagSidebar => {
                 Some(runner.model.browser.tag_sidebar.input_value.clone())
             }
-            TextInputTarget::FolderSearch => Some(runner.model.sources.folder_search_query.clone()),
+            TextInputTarget::FolderSearch => Some(runner.model.sources.tree_search_query.clone()),
             TextInputTarget::PromptInput => runner.model.confirm_prompt.input_value.clone(),
             TextInputTarget::FolderCreate => runner
                 .folder_inline_edit_row()
@@ -131,7 +131,7 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
                             runner.model.browser.tag_sidebar.input_value.clone()
                         }
                         TextInputTarget::FolderSearch => {
-                            runner.model.sources.folder_search_query.clone()
+                            runner.model.sources.tree_search_query.clone()
                         }
                         TextInputTarget::PromptInput => runner
                             .model

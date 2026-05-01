@@ -166,7 +166,7 @@ mod tests {
         let narrow = StyleTokens::for_viewport_width(900.0);
         let wide = StyleTokens::for_viewport_width(2200.0);
         assert!(narrow.sizing.source_rows_max < wide.sizing.source_rows_max);
-        assert!(narrow.sizing.folder_rows_max < wide.sizing.folder_rows_max);
+        assert!(narrow.sizing.tree_rows_max < wide.sizing.tree_rows_max);
         assert!(
             narrow.sizing.browser_rows_max_per_column < wide.sizing.browser_rows_max_per_column
         );

@@ -168,7 +168,7 @@ fn folder_arrow_hotkeys_still_resolve_when_search_query_exists_but_tree_has_focu
         focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
         ..AppModel::default()
     };
-    folders.sources.folder_search_query = String::from("dr");
+    folders.sources.tree_search_query = String::from("dr");
 
     assert_eq!(
         resolved_action(KeyCode::ArrowLeft, ModifiersState::default(), &folders),

@@ -3,7 +3,7 @@ use crate::gui::types::Rect;
 
 fn browser_drag_model() -> AppModel {
     let mut model = browser_model_with_rows(4, 0);
-    let folder_rows = vec![
+    let tree_rows = vec![
         crate::compat_app_contract::FolderRowModel::new(
             "Root", "", 0, false, false, true, true, true,
         )
@@ -14,20 +14,20 @@ fn browser_drag_model() -> AppModel {
         .with_backing_index(7),
     ];
     model.sources = SourcesPanelModel {
-        folder_rows: folder_rows.clone().into(),
+        tree_rows: tree_rows.clone().into(),
         upper_folder_pane: crate::compat_app_contract::FolderPaneModel {
             pane: crate::compat_app_contract::FolderPaneIdModel::Upper,
             title: String::from("Upper"),
             active: true,
-            has_source: true,
-            folder_rows: folder_rows.clone().into(),
+            has_item: true,
+            tree_rows: tree_rows.clone().into(),
             ..crate::compat_app_contract::FolderPaneModel::default()
         },
         lower_folder_pane: crate::compat_app_contract::FolderPaneModel {
             pane: crate::compat_app_contract::FolderPaneIdModel::Lower,
             title: String::from("Lower"),
-            has_source: true,
-            folder_rows: folder_rows.into(),
+            has_item: true,
+            tree_rows: tree_rows.into(),
             ..crate::compat_app_contract::FolderPaneModel::default()
         },
         ..SourcesPanelModel::default()

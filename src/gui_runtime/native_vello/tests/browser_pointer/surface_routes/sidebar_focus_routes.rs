@@ -64,7 +64,7 @@ fn empty_source_list_click_routes_focus_sources_panel() {
         sources: SourcesPanelModel {
             header: String::from("0 sources"),
             rows: Vec::new().into(),
-            folder_rows: vec![
+            tree_rows: vec![
                 crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, true, false, true, true, true,
                 ),
@@ -149,8 +149,8 @@ fn folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.upper_folder_pane.folder_rows.make_mut()[1] =
-        model.sources.upper_folder_pane.folder_rows[1]
+    model.sources.upper_folder_pane.tree_rows.make_mut()[1] =
+        model.sources.upper_folder_pane.tree_rows[1]
             .clone()
             .with_backing_index(42);
     let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 1);
@@ -345,7 +345,7 @@ fn inline_folder_create_disclosure_gutter_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.make_mut().insert(
+    model.sources.tree_rows.make_mut().insert(
         2,
         crate::compat_app_contract::FolderRowModel::create_draft(
             2,
@@ -374,7 +374,7 @@ fn inline_folder_create_row_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.make_mut().insert(
+    model.sources.tree_rows.make_mut().insert(
         2,
         crate::compat_app_contract::FolderRowModel::create_draft(
             2,
@@ -408,7 +408,7 @@ fn inline_folder_rename_disclosure_gutter_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.make_mut().insert(
+    model.sources.tree_rows.make_mut().insert(
         2,
         crate::compat_app_contract::FolderRowModel::rename_draft(
             2,
@@ -437,7 +437,7 @@ fn inline_folder_rename_row_click_focuses_folder_create_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.sources.folder_rows.make_mut().insert(
+    model.sources.tree_rows.make_mut().insert(
         2,
         crate::compat_app_contract::FolderRowModel::rename_draft(
             2,

@@ -34,7 +34,7 @@ fn populated_sidebar_model() -> AppModel {
 }
 
 fn populated_sidebar_model_with_search(query: &str) -> AppModel {
-    let folder_rows = vec![
+    let tree_rows = vec![
         crate::compat_app_contract::FolderRowModel::new(
             "Root", "", 0, true, false, true, true, true,
         ),
@@ -54,32 +54,32 @@ fn populated_sidebar_model_with_search(query: &str) -> AppModel {
     AppModel {
         sources: SourcesPanelModel {
             header: String::from("2 sources"),
-            folder_search_query: String::from(query),
+            tree_search_query: String::from(query),
             selected_row: Some(0),
-            focused_folder_row: Some(1),
+            focused_tree_row: Some(1),
             rows: vec![source_a, source_b].into(),
-            folder_rows: folder_rows.clone().into(),
+            tree_rows: tree_rows.clone().into(),
             upper_folder_pane: crate::compat_app_contract::FolderPaneModel {
                 pane: crate::compat_app_contract::FolderPaneIdModel::Upper,
                 title: String::from("Upper"),
-                source_label: String::from("Source A"),
-                source_detail: String::from("ready"),
+                item_label: String::from("Source A"),
+                item_detail: String::from("ready"),
                 active: true,
-                has_source: true,
-                folder_search_query: String::from(query),
-                focused_folder_row: Some(1),
-                folder_rows: folder_rows.clone().into(),
+                has_item: true,
+                tree_search_query: String::from(query),
+                focused_tree_row: Some(1),
+                tree_rows: tree_rows.clone().into(),
                 ..crate::compat_app_contract::FolderPaneModel::default()
             },
             lower_folder_pane: crate::compat_app_contract::FolderPaneModel {
                 pane: crate::compat_app_contract::FolderPaneIdModel::Lower,
                 title: String::from("Lower"),
-                source_label: String::from("Source B"),
-                source_detail: String::from("ready"),
+                item_label: String::from("Source B"),
+                item_detail: String::from("ready"),
                 active: false,
-                has_source: true,
-                focused_folder_row: Some(1),
-                folder_rows: folder_rows.into(),
+                has_item: true,
+                focused_tree_row: Some(1),
+                tree_rows: tree_rows.into(),
                 ..crate::compat_app_contract::FolderPaneModel::default()
             },
             ..SourcesPanelModel::default()

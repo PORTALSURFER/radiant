@@ -27,7 +27,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             TextInputTarget::BrowserTagSidebar => {
                 self.model.browser.tag_sidebar.input_value.clone()
             }
-            TextInputTarget::FolderSearch => self.model.sources.folder_search_query.clone(),
+            TextInputTarget::FolderSearch => self.model.sources.tree_search_query.clone(),
             TextInputTarget::FolderCreate => self
                 .folder_inline_edit_row()
                 .and_then(|row| row.input_value.clone())

@@ -48,8 +48,8 @@ fn apply_compact_sizing(sizing: &mut SizingTokens) {
     sizing.source_rows_min_when_split = 2;
     sizing.folder_row_gap = 0.0;
     sizing.folder_row_height = 14.8;
-    sizing.folder_rows_max = 14;
-    sizing.folder_rows_min = 3;
+    sizing.tree_rows_max = 14;
+    sizing.tree_rows_min = 3;
     sizing.sidebar_section_gap = 6.0;
     sizing.source_section_divider_width = 1.0;
     sizing.header_to_rows_gap = 3.0;
@@ -132,8 +132,8 @@ fn apply_wide_sizing(sizing: &mut SizingTokens) {
     sizing.source_rows_min_when_split = 4;
     sizing.folder_row_gap = 0.0;
     sizing.folder_row_height = 16.2;
-    sizing.folder_rows_max = 22;
-    sizing.folder_rows_min = 5;
+    sizing.tree_rows_max = 22;
+    sizing.tree_rows_min = 5;
     sizing.sidebar_section_gap = 6.0;
     sizing.source_section_divider_width = 1.0;
     sizing.header_to_rows_gap = 3.5;

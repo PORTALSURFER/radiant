@@ -8,7 +8,7 @@ fn hovered_folder_row_n_creates_under_hovered_folder() {
     runner.model = Arc::new(AppModel {
         focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
         sources: SourcesPanelModel {
-            folder_rows: vec![
+            tree_rows: vec![
                 crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, false, false, true, true, true,
                 )
@@ -64,8 +64,8 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
         model: AppModel {
             focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
             sources: SourcesPanelModel {
-                focused_folder_row: Some(1),
-                folder_rows: vec![
+                focused_tree_row: Some(1),
+                tree_rows: vec![
                     root_folder_row(),
                     crate::compat_app_contract::FolderRowModel::new(
                         "Drums", "", 1, false, true, false, true, true,
@@ -91,7 +91,7 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
         runner
             .model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft),
         Some(row) if row.input_value.as_deref() == Some("Drums")
@@ -120,7 +120,7 @@ fn n_hotkey_projects_folder_create_draft_immediately() {
         runner
             .model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .any(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
     );
@@ -152,7 +152,7 @@ fn enter_confirms_folder_create_and_refreshes_created_row_immediately() {
         runner
             .model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .all(|row| row.kind != crate::compat_app_contract::FolderRowKind::CreateDraft)
     );
@@ -160,7 +160,7 @@ fn enter_confirms_folder_create_and_refreshes_created_row_immediately() {
         runner
             .model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .any(|row| row.label == "drums")
     );
@@ -206,7 +206,7 @@ fn escape_cancels_folder_create_and_refreshes_model_immediately() {
         runner
             .model
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .all(|row| row.kind != crate::compat_app_contract::FolderRowKind::CreateDraft)
     );

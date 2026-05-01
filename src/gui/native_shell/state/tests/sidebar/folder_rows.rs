@@ -31,7 +31,7 @@ fn folder_row_label_rect_indents_children_beyond_root() {
 }
 
 #[test]
-fn folder_rows_render_plain_labels_without_fallback_glyph_prefixes() {
+fn tree_rows_render_plain_labels_without_fallback_glyph_prefixes() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
     push_active_folder_row(
@@ -102,7 +102,7 @@ fn disclosure_gutter_hit_target_is_reserved_only_for_expandable_rows() {
 }
 
 #[test]
-fn folder_rows_use_single_pixel_shared_separator() {
+fn tree_rows_use_single_pixel_shared_separator() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
@@ -133,10 +133,10 @@ fn folder_rows_use_single_pixel_shared_separator() {
         ),
     );
 
-    let folder_rows = rendered_folder_row_rects(&layout, &style, &model);
-    assert!(folder_rows.len() >= 2, "expected at least two folder rows");
-    let first_visual_rect = folder_row_visual_rect(folder_rows[0], style.sizing);
-    let shared_boundary_y = folder_rows[1].min.y;
+    let tree_rows = rendered_folder_row_rects(&layout, &style, &model);
+    assert!(tree_rows.len() >= 2, "expected at least two folder rows");
+    let first_visual_rect = folder_row_visual_rect(tree_rows[0], style.sizing);
+    let shared_boundary_y = tree_rows[1].min.y;
     let stroke = style.sizing.border_width.max(1.0);
 
     let mut state = NativeShellState::new();

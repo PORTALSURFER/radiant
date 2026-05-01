@@ -55,11 +55,9 @@ pub(super) fn build_sidebar_automation(
         children.push(folder_browser_group(
             pane,
             sections.folder_header(pane),
-            sections.folder_rows(pane),
-            shell
-                .cached_folder_rows(layout, style, model, pane)
-                .to_vec(),
-            &pane_model.folder_rows,
+            sections.tree_rows(pane),
+            shell.cached_tree_rows(layout, style, model, pane).to_vec(),
+            &pane_model.tree_rows,
             pane_model,
             style,
             model.focus_context == crate::compat_app_contract::FocusContextModel::SourceFolders
@@ -82,7 +80,7 @@ pub(super) fn build_sidebar_automation(
                 model
                     .sources
                     .active_folder_pane_model()
-                    .folder_search_query
+                    .tree_search_query
                     .as_str(),
             ),
         ]),
@@ -156,8 +154,8 @@ fn source_row_selected(
 fn folder_browser_group(
     pane: FolderPaneIdModel,
     header_rect: Rect,
-    folder_rows_band: Rect,
-    folder_rows: Vec<CachedFolderRow>,
+    tree_rows_band: Rect,
+    tree_rows: Vec<CachedFolderRow>,
     rows: &[crate::compat_app_contract::FolderRowModel],
     pane_model: &FolderPaneModel,
     style: &StyleTokens,
@@ -168,10 +166,10 @@ fn folder_browser_group(
     if let Some(toggle_button) = compute_sidebar_folder_header_layout(
         header_rect,
         style.sizing,
-        pane_model.folder_recovery.in_progress,
-        pane_model.folder_recovery.entry_count,
-        pane_model.show_all_folders,
-        pane_model.can_toggle_show_all_folders,
+        pane_model.recovery.in_progress,
+        pane_model.recovery.entry_count,
+        pane_model.show_all_items,
+        pane_model.can_toggle_show_all_items,
         pane_model.flattened_view,
         pane_model.can_toggle_flattened_view,
     )
@@ -198,10 +196,10 @@ fn folder_browser_group(
     if let Some(toggle_button) = compute_sidebar_folder_header_layout(
         header_rect,
         style.sizing,
-        pane_model.folder_recovery.in_progress,
-        pane_model.folder_recovery.entry_count,
-        pane_model.show_all_folders,
-        pane_model.can_toggle_show_all_folders,
+        pane_model.recovery.in_progress,
+        pane_model.recovery.entry_count,
+        pane_model.show_all_items,
+        pane_model.can_toggle_show_all_items,
         pane_model.flattened_view,
         pane_model.can_toggle_flattened_view,
     )
@@ -223,7 +221,7 @@ fn folder_browser_group(
         ));
     }
     children.extend(
-        folder_rows
+        tree_rows
             .into_iter()
             .filter_map(|rendered_row| {
                 rows.get(rendered_row.row_index)
@@ -308,18 +306,18 @@ fn folder_browser_group(
         id: node_id(format!("sources.{}.folder_browser", folder_pane_slug(pane))),
         role: AutomationRole::Group,
         label: Some(format!("{} folder browser", pane_model.title)),
-        bounds: bounds(union_rect(header_rect, folder_rows_band)),
-        value: Some(pane_model.source_label.clone()),
+        bounds: bounds(union_rect(header_rect, tree_rows_band)),
+        value: Some(pane_model.item_label.clone()),
         enabled: true,
         selected,
         available_actions: vec![String::from("focus_folder_panel")],
         metadata: metadata(&[
             ("row_count", &row_count),
             ("pane", folder_pane_slug(pane)),
-            ("source_detail", pane_model.source_detail.as_str()),
+            ("item_detail", pane_model.item_detail.as_str()),
             (
                 "visibility",
-                if pane_model.show_all_folders {
+                if pane_model.show_all_items {
                     "all_folders"
                 } else {
                     "wav_folders"

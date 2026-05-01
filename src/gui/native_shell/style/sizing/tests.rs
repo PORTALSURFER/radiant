@@ -8,7 +8,7 @@ fn assert_common_invariants(sizing: SizingTokens) {
     assert!(sizing.waveform_min_height <= sizing.waveform_max_height);
     assert!(sizing.browser_footer_min_height <= sizing.browser_footer_max_height);
     assert!(sizing.source_rows_min_when_split <= sizing.source_rows_max);
-    assert!(sizing.folder_rows_min <= sizing.folder_rows_max);
+    assert!(sizing.tree_rows_min <= sizing.tree_rows_max);
     assert!(sizing.browser_toolbar_min_height <= sizing.browser_toolbar_height);
     assert!(sizing.browser_table_header_min_height <= sizing.browser_table_header_height);
     assert!(sizing.browser_tabs_min_height <= sizing.browser_tabs_height);
@@ -35,8 +35,8 @@ fn sizing_tiers_keep_expected_density_ordering() {
 
     assert!(compact.source_rows_max <= standard.source_rows_max);
     assert!(standard.source_rows_max <= wide.source_rows_max);
-    assert!(compact.folder_rows_max <= standard.folder_rows_max);
-    assert!(standard.folder_rows_max <= wide.folder_rows_max);
+    assert!(compact.tree_rows_max <= standard.tree_rows_max);
+    assert!(standard.tree_rows_max <= wide.tree_rows_max);
     assert!(compact.browser_rows_max_per_column <= standard.browser_rows_max_per_column);
     assert!(standard.browser_rows_max_per_column <= wide.browser_rows_max_per_column);
     assert!(compact.recovery_badge_min_width <= standard.recovery_badge_min_width);

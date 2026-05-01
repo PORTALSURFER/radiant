@@ -19,19 +19,19 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
     model.status.center = String::from("rows: 48 | selected: 3");
     model.status.right = String::from("col: 2/3");
     model.sources.search_query = String::from("drum");
-    model.sources.folder_search_query = String::from("kicks");
-    model.sources.folder_recovery.in_progress = false;
-    model.sources.folder_recovery.entry_count = 12;
-    model.sources.folder_actions.can_create_child = true;
-    model.sources.folder_actions.can_create_root = true;
-    model.sources.folder_actions.can_rename = true;
-    model.sources.folder_actions.can_delete = true;
-    model.sources.folder_actions.can_clear_history = true;
-    model.sources.upper_folder_pane.folder_search_query = model.sources.folder_search_query.clone();
-    model.sources.upper_folder_pane.folder_actions = model.sources.folder_actions.clone();
+    model.sources.tree_search_query = String::from("kicks");
+    model.sources.recovery.in_progress = false;
+    model.sources.recovery.entry_count = 12;
+    model.sources.tree_actions.can_create_child = true;
+    model.sources.tree_actions.can_create_root = true;
+    model.sources.tree_actions.can_rename = true;
+    model.sources.tree_actions.can_delete = true;
+    model.sources.tree_actions.can_clear_history = true;
+    model.sources.upper_folder_pane.tree_search_query = model.sources.tree_search_query.clone();
+    model.sources.upper_folder_pane.tree_actions = model.sources.tree_actions.clone();
     model.sources.upper_folder_pane.active = true;
-    model.sources.upper_folder_pane.has_source = true;
-    model.sources.upper_folder_pane.source_label = String::from("source_02");
+    model.sources.upper_folder_pane.has_item = true;
+    model.sources.upper_folder_pane.item_label = String::from("source_02");
     for index in 0..10 {
         model
             .sources
@@ -46,7 +46,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
     for index in 0..14 {
         model
             .sources
-            .folder_rows
+            .tree_rows
             .push(crate::compat_app_contract::FolderRowModel::new(
                 format!("folder_{index:02}"),
                 String::new(),
@@ -57,10 +57,10 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
                 true,
                 true,
             ));
-        model.sources.upper_folder_pane.folder_rows.push(
+        model.sources.upper_folder_pane.tree_rows.push(
             model
                 .sources
-                .folder_rows
+                .tree_rows
                 .last()
                 .expect("folder row was just inserted")
                 .clone(),

@@ -111,7 +111,7 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
     fingerprint_mix_option_usize(&mut state, model.browser.selected_visible_row);
     fingerprint_mix_option_usize(&mut state, model.browser.anchor_visible_row);
     fingerprint_mix_option_usize(&mut state, model.sources.selected_row);
-    fingerprint_mix_option_usize(&mut state, model.sources.focused_folder_row);
+    fingerprint_mix_option_usize(&mut state, model.sources.focused_tree_row);
     fingerprint_mix_bool(&mut state, model.confirm_prompt.visible);
     fingerprint_mix_u8(
         &mut state,
@@ -229,7 +229,7 @@ pub(in super::super) fn hover_overlay_model_signature(
         fingerprint_mix_bool(&mut state, true);
         fingerprint_mix_bool(&mut state, model.drag_overlay.active);
         fingerprint_mix_bool(&mut state, model.drag_overlay.valid_target);
-        if let Some(row) = model.sources.folder_pane(pane).folder_rows.get(row_index) {
+        if let Some(row) = model.sources.folder_pane(pane).tree_rows.get(row_index) {
             fingerprint_mix_u8(
                 &mut state,
                 match row.kind {
@@ -253,12 +253,12 @@ pub(in super::super) fn hover_overlay_model_signature(
                 crate::compat_app_contract::FolderPaneIdModel::Lower => 1,
             },
         );
-        let active_folder_rows = &model.sources.active_folder_pane_model().folder_rows;
-        let draft_row = active_folder_rows
+        let active_tree_rows = &model.sources.active_folder_pane_model().tree_rows;
+        let draft_row = active_tree_rows
             .iter()
             .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft)
             .or_else(|| {
-                active_folder_rows
+                active_tree_rows
                     .iter()
                     .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
             });
@@ -332,7 +332,7 @@ pub(in super::super) fn focus_overlay_model_signature(
         &model.sources.lower_folder_pane,
     ] {
         for (index, row) in pane
-            .folder_rows
+            .tree_rows
             .iter()
             .enumerate()
             .filter(|(_, row)| row.selected || row.focused)

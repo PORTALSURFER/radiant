@@ -224,9 +224,9 @@ fn folder_row_for_pointer_action(
     pane: crate::compat_app_contract::FolderPaneIdModel,
     index: usize,
 ) -> Option<&crate::compat_app_contract::FolderRowModel> {
-    let pane_row = model.sources.folder_pane(pane).folder_rows.get(index);
+    let pane_row = model.sources.folder_pane(pane).tree_rows.get(index);
     let flat_active_row = (pane == model.sources.active_folder_pane)
-        .then(|| model.sources.folder_rows.get(index))
+        .then(|| model.sources.tree_rows.get(index))
         .flatten();
     flat_active_row
         .filter(|row| {
@@ -244,7 +244,7 @@ fn folder_row_disclosure_toggles_expansion(
     pane_model: &crate::compat_app_contract::FolderPaneModel,
     index: usize,
 ) -> bool {
-    let Some(row) = pane_model.folder_rows.get(index) else {
+    let Some(row) = pane_model.tree_rows.get(index) else {
         return false;
     };
     row.has_children
@@ -254,5 +254,5 @@ fn folder_row_disclosure_toggles_expansion(
             crate::compat_app_contract::FolderRowKind::CreateDraft
                 | crate::compat_app_contract::FolderRowKind::RenameDraft
         )
-        && pane_model.folder_search_query.trim().is_empty()
+        && pane_model.tree_search_query.trim().is_empty()
 }

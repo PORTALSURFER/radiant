@@ -37,9 +37,9 @@ fn sidebar_sections_keep_each_pane_contents_inside_its_half_when_cramped() {
         assert_rect_inside(layout.sidebar_rows, pane_sections.bounds);
         assert_rect_inside(pane_sections.bounds, pane_sections.source_rows);
         assert_rect_inside(pane_sections.bounds, pane_sections.folder_header);
-        assert_rect_inside(pane_sections.bounds, pane_sections.folder_rows);
+        assert_rect_inside(pane_sections.bounds, pane_sections.tree_rows);
         assert!(pane_sections.source_rows.max.y <= pane_sections.folder_header.min.y);
-        assert!(pane_sections.folder_header.max.y <= pane_sections.folder_rows.min.y);
+        assert!(pane_sections.folder_header.max.y <= pane_sections.tree_rows.min.y);
     }
 }
 

@@ -18,7 +18,7 @@ impl NativeShellState {
             .hovered_folder_row_index
             .zip(self.hovered_folder_pane)
             .is_some_and(|(row_index, pane)| {
-                row_index >= model.sources.folder_pane(pane).folder_rows.len()
+                row_index >= model.sources.folder_pane(pane).tree_rows.len()
             })
         {
             self.hovered_folder_pane = None;
@@ -55,9 +55,9 @@ impl NativeShellState {
             || model
                 .sources
                 .upper_folder_pane
-                .folder_rows
+                .tree_rows
                 .iter()
-                .chain(model.sources.lower_folder_pane.folder_rows.iter())
+                .chain(model.sources.lower_folder_pane.tree_rows.iter())
                 .any(|row| row.focused || row.selected);
     }
 
@@ -314,12 +314,12 @@ fn sync_folder_pane_model(
     pane_state: &mut FolderPaneRuntimeState,
     pane_model: &crate::compat_app_contract::FolderPaneModel,
 ) {
-    if pane_state.last_focused_row != pane_model.focused_folder_row {
-        pane_state.last_focused_row = pane_model.focused_folder_row;
+    if pane_state.last_focused_row != pane_model.focused_tree_row {
+        pane_state.last_focused_row = pane_model.focused_tree_row;
         pane_state.autoscroll = true;
         pane_state.cache_key = None;
     }
-    if pane_model.folder_rows.is_empty() {
+    if pane_model.tree_rows.is_empty() {
         pane_state.window_start = 0;
     }
 }

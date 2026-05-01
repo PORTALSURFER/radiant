@@ -28,7 +28,7 @@ impl NativeShellState {
         &self.source_row_rects
     }
 
-    pub(super) fn cached_folder_rows(
+    pub(super) fn cached_tree_rows(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
@@ -36,7 +36,7 @@ impl NativeShellState {
         pane: FolderPaneIdModel,
     ) -> &[CachedFolderRow] {
         let folder_pane = self.folder_pane_runtime_state_mut(pane);
-        let cache_key = folder_rows_cache_key(
+        let cache_key = tree_rows_cache_key(
             layout,
             style,
             model,
@@ -45,7 +45,7 @@ impl NativeShellState {
             folder_pane.autoscroll,
         );
         if folder_pane.cache_key != Some(cache_key) {
-            let (rows, resolved_window_start) = rendered_folder_rows_with_state(
+            let (rows, resolved_window_start) = rendered_tree_rows_with_state(
                 layout,
                 model,
                 style,
@@ -55,7 +55,7 @@ impl NativeShellState {
             );
             folder_pane.rows = rows;
             folder_pane.window_start = resolved_window_start;
-            folder_pane.cache_key = Some(folder_rows_cache_key(
+            folder_pane.cache_key = Some(tree_rows_cache_key(
                 layout,
                 style,
                 model,
@@ -74,14 +74,14 @@ impl NativeShellState {
         pane: FolderPaneIdModel,
     ) -> Option<(FolderScrollbarLayout, usize)> {
         let style = style_for_layout(layout);
-        let rows = self.cached_folder_rows(layout, &style, model, pane);
+        let rows = self.cached_tree_rows(layout, &style, model, pane);
         let pane_model = model.sources.folder_pane(pane);
-        let viewport_len = rows.len().min(pane_model.folder_rows.len());
+        let viewport_len = rows.len().min(pane_model.tree_rows.len());
         let sections = sidebar_sections(layout, &style, model);
         let scrollbar = folder_scrollbar_layout(
-            sections.folder_rows(pane),
+            sections.tree_rows(pane),
             rows,
-            pane_model.folder_rows.len(),
+            pane_model.tree_rows.len(),
             style.sizing,
         )?;
         Some((scrollbar, viewport_len))

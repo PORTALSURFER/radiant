@@ -216,7 +216,7 @@ impl ImmediateFolderCreateBridge {
             model: AppModel {
                 focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
                 sources: SourcesPanelModel {
-                    folder_rows: vec![root_folder_row()].into(),
+                    tree_rows: vec![root_folder_row()].into(),
                     ..SourcesPanelModel::default()
                 },
                 ..AppModel::default()
@@ -247,19 +247,19 @@ impl ImmediateFolderCreateBridge {
                 true,
             )
         };
-        self.model.sources.folder_rows = vec![root_folder_row(), draft].into();
+        self.model.sources.tree_rows = vec![root_folder_row(), draft].into();
     }
 
     fn clear_draft(&mut self) {
         self.model
             .sources
-            .folder_rows
+            .tree_rows
             .make_mut()
             .retain(|row| row.is_root);
     }
 
     fn add_created_folder(&mut self, value: String) {
-        self.model.sources.folder_rows = vec![
+        self.model.sources.tree_rows = vec![
             root_folder_row(),
             crate::compat_app_contract::FolderRowModel::new(
                 value.clone(),
@@ -301,8 +301,8 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
                 let value = self
                     .model
                     .sources
-                    .focused_folder_row
-                    .and_then(|index| self.model.sources.folder_rows.get(index))
+                    .focused_tree_row
+                    .and_then(|index| self.model.sources.tree_rows.get(index))
                     .map(|row| row.label.clone())
                     .unwrap_or_default();
                 self.set_inline_draft(value, true);
@@ -312,7 +312,7 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
                 let value = self
                     .model
                     .sources
-                    .folder_rows
+                    .tree_rows
                     .iter()
                     .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
                     .and_then(|row| row.input_value.clone())

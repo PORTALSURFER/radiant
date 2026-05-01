@@ -26,7 +26,7 @@ fn folder_visibility_toggle_button_click_maps_to_toggle_action() {
 fn folder_visibility_toggle_button_uses_compact_square_layout() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = populated_sidebar_model();
-    model.sources.show_all_folders = false;
+    model.sources.show_all_items = false;
     let state = NativeShellState::new();
 
     let button = state

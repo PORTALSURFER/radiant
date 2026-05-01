@@ -21,6 +21,18 @@ impl ColumnSummary {
     }
 }
 
+/// Kind of row displayed by an editable list or tree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum EditableRowKind {
+    /// Standard existing row projected from host state.
+    #[default]
+    Existing,
+    /// Inline draft row used while creating a new item in place.
+    CreateDraft,
+    /// Inline draft row used while renaming an existing item in place.
+    RenameDraft,
+}
+
 /// Transient state for row-scoped batch operations.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -43,7 +55,7 @@ pub enum RowProcessingState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ColumnSummary, RowProcessingState};
+    use super::{ColumnSummary, EditableRowKind, RowProcessingState};
 
     #[test]
     fn column_summary_preserves_title_and_count() {
@@ -56,5 +68,10 @@ mod tests {
     #[test]
     fn row_processing_state_defaults_to_none() {
         assert_eq!(RowProcessingState::default(), RowProcessingState::None);
+    }
+
+    #[test]
+    fn editable_row_kind_defaults_to_existing() {
+        assert_eq!(EditableRowKind::default(), EditableRowKind::Existing);
     }
 }

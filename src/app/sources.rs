@@ -2,6 +2,7 @@
 
 use super::RetainedVec;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
+pub use crate::gui::list::EditableRowKind as FolderRowKind;
 use serde::{Deserialize, Serialize};
 
 /// Stable identifier for one of the two fixed folder panes in the sidebar.
@@ -65,18 +66,6 @@ impl SourceRowModel {
         self.assigned_to_lower_pane = lower;
         self
     }
-}
-
-/// Render data for one folder row shown in the sidebar folder tree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum FolderRowKind {
-    /// Standard existing folder row projected from host state.
-    #[default]
-    Existing,
-    /// Inline draft row used while creating a new folder in place.
-    CreateDraft,
-    /// Inline draft row used while renaming an existing folder in place.
-    RenameDraft,
 }
 
 /// Render data for one folder row shown in the sidebar folder tree.

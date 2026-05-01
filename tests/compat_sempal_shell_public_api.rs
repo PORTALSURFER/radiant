@@ -206,6 +206,28 @@ fn column_model_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn folder_row_kind_is_owned_by_generic_list_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(
+        !sources_mod.contains("pub enum FolderRowKind"),
+        "FolderRowKind is generic editable row state, not a source DTO"
+    );
+    assert!(
+        sources_mod.contains("pub use crate::gui::list::EditableRowKind as FolderRowKind;"),
+        "the compatibility app contract should alias generic EditableRowKind"
+    );
+    assert!(
+        list_mod.contains("pub enum EditableRowKind"),
+        "generic list module should own reusable editable row kind behavior"
+    );
+}
+
+#[test]
 fn browser_tag_state_is_owned_by_generic_selection_module() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

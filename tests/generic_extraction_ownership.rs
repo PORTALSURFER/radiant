@@ -254,6 +254,11 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let waveform_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
             .expect("waveform module should be readable");
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
     let selection_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/selection.rs"))
             .expect("selection module should be readable");
@@ -268,11 +273,16 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("pub enum BrowserTagState"));
     assert!(!browser_mod.contains("pub struct BrowserTagPillModel"));
     assert!(!browser_mod.contains("pub struct BrowserTagSidebarModel"));
+    assert!(!actions_mod.contains("pub enum BrowserTagTarget"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
     assert!(!browser_mod.contains("pub struct MapPointModel"));
     assert!(!browser_mod.contains("pub struct MapPanelModel"));
     assert!(!waveform_mod.contains("pub enum WaveformChannelViewModel"));
     assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"));
+    assert!(
+        actions_mod.contains("pub type BrowserTagTarget = crate::gui::selection::TriageTarget;")
+    );
+    assert!(selection_mod.contains("pub enum TriageTarget"));
     assert!(browser_mod.contains(
         "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
     ));

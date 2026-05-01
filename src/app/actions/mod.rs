@@ -13,15 +13,7 @@ use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use serde::{Deserialize, Serialize};
 
 /// Triage targets used by native browser action surfaces.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BrowserTagTarget {
-    /// Move selected/focused rows to trash.
-    Trash,
-    /// Set selected/focused rows to neutral.
-    Neutral,
-    /// Mark selected/focused rows as keep.
-    Keep,
-}
+pub type BrowserTagTarget = crate::gui::selection::TriageTarget;
 
 /// Action emitted by the native runtime input layer.
 #[cfg_attr(not(test), derive(PartialEq, Eq))]

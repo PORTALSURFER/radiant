@@ -61,7 +61,7 @@ pub struct PaintTextRun {
     pub color: Rgba8,
     /// Horizontal alignment inside the text rectangle.
     pub align: PaintTextAlign,
-    /// Wrapping policy requested by the source widget.
+    /// Wrapping policy requested by the owning widget.
     pub wrap: TextWrap,
 }
 

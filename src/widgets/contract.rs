@@ -136,9 +136,8 @@ impl Default for PaintContract {
 
 /// Shared semantic message families that widgets may emit.
 ///
-/// Follow-up runtime work will bind these event families to host-defined
-/// message payloads without forcing Sempal-specific action enums into the
-/// widget surface.
+/// Runtime adapters bind these event families to host-defined message payloads
+/// without forcing app-specific action enums into the widget surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WidgetMessageKind {
     /// Activation such as button press or list-item invoke.

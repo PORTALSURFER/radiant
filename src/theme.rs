@@ -1,8 +1,8 @@
 //! Generic theme tokens for reusable Radiant widgets, containers, and runtimes.
 //!
-//! This surface intentionally avoids any naming tied to the current Sempal
-//! native shell. Compatibility-only chrome colors and shell layout sizing stay
-//! behind `radiant::compat::sempal_shell` internals.
+//! This surface intentionally avoids naming tied to any host application.
+//! Adapter-specific chrome colors and shell layout sizing stay outside the
+//! reusable token contract.
 
 use crate::gui::types::Rgba8;
 
@@ -80,10 +80,7 @@ pub struct ThemeTokens {
 }
 
 impl ThemeTokens {
-    /// Return the baseline dark theme used by the current generic Radiant surface.
-    ///
-    /// The defaults intentionally preserve compatibility with the current
-    /// Sempal-facing shell palette where those colors are already generic.
+    /// Return the baseline dark theme used by the generic Radiant surface.
     pub fn dark() -> Self {
         Self {
             clear_color: rgba(16, 16, 16, 255),

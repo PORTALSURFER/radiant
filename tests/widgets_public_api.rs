@@ -15,7 +15,7 @@ use radiant::{
 fn public_widgets_compose_with_public_layout_containers() {
     let header = WidgetSpec::Text(TextWidget::new(
         2,
-        "Folders",
+        "Projects",
         WidgetSizing::fixed(Vector2::new(72.0, 20.0)).with_baseline(14.0),
     ));
     let rename = WidgetSpec::Button(ButtonWidget::new(
@@ -93,7 +93,7 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
     ));
     let mut toggle = WidgetSpec::Toggle(ToggleWidget::new(
         11,
-        "Loop",
+        "Enabled",
         WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
     ));
     let mut input = WidgetSpec::TextInput(TextInputWidget::new(

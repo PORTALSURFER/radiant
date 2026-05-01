@@ -64,7 +64,7 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
         .dispatch_widget_output(
             12,
             radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Changed {
-                value: String::from("Folders"),
+                value: String::from("Projects"),
             }),
         )
         .expect("text input should emit a host-defined rename message");
@@ -90,11 +90,11 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
         .widget();
 
     match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Folders (1)"),
+        WidgetSpec::Text(text) => assert_eq!(text.text, "Projects (1)"),
         other => panic!("expected text widget, got {other:?}"),
     }
     match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Folders"),
+        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Projects"),
         other => panic!("expected text input widget, got {other:?}"),
     }
 }

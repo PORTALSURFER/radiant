@@ -1,8 +1,8 @@
-//! Deterministic generic runtime loop for declarative Radiant surfaces.
+//! Deterministic generic runtime flow for declarative Radiant surfaces.
 //!
 //! This controller keeps the generic host bridge, projected surface, and
 //! layout output together so backends can route normalized widget input without
-//! depending on the legacy Sempal shell contract.
+//! depending on host-specific shell contracts.
 
 use super::{RuntimeBridge, SurfacePaintPlan, UiSurface};
 use crate::{

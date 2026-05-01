@@ -31,15 +31,5 @@ src/gui/native_shell/**	split_generic_from_compat	OPT-275	Native-shell compatibi
 src/gui_runtime/mod.rs	split_generic_from_compat	OPT-275	Runtime facade still documents and exports Sempal compatibility entrypoints.
 src/gui_runtime/native_vello.rs	split_generic_from_compat	OPT-275	Native Vello facade still mixes generic and Sempal compatibility runtime entrypoints.
 src/gui_runtime/native_vello/**	split_generic_from_compat	OPT-275	Native Vello tree mixes generic runtime support with Sempal shell input render startup and test glue.
-src/runtime/controller.rs	generic_wording_cleanup	OPT-276	Generic runtime docs still reference the legacy Sempal shell contract.
-src/runtime/mod.rs	generic_wording_cleanup	OPT-276	Generic runtime docs still reference compat::sempal_shell during the transition.
-src/runtime/paint.rs	generic_wording_cleanup	OPT-276	Generic paint docs use source terminology that should be reviewed during final terminology cleanup.
-src/theme.rs	generic_wording_cleanup	OPT-276	Theme docs still reference Sempal compatibility palette migration.
-src/widgets/contract.rs	generic_wording_cleanup	OPT-276	Widget docs still reference avoiding Sempal-specific action enums.
-src/widgets/mod.rs	generic_wording_cleanup	OPT-276	Widget docs and examples still use Sempal-shaped examples during migration.
-src/widgets/theme.rs	generic_wording_cleanup	OPT-276	Widget theme docs still reference Sempal shell chrome names.
 tests/compat_sempal_shell_public_api.rs	remove_compat_export	OPT-276	Compat public API coverage should be removed once the namespace disappears.
 tests/compat_status_bar_pilot.rs	move_to_sempal	OPT-275	Sempal status-bar compatibility coverage belongs in Sempal-owned tests after shell relocation.
-tests/runtime_surface_public_api.rs	generic_wording_cleanup	OPT-276	Generic runtime API tests still use folder wording and legacy-shell phrasing.
-tests/widgets_primitive_behaviors.rs	generic_wording_cleanup	OPT-276	Generic widget tests still use loop wording from the Sempal domain.
-tests/widgets_public_api.rs	generic_wording_cleanup	OPT-276	Generic widget public API tests still use folder and loop wording from the Sempal domain.

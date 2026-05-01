@@ -322,7 +322,7 @@ pub fn layout_tree(root: &LayoutNode, root_rect: Rect) -> LayoutOutput {
 
 /// Measure and layout a strict slot tree with stateful container input.
 ///
-/// This is the one-shot entry point for callers that want scroll offsets or
+/// This is the single-call entry point for callers that want scroll offsets or
 /// debug primitives without manually reusing a [`LayoutEngine`].
 pub fn layout_tree_with_state(
     root: &LayoutNode,

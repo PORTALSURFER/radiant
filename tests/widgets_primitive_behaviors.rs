@@ -47,7 +47,7 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
 
 #[test]
 fn toggle_updates_active_state_when_activated() {
-    let mut toggle = ToggleWidget::new(2, "Loop", WidgetSizing::fixed(Vector2::new(84.0, 28.0)));
+    let mut toggle = ToggleWidget::new(2, "Enabled", WidgetSizing::fixed(Vector2::new(84.0, 28.0)));
 
     assert_eq!(
         toggle.handle_input(Rect::default(), WidgetInput::FocusChanged(true)),

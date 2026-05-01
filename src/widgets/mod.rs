@@ -9,8 +9,8 @@
 //! - it documents the shared sizing, focus, paint, and message contracts
 //! - it lets the generic runtime project reusable widgets into paint data
 //!
-//! It does not yet replace the current Sempal-shaped native runtime. That
-//! migration stays behind the generic runtime and compatibility boundary work.
+//! Native runtime adapters can layer on top of this vocabulary without changing
+//! the public widget contracts.
 //!
 //! # Example
 //!
@@ -25,7 +25,7 @@
 //!
 //! let title = TextWidget::new(
 //!     10,
-//!     "Samples",
+//!     "Items",
 //!     WidgetSizing::fixed(Vector2::new(80.0, 20.0)).with_baseline(14.0),
 //! );
 //! let add_button = ButtonWidget::new(

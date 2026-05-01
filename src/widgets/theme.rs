@@ -24,7 +24,7 @@ pub struct WidgetVisualTokens {
 /// Resolve generic widget colors from the core theme surface.
 ///
 /// This keeps reusable widget styling tied to semantic tones and interaction
-/// states rather than to Sempal shell chrome names.
+/// states rather than to host-specific shell chrome names.
 pub fn resolve_widget_visual_tokens(
     theme: &ThemeTokens,
     style: WidgetStyle,

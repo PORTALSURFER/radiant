@@ -49,7 +49,7 @@ pub(super) fn build_sidebar_automation(
                 .filter(|row| row.pane == pane)
                 .collect(),
             &model.sources.rows,
-            model.focus_context == crate::compat_app_contract::FocusContextModel::SourcesList
+            model.focus_context == crate::compat_app_contract::FocusContextModel::NavigationList
                 && model.sources.active_folder_pane == pane,
         ));
         children.push(folder_browser_group(
@@ -60,7 +60,7 @@ pub(super) fn build_sidebar_automation(
             &pane_model.tree_rows,
             pane_model,
             style,
-            model.focus_context == crate::compat_app_contract::FocusContextModel::SourceFolders
+            model.focus_context == crate::compat_app_contract::FocusContextModel::NavigationTree
                 && model.sources.active_folder_pane == pane,
         ));
     }

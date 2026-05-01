@@ -6,7 +6,7 @@ fn hovered_folder_row_n_creates_under_hovered_folder() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+        focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
         sources: SourcesPanelModel {
             tree_rows: vec![
                 crate::compat_app_contract::FolderRowModel::new(
@@ -62,7 +62,7 @@ fn folder_create_append_text_emits_set_folder_create_input() {
 fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
     let bridge = ImmediateFolderCreateBridge {
         model: AppModel {
-            focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+            focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
             sources: SourcesPanelModel {
                 focused_tree_row: Some(1),
                 tree_rows: vec![
@@ -171,7 +171,7 @@ fn enter_confirms_browser_duplicate_cleanup_when_browser_has_focus() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         browser: crate::compat_app_contract::BrowserPanelModel {
             duplicate_cleanup_active: true,
             ..crate::compat_app_contract::BrowserPanelModel::default()

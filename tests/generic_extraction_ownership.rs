@@ -168,6 +168,23 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 }
 
 #[test]
+fn focus_context_model_is_owned_by_generic_focus_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let focus_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/focus.rs"))
+        .expect("focus module should be readable");
+
+    assert!(!sources_mod.contains("pub enum FocusContextModel"));
+    assert!(sources_mod.contains("pub use crate::gui::focus::FocusSurface as FocusContextModel;"));
+    assert!(focus_mod.contains("pub enum FocusSurface"));
+    assert!(focus_mod.contains("ContentList"));
+    assert!(focus_mod.contains("NavigationTree"));
+    assert!(!focus_mod.contains("SampleBrowser"));
+    assert!(!focus_mod.contains("SourceFolders"));
+}
+
+#[test]
 fn status_segments_are_owned_by_generic_chrome_module() {
     let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
         .expect("shell module should be readable");

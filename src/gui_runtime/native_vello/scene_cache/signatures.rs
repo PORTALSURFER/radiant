@@ -296,10 +296,10 @@ pub(in super::super) fn focus_overlay_model_signature(
         &mut state,
         match model.focus_context {
             crate::compat_app_contract::FocusContextModel::None => 0,
-            crate::compat_app_contract::FocusContextModel::SourcesList => 1,
-            crate::compat_app_contract::FocusContextModel::SourceFolders => 2,
-            crate::compat_app_contract::FocusContextModel::SampleBrowser => 3,
-            crate::compat_app_contract::FocusContextModel::Waveform => 4,
+            crate::compat_app_contract::FocusContextModel::NavigationList => 1,
+            crate::compat_app_contract::FocusContextModel::NavigationTree => 2,
+            crate::compat_app_contract::FocusContextModel::ContentList => 3,
+            crate::compat_app_contract::FocusContextModel::Timeline => 4,
         },
     );
     for row in model

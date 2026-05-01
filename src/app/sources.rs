@@ -2,6 +2,7 @@
 
 use super::RetainedVec;
 pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
+pub use crate::gui::focus::FocusSurface as FocusContextModel;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
 pub use crate::gui::list::EditableTreeActions as FolderActionsModel;
@@ -10,22 +11,6 @@ pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
 /// Projected data for one fixed folder pane shown in the sidebar.
 pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;
-
-/// Logical focus buckets projected into the native runtime.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum FocusContextModel {
-    /// No UI surface currently owns keyboard focus.
-    #[default]
-    None,
-    /// The waveform viewer handles navigation and shortcuts.
-    Waveform,
-    /// The sample browser handles row navigation and browser shortcuts.
-    SampleBrowser,
-    /// The folder tree handles folder navigation and folder shortcuts.
-    SourceFolders,
-    /// The source list handles source-row navigation and shortcuts.
-    SourcesList,
-}
 
 /// Sidebar model for source browsing controls.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

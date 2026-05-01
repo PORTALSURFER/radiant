@@ -237,17 +237,17 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
             UiAction::BeginWaveformSelectionAt { .. } => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
             }
             UiAction::BeginWaveformSelectionAtPrecise { .. } => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
             }
             UiAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
                 ..
             } => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
                 self.model.waveform.selection_milli = Some(
                     crate::compat_app_contract::NormalizedRangeModel::from_micros(
                         *start_micros,
@@ -260,7 +260,7 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
                 end_nanos,
                 ..
             } => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
                 self.model.waveform.selection_milli = Some(
                     crate::compat_app_contract::NormalizedRangeModel::from_nanos(
                         *start_nanos,
@@ -269,10 +269,10 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
                 );
             }
             UiAction::FinishWaveformSelectionDrag => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
             }
             UiAction::FinishWaveformSelectionRangeDrag => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
             }
             _ => {}
         }
@@ -317,7 +317,7 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
             UiAction::BeginWaveformSelectionAt { .. } => {
-                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
                 self.actions.push(action);
             }
             UiAction::ClearWaveformSelection | UiAction::SeekWaveformPrecise { .. } => {

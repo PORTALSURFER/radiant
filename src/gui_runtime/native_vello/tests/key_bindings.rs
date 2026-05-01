@@ -41,16 +41,16 @@ pub(super) fn default_hotkey_resolver(
 
     let action = match focus {
         crate::compat_app_contract::FocusContextModel::None => global_hotkey_action(press),
-        crate::compat_app_contract::FocusContextModel::SampleBrowser => {
+        crate::compat_app_contract::FocusContextModel::ContentList => {
             browser_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::compat_app_contract::FocusContextModel::Waveform => {
+        crate::compat_app_contract::FocusContextModel::Timeline => {
             waveform_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::compat_app_contract::FocusContextModel::SourceFolders => {
+        crate::compat_app_contract::FocusContextModel::NavigationTree => {
             folder_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::compat_app_contract::FocusContextModel::SourcesList => {
+        crate::compat_app_contract::FocusContextModel::NavigationList => {
             sources_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
     };
@@ -214,7 +214,7 @@ impl ImmediateFolderCreateBridge {
     fn with_root() -> Self {
         Self {
             model: AppModel {
-                focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+                focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
                 sources: SourcesPanelModel {
                     tree_rows: vec![root_folder_row()].into(),
                     ..SourcesPanelModel::default()

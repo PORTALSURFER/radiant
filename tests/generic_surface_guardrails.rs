@@ -23,6 +23,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/badge.rs",
     "src/gui/chrome.rs",
     "src/gui/feedback.rs",
+    "src/gui/focus.rs",
     "src/gui/form.rs",
     "src/gui/frame.rs",
     "src/gui/input.rs",

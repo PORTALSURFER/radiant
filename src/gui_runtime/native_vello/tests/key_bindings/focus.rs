@@ -43,7 +43,7 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     );
 
     let browser = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     };
     assert_eq!(
@@ -68,7 +68,7 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     );
 
     let folders = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+        focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
         ..AppModel::default()
     };
     assert_eq!(
@@ -97,7 +97,7 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     );
 
     let sources = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SourcesList,
+        focus_context: crate::compat_app_contract::FocusContextModel::NavigationList,
         ..AppModel::default()
     };
     assert_eq!(
@@ -109,7 +109,7 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
 #[test]
 fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignment() {
     let browser = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     };
     assert_eq!(
@@ -118,7 +118,7 @@ fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignme
     );
 
     let waveform = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::Waveform,
+        focus_context: crate::compat_app_contract::FocusContextModel::Timeline,
         ..AppModel::default()
     };
     assert_eq!(
@@ -130,7 +130,7 @@ fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignme
 #[test]
 fn waveform_hotkeys_resolve_by_focus_mode() {
     let waveform = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::Waveform,
+        focus_context: crate::compat_app_contract::FocusContextModel::Timeline,
         ..AppModel::default()
     };
     assert_eq!(
@@ -165,7 +165,7 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
 #[test]
 fn folder_arrow_hotkeys_still_resolve_when_search_query_exists_but_tree_has_focus() {
     let mut folders = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+        focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
         ..AppModel::default()
     };
     folders.sources.tree_search_query = String::from("dr");
@@ -210,7 +210,7 @@ fn key_bindings_respect_progress_cancelability_and_playback_shortcuts() {
 #[test]
 fn semicolon_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
     let browser = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     };
     assert_eq!(
@@ -219,7 +219,7 @@ fn semicolon_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
     );
 
     let waveform = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::Waveform,
+        focus_context: crate::compat_app_contract::FocusContextModel::Timeline,
         ..AppModel::default()
     };
     assert_eq!(

@@ -25,6 +25,8 @@ pub mod badge;
 pub mod chrome;
 /// Generic user-feedback surface primitives.
 pub mod feedback;
+/// Generic focus routing primitives.
+pub mod focus;
 /// Generic form and picker primitives.
 pub mod form;
 /// Frame feedback primitives shared by runtimes and render backends.

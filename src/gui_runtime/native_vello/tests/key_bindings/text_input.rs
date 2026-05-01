@@ -7,7 +7,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.frame_state.model_dirty = false;
     runner.model = Arc::new(AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::BrowserSearch;
@@ -25,7 +25,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
     );
 
     runner.model = Arc::new(AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
+        focus_context: crate::compat_app_contract::FocusContextModel::NavigationTree,
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::FolderSearch;
@@ -55,7 +55,7 @@ fn text_input_targets_consume_command_c_without_emitting_copy_selection_action()
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.frame_state.model_dirty = false;
     runner.model = Arc::new(AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::BrowserSearch;
@@ -74,7 +74,7 @@ fn clicking_browser_search_field_focuses_text_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     };
     let search_field = shell_state

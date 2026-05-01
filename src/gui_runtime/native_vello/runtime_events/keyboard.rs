@@ -276,7 +276,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.text_input_target == TextInputTarget::None
             && matches!(
                 self.model.focus_context,
-                crate::compat_app_contract::FocusContextModel::SampleBrowser
+                crate::compat_app_contract::FocusContextModel::ContentList
             )
             && self.model.browser.duplicate_cleanup_active
         {
@@ -343,7 +343,7 @@ fn rewrite_folder_create_hotkey_action(
     if action != UiAction::StartNewFolder
         || !matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::SourceFolders
+            crate::compat_app_contract::FocusContextModel::NavigationTree
         )
     {
         return action;

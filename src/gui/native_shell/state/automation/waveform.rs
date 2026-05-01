@@ -48,7 +48,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::Waveform
+            crate::compat_app_contract::FocusContextModel::Timeline
         ),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
@@ -143,7 +143,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::Waveform
+            crate::compat_app_contract::FocusContextModel::Timeline
         ),
         available_actions: vec![String::from("focus_waveform_panel")],
         metadata: std::collections::BTreeMap::new(),

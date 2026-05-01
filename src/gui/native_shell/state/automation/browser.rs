@@ -159,7 +159,7 @@ pub(super) fn build_browser_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::SampleBrowser
+            crate::compat_app_contract::FocusContextModel::ContentList
         ),
         available_actions: vec![String::from("focus_browser_panel")],
         metadata: metadata(&[
@@ -218,7 +218,7 @@ fn build_browser_table_automation(
         true,
         matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::SampleBrowser
+            crate::compat_app_contract::FocusContextModel::ContentList
         ),
         vec![
             String::from("focus_browser_panel"),

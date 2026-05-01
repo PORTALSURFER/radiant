@@ -168,7 +168,7 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
             duplicate_cleanup_active: true,
             ..crate::compat_app_contract::BrowserPanelModel::default()
         },
-        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     });
     runner.frame_state.model_dirty = false;

@@ -45,7 +45,7 @@ fn waveform_focus_overlay_draws_waveform_card_surface() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+    model.focus_context = crate::compat_app_contract::FocusContextModel::Timeline;
     state.sync_from_model(&model);
 
     let mut frame = NativeViewFrame::default();
@@ -64,7 +64,7 @@ fn browser_focus_overlay_draws_browser_panel_surface() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    model.focus_context = crate::compat_app_contract::FocusContextModel::SampleBrowser;
+    model.focus_context = crate::compat_app_contract::FocusContextModel::ContentList;
     state.sync_from_model(&model);
 
     let mut frame = NativeViewFrame::default();
@@ -83,7 +83,7 @@ fn source_list_focus_overlay_draws_sidebar_source_band() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.focus_context = crate::compat_app_contract::FocusContextModel::SourcesList;
+    model.focus_context = crate::compat_app_contract::FocusContextModel::NavigationList;
     state.sync_from_model(&model);
 
     let sections = sidebar_sections(&layout, &style, &model);
@@ -105,7 +105,7 @@ fn folder_browser_focus_overlay_draws_sidebar_folder_band() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = populated_sidebar_model();
-    model.focus_context = crate::compat_app_contract::FocusContextModel::SourceFolders;
+    model.focus_context = crate::compat_app_contract::FocusContextModel::NavigationTree;
     state.sync_from_model(&model);
 
     let focus_rect = folder_browser_focus_rect(&layout, &style, &model);

@@ -31,7 +31,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             Point::new(panel.max.x, panel.min.y + accent_height),
         );
         let title_text = if self.options.title.trim().is_empty() {
-            String::from(crate::sempal_app::DEFAULT_APP_TITLE)
+            String::from(crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE)
         } else {
             self.options.title.clone()
         };

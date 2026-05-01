@@ -60,7 +60,7 @@ fn startup_placeholder_scene_uses_theme_clear_color_and_branding() {
             .frame_cache
             .text_runs
             .iter()
-            .any(|run| run.text == crate::sempal_app::DEFAULT_APP_TITLE)
+            .any(|run| run.text == crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE)
     );
 }
 

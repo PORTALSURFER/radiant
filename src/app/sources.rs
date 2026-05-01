@@ -1,6 +1,7 @@
 //! Source/sidebar-facing models exposed by the `radiant` app contract.
 
 use super::RetainedVec;
+pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
 use serde::{Deserialize, Serialize};
@@ -236,17 +237,6 @@ pub enum FocusContextModel {
     SourceFolders,
     /// The source list handles source-row navigation and shortcuts.
     SourcesList,
-}
-
-/// Delete-recovery status for staged folder delete recovery in the sidebar.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct FolderRecoveryModel {
-    /// Whether delete recovery is still running in the background.
-    pub in_progress: bool,
-    /// Number of completed recovery log entries currently visible.
-    pub entry_count: usize,
-    /// Number of retained deletes currently awaiting explicit restore or purge.
-    pub retained_count: usize,
 }
 
 /// Projected data for one fixed folder pane shown in the sidebar.

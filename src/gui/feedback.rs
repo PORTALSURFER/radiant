@@ -21,6 +21,17 @@ pub struct ProgressOverlay {
     pub cancel_requested: bool,
 }
 
+/// Summary for recoverable background work surfaced in a sidebar, panel, or status region.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct RecoverySummary {
+    /// Whether recovery work is still running in the background.
+    pub in_progress: bool,
+    /// Number of completed recovery entries currently visible or retained for review.
+    pub entry_count: usize,
+    /// Number of entries awaiting explicit user action.
+    pub retained_count: usize,
+}
+
 /// Drag/drop overlay content for pointer-following feedback.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct DragOverlay {
@@ -115,7 +126,9 @@ impl<Kind> Default for ConfirmPrompt<Kind> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ConfirmPrompt, DragOverlay, ProgressOverlay, UpdatePanel, UpdateStatus};
+    use super::{
+        ConfirmPrompt, DragOverlay, ProgressOverlay, RecoverySummary, UpdatePanel, UpdateStatus,
+    };
 
     #[test]
     fn progress_overlay_defaults_to_hidden_and_empty() {
@@ -129,6 +142,15 @@ mod tests {
         assert_eq!(overlay.total, 0);
         assert!(!overlay.cancelable);
         assert!(!overlay.cancel_requested);
+    }
+
+    #[test]
+    fn recovery_summary_defaults_to_idle_and_empty() {
+        let summary = RecoverySummary::default();
+
+        assert!(!summary.in_progress);
+        assert_eq!(summary.entry_count, 0);
+        assert_eq!(summary.retained_count, 0);
     }
 
     #[test]

@@ -110,6 +110,9 @@ fn status_segments_are_owned_by_generic_chrome_module() {
 fn feedback_models_are_owned_by_generic_feedback_module() {
     let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
         .expect("shell module should be readable");
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
     let feedback_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
             .expect("feedback module should be readable");
@@ -121,6 +124,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
             && !shell_mod.contains("pub struct UpdatePanelModel")
     );
     assert!(!shell_mod.contains("pub struct ConfirmPromptModel"));
+    assert!(!sources_mod.contains("pub struct FolderRecoveryModel"));
     assert!(
         shell_mod
             .contains("pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;")
@@ -131,7 +135,12 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
     ));
+    assert!(
+        sources_mod
+            .contains("pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;")
+    );
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
+    assert!(feedback_mod.contains("pub struct RecoverySummary"));
     assert!(feedback_mod.contains("pub struct DragOverlay"));
     assert!(feedback_mod.contains("pub enum UpdateStatus"));
     assert!(feedback_mod.contains("pub struct UpdatePanel"));

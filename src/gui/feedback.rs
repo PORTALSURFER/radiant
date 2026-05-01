@@ -63,8 +63,8 @@ pub struct UpdatePanel {
     pub action_hint_label: String,
     /// Supplemental release-notes label rendered under update hints.
     pub release_notes_label: String,
-    /// Available release tag, when present.
-    pub available_tag: Option<String>,
+    /// Available version label, when present.
+    pub available_version_label: Option<String>,
     /// Available release URL, when present.
     pub available_url: Option<String>,
     /// Last error message from update checks, if any.
@@ -151,7 +151,7 @@ mod tests {
         assert_eq!(panel.status_label, "");
         assert_eq!(panel.action_hint_label, "");
         assert_eq!(panel.release_notes_label, "");
-        assert_eq!(panel.available_tag, None);
+        assert_eq!(panel.available_version_label, None);
         assert_eq!(panel.available_url, None);
         assert_eq!(panel.last_error, None);
     }

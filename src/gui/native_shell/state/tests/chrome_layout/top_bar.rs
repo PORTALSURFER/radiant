@@ -8,7 +8,7 @@ fn top_bar_surface_layout_stays_ordered_across_density_tiers() {
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),
-            available_tag: Some(String::from("v20.1.0")),
+            available_version_label: Some(String::from("v20.1.0")),
             available_url: Some(String::from("https://example.invalid/release")),
             last_error: None,
         },

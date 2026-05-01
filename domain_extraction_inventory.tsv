@@ -26,7 +26,6 @@ src/gui/layout_core/engine/mod.rs	generic_wording_cleanup	OPT-276	Generic layout
 src/gui/layout_core/engine/types.rs	generic_wording_cleanup	OPT-276	Generic layout types contain collection terminology caught by the domain scan.
 src/gui/layout_core/model.rs	generic_wording_cleanup	OPT-276	Generic layout model contains percentage wording caught by the domain scan.
 src/gui/retained.rs	generic_wording_cleanup	OPT-276	Generic retained storage uses Rust slice terminology caught by the domain scan.
-src/gui/feedback.rs	generic_wording_cleanup	OPT-276	Generic update feedback uses release-tag terminology caught by the domain scan.
 src/gui/native_shell/**	split_generic_from_compat	OPT-275	Native-shell compatibility tree must split generic primitives from Sempal shell composition and move/delete the rest.
 src/gui_runtime/mod.rs	split_generic_from_compat	OPT-275	Runtime facade still documents and exports Sempal compatibility entrypoints.
 src/gui_runtime/native_vello.rs	split_generic_from_compat	OPT-275	Native Vello facade still mixes generic and Sempal compatibility runtime entrypoints.

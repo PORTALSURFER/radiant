@@ -391,7 +391,7 @@ fn top_bar_update_buttons_emit_expected_actions() {
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),
-            available_tag: Some(String::from("v20.1.0")),
+            available_version_label: Some(String::from("v20.1.0")),
             available_url: Some(String::from("https://example.invalid/release")),
             last_error: None,
         },

@@ -48,8 +48,12 @@ pub(super) fn update_panel_automation(
             ("action_hint", model.update.action_hint_label.as_str()),
             ("release_notes", model.update.release_notes_label.as_str()),
             (
-                "available_tag",
-                model.update.available_tag.as_deref().unwrap_or(""),
+                "available_version_label",
+                model
+                    .update
+                    .available_version_label
+                    .as_deref()
+                    .unwrap_or(""),
             ),
             (
                 "available_url",

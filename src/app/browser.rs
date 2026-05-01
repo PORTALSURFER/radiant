@@ -5,6 +5,8 @@ use std::sync::Arc;
 pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserTagState;
+/// One clickable tag pill projected into the browser metadata sidebar.
+pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
 use serde::{Deserialize, Serialize};
 
 /// Browser playback-age filter chips shown in the native toolbar.
@@ -285,17 +287,6 @@ pub struct BrowserActionsModel {
     pub duplicate_cleanup_active: bool,
     /// Whether the browser-local tag sidebar is currently open.
     pub tag_sidebar_open: bool,
-}
-
-/// One clickable tag pill projected into the browser metadata sidebar.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BrowserTagPillModel {
-    /// Stable identifier for hit testing and automation.
-    pub id: String,
-    /// User-facing pill label.
-    pub label: String,
-    /// Tri-state selection value for the current browser target set.
-    pub state: BrowserTagState,
 }
 
 /// Browser-local metadata sidebar shown beside the sample list.

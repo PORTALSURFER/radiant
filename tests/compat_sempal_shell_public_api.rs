@@ -367,6 +367,30 @@ fn browser_tag_state_is_owned_by_generic_selection_module() {
 }
 
 #[test]
+fn browser_tag_pill_model_is_owned_by_generic_badge_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let badge_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/badge.rs"))
+        .expect("badge module should be readable");
+
+    assert!(
+        !browser_mod.contains("pub struct BrowserTagPillModel"),
+        "BrowserTagPillModel is generic selectable pill state, not a browser DTO"
+    );
+    assert!(
+        browser_mod.contains(
+            "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
+        ),
+        "the compatibility app contract should alias generic SelectablePill with tri-state selection"
+    );
+    assert!(
+        badge_mod.contains("pub struct SelectablePill<State>"),
+        "generic badge module should own reusable selectable pill behavior"
+    );
+}
+
+#[test]
 fn frame_build_result_is_owned_by_generic_frame_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

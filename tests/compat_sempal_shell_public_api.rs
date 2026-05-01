@@ -184,6 +184,28 @@ fn browser_row_processing_state_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn column_model_is_owned_by_generic_list_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(
+        !sources_mod.contains("pub struct ColumnModel"),
+        "ColumnModel is generic list/table column summary state, not a source DTO"
+    );
+    assert!(
+        sources_mod.contains("pub use crate::gui::list::ColumnSummary as ColumnModel;"),
+        "the compatibility app contract should alias generic ColumnSummary"
+    );
+    assert!(
+        list_mod.contains("pub struct ColumnSummary"),
+        "generic list module should own reusable column summary behavior"
+    );
+}
+
+#[test]
 fn browser_tag_state_is_owned_by_generic_selection_module() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

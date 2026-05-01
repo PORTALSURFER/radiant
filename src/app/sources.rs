@@ -1,6 +1,7 @@
 //! Source/sidebar-facing models exposed by the `radiant` app contract.
 
 use super::RetainedVec;
+pub use crate::gui::list::ColumnSummary as ColumnModel;
 use serde::{Deserialize, Serialize};
 
 /// Stable identifier for one of the two fixed folder panes in the sidebar.
@@ -19,25 +20,6 @@ impl FolderPaneIdModel {
         match self {
             Self::Upper => "upper",
             Self::Lower => "lower",
-        }
-    }
-}
-
-/// Render data for one triage/browser column.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ColumnModel {
-    /// Display label for the column header.
-    pub title: String,
-    /// Number of rows/items represented by the column.
-    pub item_count: usize,
-}
-
-impl ColumnModel {
-    /// Build a new column model.
-    pub fn new(title: impl Into<String>, item_count: usize) -> Self {
-        Self {
-            title: title.into(),
-            item_count,
         }
     }
 }

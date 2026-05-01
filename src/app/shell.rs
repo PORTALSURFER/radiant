@@ -2,6 +2,7 @@
 
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
 pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
+pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
@@ -12,16 +13,6 @@ use super::{
     FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel, MapPanelModel,
     SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
-
-/// Health state of the compact audio-engine status chip.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum AudioEngineChipStateModel {
-    /// Output engine is active and matches the requested configuration.
-    #[default]
-    Healthy,
-    /// Output engine is unavailable or degraded.
-    Error,
-}
 
 /// Audio field currently expanded into a picker inside the options panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

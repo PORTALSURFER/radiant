@@ -32,6 +32,16 @@ pub struct RecoverySummary {
     pub retained_count: usize,
 }
 
+/// Generic health state for compact status chips and panel summaries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum HealthState {
+    /// The represented subsystem is available and behaving as expected.
+    #[default]
+    Healthy,
+    /// The represented subsystem is unavailable, degraded, or reporting an error.
+    Error,
+}
+
 /// Drag/drop overlay content for pointer-following feedback.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct DragOverlay {
@@ -127,7 +137,8 @@ impl<Kind> Default for ConfirmPrompt<Kind> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConfirmPrompt, DragOverlay, ProgressOverlay, RecoverySummary, UpdatePanel, UpdateStatus,
+        ConfirmPrompt, DragOverlay, HealthState, ProgressOverlay, RecoverySummary, UpdatePanel,
+        UpdateStatus,
     };
 
     #[test]
@@ -151,6 +162,11 @@ mod tests {
         assert!(!summary.in_progress);
         assert_eq!(summary.entry_count, 0);
         assert_eq!(summary.retained_count, 0);
+    }
+
+    #[test]
+    fn health_state_defaults_to_healthy() {
+        assert_eq!(HealthState::default(), HealthState::Healthy);
     }
 
     #[test]

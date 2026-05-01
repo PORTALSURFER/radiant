@@ -124,6 +124,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
             && !shell_mod.contains("pub struct UpdatePanelModel")
     );
     assert!(!shell_mod.contains("pub struct ConfirmPromptModel"));
+    assert!(!shell_mod.contains("pub enum AudioEngineChipStateModel"));
     assert!(!sources_mod.contains("pub struct FolderRecoveryModel"));
     assert!(
         shell_mod
@@ -132,6 +133,10 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(shell_mod.contains("pub use crate::gui::feedback::DragOverlay as DragOverlayModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;"));
+    assert!(
+        shell_mod
+            .contains("pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;")
+    );
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
     ));
@@ -141,6 +146,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     );
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
     assert!(feedback_mod.contains("pub struct RecoverySummary"));
+    assert!(feedback_mod.contains("pub enum HealthState"));
     assert!(feedback_mod.contains("pub struct DragOverlay"));
     assert!(feedback_mod.contains("pub enum UpdateStatus"));
     assert!(feedback_mod.contains("pub struct UpdatePanel"));

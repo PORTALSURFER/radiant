@@ -1,9 +1,11 @@
 //! Retained-render segment invalidation contracts exposed by `radiant`.
 
+use crate::gui::invalidation::InvalidationMask;
+
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DirtySegments {
-    bits: u16,
+    mask: InvalidationMask,
 }
 
 impl DirtySegments {
@@ -34,47 +36,51 @@ impl DirtySegments {
 
     /// Return an empty segment mask.
     pub const fn empty() -> Self {
-        Self { bits: 0 }
+        Self {
+            mask: InvalidationMask::empty(),
+        }
     }
 
     /// Return a full segment mask.
     pub const fn all() -> Self {
         Self {
-            bits: Self::STATIC_MASK | Self::OVERLAY_MASK,
+            mask: InvalidationMask::all(Self::VALID_MASK),
         }
     }
 
     /// Construct a segment mask from raw bits.
     pub const fn from_bits(bits: u16) -> Self {
         Self {
-            bits: bits & (Self::STATIC_MASK | Self::OVERLAY_MASK),
+            mask: InvalidationMask::from_bits(bits, Self::VALID_MASK),
         }
     }
 
     /// Return raw bit contents for diagnostics and tests.
     pub const fn bits(self) -> u16 {
-        self.bits
+        self.mask.bits()
     }
 
     /// Return `true` when the mask contains no segments.
     pub const fn is_empty(self) -> bool {
-        self.bits == 0
+        self.mask.is_empty()
     }
 
     /// Return `true` when any static segment requires rebuild.
     pub const fn requires_static_rebuild(self) -> bool {
-        (self.bits & Self::STATIC_MASK) != 0
+        self.mask.intersects(Self::STATIC_MASK)
     }
 
     /// Return `true` when any overlay segment requires rebuild.
     pub const fn requires_overlay_rebuild(self) -> bool {
-        (self.bits & Self::OVERLAY_MASK) != 0
+        self.mask.intersects(Self::OVERLAY_MASK)
     }
 
     /// Insert one or more segment bits into this mask.
     pub fn insert(&mut self, bits: u16) {
-        self.bits |= bits & (Self::STATIC_MASK | Self::OVERLAY_MASK);
+        self.mask.insert(bits, Self::VALID_MASK);
     }
+
+    const VALID_MASK: u16 = Self::STATIC_MASK | Self::OVERLAY_MASK;
 }
 
 /// Monotonic revision counters for static projection segments.

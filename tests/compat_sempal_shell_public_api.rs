@@ -141,6 +141,29 @@ fn frame_build_result_is_owned_by_generic_frame_module() {
 }
 
 #[test]
+fn dirty_segments_use_generic_invalidation_mask() {
+    let dirty_segments_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/dirty_segments.rs"
+    ))
+    .expect("dirty segments module should be readable");
+    let invalidation_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/invalidation.rs"
+    ))
+    .expect("invalidation module should be readable");
+
+    assert!(
+        dirty_segments_mod.contains("use crate::gui::invalidation::InvalidationMask;"),
+        "DirtySegments should delegate bitmask behavior to generic invalidation primitives"
+    );
+    assert!(
+        invalidation_mod.contains("pub struct InvalidationMask"),
+        "generic invalidation module should own reusable mask behavior"
+    );
+}
+
+#[test]
 fn crate_root_does_not_export_legacy_app_alias() {
     let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
         .expect("crate root should be readable");

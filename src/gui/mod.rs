@@ -21,6 +21,8 @@
 pub mod frame;
 /// Input event primitives shared by UI code.
 pub mod input;
+/// Domain-neutral invalidation primitives for retained UI updates.
+pub mod invalidation;
 /// Public slot-based layout engine and container model.
 pub mod layout_core;
 /// Native shell layout + scene model kept as Sempal compatibility infrastructure.

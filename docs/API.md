@@ -62,6 +62,11 @@ rows, columns, overlays, fixed sizing, fill behavior, spacing, padding, and
 stable output rectangles. Layout is deterministic and independent from any
 renderer backend.
 
+Large item-indexed lists can use `VirtualListWindowRequest` and
+`VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
+keeps host-side list projection bounded while `layout::VirtualizationPolicy`
+continues to handle pixel-based scroll-container virtualization.
+
 ## Style And Theme
 
 `radiant::theme::ThemeTokens` and widget visual-token resolution provide

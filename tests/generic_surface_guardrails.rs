@@ -402,6 +402,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "View, Element, And Widget",
         "Message And Command",
         "## Layout",
+        "VirtualListWindow",
         "Style And Theme",
         "## Renderer",
         "## Context",

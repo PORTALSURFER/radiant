@@ -27,6 +27,8 @@ pub mod invalidation;
 pub mod layout_core;
 /// Native shell layout + scene model kept as Sempal compatibility infrastructure.
 pub(crate) mod native_shell;
+/// Normalized interval primitives for reusable UI models.
+pub mod range;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.
 pub mod repaint;
 /// Retained snapshot storage primitives.

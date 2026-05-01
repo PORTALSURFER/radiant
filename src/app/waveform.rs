@@ -1,62 +1,8 @@
 //! Waveform-facing models exposed by the `radiant` app contract.
 
+pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 use std::sync::Arc;
-
-/// Normalized range with deterministic milli, micro, and nano projections.
-///
-/// The native shell keeps milli fields for coarse equality checks and legacy
-/// tests, the micro fields preserve legacy action compatibility, and the nano
-/// fields preserve the exact authored endpoints for deep-zoom pointer routing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NormalizedRangeModel {
-    /// Start position in normalized milli-units.
-    pub start_milli: u16,
-    /// End position in normalized milli-units.
-    pub end_milli: u16,
-    /// Start position in normalized micro-units (`0..=1_000_000`).
-    pub start_micros: u32,
-    /// End position in normalized micro-units (`0..=1_000_000`).
-    pub end_micros: u32,
-    /// Start position in normalized nanounits (`0..=1_000_000_000`).
-    pub start_nanos: u32,
-    /// End position in normalized nanounits (`0..=1_000_000_000`).
-    pub end_nanos: u32,
-}
-
-impl NormalizedRangeModel {
-    /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
-    pub fn new(start_milli: u16, end_milli: u16) -> Self {
-        Self::from_micros(
-            u32::from(start_milli.min(1000)) * 1000,
-            u32::from(end_milli.min(1000)) * 1000,
-        )
-    }
-
-    /// Build a normalized range from micro precision while preserving ordered milli mirrors.
-    pub fn from_micros(start_micros: u32, end_micros: u32) -> Self {
-        Self::from_nanos(
-            start_micros.min(1_000_000).saturating_mul(1000),
-            end_micros.min(1_000_000).saturating_mul(1000),
-        )
-    }
-
-    /// Build a normalized range from nano precision while preserving ordered mirrors.
-    pub fn from_nanos(start_nanos: u32, end_nanos: u32) -> Self {
-        let start = start_nanos.min(1_000_000_000);
-        let end = end_nanos.min(1_000_000_000);
-        let ordered_start = start.min(end);
-        let ordered_end = end.max(start);
-        Self {
-            start_milli: nanos_to_milli(ordered_start),
-            end_milli: nanos_to_milli(ordered_end),
-            start_micros: nanos_to_micros(ordered_start),
-            end_micros: nanos_to_micros(ordered_end),
-            start_nanos: ordered_start,
-            end_nanos: ordered_end,
-        }
-    }
-}
 
 /// One detected waveform slice preview exposed to the runtime and native shell.
 ///
@@ -79,18 +25,6 @@ pub struct WaveformSlicePreviewModel {
     pub duplicate_cleanup_candidate: bool,
     /// Whether this duplicate preview is currently exempted from cleanup.
     pub duplicate_cleanup_exempted: bool,
-}
-
-fn micros_to_milli(value_micros: u32) -> u16 {
-    ((value_micros.min(1_000_000) + 500) / 1000) as u16
-}
-
-fn nanos_to_micros(value_nanos: u32) -> u32 {
-    ((value_nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000)
-}
-
-fn nanos_to_milli(value_nanos: u32) -> u16 {
-    micros_to_milli(nanos_to_micros(value_nanos))
 }
 
 /// Waveform preview metadata consumed by the native shell.

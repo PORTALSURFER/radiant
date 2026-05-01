@@ -138,6 +138,29 @@ fn retained_vec_is_owned_by_generic_retained_module() {
 }
 
 #[test]
+fn normalized_range_model_is_owned_by_generic_range_module() {
+    let waveform_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
+            .expect("waveform module should be readable");
+    let range_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/range.rs"))
+        .expect("range module should be readable");
+
+    assert!(
+        !waveform_mod.contains("pub struct NormalizedRangeModel"),
+        "NormalizedRangeModel is a generic interval primitive, not a waveform DTO"
+    );
+    assert!(
+        waveform_mod
+            .contains("pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;"),
+        "the compatibility app contract should alias generic NormalizedRange"
+    );
+    assert!(
+        range_mod.contains("pub struct NormalizedRange"),
+        "generic range module should own normalized interval behavior"
+    );
+}
+
+#[test]
 fn frame_build_result_is_owned_by_generic_frame_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

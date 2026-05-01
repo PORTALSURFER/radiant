@@ -36,6 +36,8 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/visualization.rs",
 ];
 
+const EXEMPT_TOP_LEVEL_GUI_FILES: &[&str] = &["src/gui/mod.rs"];
+
 const COMPAT_INTEGRATION_TESTS: &[&str] = &[
     "compat_sempal_shell_public_api.rs",
     "compat_status_bar_pilot.rs",
@@ -135,6 +137,45 @@ fn generic_sources_do_not_import_sempal_shell_contracts() {
         "generic Radiant modules must stay independent from Sempal compatibility contracts; \
          move transitional shell code under app, compat::sempal_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
         violations.join("\n")
+    );
+}
+
+#[test]
+fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let gui_dir = manifest_dir.join("src/gui");
+    let mut unclassified = Vec::new();
+
+    let entries = fs::read_dir(&gui_dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", gui_dir.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", gui_dir.display()))
+            .path();
+        if !path.is_file()
+            || path.extension().and_then(|extension| extension.to_str()) != Some("rs")
+        {
+            continue;
+        }
+
+        let relative = path
+            .strip_prefix(&manifest_dir)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if !GENERIC_SOURCE_ROOTS.contains(&relative.as_str())
+            && !EXEMPT_TOP_LEVEL_GUI_FILES.contains(&relative.as_str())
+        {
+            unclassified.push(relative);
+        }
+    }
+
+    unclassified.sort();
+    assert!(
+        unclassified.is_empty(),
+        "top-level src/gui/*.rs files must be classified so generic primitives are covered by \
+         the Sempal import guard, or explicitly exempted as transitional compat/docs files:\n{}",
+        unclassified.join("\n")
     );
 }
 

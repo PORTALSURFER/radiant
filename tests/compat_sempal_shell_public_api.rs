@@ -90,6 +90,29 @@ fn keypress_value_type_is_owned_by_generic_input_module() {
 }
 
 #[test]
+fn hotkey_resolution_is_typed_generic_shortcut_resolution() {
+    let hotkeys_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/hotkeys/mod.rs"
+    ))
+    .expect("hotkeys module should be readable");
+    let shortcuts_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/shortcuts.rs"))
+            .expect("shortcuts module should be readable");
+
+    assert!(
+        hotkeys_mod.contains(
+            "pub type HotkeyResolution = ShortcutResolution<crate::sempal_app::UiAction>;"
+        ),
+        "HotkeyResolution should be a compatibility alias over generic shortcut resolution"
+    );
+    assert!(
+        shortcuts_mod.contains("pub struct ShortcutResolution<Action>"),
+        "generic shortcuts module should own reusable shortcut resolution behavior"
+    );
+}
+
+#[test]
 fn retained_vec_is_owned_by_generic_retained_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

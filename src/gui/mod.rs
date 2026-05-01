@@ -31,5 +31,7 @@ pub(crate) mod native_shell;
 pub mod repaint;
 /// Retained snapshot storage primitives.
 pub mod retained;
+/// Generic shortcut resolution primitives.
+pub mod shortcuts;
 /// Geometry and image buffer types shared by UI code.
 pub mod types;

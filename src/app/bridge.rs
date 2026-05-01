@@ -72,11 +72,7 @@ pub trait NativeAppBridge {
         _press: KeyPress,
         _focus: FocusContextModel,
     ) -> HotkeyResolution {
-        HotkeyResolution {
-            action: None,
-            handled: false,
-            pending_chord: None,
-        }
+        HotkeyResolution::unhandled()
     }
 
     /// Reduce one UI action into host state.

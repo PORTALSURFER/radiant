@@ -6,6 +6,8 @@
 //! trees, reduce host-defined messages, and run through the native Vello backend
 //! without depending on transitional shell DTOs. See the checked `generic_native`
 //! example for a small standalone native app.
+//! The current compatibility shell is opt-in through the `legacy-shell` feature
+//! and is not part of Radiant's default standalone build.
 //!
 //! Generic host-facing modules:
 //! - [`layout`]: stable slot-based layout primitives
@@ -32,8 +34,9 @@
 #![allow(clippy::question_mark)]
 #![allow(clippy::too_many_arguments)]
 // Included transitional composition modules still refer to `crate::app` when they
-// are compiled inside Radiant. Keep this crate-private; do not expose it as
-// `radiant::app`.
+// are compiled inside Radiant. Keep this crate-private and feature-gated; do not
+// expose it as `radiant::app`.
+#[cfg(feature = "legacy-shell")]
 pub(crate) mod app {
     pub(crate) use crate::compat_app_contract::*;
 }
@@ -47,6 +50,7 @@ pub mod gui;
 pub mod layout {
     pub use crate::gui::layout_core::*;
 }
+#[cfg(feature = "legacy-shell")]
 #[path = "app/mod.rs"]
 pub(crate) mod compat_app_contract;
 /// Shared runtime host implementations.

@@ -34,6 +34,7 @@ pub mod layout_core;
 /// Generic list and row state primitives.
 pub mod list;
 /// Transitional native-shell layout and scene model kept behind crate-private APIs.
+#[cfg(feature = "legacy-shell")]
 pub(crate) mod native_shell;
 /// Normalized interval primitives for reusable UI models.
 pub mod range;

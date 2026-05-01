@@ -11,6 +11,7 @@
 /// runtime entry points that still depend on those compatibility contracts.
 /// Keep new generic work out of this module unless it is explicitly about
 /// compatibility or migration support.
+#[cfg(feature = "legacy-shell")]
 pub mod legacy_shell {
     pub use crate::compat_app_contract::*;
     pub use crate::gui_runtime::native_vello::{

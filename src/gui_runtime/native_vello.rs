@@ -1,12 +1,21 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
+#![cfg_attr(not(feature = "legacy-shell"), allow(dead_code))]
+
 use super::{NativeRunOptions, WindowIconRgba};
+#[cfg(feature = "legacy-shell")]
 use crate::compat::legacy_shell::{
     self as legacy_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
     NativeMotionModel, SegmentRevisions, UiAction,
 };
+#[cfg(feature = "legacy-shell")]
+use crate::gui::input::KeyCode;
 use crate::gui::{
-    input::{KeyCode, key_code_from_winit},
+    input::key_code_from_winit,
+    types::{Point, Rect as UiRect, Rgba8, Vector2},
+};
+#[cfg(feature = "legacy-shell")]
+use crate::gui::{
     native_shell::{
         ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, NativeViewFrame,
         Primitive, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment,
@@ -14,7 +23,6 @@ use crate::gui::{
         WaveformMotionOverlayFingerprint,
     },
     repaint::RepaintSignal,
-    types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
@@ -26,65 +34,119 @@ use skrifa::{
 use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::{Duration, Instant},
+    sync::Arc,
+    time::Instant,
+};
+#[cfg(feature = "legacy-shell")]
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
 };
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, Circle, Point as KurboPoint, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData, Gradient, ImageAlphaType, ImageData, ImageFormat},
+    kurbo::{Affine, Rect as KurboRect},
+    peniko::{Blob, Color, Fill, FontData},
     wgpu,
+};
+#[cfg(feature = "legacy-shell")]
+use vello::{
+    kurbo::{Circle, Point as KurboPoint},
+    peniko::{Gradient, ImageAlphaType, ImageData, ImageFormat},
 };
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
-    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
-    keyboard::{Key, ModifiersState, NamedKey, PhysicalKey},
-    window::{CursorIcon, Icon, Window, WindowAttributes, WindowId},
+    event::{ElementState, MouseButton, WindowEvent},
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    keyboard::{Key, NamedKey, PhysicalKey},
+    window::{Icon, Window, WindowAttributes, WindowId},
+};
+#[cfg(feature = "legacy-shell")]
+use winit::{
+    event::MouseScrollDelta, event_loop::EventLoopProxy, keyboard::ModifiersState,
+    window::CursorIcon,
 };
 
 mod generic_runtime;
+#[cfg(feature = "legacy-shell")]
 mod input;
+#[cfg(feature = "legacy-shell")]
 mod profiling;
+#[cfg(feature = "legacy-shell")]
 mod runtime_actions;
+#[cfg(feature = "legacy-shell")]
 mod runtime_events;
+#[cfg(feature = "legacy-shell")]
 mod runtime_input;
+#[cfg(feature = "legacy-shell")]
 mod runtime_render;
+#[cfg(feature = "legacy-shell")]
 mod runtime_startup;
+#[cfg(feature = "legacy-shell")]
 mod runtime_state;
+#[cfg(feature = "legacy-shell")]
 mod scene_cache;
+#[cfg(feature = "legacy-shell")]
 mod scene_rebuild;
+#[cfg(feature = "legacy-shell")]
 mod shell_snapshot;
 mod startup;
+#[cfg(feature = "legacy-shell")]
 mod text_bpm;
+#[cfg(feature = "legacy-shell")]
 mod text_edit;
 mod text_renderer;
+#[cfg(feature = "legacy-shell")]
 mod text_runtime;
 
+#[cfg(feature = "legacy-shell")]
 use self::{
     input::*, profiling::*, runtime_state::*, scene_cache::*, scene_rebuild::*, startup::*,
     text_bpm::*, text_edit::*, text_renderer::*,
 };
+#[cfg(not(feature = "legacy-shell"))]
+use self::{startup::*, text_renderer::*};
 
+#[cfg(feature = "legacy-shell")]
+pub use self::shell_snapshot::capture_native_shell_shot_snapshot;
 pub use self::{
     generic_runtime::{
         NativeGenericRunReport, NativeGenericRuntimeArtifacts, run_native_vello_runtime,
         run_native_vello_runtime_with_artifacts,
     },
-    shell_snapshot::capture_native_shell_shot_snapshot,
     startup::NativeStartupTimingArtifact,
 };
+
+#[cfg(not(feature = "legacy-shell"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum TextAlign {
+    Left,
+    Center,
+    Right,
+}
+
+#[cfg(not(feature = "legacy-shell"))]
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TextRun {
+    pub text: String,
+    pub position: Point,
+    pub font_size: f32,
+    pub color: Rgba8,
+    pub max_width: Option<f32>,
+    pub align: TextAlign,
+}
+
+#[cfg(feature = "legacy-shell")]
 const FOCUS_PULSE_HZ: u64 = 60;
+#[cfg(feature = "legacy-shell")]
 const IDLE_STATUS_REFRESH_HZ: u64 = 4;
 /// Short-lived redraw cadence used immediately after cursor movement.
+#[cfg(feature = "legacy-shell")]
 const CURSOR_ACTIVITY_REDRAW_HZ: u64 = 120;
 /// Duration to keep the high-frequency cursor redraw cadence active.
+#[cfg(feature = "legacy-shell")]
 const CURSOR_ACTIVITY_REDRAW_WINDOW: Duration = Duration::from_millis(100);
 /// High-refresh surface present-mode preference order for animation-heavy playback UI.
 const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
@@ -95,9 +157,12 @@ const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
 /// Standard present-mode preference order for non-high-refresh UI.
 const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentMode::AutoVsync];
 /// Maximum retained image-upload blobs before cache reset.
+#[cfg(feature = "legacy-shell")]
 const IMAGE_UPLOAD_BLOB_CACHE_LIMIT: usize = 32;
+#[cfg(feature = "legacy-shell")]
 const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "RADIANT_NATIVE_INCREMENTAL_FRAME_PIPELINE";
 /// Maximum time to wait for a deferred startup refresh before revealing anyway.
+#[cfg(feature = "legacy-shell")]
 const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -106,6 +171,7 @@ enum RuntimeUserEvent {
 }
 
 /// Structured runtime artifacts exported after one native run completes.
+#[cfg(feature = "legacy-shell")]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NativeRuntimeArtifacts {
     /// Native startup timing artifact captured for this run, when startup began.
@@ -115,6 +181,7 @@ pub struct NativeRuntimeArtifacts {
 }
 
 /// Result plus structured artifacts returned by one native runtime execution.
+#[cfg(feature = "legacy-shell")]
 #[derive(Debug)]
 pub struct NativeRunReport {
     /// Structured artifacts captured during the run.
@@ -123,6 +190,7 @@ pub struct NativeRunReport {
     pub result: Result<(), String>,
 }
 
+#[cfg(feature = "legacy-shell")]
 fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
     pending
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -172,6 +240,7 @@ fn startup_renderer_options() -> RendererOptions {
 }
 
 /// Convert one logical pointer point into lossless-enough action coordinates.
+#[cfg(feature = "legacy-shell")]
 fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
     (
         point.x.clamp(0.0, f32::from(u16::MAX)).round() as u16,
@@ -179,18 +248,21 @@ fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
     )
 }
 
+#[cfg(feature = "legacy-shell")]
 #[derive(Clone)]
 struct EventLoopProxyRepaintSignal {
     proxy: EventLoopProxy<RuntimeUserEvent>,
     pending: Arc<AtomicBool>,
 }
 
+#[cfg(feature = "legacy-shell")]
 impl EventLoopProxyRepaintSignal {
     fn new(proxy: EventLoopProxy<RuntimeUserEvent>, pending: Arc<AtomicBool>) -> Self {
         Self { proxy, pending }
     }
 }
 
+#[cfg(feature = "legacy-shell")]
 impl RepaintSignal for EventLoopProxyRepaintSignal {
     fn request_repaint(&self) {
         if !try_mark_repaint_event_pending(self.pending.as_ref()) {
@@ -206,6 +278,7 @@ impl RepaintSignal for EventLoopProxyRepaintSignal {
     }
 }
 
+#[cfg(feature = "legacy-shell")]
 struct NativeVelloRunner<B: NativeAppBridge> {
     options: NativeRunOptions,
     bridge: B,
@@ -360,9 +433,11 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     profiler: NativeVelloProfiler,
 }
 
+#[cfg(feature = "legacy-shell")]
 #[derive(Default)]
 struct PreviewBridge;
 
+#[cfg(feature = "legacy-shell")]
 impl NativeAppBridge for PreviewBridge {
     fn project_model(&mut self) -> Arc<AppModel> {
         Arc::new(AppModel::default())
@@ -375,6 +450,7 @@ impl NativeAppBridge for PreviewBridge {
 /// closes. The host receives user input each frame through the bridge-driven
 /// action path, and this function returns the host result from the event loop
 /// invocation.
+#[cfg(feature = "legacy-shell")]
 pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
@@ -435,6 +511,7 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
 /// closes. The host receives user input each frame through the bridge-driven
 /// action path, and this function returns the host result from the event loop
 /// invocation.
+#[cfg(feature = "legacy-shell")]
 pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
@@ -446,6 +523,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 ///
 /// This is an API-level alias to [`run_native_vello_app`] that emphasizes
 /// one-way declarative host integration (`project_model` + `reduce_action`).
+#[cfg(feature = "legacy-shell")]
 pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
@@ -455,6 +533,7 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
 
 /// Run the native Vello backend using a declarative state+reducer bridge and
 /// return structured runtime artifacts together with the result.
+#[cfg(feature = "legacy-shell")]
 pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
@@ -466,11 +545,13 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
 ///
 /// This preview path now renders an interactive backend-neutral shell model with
 /// Vello primitives and exercises native input hit-testing without `egui`.
+#[cfg(feature = "legacy-shell")]
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     run_native_vello_app_declarative(options, PreviewBridge)
 }
 
 /// Capture a deterministic native-shell automation snapshot without launching a window.
+#[cfg(feature = "legacy-shell")]
 pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &AppModel,
@@ -484,5 +565,5 @@ pub fn capture_gui_automation_snapshot(
     shell_state.automation_snapshot(&layout, model)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-shell"))]
 mod tests;

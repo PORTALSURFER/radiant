@@ -331,6 +331,63 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
     }
 }
 
+#[test]
+fn legacy_shell_compatibility_is_not_enabled_by_default() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let cargo_path = manifest_dir.join("Cargo.toml");
+    let cargo = fs::read_to_string(&cargo_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", cargo_path.display()));
+    assert!(
+        cargo.contains("default = []"),
+        "Radiant default features must stay empty so standalone builds do not compile compatibility shell code"
+    );
+    assert!(
+        cargo.contains("legacy-shell = []"),
+        "Radiant must expose an explicit legacy-shell feature for current Sempal compatibility"
+    );
+}
+
+#[test]
+fn legacy_shell_sources_are_feature_gated() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let expectations: &[(&str, &[&str])] = &[
+        (
+            "src/lib.rs",
+            &[
+                "#[cfg(feature = \"legacy-shell\")]\npub(crate) mod app",
+                "#[cfg(feature = \"legacy-shell\")]\n#[path = \"app/mod.rs\"]",
+            ],
+        ),
+        (
+            "src/compat.rs",
+            &["#[cfg(feature = \"legacy-shell\")]\npub mod legacy_shell"],
+        ),
+        (
+            "src/gui/mod.rs",
+            &["#[cfg(feature = \"legacy-shell\")]\npub(crate) mod native_shell"],
+        ),
+        (
+            "src/gui_runtime/native_vello.rs",
+            &[
+                "#[cfg(feature = \"legacy-shell\")]\nmod input",
+                "#[cfg(feature = \"legacy-shell\")]\nmod runtime_events",
+                "#[cfg(all(test, feature = \"legacy-shell\"))]\nmod tests",
+            ],
+        ),
+    ];
+    for (relative, required) in expectations {
+        let path = manifest_dir.join(relative);
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        for needle in *required {
+            assert!(
+                source.contains(needle),
+                "{relative} should gate legacy shell compatibility with `{needle}`"
+            );
+        }
+    }
+}
+
 #[derive(Debug)]
 struct ExtractionRule {
     pattern: String,

@@ -22,6 +22,7 @@ serde_json = "1.0.145"
 [features]
 default = []
 gui-performance = []
+legacy-shell = []
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [

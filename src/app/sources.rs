@@ -4,27 +4,7 @@ use super::RetainedVec;
 pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
-use serde::{Deserialize, Serialize};
-
-/// Stable identifier for one of the two fixed folder panes in the sidebar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum FolderPaneIdModel {
-    /// Upper folder pane shown directly beneath the shared sources list.
-    #[default]
-    Upper,
-    /// Lower folder pane shown beneath the upper pane.
-    Lower,
-}
-
-impl FolderPaneIdModel {
-    /// Return the small stable identifier used by automation and routing.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Upper => "upper",
-            Self::Lower => "lower",
-        }
-    }
-}
+pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
 
 /// Render data for one source row shown in the sidebar.
 #[derive(Clone, Debug, PartialEq, Eq)]

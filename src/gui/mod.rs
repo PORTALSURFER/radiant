@@ -40,6 +40,8 @@ pub mod list;
 /// Transitional native-shell layout and scene model kept behind crate-private APIs.
 #[cfg(feature = "legacy-shell")]
 pub(crate) mod native_shell;
+/// Generic panel and split-pane primitives.
+pub mod panel;
 /// Normalized interval primitives for reusable UI models.
 pub mod range;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.

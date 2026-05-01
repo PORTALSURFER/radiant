@@ -95,6 +95,19 @@ fn editable_row_kind_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn split_pane_slot_is_owned_by_generic_panel_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
+        .expect("panel module should be readable");
+
+    assert!(!sources_mod.contains("pub enum FolderPaneIdModel"));
+    assert!(sources_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
+    assert!(panel_mod.contains("pub enum SplitPaneSlot"));
+}
+
+#[test]
 fn status_segments_are_owned_by_generic_chrome_module() {
     let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
         .expect("shell module should be readable");

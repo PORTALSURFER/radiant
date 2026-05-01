@@ -33,7 +33,7 @@ pub mod invalidation;
 pub mod layout_core;
 /// Generic list and row state primitives.
 pub mod list;
-/// Native shell layout + scene model kept as Sempal compatibility infrastructure.
+/// Transitional native-shell layout and scene model kept behind crate-private APIs.
 pub(crate) mod native_shell;
 /// Normalized interval primitives for reusable UI models.
 pub mod range;

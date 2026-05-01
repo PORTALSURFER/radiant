@@ -15,7 +15,6 @@ pattern	disposition	issue	notes
 src/app/**	move_to_sempal	OPT-270	Sempal model action hotkey automation and DTO contracts must move to Sempal.
 src/compat.rs	remove_compat_export	OPT-276	Compatibility namespace is transitional and should disappear after Sempal owns the shell contract.
 src/lib.rs	remove_compat_export	OPT-276	Crate-root docs and deprecated app export still mention the Sempal compatibility path.
-src/gui/mod.rs	remove_compat_export	OPT-276	Module docs still expose native_shell as Sempal compatibility infrastructure.
 src/gui/native_shell/**	split_generic_from_compat	OPT-275	Native-shell compatibility tree must split generic primitives from Sempal shell composition and move/delete the rest.
 src/gui_runtime/mod.rs	split_generic_from_compat	OPT-275	Runtime facade still documents and exports Sempal compatibility entrypoints.
 src/gui_runtime/native_vello.rs	split_generic_from_compat	OPT-275	Native Vello facade still mixes generic and Sempal compatibility runtime entrypoints.

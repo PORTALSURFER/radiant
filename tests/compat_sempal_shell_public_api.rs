@@ -4,6 +4,7 @@ use radiant::compat::sempal_shell::{
     AppModel, DEFAULT_APP_TITLE, NativeRunOptions, UiAction, capture_gui_automation_snapshot,
     run_native_vello_preview,
 };
+use radiant::runtime::DEFAULT_NATIVE_WINDOW_TITLE;
 use std::fs;
 
 #[test]
@@ -23,7 +24,11 @@ fn sempal_shell_namespace_exposes_model_actions_and_runtime_helpers() {
     let preview: fn(NativeRunOptions) -> Result<(), String> = run_native_vello_preview;
 
     assert_eq!(compat_model, AppModel::default());
-    assert_eq!(NativeRunOptions::default().title, DEFAULT_APP_TITLE);
+    assert_eq!(DEFAULT_APP_TITLE, "Radiant");
+    assert_eq!(
+        NativeRunOptions::default().title,
+        DEFAULT_NATIVE_WINDOW_TITLE
+    );
     assert_eq!(compat_action, UiAction::ToggleTransport);
 
     let _ = preview;

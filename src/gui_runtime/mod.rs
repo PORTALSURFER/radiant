@@ -1,7 +1,7 @@
 //! Shared GUI runtime host implementations.
 //!
 //! The runtime is responsible for the host integration lifecycle:
-//! 1. open/create a window and event loop,
+//! 1. open/create a window and platform event pump,
 //! 2. pull app snapshots and submit them to `radiant` for frame build,
 //! 3. schedule redraws when input, timers, or host events require updates,
 //! 4. emit platform input into normalized runtime events.
@@ -10,11 +10,10 @@
 //! underlying backend (for example `gui-performance`) so release builds that do
 //! not request profiling have no measurable instrumentation overhead.
 //!
-//! Native Vello exposes both a generic [`crate::runtime::RuntimeBridge`]
-//! entrypoint for reusable host applications and compatibility shell helpers
-//! through [`crate::compat::sempal_shell`].
+//! Native Vello exposes a generic [`crate::runtime::RuntimeBridge`] entrypoint
+//! for reusable host applications.
 
-mod native_vello;
+pub(crate) mod native_vello;
 
 /// Default title for generic Radiant native windows.
 pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
@@ -64,9 +63,6 @@ impl Default for NativeRunOptions {
 }
 
 pub use native_vello::{
-    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeRunReport, NativeRuntimeArtifacts,
-    NativeStartupTimingArtifact, capture_gui_automation_snapshot,
-    capture_native_shell_shot_snapshot, run_native_vello_app, run_native_vello_app_declarative,
-    run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
-    run_native_vello_preview, run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeStartupTimingArtifact,
+    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };

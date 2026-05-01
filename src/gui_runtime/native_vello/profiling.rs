@@ -3,7 +3,7 @@ use super::*;
 #[cfg(feature = "gui-performance")]
 const REDRAW_PROFILE_INTERVAL_FRAMES: u64 = 240;
 #[cfg(feature = "gui-performance")]
-const REDRAW_PROFILE_ENV: &str = "SEMPAL_NATIVE_RENDER_PROFILE";
+const REDRAW_PROFILE_ENV: &str = "RADIANT_NATIVE_RENDER_PROFILE";
 
 #[cfg(not(feature = "gui-performance"))]
 mod noop;

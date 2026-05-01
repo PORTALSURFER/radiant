@@ -96,7 +96,7 @@ const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
 const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentMode::AutoVsync];
 /// Maximum retained image-upload blobs before cache reset.
 const IMAGE_UPLOAD_BLOB_CACHE_LIMIT: usize = 32;
-const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE";
+const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "RADIANT_NATIVE_INCREMENTAL_FRAME_PIPELINE";
 /// Maximum time to wait for a deferred startup refresh before revealing anyway.
 const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 

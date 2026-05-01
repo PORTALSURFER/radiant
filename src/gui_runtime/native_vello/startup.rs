@@ -1,7 +1,7 @@
 use super::*;
 use serde::Serialize;
 
-const STARTUP_PROFILE_ENV: &str = "SEMPAL_NATIVE_STARTUP_PROFILE";
+const STARTUP_PROFILE_ENV: &str = "RADIANT_NATIVE_STARTUP_PROFILE";
 const STARTUP_PROFILE_LOG_PREFIX: &str = "[native-vello-startup]";
 
 /// Machine-readable native startup timing payload exported by the runtime.

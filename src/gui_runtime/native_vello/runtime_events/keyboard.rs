@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::hotkeys::HotkeyResolution;
+use crate::compat_app_contract::HotkeyResolution;
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     #[cfg(test)]

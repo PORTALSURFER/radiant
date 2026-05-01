@@ -4,17 +4,20 @@ use std::fs;
 
 #[test]
 fn keypress_value_type_is_owned_by_generic_input_module() {
-    let hotkeys_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/app/hotkeys/mod.rs"
-    ))
-    .expect("hotkeys module should be readable");
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
     let input_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/input.rs"))
         .expect("input module should be readable");
+    let shortcuts_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/shortcuts.rs"))
+            .expect("shortcuts module should be readable");
 
-    assert!(!hotkeys_mod.contains("pub struct KeyPress"));
-    assert!(hotkeys_mod.contains("pub use crate::gui::input::KeyPress;"));
+    assert!(!app_mod.contains("pub struct KeyPress"));
+    assert!(app_mod.contains("pub use crate::gui::input::KeyPress;"));
+    assert!(app_mod.contains("pub use crate::gui::shortcuts::ShortcutResolution;"));
+    assert!(app_mod.contains("pub type HotkeyResolution = ShortcutResolution<UiAction>;"));
     assert!(input_mod.contains("pub struct KeyPress"));
+    assert!(shortcuts_mod.contains("pub struct ShortcutResolution<Action>"));
 }
 
 #[test]

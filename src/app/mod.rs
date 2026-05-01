@@ -45,14 +45,15 @@ mod automation;
 mod bridge;
 mod browser;
 mod dirty_segments;
-pub(crate) mod hotkeys;
 mod motion;
 mod shell;
 mod sources;
 mod waveform;
 
 pub use crate::gui::frame::FrameBuildResult;
+pub use crate::gui::input::KeyPress;
 pub use crate::gui::retained::RetainedVec;
+pub use crate::gui::shortcuts::ShortcutResolution;
 pub use actions::{BrowserTagTarget, UiAction};
 pub use automation::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
@@ -65,7 +66,8 @@ pub use browser::{
     MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
 };
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
-pub use hotkeys::{HotkeyResolution, KeyPress};
+/// Compatibility alias for the generic shortcut resolution DTO.
+pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, AudioEngineChipStateModel, AudioEngineModel, AudioFieldModel, AudioOptionItemModel,

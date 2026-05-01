@@ -44,7 +44,6 @@ mod actions;
 mod automation;
 mod bridge;
 mod browser;
-mod declarative;
 mod dirty_segments;
 pub(crate) mod hotkeys;
 mod motion;
@@ -65,7 +64,6 @@ pub use browser::{
     MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
     RetainedVec,
 };
-pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
 pub use hotkeys::{HotkeyResolution, KeyPress};
 pub use motion::NativeMotionModel;

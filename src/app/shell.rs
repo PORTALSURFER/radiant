@@ -152,29 +152,7 @@ pub enum ConfirmPromptKind {
 }
 
 /// Modal confirmation prompt projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ConfirmPromptModel {
-    /// Whether the prompt is currently visible.
-    pub visible: bool,
-    /// Prompt kind used by the bridge to resolve confirm/cancel behavior.
-    pub kind: Option<ConfirmPromptKind>,
-    /// Prompt title text.
-    pub title: String,
-    /// Prompt body text.
-    pub message: String,
-    /// Confirm action label.
-    pub confirm_label: String,
-    /// Cancel action label.
-    pub cancel_label: String,
-    /// Optional target label shown as supplemental metadata.
-    pub target_label: Option<String>,
-    /// Optional editable prompt input value.
-    pub input_value: Option<String>,
-    /// Placeholder text for editable prompt input fields.
-    pub input_placeholder: Option<String>,
-    /// Optional validation error shown below editable prompt input.
-    pub input_error: Option<String>,
-}
+pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;
 
 /// Snapshot of app state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq)]

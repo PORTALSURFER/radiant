@@ -71,9 +71,51 @@ pub struct UpdatePanel {
     pub last_error: Option<String>,
 }
 
+/// Modal confirmation prompt content parameterized by host-owned prompt kind.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConfirmPrompt<Kind> {
+    /// Whether the prompt is currently visible.
+    pub visible: bool,
+    /// Host-owned prompt kind used to resolve confirm/cancel behavior.
+    pub kind: Option<Kind>,
+    /// Prompt title text.
+    pub title: String,
+    /// Prompt body text.
+    pub message: String,
+    /// Confirm action label.
+    pub confirm_label: String,
+    /// Cancel action label.
+    pub cancel_label: String,
+    /// Optional target label shown as supplemental metadata.
+    pub target_label: Option<String>,
+    /// Optional editable prompt input value.
+    pub input_value: Option<String>,
+    /// Placeholder text for editable prompt input fields.
+    pub input_placeholder: Option<String>,
+    /// Optional validation error shown below editable prompt input.
+    pub input_error: Option<String>,
+}
+
+impl<Kind> Default for ConfirmPrompt<Kind> {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            kind: None,
+            title: String::new(),
+            message: String::new(),
+            confirm_label: String::new(),
+            cancel_label: String::new(),
+            target_label: None,
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{DragOverlay, ProgressOverlay, UpdatePanel, UpdateStatus};
+    use super::{ConfirmPrompt, DragOverlay, ProgressOverlay, UpdatePanel, UpdateStatus};
 
     #[test]
     fn progress_overlay_defaults_to_hidden_and_empty() {
@@ -112,5 +154,21 @@ mod tests {
         assert_eq!(panel.available_tag, None);
         assert_eq!(panel.available_url, None);
         assert_eq!(panel.last_error, None);
+    }
+
+    #[test]
+    fn confirm_prompt_defaults_to_hidden_without_host_kind() {
+        let prompt = ConfirmPrompt::<u8>::default();
+
+        assert!(!prompt.visible);
+        assert_eq!(prompt.kind, None);
+        assert_eq!(prompt.title, "");
+        assert_eq!(prompt.message, "");
+        assert_eq!(prompt.confirm_label, "");
+        assert_eq!(prompt.cancel_label, "");
+        assert_eq!(prompt.target_label, None);
+        assert_eq!(prompt.input_value, None);
+        assert_eq!(prompt.input_placeholder, None);
+        assert_eq!(prompt.input_error, None);
     }
 }

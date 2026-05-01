@@ -271,7 +271,7 @@ impl ImmediateFolderCreateBridge {
                 false,
                 false,
             )
-            .with_source_index(1),
+            .with_backing_index(1),
         ]
         .into();
     }
@@ -331,7 +331,7 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
 
 fn root_folder_row() -> crate::compat_app_contract::FolderRowModel {
     crate::compat_app_contract::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
-        .with_source_index(0)
+        .with_backing_index(0)
 }
 
 fn folder_create_error(value: &str) -> Option<String> {

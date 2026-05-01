@@ -367,7 +367,7 @@ fn rewrite_folder_create_hotkey_action(
     ) {
         return action;
     }
-    row.source_index
+    row.backing_index
         .map(|index| UiAction::StartNewFolderAtFolderRow {
             pane: Some(pane),
             index,

@@ -180,7 +180,7 @@ fn folder_row_disclosure_action(
     ) {
         return UiAction::FocusFolderCreateInput;
     }
-    let source_index = row.source_index.unwrap_or(index);
+    let source_index = row.backing_index.unwrap_or(index);
     if folder_row_disclosure_toggles_expansion(pane_model, index) {
         UiAction::ToggleFolderRowExpanded {
             pane: Some(pane),
@@ -212,7 +212,7 @@ fn folder_row_body_action(
     ) {
         return UiAction::FocusFolderCreateInput;
     }
-    let source_index = row.source_index.unwrap_or(index);
+    let source_index = row.backing_index.unwrap_or(index);
     UiAction::FocusFolderRow {
         pane: Some(pane),
         index: source_index,

@@ -195,7 +195,7 @@ where
                     .folder_pane(pane)
                     .folder_rows
                     .get(projected_index)
-                    .and_then(|row| row.source_index)
+                    .and_then(|row| row.backing_index)
                     .or(Some(projected_index))
             });
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);

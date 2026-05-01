@@ -12,11 +12,11 @@ fn hovered_folder_row_n_creates_under_hovered_folder() {
                 crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, false, false, true, true, true,
                 )
-                .with_source_index(0),
+                .with_backing_index(0),
                 crate::compat_app_contract::FolderRowModel::new(
                     "Drums", "drums", 1, false, true, false, true, true,
                 )
-                .with_source_index(4),
+                .with_backing_index(4),
             ]
             .into(),
             ..SourcesPanelModel::default()
@@ -70,7 +70,7 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
                     crate::compat_app_contract::FolderRowModel::new(
                         "Drums", "", 1, false, true, false, true, true,
                     )
-                    .with_source_index(1),
+                    .with_backing_index(1),
                 ]
                 .into(),
                 ..SourcesPanelModel::default()

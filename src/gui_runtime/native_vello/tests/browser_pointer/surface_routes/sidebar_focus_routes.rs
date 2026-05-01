@@ -152,7 +152,7 @@ fn folder_disclosure_click_routes_toggle_folder_row_expanded_for_expandable_rows
     model.sources.upper_folder_pane.folder_rows.make_mut()[1] =
         model.sources.upper_folder_pane.folder_rows[1]
             .clone()
-            .with_source_index(42);
+            .with_backing_index(42);
     let point = disclosure_point_for_row(&layout, &model, &mut shell_state, 1);
 
     assert_eq!(

@@ -438,13 +438,15 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
     let mut model = AppModel::default();
     model.browser.tag_sidebar.open = true;
     model.browser.tag_sidebar.input_value = String::from("rfx");
-    model.browser.tag_sidebar.normal_tag_pills.push(
-        crate::compat_app_contract::BrowserTagPillModel {
+    model
+        .browser
+        .tag_sidebar
+        .option_pills
+        .push(crate::compat_app_contract::BrowserTagPillModel {
             id: String::from("rare_fx"),
             label: String::from("Rare FX"),
             state: crate::compat_app_contract::BrowserTagState::Off,
-        },
-    );
+        });
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.frame_state.model_dirty = false;

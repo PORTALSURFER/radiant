@@ -297,7 +297,7 @@ fn build_browser_tag_sidebar_automation(
     let rect = browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, model)?;
     let sidebar = &model.browser.tag_sidebar;
     let normal_tag_labels = sidebar
-        .normal_tag_pills
+        .option_pills
         .iter()
         .map(|pill| pill.label.as_str())
         .collect::<Vec<_>>()
@@ -319,18 +319,18 @@ fn build_browser_tag_sidebar_automation(
         ),
         browser_tag_sidebar_pill_node(
             "browser.tag_sidebar.playback.loop",
-            &sidebar.playback_type_pills[0],
+            &sidebar.exclusive_pills[0],
             rect,
             vec![String::from("set_browser_sidebar_looped")],
         ),
         browser_tag_sidebar_pill_node(
             "browser.tag_sidebar.playback.one_shot",
-            &sidebar.playback_type_pills[1],
+            &sidebar.exclusive_pills[1],
             rect,
             vec![String::from("set_browser_sidebar_looped")],
         ),
     ];
-    children.extend(sidebar.normal_tag_pills.iter().map(|pill| {
+    children.extend(sidebar.option_pills.iter().map(|pill| {
         browser_tag_sidebar_pill_node(
             format!("browser.tag_sidebar.normal_tag.{}", slug(&pill.label)),
             pill,
@@ -338,7 +338,7 @@ fn build_browser_tag_sidebar_automation(
             vec![String::from("toggle_browser_sidebar_normal_tag")],
         )
     }));
-    if let Some(pill) = sidebar.create_tag_pill.as_ref() {
+    if let Some(pill) = sidebar.create_pill.as_ref() {
         children.push(browser_tag_sidebar_pill_node(
             format!("browser.tag_sidebar.create_tag.{}", slug(&pill.id)),
             pill,
@@ -359,8 +359,8 @@ fn build_browser_tag_sidebar_automation(
     node.metadata = metadata(&[
         ("selected_count", &sidebar.selected_count.to_string()),
         (
-            "auto_rename_enabled",
-            bool_text(sidebar.auto_rename_enabled),
+            "primary_action_enabled",
+            bool_text(sidebar.primary_action_enabled),
         ),
         ("normal_tag_labels", &normal_tag_labels),
     ]);

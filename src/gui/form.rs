@@ -20,9 +20,46 @@ pub struct SummaryField {
     pub value_label: String,
 }
 
+/// Field currently expanded inside a paired picker surface.
+///
+/// Paired pickers are useful for option panels that expose the same group/item/
+/// numeric controls for two related sides, such as primary/secondary endpoints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairedPickerTarget {
+    /// Group picker for the primary side.
+    PrimaryGroup,
+    /// Item picker for the primary side.
+    PrimaryItem,
+    /// Numeric picker for the primary side.
+    PrimaryNumber,
+    /// Group picker for the secondary side.
+    SecondaryGroup,
+    /// Item picker for the secondary side.
+    SecondaryItem,
+    /// Numeric picker for the secondary side.
+    SecondaryNumber,
+}
+
+/// Raw value carried by one paired-picker option.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PairedPickerValue<Text = String, Number = u32> {
+    /// Primary-side group value, or `None` for an inherited/default value.
+    PrimaryGroup(Option<Text>),
+    /// Primary-side item value, or `None` for an inherited/default value.
+    PrimaryItem(Option<Text>),
+    /// Primary-side numeric value, or `None` for an inherited/default value.
+    PrimaryNumber(Option<Number>),
+    /// Secondary-side group value, or `None` for an inherited/default value.
+    SecondaryGroup(Option<Text>),
+    /// Secondary-side item value, or `None` for an inherited/default value.
+    SecondaryItem(Option<Text>),
+    /// Secondary-side numeric value, or `None` for an inherited/default value.
+    SecondaryNumber(Option<Number>),
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{OptionItem, SummaryField};
+    use super::{OptionItem, PairedPickerTarget, PairedPickerValue, SummaryField};
 
     #[test]
     fn option_item_preserves_label_selection_and_value() {
@@ -43,5 +80,14 @@ mod tests {
 
         assert_eq!(field.label, "");
         assert_eq!(field.value_label, "");
+    }
+
+    #[test]
+    fn paired_picker_models_cover_primary_and_secondary_fields() {
+        let target = PairedPickerTarget::SecondaryNumber;
+        let value: PairedPickerValue<String, u32> = PairedPickerValue::PrimaryNumber(Some(48_000));
+
+        assert_eq!(target, PairedPickerTarget::SecondaryNumber);
+        assert_eq!(value, PairedPickerValue::PrimaryNumber(Some(48_000)));
     }
 }

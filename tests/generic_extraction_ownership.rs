@@ -227,6 +227,26 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
 }
 
 #[test]
+fn paired_picker_models_are_owned_by_generic_form_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let form_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/form.rs"))
+        .expect("form module should be readable");
+
+    assert!(!shell_mod.contains("pub enum AudioPickerTargetModel"));
+    assert!(!shell_mod.contains("pub enum AudioOptionValueModel"));
+    assert!(
+        shell_mod
+            .contains("pub use crate::gui::form::PairedPickerTarget as AudioPickerTargetModel;")
+    );
+    assert!(shell_mod.contains(
+        "pub type AudioOptionValueModel = crate::gui::form::PairedPickerValue<String, u32>;"
+    ));
+    assert!(form_mod.contains("pub enum PairedPickerTarget"));
+    assert!(form_mod.contains("pub enum PairedPickerValue"));
+}
+
+#[test]
 fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

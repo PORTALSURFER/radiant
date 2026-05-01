@@ -6,6 +6,7 @@ pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
+pub use crate::gui::form::PairedPickerTarget as AudioPickerTargetModel;
 pub use crate::gui::form::SummaryField as AudioFieldModel;
 
 use super::{
@@ -14,39 +15,8 @@ use super::{
     SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
 
-/// Audio field currently expanded into a picker inside the options panel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AudioPickerTargetModel {
-    /// Output host/backend picker.
-    OutputHost,
-    /// Output device picker.
-    OutputDevice,
-    /// Output sample-rate picker.
-    OutputSampleRate,
-    /// Input host/backend picker.
-    InputHost,
-    /// Input device picker.
-    InputDevice,
-    /// Input sample-rate picker.
-    InputSampleRate,
-}
-
 /// Raw value carried by one audio picker option.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AudioOptionValueModel {
-    /// Output host identifier, or `None` for the system default.
-    OutputHost(Option<String>),
-    /// Output device name, or `None` for the host default.
-    OutputDevice(Option<String>),
-    /// Output sample rate in Hz, or `None` for the device default.
-    OutputSampleRate(Option<u32>),
-    /// Input host identifier, or `None` for the system default.
-    InputHost(Option<String>),
-    /// Input device name, or `None` for the host default.
-    InputDevice(Option<String>),
-    /// Input sample rate in Hz, or `None` for the device default.
-    InputSampleRate(Option<u32>),
-}
+pub type AudioOptionValueModel = crate::gui::form::PairedPickerValue<String, u32>;
 
 /// One selectable item shown inside an audio picker.
 pub type AudioOptionItemModel = crate::gui::form::OptionItem<AudioOptionValueModel>;

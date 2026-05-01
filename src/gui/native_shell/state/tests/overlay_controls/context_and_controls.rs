@@ -494,23 +494,19 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
             ..crate::compat_app_contract::OptionsPanelModel::default()
         },
         audio_engine: crate::compat_app_contract::AudioEngineModel {
-            active_picker: Some(
-                crate::compat_app_contract::AudioPickerTargetModel::OutputSampleRate,
-            ),
+            active_picker: Some(crate::compat_app_contract::AudioPickerTargetModel::PrimaryNumber),
             output_sample_rate_options: vec![
                 crate::compat_app_contract::AudioOptionItemModel {
                     label: String::from("Device default"),
                     selected: false,
-                    value: crate::compat_app_contract::AudioOptionValueModel::OutputSampleRate(
-                        None,
-                    ),
+                    value: crate::compat_app_contract::AudioOptionValueModel::PrimaryNumber(None),
                 },
                 crate::compat_app_contract::AudioOptionItemModel {
                     label: String::from("48 kHz"),
                     selected: true,
-                    value: crate::compat_app_contract::AudioOptionValueModel::OutputSampleRate(
-                        Some(48_000),
-                    ),
+                    value: crate::compat_app_contract::AudioOptionValueModel::PrimaryNumber(Some(
+                        48_000,
+                    )),
                 },
             ],
             ..crate::compat_app_contract::AudioEngineModel::default()

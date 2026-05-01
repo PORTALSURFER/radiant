@@ -3,7 +3,7 @@
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::compat::sempal_shell::{
     self as sempal_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
-    NativeMotionModel, NativeShutdownTimingArtifact, SegmentRevisions, UiAction,
+    NativeMotionModel, SegmentRevisions, UiAction,
 };
 use crate::gui::{
     input::{KeyCode, key_code_from_winit},
@@ -110,8 +110,8 @@ enum RuntimeUserEvent {
 pub struct NativeRuntimeArtifacts {
     /// Native startup timing artifact captured for this run, when startup began.
     pub startup_timing: Option<NativeStartupTimingArtifact>,
-    /// Native shutdown timing artifact captured after the runtime exit hook runs.
-    pub shutdown_timing: Option<NativeShutdownTimingArtifact>,
+    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<serde_json::Value>,
 }
 
 /// Result plus structured artifacts returned by one native runtime execution.

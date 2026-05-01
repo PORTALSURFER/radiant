@@ -4,29 +4,8 @@ use super::{
     AppModel, DirtySegments, FocusContextModel, FrameBuildResult, HotkeyResolution, KeyPress,
     NativeMotionModel, SegmentRevisions, UiAction,
 };
-use serde::Serialize;
+use serde_json::Value;
 use std::sync::Arc;
-
-/// Machine-readable native shutdown timing payload exported by host bridges.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct NativeShutdownTimingArtifact {
-    /// Whether all shutdown phases completed without a captured error.
-    pub status: String,
-    /// Explicit shutdown failure reason when a phase reports an error.
-    pub failure_reason: Option<String>,
-    /// Milliseconds spent flushing bridge-owned pending input before exit.
-    pub bridge_exit_flush_ms: Option<f64>,
-    /// Milliseconds spent persisting host configuration during exit.
-    pub config_persist_ms: Option<f64>,
-    /// Milliseconds spent draining controller job workers.
-    pub controller_jobs_shutdown_ms: Option<f64>,
-    /// Milliseconds spent draining analysis workers.
-    pub analysis_shutdown_ms: Option<f64>,
-    /// Milliseconds spent inside the controller shutdown boundary.
-    pub controller_shutdown_ms: Option<f64>,
-    /// Milliseconds spent inside the full runtime-exit hook.
-    pub runtime_exit_total_ms: Option<f64>,
-}
 
 /// Host bridge consumed by the native runtime.
 pub trait NativeAppBridge {
@@ -151,7 +130,7 @@ pub trait NativeAppBridge {
     }
 
     /// Lifecycle hook fired when the runtime is shutting down.
-    fn on_runtime_exit(&mut self) -> Option<NativeShutdownTimingArtifact> {
+    fn on_runtime_exit(&mut self) -> Option<Value> {
         None
     }
 
@@ -159,7 +138,7 @@ pub trait NativeAppBridge {
     ///
     /// Compatibility shim that forwards to
     /// [`NativeAppBridge::on_runtime_exit`].
-    fn on_exit(&mut self) -> Option<NativeShutdownTimingArtifact> {
+    fn on_exit(&mut self) -> Option<Value> {
         self.on_runtime_exit()
     }
 }

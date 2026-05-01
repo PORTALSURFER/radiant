@@ -289,6 +289,48 @@ fn generic_native_example_stays_non_sempal_and_runtime_backed() {
     }
 }
 
+#[test]
+fn gui_runtime_public_facade_exports_generic_runtime_only() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module_path = manifest_dir.join("src/gui_runtime/mod.rs");
+    let source = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+    let public_exports = source
+        .split("pub use native_vello::{")
+        .nth(1)
+        .and_then(|tail| tail.split("};").next())
+        .expect("gui_runtime should have a native_vello public export block");
+
+    for forbidden in [
+        "NativeRunReport",
+        "NativeRuntimeArtifacts",
+        "capture_gui_automation_snapshot",
+        "capture_native_shell_shot_snapshot",
+        "run_native_vello_app",
+        "run_native_vello_app_declarative",
+        "run_native_vello_app_declarative_with_artifacts",
+        "run_native_vello_app_with_artifacts",
+        "run_native_vello_preview",
+    ] {
+        assert!(
+            !public_exports.contains(forbidden),
+            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::sempal_shell until the compatibility shell is removed"
+        );
+    }
+    for required in [
+        "NativeGenericRunReport",
+        "NativeGenericRuntimeArtifacts",
+        "NativeStartupTimingArtifact",
+        "run_native_vello_runtime",
+        "run_native_vello_runtime_with_artifacts",
+    ] {
+        assert!(
+            public_exports.contains(required),
+            "radiant::gui_runtime should continue exposing generic runtime API `{required}`"
+        );
+    }
+}
+
 #[derive(Debug)]
 struct ExtractionRule {
     pattern: String,

@@ -69,6 +69,25 @@ fn row_processing_state_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn recency_state_is_owned_by_generic_list_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(!browser_mod.contains("pub enum PlaybackAgeFilterChip"));
+    assert!(!browser_mod.contains("pub enum PlaybackAgeBucket"));
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;")
+    );
+    assert!(browser_mod.contains("pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;"));
+    assert!(list_mod.contains("pub enum RecencyFilterChip"));
+    assert!(list_mod.contains("pub enum RecencyBucket"));
+}
+
+#[test]
 fn column_summary_is_owned_by_generic_list_module() {
     let sources_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))

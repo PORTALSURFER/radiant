@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;
+pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;
 pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserTagState;
@@ -12,34 +14,6 @@ pub use crate::gui::visualization::SpatialPoint as MapPointModel;
 pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
 /// Browser-local metadata sidebar shown beside the sample list.
 pub type BrowserTagSidebarModel = crate::gui::badge::PillEditorPanel<BrowserTagState>;
-use serde::{Deserialize, Serialize};
-
-/// Browser playback-age filter chips shown in the native toolbar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum PlaybackAgeFilterChip {
-    /// Samples that have never been played.
-    NeverPlayed,
-    /// Samples whose last playback was at least 30 days ago.
-    OlderThanMonth,
-    /// Samples whose last playback was at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-}
-
-/// Visual playback-age buckets derived from sample playback history.
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub enum PlaybackAgeBucket {
-    /// Samples played within the last 7 days, including future-skewed timestamps.
-    #[default]
-    Fresh,
-    /// Samples last played at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-    /// Samples last played at least 30 days ago.
-    OlderThanMonth,
-    /// Samples with no recorded playback timestamp.
-    NeverPlayed,
-}
 
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]

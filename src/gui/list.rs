@@ -138,6 +138,33 @@ impl ColumnSummary {
     }
 }
 
+/// Generic recency filter chips for list rows with age-based state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum RecencyFilterChip {
+    /// Items with no recorded activity timestamp.
+    NeverPlayed,
+    /// Items whose last activity was at least 30 days ago.
+    OlderThanMonth,
+    /// Items whose last activity was at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+}
+
+/// Visual recency buckets for list rows with age-based markers.
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum RecencyBucket {
+    /// Items active within the recent window, including future-skewed timestamps.
+    #[default]
+    Fresh,
+    /// Items last active at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+    /// Items last active at least 30 days ago.
+    OlderThanMonth,
+    /// Items with no recorded activity timestamp.
+    NeverPlayed,
+}
+
 /// Kind of row displayed by an editable list or tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum EditableRowKind {

@@ -389,6 +389,20 @@ fn legacy_shell_sources_are_feature_gated() {
 }
 
 #[test]
+fn legacy_shell_contract_does_not_reexport_application_title_alias() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module_path = manifest_dir.join("src/app/mod.rs");
+    let source = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+
+    assert!(
+        !source.contains("DEFAULT_APP_TITLE"),
+        "Radiant compatibility contracts should not re-export application-shaped title aliases; \
+         use gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE for the generic runtime default"
+    );
+}
+
+#[test]
 fn core_api_documentation_covers_public_boundary_concepts() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs_path = manifest_dir.join("docs/API.md");

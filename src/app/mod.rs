@@ -81,6 +81,3 @@ pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
     WaveformSlicePreviewModel,
 };
-
-/// Compatibility alias for the generic runtime fallback title.
-pub use crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE as DEFAULT_APP_TITLE;

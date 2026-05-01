@@ -4,50 +4,8 @@ use super::RetainedVec;
 pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
+pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
-
-/// Render data for one source row shown in the sidebar.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SourceRowModel {
-    /// Primary label shown for the source.
-    pub label: String,
-    /// Optional secondary detail text (usually a path or status).
-    pub detail: String,
-    /// Whether the row is currently selected.
-    pub selected: bool,
-    /// Whether the source is missing from disk.
-    pub missing: bool,
-    /// Whether this source is assigned to the upper folder pane.
-    pub assigned_to_upper_pane: bool,
-    /// Whether this source is assigned to the lower folder pane.
-    pub assigned_to_lower_pane: bool,
-}
-
-impl SourceRowModel {
-    /// Build a new source row model.
-    pub fn new(
-        label: impl Into<String>,
-        detail: impl Into<String>,
-        selected: bool,
-        missing: bool,
-    ) -> Self {
-        Self {
-            label: label.into(),
-            detail: detail.into(),
-            selected,
-            missing,
-            assigned_to_upper_pane: false,
-            assigned_to_lower_pane: false,
-        }
-    }
-
-    /// Mark whether this source is assigned to either fixed folder pane.
-    pub fn with_pane_assignment(mut self, upper: bool, lower: bool) -> Self {
-        self.assigned_to_upper_pane = upper;
-        self.assigned_to_lower_pane = lower;
-        self
-    }
-}
 
 /// Render data for one folder row shown in the sidebar folder tree.
 #[derive(Clone, Debug, PartialEq, Eq)]

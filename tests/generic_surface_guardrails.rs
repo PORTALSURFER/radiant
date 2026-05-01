@@ -125,6 +125,42 @@ fn generic_sources_do_not_import_sempal_shell_contracts() {
 }
 
 #[test]
+fn radiant_manifest_does_not_depend_on_sempal_or_parent_workspace() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_path = manifest_dir.join("Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", manifest_path.display()));
+    let uncommented = strip_toml_comments(&manifest);
+    let mut violations = Vec::new();
+
+    for (line_index, line) in uncommented.lines().enumerate() {
+        let compact = line
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect::<String>()
+            .to_ascii_lowercase();
+        if compact.contains("sempal") {
+            violations.push(format!(
+                "Cargo.toml:{} must not name a Sempal dependency",
+                line_index + 1
+            ));
+        }
+        if compact.contains("path=\"..") || compact.contains("workspace=true") {
+            violations.push(format!(
+                "Cargo.toml:{} must not depend on parent workspace crates",
+                line_index + 1
+            ));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Radiant must remain independently buildable with dependency direction Sempal -> Radiant:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
 fn generic_integration_tests_do_not_reintroduce_sempal_shell_fixtures() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let tests_dir = manifest_dir.join("tests");
@@ -370,6 +406,14 @@ fn strip_rust_comments(source: &str) -> String {
     }
 
     output
+}
+
+fn strip_toml_comments(source: &str) -> String {
+    source
+        .lines()
+        .map(|line| line.split_once('#').map_or(line, |(before, _)| before))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn parse_extraction_inventory() -> Vec<ExtractionRule> {

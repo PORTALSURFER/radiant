@@ -1,10 +1,10 @@
 use super::SingleLineTextEditorState;
+use crate::compat_app_contract::DirtySegments;
 use crate::gui::native_shell::{
     ShellLayoutDirtyKind, ShellLayoutTreeKind, TextFieldVisualState,
     dirty_segments_for_layout_subtree,
 };
 use crate::gui::types::Point;
-use crate::sempal_app::DirtySegments;
 use std::mem;
 #[cfg(target_os = "windows")]
 use tracing::{debug, info};
@@ -18,7 +18,7 @@ pub(super) struct BrowserScrollbarDragState {
 /// Active folder-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct FolderScrollbarDragState {
-    pub(super) pane: crate::sempal_app::FolderPaneIdModel,
+    pub(super) pane: crate::compat_app_contract::FolderPaneIdModel,
     pub(super) thumb_pointer_offset_y: f32,
 }
 
@@ -51,7 +51,7 @@ pub(super) struct WaveformClickSeekPress {
 /// Deferred browser-row press used to preserve click behavior until release.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct PendingBrowserRowPress {
-    pub(super) action: crate::sempal_app::UiAction,
+    pub(super) action: crate::compat_app_contract::UiAction,
     pub(super) visible_row: usize,
     pub(super) press_point: Point,
 }
@@ -250,7 +250,7 @@ impl NativeVelloFrameState {
 
 impl<Bridge> super::NativeVelloRunner<Bridge>
 where
-    Bridge: crate::sempal_app::NativeAppBridge,
+    Bridge: crate::compat_app_contract::NativeAppBridge,
 {
     pub(super) fn has_external_drag_candidate(&self) -> bool {
         self.browser_sample_drag.is_some() || self.selection_drag_active
@@ -401,7 +401,7 @@ where
 
     pub(super) fn begin_folder_scrollbar_drag(
         &mut self,
-        pane: crate::sempal_app::FolderPaneIdModel,
+        pane: crate::compat_app_contract::FolderPaneIdModel,
         thumb_pointer_offset_y: f32,
     ) {
         self.folder_scrollbar_drag = Some(FolderScrollbarDragState {
@@ -457,7 +457,7 @@ where
 
     pub(super) fn begin_waveform_pointer_interaction(
         &mut self,
-        action: &crate::sempal_app::UiAction,
+        action: &crate::compat_app_contract::UiAction,
         click_seek_press: Option<WaveformClickSeekPress>,
     ) {
         self.waveform_drag_mode =
@@ -465,9 +465,9 @@ where
                 click_seek_press.and_then(|press| {
                     matches!(
                         action,
-                        crate::sempal_app::UiAction::ClearWaveformSelection
-                            | crate::sempal_app::UiAction::ClearWaveformEditSelection
-                            | crate::sempal_app::UiAction::ClearWaveformSelections
+                        crate::compat_app_contract::UiAction::ClearWaveformSelection
+                            | crate::compat_app_contract::UiAction::ClearWaveformEditSelection
+                            | crate::compat_app_contract::UiAction::ClearWaveformSelections
                     )
                     .then_some(
                         super::input::WaveformPointerDragMode::Selection {
@@ -483,7 +483,7 @@ where
         }
         self.selection_drag_active = matches!(
             action,
-            crate::sempal_app::UiAction::StartWaveformSelectionDrag { .. }
+            crate::compat_app_contract::UiAction::StartWaveformSelectionDrag { .. }
         );
         #[cfg(target_os = "windows")]
         if self.selection_drag_active {

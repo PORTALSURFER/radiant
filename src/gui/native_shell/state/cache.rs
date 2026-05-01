@@ -1,7 +1,7 @@
 //! Retained geometry and hit-test cache accessors for the native shell.
 
 use super::*;
-use crate::sempal_app::FolderPaneIdModel;
+use crate::compat_app_contract::FolderPaneIdModel;
 
 pub(super) struct BrowserInteractionGeometry<'a> {
     pub(super) style: StyleTokens,

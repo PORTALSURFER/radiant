@@ -226,9 +226,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
-                hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -248,9 +248,9 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
-                hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 hovered_folder_row: Some(7),
-                over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                over_folder_panel: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 shift_down: false,
                 alt_down: false,
             },
@@ -317,7 +317,7 @@ fn browser_row_drag_reports_folder_panel_background_without_row() {
             pointer_y: drag_point.y.round() as u16,
             hovered_folder_pane: None,
             hovered_folder_row: None,
-            over_folder_panel: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+            over_folder_panel: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
             shift_down: false,
             alt_down: false,
         }
@@ -366,7 +366,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
         .model
         .sources
         .rows
-        .push(crate::sempal_app::SourceRowModel::new(
+        .push(crate::compat_app_contract::SourceRowModel::new(
             "source_a",
             String::from("/tmp/source_a"),
             false,
@@ -375,7 +375,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = Arc::new(AppModel {
         sources: SourcesPanelModel {
-            rows: vec![crate::sempal_app::SourceRowModel::new(
+            rows: vec![crate::compat_app_contract::SourceRowModel::new(
                 "source_a",
                 String::from("/tmp/source_a"),
                 false,
@@ -383,10 +383,10 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
             )]
             .into(),
             folder_rows: vec![
-                crate::sempal_app::FolderRowModel::new(
+                crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, false, false, true, true, true,
                 ),
-                crate::sempal_app::FolderRowModel::create_draft(
+                crate::compat_app_contract::FolderRowModel::create_draft(
                     1,
                     String::from("new folder"),
                     String::from("New folder name"),
@@ -423,7 +423,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
         vec![
             UiAction::CancelFolderCreate,
             UiAction::FocusSourceRow {
-                pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 index: 0,
             },
         ]
@@ -438,15 +438,13 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
     let mut model = AppModel::default();
     model.browser.tag_sidebar.open = true;
     model.browser.tag_sidebar.input_value = String::from("rfx");
-    model
-        .browser
-        .tag_sidebar
-        .normal_tag_pills
-        .push(crate::sempal_app::BrowserTagPillModel {
+    model.browser.tag_sidebar.normal_tag_pills.push(
+        crate::compat_app_contract::BrowserTagPillModel {
             id: String::from("rare_fx"),
             label: String::from("Rare FX"),
-            state: crate::sempal_app::BrowserTagState::Off,
-        });
+            state: crate::compat_app_contract::BrowserTagState::Off,
+        },
+    );
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.frame_state.model_dirty = false;

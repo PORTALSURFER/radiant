@@ -1,7 +1,7 @@
 //! Model-sync, editor-state, and animation bookkeeping for the native shell.
 
 use super::*;
-use crate::sempal_app::{AudioEngineChipStateModel, FolderPaneIdModel};
+use crate::compat_app_contract::{AudioEngineChipStateModel, FolderPaneIdModel};
 
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
@@ -44,7 +44,8 @@ impl NativeShellState {
         {
             self.browser_context_menu = None;
         }
-        self.has_focus_emphasis = model.focus_context != crate::sempal_app::FocusContextModel::None
+        self.has_focus_emphasis = model.focus_context
+            != crate::compat_app_contract::FocusContextModel::None
             || model
                 .browser
                 .rows
@@ -311,7 +312,7 @@ impl NativeShellState {
 
 fn sync_folder_pane_model(
     pane_state: &mut FolderPaneRuntimeState,
-    pane_model: &crate::sempal_app::FolderPaneModel,
+    pane_model: &crate::compat_app_contract::FolderPaneModel,
 ) {
     if pane_state.last_focused_row != pane_model.focused_folder_row {
         pane_state.last_focused_row = pane_model.focused_folder_row;

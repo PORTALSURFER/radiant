@@ -1,17 +1,17 @@
 use super::*;
-use crate::sempal_app::FolderPaneIdModel;
+use crate::compat_app_contract::FolderPaneIdModel;
 
 #[test]
 fn source_action_hit_test_emits_folder_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::sempal_app::AppModel::default();
+    let mut model = crate::compat_app_contract::AppModel::default();
     model.sources.folder_actions.can_delete_folder = true;
     let button = state
         .source_action_button_rect(
             &layout,
             &model,
-            crate::sempal_app::UiAction::DeleteFocusedFolder,
+            crate::compat_app_contract::UiAction::DeleteFocusedFolder,
         )
         .expect("delete action button should be present");
     let point = Point::new(
@@ -20,7 +20,7 @@ fn source_action_hit_test_emits_folder_action() {
     );
     assert_eq!(
         state.source_action_at_point(&layout, &model, point),
-        Some(crate::sempal_app::UiAction::DeleteFocusedFolder)
+        Some(crate::compat_app_contract::UiAction::DeleteFocusedFolder)
     );
 }
 
@@ -28,13 +28,13 @@ fn source_action_hit_test_emits_folder_action() {
 fn source_action_hit_test_ignores_disabled_button() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::sempal_app::AppModel::default();
+    let mut model = crate::compat_app_contract::AppModel::default();
     model.sources.folder_actions.can_delete_folder = false;
     let button = state
         .source_action_button_rect(
             &layout,
             &model,
-            crate::sempal_app::UiAction::DeleteFocusedFolder,
+            crate::compat_app_contract::UiAction::DeleteFocusedFolder,
         )
         .expect("delete action button should be present");
     let point = Point::new(
@@ -48,14 +48,12 @@ fn source_action_hit_test_ignores_disabled_button() {
 fn folder_row_hit_test_resolves_rendered_folder_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::sempal_app::AppModel::default();
-    model
-        .sources
-        .upper_folder_pane
-        .folder_rows
-        .push(crate::sempal_app::FolderRowModel::new(
+    let mut model = crate::compat_app_contract::AppModel::default();
+    model.sources.upper_folder_pane.folder_rows.push(
+        crate::compat_app_contract::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
-        ));
+        ),
+    );
     model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
     let folder_rects = state.rendered_folder_row_rects(&layout, &model);
     assert_eq!(folder_rects.len(), 1);
@@ -74,11 +72,11 @@ fn folder_row_hit_test_resolves_rendered_folder_row() {
 fn folder_row_hit_test_survives_source_row_cache_priming() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::sempal_app::AppModel::default();
+    let mut model = crate::compat_app_contract::AppModel::default();
     model
         .sources
         .rows
-        .push(crate::sempal_app::SourceRowModel::new(
+        .push(crate::compat_app_contract::SourceRowModel::new(
             "Pack", "pack", false, false,
         ));
     model
@@ -87,13 +85,11 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
         .get_mut(0)
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
-    model
-        .sources
-        .upper_folder_pane
-        .folder_rows
-        .push(crate::sempal_app::FolderRowModel::new(
+    model.sources.upper_folder_pane.folder_rows.push(
+        crate::compat_app_contract::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
-        ));
+        ),
+    );
     model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
 
     let source_rects = state.rendered_source_row_rects(&layout, &model);
@@ -123,13 +119,10 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
 fn folder_rows_fill_sidebar_width_and_touch_without_gap() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::sempal_app::AppModel::default();
+    let mut model = crate::compat_app_contract::AppModel::default();
     for index in 0..3 {
-        model
-            .sources
-            .upper_folder_pane
-            .folder_rows
-            .push(crate::sempal_app::FolderRowModel::new(
+        model.sources.upper_folder_pane.folder_rows.push(
+            crate::compat_app_contract::FolderRowModel::new(
                 format!("Folder {index}"),
                 String::new(),
                 0,
@@ -138,7 +131,8 @@ fn folder_rows_fill_sidebar_width_and_touch_without_gap() {
                 false,
                 true,
                 true,
-            ));
+            ),
+        );
     }
     model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
 

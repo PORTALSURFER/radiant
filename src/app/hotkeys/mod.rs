@@ -4,4 +4,4 @@ pub use crate::gui::input::KeyPress;
 pub use crate::gui::shortcuts::ShortcutResolution;
 
 /// Compatibility alias for the generic shortcut resolution DTO.
-pub type HotkeyResolution = ShortcutResolution<crate::sempal_app::UiAction>;
+pub type HotkeyResolution = ShortcutResolution<crate::compat_app_contract::UiAction>;

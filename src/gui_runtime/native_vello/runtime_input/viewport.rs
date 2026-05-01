@@ -8,7 +8,7 @@ where
 {
     pub(crate) fn process_folder_view_start_immediately(
         &mut self,
-        pane: crate::sempal_app::FolderPaneIdModel,
+        pane: crate::compat_app_contract::FolderPaneIdModel,
         view_start_row: usize,
     ) -> bool {
         if !self

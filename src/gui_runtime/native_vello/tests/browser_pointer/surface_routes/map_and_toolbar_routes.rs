@@ -18,7 +18,7 @@ fn map_point_click_routes_to_focus_map_sample() {
             cluster_label: String::from("Clusters: 1"),
             viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
-            render_mode: crate::sempal_app::MapRenderModeModel::Points,
+            render_mode: crate::compat_app_contract::MapRenderModeModel::Points,
             selected_sample_id: Some(String::from("source::kick.wav")),
             focused_sample_id: Some(String::from("source::kick.wav")),
             points: Arc::from(vec![MapPointModel {

@@ -1,6 +1,6 @@
 use super::*;
+use crate::compat_app_contract::FolderPaneIdModel;
 use crate::layout::Rect;
-use crate::sempal_app::FolderPaneIdModel;
 
 #[test]
 fn source_row_click_routes_focus_source_row() {
@@ -65,10 +65,10 @@ fn empty_source_list_click_routes_focus_sources_panel() {
             header: String::from("0 sources"),
             rows: Vec::new().into(),
             folder_rows: vec![
-                crate::sempal_app::FolderRowModel::new(
+                crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, true, false, true, true, true,
                 ),
-                crate::sempal_app::FolderRowModel::new(
+                crate::compat_app_contract::FolderRowModel::new(
                     "Drums", "", 1, false, true, false, true, true,
                 ),
             ]
@@ -347,7 +347,7 @@ fn inline_folder_create_disclosure_gutter_click_focuses_folder_create_input() {
     let mut model = populated_sidebar_model();
     model.sources.folder_rows.make_mut().insert(
         2,
-        crate::sempal_app::FolderRowModel::create_draft(
+        crate::compat_app_contract::FolderRowModel::create_draft(
             2,
             String::from("new folder"),
             String::from("New folder name"),
@@ -376,7 +376,7 @@ fn inline_folder_create_row_click_focuses_folder_create_input() {
     let mut model = populated_sidebar_model();
     model.sources.folder_rows.make_mut().insert(
         2,
-        crate::sempal_app::FolderRowModel::create_draft(
+        crate::compat_app_contract::FolderRowModel::create_draft(
             2,
             String::from("new folder"),
             String::from("New folder name"),
@@ -410,7 +410,7 @@ fn inline_folder_rename_disclosure_gutter_click_focuses_folder_create_input() {
     let mut model = populated_sidebar_model();
     model.sources.folder_rows.make_mut().insert(
         2,
-        crate::sempal_app::FolderRowModel::rename_draft(
+        crate::compat_app_contract::FolderRowModel::rename_draft(
             2,
             String::from("drums"),
             String::from("Folder name"),
@@ -439,7 +439,7 @@ fn inline_folder_rename_row_click_focuses_folder_create_input() {
     let mut model = populated_sidebar_model();
     model.sources.folder_rows.make_mut().insert(
         2,
-        crate::sempal_app::FolderRowModel::rename_draft(
+        crate::compat_app_contract::FolderRowModel::rename_draft(
             2,
             String::from("drums"),
             String::from("Folder name"),

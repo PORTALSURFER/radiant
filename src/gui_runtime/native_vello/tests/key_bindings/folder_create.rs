@@ -1,19 +1,19 @@
 use super::*;
-use crate::sempal_app::FolderPaneIdModel;
+use crate::compat_app_contract::FolderPaneIdModel;
 
 #[test]
 fn hovered_folder_row_n_creates_under_hovered_folder() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
-        focus_context: crate::sempal_app::FocusContextModel::SourceFolders,
+        focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
         sources: SourcesPanelModel {
             folder_rows: vec![
-                crate::sempal_app::FolderRowModel::new(
+                crate::compat_app_contract::FolderRowModel::new(
                     "Root", "", 0, false, false, true, true, true,
                 )
                 .with_source_index(0),
-                crate::sempal_app::FolderRowModel::new(
+                crate::compat_app_contract::FolderRowModel::new(
                     "Drums", "drums", 1, false, true, false, true, true,
                 )
                 .with_source_index(4),
@@ -62,12 +62,12 @@ fn folder_create_append_text_emits_set_folder_create_input() {
 fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
     let bridge = ImmediateFolderCreateBridge {
         model: AppModel {
-            focus_context: crate::sempal_app::FocusContextModel::SourceFolders,
+            focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
             sources: SourcesPanelModel {
                 focused_folder_row: Some(1),
                 folder_rows: vec![
                     root_folder_row(),
-                    crate::sempal_app::FolderRowModel::new(
+                    crate::compat_app_contract::FolderRowModel::new(
                         "Drums", "", 1, false, true, false, true, true,
                     )
                     .with_source_index(1),
@@ -93,7 +93,7 @@ fn r_hotkey_projects_folder_rename_draft_and_selects_all_text() {
             .sources
             .folder_rows
             .iter()
-            .find(|row| row.kind == crate::sempal_app::FolderRowKind::RenameDraft),
+            .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft),
         Some(row) if row.input_value.as_deref() == Some("Drums")
     ));
     assert_eq!(
@@ -122,7 +122,7 @@ fn n_hotkey_projects_folder_create_draft_immediately() {
             .sources
             .folder_rows
             .iter()
-            .any(|row| row.kind == crate::sempal_app::FolderRowKind::CreateDraft)
+            .any(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
     );
 }
 
@@ -154,7 +154,7 @@ fn enter_confirms_folder_create_and_refreshes_created_row_immediately() {
             .sources
             .folder_rows
             .iter()
-            .all(|row| row.kind != crate::sempal_app::FolderRowKind::CreateDraft)
+            .all(|row| row.kind != crate::compat_app_contract::FolderRowKind::CreateDraft)
     );
     assert!(
         runner
@@ -171,10 +171,10 @@ fn enter_confirms_browser_duplicate_cleanup_when_browser_has_focus() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     runner.model = Arc::new(AppModel {
-        focus_context: crate::sempal_app::FocusContextModel::SampleBrowser,
-        browser: crate::sempal_app::BrowserPanelModel {
+        focus_context: crate::compat_app_contract::FocusContextModel::SampleBrowser,
+        browser: crate::compat_app_contract::BrowserPanelModel {
             duplicate_cleanup_active: true,
-            ..crate::sempal_app::BrowserPanelModel::default()
+            ..crate::compat_app_contract::BrowserPanelModel::default()
         },
         ..AppModel::default()
     });
@@ -208,7 +208,7 @@ fn escape_cancels_folder_create_and_refreshes_model_immediately() {
             .sources
             .folder_rows
             .iter()
-            .all(|row| row.kind != crate::sempal_app::FolderRowKind::CreateDraft)
+            .all(|row| row.kind != crate::compat_app_contract::FolderRowKind::CreateDraft)
     );
     assert_eq!(runner.text_input_target, TextInputTarget::None);
 }

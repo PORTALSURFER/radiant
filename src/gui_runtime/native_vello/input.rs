@@ -25,13 +25,13 @@ pub(super) fn action_from_key(
     key: KeyCode,
     modifiers: ModifiersState,
     model: &AppModel,
-    pending_chord: Option<crate::sempal_app::KeyPress>,
+    pending_chord: Option<crate::compat_app_contract::KeyPress>,
     resolve_hotkey: impl FnMut(
-        Option<crate::sempal_app::KeyPress>,
-        crate::sempal_app::KeyPress,
-        crate::sempal_app::FocusContextModel,
-    ) -> crate::sempal_app::HotkeyResolution,
-) -> crate::sempal_app::HotkeyResolution {
+        Option<crate::compat_app_contract::KeyPress>,
+        crate::compat_app_contract::KeyPress,
+        crate::compat_app_contract::FocusContextModel,
+    ) -> crate::compat_app_contract::HotkeyResolution,
+) -> crate::compat_app_contract::HotkeyResolution {
     key::action_from_key(key, modifiers, model, pending_chord, resolve_hotkey)
 }
 
@@ -286,7 +286,7 @@ pub(super) fn waveform_selection_drag_handle_hit_rect(
 pub(super) fn waveform_selection_shift_handle_hit_rect(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: crate::sempal_app::NormalizedRangeModel,
+    selection: crate::compat_app_contract::NormalizedRangeModel,
 ) -> Option<UiRect> {
     waveform_handles::waveform_selection_shift_handle_hit_rect(layout, model, selection)
 }

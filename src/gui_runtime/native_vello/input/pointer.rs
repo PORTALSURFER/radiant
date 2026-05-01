@@ -163,7 +163,7 @@ fn route_sidebar_background(
 
 fn folder_row_disclosure_action(
     model: &AppModel,
-    pane: crate::sempal_app::FolderPaneIdModel,
+    pane: crate::compat_app_contract::FolderPaneIdModel,
     index: usize,
 ) -> UiAction {
     let pane_model = model.sources.folder_pane(pane);
@@ -175,8 +175,8 @@ fn folder_row_disclosure_action(
     };
     if matches!(
         row.kind,
-        crate::sempal_app::FolderRowKind::CreateDraft
-            | crate::sempal_app::FolderRowKind::RenameDraft
+        crate::compat_app_contract::FolderRowKind::CreateDraft
+            | crate::compat_app_contract::FolderRowKind::RenameDraft
     ) {
         return UiAction::FocusFolderCreateInput;
     }
@@ -196,7 +196,7 @@ fn folder_row_disclosure_action(
 
 fn folder_row_body_action(
     model: &AppModel,
-    pane: crate::sempal_app::FolderPaneIdModel,
+    pane: crate::compat_app_contract::FolderPaneIdModel,
     index: usize,
 ) -> UiAction {
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
@@ -207,8 +207,8 @@ fn folder_row_body_action(
     };
     if matches!(
         row.kind,
-        crate::sempal_app::FolderRowKind::CreateDraft
-            | crate::sempal_app::FolderRowKind::RenameDraft
+        crate::compat_app_contract::FolderRowKind::CreateDraft
+            | crate::compat_app_contract::FolderRowKind::RenameDraft
     ) {
         return UiAction::FocusFolderCreateInput;
     }
@@ -221,9 +221,9 @@ fn folder_row_body_action(
 
 fn folder_row_for_pointer_action(
     model: &AppModel,
-    pane: crate::sempal_app::FolderPaneIdModel,
+    pane: crate::compat_app_contract::FolderPaneIdModel,
     index: usize,
-) -> Option<&crate::sempal_app::FolderRowModel> {
+) -> Option<&crate::compat_app_contract::FolderRowModel> {
     let pane_row = model.sources.folder_pane(pane).folder_rows.get(index);
     let flat_active_row = (pane == model.sources.active_folder_pane)
         .then(|| model.sources.folder_rows.get(index))
@@ -232,8 +232,8 @@ fn folder_row_for_pointer_action(
         .filter(|row| {
             matches!(
                 row.kind,
-                crate::sempal_app::FolderRowKind::CreateDraft
-                    | crate::sempal_app::FolderRowKind::RenameDraft
+                crate::compat_app_contract::FolderRowKind::CreateDraft
+                    | crate::compat_app_contract::FolderRowKind::RenameDraft
             )
         })
         .or(pane_row)
@@ -241,7 +241,7 @@ fn folder_row_for_pointer_action(
 }
 
 fn folder_row_disclosure_toggles_expansion(
-    pane_model: &crate::sempal_app::FolderPaneModel,
+    pane_model: &crate::compat_app_contract::FolderPaneModel,
     index: usize,
 ) -> bool {
     let Some(row) = pane_model.folder_rows.get(index) else {
@@ -251,8 +251,8 @@ fn folder_row_disclosure_toggles_expansion(
         && !row.is_root
         && !matches!(
             row.kind,
-            crate::sempal_app::FolderRowKind::CreateDraft
-                | crate::sempal_app::FolderRowKind::RenameDraft
+            crate::compat_app_contract::FolderRowKind::CreateDraft
+                | crate::compat_app_contract::FolderRowKind::RenameDraft
         )
         && pane_model.folder_search_query.trim().is_empty()
 }

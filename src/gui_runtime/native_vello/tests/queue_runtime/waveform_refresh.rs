@@ -10,7 +10,7 @@ fn begin_waveform_selection_press_does_not_project_zero_width_selection() {
 
     assert_eq!(
         bridge.model.focus_context,
-        crate::sempal_app::FocusContextModel::Waveform
+        crate::compat_app_contract::FocusContextModel::Waveform
     );
     assert!(bridge.model.waveform.selection_milli.is_none());
     assert_eq!(

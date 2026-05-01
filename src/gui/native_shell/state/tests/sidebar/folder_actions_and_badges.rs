@@ -1,5 +1,5 @@
 use super::*;
-use crate::sempal_app::FolderPaneIdModel;
+use crate::compat_app_contract::FolderPaneIdModel;
 #[test]
 fn folder_create_editor_overlay_renders_selection_and_caret() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

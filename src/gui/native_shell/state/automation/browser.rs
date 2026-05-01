@@ -4,8 +4,8 @@ use super::helpers::{
     action_slug, bool_text, bounds, circle_rect, metadata, node_id, simple_node, slug,
 };
 use super::*;
-use crate::sempal_app::AutomationRole;
-use crate::sempal_app::BrowserTagState;
+use crate::compat_app_contract::AutomationRole;
+use crate::compat_app_contract::BrowserTagState;
 
 /// Build semantic automation for the browser panel and its active content.
 pub(super) fn build_browser_automation(
@@ -85,11 +85,15 @@ pub(super) fn build_browser_automation(
         }
         let bucket = super::super::BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
         let (slug, label) = match bucket {
-            crate::sempal_app::PlaybackAgeFilterChip::NeverPlayed => ("never", "Never played"),
-            crate::sempal_app::PlaybackAgeFilterChip::OlderThanMonth => {
+            crate::compat_app_contract::PlaybackAgeFilterChip::NeverPlayed => {
+                ("never", "Never played")
+            }
+            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth => {
                 ("month", "Older than month")
             }
-            crate::sempal_app::PlaybackAgeFilterChip::OlderThanWeek => ("week", "Older than week"),
+            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek => {
+                ("week", "Older than week")
+            }
         };
         children.push(simple_node(
             format!("browser.playback_age_filter.{slug}"),
@@ -155,7 +159,7 @@ pub(super) fn build_browser_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::sempal_app::FocusContextModel::SampleBrowser
+            crate::compat_app_contract::FocusContextModel::SampleBrowser
         ),
         available_actions: vec![String::from("focus_browser_panel")],
         metadata: metadata(&[
@@ -214,7 +218,7 @@ fn build_browser_table_automation(
         true,
         matches!(
             model.focus_context,
-            crate::sempal_app::FocusContextModel::SampleBrowser
+            crate::compat_app_contract::FocusContextModel::SampleBrowser
         ),
         vec![
             String::from("focus_browser_panel"),
@@ -251,10 +255,10 @@ fn build_browser_table_automation(
                 (
                     "playback_age_bucket",
                     match row.playback_age_bucket {
-                        crate::sempal_app::PlaybackAgeBucket::Fresh => "fresh",
-                        crate::sempal_app::PlaybackAgeBucket::OlderThanWeek => "week",
-                        crate::sempal_app::PlaybackAgeBucket::OlderThanMonth => "month",
-                        crate::sempal_app::PlaybackAgeBucket::NeverPlayed => "never",
+                        crate::compat_app_contract::PlaybackAgeBucket::Fresh => "fresh",
+                        crate::compat_app_contract::PlaybackAgeBucket::OlderThanWeek => "week",
+                        crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth => "month",
+                        crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed => "never",
                     },
                 ),
             ]),
@@ -366,7 +370,7 @@ fn build_browser_tag_sidebar_automation(
 
 fn browser_tag_sidebar_pill_node(
     id: impl Into<String>,
-    pill: &crate::sempal_app::BrowserTagPillModel,
+    pill: &crate::compat_app_contract::BrowserTagPillModel,
     rect: Rect,
     available_actions: Vec<String>,
 ) -> AutomationNodeSnapshot {

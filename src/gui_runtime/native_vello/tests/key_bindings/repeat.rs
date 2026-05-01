@@ -39,7 +39,7 @@ fn key_repeat_allows_alt_arrow_micro_slides_only_in_waveform_focus() {
     assert!(!runner.allows_key_repeat(KeyCode::ArrowRight));
 
     runner.model = Arc::new(AppModel {
-        focus_context: crate::sempal_app::FocusContextModel::Waveform,
+        focus_context: crate::compat_app_contract::FocusContextModel::Waveform,
         ..AppModel::default()
     });
     assert!(runner.allows_key_repeat(KeyCode::ArrowLeft));

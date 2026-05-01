@@ -15,18 +15,20 @@ pub(crate) use state::{
 };
 
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
-    pub(super) fn folder_inline_edit_row(&self) -> Option<&crate::sempal_app::FolderRowModel> {
+    pub(super) fn folder_inline_edit_row(
+        &self,
+    ) -> Option<&crate::compat_app_contract::FolderRowModel> {
         self.model
             .sources
             .folder_rows
             .iter()
-            .find(|row| row.kind == crate::sempal_app::FolderRowKind::RenameDraft)
+            .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft)
             .or_else(|| {
                 self.model
                     .sources
                     .folder_rows
                     .iter()
-                    .find(|row| row.kind == crate::sempal_app::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
             })
     }
 

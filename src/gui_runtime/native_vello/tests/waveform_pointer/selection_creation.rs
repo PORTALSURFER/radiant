@@ -59,7 +59,9 @@ fn waveform_click_modifiers_route_expected_actions() {
         sources: SourcesPanelModel::default(),
         browser: BrowserPanelModel::default(),
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(120, 360)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                120, 360,
+            )),
             cursor_milli: Some(220),
             playhead_milli: Some(260),
             ..WaveformPanelModel::default()
@@ -186,7 +188,9 @@ fn waveform_shift_click_slides_playback_selection_from_clicked_start() {
     );
     let model = AppModel {
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(200, 800)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                200, 800,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -265,7 +269,9 @@ fn command_click_adjusts_start_until_overflow_then_slides_playback_selection() {
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(200, 400)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                200, 400,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -303,7 +309,9 @@ fn command_shift_click_adjusts_end_until_overflow_then_slides_playback_selection
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(200, 400)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                200, 400,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -341,7 +349,9 @@ fn command_click_clamps_existing_selection_translation_to_waveform_bounds() {
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(300, 900)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                300, 900,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -389,7 +399,9 @@ fn shift_click_clamps_existing_playback_selection_translation_to_waveform_bounds
     let mut shell_state = NativeShellState::new();
     let model = AppModel {
         waveform: WaveformPanelModel {
-            selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(300, 900)),
+            selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                300, 900,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -454,8 +466,9 @@ fn waveform_right_click_maps_to_edit_selection_action() {
     );
 
     let mut model = AppModel::default();
-    model.waveform.edit_selection_milli =
-        Some(crate::sempal_app::NormalizedRangeModel::new(180, 820));
+    model.waveform.edit_selection_milli = Some(
+        crate::compat_app_contract::NormalizedRangeModel::new(180, 820),
+    );
 
     assert_eq!(
         waveform_edit_action_from_pointer(&layout, &model, point, ModifiersState::CONTROL),
@@ -495,7 +508,9 @@ fn shift_click_slides_existing_edit_selection_to_waveform_bounds() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let model = AppModel {
         waveform: WaveformPanelModel {
-            edit_selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(200, 500)),
+            edit_selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                200, 500,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()
@@ -528,7 +543,9 @@ fn command_click_slides_existing_edit_selection_only_as_overflow_recovery() {
     let layout = ShellLayout::build(Vector2::new(1200.0, 800.0));
     let model = AppModel {
         waveform: WaveformPanelModel {
-            edit_selection_milli: Some(crate::sempal_app::NormalizedRangeModel::new(200, 500)),
+            edit_selection_milli: Some(crate::compat_app_contract::NormalizedRangeModel::new(
+                200, 500,
+            )),
             ..WaveformPanelModel::default()
         },
         ..AppModel::default()

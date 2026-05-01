@@ -242,8 +242,8 @@ fn waveform_toolbar_clean_dups_button_requires_duplicate_cleanup_batch() {
     model
         .waveform
         .slices
-        .push(crate::sempal_app::WaveformSlicePreviewModel {
-            range: crate::sempal_app::NormalizedRangeModel::new(180, 420),
+        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+            range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
             marked_for_export: false,

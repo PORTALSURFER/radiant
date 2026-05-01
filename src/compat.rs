@@ -12,6 +12,7 @@
 /// Keep new generic work out of this module unless it is explicitly about
 /// compatibility or migration support.
 pub mod sempal_shell {
+    pub use crate::compat_app_contract::*;
     pub use crate::gui_runtime::{
         NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, NativeStartupTimingArtifact,
         WindowIconRgba, capture_gui_automation_snapshot, capture_native_shell_shot_snapshot,
@@ -19,5 +20,4 @@ pub mod sempal_shell {
         run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
         run_native_vello_preview,
     };
-    pub use crate::sempal_app::*;
 }

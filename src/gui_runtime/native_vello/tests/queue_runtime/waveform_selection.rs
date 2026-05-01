@@ -224,7 +224,9 @@ fn command_waveform_edge_adjust_press_emits_immediately_without_arming_drag() {
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::compat_app_contract::NormalizedRangeModel::new(
+        200, 800,
+    ));
     bridge.model = model;
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = runner.bridge.project_model();
@@ -258,7 +260,9 @@ fn shift_click_playback_selection_slide_emits_immediately_without_arming_drag() 
         layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5),
     );
     let mut model = AppModel::default();
-    model.waveform.selection_milli = Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    model.waveform.selection_milli = Some(crate::compat_app_contract::NormalizedRangeModel::new(
+        200, 800,
+    ));
     bridge.model = model;
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = runner.bridge.project_model();
@@ -317,8 +321,9 @@ fn click_seek_release_pulls_queued_waveform_bridge_state_immediately() {
     );
     let mut bridge = QueuedWaveformClickBridge::default();
     bridge.model.transport_running = false;
-    bridge.model.waveform.selection_milli =
-        Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    bridge.model.waveform.selection_milli = Some(
+        crate::compat_app_contract::NormalizedRangeModel::new(200, 800),
+    );
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = runner.bridge.project_model();
     runner.shell_layout = Some(Arc::new(layout.clone()));
@@ -358,8 +363,9 @@ fn click_seek_release_arms_from_live_layout_borrow() {
     );
     let mut bridge = QueuedWaveformClickBridge::default();
     bridge.model.transport_running = false;
-    bridge.model.waveform.selection_milli =
-        Some(crate::sempal_app::NormalizedRangeModel::new(200, 800));
+    bridge.model.waveform.selection_milli = Some(
+        crate::compat_app_contract::NormalizedRangeModel::new(200, 800),
+    );
     let mut runner = NativeVelloRunner::new(NativeRunOptions::default(), bridge);
     runner.model = runner.bridge.project_model();
     runner.shell_layout = Some(Arc::new(layout.clone()));

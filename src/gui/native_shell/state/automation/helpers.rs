@@ -1,7 +1,7 @@
 //! Shared helper utilities for semantic automation snapshot builders.
 
 use super::*;
-use crate::sempal_app::{
+use crate::compat_app_contract::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     NormalizedRangeModel, UpdateStatusModel,
 };

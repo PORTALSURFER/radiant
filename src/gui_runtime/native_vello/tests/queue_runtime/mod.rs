@@ -3,29 +3,31 @@ use super::*;
 fn browser_drag_model() -> AppModel {
     let mut model = browser_model_with_rows(4, 0);
     let folder_rows = vec![
-        crate::sempal_app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
-            .with_source_index(0),
-        crate::sempal_app::FolderRowModel::new(
+        crate::compat_app_contract::FolderRowModel::new(
+            "Root", "", 0, false, false, true, true, true,
+        )
+        .with_source_index(0),
+        crate::compat_app_contract::FolderRowModel::new(
             "Drums", "drums", 1, false, false, false, true, true,
         )
         .with_source_index(7),
     ];
     model.sources = SourcesPanelModel {
         folder_rows: folder_rows.clone().into(),
-        upper_folder_pane: crate::sempal_app::FolderPaneModel {
-            pane: crate::sempal_app::FolderPaneIdModel::Upper,
+        upper_folder_pane: crate::compat_app_contract::FolderPaneModel {
+            pane: crate::compat_app_contract::FolderPaneIdModel::Upper,
             title: String::from("Upper"),
             active: true,
             has_source: true,
             folder_rows: folder_rows.clone().into(),
-            ..crate::sempal_app::FolderPaneModel::default()
+            ..crate::compat_app_contract::FolderPaneModel::default()
         },
-        lower_folder_pane: crate::sempal_app::FolderPaneModel {
-            pane: crate::sempal_app::FolderPaneIdModel::Lower,
+        lower_folder_pane: crate::compat_app_contract::FolderPaneModel {
+            pane: crate::compat_app_contract::FolderPaneIdModel::Lower,
             title: String::from("Lower"),
             has_source: true,
             folder_rows: folder_rows.into(),
-            ..crate::sempal_app::FolderPaneModel::default()
+            ..crate::compat_app_contract::FolderPaneModel::default()
         },
         ..SourcesPanelModel::default()
     };
@@ -225,48 +227,52 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
 
     fn resolve_hotkey_press(
         &mut self,
-        pending_chord: Option<crate::sempal_app::KeyPress>,
-        press: crate::sempal_app::KeyPress,
-        focus: crate::sempal_app::FocusContextModel,
-    ) -> crate::sempal_app::HotkeyResolution {
+        pending_chord: Option<crate::compat_app_contract::KeyPress>,
+        press: crate::compat_app_contract::KeyPress,
+        focus: crate::compat_app_contract::FocusContextModel,
+    ) -> crate::compat_app_contract::HotkeyResolution {
         super::key_bindings::default_hotkey_resolver(pending_chord, press, focus)
     }
 
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
             UiAction::BeginWaveformSelectionAt { .. } => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
             }
             UiAction::BeginWaveformSelectionAtPrecise { .. } => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
             }
             UiAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
                 ..
             } => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
-                self.model.waveform.selection_milli =
-                    Some(crate::sempal_app::NormalizedRangeModel::from_micros(
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
+                self.model.waveform.selection_milli = Some(
+                    crate::compat_app_contract::NormalizedRangeModel::from_micros(
                         *start_micros,
                         *end_micros,
-                    ));
+                    ),
+                );
             }
             UiAction::SetWaveformSelectionRangePrecise {
                 start_nanos,
                 end_nanos,
                 ..
             } => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
                 self.model.waveform.selection_milli = Some(
-                    crate::sempal_app::NormalizedRangeModel::from_nanos(*start_nanos, *end_nanos),
+                    crate::compat_app_contract::NormalizedRangeModel::from_nanos(
+                        *start_nanos,
+                        *end_nanos,
+                    ),
                 );
             }
             UiAction::FinishWaveformSelectionDrag => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
             }
             UiAction::FinishWaveformSelectionRangeDrag => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
             }
             _ => {}
         }
@@ -311,7 +317,7 @@ impl NativeAppBridge for QueuedWaveformClickBridge {
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
             UiAction::BeginWaveformSelectionAt { .. } => {
-                self.model.focus_context = crate::sempal_app::FocusContextModel::Waveform;
+                self.model.focus_context = crate::compat_app_contract::FocusContextModel::Waveform;
                 self.actions.push(action);
             }
             UiAction::ClearWaveformSelection | UiAction::SeekWaveformPrecise { .. } => {

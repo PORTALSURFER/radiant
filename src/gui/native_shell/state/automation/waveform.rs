@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
-use crate::sempal_app::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
+use crate::compat_app_contract::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
 
 /// Build semantic automation for the waveform panel.
 pub(super) fn build_waveform_automation(
@@ -48,7 +48,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::sempal_app::FocusContextModel::Waveform
+            crate::compat_app_contract::FocusContextModel::Waveform
         ),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
@@ -143,7 +143,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::sempal_app::FocusContextModel::Waveform
+            crate::compat_app_contract::FocusContextModel::Waveform
         ),
         available_actions: vec![String::from("focus_waveform_panel")],
         metadata: std::collections::BTreeMap::new(),

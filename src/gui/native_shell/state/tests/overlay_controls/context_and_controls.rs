@@ -26,14 +26,18 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         (row_rect.min.x + row_rect.max.x) * 0.5,
         (row_rect.min.y + row_rect.max.y) * 0.5,
     );
-    state.open_source_context_menu_for_row(crate::sempal_app::FolderPaneIdModel::Upper, 0, anchor);
+    state.open_source_context_menu_for_row(
+        crate::compat_app_contract::FolderPaneIdModel::Upper,
+        0,
+        anchor,
+    );
 
     let reload_rect = state
         .source_context_menu_button_rect(
             &layout,
             &model,
             UiAction::ReloadSourceRow {
-                pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 index: 0,
             },
         )
@@ -45,7 +49,7 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
         Some(UiAction::ReloadSourceRow {
-            pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+            pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
             index: 0,
         })
     );
@@ -70,7 +74,7 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
-        crate::sempal_app::FolderPaneIdModel::Upper,
+        crate::compat_app_contract::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
@@ -79,7 +83,7 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
             &layout,
             &model,
             UiAction::ReloadSourceRow {
-                pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 index: 0,
             },
         )
@@ -113,7 +117,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
-        crate::sempal_app::FolderPaneIdModel::Upper,
+        crate::compat_app_contract::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
@@ -123,7 +127,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
             &layout,
             &model,
             UiAction::RemoveSourceRow {
-                pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
                 index: 0,
             },
         )
@@ -135,7 +139,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
         Some(UiAction::RemoveSourceRow {
-            pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+            pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
             index: 0,
         })
     );
@@ -263,9 +267,9 @@ fn options_panel_contains_points_inside_panel() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -279,10 +283,10 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
             trash_folder_label: Some(String::from("trash_bin")),
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -323,10 +327,10 @@ fn options_panel_default_identifier_button_emits_edit_action() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
             default_identifier: String::from("portal"),
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -354,10 +358,10 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        audio_engine: crate::sempal_app::AudioEngineModel {
-            chip_state: crate::sempal_app::AudioEngineChipStateModel::Error,
+        audio_engine: crate::compat_app_contract::AudioEngineModel {
+            chip_state: crate::compat_app_contract::AudioEngineChipStateModel::Error,
             chip_label: String::from("Audio Err"),
-            ..crate::sempal_app::AudioEngineModel::default()
+            ..crate::compat_app_contract::AudioEngineModel::default()
         },
         ..AppModel::default()
     };
@@ -386,8 +390,8 @@ fn top_bar_update_buttons_emit_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
     let model = AppModel {
-        update: crate::sempal_app::UpdatePanelModel {
-            status: crate::sempal_app::UpdateStatusModel::Available,
+        update: crate::compat_app_contract::UpdatePanelModel {
+            status: crate::compat_app_contract::UpdateStatusModel::Available,
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),
@@ -422,36 +426,36 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
-        audio_engine: crate::sempal_app::AudioEngineModel {
-            output_host: crate::sempal_app::AudioFieldModel {
+        audio_engine: crate::compat_app_contract::AudioEngineModel {
+            output_host: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            output_device: crate::sempal_app::AudioFieldModel {
+            output_device: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Output Device"),
                 value_label: String::from("USB"),
             },
-            output_sample_rate: crate::sempal_app::AudioFieldModel {
+            output_sample_rate: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Output Sample Rate"),
                 value_label: String::from("48 kHz"),
             },
-            input_host: crate::sempal_app::AudioFieldModel {
+            input_host: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Input Host"),
                 value_label: String::from("WASAPI"),
             },
-            input_device: crate::sempal_app::AudioFieldModel {
+            input_device: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Input Device"),
                 value_label: String::from("Mic"),
             },
-            input_sample_rate: crate::sempal_app::AudioFieldModel {
+            input_sample_rate: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Input Sample Rate"),
                 value_label: String::from("44.1 kHz"),
             },
-            ..crate::sempal_app::AudioEngineModel::default()
+            ..crate::compat_app_contract::AudioEngineModel::default()
         },
         ..AppModel::default()
     };
@@ -485,25 +489,31 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
-        audio_engine: crate::sempal_app::AudioEngineModel {
-            active_picker: Some(crate::sempal_app::AudioPickerTargetModel::OutputSampleRate),
+        audio_engine: crate::compat_app_contract::AudioEngineModel {
+            active_picker: Some(
+                crate::compat_app_contract::AudioPickerTargetModel::OutputSampleRate,
+            ),
             output_sample_rate_options: vec![
-                crate::sempal_app::AudioOptionItemModel {
+                crate::compat_app_contract::AudioOptionItemModel {
                     label: String::from("Device default"),
                     selected: false,
-                    value: crate::sempal_app::AudioOptionValueModel::OutputSampleRate(None),
+                    value: crate::compat_app_contract::AudioOptionValueModel::OutputSampleRate(
+                        None,
+                    ),
                 },
-                crate::sempal_app::AudioOptionItemModel {
+                crate::compat_app_contract::AudioOptionItemModel {
                     label: String::from("48 kHz"),
                     selected: true,
-                    value: crate::sempal_app::AudioOptionValueModel::OutputSampleRate(Some(48_000)),
+                    value: crate::compat_app_contract::AudioOptionValueModel::OutputSampleRate(
+                        Some(48_000),
+                    ),
                 },
             ],
-            ..crate::sempal_app::AudioEngineModel::default()
+            ..crate::compat_app_contract::AudioEngineModel::default()
         },
         ..AppModel::default()
     };
@@ -542,11 +552,11 @@ fn options_panel_renders_after_other_modal_overlays() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::sempal_app::OptionsPanelModel {
+        options_panel: crate::compat_app_contract::OptionsPanelModel {
             visible: true,
-            ..crate::sempal_app::OptionsPanelModel::default()
+            ..crate::compat_app_contract::OptionsPanelModel::default()
         },
-        progress_overlay: crate::sempal_app::ProgressOverlayModel {
+        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
             visible: true,
             modal: true,
             title: String::from("Background task"),
@@ -556,13 +566,13 @@ fn options_panel_renders_after_other_modal_overlays() {
             cancelable: true,
             cancel_requested: false,
         },
-        audio_engine: crate::sempal_app::AudioEngineModel {
+        audio_engine: crate::compat_app_contract::AudioEngineModel {
             chip_label: String::from("48 kHz"),
-            output_host: crate::sempal_app::AudioFieldModel {
+            output_host: crate::compat_app_contract::AudioFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            ..crate::sempal_app::AudioEngineModel::default()
+            ..crate::compat_app_contract::AudioEngineModel::default()
         },
         ..AppModel::default()
     };

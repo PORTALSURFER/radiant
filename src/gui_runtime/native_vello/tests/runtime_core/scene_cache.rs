@@ -28,11 +28,11 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
 
     let mut changed_channel = baseline.clone();
     changed_channel.waveform_channel_view = match baseline.waveform_channel_view {
-        crate::sempal_app::WaveformChannelViewModel::Mono => {
-            crate::sempal_app::WaveformChannelViewModel::Stereo
+        crate::compat_app_contract::WaveformChannelViewModel::Mono => {
+            crate::compat_app_contract::WaveformChannelViewModel::Stereo
         }
-        crate::sempal_app::WaveformChannelViewModel::Stereo => {
-            crate::sempal_app::WaveformChannelViewModel::Mono
+        crate::compat_app_contract::WaveformChannelViewModel::Stereo => {
+            crate::compat_app_contract::WaveformChannelViewModel::Mono
         }
     };
     assert_ne!(
@@ -97,8 +97,8 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let mut changed_slices = baseline.clone();
     changed_slices
         .waveform_slices
-        .push(crate::sempal_app::WaveformSlicePreviewModel {
-            range: crate::sempal_app::NormalizedRangeModel::new(120, 240),
+        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+            range: crate::compat_app_contract::NormalizedRangeModel::new(120, 240),
             selected: false,
             focused: false,
             marked_for_export: false,
@@ -124,7 +124,7 @@ fn modal_overlay_signature_changes_for_drag_chip_pointer_motion() {
     let baseline_signature = modal_overlay_model_signature(&baseline);
 
     let mut changed = baseline.clone();
-    changed.drag_overlay = crate::sempal_app::DragOverlayModel {
+    changed.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("kick.wav"),
         target_label: String::from("Folder: drums"),
@@ -146,7 +146,7 @@ fn modal_overlay_signature_changes_for_drag_chip_pointer_motion() {
 #[test]
 fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
     let mut baseline = AppModel::default();
-    baseline.drag_overlay = crate::sempal_app::DragOverlayModel {
+    baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("kick.wav"),
         target_label: String::from("Folder: drums"),
@@ -157,7 +157,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
     let shell = HoverOverlayFingerprint {
         hovered: Some(ShellNodeKind::Sidebar),
         hovered_browser_visible_row: None,
-        hovered_folder_pane: Some(crate::sempal_app::FolderPaneIdModel::Upper),
+        hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
         hovered_folder_row_index: Some(0),
         hovered_waveform_toolbar_hint: None,
         browser_search_editor_signature: 0,
@@ -178,7 +178,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
 #[test]
 fn focus_overlay_signature_ignores_drag_chip_pointer_motion() {
     let mut baseline = AppModel::default();
-    baseline.drag_overlay = crate::sempal_app::DragOverlayModel {
+    baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("kick.wav"),
         target_label: String::from("Folder: drums"),
@@ -234,7 +234,7 @@ fn focus_overlay_signature_ignores_selected_only_browser_text_changes() {
     baseline
         .browser
         .rows
-        .push(crate::sempal_app::BrowserRowModel::new(
+        .push(crate::compat_app_contract::BrowserRowModel::new(
             0,
             String::from("kick"),
             1,
@@ -268,7 +268,7 @@ fn focus_overlay_signature_changes_for_selected_only_browser_marker_state() {
     baseline
         .browser
         .rows
-        .push(crate::sempal_app::BrowserRowModel::new(
+        .push(crate::compat_app_contract::BrowserRowModel::new(
             0,
             String::from("kick"),
             1,

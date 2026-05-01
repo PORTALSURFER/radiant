@@ -5,12 +5,12 @@ fn resolved_action(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
 }
 
 pub(super) fn default_hotkey_resolver(
-    pending_chord: Option<crate::sempal_app::KeyPress>,
-    press: crate::sempal_app::KeyPress,
-    focus: crate::sempal_app::FocusContextModel,
-) -> crate::sempal_app::HotkeyResolution {
+    pending_chord: Option<crate::compat_app_contract::KeyPress>,
+    press: crate::compat_app_contract::KeyPress,
+    focus: crate::compat_app_contract::FocusContextModel,
+) -> crate::compat_app_contract::HotkeyResolution {
     if let Some(first) = pending_chord {
-        if first == crate::sempal_app::KeyPress::new(KeyCode::G) {
+        if first == crate::compat_app_contract::KeyPress::new(KeyCode::G) {
             let action = match press.key {
                 KeyCode::W => Some(UiAction::FocusWaveformPanel),
                 KeyCode::B => Some(UiAction::FocusBrowserPanel),
@@ -18,21 +18,21 @@ pub(super) fn default_hotkey_resolver(
                 KeyCode::S => Some(UiAction::FocusSourcesPanel),
                 _ => None,
             };
-            return crate::sempal_app::HotkeyResolution {
+            return crate::compat_app_contract::HotkeyResolution {
                 handled: true,
                 pending_chord: None,
                 action,
             };
         }
-        return crate::sempal_app::HotkeyResolution {
+        return crate::compat_app_contract::HotkeyResolution {
             action: None,
             handled: true,
             pending_chord: None,
         };
     }
 
-    if press == crate::sempal_app::KeyPress::new(KeyCode::G) {
-        return crate::sempal_app::HotkeyResolution {
+    if press == crate::compat_app_contract::KeyPress::new(KeyCode::G) {
+        return crate::compat_app_contract::HotkeyResolution {
             action: None,
             handled: true,
             pending_chord: Some(press),
@@ -40,139 +40,139 @@ pub(super) fn default_hotkey_resolver(
     }
 
     let action = match focus {
-        crate::sempal_app::FocusContextModel::None => global_hotkey_action(press),
-        crate::sempal_app::FocusContextModel::SampleBrowser => {
+        crate::compat_app_contract::FocusContextModel::None => global_hotkey_action(press),
+        crate::compat_app_contract::FocusContextModel::SampleBrowser => {
             browser_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::sempal_app::FocusContextModel::Waveform => {
+        crate::compat_app_contract::FocusContextModel::Waveform => {
             waveform_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::sempal_app::FocusContextModel::SourceFolders => {
+        crate::compat_app_contract::FocusContextModel::SourceFolders => {
             folder_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
-        crate::sempal_app::FocusContextModel::SourcesList => {
+        crate::compat_app_contract::FocusContextModel::SourcesList => {
             sources_hotkey_action(press).or_else(|| global_hotkey_action(press))
         }
     };
 
-    crate::sempal_app::HotkeyResolution {
+    crate::compat_app_contract::HotkeyResolution {
         handled: action.is_some(),
         pending_chord: None,
         action,
     }
 }
 
-fn global_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+fn global_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::Space) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::Space) => {
             Some(UiAction::PlayFromStart)
         }
-        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::Space) => {
+        press if press == crate::compat_app_contract::KeyPress::with_shift(KeyCode::Space) => {
             Some(UiAction::PlayCompareAnchor)
         }
-        press if press == crate::sempal_app::KeyPress::with_command(KeyCode::Space) => {
+        press if press == crate::compat_app_contract::KeyPress::with_command(KeyCode::Space) => {
             Some(UiAction::PlayFromCurrentPlayhead)
         }
         _ => None,
     }
 }
 
-fn browser_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::N) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::N) => {
             Some(UiAction::NormalizeFocusedBrowserSample)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::D) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::D) => {
             Some(UiAction::DeleteBrowserSelection)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowUp) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowUp) => {
             Some(UiAction::MoveBrowserFocus { delta: -1 })
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowDown) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowDown) => {
             Some(UiAction::MoveBrowserFocus { delta: 1 })
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowLeft) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowLeft) => {
             Some(UiAction::FocusPreviousBrowserHistory)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowRight) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowRight) => {
             Some(UiAction::FocusNextBrowserHistory)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::X) => {
             Some(UiAction::ToggleFocusedBrowserRowSelection)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::S) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::S) => {
             Some(UiAction::ToggleFindSimilarFocusedSample)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::Semicolon) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::Semicolon) => {
             Some(UiAction::ToggleBrowserSampleMark)
         }
         _ => None,
     }
 }
 
-fn folder_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+fn folder_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::D) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::D) => {
             Some(UiAction::DeleteFocusedFolder)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::N) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::N) => {
             Some(UiAction::StartNewFolder)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::R) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::R) => {
             Some(UiAction::StartFolderRename)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowLeft) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowLeft) => {
             Some(UiAction::CollapseFocusedFolder)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowRight) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowRight) => {
             Some(UiAction::ExpandFocusedFolder)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowUp) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowUp) => {
             Some(UiAction::MoveFolderFocus { delta: -1 })
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowDown) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowDown) => {
             Some(UiAction::MoveFolderFocus { delta: 1 })
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::X) => {
             Some(UiAction::ToggleFocusedFolderSelection)
         }
         _ => None,
     }
 }
 
-fn sources_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+fn sources_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::R) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::R) => {
             Some(UiAction::ReloadFocusedSourceRow)
         }
         _ => None,
     }
 }
 
-fn waveform_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+fn waveform_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::S) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::S) => {
             Some(UiAction::AlignWaveformStartToMarker)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::Enter) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::Enter) => {
             Some(UiAction::CommitWaveformEditFades)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::E) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::E) => {
             Some(UiAction::SaveWaveformSelectionToBrowser)
         }
-        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::E) => {
+        press if press == crate::compat_app_contract::KeyPress::with_shift(KeyCode::E) => {
             Some(UiAction::SaveWaveformSelectionToBrowserWithKeep2)
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::B) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::B) => {
             Some(UiAction::ToggleBpmSnap)
         }
-        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::ArrowRight) => {
+        press if press == crate::compat_app_contract::KeyPress::with_shift(KeyCode::ArrowRight) => {
             Some(UiAction::SlideWaveformSelection {
                 delta: 1,
                 fine: true,
             })
         }
-        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+        press if press == crate::compat_app_contract::KeyPress::new(KeyCode::X) => {
             Some(UiAction::ZoomWaveformFull)
         }
         _ => None,
@@ -191,10 +191,10 @@ impl NativeAppBridge for RecordingBridge {
 
     fn resolve_hotkey_press(
         &mut self,
-        pending_chord: Option<crate::sempal_app::KeyPress>,
-        press: crate::sempal_app::KeyPress,
-        focus: crate::sempal_app::FocusContextModel,
-    ) -> crate::sempal_app::HotkeyResolution {
+        pending_chord: Option<crate::compat_app_contract::KeyPress>,
+        press: crate::compat_app_contract::KeyPress,
+        focus: crate::compat_app_contract::FocusContextModel,
+    ) -> crate::compat_app_contract::HotkeyResolution {
         default_hotkey_resolver(pending_chord, press, focus)
     }
 
@@ -214,7 +214,7 @@ impl ImmediateFolderCreateBridge {
     fn with_root() -> Self {
         Self {
             model: AppModel {
-                focus_context: crate::sempal_app::FocusContextModel::SourceFolders,
+                focus_context: crate::compat_app_contract::FocusContextModel::SourceFolders,
                 sources: SourcesPanelModel {
                     folder_rows: vec![root_folder_row()].into(),
                     ..SourcesPanelModel::default()
@@ -231,7 +231,7 @@ impl ImmediateFolderCreateBridge {
 
     fn set_inline_draft(&mut self, value: String, rename: bool) {
         let draft = if rename {
-            crate::sempal_app::FolderRowModel::rename_draft(
+            crate::compat_app_contract::FolderRowModel::rename_draft(
                 1,
                 value.clone(),
                 String::from("Folder name"),
@@ -239,7 +239,7 @@ impl ImmediateFolderCreateBridge {
                 true,
             )
         } else {
-            crate::sempal_app::FolderRowModel::create_draft(
+            crate::compat_app_contract::FolderRowModel::create_draft(
                 1,
                 value.clone(),
                 String::from("New folder name"),
@@ -261,7 +261,7 @@ impl ImmediateFolderCreateBridge {
     fn add_created_folder(&mut self, value: String) {
         self.model.sources.folder_rows = vec![
             root_folder_row(),
-            crate::sempal_app::FolderRowModel::new(
+            crate::compat_app_contract::FolderRowModel::new(
                 value.clone(),
                 value,
                 1,
@@ -285,10 +285,10 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
 
     fn resolve_hotkey_press(
         &mut self,
-        pending_chord: Option<crate::sempal_app::KeyPress>,
-        press: crate::sempal_app::KeyPress,
-        focus: crate::sempal_app::FocusContextModel,
-    ) -> crate::sempal_app::HotkeyResolution {
+        pending_chord: Option<crate::compat_app_contract::KeyPress>,
+        press: crate::compat_app_contract::KeyPress,
+        focus: crate::compat_app_contract::FocusContextModel,
+    ) -> crate::compat_app_contract::HotkeyResolution {
         default_hotkey_resolver(pending_chord, press, focus)
     }
 
@@ -314,7 +314,7 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
                     .sources
                     .folder_rows
                     .iter()
-                    .find(|row| row.kind == crate::sempal_app::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
                     .and_then(|row| row.input_value.clone())
                     .map(|value| value.trim().to_string())
                     .unwrap_or_default();
@@ -329,8 +329,8 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
     }
 }
 
-fn root_folder_row() -> crate::sempal_app::FolderRowModel {
-    crate::sempal_app::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
+fn root_folder_row() -> crate::compat_app_contract::FolderRowModel {
+    crate::compat_app_contract::FolderRowModel::new("Root", "", 0, false, false, true, true, true)
         .with_source_index(0)
 }
 

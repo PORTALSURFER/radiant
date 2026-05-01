@@ -2,7 +2,7 @@
 
 use super::helpers::{metadata, simple_node};
 use super::*;
-use crate::sempal_app::AutomationRole;
+use crate::compat_app_contract::AutomationRole;
 
 /// Build semantic automation for the top bar and embedded update panel.
 pub(super) fn build_top_bar_automation(

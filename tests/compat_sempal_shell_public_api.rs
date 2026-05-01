@@ -294,6 +294,32 @@ fn drag_overlay_model_is_owned_by_generic_feedback_module() {
 }
 
 #[test]
+fn update_panel_model_is_owned_by_generic_feedback_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let feedback_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
+            .expect("feedback module should be readable");
+
+    assert!(
+        !shell_mod.contains("pub enum UpdateStatusModel")
+            && !shell_mod.contains("pub struct UpdatePanelModel"),
+        "UpdateStatusModel and UpdatePanelModel are generic update feedback state, not shell DTOs"
+    );
+    assert!(
+        shell_mod.contains("pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;")
+            && shell_mod
+                .contains("pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;"),
+        "the compatibility app contract should alias generic update feedback types"
+    );
+    assert!(
+        feedback_mod.contains("pub enum UpdateStatus")
+            && feedback_mod.contains("pub struct UpdatePanel"),
+        "generic feedback module should own reusable update feedback behavior"
+    );
+}
+
+#[test]
 fn browser_tag_state_is_owned_by_generic_selection_module() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

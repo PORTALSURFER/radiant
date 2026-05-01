@@ -3,6 +3,8 @@
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
 pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
+pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
+pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
@@ -109,39 +111,6 @@ pub struct AudioEngineModel {
     pub input_device_options: Vec<AudioOptionItemModel>,
     /// Input sample-rate choices.
     pub input_sample_rate_options: Vec<AudioOptionItemModel>,
-}
-
-/// Update-check status projected into the native shell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum UpdateStatusModel {
-    /// No update activity in progress.
-    #[default]
-    Idle,
-    /// Update check is running.
-    Checking,
-    /// A newer update is available.
-    Available,
-    /// Update check failed.
-    Error,
-}
-
-/// Update panel state used by native top-bar actions.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct UpdatePanelModel {
-    /// Current update-check status.
-    pub status: UpdateStatusModel,
-    /// Status label rendered in native top-bar chrome.
-    pub status_label: String,
-    /// Action hint label rendered near update controls.
-    pub action_hint_label: String,
-    /// Supplemental release-notes label rendered under update hints.
-    pub release_notes_label: String,
-    /// Available release tag, when present.
-    pub available_tag: Option<String>,
-    /// Available release URL, when present.
-    pub available_url: Option<String>,
-    /// Last error message from update checks, if any.
-    pub last_error: Option<String>,
 }
 
 /// Options-panel state projected into the native shell.

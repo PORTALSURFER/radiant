@@ -170,6 +170,34 @@ fn generic_integration_tests_do_not_reintroduce_sempal_shell_fixtures() {
     );
 }
 
+#[test]
+fn generic_native_example_stays_non_sempal_and_runtime_backed() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let example_path = manifest_dir.join("examples/generic_native.rs");
+    let source = fs::read_to_string(&example_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", example_path.display()));
+    let uncommented = strip_rust_comments(&source);
+
+    for forbidden in FORBIDDEN_GENERIC_TEST_TOKENS {
+        assert!(
+            !uncommented.contains(forbidden),
+            "generic_native example must not depend on Sempal compatibility fixtures, found `{forbidden}`"
+        );
+    }
+    for required in [
+        "declarative_runtime_bridge",
+        "run_native_vello_runtime",
+        "UiSurface",
+        "WidgetSpec::Button",
+        "WidgetSpec::Text",
+    ] {
+        assert!(
+            uncommented.contains(required),
+            "generic_native example should exercise the generic runtime/widget API via `{required}`"
+        );
+    }
+}
+
 #[derive(Debug)]
 struct ExtractionRule {
     pattern: String,

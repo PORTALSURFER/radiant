@@ -19,7 +19,21 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/runtime",
     "src/widgets",
     "src/theme.rs",
+    "src/gui/badge.rs",
+    "src/gui/chrome.rs",
+    "src/gui/feedback.rs",
+    "src/gui/frame.rs",
+    "src/gui/input.rs",
+    "src/gui/invalidation.rs",
     "src/gui/layout_core",
+    "src/gui/list.rs",
+    "src/gui/range.rs",
+    "src/gui/repaint.rs",
+    "src/gui/retained.rs",
+    "src/gui/selection.rs",
+    "src/gui/shortcuts.rs",
+    "src/gui/types.rs",
+    "src/gui/visualization.rs",
 ];
 
 const COMPAT_INTEGRATION_TESTS: &[&str] = &[

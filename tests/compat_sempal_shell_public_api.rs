@@ -115,6 +115,32 @@ fn retained_vec_is_owned_by_generic_retained_module() {
 }
 
 #[test]
+fn frame_build_result_is_owned_by_generic_frame_module() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+    let dirty_segments_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/dirty_segments.rs"
+    ))
+    .expect("dirty segments module should be readable");
+    let frame_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/frame.rs"))
+        .expect("frame module should be readable");
+
+    assert!(
+        !dirty_segments_mod.contains("pub struct FrameBuildResult"),
+        "FrameBuildResult is generic frame feedback, not a Sempal dirty-segment DTO"
+    );
+    assert!(
+        app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"),
+        "the compatibility app contract should alias generic FrameBuildResult"
+    );
+    assert!(
+        frame_mod.contains("pub struct FrameBuildResult"),
+        "generic frame module should own FrameBuildResult"
+    );
+}
+
+#[test]
 fn crate_root_does_not_export_legacy_app_alias() {
     let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
         .expect("crate root should be readable");

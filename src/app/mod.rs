@@ -51,6 +51,7 @@ mod shell;
 mod sources;
 mod waveform;
 
+pub use crate::gui::frame::FrameBuildResult;
 pub use crate::gui::retained::RetainedVec;
 pub use actions::{BrowserTagTarget, UiAction};
 pub use automation::{
@@ -63,7 +64,7 @@ pub use browser::{
     BrowserRowProcessingState, BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState,
     MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
 };
-pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
+pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use hotkeys::{HotkeyResolution, KeyPress};
 pub use motion::NativeMotionModel;
 pub use shell::{

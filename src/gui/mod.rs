@@ -25,5 +25,7 @@ pub mod layout_core;
 pub(crate) mod native_shell;
 /// Backend-neutral repaint signaling primitives used by runtimes and background jobs.
 pub mod repaint;
+/// Retained snapshot storage primitives.
+pub mod retained;
 /// Geometry and image buffer types shared by UI code.
 pub mod types;

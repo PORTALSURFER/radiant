@@ -90,6 +90,31 @@ fn keypress_value_type_is_owned_by_generic_input_module() {
 }
 
 #[test]
+fn retained_vec_is_owned_by_generic_retained_module() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let retained_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/retained.rs"))
+            .expect("retained module should be readable");
+
+    assert!(
+        !browser_mod.contains("pub struct RetainedVec"),
+        "RetainedVec is generic retained storage, not a Sempal browser DTO"
+    );
+    assert!(
+        app_mod.contains("pub use crate::gui::retained::RetainedVec;"),
+        "the compatibility app contract should alias generic RetainedVec"
+    );
+    assert!(
+        retained_mod.contains("pub struct RetainedVec"),
+        "generic retained module should own RetainedVec"
+    );
+}
+
+#[test]
 fn crate_root_does_not_export_legacy_app_alias() {
     let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
         .expect("crate root should be readable");

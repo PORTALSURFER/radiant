@@ -1,0 +1,192 @@
+//! Ownership guardrails for primitives already extracted into generic Radiant modules.
+
+use std::fs;
+
+#[test]
+fn keypress_value_type_is_owned_by_generic_input_module() {
+    let hotkeys_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/hotkeys/mod.rs"
+    ))
+    .expect("hotkeys module should be readable");
+    let input_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/input.rs"))
+        .expect("input module should be readable");
+
+    assert!(!hotkeys_mod.contains("pub struct KeyPress"));
+    assert!(hotkeys_mod.contains("pub use crate::gui::input::KeyPress;"));
+    assert!(input_mod.contains("pub struct KeyPress"));
+}
+
+#[test]
+fn retained_vec_is_owned_by_generic_retained_module() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let retained_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/retained.rs"))
+            .expect("retained module should be readable");
+
+    assert!(!browser_mod.contains("pub struct RetainedVec"));
+    assert!(app_mod.contains("pub use crate::gui::retained::RetainedVec;"));
+    assert!(retained_mod.contains("pub struct RetainedVec"));
+}
+
+#[test]
+fn normalized_range_model_is_owned_by_generic_range_module() {
+    let waveform_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
+            .expect("waveform module should be readable");
+    let range_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/range.rs"))
+        .expect("range module should be readable");
+
+    assert!(!waveform_mod.contains("pub struct NormalizedRangeModel"));
+    assert!(
+        waveform_mod
+            .contains("pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;")
+    );
+    assert!(range_mod.contains("pub struct NormalizedRange"));
+}
+
+#[test]
+fn row_processing_state_is_owned_by_generic_list_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(!browser_mod.contains("pub enum BrowserRowProcessingState"));
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;")
+    );
+    assert!(list_mod.contains("pub enum RowProcessingState"));
+}
+
+#[test]
+fn column_summary_is_owned_by_generic_list_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(!sources_mod.contains("pub struct ColumnModel"));
+    assert!(sources_mod.contains("pub use crate::gui::list::ColumnSummary as ColumnModel;"));
+    assert!(list_mod.contains("pub struct ColumnSummary"));
+}
+
+#[test]
+fn editable_row_kind_is_owned_by_generic_list_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(!sources_mod.contains("pub enum FolderRowKind"));
+    assert!(sources_mod.contains("pub use crate::gui::list::EditableRowKind as FolderRowKind;"));
+    assert!(list_mod.contains("pub enum EditableRowKind"));
+}
+
+#[test]
+fn status_segments_are_owned_by_generic_chrome_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
+        .expect("chrome module should be readable");
+
+    assert!(!shell_mod.contains("pub struct StatusBarModel"));
+    assert!(shell_mod.contains("pub use crate::gui::chrome::StatusSegments as StatusBarModel;"));
+    assert!(chrome_mod.contains("pub struct StatusSegments"));
+}
+
+#[test]
+fn feedback_models_are_owned_by_generic_feedback_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let feedback_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
+            .expect("feedback module should be readable");
+
+    assert!(!shell_mod.contains("pub struct ProgressOverlayModel"));
+    assert!(!shell_mod.contains("pub struct DragOverlayModel"));
+    assert!(
+        !shell_mod.contains("pub enum UpdateStatusModel")
+            && !shell_mod.contains("pub struct UpdatePanelModel")
+    );
+    assert!(!shell_mod.contains("pub struct ConfirmPromptModel"));
+    assert!(
+        shell_mod
+            .contains("pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;")
+    );
+    assert!(shell_mod.contains("pub use crate::gui::feedback::DragOverlay as DragOverlayModel;"));
+    assert!(shell_mod.contains("pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;"));
+    assert!(shell_mod.contains("pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;"));
+    assert!(shell_mod.contains(
+        "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
+    ));
+    assert!(feedback_mod.contains("pub struct ProgressOverlay"));
+    assert!(feedback_mod.contains("pub struct DragOverlay"));
+    assert!(feedback_mod.contains("pub enum UpdateStatus"));
+    assert!(feedback_mod.contains("pub struct UpdatePanel"));
+    assert!(feedback_mod.contains("pub struct ConfirmPrompt<Kind>"));
+}
+
+#[test]
+fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let selection_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/selection.rs"))
+            .expect("selection module should be readable");
+    let badge_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/badge.rs"))
+        .expect("badge module should be readable");
+    let visualization_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/visualization.rs"
+    ))
+    .expect("visualization module should be readable");
+
+    assert!(!browser_mod.contains("pub enum BrowserTagState"));
+    assert!(!browser_mod.contains("pub struct BrowserTagPillModel"));
+    assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
+    assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"));
+    assert!(browser_mod.contains(
+        "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
+    ));
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;")
+    );
+    assert!(selection_mod.contains("pub enum TriState"));
+    assert!(badge_mod.contains("pub struct SelectablePill<State>"));
+    assert!(visualization_mod.contains("pub enum PointRenderMode"));
+}
+
+#[test]
+fn frame_and_invalidation_models_are_owned_by_generic_modules() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+    let dirty_segments_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/dirty_segments.rs"
+    ))
+    .expect("dirty segments module should be readable");
+    let frame_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/frame.rs"))
+        .expect("frame module should be readable");
+    let invalidation_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/invalidation.rs"
+    ))
+    .expect("invalidation module should be readable");
+
+    assert!(!dirty_segments_mod.contains("pub struct FrameBuildResult"));
+    assert!(app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
+    assert!(frame_mod.contains("pub struct FrameBuildResult"));
+    assert!(dirty_segments_mod.contains("use crate::gui::invalidation::InvalidationMask;"));
+    assert!(invalidation_mod.contains("pub struct InvalidationMask"));
+}

@@ -35,6 +35,8 @@ pub mod range;
 pub mod repaint;
 /// Retained snapshot storage primitives.
 pub mod retained;
+/// Generic selection state primitives.
+pub mod selection;
 /// Generic shortcut resolution primitives.
 pub mod shortcuts;
 /// Geometry and image buffer types shared by UI code.

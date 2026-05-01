@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
+pub use crate::gui::selection::TriState as BrowserTagState;
 use serde::{Deserialize, Serialize};
 
 /// Browser playback-age filter chips shown in the native toolbar.
@@ -284,18 +285,6 @@ pub struct BrowserActionsModel {
     pub duplicate_cleanup_active: bool,
     /// Whether the browser-local tag sidebar is currently open.
     pub tag_sidebar_open: bool,
-}
-
-/// Tri-state pill state used by the browser metadata editor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum BrowserTagState {
-    /// No selected rows currently carry the value.
-    #[default]
-    Off,
-    /// Every selected row currently carries the value.
-    On,
-    /// Selected rows disagree about the value.
-    Mixed,
 }
 
 /// One clickable tag pill projected into the browser metadata sidebar.

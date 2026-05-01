@@ -184,6 +184,29 @@ fn browser_row_processing_state_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn browser_tag_state_is_owned_by_generic_selection_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let selection_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/selection.rs"))
+            .expect("selection module should be readable");
+
+    assert!(
+        !browser_mod.contains("pub enum BrowserTagState"),
+        "BrowserTagState is generic tri-state selection state, not a browser DTO"
+    );
+    assert!(
+        browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"),
+        "the compatibility app contract should alias generic TriState"
+    );
+    assert!(
+        selection_mod.contains("pub enum TriState"),
+        "generic selection module should own reusable tri-state behavior"
+    );
+}
+
+#[test]
 fn frame_build_result_is_owned_by_generic_frame_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

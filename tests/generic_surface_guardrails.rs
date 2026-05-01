@@ -38,7 +38,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
 
 const EXEMPT_TOP_LEVEL_GUI_FILES: &[&str] = &["src/gui/mod.rs"];
 
-const COMPAT_INTEGRATION_TESTS: &[&str] = &["compat_sempal_shell_public_api.rs"];
+const COMPAT_INTEGRATION_TESTS: &[&str] = &[];
 
 const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
     "crate::app",

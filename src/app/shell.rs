@@ -1,6 +1,7 @@
 //! Top-level shell and overlay models exposed by the `radiant` app contract.
 
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
+pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 
 use super::{
@@ -204,23 +205,6 @@ pub struct ConfirmPromptModel {
     pub input_placeholder: Option<String>,
     /// Optional validation error shown below editable prompt input.
     pub input_error: Option<String>,
-}
-
-/// Drag/drop overlay content for native-shell feedback.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct DragOverlayModel {
-    /// Whether a drag payload is currently active.
-    pub active: bool,
-    /// Human-friendly payload label.
-    pub label: String,
-    /// Current hover target label.
-    pub target_label: String,
-    /// Whether the current target is a valid drop.
-    pub valid_target: bool,
-    /// Cursor anchor x-coordinate for the floating drag chip, when available.
-    pub pointer_x: Option<u16>,
-    /// Cursor anchor y-coordinate for the floating drag chip, when available.
-    pub pointer_y: Option<u16>,
 }
 
 /// Snapshot of app state required by the native shell renderer.

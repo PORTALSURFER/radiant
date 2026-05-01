@@ -99,6 +99,14 @@ testing, focus changes, pointer press/release routing, keyboard routing to the
 focused widget, and message mapping. Focus behavior is declared by widget
 contracts rather than by host-domain code.
 
+## Automation
+
+`radiant::gui::automation` owns the serializable automation snapshot contract:
+`AutomationNodeId`, `AutomationRole`, `AutomationBounds`,
+`AutomationNodeSnapshot`, and `GuiAutomationSnapshot`. Backends and test tools
+can consume this semantic tree without depending on a host application's state
+types or reducer.
+
 ## Invalidation And Lifecycle
 
 Hosts project immutable surface snapshots. Radiant compares widget identity,

@@ -17,6 +17,8 @@
 //! - `radiant` performs deterministic focus, pointer capture, and key routing.
 //! - App code receives action callbacks and updates domain state only.
 
+/// Generic GUI automation snapshot primitives.
+pub mod automation;
 /// Generic badge and pill primitives.
 pub mod badge;
 /// Generic chrome and status-surface primitives.

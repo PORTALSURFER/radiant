@@ -1,11 +1,20 @@
-//! Compatibility automation snapshot types emitted by the legacy shell/runtime.
+//! Serializable GUI automation snapshot primitives.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub use crate::gui::automation::{AutomationBounds, AutomationNodeId};
+/// Stable semantic identifier for one automation node in a GUI tree.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct AutomationNodeId(pub String);
 
-/// Semantic role describing how a compatibility automation node behaves.
+impl AutomationNodeId {
+    /// Create a new automation node identifier from an owned string.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+/// Semantic role describing how an automation node behaves in the GUI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AutomationRole {
@@ -31,19 +40,32 @@ pub enum AutomationRole {
     Row,
     /// Table or row-hosting list surface.
     Table,
-    /// Waveform interaction canvas.
-    WaveformRegion,
-    /// Map interaction canvas.
-    MapCanvas,
-    /// Focusable point inside the map canvas.
-    MapPoint,
+    /// Generic timeline or signal-canvas interaction region.
+    TimelineRegion,
+    /// Generic spatial or point-cloud canvas.
+    SpatialCanvas,
+    /// Focusable point inside a spatial canvas.
+    SpatialPoint,
     /// Status/readout region.
     Readout,
     /// Dialog or modal container.
     Dialog,
 }
 
-/// One node in the compatibility GUI automation tree.
+/// Quantized window-space bounds for one automation node.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationBounds {
+    /// Left edge in logical window coordinates.
+    pub x: f32,
+    /// Top edge in logical window coordinates.
+    pub y: f32,
+    /// Width in logical window coordinates.
+    pub width: f32,
+    /// Height in logical window coordinates.
+    pub height: f32,
+}
+
+/// One node in the GUI automation tree.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AutomationNodeSnapshot {
     /// Stable semantic identifier for this node.
@@ -73,9 +95,9 @@ pub struct AutomationNodeSnapshot {
 pub struct GuiAutomationSnapshot {
     /// Schema version for forward-compatible artifact readers.
     pub schema_version: u32,
-    /// Quantized viewport width for the captured shell layout.
+    /// Quantized viewport width for the captured layout.
     pub viewport_width: u32,
-    /// Quantized viewport height for the captured shell layout.
+    /// Quantized viewport height for the captured layout.
     pub viewport_height: u32,
     /// Root semantic automation node.
     pub root: AutomationNodeSnapshot,

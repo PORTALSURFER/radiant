@@ -193,3 +193,29 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     assert!(dirty_segments_mod.contains("use crate::gui::invalidation::InvalidationMask;"));
     assert!(invalidation_mod.contains("pub struct InvalidationMask"));
 }
+
+#[test]
+fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
+    let app_automation_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/automation.rs"
+    ))
+    .expect("app automation module should be readable");
+    let gui_automation_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/automation.rs"
+    ))
+    .expect("generic automation module should be readable");
+
+    assert!(
+        app_automation_mod
+            .contains("pub use crate::gui::automation::{AutomationBounds, AutomationNodeId};")
+    );
+    assert!(gui_automation_mod.contains("pub struct AutomationNodeSnapshot"));
+    assert!(gui_automation_mod.contains("pub enum AutomationRole"));
+    assert!(gui_automation_mod.contains("pub struct GuiAutomationSnapshot"));
+    assert!(gui_automation_mod.contains("TimelineRegion"));
+    assert!(gui_automation_mod.contains("SpatialCanvas"));
+    assert!(!gui_automation_mod.contains("WaveformRegion"));
+    assert!(!gui_automation_mod.contains("MapCanvas"));
+}

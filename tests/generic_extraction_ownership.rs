@@ -365,15 +365,21 @@ fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
     ))
     .expect("generic automation module should be readable");
 
+    assert!(!app_automation_mod.contains("pub enum AutomationRole"));
+    assert!(!app_automation_mod.contains("pub struct AutomationNodeSnapshot"));
+    assert!(!app_automation_mod.contains("pub struct GuiAutomationSnapshot"));
     assert!(
-        app_automation_mod
-            .contains("pub use crate::gui::automation::{AutomationBounds, AutomationNodeId};")
+        app_automation_mod.contains(
+            "pub use crate::gui::automation::{\n    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,\n    GuiAutomationSnapshot,\n};"
+        )
     );
     assert!(gui_automation_mod.contains("pub struct AutomationNodeSnapshot"));
     assert!(gui_automation_mod.contains("pub enum AutomationRole"));
     assert!(gui_automation_mod.contains("pub struct GuiAutomationSnapshot"));
     assert!(gui_automation_mod.contains("TimelineRegion"));
     assert!(gui_automation_mod.contains("SpatialCanvas"));
+    assert!(gui_automation_mod.contains("SpatialPoint"));
     assert!(!gui_automation_mod.contains("WaveformRegion"));
     assert!(!gui_automation_mod.contains("MapCanvas"));
+    assert!(!gui_automation_mod.contains("MapPoint"));
 }

@@ -21,4 +21,3 @@ src/gui_runtime/mod.rs	split_generic_from_compat	OPT-275	Runtime facade still do
 src/gui_runtime/native_vello.rs	split_generic_from_compat	OPT-275	Native Vello facade still mixes generic and Sempal compatibility runtime entrypoints.
 src/gui_runtime/native_vello/**	split_generic_from_compat	OPT-275	Native Vello tree mixes generic runtime support with Sempal shell input render startup and test glue.
 tests/compat_sempal_shell_public_api.rs	remove_compat_export	OPT-276	Compat public API coverage should be removed once the namespace disappears.
-tests/compat_status_bar_pilot.rs	move_to_sempal	OPT-275	Sempal status-bar compatibility coverage belongs in Sempal-owned tests after shell relocation.

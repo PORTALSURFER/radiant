@@ -3,7 +3,13 @@ use super::*;
 #[test]
 fn g_prefix_routes_section_focus_commands() {
     let focus = AppModel::default();
-    let first = action_from_key(KeyCode::G, ModifiersState::default(), &focus, None);
+    let first = action_from_key(
+        KeyCode::G,
+        ModifiersState::default(),
+        &focus,
+        None,
+        default_hotkey_resolver,
+    );
     assert_eq!(
         first.pending_chord,
         Some(crate::sempal_app::KeyPress::new(KeyCode::G))
@@ -15,6 +21,7 @@ fn g_prefix_routes_section_focus_commands() {
         ModifiersState::default(),
         &focus,
         first.pending_chord,
+        default_hotkey_resolver,
     );
     assert_eq!(second.action, Some(UiAction::FocusWaveformPanel));
 }

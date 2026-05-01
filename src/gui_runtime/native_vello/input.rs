@@ -26,8 +26,13 @@ pub(super) fn action_from_key(
     modifiers: ModifiersState,
     model: &AppModel,
     pending_chord: Option<crate::sempal_app::KeyPress>,
-) -> crate::sempal_app::hotkeys::HotkeyResolution {
-    key::action_from_key(key, modifiers, model, pending_chord)
+    resolve_hotkey: impl FnMut(
+        Option<crate::sempal_app::KeyPress>,
+        crate::sempal_app::KeyPress,
+        crate::sempal_app::FocusContextModel,
+    ) -> crate::sempal_app::HotkeyResolution,
+) -> crate::sempal_app::HotkeyResolution {
+    key::action_from_key(key, modifiers, model, pending_chord, resolve_hotkey)
 }
 
 #[cfg(test)]

@@ -8,7 +8,7 @@ use super::{FocusContextModel, HOTKEY_BINDINGS, KeyPress};
 
 /// Result of resolving one keypress against the catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct HotkeyResolution {
+pub struct HotkeyResolution {
     /// Action produced by this keypress, if any.
     pub action: Option<super::UiAction>,
     /// Whether the keypress was consumed by the hotkey system.

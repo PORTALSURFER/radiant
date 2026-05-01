@@ -12,7 +12,8 @@ use super::{FocusContextModel, UiAction};
 use crate::gui::input::KeyCode;
 
 pub(crate) use catalog::HOTKEY_BINDINGS;
-pub(crate) use resolution::{HotkeyResolution, resolve_hotkey_press};
+pub use resolution::HotkeyResolution;
+pub(crate) use resolution::resolve_hotkey_press;
 
 /// Logical section scope that owns a hotkey binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

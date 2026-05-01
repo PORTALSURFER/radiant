@@ -1,5 +1,5 @@
 use super::*;
-use crate::sempal_app::hotkeys::{HotkeyResolution, KeyPress, resolve_hotkey_press};
+use crate::sempal_app::{HotkeyResolution, KeyPress};
 
 pub(super) fn keypress_from_input(key: KeyCode, modifiers: ModifiersState) -> KeyPress {
     KeyPress {
@@ -15,6 +15,11 @@ pub(super) fn action_from_key(
     modifiers: ModifiersState,
     model: &AppModel,
     pending_chord: Option<KeyPress>,
+    mut resolve_hotkey: impl FnMut(
+        Option<KeyPress>,
+        KeyPress,
+        crate::sempal_app::FocusContextModel,
+    ) -> HotkeyResolution,
 ) -> HotkeyResolution {
     if model.confirm_prompt.visible {
         let confirm_enabled = model
@@ -54,7 +59,7 @@ pub(super) fn action_from_key(
             pending_chord: None,
         };
     }
-    resolve_hotkey_press(
+    resolve_hotkey(
         pending_chord,
         keypress_from_input(key, modifiers),
         model.focus_context,

@@ -169,8 +169,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if handled_by_shell {
             return true;
         }
-        let resolution =
-            action_from_key(key, self.modifiers, &self.model, self.pending_hotkey_chord);
+        let resolution = action_from_key(
+            key,
+            self.modifiers,
+            &self.model,
+            self.pending_hotkey_chord,
+            |pending_chord, press, focus| {
+                self.bridge
+                    .resolve_hotkey_press(pending_chord, press, focus)
+            },
+        );
         self.handle_hotkey_resolution(resolution)
     }
 

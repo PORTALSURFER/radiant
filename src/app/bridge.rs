@@ -1,7 +1,8 @@
 //! Host bridge traits exposed by the `radiant` app contract.
 
 use super::{
-    AppModel, DirtySegments, FrameBuildResult, NativeMotionModel, SegmentRevisions, UiAction,
+    AppModel, DirtySegments, FocusContextModel, FrameBuildResult, HotkeyResolution, KeyPress,
+    NativeMotionModel, SegmentRevisions, UiAction, hotkeys,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -78,6 +79,21 @@ pub trait NativeAppBridge {
     /// behavior.
     fn take_segment_revisions(&mut self) -> SegmentRevisions {
         SegmentRevisions::default()
+    }
+
+    /// Resolve one keyboard gesture against the host-owned shortcut catalog.
+    ///
+    /// The legacy Sempal shell keeps a default resolver here for compatibility.
+    /// Host applications that own their own command catalog should override this
+    /// method and return host-defined actions through the compatibility action
+    /// adapter.
+    fn resolve_hotkey_press(
+        &mut self,
+        pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        focus: FocusContextModel,
+    ) -> HotkeyResolution {
+        hotkeys::resolve_hotkey_press(pending_chord, press, focus)
     }
 
     /// Reduce one UI action into host state.

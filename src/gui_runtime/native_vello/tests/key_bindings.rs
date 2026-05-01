@@ -1,7 +1,15 @@
 use super::*;
 
 fn resolved_action(key: KeyCode, modifiers: ModifiersState, model: &AppModel) -> Option<UiAction> {
-    action_from_key(key, modifiers, model, None).action
+    action_from_key(key, modifiers, model, None, default_hotkey_resolver).action
+}
+
+fn default_hotkey_resolver(
+    pending_chord: Option<crate::sempal_app::KeyPress>,
+    press: crate::sempal_app::KeyPress,
+    focus: crate::sempal_app::FocusContextModel,
+) -> crate::sempal_app::HotkeyResolution {
+    crate::sempal_app::hotkeys::resolve_hotkey_press(pending_chord, press, focus)
 }
 
 #[derive(Default)]

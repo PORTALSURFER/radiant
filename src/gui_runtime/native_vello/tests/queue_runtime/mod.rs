@@ -223,6 +223,15 @@ impl NativeAppBridge for ImmediateWaveformSelectionBridge {
         Arc::new(self.model.clone())
     }
 
+    fn resolve_hotkey_press(
+        &mut self,
+        pending_chord: Option<crate::sempal_app::KeyPress>,
+        press: crate::sempal_app::KeyPress,
+        focus: crate::sempal_app::FocusContextModel,
+    ) -> crate::sempal_app::HotkeyResolution {
+        super::key_bindings::default_hotkey_resolver(pending_chord, press, focus)
+    }
+
     fn reduce_action(&mut self, action: UiAction) {
         match &action {
             UiAction::BeginWaveformSelectionAt { .. } => {

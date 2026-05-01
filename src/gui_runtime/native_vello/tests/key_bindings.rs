@@ -4,12 +4,179 @@ fn resolved_action(key: KeyCode, modifiers: ModifiersState, model: &AppModel) ->
     action_from_key(key, modifiers, model, None, default_hotkey_resolver).action
 }
 
-fn default_hotkey_resolver(
+pub(super) fn default_hotkey_resolver(
     pending_chord: Option<crate::sempal_app::KeyPress>,
     press: crate::sempal_app::KeyPress,
     focus: crate::sempal_app::FocusContextModel,
 ) -> crate::sempal_app::HotkeyResolution {
-    crate::sempal_app::hotkeys::resolve_hotkey_press(pending_chord, press, focus)
+    if let Some(first) = pending_chord {
+        if first == crate::sempal_app::KeyPress::new(KeyCode::G) {
+            let action = match press.key {
+                KeyCode::W => Some(UiAction::FocusWaveformPanel),
+                KeyCode::B => Some(UiAction::FocusBrowserPanel),
+                KeyCode::T => Some(UiAction::FocusFolderPanel { pane: None }),
+                KeyCode::S => Some(UiAction::FocusSourcesPanel),
+                _ => None,
+            };
+            return crate::sempal_app::HotkeyResolution {
+                handled: true,
+                pending_chord: None,
+                action,
+            };
+        }
+        return crate::sempal_app::HotkeyResolution {
+            action: None,
+            handled: true,
+            pending_chord: None,
+        };
+    }
+
+    if press == crate::sempal_app::KeyPress::new(KeyCode::G) {
+        return crate::sempal_app::HotkeyResolution {
+            action: None,
+            handled: true,
+            pending_chord: Some(press),
+        };
+    }
+
+    let action = match focus {
+        crate::sempal_app::FocusContextModel::None => global_hotkey_action(press),
+        crate::sempal_app::FocusContextModel::SampleBrowser => {
+            browser_hotkey_action(press).or_else(|| global_hotkey_action(press))
+        }
+        crate::sempal_app::FocusContextModel::Waveform => {
+            waveform_hotkey_action(press).or_else(|| global_hotkey_action(press))
+        }
+        crate::sempal_app::FocusContextModel::SourceFolders => {
+            folder_hotkey_action(press).or_else(|| global_hotkey_action(press))
+        }
+        crate::sempal_app::FocusContextModel::SourcesList => {
+            sources_hotkey_action(press).or_else(|| global_hotkey_action(press))
+        }
+    };
+
+    crate::sempal_app::HotkeyResolution {
+        handled: action.is_some(),
+        pending_chord: None,
+        action,
+    }
+}
+
+fn global_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+    match press {
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::Space) => {
+            Some(UiAction::PlayFromStart)
+        }
+        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::Space) => {
+            Some(UiAction::PlayCompareAnchor)
+        }
+        press if press == crate::sempal_app::KeyPress::with_command(KeyCode::Space) => {
+            Some(UiAction::PlayFromCurrentPlayhead)
+        }
+        _ => None,
+    }
+}
+
+fn browser_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+    match press {
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::N) => {
+            Some(UiAction::NormalizeFocusedBrowserSample)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::D) => {
+            Some(UiAction::DeleteBrowserSelection)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowUp) => {
+            Some(UiAction::MoveBrowserFocus { delta: -1 })
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowDown) => {
+            Some(UiAction::MoveBrowserFocus { delta: 1 })
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowLeft) => {
+            Some(UiAction::FocusPreviousBrowserHistory)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowRight) => {
+            Some(UiAction::FocusNextBrowserHistory)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+            Some(UiAction::ToggleFocusedBrowserRowSelection)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::S) => {
+            Some(UiAction::ToggleFindSimilarFocusedSample)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::Semicolon) => {
+            Some(UiAction::ToggleBrowserSampleMark)
+        }
+        _ => None,
+    }
+}
+
+fn folder_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+    match press {
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::D) => {
+            Some(UiAction::DeleteFocusedFolder)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::N) => {
+            Some(UiAction::StartNewFolder)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::R) => {
+            Some(UiAction::StartFolderRename)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowLeft) => {
+            Some(UiAction::CollapseFocusedFolder)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowRight) => {
+            Some(UiAction::ExpandFocusedFolder)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowUp) => {
+            Some(UiAction::MoveFolderFocus { delta: -1 })
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::ArrowDown) => {
+            Some(UiAction::MoveFolderFocus { delta: 1 })
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+            Some(UiAction::ToggleFocusedFolderSelection)
+        }
+        _ => None,
+    }
+}
+
+fn sources_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+    match press {
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::R) => {
+            Some(UiAction::ReloadFocusedSourceRow)
+        }
+        _ => None,
+    }
+}
+
+fn waveform_hotkey_action(press: crate::sempal_app::KeyPress) -> Option<UiAction> {
+    match press {
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::S) => {
+            Some(UiAction::AlignWaveformStartToMarker)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::Enter) => {
+            Some(UiAction::CommitWaveformEditFades)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::E) => {
+            Some(UiAction::SaveWaveformSelectionToBrowser)
+        }
+        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::E) => {
+            Some(UiAction::SaveWaveformSelectionToBrowserWithKeep2)
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::B) => {
+            Some(UiAction::ToggleBpmSnap)
+        }
+        press if press == crate::sempal_app::KeyPress::with_shift(KeyCode::ArrowRight) => {
+            Some(UiAction::SlideWaveformSelection {
+                delta: 1,
+                fine: true,
+            })
+        }
+        press if press == crate::sempal_app::KeyPress::new(KeyCode::X) => {
+            Some(UiAction::ZoomWaveformFull)
+        }
+        _ => None,
+    }
 }
 
 #[derive(Default)]
@@ -20,6 +187,15 @@ struct RecordingBridge {
 impl NativeAppBridge for RecordingBridge {
     fn project_model(&mut self) -> Arc<AppModel> {
         Arc::new(AppModel::default())
+    }
+
+    fn resolve_hotkey_press(
+        &mut self,
+        pending_chord: Option<crate::sempal_app::KeyPress>,
+        press: crate::sempal_app::KeyPress,
+        focus: crate::sempal_app::FocusContextModel,
+    ) -> crate::sempal_app::HotkeyResolution {
+        default_hotkey_resolver(pending_chord, press, focus)
     }
 
     fn reduce_action(&mut self, action: UiAction) {
@@ -105,6 +281,15 @@ impl NativeAppBridge for ImmediateFolderCreateBridge {
     fn project_model(&mut self) -> Arc<AppModel> {
         self.project_calls = self.project_calls.saturating_add(1);
         Arc::new(self.model.clone())
+    }
+
+    fn resolve_hotkey_press(
+        &mut self,
+        pending_chord: Option<crate::sempal_app::KeyPress>,
+        press: crate::sempal_app::KeyPress,
+        focus: crate::sempal_app::FocusContextModel,
+    ) -> crate::sempal_app::HotkeyResolution {
+        default_hotkey_resolver(pending_chord, press, focus)
     }
 
     fn reduce_action(&mut self, action: UiAction) {

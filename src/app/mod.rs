@@ -67,9 +67,7 @@ pub use browser::{
 };
 pub use declarative::{DeclarativeBridge, declarative_bridge};
 pub use dirty_segments::{DirtySegments, FrameBuildResult, SegmentRevisions};
-pub use hotkeys::{
-    HotkeyBinding, HotkeyGesture, HotkeyResolution, HotkeyScope, KeyPress, iter_hotkey_bindings,
-};
+pub use hotkeys::{HotkeyResolution, KeyPress};
 pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, AudioEngineChipStateModel, AudioEngineModel, AudioFieldModel, AudioOptionItemModel,

@@ -391,6 +391,32 @@ fn browser_tag_pill_model_is_owned_by_generic_badge_module() {
 }
 
 #[test]
+fn map_render_mode_model_is_owned_by_generic_visualization_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let visualization_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/visualization.rs"
+    ))
+    .expect("visualization module should be readable");
+
+    assert!(
+        !browser_mod.contains("pub enum MapRenderModeModel"),
+        "MapRenderModeModel is generic point-render visualization state, not a browser DTO"
+    );
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;"),
+        "the compatibility app contract should alias generic PointRenderMode"
+    );
+    assert!(
+        visualization_mod.contains("pub enum PointRenderMode"),
+        "generic visualization module should own reusable point render mode behavior"
+    );
+}
+
+#[test]
 fn frame_build_result_is_owned_by_generic_frame_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

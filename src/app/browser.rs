@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserTagState;
+pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;
 /// One clickable tag pill projected into the browser metadata sidebar.
 pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
 use serde::{Deserialize, Serialize};
@@ -310,16 +311,6 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Render mode label for the map panel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum MapRenderModeModel {
-    /// Rendered as a density heatmap.
-    Heatmap,
-    /// Rendered as individual points.
-    #[default]
-    Points,
 }
 
 /// Render data for one map point shown in the native map canvas.

@@ -47,3 +47,5 @@ pub mod selection;
 pub mod shortcuts;
 /// Geometry and image buffer types shared by UI code.
 pub mod types;
+/// Generic visualization primitives.
+pub mod visualization;

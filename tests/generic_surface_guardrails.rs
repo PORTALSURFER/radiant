@@ -388,6 +388,47 @@ fn legacy_shell_sources_are_feature_gated() {
     }
 }
 
+#[test]
+fn core_api_documentation_covers_public_boundary_concepts() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs_path = manifest_dir.join("docs/API.md");
+    let docs = fs::read_to_string(&docs_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", docs_path.display()));
+
+    for required in [
+        "# Radiant Core API",
+        "Dependency Boundary",
+        "## App",
+        "View, Element, And Widget",
+        "Message And Command",
+        "## Layout",
+        "Style And Theme",
+        "## Renderer",
+        "## Context",
+        "Event And Focus",
+        "Invalidation And Lifecycle",
+        "UiSurface",
+        "SurfaceNode",
+        "WidgetSpec",
+        "WidgetId",
+        "RuntimeBridge",
+        "SurfaceRuntime",
+        "ThemeTokens",
+        "SurfacePaintPlan",
+        "InvalidationMask",
+    ] {
+        assert!(
+            docs.contains(required),
+            "docs/API.md should document the public API concept `{required}`"
+        );
+    }
+
+    assert!(
+        docs.contains("host -> Radiant, never Radiant -> host"),
+        "docs/API.md should make the host -> Radiant dependency direction explicit"
+    );
+}
+
 #[derive(Debug)]
 struct ExtractionRule {
     pattern: String,

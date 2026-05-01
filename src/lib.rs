@@ -8,6 +8,7 @@
 //! example for a small standalone native app.
 //! The current compatibility shell is opt-in through the `legacy-shell` feature
 //! and is not part of Radiant's default standalone build.
+//! See `docs/API.md` for the checked public API boundary and lifecycle model.
 //!
 //! Generic host-facing modules:
 //! - [`layout`]: stable slot-based layout primitives

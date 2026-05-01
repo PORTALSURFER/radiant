@@ -228,6 +228,27 @@ fn folder_row_kind_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn status_bar_model_is_owned_by_generic_chrome_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
+        .expect("chrome module should be readable");
+
+    assert!(
+        !shell_mod.contains("pub struct StatusBarModel"),
+        "StatusBarModel is generic status chrome state, not a shell DTO"
+    );
+    assert!(
+        shell_mod.contains("pub use crate::gui::chrome::StatusSegments as StatusBarModel;"),
+        "the compatibility app contract should alias generic StatusSegments"
+    );
+    assert!(
+        chrome_mod.contains("pub struct StatusSegments"),
+        "generic chrome module should own reusable status segment behavior"
+    );
+}
+
+#[test]
 fn browser_tag_state_is_owned_by_generic_selection_module() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

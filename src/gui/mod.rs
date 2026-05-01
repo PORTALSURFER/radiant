@@ -17,6 +17,8 @@
 //! - `radiant` performs deterministic focus, pointer capture, and key routing.
 //! - App code receives action callbacks and updates domain state only.
 
+/// Generic chrome and status-surface primitives.
+pub mod chrome;
 /// Frame feedback primitives shared by runtimes and render backends.
 pub mod frame;
 /// Input event primitives shared by UI code.

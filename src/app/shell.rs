@@ -1,21 +1,12 @@
 //! Top-level shell and overlay models exposed by the `radiant` app contract.
 
+pub use crate::gui::chrome::StatusSegments as StatusBarModel;
+
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
     FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel, MapPanelModel,
     SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
-
-/// Structured footer status content for left/center/right status segments.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct StatusBarModel {
-    /// Left-aligned status segment.
-    pub left: String,
-    /// Center-aligned status segment.
-    pub center: String,
-    /// Right-aligned status segment.
-    pub right: String,
-}
 
 /// Health state of the compact audio-engine status chip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

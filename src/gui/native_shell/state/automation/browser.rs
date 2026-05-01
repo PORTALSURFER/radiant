@@ -445,7 +445,7 @@ fn map_canvas_automation(
     let mut map_node = simple_node(
         "browser.map_canvas",
         AutomationRole::MapCanvas,
-        Some(String::from("Similarity map")),
+        Some(model.browser_chrome.map_tab_label.clone()),
         canvas,
         Some(model.map.summary.clone()),
         true,

@@ -16,6 +16,9 @@
 
 mod native_vello;
 
+/// Default title for generic Radiant native windows.
+pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
+
 /// RGBA icon bytes used to initialize a native window icon.
 #[derive(Clone, Debug)]
 pub struct WindowIconRgba {
@@ -49,7 +52,7 @@ pub struct NativeRunOptions {
 impl Default for NativeRunOptions {
     fn default() -> Self {
         Self {
-            title: String::from(crate::compat::sempal_shell::DEFAULT_APP_TITLE),
+            title: String::from(DEFAULT_NATIVE_WINDOW_TITLE),
             inner_size: None,
             min_inner_size: None,
             maximized: false,

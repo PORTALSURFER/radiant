@@ -3,8 +3,9 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
-        WidgetMessageMapper, declarative_runtime_bridge,
+        DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, PaintPrimitive, RuntimeBridge,
+        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -38,6 +39,14 @@ fn generic_runtime_surface_projects_layout_without_legacy_app_contracts() {
     assert!(output.rects.contains_key(&10));
     assert!(output.rects.contains_key(&11));
     assert!(output.rects.contains_key(&12));
+}
+
+#[test]
+fn native_run_options_default_uses_generic_radiant_title() {
+    let options = NativeRunOptions::default();
+
+    assert_eq!(options.title, DEFAULT_NATIVE_WINDOW_TITLE);
+    assert_eq!(options.title, "Radiant");
 }
 
 #[test]

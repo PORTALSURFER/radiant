@@ -161,6 +161,29 @@ fn normalized_range_model_is_owned_by_generic_range_module() {
 }
 
 #[test]
+fn browser_row_processing_state_is_owned_by_generic_list_module() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(
+        !browser_mod.contains("pub enum BrowserRowProcessingState"),
+        "BrowserRowProcessingState is generic row operation state, not a browser DTO"
+    );
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;"),
+        "the compatibility app contract should alias generic RowProcessingState"
+    );
+    assert!(
+        list_mod.contains("pub enum RowProcessingState"),
+        "generic list module should own reusable row processing state"
+    );
+}
+
+#[test]
 fn frame_build_result_is_owned_by_generic_frame_module() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

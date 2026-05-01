@@ -25,6 +25,8 @@ pub mod input;
 pub mod invalidation;
 /// Public slot-based layout engine and container model.
 pub mod layout_core;
+/// Generic list and row state primitives.
+pub mod list;
 /// Native shell layout + scene model kept as Sempal compatibility infrastructure.
 pub(crate) mod native_shell;
 /// Normalized interval primitives for reusable UI models.

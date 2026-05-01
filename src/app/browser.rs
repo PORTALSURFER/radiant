@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 use serde::{Deserialize, Serialize};
 
@@ -30,26 +31,6 @@ pub enum PlaybackAgeBucket {
     OlderThanMonth,
     /// Samples with no recorded playback timestamp.
     NeverPlayed,
-}
-
-/// Transient browser row processing states for batch file operations.
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub enum BrowserRowProcessingState {
-    /// The row is not part of an active row-scoped operation.
-    #[default]
-    None,
-    /// The row is waiting in the current batch.
-    Queued,
-    /// The row is currently being processed.
-    Active,
-    /// The row completed successfully.
-    Completed,
-    /// The row was skipped by the batch.
-    Skipped,
-    /// The row failed during processing.
-    Failed,
 }
 
 /// Summary of browser/list state consumed by the native shell.

@@ -22,7 +22,7 @@ fn map_point_click_routes_to_focus_map_sample() {
             selected_sample_id: Some(String::from("source::kick.wav")),
             focused_sample_id: Some(String::from("source::kick.wav")),
             points: Arc::from(vec![MapPointModel {
-                sample_id: Arc::<str>::from("source::kick.wav"),
+                id: Arc::<str>::from("source::kick.wav"),
                 x_milli: 500,
                 y_milli: 500,
                 cluster_id: Some(1),

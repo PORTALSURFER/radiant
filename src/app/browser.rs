@@ -6,6 +6,7 @@ pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserTagState;
 pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;
+pub use crate::gui::visualization::SpatialPoint as MapPointModel;
 /// One clickable tag pill projected into the browser metadata sidebar.
 pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
 use serde::{Deserialize, Serialize};
@@ -311,19 +312,6 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Render data for one map point shown in the native map canvas.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MapPointModel {
-    /// Stable sample id used to route click actions back to the host.
-    pub sample_id: Arc<str>,
-    /// X position normalized to milli-units (`0..=1000`) across map bounds.
-    pub x_milli: u16,
-    /// Y position normalized to milli-units (`0..=1000`) across map bounds.
-    pub y_milli: u16,
-    /// Optional cluster id for color grouping.
-    pub cluster_id: Option<i32>,
 }
 
 /// Summary of map state consumed by the native shell map tab.

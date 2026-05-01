@@ -172,6 +172,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("pub enum BrowserTagState"));
     assert!(!browser_mod.contains("pub struct BrowserTagPillModel"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
+    assert!(!browser_mod.contains("pub struct MapPointModel"));
     assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"));
     assert!(browser_mod.contains(
         "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
@@ -180,9 +181,13 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
         browser_mod
             .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;")
     );
+    assert!(
+        browser_mod.contains("pub use crate::gui::visualization::SpatialPoint as MapPointModel;")
+    );
     assert!(selection_mod.contains("pub enum TriState"));
     assert!(badge_mod.contains("pub struct SelectablePill<State>"));
     assert!(visualization_mod.contains("pub enum PointRenderMode"));
+    assert!(visualization_mod.contains("pub struct SpatialPoint"));
 }
 
 #[test]

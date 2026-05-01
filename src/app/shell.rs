@@ -5,6 +5,7 @@ pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
+pub use crate::gui::form::SummaryField as AudioFieldModel;
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
@@ -57,24 +58,7 @@ pub enum AudioOptionValueModel {
 }
 
 /// One selectable item shown inside an audio picker.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AudioOptionItemModel {
-    /// Human-readable option label.
-    pub label: String,
-    /// Whether the option is currently selected.
-    pub selected: bool,
-    /// Raw value applied when the option is chosen.
-    pub value: AudioOptionValueModel,
-}
-
-/// Overview row shown for one audio field inside the options panel.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct AudioFieldModel {
-    /// Static row label.
-    pub label: String,
-    /// Current value summary.
-    pub value_label: String,
-}
+pub type AudioOptionItemModel = crate::gui::form::OptionItem<AudioOptionValueModel>;
 
 /// Output/input audio engine state projected into the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

@@ -4,7 +4,7 @@
 //! `radiant::layout`, `radiant::widgets`, `radiant::runtime`, `radiant::theme`,
 //! and the shared non-shell `gui` primitives those APIs expose. The current
 //! Sempal shell remains a transitional compatibility exception under
-//! `compat::sempal_shell`, `app`, `gui::native_shell`, and the native Vello
+//! `compat::sempal_shell`, `gui::native_shell`, and the native Vello
 //! compatibility runtime.
 
 use std::{
@@ -47,8 +47,6 @@ const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
 ];
 
 const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
-    "radiant::app",
-    "radiant::{app",
     "radiant::compat::sempal_shell",
     "radiant::{compat::sempal_shell",
     "compat::sempal_shell",

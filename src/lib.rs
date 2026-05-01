@@ -14,9 +14,8 @@
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
 //!
-//! Transitional compatibility lives under [`compat::sempal_shell`](crate::compat::sempal_shell).
-//! The crate-root [`app`](crate::app) module is a deprecated alias for that
-//! Sempal compatibility contract and should not be used by new code.
+//! Transitional compatibility lives under [`compat::sempal_shell`](crate::compat::sempal_shell)
+//! while Sempal migrates onto generic Radiant APIs.
 
 // `radiant` still carries several large transitional runtime and native-shell
 // modules. Keep this list narrow while the active cleanup lane continues to
@@ -32,22 +31,11 @@
 #![allow(clippy::needless_borrow)]
 #![allow(clippy::question_mark)]
 #![allow(clippy::too_many_arguments)]
-// Transitional compatibility internals still include Sempal-owned shared
-// modules that refer to the crate-root alias when compiled inside Radiant.
-// External callers still see the deprecation warning on `radiant::app`.
-#![allow(deprecated)]
-
-/// Deprecated alias for the Sempal compatibility model/action contract.
-///
-/// New host applications should use [`runtime`], [`widgets`], [`layout`], and
-/// [`theme`]. Migration-time Sempal shell consumers should import the explicit
-/// [`compat::sempal_shell`] namespace instead.
-#[deprecated(
-    since = "0.1.0",
-    note = "use radiant::runtime for generic apps, or radiant::compat::sempal_shell for the transitional Sempal shell"
-)]
-pub mod app {
-    pub use crate::sempal_app::*;
+// Included Sempal composition modules still refer to `crate::app` when they are
+// compiled inside Radiant. Keep this crate-private until that composition moves
+// fully to Sempal; do not expose it as `radiant::app`.
+pub(crate) mod app {
+    pub(crate) use crate::sempal_app::*;
 }
 /// Explicit compatibility namespace for migration-time Sempal shell APIs.
 pub mod compat;

@@ -70,8 +70,8 @@ pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, AudioEngineChipStateModel, AudioEngineModel, AudioFieldModel, AudioOptionItemModel,
     AudioOptionValueModel, AudioPickerTargetModel, ConfirmPromptKind, ConfirmPromptModel,
-    DEFAULT_APP_TITLE, DragOverlayModel, OptionsPanelModel, ProgressOverlayModel, StatusBarModel,
-    UpdatePanelModel, UpdateStatusModel,
+    DragOverlayModel, OptionsPanelModel, ProgressOverlayModel, StatusBarModel, UpdatePanelModel,
+    UpdateStatusModel,
 };
 pub use sources::{
     ColumnModel, FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel,
@@ -82,3 +82,6 @@ pub use waveform::{
     WaveformSlicePreviewModel,
 };
 pub use waveform_tempo::parse_waveform_tempo_number_text;
+
+/// Compatibility alias for the generic runtime fallback title.
+pub use crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE as DEFAULT_APP_TITLE;

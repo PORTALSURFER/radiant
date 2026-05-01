@@ -25,6 +25,7 @@ fn sempal_shell_namespace_exposes_model_actions_and_runtime_helpers() {
 
     assert_eq!(compat_model, AppModel::default());
     assert_eq!(DEFAULT_APP_TITLE, "Radiant");
+    assert_eq!(DEFAULT_APP_TITLE, DEFAULT_NATIVE_WINDOW_TITLE);
     assert_eq!(
         NativeRunOptions::default().title,
         DEFAULT_NATIVE_WINDOW_TITLE
@@ -32,6 +33,25 @@ fn sempal_shell_namespace_exposes_model_actions_and_runtime_helpers() {
     assert_eq!(compat_action, UiAction::ToggleTransport);
 
     let _ = preview;
+}
+
+#[test]
+fn default_app_title_is_a_runtime_compat_alias() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+
+    assert!(
+        app_mod.contains(
+            "pub use crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE as DEFAULT_APP_TITLE;"
+        ),
+        "compat DEFAULT_APP_TITLE should alias the generic runtime fallback title"
+    );
+    assert!(
+        !shell_mod.contains("pub const DEFAULT_APP_TITLE"),
+        "the Sempal app-contract module must not own a duplicate default title constant"
+    );
 }
 
 #[test]

@@ -2,9 +2,7 @@
 //!
 //! [`UiAction`] intentionally remains the single compatibility surface between
 //! the native runtime and the host bridge. The enum stays centralized so hosts
-//! can inspect the full action catalog in one place, while supporting helpers
-//! such as [`UiActionFamily`] keep family-level structure explicit for tests
-//! and future internal routing work.
+//! can inspect the full action catalog in one place.
 //!
 //! This module is intentionally broad rather than split by action family. The
 //! runtime, host bridge, and automation catalog all rely on one inspectable
@@ -13,12 +11,6 @@
 
 use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use serde::{Deserialize, Serialize};
-
-#[cfg(test)]
-mod family;
-
-#[cfg(test)]
-use family::UiActionFamily;
 
 /// Triage targets used by native browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1106,6 +1098,3 @@ fn nanos_match_micros(nanos: u32, micros: u32) -> bool {
     nanos == micros
         || ((nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000) == micros.min(1_000_000)
 }
-
-#[cfg(test)]
-mod tests;

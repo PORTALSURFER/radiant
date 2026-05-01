@@ -171,6 +171,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
             .expect("browser module should be readable");
+    let waveform_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
+            .expect("waveform module should be readable");
     let selection_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/selection.rs"))
             .expect("selection module should be readable");
@@ -186,6 +189,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("pub struct BrowserTagPillModel"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
     assert!(!browser_mod.contains("pub struct MapPointModel"));
+    assert!(!waveform_mod.contains("pub enum WaveformChannelViewModel"));
     assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"));
     assert!(browser_mod.contains(
         "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
@@ -197,10 +201,14 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(
         browser_mod.contains("pub use crate::gui::visualization::SpatialPoint as MapPointModel;")
     );
+    assert!(waveform_mod.contains(
+        "pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;"
+    ));
     assert!(selection_mod.contains("pub enum TriState"));
     assert!(badge_mod.contains("pub struct SelectablePill<State>"));
     assert!(visualization_mod.contains("pub enum PointRenderMode"));
     assert!(visualization_mod.contains("pub struct SpatialPoint"));
+    assert!(visualization_mod.contains("pub enum ChannelViewMode"));
 }
 
 #[test]

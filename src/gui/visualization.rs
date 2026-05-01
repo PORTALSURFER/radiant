@@ -12,6 +12,15 @@ pub enum PointRenderMode {
     Points,
 }
 
+/// Channel layout for visualizing one stream as a combined or split view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChannelViewMode {
+    /// Collapse channels into one combined envelope.
+    Mono,
+    /// Render channels in a split stereo view.
+    Stereo,
+}
+
 /// One point in normalized two-dimensional visualization space.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpatialPoint {
@@ -27,12 +36,17 @@ pub struct SpatialPoint {
 
 #[cfg(test)]
 mod tests {
-    use super::{PointRenderMode, SpatialPoint};
+    use super::{ChannelViewMode, PointRenderMode, SpatialPoint};
     use std::sync::Arc;
 
     #[test]
     fn point_render_mode_defaults_to_points() {
         assert_eq!(PointRenderMode::default(), PointRenderMode::Points);
+    }
+
+    #[test]
+    fn channel_view_mode_distinguishes_combined_and_split_views() {
+        assert_ne!(ChannelViewMode::Mono, ChannelViewMode::Stereo);
     }
 
     #[test]

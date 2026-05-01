@@ -2,6 +2,7 @@
 
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
+pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 use std::sync::Arc;
 
 /// One detected waveform slice preview exposed to the runtime and native shell.
@@ -191,15 +192,6 @@ mod tests {
     fn default_bpm_grid_origin_is_zero() {
         assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
     }
-}
-
-/// Waveform chrome copy used by metadata lines in the native shell header.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WaveformChannelViewModel {
-    /// Collapse channels into one mono envelope.
-    Mono,
-    /// Render left/right channels in split stereo mode.
-    Stereo,
 }
 
 /// Waveform chrome copy used by metadata lines and control surfaces.

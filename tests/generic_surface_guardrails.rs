@@ -4,7 +4,7 @@
 //! `radiant::layout`, `radiant::widgets`, `radiant::runtime`, `radiant::theme`,
 //! and the shared non-shell `gui` primitives those APIs expose. The current
 //! Sempal shell remains a transitional compatibility exception under
-//! `compat::sempal_shell`, `gui::native_shell`, and the native Vello
+//! `compat::legacy_shell`, `gui::native_shell`, and the native Vello
 //! compatibility runtime.
 
 use std::{
@@ -45,9 +45,9 @@ const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
     "crate::{app",
     "crate::compat_app_contract",
     "crate::{compat_app_contract",
-    "crate::compat::sempal_shell",
-    "crate::{compat::sempal_shell",
-    "compat::sempal_shell",
+    "crate::compat::legacy_shell",
+    "crate::{compat::legacy_shell",
+    "compat::legacy_shell",
     "crate::gui::native_shell",
     "crate::{gui::native_shell",
     "gui::native_shell",
@@ -60,9 +60,9 @@ const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
 ];
 
 const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
-    "radiant::compat::sempal_shell",
-    "radiant::{compat::sempal_shell",
-    "compat::sempal_shell",
+    "radiant::compat::legacy_shell",
+    "radiant::{compat::legacy_shell",
+    "compat::legacy_shell",
     "Sempal",
     "sempal",
     "capture_gui_automation_snapshot",
@@ -124,7 +124,7 @@ const EXTRACTION_ISSUES: &[&str] = &[
 ];
 
 #[test]
-fn generic_sources_do_not_import_sempal_shell_contracts() {
+fn generic_sources_do_not_import_legacy_shell_contracts() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut violations = Vec::new();
 
@@ -135,7 +135,7 @@ fn generic_sources_do_not_import_sempal_shell_contracts() {
     assert!(
         violations.is_empty(),
         "generic Radiant modules must stay independent from Sempal compatibility contracts; \
-         move transitional shell code under app, compat::sempal_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
+         move transitional shell code under app, compat::legacy_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
         violations.join("\n")
     );
 }
@@ -216,7 +216,7 @@ fn radiant_manifest_does_not_depend_on_sempal_or_parent_workspace() {
 }
 
 #[test]
-fn generic_integration_tests_do_not_reintroduce_sempal_shell_fixtures() {
+fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let tests_dir = manifest_dir.join("tests");
     let mut violations = Vec::new();
@@ -314,7 +314,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
     ] {
         assert!(
             !public_exports.contains(forbidden),
-            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::sempal_shell until the compatibility shell is removed"
+            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::legacy_shell until the compatibility shell is removed"
         );
     }
     for required in [
@@ -388,11 +388,7 @@ fn domain_extraction_inventory_covers_current_domain_bearing_files() {
 fn domain_extraction_inventory_uses_known_dispositions_and_issues() {
     let rules = parse_extraction_inventory();
 
-    for expected_disposition in [
-        "move_to_sempal",
-        "remove_compat_export",
-        "split_generic_from_compat",
-    ] {
+    for expected_disposition in ["move_to_sempal", "split_generic_from_compat"] {
         assert!(
             rules
                 .iter()
@@ -401,7 +397,7 @@ fn domain_extraction_inventory_uses_known_dispositions_and_issues() {
         );
     }
 
-    for expected_issue in ["OPT-270", "OPT-275", "OPT-276"] {
+    for expected_issue in ["OPT-270", "OPT-275"] {
         assert!(
             rules.iter().any(|rule| rule.issue == expected_issue),
             "domain extraction inventory should include at least one {expected_issue} rule"

@@ -1,8 +1,8 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
 use super::{NativeRunOptions, WindowIconRgba};
-use crate::compat::sempal_shell::{
-    self as sempal_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
+use crate::compat::legacy_shell::{
+    self as legacy_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
     NativeMotionModel, SegmentRevisions, UiAction,
 };
 use crate::gui::{
@@ -474,7 +474,7 @@ pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String>
 pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &AppModel,
-) -> sempal_shell::GuiAutomationSnapshot {
+) -> legacy_shell::GuiAutomationSnapshot {
     let viewport = Vector2::new(viewport[0].max(1.0), viewport[1].max(1.0));
     let style = StyleTokens::for_viewport_width(viewport.x);
     let mut runtime = ShellLayoutRuntime::default();

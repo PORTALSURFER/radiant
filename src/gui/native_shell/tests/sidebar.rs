@@ -6,7 +6,7 @@ fn source_action_hit_test_emits_folder_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = crate::compat_app_contract::AppModel::default();
-    model.sources.folder_actions.can_delete_folder = true;
+    model.sources.folder_actions.can_delete = true;
     let button = state
         .source_action_button_rect(
             &layout,
@@ -29,7 +29,7 @@ fn source_action_hit_test_ignores_disabled_button() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = crate::compat_app_contract::AppModel::default();
-    model.sources.folder_actions.can_delete_folder = false;
+    model.sources.folder_actions.can_delete = false;
     let button = state
         .source_action_button_rect(
             &layout,

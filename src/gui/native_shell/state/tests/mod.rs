@@ -49,13 +49,13 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
     model.sources.focused_folder_row = Some(3);
     model.sources.folder_rows = model.sources.upper_folder_pane.folder_rows.clone();
     model.sources.folder_actions = FolderActionsModel {
-        can_create_folder: true,
-        can_create_folder_at_root: true,
-        can_rename_folder: true,
-        can_delete_folder: true,
-        can_restore_retained_deletes: true,
-        can_purge_retained_deletes: true,
-        can_clear_recovery_log: true,
+        can_create_child: true,
+        can_create_root: true,
+        can_rename: true,
+        can_delete: true,
+        can_restore_retained: true,
+        can_purge_retained: true,
+        can_clear_history: true,
     };
     model.sources.upper_folder_pane.folder_actions = model.sources.folder_actions.clone();
     model.sources.lower_folder_pane.folder_actions = model.sources.folder_actions.clone();

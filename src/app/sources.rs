@@ -4,6 +4,7 @@ use super::RetainedVec;
 pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
+pub use crate::gui::list::EditableTreeActions as FolderActionsModel;
 pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
 
@@ -140,25 +141,6 @@ impl FolderRowModel {
         self.select_all_on_focus = select_all_on_focus;
         self
     }
-}
-
-/// Native folder-action availability consumed by sidebar action surfaces.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct FolderActionsModel {
-    /// Whether creating a folder at the focused parent is allowed.
-    pub can_create_folder: bool,
-    /// Whether creating a folder at source root is allowed.
-    pub can_create_folder_at_root: bool,
-    /// Whether renaming the focused folder is allowed.
-    pub can_rename_folder: bool,
-    /// Whether deleting the focused folder is allowed.
-    pub can_delete_folder: bool,
-    /// Whether explicit restore for retained folder deletes is allowed.
-    pub can_restore_retained_deletes: bool,
-    /// Whether explicit purge for retained folder deletes is allowed.
-    pub can_purge_retained_deletes: bool,
-    /// Whether clearing folder delete-recovery logs is allowed.
-    pub can_clear_recovery_log: bool,
 }
 
 /// Logical focus buckets projected into the native runtime.

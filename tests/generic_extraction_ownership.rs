@@ -95,6 +95,22 @@ fn editable_row_kind_is_owned_by_generic_list_module() {
 }
 
 #[test]
+fn editable_tree_actions_are_owned_by_generic_list_module() {
+    let sources_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+            .expect("sources module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+
+    assert!(!sources_mod.contains("pub struct FolderActionsModel"));
+    assert!(
+        sources_mod
+            .contains("pub use crate::gui::list::EditableTreeActions as FolderActionsModel;")
+    );
+    assert!(list_mod.contains("pub struct EditableTreeActions"));
+}
+
+#[test]
 fn split_pane_slot_is_owned_by_generic_panel_module() {
     let sources_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))

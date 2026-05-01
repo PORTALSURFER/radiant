@@ -66,6 +66,30 @@ fn app_contract_no_longer_exports_waveform_tempo_parsing_helper() {
 }
 
 #[test]
+fn keypress_value_type_is_owned_by_generic_input_module() {
+    let hotkeys_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/hotkeys/mod.rs"
+    ))
+    .expect("hotkeys module should be readable");
+    let input_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/input.rs"))
+        .expect("input module should be readable");
+
+    assert!(
+        !hotkeys_mod.contains("pub struct KeyPress"),
+        "KeyPress is a backend-neutral input primitive, not a Sempal app-contract DTO"
+    );
+    assert!(
+        hotkeys_mod.contains("pub use crate::gui::input::KeyPress;"),
+        "the compatibility app contract should alias generic input KeyPress"
+    );
+    assert!(
+        input_mod.contains("pub struct KeyPress"),
+        "generic input module should own the KeyPress value type"
+    );
+}
+
+#[test]
 fn crate_root_does_not_export_legacy_app_alias() {
     let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
         .expect("crate root should be readable");

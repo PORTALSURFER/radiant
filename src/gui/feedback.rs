@@ -92,6 +92,25 @@ pub struct UpdatePanel {
     pub last_error: Option<String>,
 }
 
+/// Generic intent category for host-provided confirmation prompts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromptIntent {
+    /// Confirm a destructive or irreversible operation.
+    DestructiveOperation,
+    /// Rename the focused content item.
+    RenameContent,
+    /// Rename an item in a navigation surface.
+    RenameNavigationItem,
+    /// Create an item in a navigation surface.
+    CreateNavigationItem,
+    /// Restore retained items after a recoverable operation.
+    RestoreRetainedItems,
+    /// Permanently purge retained items after a recoverable operation.
+    PurgeRetainedItems,
+    /// Edit a configuration value.
+    EditConfiguration,
+}
+
 /// Modal confirmation prompt content parameterized by host-owned prompt kind.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConfirmPrompt<Kind> {
@@ -137,8 +156,8 @@ impl<Kind> Default for ConfirmPrompt<Kind> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConfirmPrompt, DragOverlay, HealthState, ProgressOverlay, RecoverySummary, UpdatePanel,
-        UpdateStatus,
+        ConfirmPrompt, DragOverlay, HealthState, ProgressOverlay, PromptIntent, RecoverySummary,
+        UpdatePanel, UpdateStatus,
     };
 
     #[test]
@@ -208,5 +227,20 @@ mod tests {
         assert_eq!(prompt.input_value, None);
         assert_eq!(prompt.input_placeholder, None);
         assert_eq!(prompt.input_error, None);
+    }
+
+    #[test]
+    fn prompt_intent_exposes_generic_confirmation_categories() {
+        let intents = [
+            PromptIntent::DestructiveOperation,
+            PromptIntent::RenameContent,
+            PromptIntent::RenameNavigationItem,
+            PromptIntent::CreateNavigationItem,
+            PromptIntent::RestoreRetainedItems,
+            PromptIntent::PurgeRetainedItems,
+            PromptIntent::EditConfiguration,
+        ];
+
+        assert_eq!(intents.len(), 7);
     }
 }

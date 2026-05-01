@@ -117,13 +117,13 @@ pub(in super::super) fn state_overlay_model_signature(model: &AppModel) -> u64 {
         &mut state,
         match model.confirm_prompt.kind {
             None => 0,
-            Some(crate::compat_app_contract::ConfirmPromptKind::DestructiveEdit) => 1,
-            Some(crate::compat_app_contract::ConfirmPromptKind::BrowserRename) => 2,
-            Some(crate::compat_app_contract::ConfirmPromptKind::FolderRename) => 3,
-            Some(crate::compat_app_contract::ConfirmPromptKind::FolderCreate) => 4,
-            Some(crate::compat_app_contract::ConfirmPromptKind::RestoreRetainedFolderDeletes) => 5,
-            Some(crate::compat_app_contract::ConfirmPromptKind::PurgeRetainedFolderDeletes) => 6,
-            Some(crate::compat_app_contract::ConfirmPromptKind::OptionsDefaultIdentifier) => 7,
+            Some(crate::compat_app_contract::ConfirmPromptKind::DestructiveOperation) => 1,
+            Some(crate::compat_app_contract::ConfirmPromptKind::RenameContent) => 2,
+            Some(crate::compat_app_contract::ConfirmPromptKind::RenameNavigationItem) => 3,
+            Some(crate::compat_app_contract::ConfirmPromptKind::CreateNavigationItem) => 4,
+            Some(crate::compat_app_contract::ConfirmPromptKind::RestoreRetainedItems) => 5,
+            Some(crate::compat_app_contract::ConfirmPromptKind::PurgeRetainedItems) => 6,
+            Some(crate::compat_app_contract::ConfirmPromptKind::EditConfiguration) => 7,
         },
     );
     fingerprint_mix_string(&mut state, &model.confirm_prompt.title);

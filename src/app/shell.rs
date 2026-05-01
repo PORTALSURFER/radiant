@@ -4,6 +4,7 @@ pub use crate::gui::chrome::StatusSegments as StatusBarModel;
 pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
 pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
+pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
 pub use crate::gui::form::PairedPickerTarget as AudioPickerTargetModel;
@@ -75,25 +76,6 @@ pub struct OptionsPanelModel {
     pub invert_waveform_scroll_enabled: bool,
     /// Short display label for the configured trash folder, when available.
     pub trash_folder_label: Option<String>,
-}
-
-/// Prompt types that can block interaction in the native shell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConfirmPromptKind {
-    /// Pending destructive waveform edit prompt.
-    DestructiveEdit,
-    /// Pending browser rename prompt.
-    BrowserRename,
-    /// Pending folder rename prompt.
-    FolderRename,
-    /// Pending folder creation prompt.
-    FolderCreate,
-    /// Pending retained folder-delete restore prompt.
-    RestoreRetainedFolderDeletes,
-    /// Pending retained folder-delete purge prompt.
-    PurgeRetainedFolderDeletes,
-    /// Pending options-panel default-identifier prompt.
-    OptionsDefaultIdentifier,
 }
 
 /// Modal confirmation prompt projected into the native shell.

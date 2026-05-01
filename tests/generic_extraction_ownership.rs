@@ -214,6 +214,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
             && !shell_mod.contains("pub struct UpdatePanelModel")
     );
     assert!(!shell_mod.contains("pub struct ConfirmPromptModel"));
+    assert!(!shell_mod.contains("pub enum ConfirmPromptKind"));
     assert!(!shell_mod.contains("pub enum AudioEngineChipStateModel"));
     assert!(!sources_mod.contains("pub struct FolderRecoveryModel"));
     assert!(
@@ -227,6 +228,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
         shell_mod
             .contains("pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;")
     );
+    assert!(shell_mod.contains("pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;"));
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
     ));
@@ -240,6 +242,12 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(feedback_mod.contains("pub struct DragOverlay"));
     assert!(feedback_mod.contains("pub enum UpdateStatus"));
     assert!(feedback_mod.contains("pub struct UpdatePanel"));
+    assert!(feedback_mod.contains("pub enum PromptIntent"));
+    assert!(feedback_mod.contains("DestructiveOperation"));
+    assert!(feedback_mod.contains("RenameContent"));
+    assert!(feedback_mod.contains("CreateNavigationItem"));
+    assert!(!feedback_mod.contains("BrowserRename"));
+    assert!(!feedback_mod.contains("FolderRename"));
     assert!(feedback_mod.contains("pub struct ConfirmPrompt<Kind>"));
 }
 

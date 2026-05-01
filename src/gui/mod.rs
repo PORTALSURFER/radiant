@@ -19,6 +19,8 @@
 
 /// Generic chrome and status-surface primitives.
 pub mod chrome;
+/// Generic user-feedback surface primitives.
+pub mod feedback;
 /// Frame feedback primitives shared by runtimes and render backends.
 pub mod frame;
 /// Input event primitives shared by UI code.

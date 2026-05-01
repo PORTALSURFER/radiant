@@ -249,6 +249,29 @@ fn status_bar_model_is_owned_by_generic_chrome_module() {
 }
 
 #[test]
+fn progress_overlay_model_is_owned_by_generic_feedback_module() {
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+    let feedback_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
+            .expect("feedback module should be readable");
+
+    assert!(
+        !shell_mod.contains("pub struct ProgressOverlayModel"),
+        "ProgressOverlayModel is generic progress feedback state, not a shell DTO"
+    );
+    assert!(
+        shell_mod
+            .contains("pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;"),
+        "the compatibility app contract should alias generic ProgressOverlay"
+    );
+    assert!(
+        feedback_mod.contains("pub struct ProgressOverlay"),
+        "generic feedback module should own reusable progress overlay behavior"
+    );
+}
+
+#[test]
 fn browser_tag_state_is_owned_by_generic_selection_module() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

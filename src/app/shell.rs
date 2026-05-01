@@ -1,6 +1,7 @@
 //! Top-level shell and overlay models exposed by the `radiant` app contract.
 
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
+pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
@@ -140,27 +141,6 @@ pub struct UpdatePanelModel {
     pub available_url: Option<String>,
     /// Last error message from update checks, if any.
     pub last_error: Option<String>,
-}
-
-/// Progress overlay state projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ProgressOverlayModel {
-    /// Whether the overlay is currently visible.
-    pub visible: bool,
-    /// Whether the overlay is modal.
-    pub modal: bool,
-    /// Title text for the progress surface.
-    pub title: String,
-    /// Optional detail line.
-    pub detail: Option<String>,
-    /// Completed steps.
-    pub completed: usize,
-    /// Total steps.
-    pub total: usize,
-    /// Whether the running operation supports cancel.
-    pub cancelable: bool,
-    /// Whether cancel has already been requested.
-    pub cancel_requested: bool,
 }
 
 /// Options-panel state projected into the native shell.

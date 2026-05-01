@@ -6,6 +6,7 @@ pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserTagState;
 pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;
+pub use crate::gui::visualization::SpatialPanel as MapPanelModel;
 pub use crate::gui::visualization::SpatialPoint as MapPointModel;
 /// One clickable tag pill projected into the browser metadata sidebar.
 pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
@@ -312,33 +313,4 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Summary of map state consumed by the native shell map tab.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct MapPanelModel {
-    /// Whether the map tab is currently active in the browser panel.
-    pub active: bool,
-    /// Human-readable map summary line.
-    pub summary: String,
-    /// Legend/status label for map render mode and point density.
-    pub legend_label: String,
-    /// Selection/focus label for the currently highlighted map sample.
-    pub selection_label: String,
-    /// Hover label for the currently hovered map sample, when any.
-    pub hover_label: String,
-    /// Cluster summary label for projected map points.
-    pub cluster_label: String,
-    /// Viewport label describing zoom/pan state.
-    pub viewport_label: String,
-    /// Optional error text shown when map data cannot be loaded.
-    pub error: Option<String>,
-    /// Current map render mode.
-    pub render_mode: MapRenderModeModel,
-    /// Sample id currently selected in map state, when any.
-    pub selected_sample_id: Option<String>,
-    /// Sample id currently focused from the browser list, when any.
-    pub focused_sample_id: Option<String>,
-    /// Points available for rendering in normalized map space.
-    pub points: Arc<[MapPointModel]>,
 }

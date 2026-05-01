@@ -466,7 +466,7 @@ fn map_canvas_automation(
             )),
             value: None,
             enabled: true,
-            selected: model.map.selected_sample_id.as_deref() == Some(point.id.as_ref()),
+            selected: model.map.selected_item_id.as_deref() == Some(point.id.as_ref()),
             available_actions: vec![String::from("focus_map_sample")],
             metadata: metadata(&[
                 ("x_milli", &point.x_milli.to_string()),

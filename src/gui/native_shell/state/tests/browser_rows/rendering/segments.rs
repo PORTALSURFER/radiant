@@ -43,8 +43,8 @@ fn static_segments_include_map_panel_when_map_tab_is_active() {
     let mut model = browser_model_with_rows(120, 40);
     model.map.active = true;
     model.map.summary = String::from("Map summary");
-    model.map.selected_sample_id = Some(String::from("kick"));
-    model.map.focused_sample_id = Some(String::from("kick"));
+    model.map.selected_item_id = Some(String::from("kick"));
+    model.map.focused_item_id = Some(String::from("kick"));
     model.map.points = std::sync::Arc::from(vec![crate::compat_app_contract::MapPointModel {
         id: std::sync::Arc::<str>::from("kick"),
         x_milli: 512,

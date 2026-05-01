@@ -19,8 +19,8 @@ fn map_point_click_routes_to_focus_map_sample() {
             viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
             render_mode: crate::compat_app_contract::MapRenderModeModel::Points,
-            selected_sample_id: Some(String::from("source::kick.wav")),
-            focused_sample_id: Some(String::from("source::kick.wav")),
+            selected_item_id: Some(String::from("source::kick.wav")),
+            focused_item_id: Some(String::from("source::kick.wav")),
             points: Arc::from(vec![MapPointModel {
                 id: Arc::<str>::from("source::kick.wav"),
                 x_milli: 500,

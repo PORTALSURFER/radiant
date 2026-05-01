@@ -35,6 +35,18 @@ pub(crate) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
     Some(parsed)
 }
 
+fn parse_projected_waveform_bpm_label(label: &str) -> Option<String> {
+    let number = label.split_ascii_whitespace().next()?.trim();
+    if number.is_empty() {
+        return None;
+    }
+    let parsed = parse_waveform_bpm_input(number)?;
+    if parsed <= 0.0 {
+        return None;
+    }
+    Some(number.to_string())
+}
+
 /// Convert one BPM value into the tenths-based runtime action representation.
 pub(crate) fn bpm_tenths_from_value(value: f32) -> u16 {
     let scaled = (value * 10.0).round();
@@ -52,7 +64,7 @@ pub(super) fn waveform_bpm_text_from_model<B: NativeAppBridge>(
         .waveform
         .tempo_label
         .as_deref()
-        .and_then(crate::sempal_app::parse_waveform_tempo_number_text)
+        .and_then(parse_projected_waveform_bpm_label)
         .unwrap_or_else(|| String::from("120.0"))
 }
 
@@ -255,4 +267,29 @@ pub(super) fn append_text<B: NativeAppBridge>(
     }
     let next = editor.replace_selection(&value, &sanitized);
     set_text_value(runner, next)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_projected_waveform_bpm_label;
+
+    #[test]
+    fn projected_waveform_bpm_label_parser_accepts_positive_numbers() {
+        assert_eq!(
+            parse_projected_waveform_bpm_label("128 BPM"),
+            Some(String::from("128"))
+        );
+        assert_eq!(
+            parse_projected_waveform_bpm_label("128.5 BPM"),
+            Some(String::from("128.5"))
+        );
+    }
+
+    #[test]
+    fn projected_waveform_bpm_label_parser_rejects_invalid_labels() {
+        assert_eq!(parse_projected_waveform_bpm_label(""), None);
+        assert_eq!(parse_projected_waveform_bpm_label("0 BPM"), None);
+        assert_eq!(parse_projected_waveform_bpm_label("-1 BPM"), None);
+        assert_eq!(parse_projected_waveform_bpm_label("fast BPM"), None);
+    }
 }

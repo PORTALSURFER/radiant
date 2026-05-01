@@ -50,7 +50,6 @@ mod motion;
 mod shell;
 mod sources;
 mod waveform;
-mod waveform_tempo;
 
 pub use actions::{BrowserTagTarget, UiAction};
 pub use automation::{
@@ -81,7 +80,6 @@ pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
     WaveformSlicePreviewModel,
 };
-pub use waveform_tempo::parse_waveform_tempo_number_text;
 
 /// Compatibility alias for the generic runtime fallback title.
 pub use crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE as DEFAULT_APP_TITLE;

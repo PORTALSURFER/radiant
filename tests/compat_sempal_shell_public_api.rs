@@ -55,6 +55,17 @@ fn default_app_title_is_a_runtime_compat_alias() {
 }
 
 #[test]
+fn app_contract_no_longer_exports_waveform_tempo_parsing_helper() {
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+        .expect("app module should be readable");
+
+    assert!(
+        !app_mod.contains("parse_waveform_tempo_number_text"),
+        "waveform tempo parsing is a Sempal-owned DTO helper, not part of the Radiant compat export"
+    );
+}
+
+#[test]
 fn crate_root_does_not_export_legacy_app_alias() {
     let lib_rs = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs"))
         .expect("crate root should be readable");

@@ -10,11 +10,15 @@
 //! host-defined messages, reducing those messages, reprojecting the next
 //! immutable surface snapshot, and exposing deterministic backend-neutral paint
 //! plans for generic renderers.
+//! [`Command`] is the domain-neutral follow-up value for host-side reducers
+//! that need to queue messages, batch runtime-visible work, or request repaint
+//! without moving side-effect ownership into Radiant.
 //!
 //! Native window adapters can compose against this controller without coupling
 //! the public runtime API to any host application's top-level contracts.
 
 mod bridge;
+mod command;
 mod controller;
 mod paint;
 mod surface;
@@ -25,6 +29,7 @@ pub use crate::gui_runtime::{
     run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
+pub use command::Command;
 pub use controller::SurfaceRuntime;
 pub use paint::{
     PaintCustomSurface, PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign,

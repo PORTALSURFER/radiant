@@ -45,12 +45,14 @@ required for focus, input capture, message routing, and efficient updates.
 
 Radiant routes widget outputs into host-defined `Message` values through
 `WidgetMessageMapper`. `SurfaceRuntime` dispatches input, emits mapped messages,
-calls the host reducer, and requests a fresh surface snapshot.
+calls the host reducer, and requests a fresh surface snapshot. `Command<Message>`
+is the generic runtime-visible follow-up value for host reducers that need to
+queue messages, batch runtime-visible work, or request repaint.
 
-Commands and asynchronous side effects remain host-owned. A host reducer may
-start work, enqueue IO, or signal background tasks, but Radiant's generic
-runtime only observes repaint requests, projected surface snapshots, and
-host-defined messages.
+Asynchronous side effects remain host-owned. A host reducer may start work,
+enqueue IO, or signal background tasks, but Radiant's generic runtime only
+observes `Command<Message>` values, repaint requests, projected surface
+snapshots, and host-defined messages.
 
 ## Layout
 

@@ -4,7 +4,7 @@ use super::*;
 
 /// Run a generic [`RuntimeBridge`] through the native Vello backend.
 ///
-/// This entrypoint is intentionally narrower than the compatibility Sempal
+/// This entrypoint is intentionally narrower than the compatibility
 /// shell runner: it renders public `UiSurface` paint primitives, routes pointer
 /// and keyboard input into projected widget ids, reduces host-defined messages,
 /// and requests redraws when the surface changes.

@@ -1,4 +1,4 @@
-//! Compatibility shell snapshot capture used by Sempal-owned GUI fixtures.
+//! Compatibility shell snapshot capture used by host-owned GUI fixtures.
 
 use super::{
     AppModel, NativeShellState, Primitive, ShellLayout, ShellLayoutRuntime, StyleTokens, TextAlign,

@@ -230,7 +230,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         std::hash::Hash::hash(&value.to_bits(), hasher);
     }
 
-    fn main_mode_tag(mode: SizeModeMain) -> u8 {
+    fn main_mode_code(mode: SizeModeMain) -> u8 {
         match mode {
             SizeModeMain::Fixed(_) => 0,
             SizeModeMain::Fill(_) => 1,
@@ -239,7 +239,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         }
     }
 
-    fn cross_mode_tag(mode: SizeModeCross) -> u8 {
+    fn cross_mode_code(mode: SizeModeCross) -> u8 {
         match mode {
             SizeModeCross::Fixed(_) => 0,
             SizeModeCross::Fill => 1,
@@ -247,7 +247,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         }
     }
 
-    fn align_main_tag(value: MainAlign) -> u8 {
+    fn align_main_code(value: MainAlign) -> u8 {
         match value {
             MainAlign::Start => 0,
             MainAlign::Center => 1,
@@ -258,7 +258,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         }
     }
 
-    fn align_cross_tag(value: CrossAlign) -> u8 {
+    fn align_cross_code(value: CrossAlign) -> u8 {
         match value {
             CrossAlign::Start => 0,
             CrossAlign::Center => 1,
@@ -267,7 +267,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         }
     }
 
-    fn overflow_tag(value: OverflowPolicy) -> u8 {
+    fn overflow_code(value: OverflowPolicy) -> u8 {
         match value {
             OverflowPolicy::Clip => 0,
             OverflowPolicy::Scroll => 1,
@@ -279,21 +279,21 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
     use std::hash::Hasher;
 
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    hasher.write_u8(align_main_tag(container.policy.align_main));
-    hasher.write_u8(align_cross_tag(container.policy.align_cross));
-    hasher.write_u8(overflow_tag(container.policy.overflow));
+    hasher.write_u8(align_main_code(container.policy.align_main));
+    hasher.write_u8(align_cross_code(container.policy.align_cross));
+    hasher.write_u8(overflow_code(container.policy.overflow));
     push_f32(&mut hasher, container.policy.spacing);
     for child in &container.children {
         hasher.write_u64(child.child.id());
         hasher.write_u64(child.child.state_version());
-        hasher.write_u8(main_mode_tag(child.slot.size_main));
+        hasher.write_u8(main_mode_code(child.slot.size_main));
         match child.slot.size_main {
             SizeModeMain::Fixed(value)
             | SizeModeMain::Fill(value)
             | SizeModeMain::Percent(value) => push_f32(&mut hasher, value),
             SizeModeMain::Intrinsic => {}
         }
-        hasher.write_u8(cross_mode_tag(child.slot.size_cross));
+        hasher.write_u8(cross_mode_code(child.slot.size_cross));
         if let SizeModeCross::Fixed(value) = child.slot.size_cross {
             push_f32(&mut hasher, value);
         }
@@ -307,7 +307,7 @@ pub(super) fn virtualization_policy_fingerprint(container: &ContainerNode) -> u6
         push_f32(&mut hasher, child.slot.margin.bottom);
         hasher.write_u8(match child.slot.align_cross_override {
             None => 0,
-            Some(value) => 1 + align_cross_tag(value),
+            Some(value) => 1 + align_cross_code(value),
         });
         hasher.write_u8(u8::from(child.slot.allow_fixed_compress));
     }

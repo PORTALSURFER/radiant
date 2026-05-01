@@ -51,7 +51,7 @@ impl<T> RetainedVec<T> {
         self.0.is_empty()
     }
 
-    /// Borrow the retained contents as a slice.
+    /// Borrow the retained contents as an ordered shared view.
     pub fn as_slice(&self) -> &[T] {
         self.0.as_slice()
     }

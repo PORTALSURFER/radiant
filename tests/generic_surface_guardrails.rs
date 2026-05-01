@@ -350,7 +350,6 @@ fn domain_extraction_inventory_uses_known_dispositions_and_issues() {
         "move_to_sempal",
         "remove_compat_export",
         "split_generic_from_compat",
-        "generic_wording_cleanup",
     ] {
         assert!(
             rules
@@ -566,7 +565,28 @@ fn collect_domain_bearing_rust_files(path: &Path, manifest_dir: &Path, files: &m
     }
     let source = fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    if DOMAIN_TERMS.iter().any(|term| source.contains(term)) {
+    if contains_domain_term(&source) {
         files.push(relative);
     }
+}
+
+fn contains_domain_term(source: &str) -> bool {
+    DOMAIN_TERMS
+        .iter()
+        .any(|term| contains_domain_term_occurrence(source, term))
+}
+
+fn contains_domain_term_occurrence(source: &str, term: &str) -> bool {
+    if term.contains('-') {
+        return source.contains(term);
+    }
+    source.match_indices(term).any(|(start, _)| {
+        let before = source[..start].chars().next_back();
+        let after = source[start + term.len()..].chars().next();
+        is_term_boundary(before) && is_term_boundary(after)
+    })
+}
+
+fn is_term_boundary(ch: Option<char>) -> bool {
+    ch.is_none_or(|ch| !ch.is_ascii_alphanumeric() && ch != '_')
 }

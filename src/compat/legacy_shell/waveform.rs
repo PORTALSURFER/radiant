@@ -10,7 +10,6 @@ pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewMod
 pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;
-pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -243,8 +242,10 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic normalized timeline surface state.
-    pub fn timeline_surface(&self) -> WaveformSurfaceModel<WaveformSlicePreviewModel> {
-        WaveformSurfaceModel::new(
+    pub fn timeline_surface(
+        &self,
+    ) -> crate::gui::visualization::TimelineSurfaceState<WaveformSlicePreviewModel> {
+        crate::gui::visualization::TimelineSurfaceState::new(
             self.viewport(),
             self.transport(),
             self.edit_preview(),

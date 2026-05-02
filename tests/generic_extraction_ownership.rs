@@ -482,9 +482,10 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(waveform_mod.contains(
         "pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;"
     ));
-    assert!(waveform_mod.contains(
-        "pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;"
-    ));
+    assert!(!waveform_mod.contains("WaveformSurfaceModel"));
+    assert!(waveform_mod.contains("crate::gui::visualization::TimelineSurfaceState<"));
+    assert!(waveform_mod.contains("crate::gui::visualization::TimelineSurfaceState::new("));
+    assert!(motion_mod.contains("crate::gui::visualization::TimelineSurfaceState::new("));
     assert!(!waveform_mod.contains("WaveformMotionModel"));
     assert!(motion_mod.contains("crate::gui::visualization::TimelineMotionState<"));
     assert!(motion_mod.contains("crate::gui::visualization::TimelineMotionState::new("));

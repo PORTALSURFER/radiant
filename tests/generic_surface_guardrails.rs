@@ -805,6 +805,10 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
         "Radiant compatibility contracts should not re-export application-shaped title aliases; \
          use gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE for the generic runtime default"
     );
+    assert!(
+        !source.contains("run_native_vello_app_declarative"),
+        "Radiant legacy compatibility should expose one native Vello runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
+    );
 }
 
 #[test]

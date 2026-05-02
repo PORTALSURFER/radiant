@@ -270,10 +270,21 @@ fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
 #[test]
 fn generic_native_example_stays_non_sempal_and_runtime_backed() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_path = manifest_dir.join("Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", manifest_path.display()));
     let example_path = manifest_dir.join("examples/generic_native.rs");
     let source = fs::read_to_string(&example_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", example_path.display()));
     let uncommented = strip_rust_comments(&source);
+
+    assert!(
+        manifest.contains("[[example]]")
+            && manifest.contains("name = \"generic_native\"")
+            && manifest.contains("path = \"examples/generic_native.rs\"")
+            && manifest.contains("test = false"),
+        "generic_native should be an explicit standalone Cargo example target that can be checked without running the GUI"
+    );
 
     for forbidden in FORBIDDEN_GENERIC_TEST_TOKENS {
         assert!(

@@ -24,6 +24,11 @@ default = []
 gui-performance = []
 legacy-shell = []
 
+[[example]]
+name = "generic_native"
+path = "examples/generic_native.rs"
+test = false
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",

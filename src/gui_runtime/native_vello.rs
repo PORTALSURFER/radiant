@@ -90,8 +90,6 @@ mod runtime_state;
 mod scene_cache;
 #[cfg(feature = "legacy-shell")]
 mod scene_rebuild;
-#[cfg(feature = "legacy-shell")]
-mod shell_snapshot;
 mod startup;
 #[cfg(feature = "legacy-shell")]
 mod text_bpm;
@@ -109,8 +107,6 @@ use self::{
 #[cfg(not(feature = "legacy-shell"))]
 use self::{startup::*, text_renderer::*};
 
-#[cfg(feature = "legacy-shell")]
-pub use self::shell_snapshot::capture_native_shell_shot_snapshot;
 pub use self::{
     generic_runtime::{
         NativeGenericRunReport, NativeGenericRuntimeArtifacts, run_native_vello_runtime,

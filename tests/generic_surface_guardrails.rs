@@ -358,6 +358,12 @@ fn legacy_shell_sources_are_feature_gated() {
         !manifest_dir.join("src/app").exists(),
         "legacy shell compatibility contracts must live under src/compat/legacy_shell, not a top-level src/app module"
     );
+    assert!(
+        !manifest_dir
+            .join("src/gui_runtime/native_vello/shell_snapshot.rs")
+            .exists(),
+        "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
+    );
     let expectations: &[(&str, &[&str])] = &[
         (
             "src/lib.rs",

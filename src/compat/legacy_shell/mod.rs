@@ -46,6 +46,7 @@ mod bridge;
 mod browser;
 mod dirty_segments;
 mod motion;
+mod shell_snapshot;
 mod shell;
 mod sources;
 mod waveform;
@@ -69,6 +70,7 @@ pub use dirty_segments::{DirtySegments, SegmentRevisions};
 /// Compatibility alias for the generic shortcut resolution DTO.
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
+pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,

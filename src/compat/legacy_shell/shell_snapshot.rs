@@ -1,12 +1,12 @@
 //! Compatibility shell snapshot capture used by host-owned GUI fixtures.
 
-use super::{
-    AppModel, NativeShellState, Primitive, ShellLayout, ShellLayoutRuntime, StyleTokens, TextAlign,
-    Vector2,
-};
+use super::AppModel;
 use crate::gui::{
-    native_shell::NativeViewFrame,
-    types::{Point, Rect, Rgba8},
+    native_shell::{
+        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellLayoutRuntime, StyleTokens,
+        TextAlign,
+    },
+    types::{Point, Rect, Rgba8, Vector2},
 };
 use serde::Serialize;
 

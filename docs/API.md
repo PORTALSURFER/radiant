@@ -79,7 +79,9 @@ loading state, `TimelineViewport` for normalized viewport bounds,
 `TimelineEditPreview` for editable range and fade/curve handles,
 `TimelineFeedbackEvents` for transient operation feedback tokens,
 `TimelinePresentationState` for guide spacing, repeat state, and compact labels,
-and `TimelineMarkerPreview` for retained marker overlays.
+`TimelineMarkerPreview` for retained marker overlays, and
+`TimelineMotionState` for motion-frame overlays that group a retained timeline
+surface with generic signal chrome and tool state.
 
 ## Style And Theme
 
@@ -157,9 +159,9 @@ label without owning product-specific preference names.
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
 `TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,
-and `TimelineSurfaceState`. Hosts can map product-specific media surfaces into
-these reusable timeline and signal slots while keeping domain workflow state
-outside Radiant.
+`TimelineSurfaceState`, and `TimelineMotionState`. Hosts can map
+product-specific media surfaces into these reusable timeline and signal slots
+while keeping domain workflow state outside Radiant.
 
 ## Invalidation And Lifecycle
 

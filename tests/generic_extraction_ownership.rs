@@ -404,6 +404,11 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
+    let motion_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/compat/legacy_shell/motion.rs"
+    ))
+    .expect("motion module should be readable");
     let selection_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/selection.rs"))
             .expect("selection module should be readable");
@@ -482,6 +487,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
         "pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;"
     ));
     assert!(waveform_mod.contains(
+        "pub use crate::gui::visualization::TimelineMotionState as WaveformMotionModel;"
+    ));
+    assert!(waveform_mod.contains(
         "pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;"
     ));
     assert!(waveform_mod.contains(
@@ -508,10 +516,12 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(visualization_mod.contains("pub struct SignalRasterPreview"));
     assert!(visualization_mod.contains("pub struct SignalChromeState"));
     assert!(visualization_mod.contains("pub struct SignalToolState"));
+    assert!(visualization_mod.contains("pub struct TimelineMotionState"));
     assert!(!visualization_mod.contains("waveform"));
     assert!(!visualization_mod.contains("Waveform"));
     assert!(visualization_mod.contains("pub struct TimelineSurfaceState"));
     assert!(waveform_mod.contains("timeline_surface"));
+    assert!(motion_mod.contains("timeline_motion"));
 }
 
 #[test]

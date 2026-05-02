@@ -198,6 +198,22 @@ pub struct TimelineSurfaceState<Marker = TimelineMarkerPreview> {
     pub markers: Vec<Marker>,
 }
 
+/// Motion-frame state for a normalized timeline or signal visualization.
+///
+/// This groups the retained timeline surface with reusable chrome and tool
+/// state for render loops that update overlays between full host projections.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TimelineMotionState<Marker = TimelineMarkerPreview> {
+    /// Whether the host transport or animation source is currently running.
+    pub transport_running: bool,
+    /// Renderer-facing timeline surface state.
+    pub surface: TimelineSurfaceState<Marker>,
+    /// Reusable signal chrome/status state.
+    pub chrome: SignalChromeState,
+    /// Reusable signal tool state.
+    pub tools: SignalToolState,
+}
+
 impl TimelineTransportState {
     /// Build a timeline transport state from explicit normalized values.
     pub fn new(
@@ -275,6 +291,23 @@ impl<Marker> TimelineSurfaceState<Marker> {
             presentation,
             raster_preview,
             markers,
+        }
+    }
+}
+
+impl<Marker> TimelineMotionState<Marker> {
+    /// Build timeline motion state from explicit generic parts.
+    pub fn new(
+        transport_running: bool,
+        surface: TimelineSurfaceState<Marker>,
+        chrome: SignalChromeState,
+        tools: SignalToolState,
+    ) -> Self {
+        Self {
+            transport_running,
+            surface,
+            chrome,
+            tools,
         }
     }
 }
@@ -511,8 +544,8 @@ mod tests {
     use super::{
         ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
         SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
-        TimelineMarkerPreview, TimelinePresentationState, TimelineSurfaceState,
-        TimelineTransportState, TimelineViewport,
+        TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
+        TimelineSurfaceState, TimelineTransportState, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -736,5 +769,39 @@ mod tests {
         assert_eq!(surface.feedback_events.primary_failure_nonce, 2);
         assert!(surface.presentation.repeat_enabled);
         assert_eq!(surface.markers.len(), 1);
+    }
+
+    #[test]
+    fn timeline_motion_state_aggregates_surface_chrome_tools_and_transport() {
+        let motion = TimelineMotionState::new(
+            true,
+            TimelineSurfaceState::new(
+                TimelineViewport::new(0, 500, 0, 500_000, 0, 500_000_000),
+                TimelineTransportState::new(None, Some(10), Some(10_250), None),
+                TimelineEditPreview::default(),
+                TimelineFeedbackEvents::default(),
+                TimelinePresentationState::default(),
+                SignalRasterPreview::default(),
+                Vec::<TimelineMarkerPreview>::new(),
+            ),
+            SignalChromeState::new(
+                "moving",
+                true,
+                Some(String::from("anchor")),
+                ChannelViewMode::Mono,
+            ),
+            SignalToolState::new(false, true, true, false, true, true, false, true),
+        );
+
+        assert!(motion.transport_running);
+        assert_eq!(motion.surface.viewport.end_micros, 500_000);
+        assert_eq!(
+            motion.surface.transport.resolved_playhead_micros(),
+            Some(10_250)
+        );
+        assert_eq!(motion.chrome.status_hint, "moving");
+        assert!(motion.chrome.reference_anchor_available);
+        assert!(motion.tools.audition_enabled);
+        assert!(motion.tools.cleanup_available);
     }
 }

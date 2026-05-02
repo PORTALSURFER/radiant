@@ -475,6 +475,12 @@ fn legacy_shell_sources_are_feature_gated() {
                 .exists(),
         "Sempal playhead-trail state fixtures belong with Sempal composition tests, not Radiant native_shell"
     );
+    assert!(
+        !manifest_dir
+            .join("src/gui/native_shell/state/tests/waveform_slices.rs")
+            .exists(),
+        "Sempal waveform-slice state fixtures belong with Sempal composition tests, not Radiant native_shell"
+    );
     let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
         .expect("native_vello.rs should be readable");
     for forbidden in [

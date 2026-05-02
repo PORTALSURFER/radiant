@@ -208,4 +208,5 @@ mod waveform_edit_fades;
 mod waveform_edit_handles;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_selection.rs"]
 mod waveform_selection;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_slices.rs"]
 mod waveform_slices;

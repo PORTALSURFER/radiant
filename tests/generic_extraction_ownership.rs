@@ -583,6 +583,11 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
         "/src/gui_runtime/native_vello/runtime_input/drag.rs"
     ))
     .expect("runtime drag should be readable");
+    let runtime_pointer = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/pointer.rs"
+    ))
+    .expect("runtime pointer should be readable");
 
     for source in [
         &actions_mod,
@@ -590,9 +595,11 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
         &automation_browser,
         &runtime_actions,
         &runtime_drag,
+        &runtime_pointer,
     ] {
         assert!(!source.contains("FocusMapSample"));
         assert!(!source.contains("focus_map_sample"));
+        assert!(!source.contains("map_sample_action_at_point"));
     }
     assert!(actions_mod.contains("FocusSpatialContentItem"));
     assert!(actions_mod.contains("content_id: String"));
@@ -600,6 +607,8 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     assert!(automation_browser.contains("focus_spatial_content_item"));
     assert!(runtime_actions.contains("UiAction::FocusSpatialContentItem"));
     assert!(runtime_drag.contains("UiAction::FocusSpatialContentItem"));
+    assert!(runtime_drag.contains("map_content_action_at_point"));
+    assert!(runtime_pointer.contains("map_content_action_at_point"));
 }
 
 #[test]

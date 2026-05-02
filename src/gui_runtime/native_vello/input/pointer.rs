@@ -48,7 +48,7 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.map_sample_action_at_point(layout, model, point) {
+    if let Some(action) = shell_state.map_content_action_at_point(layout, model, point) {
         return Some(action);
     }
     if let Some(action) =

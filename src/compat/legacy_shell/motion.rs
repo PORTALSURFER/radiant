@@ -3,8 +3,8 @@
 use super::{
     AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
     WaveformEditPreviewModel, WaveformFeedbackEventsModel, WaveformImagePreviewModel,
-    WaveformMotionModel, WaveformPresentationModel, WaveformSlicePreviewModel,
-    WaveformSurfaceModel, WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
+    WaveformPresentationModel, WaveformSlicePreviewModel, WaveformSurfaceModel,
+    WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
 };
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
@@ -276,8 +276,10 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot as a generic timeline motion aggregate.
-    pub fn timeline_motion(&self) -> WaveformMotionModel<WaveformSlicePreviewModel> {
-        WaveformMotionModel::new(
+    pub fn timeline_motion(
+        &self,
+    ) -> crate::gui::visualization::TimelineMotionState<WaveformSlicePreviewModel> {
+        crate::gui::visualization::TimelineMotionState::new(
             self.transport_running,
             WaveformSurfaceModel::new(
                 self.waveform_viewport(),

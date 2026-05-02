@@ -9,7 +9,6 @@ pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
-pub use crate::gui::visualization::TimelineMotionState as WaveformMotionModel;
 pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;
 pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;

@@ -436,6 +436,12 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     assert!(
         !manifest_dir
+            .join("src/compat/legacy_shell/runtime_artifacts.rs")
+            .exists(),
+        "legacy runtime artifact wrappers should not live in a separate compatibility module"
+    );
+    assert!(
+        !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),
         "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"

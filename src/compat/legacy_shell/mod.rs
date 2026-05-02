@@ -46,7 +46,6 @@ mod browser;
 mod dirty_segments;
 mod motion;
 mod native_vello;
-mod runtime_artifacts;
 mod shell;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
@@ -79,7 +78,6 @@ pub use native_vello::{
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };
-pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
@@ -94,3 +92,15 @@ pub use sources::{
 pub use waveform::{
     NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel,
 };
+
+/// Structured runtime artifacts exported after one native compatibility-shell run completes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NativeRuntimeArtifacts {
+    /// Native startup timing artifact captured for this run, when startup began.
+    pub startup_timing: Option<crate::gui_runtime::NativeStartupTimingArtifact>,
+    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<serde_json::Value>,
+}
+
+/// Result plus structured artifacts returned by one native compatibility-shell runtime execution.
+pub type NativeRunReport = crate::gui_runtime::RuntimeRunReport<NativeRuntimeArtifacts>;

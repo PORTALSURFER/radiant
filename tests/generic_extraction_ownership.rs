@@ -1217,6 +1217,11 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         "/../../src/app_core/native_shell/composition/runtime/runtime_artifacts.rs"
     ))
     .expect("host runtime artifacts module should be readable");
+    let dirty_segments_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/runtime/dirty_segments.rs"
+    ))
+    .expect("host dirty segment module should be readable");
 
     assert!(!app_mod.contains("pub struct FrameBuildResult"));
     assert!(app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
@@ -1225,12 +1230,19 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     assert!(app_mod.contains("pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};"));
     assert!(runtime_artifacts_mod.contains("pub struct NativeRuntimeArtifacts"));
     assert!(runtime_artifacts_mod.contains("pub type NativeRunReport"));
-    assert!(app_mod.contains("RetainedSegmentMask"));
-    assert!(app_mod.contains("RetainedSegmentRevisions"));
+    assert!(!app_mod.contains("pub struct DirtySegments"));
+    assert!(!app_mod.contains("pub struct SegmentRevisions"));
+    assert!(app_mod.contains("pub use dirty_segments::{DirtySegments, SegmentRevisions};"));
+    assert!(!app_mod.contains("RetainedSegmentMask"));
+    assert!(!app_mod.contains("RetainedSegmentRevisions"));
+    assert!(dirty_segments_mod.contains("pub struct DirtySegments"));
+    assert!(dirty_segments_mod.contains("pub struct SegmentRevisions"));
+    assert!(dirty_segments_mod.contains("RetainedSegmentMask"));
+    assert!(dirty_segments_mod.contains("RetainedSegmentRevisions"));
     assert!(invalidation_mod.contains("pub struct InvalidationMask"));
     assert!(invalidation_mod.contains("pub struct RetainedSegmentMask"));
     assert!(invalidation_mod.contains("pub struct RetainedSegmentRevisions"));
-    assert!(app_mod.contains("retained_revisions"));
+    assert!(dirty_segments_mod.contains("retained_revisions"));
 }
 
 #[test]

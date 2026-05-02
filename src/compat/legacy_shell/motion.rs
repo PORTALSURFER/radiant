@@ -118,6 +118,7 @@ impl NativeMotionModel {
         let transport = model.waveform.transport();
         let edit_preview = model.waveform.edit_preview();
         let feedback_events = model.waveform.feedback_events();
+        let presentation = model.waveform.presentation();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
         let signal_tools = model.waveform_chrome.signal_tools();
@@ -144,7 +145,7 @@ impl NativeMotionModel {
             waveform_edit_fade_out_mute_end_milli: edit_preview.trailing_inner_end_milli,
             waveform_edit_fade_out_mute_end_micros: edit_preview.trailing_inner_end_micros,
             waveform_edit_fade_out_curve_milli: edit_preview.trailing_curve_milli,
-            waveform_loop_enabled: model.waveform.loop_enabled,
+            waveform_loop_enabled: presentation.repeat_enabled,
             waveform_loop_lock_enabled: signal_tools.lock_enabled,
             waveform_cursor_milli: transport.cursor_milli,
             waveform_playhead_milli: transport.playhead_milli,
@@ -155,8 +156,8 @@ impl NativeMotionModel {
             waveform_view_end_micros: viewport.end_micros,
             waveform_view_start_nanos: viewport.start_nanos,
             waveform_view_end_nanos: viewport.end_nanos,
-            waveform_tempo_label: model.waveform.tempo_label.clone(),
-            waveform_zoom_label: model.waveform.zoom_label.clone(),
+            waveform_tempo_label: presentation.primary_label,
+            waveform_zoom_label: presentation.viewport_label,
             waveform_loaded_label: image_preview.loaded_label,
             waveform_loading: image_preview.loading,
             waveform_image_signature: image_preview.image_signature,

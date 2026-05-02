@@ -76,9 +76,10 @@ status/reference/channel chrome, `SignalToolState` for generic enabled/visible
 tool flags, `SignalRasterPreview` for retained raster image payloads and
 loading state, `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
-`TimelineEditPreview` for editable range and fade/curve handles, and
-`TimelineFeedbackEvents` for transient operation feedback tokens, and
-`TimelineMarkerPreview` for retained marker overlays.
+`TimelineEditPreview` for editable range and fade/curve handles,
+`TimelineFeedbackEvents` for transient operation feedback tokens,
+`TimelinePresentationState` for guide spacing, repeat state, and compact labels,
+and `TimelineMarkerPreview` for retained marker overlays.
 
 ## Style And Theme
 

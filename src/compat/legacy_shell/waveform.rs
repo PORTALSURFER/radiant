@@ -9,6 +9,7 @@ pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
+pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -218,6 +219,17 @@ impl WaveformPanelModel {
         )
     }
 
+    /// Return this panel's generic timeline presentation state.
+    pub fn presentation(&self) -> WaveformPresentationModel {
+        WaveformPresentationModel::new(
+            self.beat_step_micros,
+            self.bpm_grid_origin_micros,
+            self.loop_enabled,
+            self.tempo_label.clone(),
+            self.zoom_label.clone(),
+        )
+    }
+
     /// Return this panel's generic retained raster preview.
     pub fn image_preview(&self) -> WaveformImagePreviewModel {
         WaveformImagePreviewModel::new(
@@ -317,6 +329,25 @@ mod tests {
         assert_eq!(events.primary_success_nonce, 7);
         assert_eq!(events.primary_failure_nonce, 8);
         assert_eq!(events.secondary_success_nonce, 9);
+    }
+
+    #[test]
+    fn presentation_projects_generic_timeline_guides_repeat_and_labels() {
+        let model = WaveformPanelModel {
+            beat_step_micros: Some(125_000),
+            bpm_grid_origin_micros: 25_000,
+            loop_enabled: true,
+            tempo_label: Some(String::from("120 BPM")),
+            zoom_label: Some(String::from("4x")),
+            ..WaveformPanelModel::default()
+        };
+        let presentation = model.presentation();
+
+        assert_eq!(presentation.guide_step_micros, Some(125_000));
+        assert_eq!(presentation.guide_origin_micros, 25_000);
+        assert!(presentation.repeat_enabled);
+        assert_eq!(presentation.primary_label.as_deref(), Some("120 BPM"));
+        assert_eq!(presentation.viewport_label.as_deref(), Some("4x"));
     }
 
     #[test]

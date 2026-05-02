@@ -158,6 +158,24 @@ pub struct TimelineFeedbackEvents {
     pub secondary_success_nonce: u64,
 }
 
+/// Presentation metadata for a normalized timeline.
+///
+/// This covers renderer-facing timeline guides, repeat state, and compact
+/// labels without tying the primitive to any host domain concept.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TimelinePresentationState {
+    /// Optional guide spacing in normalized micro-units.
+    pub guide_step_micros: Option<u32>,
+    /// Guide origin in normalized micro-units.
+    pub guide_origin_micros: u32,
+    /// Whether repeat playback/review behavior is enabled.
+    pub repeat_enabled: bool,
+    /// Optional primary metadata label.
+    pub primary_label: Option<String>,
+    /// Optional viewport/zoom metadata label.
+    pub viewport_label: Option<String>,
+}
+
 impl TimelineTransportState {
     /// Build a timeline transport state from explicit normalized values.
     pub fn new(
@@ -192,6 +210,25 @@ impl TimelineFeedbackEvents {
             primary_success_nonce,
             primary_failure_nonce,
             secondary_success_nonce,
+        }
+    }
+}
+
+impl TimelinePresentationState {
+    /// Build timeline presentation state from explicit guide and label values.
+    pub fn new(
+        guide_step_micros: Option<u32>,
+        guide_origin_micros: u32,
+        repeat_enabled: bool,
+        primary_label: Option<String>,
+        viewport_label: Option<String>,
+    ) -> Self {
+        Self {
+            guide_step_micros,
+            guide_origin_micros,
+            repeat_enabled,
+            primary_label,
+            viewport_label,
         }
     }
 }
@@ -428,7 +465,7 @@ mod tests {
     use super::{
         ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
         SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
-        TimelineMarkerPreview, TimelineTransportState, TimelineViewport,
+        TimelineMarkerPreview, TimelinePresentationState, TimelineTransportState, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -537,6 +574,23 @@ mod tests {
         assert_eq!(events.primary_success_nonce, 10);
         assert_eq!(events.primary_failure_nonce, 20);
         assert_eq!(events.secondary_success_nonce, 30);
+    }
+
+    #[test]
+    fn timeline_presentation_state_preserves_guides_repeat_and_labels() {
+        let presentation = TimelinePresentationState::new(
+            Some(125_000),
+            10_000,
+            true,
+            Some(String::from("128 BPM")),
+            Some(String::from("2x")),
+        );
+
+        assert_eq!(presentation.guide_step_micros, Some(125_000));
+        assert_eq!(presentation.guide_origin_micros, 10_000);
+        assert!(presentation.repeat_enabled);
+        assert_eq!(presentation.primary_label.as_deref(), Some("128 BPM"));
+        assert_eq!(presentation.viewport_label.as_deref(), Some("2x"));
     }
 
     #[test]

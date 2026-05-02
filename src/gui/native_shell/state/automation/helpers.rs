@@ -226,9 +226,13 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::TagBrowserSelection { .. } => "tag_browser_selection",
         UiAction::DeleteBrowserSelection => "delete_browser_selection",
         UiAction::NormalizeFocusedContentItem => "normalize_focused_content_item",
-        UiAction::NormalizeWaveformSelectionOrSample => "normalize_waveform_selection_or_sample",
+        UiAction::NormalizeWaveformSelectionOrLoadedContent => {
+            "normalize_waveform_selection_or_loaded_content"
+        }
         UiAction::CropWaveformSelection => "crop_waveform_selection",
-        UiAction::CropWaveformSelectionToNewSample => "crop_waveform_selection_to_new_sample",
+        UiAction::CropWaveformSelectionToNewContentItem => {
+            "crop_waveform_selection_to_new_content_item"
+        }
         UiAction::TrimWaveformSelection => "trim_waveform_selection",
         UiAction::ReverseWaveformSelection => "reverse_waveform_selection",
         UiAction::FadeWaveformSelectionLeftToRight => "fade_waveform_selection_left_to_right",
@@ -245,7 +249,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
             "toggle_focused_waveform_slice_export_mark"
         }
         UiAction::AlignWaveformStartToMarker => "align_waveform_start_to_marker",
-        UiAction::DeleteLoadedWaveformSample => "delete_loaded_waveform_sample",
+        UiAction::DeleteLoadedWaveformContent => "delete_loaded_waveform_content",
         UiAction::SlideWaveformSelection { .. } => "slide_waveform_selection",
         UiAction::ConfirmPrompt => "confirm_prompt",
         UiAction::CancelPrompt => "cancel_prompt",

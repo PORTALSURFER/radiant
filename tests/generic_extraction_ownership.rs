@@ -668,6 +668,35 @@ fn compat_action_catalog_uses_generic_content_item_drag_actions() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_waveform_content_actions() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+
+    for source in [&actions_mod, &automation_helpers] {
+        assert!(!source.contains("NormalizeWaveformSelectionOrSample"));
+        assert!(!source.contains("CropWaveformSelectionToNewSample"));
+        assert!(!source.contains("DeleteLoadedWaveformSample"));
+        assert!(!source.contains("normalize_waveform_selection_or_sample"));
+        assert!(!source.contains("crop_waveform_selection_to_new_sample"));
+        assert!(!source.contains("delete_loaded_waveform_sample"));
+    }
+    assert!(actions_mod.contains("NormalizeWaveformSelectionOrLoadedContent"));
+    assert!(actions_mod.contains("CropWaveformSelectionToNewContentItem"));
+    assert!(actions_mod.contains("DeleteLoadedWaveformContent"));
+    assert!(automation_helpers.contains("normalize_waveform_selection_or_loaded_content"));
+    assert!(automation_helpers.contains("crop_waveform_selection_to_new_content_item"));
+    assert!(automation_helpers.contains("delete_loaded_waveform_content"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

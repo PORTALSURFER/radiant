@@ -490,12 +490,12 @@ pub enum UiAction {
     DeleteBrowserSelection,
     /// Normalize the focused list content item in-place.
     NormalizeFocusedContentItem,
-    /// Normalize the waveform selection, or the loaded sample when no selection is active.
-    NormalizeWaveformSelectionOrSample,
+    /// Normalize the waveform selection, or the loaded content when no selection is active.
+    NormalizeWaveformSelectionOrLoadedContent,
     /// Crop the waveform file down to the active selection.
     CropWaveformSelection,
-    /// Write the active waveform selection to a new sibling sample file.
-    CropWaveformSelectionToNewSample,
+    /// Write the active waveform selection to a new sibling content item.
+    CropWaveformSelectionToNewContentItem,
     /// Trim the active waveform selection out of the loaded file.
     TrimWaveformSelection,
     /// Reverse the active waveform selection.
@@ -532,8 +532,8 @@ pub enum UiAction {
     ToggleFocusedWaveformSliceExportMark,
     /// Align the waveform start marker to the latest hover marker.
     AlignWaveformStartToMarker,
-    /// Delete the currently loaded sample and navigate to the next candidate.
-    DeleteLoadedWaveformSample,
+    /// Delete the currently loaded waveform content and navigate to the next candidate.
+    DeleteLoadedWaveformContent,
     /// Slide the active waveform selection by one coarse or fine step.
     SlideWaveformSelection {
         /// Signed selection slide delta (`-1` for left, `+1` for right).

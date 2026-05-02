@@ -181,6 +181,7 @@ fn playhead_trail_primitive_count(
         .count()
 }
 
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/browser_rows/mod.rs"]
 mod browser_rows;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/browser_scrollbars.rs"]
 mod browser_scrollbars;

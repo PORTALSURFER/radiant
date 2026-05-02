@@ -27,12 +27,12 @@ pub(in crate::gui::native_shell::state) struct BrowserScrollbarCacheKey {
     pub rows_key: BrowserRowsCacheKey,
 }
 
-/// One retained playhead x-position sample used to build ghost-line trails.
+/// One retained playhead x-position point used to build ghost-line trails.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct PlayheadTrailSample {
+pub(in crate::gui::native_shell::state) struct PlayheadTrailPoint {
     /// Normalized x-position in `0.0..=1.0`.
     pub ratio: f32,
-    /// Monotonic animation clock value when this sample was captured.
+    /// Monotonic animation clock value when this point was captured.
     pub captured_at_seconds: f32,
 }
 

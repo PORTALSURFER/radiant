@@ -114,17 +114,17 @@ const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 /// Text glyph shown before browser item labels whose backing content is missing.
 const BROWSER_MISSING_SAMPLE_MARKER: &str = "!";
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
-const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 768;
+const PLAYHEAD_TRAIL_MAX_POINTS: usize = 768;
 /// Number of seconds used to fade one retained playhead ghost line.
 ///
 /// Time-based aging avoids visible fade quantization when redraw cadence varies.
 const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
-/// Maximum opacity used for the newest retained trail sample behind the live playhead.
+/// Maximum opacity used for the newest retained trail point behind the live playhead.
 ///
 /// The active playhead line itself remains fully opaque; only the ghost trail fades from
 /// this half-strength head value down to zero.
 const PLAYHEAD_TRAIL_HEAD_ALPHA: f32 = 0.2;
-/// Maximum inserted in-between samples per motion frame for smooth trails.
+/// Maximum inserted in-between points per motion frame for smooth trails.
 const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
 /// Largest contiguous frame delta treated as normal transport motion.
 const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
@@ -225,7 +225,7 @@ pub(crate) struct NativeShellState {
     waveform_hover_x: Option<f32>,
     last_waveform_playhead_micros: Option<u32>,
     last_waveform_view_window: Option<(u32, u32)>,
-    playhead_trail_samples: Vec<PlayheadTrailSample>,
+    playhead_trail_points: Vec<PlayheadTrailPoint>,
     playhead_trail_elapsed_seconds: f32,
     transport_running: bool,
     has_focus_emphasis: bool,
@@ -298,7 +298,7 @@ impl NativeShellState {
             waveform_hover_x: None,
             last_waveform_playhead_micros: None,
             last_waveform_view_window: None,
-            playhead_trail_samples: Vec::new(),
+            playhead_trail_points: Vec::new(),
             playhead_trail_elapsed_seconds: 0.0,
             transport_running: true,
             has_focus_emphasis: false,
@@ -363,7 +363,7 @@ impl NativeShellState {
         NativeAnimationReasons {
             transport_running: self.transport_running,
             startup_frame_tick: self.startup_frame_ticks > 0,
-            playhead_trail_active: !self.playhead_trail_samples.is_empty(),
+            playhead_trail_active: !self.playhead_trail_points.is_empty(),
             waveform_toolbar_flash_active: self.waveform_toolbar_flash.is_some(),
             waveform_selection_flash_active: self.waveform_selection_flash_ticks > 0,
             waveform_edit_selection_flash_active: self.waveform_edit_selection_flash_ticks > 0,

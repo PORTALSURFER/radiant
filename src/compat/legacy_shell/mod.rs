@@ -44,6 +44,7 @@ use crate::gui::invalidation::{RetainedSegmentMask, RetainedSegmentRevisions};
 
 mod actions;
 mod bridge;
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/motion.rs"]
 mod motion;
 mod native_vello;
 mod shell;

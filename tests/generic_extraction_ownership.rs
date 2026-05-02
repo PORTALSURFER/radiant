@@ -55,10 +55,8 @@ fn normalized_range_model_is_owned_by_generic_range_module() {
         .expect("range module should be readable");
 
     assert!(!waveform_mod.contains("pub struct NormalizedRangeModel"));
-    assert!(
-        waveform_mod
-            .contains("pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;")
-    );
+    assert!(waveform_mod
+        .contains("pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;"));
     assert!(range_mod.contains("pub struct NormalizedRange"));
 }
 
@@ -79,10 +77,8 @@ fn row_processing_state_is_owned_by_generic_list_module() {
         "pub type BrowserPanelModel =\n    crate::gui::list::ContentListPanel<BrowserRowModel, BrowserPillEditorModel>;"
     ));
     assert!(!browser_mod.contains("pub enum BrowserRowProcessingState"));
-    assert!(
-        browser_mod
-            .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;")
-    );
+    assert!(browser_mod
+        .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;"));
     assert!(list_mod.contains("pub struct ContentListPanel<Row, Editor>"));
     assert!(list_mod.contains("pub fn pill_editor(&self) -> &Editor"));
     assert!(!list_mod.contains("source_loading"));
@@ -112,10 +108,8 @@ fn recency_state_is_owned_by_generic_list_module() {
 
     assert!(!browser_mod.contains("pub enum PlaybackAgeFilterChip"));
     assert!(!browser_mod.contains("pub enum PlaybackAgeBucket"));
-    assert!(
-        browser_mod
-            .contains("pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;")
-    );
+    assert!(browser_mod
+        .contains("pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;"));
     assert!(browser_mod.contains("pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;"));
     assert!(list_mod.contains("pub enum RecencyFilterChip"));
     assert!(list_mod.contains("pub enum RecencyBucket"));
@@ -162,10 +156,8 @@ fn editable_tree_actions_are_owned_by_generic_list_module() {
         .expect("list module should be readable");
 
     assert!(!sources_mod.contains("pub struct FolderActionsModel"));
-    assert!(
-        sources_mod
-            .contains("pub use crate::gui::list::EditableTreeActions as FolderActionsModel;")
-    );
+    assert!(sources_mod
+        .contains("pub use crate::gui::list::EditableTreeActions as FolderActionsModel;"));
     assert!(list_mod.contains("pub struct EditableTreeActions"));
 }
 
@@ -280,10 +272,8 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(!shell_mod.contains("output_host"));
     assert!(!shell_mod.contains("input_sample_rate"));
     assert!(!sources_mod.contains("pub struct FolderRecoveryModel"));
-    assert!(
-        shell_mod
-            .contains("pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;")
-    );
+    assert!(shell_mod
+        .contains("pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::DragOverlay as DragOverlayModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;"));
@@ -291,19 +281,15 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
         shell_mod.contains("pub use crate::gui::feedback::HealthState as StatusChipStateModel;")
     );
     assert!(!shell_mod.contains("pub struct PairedDevicePanelModel"));
-    assert!(
-        shell_mod
-            .contains("pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;")
-    );
+    assert!(shell_mod
+        .contains("pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;"));
     assert!(shell_mod.contains("pub paired_device: PairedDevicePanelModel"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;"));
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
     ));
-    assert!(
-        sources_mod
-            .contains("pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;")
-    );
+    assert!(sources_mod
+        .contains("pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;"));
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
     assert!(feedback_mod.contains("pub struct RecoverySummary"));
     assert!(feedback_mod.contains("pub enum HealthState"));
@@ -333,10 +319,8 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
     assert!(!shell_mod.contains("AudioOptionValueModel"));
     assert!(!shell_mod.contains("AudioOptionItemModel"));
     assert!(!shell_mod.contains("AudioFieldModel"));
-    assert!(
-        shell_mod
-            .contains("pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;")
-    );
+    assert!(shell_mod
+        .contains("pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;"));
     assert!(!shell_mod.contains("PreferencePanelStateModel"));
     assert!(shell_mod.contains("crate::gui::form::PreferencePanelState<4>"));
     assert!(shell_mod.contains("crate::gui::form::PreferencePanelState::new("));
@@ -405,7 +389,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     .expect("actions module should be readable");
     let motion_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/motion.rs"
+        "/../../src/app_core/native_shell/composition/runtime/motion.rs"
     ))
     .expect("motion module should be readable");
     let selection_mod =
@@ -449,10 +433,8 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(browser_mod.contains(
         "pub type BrowserPillEditorModel = crate::gui::badge::PillEditorPanel<BrowserPillState>;"
     ));
-    assert!(
-        browser_mod
-            .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;")
-    );
+    assert!(browser_mod
+        .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;"));
     assert!(
         browser_mod.contains("pub use crate::gui::visualization::SpatialPoint as MapPointModel;")
     );
@@ -545,10 +527,8 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     }
 
     assert!(!browser_mod.contains("pub struct BrowserChromeModel"));
-    assert!(
-        browser_mod
-            .contains("pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;")
-    );
+    assert!(browser_mod
+        .contains("pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;"));
     assert!(chrome_mod.contains("pub struct ContentViewChrome"));
     assert!(chrome_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
     assert!(chrome_mod.contains("items_tab_label: String::from(\"Items\")"));
@@ -878,10 +858,8 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
         assert!(!source.contains("can_tag"));
     }
     assert!(!browser_mod.contains("pub struct BrowserActionsModel"));
-    assert!(
-        browser_mod
-            .contains("pub use crate::gui::list::ContentListActions as BrowserActionsModel;")
-    );
+    assert!(browser_mod
+        .contains("pub use crate::gui::list::ContentListActions as BrowserActionsModel;"));
     assert!(toolbar_layout_tests.contains("can_edit_pills"));
 }
 

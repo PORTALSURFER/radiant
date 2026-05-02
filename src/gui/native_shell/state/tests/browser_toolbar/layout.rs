@@ -126,7 +126,7 @@ fn browser_toolbar_tags_button_sits_right_of_search_field() {
 }
 
 #[test]
-fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
+fn open_pill_editor_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
@@ -139,7 +139,7 @@ fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
     let mut state = NativeShellState::new();
 
     let input_rect = state
-        .browser_tag_sidebar_input_rect(&layout, &model)
+        .browser_pill_editor_input_rect(&layout, &model)
         .expect("sidebar input should render");
     let point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,
@@ -157,14 +157,14 @@ fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
 }
 
 #[test]
-fn tag_sidebar_auto_rename_button_maps_to_toggle_action() {
+fn pill_editor_auto_rename_button_maps_to_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
     model.browser.tag_sidebar.open = true;
     let mut state = NativeShellState::new();
     let input_rect = state
-        .browser_tag_sidebar_input_rect(&layout, &model)
+        .browser_pill_editor_input_rect(&layout, &model)
         .expect("sidebar input should render");
     let field_height = style.sizing.browser_row_height.max(22.0);
     let point = Point::new(

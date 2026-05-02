@@ -183,19 +183,19 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     pub(super) fn sync_browser_pill_editor_state(&mut self) {
         if self.text_input_target != TextInputTarget::BrowserPillEditor {
-            self.shell_state.set_browser_tag_sidebar_editor_state(None);
+            self.shell_state.set_browser_pill_editor_visual_state(None);
             return;
         }
         let Some(visual) = self.with_shell_layout(|this, layout| {
             this.shell_state
-                .browser_tag_sidebar_text_rect(layout, &this.model)
+                .browser_pill_editor_text_rect(layout, &this.model)
                 .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
         }) else {
-            self.shell_state.set_browser_tag_sidebar_editor_state(None);
+            self.shell_state.set_browser_pill_editor_visual_state(None);
             return;
         };
         self.shell_state
-            .set_browser_tag_sidebar_editor_state(visual);
+            .set_browser_pill_editor_visual_state(visual);
     }
 
     pub(super) fn sync_folder_create_editor_state(&mut self) {
@@ -343,7 +343,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.text_editor_state = None;
             self.text_input_drag_active = false;
             self.shell_state.set_browser_search_editor_state(None);
-            self.shell_state.set_browser_tag_sidebar_editor_state(None);
+            self.shell_state.set_browser_pill_editor_visual_state(None);
             self.shell_state.set_folder_create_editor_state(None);
         }
         self.sync_waveform_bpm_editor_state();

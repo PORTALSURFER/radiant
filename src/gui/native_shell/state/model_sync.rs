@@ -112,11 +112,11 @@ impl NativeShellState {
     }
 
     /// Update the active browser-tag-sidebar editor visuals shown in state overlays.
-    pub(crate) fn set_browser_tag_sidebar_editor_state(
+    pub(crate) fn set_browser_pill_editor_visual_state(
         &mut self,
         visual: Option<TextFieldVisualState>,
     ) {
-        self.browser_tag_sidebar_editor_visual = visual;
+        self.browser_pill_editor_visual = visual;
     }
 
     /// Update the active inline folder-create editor visuals shown in sidebar overlays.
@@ -172,7 +172,7 @@ impl NativeShellState {
                 self.browser_search_editor_visual.as_ref(),
             ),
             browser_search_sidebar_signature: text_field_visual_signature(
-                self.browser_tag_sidebar_editor_visual.as_ref(),
+                self.browser_pill_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
                 self.folder_create_editor_visual.as_ref(),

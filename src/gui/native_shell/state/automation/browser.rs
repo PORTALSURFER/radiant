@@ -146,8 +146,8 @@ pub(super) fn build_browser_automation(
         children.push(map_canvas_automation(layout, model, style));
     } else {
         children.push(build_browser_table_automation(shell, layout, model, style));
-        if let Some(tag_sidebar) = build_browser_tag_sidebar_automation(layout, model, style) {
-            children.push(tag_sidebar);
+        if let Some(pill_editor) = build_browser_pill_editor_automation(layout, model, style) {
+            children.push(pill_editor);
         }
     }
     AutomationNodeSnapshot {
@@ -289,12 +289,12 @@ fn build_browser_table_automation(
     table_node
 }
 
-fn build_browser_tag_sidebar_automation(
+fn build_browser_pill_editor_automation(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
 ) -> Option<AutomationNodeSnapshot> {
-    let rect = browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, model)?;
+    let rect = browser_pill_editor_panel_rect(layout.browser_rows, style.sizing, model)?;
     let sidebar = &model.browser.tag_sidebar;
     let normal_tag_labels = sidebar
         .option_pills
@@ -317,13 +317,13 @@ fn build_browser_tag_sidebar_automation(
                 String::from("commit_browser_pill_editor_input"),
             ],
         ),
-        browser_tag_sidebar_pill_node(
+        browser_pill_editor_pill_node(
             "browser.tag_sidebar.playback.loop",
             &sidebar.exclusive_pills[0],
             rect,
             vec![String::from("set_browser_sidebar_looped")],
         ),
-        browser_tag_sidebar_pill_node(
+        browser_pill_editor_pill_node(
             "browser.tag_sidebar.playback.one_shot",
             &sidebar.exclusive_pills[1],
             rect,
@@ -331,7 +331,7 @@ fn build_browser_tag_sidebar_automation(
         ),
     ];
     children.extend(sidebar.option_pills.iter().map(|pill| {
-        browser_tag_sidebar_pill_node(
+        browser_pill_editor_pill_node(
             format!("browser.tag_sidebar.normal_tag.{}", slug(&pill.label)),
             pill,
             rect,
@@ -339,7 +339,7 @@ fn build_browser_tag_sidebar_automation(
         )
     }));
     if let Some(pill) = sidebar.create_pill.as_ref() {
-        children.push(browser_tag_sidebar_pill_node(
+        children.push(browser_pill_editor_pill_node(
             format!("browser.tag_sidebar.create_tag.{}", slug(&pill.id)),
             pill,
             rect,
@@ -368,7 +368,7 @@ fn build_browser_tag_sidebar_automation(
     Some(node)
 }
 
-fn browser_tag_sidebar_pill_node(
+fn browser_pill_editor_pill_node(
     id: impl Into<String>,
     pill: &crate::compat_app_contract::BrowserPillModel,
     rect: Rect,

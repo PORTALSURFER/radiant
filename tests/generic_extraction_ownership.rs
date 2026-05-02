@@ -596,6 +596,34 @@ fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
 }
 
 #[test]
+fn compat_shell_uses_generic_pill_editor_layout_identifiers() {
+    let state_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state.rs"
+    ))
+    .expect("state module should be readable");
+    let model_sync = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/model_sync.rs"
+    ))
+    .expect("model sync should be readable");
+    let text_runtime = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/text_runtime.rs"
+    ))
+    .expect("text runtime should be readable");
+
+    for source in [&state_mod, &model_sync, &text_runtime] {
+        assert!(!source.contains("browser_tag_sidebar_editor_visual"));
+        assert!(!source.contains("set_browser_tag_sidebar_editor_state"));
+        assert!(!source.contains("sync_browser_tag_sidebar_editor_state"));
+    }
+    assert!(text_runtime.contains("sync_browser_pill_editor_state"));
+    assert!(model_sync.contains("set_browser_pill_editor_visual_state"));
+    assert!(state_mod.contains("browser_pill_editor_visual"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

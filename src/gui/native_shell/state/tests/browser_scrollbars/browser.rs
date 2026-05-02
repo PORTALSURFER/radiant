@@ -93,7 +93,7 @@ fn browser_scrollbar_stays_visible_and_hittable_with_tag_sidebar_open() {
     let mut model = browser_model_with_rows(500, 120);
     model.browser.tag_sidebar.open = true;
     let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, &model);
-    let sidebar_rect = browser_tag_sidebar_panel_rect(layout.browser_rows, style.sizing, &model)
+    let sidebar_rect = browser_pill_editor_panel_rect(layout.browser_rows, style.sizing, &model)
         .expect("tag sidebar should reserve a panel");
     let rows = rendered_browser_rows(&layout, &model, &style);
     let content_rect =
@@ -138,7 +138,7 @@ fn browser_scrollbar_stays_visible_and_hittable_with_tag_sidebar_open() {
     );
 
     let input_rect = state
-        .browser_tag_sidebar_input_rect(&layout, &model)
+        .browser_pill_editor_input_rect(&layout, &model)
         .expect("sidebar input should render");
     let sidebar_point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,

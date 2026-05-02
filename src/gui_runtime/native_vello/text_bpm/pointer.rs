@@ -42,7 +42,7 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
             .browser_search_text_rect(layout, &runner.model),
         TextInputTarget::BrowserPillEditor => runner
             .shell_state
-            .browser_tag_sidebar_text_rect(layout, &runner.model),
+            .browser_pill_editor_text_rect(layout, &runner.model),
         TextInputTarget::WaveformBpm => runner
             .shell_state
             .waveform_bpm_text_rect(layout, &runner.model),

@@ -350,6 +350,29 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
 }
 
 #[test]
+fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+        .expect("shell module should be readable");
+
+    for source in [&browser_mod, &shell_mod] {
+        assert!(
+            !source.contains("Search samples")
+                && !source.contains("Similarity map")
+                && !source.contains("ColumnModel::new(\"Samples\""),
+            "Radiant compatibility defaults must stay product-neutral; host projections supply product labels"
+        );
+    }
+
+    assert!(browser_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
+    assert!(browser_mod.contains("samples_tab_label: String::from(\"Items\")"));
+    assert!(browser_mod.contains("map_tab_label: String::from(\"Map\")"));
+    assert!(shell_mod.contains("ColumnModel::new(\"Items\", 0)"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

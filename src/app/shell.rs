@@ -152,7 +152,7 @@ impl Default for AppModel {
             drag_overlay: DragOverlayModel::default(),
             columns: [
                 ColumnModel::new("Trash", 0),
-                ColumnModel::new("Samples", 0),
+                ColumnModel::new("Items", 0),
                 ColumnModel::new("Keep", 0),
             ],
             selected_column: 1,

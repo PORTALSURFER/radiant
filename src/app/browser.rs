@@ -98,10 +98,10 @@ pub struct BrowserChromeModel {
 impl Default for BrowserChromeModel {
     fn default() -> Self {
         Self {
-            samples_tab_label: String::from("Samples"),
-            map_tab_label: String::from("Similarity map"),
+            samples_tab_label: String::from("Items"),
+            map_tab_label: String::from("Map"),
             search_prefix_label: String::from("Search"),
-            search_placeholder: String::from("Search samples (Ctrl+F)"),
+            search_placeholder: String::from("Search items (Ctrl+F)"),
             activity_ready_label: String::from("Ready"),
             activity_busy_label: String::from("Filtering"),
             sort_prefix_label: String::from("Sort"),

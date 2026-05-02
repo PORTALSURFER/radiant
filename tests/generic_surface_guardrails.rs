@@ -411,6 +411,12 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     assert!(
         !manifest_dir
+            .join("src/gui/native_shell/ownership_inventory.tsv")
+            .exists(),
+        "Sempal native-shell ownership inventory belongs with Sempal composition tests, not Radiant"
+    );
+    assert!(
+        !manifest_dir
             .join("src/gui/native_shell/state/tests/status_bar_progress.rs")
             .exists(),
         "Sempal status/progress state fixtures belong with Sempal composition tests, not Radiant native_shell"

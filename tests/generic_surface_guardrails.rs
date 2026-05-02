@@ -398,6 +398,10 @@ fn legacy_shell_sources_are_feature_gated() {
         "Sempal native-shell state fixtures belong with Sempal composition tests, not Radiant native_shell"
     );
     assert!(
+        !manifest_dir.join("src/gui/native_shell/state/tests").exists(),
+        "Sempal native-shell state test harness belongs with Sempal composition tests, not Radiant native_shell"
+    );
+    assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/status_bar_progress.rs")
             .exists(),

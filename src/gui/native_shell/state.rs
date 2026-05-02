@@ -471,4 +471,5 @@ impl NativeShellState {
 }
 
 #[cfg(test)]
+#[path = "../../../../../src/app_core/native_shell/composition/state/tests/mod.rs"]
 mod tests;

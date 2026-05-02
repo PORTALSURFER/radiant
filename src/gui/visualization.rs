@@ -176,6 +176,28 @@ pub struct TimelinePresentationState {
     pub viewport_label: Option<String>,
 }
 
+/// Aggregated renderer-facing state for a normalized timeline surface.
+///
+/// Hosts can project domain-specific media, history, or document timelines into
+/// these generic slots while keeping product workflow state outside Radiant.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TimelineSurfaceState<Marker = TimelineMarkerPreview> {
+    /// Visible viewport bounds.
+    pub viewport: TimelineViewport,
+    /// Cursor, playhead, and selected range state.
+    pub transport: TimelineTransportState,
+    /// Editable range and handle preview state.
+    pub edit_preview: TimelineEditPreview,
+    /// One-shot transient feedback tokens.
+    pub feedback_events: TimelineFeedbackEvents,
+    /// Guide, repeat, and label presentation state.
+    pub presentation: TimelinePresentationState,
+    /// Retained raster preview for the timeline body.
+    pub raster_preview: SignalRasterPreview,
+    /// Host-projected markers or slices shown on the timeline.
+    pub markers: Vec<Marker>,
+}
+
 impl TimelineTransportState {
     /// Build a timeline transport state from explicit normalized values.
     pub fn new(
@@ -229,6 +251,30 @@ impl TimelinePresentationState {
             repeat_enabled,
             primary_label,
             viewport_label,
+        }
+    }
+}
+
+impl<Marker> TimelineSurfaceState<Marker> {
+    /// Build a timeline surface state from explicit generic parts.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        viewport: TimelineViewport,
+        transport: TimelineTransportState,
+        edit_preview: TimelineEditPreview,
+        feedback_events: TimelineFeedbackEvents,
+        presentation: TimelinePresentationState,
+        raster_preview: SignalRasterPreview,
+        markers: Vec<Marker>,
+    ) -> Self {
+        Self {
+            viewport,
+            transport,
+            edit_preview,
+            feedback_events,
+            presentation,
+            raster_preview,
+            markers,
         }
     }
 }
@@ -465,7 +511,8 @@ mod tests {
     use super::{
         ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
         SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
-        TimelineMarkerPreview, TimelinePresentationState, TimelineTransportState, TimelineViewport,
+        TimelineMarkerPreview, TimelinePresentationState, TimelineSurfaceState,
+        TimelineTransportState, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -662,5 +709,32 @@ mod tests {
         assert!(marker.marked_for_export);
         assert!(marker.duplicate_cleanup_candidate);
         assert!(!marker.duplicate_cleanup_exempted);
+    }
+
+    #[test]
+    fn timeline_surface_state_aggregates_generic_timeline_parts() {
+        let marker = TimelineMarkerPreview {
+            range: NormalizedRange::new(100, 200),
+            selected: true,
+            focused: false,
+            marked_for_export: false,
+            duplicate_cleanup_candidate: false,
+            duplicate_cleanup_exempted: false,
+        };
+        let surface = TimelineSurfaceState::new(
+            TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
+            TimelineTransportState::new(Some(20), Some(30), Some(30_500), None),
+            TimelineEditPreview::default(),
+            TimelineFeedbackEvents::new(1, 2, 3),
+            TimelinePresentationState::new(None, 0, true, Some(String::from("tempo")), None),
+            SignalRasterPreview::default(),
+            vec![marker],
+        );
+
+        assert_eq!(surface.viewport.start_micros, 10_000);
+        assert_eq!(surface.transport.resolved_playhead_micros(), Some(30_500));
+        assert_eq!(surface.feedback_events.primary_failure_nonce, 2);
+        assert!(surface.presentation.repeat_enabled);
+        assert_eq!(surface.markers.len(), 1);
     }
 }

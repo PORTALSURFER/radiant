@@ -154,6 +154,13 @@ options to the host. `PreferencePanelState` models generic settings-panel
 visibility, a primary text value, fixed-size toggle state, and an auxiliary
 label without owning product-specific preference names.
 
+`radiant::gui::visualization` contains generic visualization models such as
+`TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
+`TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,
+and `TimelineSurfaceState`. Hosts can map product-specific media surfaces into
+these reusable timeline and signal slots while keeping domain workflow state
+outside Radiant.
+
 ## Invalidation And Lifecycle
 
 Hosts project immutable surface snapshots. Radiant compares widget identity,

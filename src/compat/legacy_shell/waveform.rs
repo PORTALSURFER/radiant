@@ -10,6 +10,7 @@ pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewMod
 pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;
+pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -240,6 +241,19 @@ impl WaveformPanelModel {
             self.waveform_image.clone(),
         )
     }
+
+    /// Return this panel's generic normalized timeline surface state.
+    pub fn timeline_surface(&self) -> WaveformSurfaceModel<WaveformSlicePreviewModel> {
+        WaveformSurfaceModel::new(
+            self.viewport(),
+            self.transport(),
+            self.edit_preview(),
+            self.feedback_events(),
+            self.presentation(),
+            self.image_preview(),
+            self.slices.clone(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -370,6 +384,37 @@ mod tests {
         assert!(!preview.image_rendering);
         assert_eq!(preview.image_signature, Some(99));
         assert_eq!(preview.image.as_deref(), Some(image.as_ref()));
+    }
+
+    #[test]
+    fn timeline_surface_projects_generic_timeline_surface_state() {
+        let model = WaveformPanelModel {
+            view_start_micros: 125_000,
+            playhead_micros: Some(250_250),
+            selection_export_failure_flash_nonce: 5,
+            loop_enabled: true,
+            loaded_label: Some(String::from("Loaded")),
+            slices: vec![crate::gui::visualization::TimelineMarkerPreview {
+                range: crate::gui::range::NormalizedRange::new(100, 200),
+                selected: true,
+                focused: false,
+                marked_for_export: false,
+                duplicate_cleanup_candidate: false,
+                duplicate_cleanup_exempted: false,
+            }],
+            ..WaveformPanelModel::default()
+        };
+        let surface = model.timeline_surface();
+
+        assert_eq!(surface.viewport.start_micros, 125_000);
+        assert_eq!(surface.transport.resolved_playhead_micros(), Some(250_250));
+        assert_eq!(surface.feedback_events.primary_failure_nonce, 5);
+        assert!(surface.presentation.repeat_enabled);
+        assert_eq!(
+            surface.raster_preview.loaded_label.as_deref(),
+            Some("Loaded")
+        );
+        assert_eq!(surface.markers.len(), 1);
     }
 }
 

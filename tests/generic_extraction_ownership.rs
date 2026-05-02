@@ -479,6 +479,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
         "pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;"
     ));
     assert!(waveform_mod.contains(
+        "pub use crate::gui::visualization::TimelineSurfaceState as WaveformSurfaceModel;"
+    ));
+    assert!(waveform_mod.contains(
         "pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;"
     ));
     assert!(waveform_mod.contains(
@@ -507,6 +510,8 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(visualization_mod.contains("pub struct SignalToolState"));
     assert!(!visualization_mod.contains("waveform"));
     assert!(!visualization_mod.contains("Waveform"));
+    assert!(visualization_mod.contains("pub struct TimelineSurfaceState"));
+    assert!(waveform_mod.contains("timeline_surface"));
 }
 
 #[test]

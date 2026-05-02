@@ -687,6 +687,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "ContentViewChrome",
         "PairedStatusPanel",
         "PreferencePanelState",
+        "TimelineSurfaceState",
     ] {
         assert!(
             docs.contains(required),

@@ -237,7 +237,10 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(
         shell_mod.contains("pub use crate::gui::feedback::HealthState as StatusChipStateModel;")
     );
-    assert!(shell_mod.contains("pub struct PairedDevicePanelModel"));
+    assert!(!shell_mod.contains("pub struct PairedDevicePanelModel"));
+    assert!(shell_mod.contains(
+        "pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;"
+    ));
     assert!(shell_mod.contains("pub paired_device: PairedDevicePanelModel"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;"));
     assert!(shell_mod.contains(
@@ -286,6 +289,8 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
     assert!(shell_mod.contains("pub use crate::gui::form::SummaryField as SummaryFieldModel;"));
     assert!(form_mod.contains("pub enum PairedPickerTarget"));
     assert!(form_mod.contains("pub enum PairedPickerValue"));
+    assert!(form_mod.contains("pub struct PairedStatusPanel"));
+    assert!(form_mod.contains("pub fn options_for(&self, target: PairedPickerTarget)"));
 }
 
 #[test]

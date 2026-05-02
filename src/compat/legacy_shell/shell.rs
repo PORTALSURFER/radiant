@@ -8,6 +8,7 @@ pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
 pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;
+pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;
 pub use crate::gui::form::SummaryField as SummaryFieldModel;
 
 use super::{
@@ -21,107 +22,6 @@ pub type PairedPickerValueModel = crate::gui::form::PairedPickerValue<String, u3
 
 /// One selectable item shown inside a paired picker.
 pub type PairedPickerOptionModel = crate::gui::form::OptionItem<PairedPickerValueModel>;
-
-/// Paired device/status state projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct PairedDevicePanelModel {
-    /// Compact chip health state.
-    pub status_state: StatusChipStateModel,
-    /// Compact chip label shown in the top-right chrome.
-    pub status_label: String,
-    /// Optional detail or error text shown inside the options overview.
-    pub detail_label: Option<String>,
-    /// Primary group summary row.
-    pub primary_group: SummaryFieldModel,
-    /// Primary item summary row.
-    pub primary_item: SummaryFieldModel,
-    /// Primary numeric-setting summary row.
-    pub primary_number: SummaryFieldModel,
-    /// Secondary group summary row.
-    pub secondary_group: SummaryFieldModel,
-    /// Secondary item summary row.
-    pub secondary_item: SummaryFieldModel,
-    /// Secondary numeric-setting summary row.
-    pub secondary_number: SummaryFieldModel,
-    /// Currently expanded picker, or `None` for the overview.
-    pub active_picker: Option<PairedPickerTargetModel>,
-    /// Primary group choices.
-    pub primary_group_options: Vec<PairedPickerOptionModel>,
-    /// Primary item choices.
-    pub primary_item_options: Vec<PairedPickerOptionModel>,
-    /// Primary numeric-setting choices.
-    pub primary_number_options: Vec<PairedPickerOptionModel>,
-    /// Secondary group choices.
-    pub secondary_group_options: Vec<PairedPickerOptionModel>,
-    /// Secondary item choices.
-    pub secondary_item_options: Vec<PairedPickerOptionModel>,
-    /// Secondary numeric-setting choices.
-    pub secondary_number_options: Vec<PairedPickerOptionModel>,
-}
-
-impl PairedDevicePanelModel {
-    /// Return the compact status chip state.
-    pub fn status_state(&self) -> StatusChipStateModel {
-        self.status_state
-    }
-
-    /// Return the compact status chip label.
-    pub fn status_label(&self) -> &str {
-        &self.status_label
-    }
-
-    /// Return optional detail text for the paired-device overview.
-    pub fn detail_label(&self) -> Option<&str> {
-        self.detail_label.as_deref()
-    }
-
-    /// Return the primary group summary field.
-    pub fn primary_group(&self) -> &SummaryFieldModel {
-        &self.primary_group
-    }
-
-    /// Return the primary item summary field.
-    pub fn primary_item(&self) -> &SummaryFieldModel {
-        &self.primary_item
-    }
-
-    /// Return the primary numeric-setting summary field.
-    pub fn primary_number(&self) -> &SummaryFieldModel {
-        &self.primary_number
-    }
-
-    /// Return the secondary group summary field.
-    pub fn secondary_group(&self) -> &SummaryFieldModel {
-        &self.secondary_group
-    }
-
-    /// Return the secondary item summary field.
-    pub fn secondary_item(&self) -> &SummaryFieldModel {
-        &self.secondary_item
-    }
-
-    /// Return the secondary numeric-setting summary field.
-    pub fn secondary_number(&self) -> &SummaryFieldModel {
-        &self.secondary_number
-    }
-
-    /// Return the currently expanded paired-picker target, if any.
-    pub fn active_picker(&self) -> Option<PairedPickerTargetModel> {
-        self.active_picker
-    }
-
-    /// Return the option list associated with a paired-picker target.
-    pub fn options_for(&self, target: PairedPickerTargetModel) -> &[PairedPickerOptionModel] {
-        match target {
-            PairedPickerTargetModel::PrimaryGroup => &self.primary_group_options,
-            PairedPickerTargetModel::PrimaryItem => &self.primary_item_options,
-            PairedPickerTargetModel::PrimaryNumber => &self.primary_number_options,
-            PairedPickerTargetModel::SecondaryGroup => &self.secondary_group_options,
-            PairedPickerTargetModel::SecondaryItem => &self.secondary_item_options,
-            PairedPickerTargetModel::SecondaryNumber => &self.secondary_number_options,
-        }
-    }
-}
 
 /// Options-panel state projected into the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::gui::native_shell::FillLinearGradient;
+use crate::gui::paint::FillLinearGradient;
 
 const DRAW_TAG_COLOR: u32 = 0x44;
 const DRAW_TAG_LINEAR_GRADIENT: u32 = 0x114;

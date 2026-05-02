@@ -38,9 +38,6 @@ pub(crate) use layout_runtime::{
     ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,
     dirty_segments_for_layout_subtree,
 };
-#[cfg(test)]
-pub(crate) use paint::FillLinearGradient;
-pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign};
 pub(crate) use state::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
     HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, StaticFrameSegment,

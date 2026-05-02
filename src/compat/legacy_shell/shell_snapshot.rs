@@ -2,10 +2,8 @@
 
 use super::AppModel;
 use crate::gui::{
-    native_shell::{
-        NativeShellState, NativeViewFrame, Primitive, ShellLayout, ShellLayoutRuntime, StyleTokens,
-        TextAlign,
-    },
+    native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
+    paint::{PaintFrame as NativeViewFrame, Primitive, TextAlign},
     snapshot::{
         SnapshotColor, SnapshotPoint, SnapshotPrimitive, SnapshotRect, SnapshotTextAlign,
         SnapshotTextRun, VisualSnapshot,

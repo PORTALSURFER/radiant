@@ -125,7 +125,7 @@ fn recency_state_is_owned_by_generic_list_module() {
 fn column_summary_is_owned_by_generic_list_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -140,7 +140,7 @@ fn column_summary_is_owned_by_generic_list_module() {
 fn editable_row_kind_is_owned_by_generic_list_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -155,7 +155,7 @@ fn editable_row_kind_is_owned_by_generic_list_module() {
 fn editable_tree_actions_are_owned_by_generic_list_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -173,7 +173,7 @@ fn editable_tree_actions_are_owned_by_generic_list_module() {
 fn editable_tree_row_is_owned_by_generic_list_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -190,7 +190,7 @@ fn editable_tree_row_is_owned_by_generic_list_module() {
 fn split_pane_slot_is_owned_by_generic_panel_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
@@ -220,7 +220,7 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 fn focus_context_model_is_owned_by_generic_focus_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let focus_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/focus.rs"))
@@ -259,7 +259,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     .expect("shell module should be readable");
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/sources.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("sources module should be readable");
     let feedback_mod =

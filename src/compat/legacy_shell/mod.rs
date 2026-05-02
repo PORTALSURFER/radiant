@@ -52,8 +52,6 @@ mod dirty_segments;
 mod motion;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/native_vello.rs"]
 mod native_vello;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/runtime_artifacts.rs"]
-mod runtime_artifacts;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
@@ -63,13 +61,14 @@ mod sources;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/waveform.rs"]
 mod waveform;
 
+pub use crate::compat::runtime_artifacts::NativeRunReport;
 pub use actions::{BrowserTriageTarget, UiAction};
 pub use aliases::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserPillEditorModel,
     BrowserPillModel, BrowserPillState, BrowserRowModel, BrowserRowProcessingState, ColumnModel,
-    FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FrameBuildResult,
-    FolderRecoveryModel, FolderRowKind, FolderRowModel, GuiAutomationSnapshot, HotkeyResolution,
+    FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel,
+    FolderRowKind, FolderRowModel, FrameBuildResult, GuiAutomationSnapshot, HotkeyResolution,
     KeyPress, MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket,
     PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel,
 };
@@ -83,7 +82,6 @@ pub use native_vello::{
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };
-pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,

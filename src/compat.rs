@@ -5,6 +5,9 @@
 //! shell can keep running without pretending to be the preferred core API
 //! interface.
 
+#[cfg(feature = "legacy-shell")]
+pub(crate) mod runtime_artifacts;
+
 /// Compatibility namespace for the current legacy shell contract.
 ///
 /// This namespace groups the legacy model/action bridge plus the native-shell
@@ -13,6 +16,7 @@
 /// compatibility or migration support.
 #[cfg(feature = "legacy-shell")]
 pub mod legacy_shell {
+    pub use super::runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
     pub use crate::compat_app_contract::*;
     pub use crate::gui_runtime::{NativeRunOptions, NativeStartupTimingArtifact, WindowIconRgba};
 }

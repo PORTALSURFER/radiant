@@ -532,6 +532,31 @@ fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_random_content_actions() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+
+    for source in [&actions_mod, &automation_helpers] {
+        assert!(!source.contains("PlayRandomSample"));
+        assert!(!source.contains("PlayPreviousRandomSample"));
+        assert!(!source.contains("play_random_sample"));
+        assert!(!source.contains("play_previous_random_sample"));
+    }
+    assert!(actions_mod.contains("PlayRandomContentItem"));
+    assert!(actions_mod.contains("PlayPreviousRandomContentItem"));
+    assert!(automation_helpers.contains("play_random_content_item"));
+    assert!(automation_helpers.contains("play_previous_random_content_item"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

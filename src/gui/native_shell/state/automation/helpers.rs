@@ -209,8 +209,8 @@ pub(super) fn action_slug(action: &UiAction) -> String {
             "toggle_browser_duplicate_cleanup_keep"
         }
         UiAction::ConfirmBrowserDuplicateCleanup => "confirm_browser_duplicate_cleanup",
-        UiAction::PlayRandomSample => "play_random_sample",
-        UiAction::PlayPreviousRandomSample => "play_previous_random_sample",
+        UiAction::PlayRandomContentItem => "play_random_content_item",
+        UiAction::PlayPreviousRandomContentItem => "play_previous_random_content_item",
         UiAction::AdjustSelectedBrowserRating { .. } => "adjust_selected_browser_rating",
         UiAction::SetBrowserTab { .. } => "set_browser_tab",
         UiAction::FocusBrowserTagSidebarInput => "focus_browser_tag_sidebar_input",

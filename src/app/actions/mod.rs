@@ -425,10 +425,10 @@ pub enum UiAction {
     },
     /// Confirm duplicate cleanup and trash every unkept duplicate.
     ConfirmBrowserDuplicateCleanup,
-    /// Play a random visible sample.
-    PlayRandomSample,
-    /// Replay the previous random-visible sample.
-    PlayPreviousRandomSample,
+    /// Play a random visible content item.
+    PlayRandomContentItem,
+    /// Replay the previous random-visible content item.
+    PlayPreviousRandomContentItem,
     /// Adjust the rating for selected browser rows by a signed delta.
     AdjustSelectedBrowserRating {
         /// Signed rating delta applied to selected rows.

@@ -1,9 +1,6 @@
 //! Motion-only projection types exposed by the `radiant` app contract.
 
-use super::{
-    AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
-    WaveformToolStateModel,
-};
+use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformToolStateModel};
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -250,8 +247,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic signal chrome state.
-    pub fn signal_chrome(&self) -> WaveformChromeStateModel {
-        WaveformChromeStateModel::new(
+    pub fn signal_chrome(&self) -> crate::gui::visualization::SignalChromeState {
+        crate::gui::visualization::SignalChromeState::new(
             self.waveform_transport_hint.clone(),
             self.waveform_compare_anchor_available,
             self.waveform_compare_anchor_label.clone(),

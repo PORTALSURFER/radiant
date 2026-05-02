@@ -3,7 +3,6 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
-pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 use std::sync::Arc;
 
@@ -467,8 +466,8 @@ impl Default for WaveformChromeModel {
 
 impl WaveformChromeModel {
     /// Return this chrome model's generic signal visualization display state.
-    pub fn signal_chrome(&self) -> WaveformChromeStateModel {
-        WaveformChromeStateModel::new(
+    pub fn signal_chrome(&self) -> crate::gui::visualization::SignalChromeState {
+        crate::gui::visualization::SignalChromeState::new(
             self.transport_hint.clone(),
             self.compare_anchor_available,
             self.compare_anchor_label.clone(),

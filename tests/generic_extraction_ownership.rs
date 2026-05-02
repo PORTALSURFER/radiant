@@ -490,9 +490,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("WaveformImagePreviewModel"));
     assert!(waveform_mod.contains("crate::gui::visualization::SignalRasterPreview"));
     assert!(motion_mod.contains("crate::gui::visualization::SignalRasterPreview"));
-    assert!(waveform_mod.contains(
-        "pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;"
-    ));
+    assert!(!waveform_mod.contains("WaveformChromeStateModel"));
+    assert!(waveform_mod.contains("crate::gui::visualization::SignalChromeState"));
+    assert!(motion_mod.contains("crate::gui::visualization::SignalChromeState"));
     assert!(
         waveform_mod.contains(
             "pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;"

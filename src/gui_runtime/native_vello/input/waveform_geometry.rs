@@ -1,7 +1,6 @@
 //! Waveform coordinate conversion and normalized-view helpers.
 
 use super::*;
-use crate::gui::native_shell::{waveform_plot_x_for_micros, waveform_view_window_from_bounds};
 use crate::gui::range::NormalizedPixelSnap;
 
 /// Absolute waveform position resolved from one pointer point.

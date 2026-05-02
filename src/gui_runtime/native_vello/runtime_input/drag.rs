@@ -59,7 +59,7 @@ where
             return false;
         };
         let plot_width = layout.waveform_plot.width().max(1.0);
-        let view = crate::gui::native_shell::waveform_view_window_from_bounds(
+        let view = waveform_view_window_from_bounds(
             drag.view_start_micros,
             drag.view_end_micros,
             Some(drag.view_start_nanos),

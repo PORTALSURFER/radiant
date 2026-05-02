@@ -1,5 +1,4 @@
 use super::*;
-use crate::gui::native_shell::compute_waveform_slice_preview_rects;
 
 /// Resolve one slice-toggle action when the pointer lands inside a preview slice.
 pub(super) fn waveform_slice_toggle_action_from_pointer(

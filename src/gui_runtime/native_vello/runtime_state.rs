@@ -1,9 +1,9 @@
 use super::SingleLineTextEditorState;
-use crate::compat_app_contract::DirtySegments;
-use crate::gui::native_shell::{
+use super::{
     ShellLayoutDirtyKind, ShellLayoutTreeKind, TextFieldVisualState,
     dirty_segments_for_layout_subtree,
 };
+use crate::compat_app_contract::DirtySegments;
 use crate::gui::types::Point;
 use std::mem;
 #[cfg(target_os = "windows")]

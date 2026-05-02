@@ -1,9 +1,6 @@
 //! Cache-key and retained-fingerprint types used by the native Vello runtime.
 
 use super::*;
-use crate::gui::native_shell::{
-    FocusOverlayFingerprint, HoverOverlayFingerprint, ModalOverlayFingerprint,
-};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in super::super) struct ImageUploadBlobCacheKey {

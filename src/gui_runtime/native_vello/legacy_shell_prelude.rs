@@ -7,9 +7,13 @@ pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
 pub(in crate::gui_runtime::native_vello) use crate::gui::{
     input::KeyCode,
     native_shell::{
-        ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, ShellLayout,
-        ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment, StaticFrameSegments, StyleTokens,
-        TextFieldVisualState, WaveformMotionOverlayFingerprint,
+        ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
+        HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, ShellLayout,
+        ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind, ShellNodeKind,
+        StaticFrameSegment, StaticFrameSegments, StyleTokens, TextFieldVisualState,
+        WaveformMotionOverlayFingerprint, compute_waveform_slice_preview_rects,
+        dirty_segments_for_layout_subtree, waveform_plot_x_for_micros,
+        waveform_view_window_from_bounds,
     },
     paint::{PaintFrame as NativeViewFrame, Primitive},
 };

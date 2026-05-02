@@ -54,7 +54,7 @@ browser_chrome_surface_helpers.rs	sempal_composition	OPT-188	Browser chrome surf
 browser_chrome_surface_tests.rs	sempal_fixture	OPT-191	Sempal browser chrome fixture now lives beside Sempal composition and must not return to Radiant native_shell.
 sidebar_surface.rs	sempal_composition	OPT-189	Sidebar surface projection moves with source and folder composition.
 sidebar_surface_helpers.rs	sempal_composition	OPT-189	Sidebar surface helpers move with source and folder composition.
-sidebar_surface_tests.rs	sempal_fixture	OPT-191	Sempal sidebar fixture; relocate or replace after sidebar shell move.
+sidebar_surface_tests.rs	sempal_fixture	OPT-191	Sempal sidebar fixture now lives beside Sempal composition and must not return to Radiant native_shell.
 status_surface.rs	sempal_composition	OPT-187	Status surface projection moves with top, status, options, and overlay composition.
 top_bar_surface.rs	sempal_composition	OPT-187	Top bar surface projection moves with top, status, options, and overlay composition.
 waveform_header_surface.rs	sempal_composition	OPT-190	Waveform header surface projection moves with waveform composition.

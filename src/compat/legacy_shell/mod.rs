@@ -46,6 +46,7 @@ mod bridge;
 mod browser;
 mod dirty_segments;
 mod motion;
+mod native_vello;
 mod runtime_artifacts;
 mod shell_snapshot;
 mod shell;
@@ -71,6 +72,11 @@ pub use dirty_segments::{DirtySegments, SegmentRevisions};
 /// Compatibility alias for the generic shortcut resolution DTO.
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
+pub use native_vello::{
+    run_native_vello_app, run_native_vello_app_declarative,
+    run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
+    run_native_vello_preview,
+};
 pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use shell::{

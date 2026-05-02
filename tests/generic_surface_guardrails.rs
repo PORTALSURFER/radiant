@@ -366,10 +366,18 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
         .expect("native_vello.rs should be readable");
-    for forbidden in ["pub struct NativeRuntimeArtifacts", "pub struct NativeRunReport"] {
+    for forbidden in [
+        "pub struct NativeRuntimeArtifacts",
+        "pub struct NativeRunReport",
+        "pub fn run_native_vello_app",
+        "pub fn run_native_vello_app_with_artifacts",
+        "pub fn run_native_vello_app_declarative",
+        "pub fn run_native_vello_app_declarative_with_artifacts",
+        "pub fn run_native_vello_preview",
+    ] {
         assert!(
             !native_vello.contains(forbidden),
-            "legacy shell runtime report DTO `{forbidden}` belongs under src/compat/legacy_shell"
+            "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_shell"
         );
     }
     let expectations: &[(&str, &[&str])] = &[

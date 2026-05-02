@@ -410,24 +410,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
 }
 
 #[cfg(feature = "legacy-shell")]
-#[derive(Default)]
-struct PreviewBridge;
-
-#[cfg(feature = "legacy-shell")]
-impl NativeAppBridge for PreviewBridge {
-    fn project_model(&mut self) -> Arc<AppModel> {
-        Arc::new(AppModel::default())
-    }
-}
-
-/// Run the native Vello backend window with a host-provided app bridge.
-///
-/// The runtime loop is owned by winit and blocks until the native window
-/// closes. The host receives user input each frame through the bridge-driven
-/// action path, and this function returns the host result from the event loop
-/// invocation.
-#[cfg(feature = "legacy-shell")]
-pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
+pub(crate) fn run_legacy_shell_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
@@ -479,51 +462,6 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
         artifacts,
         result: run_result,
     }
-}
-
-/// Run the native Vello backend window with a host-provided app bridge.
-///
-/// The runtime loop is owned by winit and blocks until the native window
-/// closes. The host receives user input each frame through the bridge-driven
-/// action path, and this function returns the host result from the event loop
-/// invocation.
-#[cfg(feature = "legacy-shell")]
-pub fn run_native_vello_app<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> Result<(), String> {
-    run_native_vello_app_with_artifacts(options, bridge).result
-}
-
-/// Run the native Vello backend using a declarative state+reducer bridge.
-///
-/// This is an API-level alias to [`run_native_vello_app`] that emphasizes
-/// one-way declarative host integration (`project_model` + `reduce_action`).
-#[cfg(feature = "legacy-shell")]
-pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> Result<(), String> {
-    run_native_vello_app(options, bridge)
-}
-
-/// Run the native Vello backend using a declarative state+reducer bridge and
-/// return structured runtime artifacts together with the result.
-#[cfg(feature = "legacy-shell")]
-pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> NativeRunReport {
-    run_native_vello_app_with_artifacts(options, bridge)
-}
-
-/// Run the experimental native Vello backend window for backend-selection testing.
-///
-/// This preview path now renders an interactive backend-neutral shell model with
-/// Vello primitives and exercises native input hit-testing without `egui`.
-#[cfg(feature = "legacy-shell")]
-pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    run_native_vello_app_declarative(options, PreviewBridge)
 }
 
 /// Capture a deterministic native-shell automation snapshot without launching a window.

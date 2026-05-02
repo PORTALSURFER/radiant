@@ -50,6 +50,8 @@ mod bridge;
 mod motion;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/native_vello.rs"]
 mod native_vello;
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/runtime_artifacts.rs"]
+mod runtime_artifacts;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
@@ -97,6 +99,7 @@ pub use native_vello::{
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };
+pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
@@ -117,18 +120,6 @@ pub type BrowserPanelModel =
     crate::gui::list::ContentListPanel<BrowserRowModel, BrowserPillEditorModel>;
 /// Projected data for one fixed folder pane shown in the sidebar.
 pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;
-
-/// Structured runtime artifacts exported after one native compatibility-shell run completes.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct NativeRuntimeArtifacts {
-    /// Native startup timing artifact captured for this run, when startup began.
-    pub startup_timing: Option<crate::gui_runtime::NativeStartupTimingArtifact>,
-    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
-    pub shutdown_timing: Option<serde_json::Value>,
-}
-
-/// Result plus structured artifacts returned by one native compatibility-shell runtime execution.
-pub type NativeRunReport = crate::gui_runtime::RuntimeRunReport<NativeRuntimeArtifacts>;
 
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

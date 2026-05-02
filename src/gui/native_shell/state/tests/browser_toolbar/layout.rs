@@ -174,7 +174,7 @@ fn tag_sidebar_auto_rename_button_maps_to_toggle_action() {
 
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
-        Some(UiAction::ToggleBrowserTagSidebarAutoRename)
+        Some(UiAction::ToggleBrowserPillEditorPrimaryAction)
     );
 }
 

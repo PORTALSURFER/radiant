@@ -406,10 +406,10 @@ pub enum UiAction {
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
-    /// Toggle the browser-local metadata tag sidebar.
-    ToggleBrowserTagSidebar,
-    /// Toggle auto-rename for browser metadata sidebar edits.
-    ToggleBrowserTagSidebarAutoRename,
+    /// Toggle the browser-local metadata pill editor.
+    ToggleBrowserPillEditor,
+    /// Toggle the host-defined primary side effect for browser metadata edits.
+    ToggleBrowserPillEditorPrimaryAction,
     /// Toggle browser duplicate-cleanup mode for the focused browser item.
     ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous browser item from focus history.

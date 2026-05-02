@@ -62,7 +62,7 @@ fn browser_tags_action_button_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
-        Some(UiAction::ToggleBrowserTagSidebar)
+        Some(UiAction::ToggleBrowserPillEditor)
     );
 }
 

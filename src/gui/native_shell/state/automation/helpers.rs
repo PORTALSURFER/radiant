@@ -199,8 +199,10 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ToggleBrowserMarkedFilter => "toggle_browser_marked_filter",
         UiAction::ToggleBrowserTagNamedFilter { .. } => "toggle_browser_tag_named_filter",
         UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",
-        UiAction::ToggleBrowserTagSidebar => "toggle_browser_tag_sidebar",
-        UiAction::ToggleBrowserTagSidebarAutoRename => "toggle_browser_tag_sidebar_auto_rename",
+        UiAction::ToggleBrowserPillEditor => "toggle_browser_pill_editor",
+        UiAction::ToggleBrowserPillEditorPrimaryAction => {
+            "toggle_browser_pill_editor_primary_action"
+        }
         UiAction::ToggleBrowserDuplicateCleanupMode => "toggle_browser_duplicate_cleanup_mode",
         UiAction::FocusPreviousBrowserHistory => "focus_previous_browser_history",
         UiAction::FocusNextBrowserHistory => "focus_next_browser_history",

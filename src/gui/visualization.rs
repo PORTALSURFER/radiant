@@ -142,6 +142,22 @@ pub struct TimelineTransportState {
     pub selection: Option<NormalizedRange>,
 }
 
+/// One-shot feedback event tokens for a normalized timeline.
+///
+/// Hosts increment these counters when user-visible operations complete or
+/// fail. Radiant renderers can compare tokens across frames and show transient
+/// feedback without owning host-specific timestamps, operation names, or domain
+/// workflows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TimelineFeedbackEvents {
+    /// Token for the primary successful timeline operation.
+    pub primary_success_nonce: u64,
+    /// Token for the primary failed timeline operation.
+    pub primary_failure_nonce: u64,
+    /// Token for a secondary successful timeline operation.
+    pub secondary_success_nonce: u64,
+}
+
 impl TimelineTransportState {
     /// Build a timeline transport state from explicit normalized values.
     pub fn new(
@@ -162,6 +178,21 @@ impl TimelineTransportState {
     pub fn resolved_playhead_micros(self) -> Option<u32> {
         self.playhead_micros
             .or_else(|| self.playhead_milli.map(|milli| u32::from(milli) * 1000))
+    }
+}
+
+impl TimelineFeedbackEvents {
+    /// Build timeline feedback events from explicit monotonic tokens.
+    pub fn new(
+        primary_success_nonce: u64,
+        primary_failure_nonce: u64,
+        secondary_success_nonce: u64,
+    ) -> Self {
+        Self {
+            primary_success_nonce,
+            primary_failure_nonce,
+            secondary_success_nonce,
+        }
     }
 }
 
@@ -396,8 +427,8 @@ pub struct TimelineMarkerPreview {
 mod tests {
     use super::{
         ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
-        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineMarkerPreview,
-        TimelineTransportState, TimelineViewport,
+        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
+        TimelineMarkerPreview, TimelineTransportState, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -497,6 +528,15 @@ mod tests {
 
         let precise = TimelineTransportState::new(None, Some(250), Some(250_125), None);
         assert_eq!(precise.resolved_playhead_micros(), Some(250_125));
+    }
+
+    #[test]
+    fn timeline_feedback_events_preserve_operation_tokens() {
+        let events = TimelineFeedbackEvents::new(10, 20, 30);
+
+        assert_eq!(events.primary_success_nonce, 10);
+        assert_eq!(events.primary_failure_nonce, 20);
+        assert_eq!(events.secondary_success_nonce, 30);
     }
 
     #[test]

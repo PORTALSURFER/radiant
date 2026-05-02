@@ -656,6 +656,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "TimelineViewport",
         "TimelineTransportState",
         "TimelineEditPreview",
+        "TimelineFeedbackEvents",
         "Style And Theme",
         "## Renderer",
         "## Context",

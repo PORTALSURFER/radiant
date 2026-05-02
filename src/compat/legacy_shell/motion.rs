@@ -117,6 +117,7 @@ impl NativeMotionModel {
         let viewport = model.waveform.viewport();
         let transport = model.waveform.transport();
         let edit_preview = model.waveform.edit_preview();
+        let feedback_events = model.waveform.feedback_events();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
         let signal_tools = model.waveform_chrome.signal_tools();
@@ -129,13 +130,9 @@ impl NativeMotionModel {
             marked_filter_active: model.browser.marked_filter_active,
             waveform_selection_milli: transport.selection,
             waveform_slices: model.waveform.slices.clone(),
-            waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
-            waveform_selection_export_failure_flash_nonce: model
-                .waveform
-                .selection_export_failure_flash_nonce,
-            waveform_edit_selection_apply_flash_nonce: model
-                .waveform
-                .edit_selection_apply_flash_nonce,
+            waveform_selection_export_flash_nonce: feedback_events.primary_success_nonce,
+            waveform_selection_export_failure_flash_nonce: feedback_events.primary_failure_nonce,
+            waveform_edit_selection_apply_flash_nonce: feedback_events.secondary_success_nonce,
             waveform_edit_selection_milli: edit_preview.selection,
             waveform_edit_fade_in_end_milli: edit_preview.leading_end_milli,
             waveform_edit_fade_in_end_micros: edit_preview.leading_end_micros,

@@ -7,6 +7,7 @@ pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
+pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
@@ -208,6 +209,15 @@ impl WaveformPanelModel {
         )
     }
 
+    /// Return this panel's generic timeline feedback events.
+    pub fn feedback_events(&self) -> WaveformFeedbackEventsModel {
+        WaveformFeedbackEventsModel::new(
+            self.selection_export_flash_nonce,
+            self.selection_export_failure_flash_nonce,
+            self.edit_selection_apply_flash_nonce,
+        )
+    }
+
     /// Return this panel's generic retained raster preview.
     pub fn image_preview(&self) -> WaveformImagePreviewModel {
         WaveformImagePreviewModel::new(
@@ -292,6 +302,21 @@ mod tests {
         assert_eq!(preview.trailing_start_micros, Some(700_000));
         assert_eq!(preview.trailing_inner_end_milli, Some(760));
         assert_eq!(preview.trailing_curve_milli, Some(580));
+    }
+
+    #[test]
+    fn feedback_events_project_generic_timeline_event_tokens() {
+        let model = WaveformPanelModel {
+            selection_export_flash_nonce: 7,
+            selection_export_failure_flash_nonce: 8,
+            edit_selection_apply_flash_nonce: 9,
+            ..WaveformPanelModel::default()
+        };
+        let events = model.feedback_events();
+
+        assert_eq!(events.primary_success_nonce, 7);
+        assert_eq!(events.primary_failure_nonce, 8);
+        assert_eq!(events.secondary_success_nonce, 9);
     }
 
     #[test]

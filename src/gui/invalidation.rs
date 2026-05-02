@@ -16,6 +16,21 @@ pub struct RetainedSegmentMask<
     mask: InvalidationMask,
 }
 
+/// Monotonic revision counters for retained render segments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RetainedSegmentRevisions<const SEGMENTS: usize> {
+    /// Per-segment revision counters in host-defined segment order.
+    pub revisions: [u64; SEGMENTS],
+}
+
+impl<const SEGMENTS: usize> Default for RetainedSegmentRevisions<SEGMENTS> {
+    fn default() -> Self {
+        Self {
+            revisions: [0; SEGMENTS],
+        }
+    }
+}
+
 impl InvalidationMask {
     /// Return an empty invalidation mask.
     pub const fn empty() -> Self {
@@ -52,6 +67,27 @@ impl InvalidationMask {
     /// Insert one or more valid bits into this mask.
     pub fn insert(&mut self, bits: u16, valid_mask: u16) {
         self.bits |= bits & valid_mask;
+    }
+}
+
+impl<const SEGMENTS: usize> RetainedSegmentRevisions<SEGMENTS> {
+    /// Build retained segment revisions from explicit counters.
+    pub const fn new(revisions: [u64; SEGMENTS]) -> Self {
+        Self { revisions }
+    }
+
+    /// Return whether any revision counter is non-zero.
+    pub fn has_revisions(self) -> bool {
+        self.revisions.iter().any(|revision| *revision != 0)
+    }
+
+    /// Bump revisions whose matching segment bits are present.
+    pub fn bump_for_bits(&mut self, bits: u16, segment_bits: [u16; SEGMENTS]) {
+        for (revision, segment_bit) in self.revisions.iter_mut().zip(segment_bits) {
+            if (bits & segment_bit) != 0 {
+                *revision = revision.saturating_add(1);
+            }
+        }
     }
 }
 
@@ -107,7 +143,7 @@ impl<const VALID_MASK: u16, const STATIC_MASK: u16, const OVERLAY_MASK: u16>
 
 #[cfg(test)]
 mod tests {
-    use super::{InvalidationMask, RetainedSegmentMask};
+    use super::{InvalidationMask, RetainedSegmentMask, RetainedSegmentRevisions};
 
     const VALID_MASK: u16 = 0b0111;
 
@@ -150,5 +186,16 @@ mod tests {
         mask.insert(0b0100);
         assert!(!mask.requires_static_rebuild());
         assert!(mask.requires_overlay_rebuild());
+    }
+
+    #[test]
+    fn retained_segment_revisions_report_and_bump_changed_segments() {
+        let mut revisions = RetainedSegmentRevisions::<3>::default();
+
+        assert!(!revisions.has_revisions());
+        revisions.bump_for_bits(0b101, [0b001, 0b010, 0b100]);
+
+        assert_eq!(revisions.revisions, [1, 0, 1]);
+        assert!(revisions.has_revisions());
     }
 }

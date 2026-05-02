@@ -1215,9 +1215,12 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     assert!(!dirty_segments_mod.contains("pub struct FrameBuildResult"));
     assert!(app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
     assert!(frame_mod.contains("pub struct FrameBuildResult"));
-    assert!(dirty_segments_mod.contains("use crate::gui::invalidation::RetainedSegmentMask;"));
+    assert!(dirty_segments_mod.contains("RetainedSegmentMask"));
+    assert!(dirty_segments_mod.contains("RetainedSegmentRevisions"));
     assert!(invalidation_mod.contains("pub struct InvalidationMask"));
     assert!(invalidation_mod.contains("pub struct RetainedSegmentMask"));
+    assert!(invalidation_mod.contains("pub struct RetainedSegmentRevisions"));
+    assert!(dirty_segments_mod.contains("retained_revisions"));
 }
 
 #[test]

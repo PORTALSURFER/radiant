@@ -682,6 +682,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SurfacePaintPlan",
         "InvalidationMask",
         "RetainedSegmentMask",
+        "RetainedSegmentRevisions",
         "ContentViewChrome",
         "PairedStatusPanel",
         "PreferencePanelState",

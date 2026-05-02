@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn map_point_click_routes_to_focus_map_sample() {
+fn map_point_click_routes_to_focus_spatial_content() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut shell_state = NativeShellState::new();
     let point = Point::new(
@@ -38,8 +38,8 @@ fn map_point_click_routes_to_focus_map_sample() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusMapSample {
-            sample_id: String::from("source::kick.wav")
+        Some(UiAction::FocusSpatialContentItem {
+            content_id: String::from("source::kick.wav")
         })
     );
 }

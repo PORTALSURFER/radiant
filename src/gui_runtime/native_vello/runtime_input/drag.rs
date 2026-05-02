@@ -225,13 +225,13 @@ where
         else {
             return false;
         };
-        let UiAction::FocusMapSample { sample_id } = &action else {
+        let UiAction::FocusSpatialContentItem { content_id } = &action else {
             return false;
         };
-        if self.last_emitted_map_drag_sample_id.as_deref() == Some(sample_id.as_str()) {
+        if self.last_emitted_map_drag_content_id.as_deref() == Some(content_id.as_str()) {
             return false;
         }
-        self.last_emitted_map_drag_sample_id = Some(sample_id.clone());
+        self.last_emitted_map_drag_content_id = Some(content_id.clone());
         self.emit_model_action_with_profile(action, Some(InteractionProfileKind::MapPanProxy));
         true
     }
@@ -309,8 +309,8 @@ where
         ) {
             self.shell_state.clear_browser_row_hover();
         }
-        let map_drag_sample_id = match &action {
-            UiAction::FocusMapSample { sample_id } => Some(sample_id.clone()),
+        let map_drag_content_id = match &action {
+            UiAction::FocusSpatialContentItem { content_id } => Some(content_id.clone()),
             _ => None,
         };
         self.begin_waveform_pointer_interaction(&action, click_seek_press);
@@ -321,7 +321,7 @@ where
         self.update_text_target_after_action(&action);
         self.emit_model_action(action);
         if map_drag_start {
-            self.begin_map_focus_drag(map_drag_sample_id);
+            self.begin_map_focus_drag(map_drag_content_id);
         }
         true
     }

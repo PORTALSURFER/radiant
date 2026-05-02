@@ -382,8 +382,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     last_emitted_waveform_drag_action: Option<UiAction>,
     /// Whether map sample focus drag is active for primary pointer movement.
     map_focus_drag_active: bool,
-    /// Last map sample id emitted during active map focus drag.
-    last_emitted_map_drag_sample_id: Option<String>,
+    /// Last map content id emitted during active map focus drag.
+    last_emitted_map_drag_content_id: Option<String>,
     /// Active folder-scrollbar thumb drag state for primary pointer movement.
     folder_scrollbar_drag: Option<FolderScrollbarDragState>,
     /// Active browser-scrollbar thumb drag state for primary pointer movement.

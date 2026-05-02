@@ -104,7 +104,7 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
         position_nanos: 915_000_000,
     });
     runner.map_focus_drag_active = true;
-    runner.last_emitted_map_drag_sample_id = Some(String::from("source::kick.wav"));
+    runner.last_emitted_map_drag_content_id = Some(String::from("source::kick.wav"));
 
     runner.finish_volume_drag(None);
 
@@ -121,7 +121,7 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
     assert_eq!(runner.waveform_drag_mode, None);
     assert_eq!(runner.last_emitted_waveform_drag_action, None);
     assert!(!runner.map_focus_drag_active);
-    assert_eq!(runner.last_emitted_map_drag_sample_id, None);
+    assert_eq!(runner.last_emitted_map_drag_content_id, None);
 }
 
 #[test]

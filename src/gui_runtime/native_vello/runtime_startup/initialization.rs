@@ -112,7 +112,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             selection_drag_active: false,
             last_emitted_waveform_drag_action: None,
             map_focus_drag_active: false,
-            last_emitted_map_drag_sample_id: None,
+            last_emitted_map_drag_content_id: None,
             folder_scrollbar_drag: None,
             browser_scrollbar_drag: None,
             last_emitted_browser_view_start: None,

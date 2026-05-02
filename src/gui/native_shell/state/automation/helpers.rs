@@ -218,7 +218,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::CommitBrowserTagSidebarInput => "commit_browser_tag_sidebar_input",
         UiAction::SetBrowserSidebarLooped { .. } => "set_browser_sidebar_looped",
         UiAction::ToggleBrowserSidebarNormalTag { .. } => "toggle_browser_sidebar_normal_tag",
-        UiAction::FocusMapSample { .. } => "focus_map_sample",
+        UiAction::FocusSpatialContentItem { .. } => "focus_spatial_content_item",
         UiAction::SetPromptInput { .. } => "set_prompt_input",
         UiAction::StartBrowserRename => "start_browser_rename",
         UiAction::ConfirmBrowserRename => "confirm_browser_rename",

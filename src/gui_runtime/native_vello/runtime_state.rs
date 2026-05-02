@@ -390,7 +390,7 @@ where
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
-        self.last_emitted_map_drag_sample_id = None;
+        self.last_emitted_map_drag_content_id = None;
         self.folder_scrollbar_drag = None;
         self.browser_scrollbar_drag = None;
         self.last_emitted_browser_view_start = None;
@@ -441,9 +441,9 @@ where
         self.last_emitted_waveform_view_center = None;
     }
 
-    pub(super) fn begin_map_focus_drag(&mut self, sample_id: Option<String>) {
+    pub(super) fn begin_map_focus_drag(&mut self, content_id: Option<String>) {
         self.map_focus_drag_active = true;
-        self.last_emitted_map_drag_sample_id = sample_id;
+        self.last_emitted_map_drag_content_id = content_id;
     }
 
     pub(super) fn begin_browser_sample_drag(&mut self, visible_row: usize) {

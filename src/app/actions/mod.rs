@@ -458,10 +458,10 @@ pub enum UiAction {
         /// Normal tag label to assign or remove.
         label: String,
     },
-    /// Focus a specific map sample by stable sample id.
-    FocusMapSample {
-        /// Stable sample identifier used by map hit-testing.
-        sample_id: String,
+    /// Focus a specific spatial content item by stable content id.
+    FocusSpatialContentItem {
+        /// Stable content identifier used by spatial hit-testing.
+        content_id: String,
     },
 
     // Prompt, rename, and confirmation actions.

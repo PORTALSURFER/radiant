@@ -450,7 +450,7 @@ fn map_canvas_automation(
         Some(model.map.summary.clone()),
         true,
         true,
-        vec![String::from("focus_map_sample")],
+        vec![String::from("focus_spatial_content_item")],
     );
     map_node.children = model
         .map
@@ -467,7 +467,7 @@ fn map_canvas_automation(
             value: None,
             enabled: true,
             selected: model.map.selected_item_id.as_deref() == Some(point.id.as_ref()),
-            available_actions: vec![String::from("focus_map_sample")],
+            available_actions: vec![String::from("focus_spatial_content_item")],
             metadata: metadata(&[
                 ("x_milli", &point.x_milli.to_string()),
                 ("y_milli", &point.y_milli.to_string()),

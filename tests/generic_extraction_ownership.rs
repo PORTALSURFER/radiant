@@ -557,6 +557,52 @@ fn compat_action_catalog_uses_generic_random_content_actions() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+    let runtime_actions = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/runtime_actions.rs"
+    ))
+    .expect("runtime actions should be readable");
+    let runtime_drag = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/runtime_input/drag.rs"
+    ))
+    .expect("runtime drag should be readable");
+
+    for source in [
+        &actions_mod,
+        &automation_helpers,
+        &automation_browser,
+        &runtime_actions,
+        &runtime_drag,
+    ] {
+        assert!(!source.contains("FocusMapSample"));
+        assert!(!source.contains("focus_map_sample"));
+    }
+    assert!(actions_mod.contains("FocusSpatialContentItem"));
+    assert!(actions_mod.contains("content_id: String"));
+    assert!(automation_helpers.contains("focus_spatial_content_item"));
+    assert!(automation_browser.contains("focus_spatial_content_item"));
+    assert!(runtime_actions.contains("UiAction::FocusSpatialContentItem"));
+    assert!(runtime_drag.contains("UiAction::FocusSpatialContentItem"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

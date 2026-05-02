@@ -13,7 +13,7 @@ use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use serde::{Deserialize, Serialize};
 
 /// Triage targets used by native browser action surfaces.
-pub type BrowserTagTarget = crate::gui::selection::TriageTarget;
+pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;
 
 /// Action emitted by the native runtime input layer.
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
@@ -484,7 +484,7 @@ pub enum UiAction {
     /// Apply a triage tag to focused/selected browser rows.
     TagBrowserSelection {
         /// Triage bucket applied to focused/selected browser rows.
-        target: BrowserTagTarget,
+        target: BrowserTriageTarget,
     },
     /// Delete focused/selected browser rows.
     DeleteBrowserSelection,

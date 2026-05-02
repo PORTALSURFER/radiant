@@ -307,7 +307,8 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("BrowserTagState"));
     assert!(!browser_mod.contains("BrowserTagPillModel"));
     assert!(!browser_mod.contains("BrowserTagSidebarModel"));
-    assert!(!actions_mod.contains("pub enum BrowserTagTarget"));
+    assert!(!actions_mod.contains("BrowserTagTarget"));
+    assert!(!actions_mod.contains("pub enum BrowserTriageTarget"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
     assert!(!browser_mod.contains("pub struct MapPointModel"));
     assert!(!browser_mod.contains("pub struct MapPanelModel"));
@@ -315,7 +316,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("pub struct WaveformSlicePreviewModel"));
     assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
     assert!(
-        actions_mod.contains("pub type BrowserTagTarget = crate::gui::selection::TriageTarget;")
+        actions_mod.contains("pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;")
     );
     assert!(selection_mod.contains("pub enum TriageTarget"));
     assert!(browser_mod.contains(

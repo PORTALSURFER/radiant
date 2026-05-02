@@ -54,7 +54,7 @@ pub use crate::gui::frame::FrameBuildResult;
 pub use crate::gui::input::KeyPress;
 pub use crate::gui::retained::RetainedVec;
 pub use crate::gui::shortcuts::ShortcutResolution;
-pub use actions::{BrowserTagTarget, UiAction};
+pub use actions::{BrowserTriageTarget, UiAction};
 pub use automation::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     GuiAutomationSnapshot,

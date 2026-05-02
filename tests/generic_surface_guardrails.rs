@@ -25,6 +25,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/feedback.rs",
     "src/gui/focus.rs",
     "src/gui/form.rs",
+    "src/gui/fingerprint.rs",
     "src/gui/frame.rs",
     "src/gui/input.rs",
     "src/gui/invalidation.rs",

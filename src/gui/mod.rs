@@ -29,6 +29,8 @@ pub mod feedback;
 pub mod focus;
 /// Generic form and picker primitives.
 pub mod form;
+/// Stable fingerprint helpers for retained cache invalidation.
+pub mod fingerprint;
 /// Frame feedback primitives shared by runtimes and render backends.
 pub mod frame;
 /// Input event primitives shared by UI code.

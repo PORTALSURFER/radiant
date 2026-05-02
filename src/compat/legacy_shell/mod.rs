@@ -73,7 +73,7 @@ pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
 pub use native_vello::{
-    run_native_vello_app, run_native_vello_app_declarative,
+    capture_gui_automation_snapshot, run_native_vello_app, run_native_vello_app_declarative,
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };

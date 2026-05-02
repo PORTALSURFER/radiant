@@ -14,6 +14,5 @@
 #[cfg(feature = "legacy-shell")]
 pub mod legacy_shell {
     pub use crate::compat_app_contract::*;
-    pub use crate::gui_runtime::native_vello::capture_gui_automation_snapshot;
     pub use crate::gui_runtime::{NativeRunOptions, NativeStartupTimingArtifact, WindowIconRgba};
 }

@@ -374,6 +374,7 @@ fn legacy_shell_sources_are_feature_gated() {
         "pub fn run_native_vello_app_declarative",
         "pub fn run_native_vello_app_declarative_with_artifacts",
         "pub fn run_native_vello_preview",
+        "pub fn capture_gui_automation_snapshot",
     ] {
         assert!(
             !native_vello.contains(forbidden),

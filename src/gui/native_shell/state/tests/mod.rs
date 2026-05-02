@@ -204,5 +204,6 @@ mod sidebar;
 mod status_bar_progress;
 mod waveform_edit_fades;
 mod waveform_edit_handles;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_selection.rs"]
 mod waveform_selection;
 mod waveform_slices;

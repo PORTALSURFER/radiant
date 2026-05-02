@@ -30,6 +30,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/invalidation.rs",
     "src/gui/layout_core",
     "src/gui/list.rs",
+    "src/gui/paint.rs",
     "src/gui/panel.rs",
     "src/gui/range.rs",
     "src/gui/repaint.rs",

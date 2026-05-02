@@ -105,6 +105,10 @@ capture is requested. The report envelope is generic: Radiant owns the
 success/error transport while each runtime path chooses its artifact payload.
 This keeps compatibility diagnostics and generic runtime diagnostics on the same
 mechanism without coupling the public runtime API to a host application model.
+`radiant::gui::paint` also exposes lower-level backend-neutral paint payloads
+such as `PaintFrame`, `Primitive`, `TextRun`, `FillRect`, `FillCircle`,
+`FillLinearGradient`, and `DrawImage` for retained renderer adapters that need
+frame-oriented scene data rather than a full declarative `SurfacePaintPlan`.
 
 ## Context
 

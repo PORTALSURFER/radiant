@@ -110,7 +110,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::FocusSourcesPanel => "focus_sources_panel",
         UiAction::FocusWaveformPanel => "focus_waveform_panel",
         UiAction::FocusFolderPanel { .. } => "focus_folder_panel",
-        UiAction::FocusLoadedSampleInBrowser => "focus_loaded_sample_in_browser",
+        UiAction::FocusLoadedContentInList => "focus_loaded_content_in_list",
         UiAction::FocusBrowserSearch => "focus_browser_search",
         UiAction::BlurBrowserSearch => "blur_browser_search",
         UiAction::OpenAddSourceDialog => "open_add_source_dialog",

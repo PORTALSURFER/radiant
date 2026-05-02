@@ -70,8 +70,8 @@ pub enum UiAction {
         /// Pane that should become active, or `None` for the current active pane.
         pane: Option<FolderPaneIdModel>,
     },
-    /// Focus the currently loaded sample in the browser.
-    FocusLoadedSampleInBrowser,
+    /// Focus the loaded content item in the primary list.
+    FocusLoadedContentInList,
     /// Focus the browser search field.
     FocusBrowserSearch,
     /// Clear browser-search focus while preserving the current query text.

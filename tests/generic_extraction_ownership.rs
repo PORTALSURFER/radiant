@@ -392,6 +392,33 @@ fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let pointer_routing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/pointer.rs"
+    ))
+    .expect("pointer routing should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &pointer_routing] {
+        assert!(!source.contains("FocusLoadedSampleInBrowser"));
+        assert!(!source.contains("focus_loaded_sample_in_browser"));
+    }
+    assert!(actions_mod.contains("FocusLoadedContentInList"));
+    assert!(automation_helpers.contains("focus_loaded_content_in_list"));
+    assert!(pointer_routing.contains("UiAction::FocusLoadedContentInList"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

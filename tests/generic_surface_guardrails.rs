@@ -488,6 +488,12 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     assert!(
         !manifest_dir
+            .join("src/compat/legacy_shell/native_vello.rs")
+            .exists(),
+        "Sempal native Vello compatibility facade belongs with Sempal composition, not Radiant compatibility contracts"
+    );
+    assert!(
+        !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),
         "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"

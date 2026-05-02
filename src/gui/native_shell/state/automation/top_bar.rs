@@ -38,7 +38,7 @@ pub(super) fn build_top_bar_automation(
             AutomationRole::Button,
             Some(String::from("Audio Engine")),
             button_rect,
-            Some(model.audio_engine.chip_label.clone()),
+            Some(model.paired_device_panel().status_label().to_string()),
             true,
             model.options_panel.visible,
             vec![String::from(if model.options_panel.visible {

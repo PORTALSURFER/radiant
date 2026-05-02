@@ -2,13 +2,13 @@
 
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
 pub use crate::gui::feedback::DragOverlay as DragOverlayModel;
-pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;
+pub use crate::gui::feedback::HealthState as StatusChipStateModel;
 pub use crate::gui::feedback::ProgressOverlay as ProgressOverlayModel;
 pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;
 pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
-pub use crate::gui::form::PairedPickerTarget as AudioPickerTargetModel;
-pub use crate::gui::form::SummaryField as AudioFieldModel;
+pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;
+pub use crate::gui::form::SummaryField as SummaryFieldModel;
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
@@ -16,47 +16,111 @@ use super::{
     SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
 
-/// Raw value carried by one audio picker option.
-pub type AudioOptionValueModel = crate::gui::form::PairedPickerValue<String, u32>;
+/// Raw value carried by one paired-picker option.
+pub type PairedPickerValueModel = crate::gui::form::PairedPickerValue<String, u32>;
 
-/// One selectable item shown inside an audio picker.
-pub type AudioOptionItemModel = crate::gui::form::OptionItem<AudioOptionValueModel>;
+/// One selectable item shown inside a paired picker.
+pub type PairedPickerOptionModel = crate::gui::form::OptionItem<PairedPickerValueModel>;
 
-/// Output/input audio engine state projected into the native shell.
+/// Paired device/status state projected into the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct AudioEngineModel {
+pub struct PairedDevicePanelModel {
     /// Compact chip health state.
-    pub chip_state: AudioEngineChipStateModel,
+    pub status_state: StatusChipStateModel,
     /// Compact chip label shown in the top-right chrome.
-    pub chip_label: String,
+    pub status_label: String,
     /// Optional detail or error text shown inside the options overview.
     pub detail_label: Option<String>,
-    /// Output host summary row.
-    pub output_host: AudioFieldModel,
-    /// Output device summary row.
-    pub output_device: AudioFieldModel,
-    /// Output sample-rate summary row.
-    pub output_sample_rate: AudioFieldModel,
-    /// Input host summary row.
-    pub input_host: AudioFieldModel,
-    /// Input device summary row.
-    pub input_device: AudioFieldModel,
-    /// Input sample-rate summary row.
-    pub input_sample_rate: AudioFieldModel,
+    /// Primary group summary row.
+    pub primary_group: SummaryFieldModel,
+    /// Primary item summary row.
+    pub primary_item: SummaryFieldModel,
+    /// Primary numeric-setting summary row.
+    pub primary_number: SummaryFieldModel,
+    /// Secondary group summary row.
+    pub secondary_group: SummaryFieldModel,
+    /// Secondary item summary row.
+    pub secondary_item: SummaryFieldModel,
+    /// Secondary numeric-setting summary row.
+    pub secondary_number: SummaryFieldModel,
     /// Currently expanded picker, or `None` for the overview.
-    pub active_picker: Option<AudioPickerTargetModel>,
-    /// Output host choices.
-    pub output_host_options: Vec<AudioOptionItemModel>,
-    /// Output device choices.
-    pub output_device_options: Vec<AudioOptionItemModel>,
-    /// Output sample-rate choices.
-    pub output_sample_rate_options: Vec<AudioOptionItemModel>,
-    /// Input host choices.
-    pub input_host_options: Vec<AudioOptionItemModel>,
-    /// Input device choices.
-    pub input_device_options: Vec<AudioOptionItemModel>,
-    /// Input sample-rate choices.
-    pub input_sample_rate_options: Vec<AudioOptionItemModel>,
+    pub active_picker: Option<PairedPickerTargetModel>,
+    /// Primary group choices.
+    pub primary_group_options: Vec<PairedPickerOptionModel>,
+    /// Primary item choices.
+    pub primary_item_options: Vec<PairedPickerOptionModel>,
+    /// Primary numeric-setting choices.
+    pub primary_number_options: Vec<PairedPickerOptionModel>,
+    /// Secondary group choices.
+    pub secondary_group_options: Vec<PairedPickerOptionModel>,
+    /// Secondary item choices.
+    pub secondary_item_options: Vec<PairedPickerOptionModel>,
+    /// Secondary numeric-setting choices.
+    pub secondary_number_options: Vec<PairedPickerOptionModel>,
+}
+
+impl PairedDevicePanelModel {
+    /// Return the compact status chip state.
+    pub fn status_state(&self) -> StatusChipStateModel {
+        self.status_state
+    }
+
+    /// Return the compact status chip label.
+    pub fn status_label(&self) -> &str {
+        &self.status_label
+    }
+
+    /// Return optional detail text for the paired-device overview.
+    pub fn detail_label(&self) -> Option<&str> {
+        self.detail_label.as_deref()
+    }
+
+    /// Return the primary group summary field.
+    pub fn primary_group(&self) -> &SummaryFieldModel {
+        &self.primary_group
+    }
+
+    /// Return the primary item summary field.
+    pub fn primary_item(&self) -> &SummaryFieldModel {
+        &self.primary_item
+    }
+
+    /// Return the primary numeric-setting summary field.
+    pub fn primary_number(&self) -> &SummaryFieldModel {
+        &self.primary_number
+    }
+
+    /// Return the secondary group summary field.
+    pub fn secondary_group(&self) -> &SummaryFieldModel {
+        &self.secondary_group
+    }
+
+    /// Return the secondary item summary field.
+    pub fn secondary_item(&self) -> &SummaryFieldModel {
+        &self.secondary_item
+    }
+
+    /// Return the secondary numeric-setting summary field.
+    pub fn secondary_number(&self) -> &SummaryFieldModel {
+        &self.secondary_number
+    }
+
+    /// Return the currently expanded paired-picker target, if any.
+    pub fn active_picker(&self) -> Option<PairedPickerTargetModel> {
+        self.active_picker
+    }
+
+    /// Return the option list associated with a paired-picker target.
+    pub fn options_for(&self, target: PairedPickerTargetModel) -> &[PairedPickerOptionModel] {
+        match target {
+            PairedPickerTargetModel::PrimaryGroup => &self.primary_group_options,
+            PairedPickerTargetModel::PrimaryItem => &self.primary_item_options,
+            PairedPickerTargetModel::PrimaryNumber => &self.primary_number_options,
+            PairedPickerTargetModel::SecondaryGroup => &self.secondary_group_options,
+            PairedPickerTargetModel::SecondaryItem => &self.secondary_item_options,
+            PairedPickerTargetModel::SecondaryNumber => &self.secondary_number_options,
+        }
+    }
 }
 
 /// Options-panel state projected into the native shell.
@@ -94,8 +158,8 @@ pub struct AppModel {
     pub status_text: String,
     /// Structured footer status segments used by the native shell footer.
     pub status: StatusBarModel,
-    /// Output/input audio engine state rendered in the top-right chrome and options panel.
-    pub audio_engine: AudioEngineModel,
+    /// Paired device/status state rendered in the top-right chrome and options panel.
+    pub paired_device: PairedDevicePanelModel,
     /// Browser action availability for native action surfaces.
     pub browser_actions: BrowserActionsModel,
     /// Options-panel overlay projection.
@@ -144,7 +208,7 @@ impl Default for AppModel {
                 center: String::from("rows: 0 | selected: 0 | anchor: — | search: —"),
                 right: String::from("col: 2/3"),
             },
-            audio_engine: AudioEngineModel::default(),
+            paired_device: PairedDevicePanelModel::default(),
             browser_actions: BrowserActionsModel::default(),
             options_panel: OptionsPanelModel::default(),
             progress_overlay: ProgressOverlayModel::default(),
@@ -194,5 +258,12 @@ impl Default for AppModel {
             update: UpdatePanelModel::default(),
             focus_context: FocusContextModel::None,
         }
+    }
+}
+
+impl AppModel {
+    /// Return the generic paired-device/status panel projection.
+    pub fn paired_device_panel(&self) -> &PairedDevicePanelModel {
+        &self.paired_device
     }
 }

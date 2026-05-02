@@ -1,7 +1,7 @@
 //! Model-sync, editor-state, and animation bookkeeping for the native shell.
 
 use super::*;
-use crate::compat_app_contract::{AudioEngineChipStateModel, FolderPaneIdModel};
+use crate::compat_app_contract::{FolderPaneIdModel, StatusChipStateModel};
 
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
@@ -9,7 +9,7 @@ impl NativeShellState {
         self.selected_column = model.selected_column.min(2);
         self.transport_running = model.transport_running;
         self.status_options_button_error =
-            model.audio_engine.chip_state == AudioEngineChipStateModel::Error;
+            model.paired_device_panel().status_state() == StatusChipStateModel::Error;
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         if model.map.active {
             self.hovered_browser_visible_row = None;

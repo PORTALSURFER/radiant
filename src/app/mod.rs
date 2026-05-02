@@ -70,10 +70,10 @@ pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
 pub use shell::{
-    AppModel, AudioEngineChipStateModel, AudioEngineModel, AudioFieldModel, AudioOptionItemModel,
-    AudioOptionValueModel, AudioPickerTargetModel, ConfirmPromptKind, ConfirmPromptModel,
-    DragOverlayModel, OptionsPanelModel, ProgressOverlayModel, StatusBarModel, UpdatePanelModel,
-    UpdateStatusModel,
+    AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
+    PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
+    PairedPickerValueModel, ProgressOverlayModel, StatusBarModel, StatusChipStateModel,
+    SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use sources::{
     ColumnModel, FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel,

@@ -221,7 +221,11 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     );
     assert!(!shell_mod.contains("pub struct ConfirmPromptModel"));
     assert!(!shell_mod.contains("pub enum ConfirmPromptKind"));
-    assert!(!shell_mod.contains("pub enum AudioEngineChipStateModel"));
+    assert!(!shell_mod.contains("AudioEngineChipStateModel"));
+    assert!(!shell_mod.contains("AudioEngineModel"));
+    assert!(!shell_mod.contains("audio_engine"));
+    assert!(!shell_mod.contains("output_host"));
+    assert!(!shell_mod.contains("input_sample_rate"));
     assert!(!sources_mod.contains("pub struct FolderRecoveryModel"));
     assert!(
         shell_mod
@@ -231,9 +235,10 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;"));
     assert!(
-        shell_mod
-            .contains("pub use crate::gui::feedback::HealthState as AudioEngineChipStateModel;")
+        shell_mod.contains("pub use crate::gui::feedback::HealthState as StatusChipStateModel;")
     );
+    assert!(shell_mod.contains("pub struct PairedDevicePanelModel"));
+    assert!(shell_mod.contains("pub paired_device: PairedDevicePanelModel"));
     assert!(shell_mod.contains("pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;"));
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
@@ -264,15 +269,21 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
     let form_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/form.rs"))
         .expect("form module should be readable");
 
-    assert!(!shell_mod.contains("pub enum AudioPickerTargetModel"));
-    assert!(!shell_mod.contains("pub enum AudioOptionValueModel"));
+    assert!(!shell_mod.contains("AudioPickerTargetModel"));
+    assert!(!shell_mod.contains("AudioOptionValueModel"));
+    assert!(!shell_mod.contains("AudioOptionItemModel"));
+    assert!(!shell_mod.contains("AudioFieldModel"));
     assert!(
         shell_mod
-            .contains("pub use crate::gui::form::PairedPickerTarget as AudioPickerTargetModel;")
+            .contains("pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;")
     );
     assert!(shell_mod.contains(
-        "pub type AudioOptionValueModel = crate::gui::form::PairedPickerValue<String, u32>;"
+        "pub type PairedPickerValueModel = crate::gui::form::PairedPickerValue<String, u32>;"
     ));
+    assert!(shell_mod.contains(
+        "pub type PairedPickerOptionModel = crate::gui::form::OptionItem<PairedPickerValueModel>;"
+    ));
+    assert!(shell_mod.contains("pub use crate::gui::form::SummaryField as SummaryFieldModel;"));
     assert!(form_mod.contains("pub enum PairedPickerTarget"));
     assert!(form_mod.contains("pub enum PairedPickerValue"));
 }

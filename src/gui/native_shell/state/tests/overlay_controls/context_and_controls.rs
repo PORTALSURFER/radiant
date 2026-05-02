@@ -358,10 +358,10 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        audio_engine: crate::compat_app_contract::AudioEngineModel {
-            chip_state: crate::compat_app_contract::AudioEngineChipStateModel::Error,
-            chip_label: String::from("Audio Err"),
-            ..crate::compat_app_contract::AudioEngineModel::default()
+        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
+            status_state: crate::compat_app_contract::StatusChipStateModel::Error,
+            status_label: String::from("Audio Err"),
+            ..crate::compat_app_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -430,32 +430,32 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
             visible: true,
             ..crate::compat_app_contract::OptionsPanelModel::default()
         },
-        audio_engine: crate::compat_app_contract::AudioEngineModel {
-            output_host: crate::compat_app_contract::AudioFieldModel {
+        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
+            primary_group: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            output_device: crate::compat_app_contract::AudioFieldModel {
+            primary_item: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Output Device"),
                 value_label: String::from("USB"),
             },
-            output_sample_rate: crate::compat_app_contract::AudioFieldModel {
+            primary_number: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Output Sample Rate"),
                 value_label: String::from("48 kHz"),
             },
-            input_host: crate::compat_app_contract::AudioFieldModel {
+            secondary_group: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Input Host"),
                 value_label: String::from("WASAPI"),
             },
-            input_device: crate::compat_app_contract::AudioFieldModel {
+            secondary_item: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Input Device"),
                 value_label: String::from("Mic"),
             },
-            input_sample_rate: crate::compat_app_contract::AudioFieldModel {
+            secondary_number: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Input Sample Rate"),
                 value_label: String::from("44.1 kHz"),
             },
-            ..crate::compat_app_contract::AudioEngineModel::default()
+            ..crate::compat_app_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -493,23 +493,23 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
             visible: true,
             ..crate::compat_app_contract::OptionsPanelModel::default()
         },
-        audio_engine: crate::compat_app_contract::AudioEngineModel {
-            active_picker: Some(crate::compat_app_contract::AudioPickerTargetModel::PrimaryNumber),
-            output_sample_rate_options: vec![
-                crate::compat_app_contract::AudioOptionItemModel {
+        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
+            active_picker: Some(crate::compat_app_contract::PairedPickerTargetModel::PrimaryNumber),
+            primary_number_options: vec![
+                crate::compat_app_contract::PairedPickerOptionModel {
                     label: String::from("Device default"),
                     selected: false,
-                    value: crate::compat_app_contract::AudioOptionValueModel::PrimaryNumber(None),
+                    value: crate::compat_app_contract::PairedPickerValueModel::PrimaryNumber(None),
                 },
-                crate::compat_app_contract::AudioOptionItemModel {
+                crate::compat_app_contract::PairedPickerOptionModel {
                     label: String::from("48 kHz"),
                     selected: true,
-                    value: crate::compat_app_contract::AudioOptionValueModel::PrimaryNumber(Some(
+                    value: crate::compat_app_contract::PairedPickerValueModel::PrimaryNumber(Some(
                         48_000,
                     )),
                 },
             ],
-            ..crate::compat_app_contract::AudioEngineModel::default()
+            ..crate::compat_app_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -562,13 +562,13 @@ fn options_panel_renders_after_other_modal_overlays() {
             cancelable: true,
             cancel_requested: false,
         },
-        audio_engine: crate::compat_app_contract::AudioEngineModel {
-            chip_label: String::from("48 kHz"),
-            output_host: crate::compat_app_contract::AudioFieldModel {
+        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
+            status_label: String::from("48 kHz"),
+            primary_group: crate::compat_app_contract::SummaryFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            ..crate::compat_app_contract::AudioEngineModel::default()
+            ..crate::compat_app_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };

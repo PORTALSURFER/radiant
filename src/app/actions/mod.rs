@@ -416,8 +416,8 @@ pub enum UiAction {
     FocusPreviousBrowserHistory,
     /// Focus the next browser sample from focus history.
     FocusNextBrowserHistory,
-    /// Toggle find-similar mode for the focused browser sample.
-    ToggleFindSimilarFocusedSample,
+    /// Toggle find-similar mode for the focused content item.
+    ToggleFindSimilarFocusedContent,
     /// Toggle whether one duplicate-cleanup browser row should be kept.
     ToggleBrowserDuplicateCleanupKeep {
         /// Target visible row index in the browser list.

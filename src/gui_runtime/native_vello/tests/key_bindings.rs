@@ -101,7 +101,7 @@ fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<
             Some(UiAction::ToggleFocusedBrowserRowSelection)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::S) => {
-            Some(UiAction::ToggleFindSimilarFocusedSample)
+            Some(UiAction::ToggleFindSimilarFocusedContent)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::Semicolon) => {
             Some(UiAction::ToggleContentMark)

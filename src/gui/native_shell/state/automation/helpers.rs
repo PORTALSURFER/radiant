@@ -204,7 +204,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ToggleBrowserDuplicateCleanupMode => "toggle_browser_duplicate_cleanup_mode",
         UiAction::FocusPreviousBrowserHistory => "focus_previous_browser_history",
         UiAction::FocusNextBrowserHistory => "focus_next_browser_history",
-        UiAction::ToggleFindSimilarFocusedSample => "toggle_find_similar_focused_sample",
+        UiAction::ToggleFindSimilarFocusedContent => "toggle_find_similar_focused_content",
         UiAction::ToggleBrowserDuplicateCleanupKeep { .. } => {
             "toggle_browser_duplicate_cleanup_keep"
         }

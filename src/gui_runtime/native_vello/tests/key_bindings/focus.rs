@@ -114,7 +114,7 @@ fn plain_s_routes_by_focus_between_browser_similarity_and_waveform_start_alignme
     };
     assert_eq!(
         resolved_action(KeyCode::S, ModifiersState::default(), &browser),
-        Some(UiAction::ToggleFindSimilarFocusedSample)
+        Some(UiAction::ToggleFindSimilarFocusedContent)
     );
 
     let waveform = AppModel {

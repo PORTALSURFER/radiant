@@ -110,7 +110,7 @@ fn focused_browser_row_similarity_button_routes_toggle_action() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ToggleFindSimilarFocusedSample)
+        Some(UiAction::ToggleFindSimilarFocusedContent)
     );
 }
 

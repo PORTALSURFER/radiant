@@ -1,5 +1,3 @@
-#[cfg(all(test, feature = "legacy-shell"))]
-pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::PreviewBridge;
 pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
     AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
     NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,

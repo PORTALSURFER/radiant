@@ -809,6 +809,10 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
         !source.contains("run_native_vello_app_declarative"),
         "Radiant legacy compatibility should expose one native Vello runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
     );
+    assert!(
+        !source.contains("run_native_vello_preview") && !source.contains("PreviewBridge"),
+        "backend preview helpers should not remain in the legacy compatibility facade"
+    );
 }
 
 #[test]

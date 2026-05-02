@@ -75,11 +75,8 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use motion::NativeMotionModel;
-#[cfg(test)]
-pub(crate) use native_vello::PreviewBridge;
 pub use native_vello::{
     capture_gui_automation_snapshot, run_native_vello_app, run_native_vello_app_with_artifacts,
-    run_native_vello_preview,
 };
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,

@@ -11,6 +11,15 @@ use std::sync::{
 };
 pub(super) use winit::event::{MouseButton, MouseScrollDelta};
 
+#[derive(Default)]
+struct PreviewBridge;
+
+impl NativeAppBridge for PreviewBridge {
+    fn project_model(&mut self) -> Arc<AppModel> {
+        Arc::new(AppModel::default())
+    }
+}
+
 fn milli(value: impl Into<i64>) -> u32 {
     value.into() as u32 * 1000
 }

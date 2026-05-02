@@ -32,10 +32,6 @@ use super::{
         waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
         waveform_view_window_from_bounds,
     },
-    paint::{
-        DrawImage, FillCircle, FillLinearGradient, FillRect, NativeViewFrame, Primitive, TextAlign,
-        TextRun,
-    },
     sidebar_surface::{
         SidebarFooterActionSpec, SidebarFooterSurfaceContent, SidebarFooterSurfaceLayout,
         SidebarHeaderSurfaceContent, resolve_sidebar_footer_surface_layout,
@@ -55,6 +51,10 @@ use super::{
         WaveformToolbarSurfaceContent, WaveformToolbarSurfaceItem, WaveformToolbarSurfaceItemKind,
         resolve_waveform_toolbar_surface_layout,
     },
+};
+use crate::gui::paint::{
+    DrawImage, FillCircle, FillLinearGradient, FillRect, PaintFrame as NativeViewFrame, Primitive,
+    TextAlign, TextRun,
 };
 use crate::compat_app_contract::{
     AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction,

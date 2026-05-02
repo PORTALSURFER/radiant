@@ -9,7 +9,6 @@ mod browser_chrome_surface;
 mod layout;
 mod layout_adapter;
 mod layout_runtime;
-mod paint;
 #[path = "../../../../../src/app_core/native_shell/composition/sidebar_surface.rs"]
 mod sidebar_surface;
 mod state;

@@ -334,6 +334,10 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
             "radiant::gui_runtime should continue exposing generic runtime API `{required}`"
         );
     }
+    assert!(
+        source.contains("pub struct RuntimeRunReport<Artifacts>"),
+        "radiant::gui_runtime should expose a generic runtime report envelope"
+    );
 }
 
 #[test]
@@ -582,6 +586,7 @@ fn legacy_shell_sources_are_feature_gated() {
         let path = manifest_dir.join(relative);
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        let source = source.replace("\r\n", "\n");
         for needle in *required {
             assert!(
                 source.contains(needle),

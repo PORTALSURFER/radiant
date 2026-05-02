@@ -10,10 +10,4 @@ pub struct NativeRuntimeArtifacts {
 }
 
 /// Result plus structured artifacts returned by one native compatibility-shell runtime execution.
-#[derive(Debug)]
-pub struct NativeRunReport {
-    /// Structured artifacts captured during the run.
-    pub artifacts: NativeRuntimeArtifacts,
-    /// Native runtime success or error outcome.
-    pub result: Result<(), String>,
-}
+pub type NativeRunReport = crate::gui_runtime::RuntimeRunReport<NativeRuntimeArtifacts>;

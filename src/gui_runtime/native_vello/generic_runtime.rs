@@ -72,13 +72,8 @@ pub struct NativeGenericRuntimeArtifacts {
 }
 
 /// Result plus structured artifacts returned by one generic native runtime execution.
-#[derive(Debug)]
-pub struct NativeGenericRunReport {
-    /// Structured artifacts captured during the run.
-    pub artifacts: NativeGenericRuntimeArtifacts,
-    /// Native runtime success or error outcome.
-    pub result: Result<(), String>,
-}
+pub type NativeGenericRunReport =
+    crate::gui_runtime::RuntimeRunReport<NativeGenericRuntimeArtifacts>;
 
 fn initial_viewport(options: &NativeRunOptions) -> Vector2 {
     let [width, height] = options.inner_size.unwrap_or([1280.0, 720.0]);

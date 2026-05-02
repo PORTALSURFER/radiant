@@ -62,6 +62,19 @@ impl Default for NativeRunOptions {
     }
 }
 
+/// Generic result envelope returned by native runtime entry points.
+///
+/// The artifact payload is supplied by the concrete runtime path, keeping the
+/// success/error transport generic while allowing compatibility shells to attach
+/// host-specific diagnostics during migration.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuntimeRunReport<Artifacts> {
+    /// Structured artifacts captured during the run.
+    pub artifacts: Artifacts,
+    /// Native runtime success or error outcome.
+    pub result: Result<(), String>,
+}
+
 pub use native_vello::{
     NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeStartupTimingArtifact,
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,

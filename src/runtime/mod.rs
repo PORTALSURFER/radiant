@@ -25,8 +25,8 @@ mod surface;
 
 pub use crate::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, NativeGenericRunReport, NativeGenericRuntimeArtifacts,
-    NativeRunOptions, NativeStartupTimingArtifact, WindowIconRgba, run_native_vello_runtime,
-    run_native_vello_runtime_with_artifacts,
+    NativeRunOptions, NativeStartupTimingArtifact, RuntimeRunReport, WindowIconRgba,
+    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
 pub use bridge::{DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
 pub use command::Command;

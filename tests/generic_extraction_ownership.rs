@@ -708,7 +708,7 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
             .expect("browser module should be readable");
     let toolbar_layout_tests = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/tests/browser_toolbar/layout.rs"
+        "/../../src/app_core/native_shell/composition/state/tests/browser_toolbar/layout.rs"
     ))
     .expect("toolbar layout tests should be readable");
 

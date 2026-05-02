@@ -52,7 +52,7 @@ pub mod layout {
     pub use crate::gui::layout_core::*;
 }
 #[cfg(feature = "legacy-shell")]
-#[path = "app/mod.rs"]
+#[path = "compat/legacy_shell/mod.rs"]
 pub(crate) mod compat_app_contract;
 /// Shared runtime host implementations.
 pub mod gui_runtime;

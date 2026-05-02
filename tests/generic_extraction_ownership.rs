@@ -4,7 +4,7 @@ use std::fs;
 
 #[test]
 fn keypress_value_type_is_owned_by_generic_input_module() {
-    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/mod.rs"))
         .expect("app module should be readable");
     let input_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/input.rs"))
         .expect("input module should be readable");
@@ -22,10 +22,10 @@ fn keypress_value_type_is_owned_by_generic_input_module() {
 
 #[test]
 fn retained_vec_is_owned_by_generic_retained_module() {
-    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/mod.rs"))
         .expect("app module should be readable");
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let retained_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/retained.rs"))
@@ -39,7 +39,7 @@ fn retained_vec_is_owned_by_generic_retained_module() {
 #[test]
 fn normalized_range_model_is_owned_by_generic_range_module() {
     let waveform_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/waveform.rs"))
             .expect("waveform module should be readable");
     let range_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/range.rs"))
         .expect("range module should be readable");
@@ -55,7 +55,7 @@ fn normalized_range_model_is_owned_by_generic_range_module() {
 #[test]
 fn row_processing_state_is_owned_by_generic_list_module() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -77,7 +77,7 @@ fn row_processing_state_is_owned_by_generic_list_module() {
 #[test]
 fn recency_state_is_owned_by_generic_list_module() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -96,7 +96,7 @@ fn recency_state_is_owned_by_generic_list_module() {
 #[test]
 fn column_summary_is_owned_by_generic_list_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -109,7 +109,7 @@ fn column_summary_is_owned_by_generic_list_module() {
 #[test]
 fn editable_row_kind_is_owned_by_generic_list_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -122,7 +122,7 @@ fn editable_row_kind_is_owned_by_generic_list_module() {
 #[test]
 fn editable_tree_actions_are_owned_by_generic_list_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -138,7 +138,7 @@ fn editable_tree_actions_are_owned_by_generic_list_module() {
 #[test]
 fn editable_tree_row_is_owned_by_generic_list_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
@@ -153,7 +153,7 @@ fn editable_tree_row_is_owned_by_generic_list_module() {
 #[test]
 fn split_pane_slot_is_owned_by_generic_panel_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");
@@ -176,7 +176,7 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 #[test]
 fn focus_context_model_is_owned_by_generic_focus_module() {
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let focus_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/focus.rs"))
         .expect("focus module should be readable");
@@ -192,7 +192,7 @@ fn focus_context_model_is_owned_by_generic_focus_module() {
 
 #[test]
 fn status_segments_are_owned_by_generic_chrome_module() {
-    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/shell.rs"))
         .expect("shell module should be readable");
     let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
         .expect("chrome module should be readable");
@@ -204,10 +204,10 @@ fn status_segments_are_owned_by_generic_chrome_module() {
 
 #[test]
 fn feedback_models_are_owned_by_generic_feedback_module() {
-    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/shell.rs"))
         .expect("shell module should be readable");
     let sources_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/sources.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/sources.rs"))
             .expect("sources module should be readable");
     let feedback_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
@@ -264,7 +264,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
 
 #[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
-    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/shell.rs"))
         .expect("shell module should be readable");
     let form_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/form.rs"))
         .expect("form module should be readable");
@@ -292,7 +292,7 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
 fn paired_picker_actions_use_generic_device_terms() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -323,14 +323,14 @@ fn paired_picker_actions_use_generic_device_terms() {
 #[test]
 fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let waveform_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/waveform.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/waveform.rs"))
             .expect("waveform module should be readable");
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let selection_mod =
@@ -399,9 +399,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
 #[test]
 fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
-    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/shell.rs"))
+    let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/shell.rs"))
         .expect("shell module should be readable");
 
     for source in [&browser_mod, &shell_mod] {
@@ -422,7 +422,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
 #[test]
 fn compat_browser_contract_uses_generic_item_label_fields() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -455,7 +455,7 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
 fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -474,7 +474,7 @@ fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
 fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -501,7 +501,7 @@ fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
 fn compat_action_catalog_uses_generic_compare_anchor_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -522,7 +522,7 @@ fn compat_action_catalog_uses_generic_compare_anchor_action() {
 fn compat_action_catalog_uses_generic_content_mark_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -549,7 +549,7 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
 fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -570,7 +570,7 @@ fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
 fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -619,7 +619,7 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
 fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -669,7 +669,7 @@ fn compat_shell_uses_generic_pill_editor_layout_identifiers() {
 #[test]
 fn compat_browser_model_uses_generic_pill_editor_fields() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let text_runtime = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -704,7 +704,7 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
 #[test]
 fn compat_browser_actions_use_generic_pill_edit_capability() {
     let browser_mod =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
     let toolbar_layout_tests = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -724,7 +724,7 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
 fn compat_action_catalog_uses_generic_pill_option_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -751,7 +751,7 @@ fn compat_action_catalog_uses_generic_pill_option_action() {
 fn compat_action_catalog_uses_generic_derived_label_filter_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -777,7 +777,7 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
 #[test]
 fn compat_browser_model_uses_generic_derived_label_filter_fields() {
     let app_browser =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("app browser model should be readable");
     let shared_toolbar = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -816,7 +816,7 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -854,7 +854,7 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
 fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -881,7 +881,7 @@ fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
 fn compat_action_catalog_uses_generic_random_content_actions() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -906,7 +906,7 @@ fn compat_action_catalog_uses_generic_random_content_actions() {
 fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -961,7 +961,7 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
 fn compat_action_catalog_uses_generic_content_item_drag_actions() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -1017,7 +1017,7 @@ fn compat_action_catalog_uses_generic_content_item_drag_actions() {
 fn compat_action_catalog_uses_generic_waveform_content_actions() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/actions/mod.rs"
+        "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
@@ -1044,11 +1044,11 @@ fn compat_action_catalog_uses_generic_waveform_content_actions() {
 
 #[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
-    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
+    let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/mod.rs"))
         .expect("app module should be readable");
     let dirty_segments_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/dirty_segments.rs"
+        "/src/compat/legacy_shell/dirty_segments.rs"
     ))
     .expect("dirty segments module should be readable");
     let frame_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/frame.rs"))
@@ -1070,7 +1070,7 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
 fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
     let app_automation_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/app/automation.rs"
+        "/src/compat/legacy_shell/automation.rs"
     ))
     .expect("app automation module should be readable");
     let gui_automation_mod = fs::read_to_string(concat!(

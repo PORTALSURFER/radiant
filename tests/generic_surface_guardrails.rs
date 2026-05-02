@@ -139,7 +139,7 @@ fn generic_sources_do_not_import_legacy_shell_contracts() {
     assert!(
         violations.is_empty(),
         "generic Radiant modules must stay independent from Sempal compatibility contracts; \
-         move transitional shell code under app, compat::legacy_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
+         move transitional shell code under compat::legacy_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
         violations.join("\n")
     );
 }
@@ -354,12 +354,16 @@ fn legacy_shell_compatibility_is_not_enabled_by_default() {
 #[test]
 fn legacy_shell_sources_are_feature_gated() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    assert!(
+        !manifest_dir.join("src/app").exists(),
+        "legacy shell compatibility contracts must live under src/compat/legacy_shell, not a top-level src/app module"
+    );
     let expectations: &[(&str, &[&str])] = &[
         (
             "src/lib.rs",
             &[
                 "#[cfg(feature = \"legacy-shell\")]\npub(crate) mod app",
-                "#[cfg(feature = \"legacy-shell\")]\n#[path = \"app/mod.rs\"]",
+                "#[cfg(feature = \"legacy-shell\")]\n#[path = \"compat/legacy_shell/mod.rs\"]",
             ],
         ),
         (
@@ -395,7 +399,7 @@ fn legacy_shell_sources_are_feature_gated() {
 #[test]
 fn legacy_shell_contract_does_not_reexport_application_title_alias() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let module_path = manifest_dir.join("src/app/mod.rs");
+    let module_path = manifest_dir.join("src/compat/legacy_shell/mod.rs");
     let source = fs::read_to_string(&module_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
 

@@ -688,6 +688,7 @@ fn legacy_shell_sources_are_feature_gated() {
     for forbidden in [
         "pub struct NativeRuntimeArtifacts",
         "pub struct NativeRunReport",
+        "struct EventLoopProxyRepaintSignal",
         "pub fn run_native_vello_app",
         "pub fn run_native_vello_app_with_artifacts",
         "pub fn run_native_vello_app_declarative",
@@ -698,6 +699,19 @@ fn legacy_shell_sources_are_feature_gated() {
         assert!(
             !native_vello.contains(forbidden),
             "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_shell"
+        );
+    }
+    let legacy_shell_runtime = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_runtime.rs"),
+    )
+    .expect("legacy_shell_runtime.rs should be readable");
+    for required in [
+        "struct EventLoopProxyRepaintSignal",
+        "run_legacy_shell_vello_app_with_artifacts",
+    ] {
+        assert!(
+            legacy_shell_runtime.contains(required),
+            "legacy shell event-loop compatibility glue should live in legacy_shell_runtime.rs"
         );
     }
     let expectations: &[(&str, &[&str])] = &[

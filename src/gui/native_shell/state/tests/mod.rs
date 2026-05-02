@@ -194,6 +194,7 @@ mod overlays;
 mod playhead_trail_render;
 mod playhead_trail_state;
 mod selection_states;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/sidebar.rs"]
 mod sidebar;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/status_bar_progress.rs"]
 mod status_bar_progress;

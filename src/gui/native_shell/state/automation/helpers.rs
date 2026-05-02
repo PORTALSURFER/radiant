@@ -264,7 +264,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ToggleHotkeyOverlay => "toggle_hotkey_overlay",
         UiAction::CopyStatusLog => "copy_status_log",
         UiAction::OpenFeedbackIssuePrompt => "open_feedback_issue_prompt",
-        UiAction::MoveTrashedSamplesToFolder => "move_trashed_samples_to_folder",
+        UiAction::MoveDiscardedItemsToFolder => "move_discarded_items_to_folder",
         UiAction::SetWaveformChannelView { .. } => "set_waveform_channel_view",
         UiAction::SetNormalizedAuditionEnabled { .. } => "set_normalized_audition_enabled",
         UiAction::SetBpmSnapEnabled { .. } => "set_bpm_snap_enabled",

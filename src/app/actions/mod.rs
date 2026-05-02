@@ -560,7 +560,7 @@ pub enum UiAction {
     /// Open the feedback-issue prompt flow.
     OpenFeedbackIssuePrompt,
     /// Move all discarded items into the configured destination folder.
-    MoveTrashedSamplesToFolder,
+    MoveDiscardedItemsToFolder,
 
     // Options and persistent interaction toggles.
     /// Enable/disable input monitoring.

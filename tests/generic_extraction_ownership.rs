@@ -373,6 +373,25 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+
+    assert!(!actions_mod.contains("MoveTrashedSamplesToFolder"));
+    assert!(actions_mod.contains("MoveDiscardedItemsToFolder"));
+    assert!(!automation_helpers.contains("move_trashed_samples_to_folder"));
+    assert!(automation_helpers.contains("move_discarded_items_to_folder"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

@@ -720,6 +720,7 @@ fn legacy_shell_sources_are_feature_gated() {
             "src/gui_runtime/native_vello.rs",
             &[
                 "#[cfg(feature = \"legacy-shell\")]\nmod input",
+                "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runtime",
                 "#[cfg(feature = \"legacy-shell\")]\nmod runtime_events",
                 "#[cfg(all(test, feature = \"legacy-shell\"))]\nmod tests",
             ],

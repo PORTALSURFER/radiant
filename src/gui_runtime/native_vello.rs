@@ -3,13 +3,13 @@
 #![cfg_attr(not(feature = "legacy-shell"), allow(dead_code))]
 
 use super::{NativeRunOptions, WindowIconRgba};
+#[cfg(all(test, feature = "legacy-shell"))]
+use crate::compat::legacy_shell::PreviewBridge;
 #[cfg(feature = "legacy-shell")]
 use crate::compat::legacy_shell::{
     AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
     NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,
 };
-#[cfg(all(test, feature = "legacy-shell"))]
-use crate::compat::legacy_shell::PreviewBridge;
 #[cfg(feature = "legacy-shell")]
 use crate::gui::input::KeyCode;
 use crate::gui::{
@@ -76,6 +76,8 @@ mod generic_runtime;
 #[cfg(feature = "legacy-shell")]
 mod input;
 #[cfg(feature = "legacy-shell")]
+mod legacy_shell_runtime;
+#[cfg(feature = "legacy-shell")]
 mod profiling;
 #[cfg(feature = "legacy-shell")]
 mod runtime_actions;
@@ -110,6 +112,8 @@ use self::{
 };
 #[cfg(not(feature = "legacy-shell"))]
 use self::{startup::*, text_renderer::*};
+#[cfg(feature = "legacy-shell")]
+pub(crate) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts;
 
 pub use self::{
     generic_runtime::{
@@ -392,61 +396,6 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     cursor_activity_redraw_until: Option<Instant>,
     model_refresh_count: u32,
     profiler: NativeVelloProfiler,
-}
-
-#[cfg(feature = "legacy-shell")]
-pub(crate) fn run_legacy_shell_vello_app_with_artifacts<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> NativeRunReport {
-    info!("radiant native vello: creating event loop");
-    let run_started = Instant::now();
-    let event_loop = match EventLoop::<RuntimeUserEvent>::with_user_event().build() {
-        Ok(event_loop) => event_loop,
-        Err(err) => {
-            return NativeRunReport {
-                artifacts: NativeRuntimeArtifacts::default(),
-                result: Err(err.to_string()),
-            };
-        }
-    };
-    info!(
-        "radiant native vello: event loop created with window_size={:?} min_window_size={:?} target_fps={}",
-        options.inner_size, options.min_inner_size, options.target_fps
-    );
-    let mut runner = NativeVelloRunner::new(options, bridge);
-    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(EventLoopProxyRepaintSignal::new(
-        event_loop.create_proxy(),
-        Arc::clone(&runner.repaint_event_pending),
-    ));
-    runner.bridge.install_repaint_signal(repaint_signal);
-    info!("radiant native vello: runner initialized");
-    let run_result = event_loop
-        .run_app(&mut runner)
-        .map_err(|err| err.to_string());
-    let elapsed = run_started.elapsed();
-    match &run_result {
-        Ok(_) => info!(
-            "radiant native vello: event loop ended in {} ms",
-            elapsed.as_millis()
-        ),
-        Err(err) => warn!(
-            "radiant native vello: event loop returned error in {} ms: {}",
-            elapsed.as_millis(),
-            err
-        ),
-    }
-    info!("radiant native vello: event loop finished");
-    let startup_timing = runner.startup_timing.export_artifact();
-    let shutdown_timing = runner.bridge.on_runtime_exit();
-    let artifacts = NativeRuntimeArtifacts {
-        startup_timing,
-        shutdown_timing,
-    };
-    NativeRunReport {
-        artifacts,
-        result: run_result,
-    }
 }
 
 #[cfg(all(test, feature = "legacy-shell"))]

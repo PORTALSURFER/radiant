@@ -79,7 +79,7 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Active browser-search editor visual signature.
     pub browser_search_editor_signature: u64,
-    /// Active browser tag-sidebar editor visual signature.
+    /// Active browser pill-editor visual signature.
     pub browser_search_sidebar_signature: u64,
     /// Active inline folder-create editor visual signature.
     pub folder_create_editor_signature: u64,

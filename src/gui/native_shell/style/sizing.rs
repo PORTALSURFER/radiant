@@ -78,7 +78,7 @@ pub(crate) struct SizingTokens {
     pub browser_search_field_ratio: f32,
     /// Width reserved for the browser row index column.
     pub browser_index_col_width: f32,
-    /// Width reserved for the browser bucket/tag column.
+    /// Width reserved for the browser metadata-bucket column.
     pub browser_bucket_col_width: f32,
     /// Shared panel inset for nested regions.
     pub panel_inset: f32,

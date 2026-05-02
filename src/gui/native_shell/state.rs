@@ -111,7 +111,7 @@ pub(crate) use self::{
 
 /// Maximum retained entries for browser-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
-/// Text glyph shown before browser sample labels whose backing files are missing.
+/// Text glyph shown before browser item labels whose backing content is missing.
 const BROWSER_MISSING_SAMPLE_MARKER: &str = "!";
 /// Maximum retained ghost lines for the dynamic waveform playhead trail.
 const PLAYHEAD_TRAIL_MAX_SAMPLES: usize = 768;

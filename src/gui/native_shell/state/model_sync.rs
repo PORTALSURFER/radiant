@@ -111,7 +111,7 @@ impl NativeShellState {
         self.browser_search_editor_visual = visual;
     }
 
-    /// Update the active browser-tag-sidebar editor visuals shown in state overlays.
+    /// Update the active browser pill-editor visuals shown in state overlays.
     pub(crate) fn set_browser_pill_editor_visual_state(
         &mut self,
         visual: Option<TextFieldVisualState>,

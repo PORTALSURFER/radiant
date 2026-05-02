@@ -21,7 +21,7 @@ pub(crate) use theme::ViewportScaleTier as LayoutScaleTier;
 ///
 /// Generic colors and motion live in [`ThemeTokens`]. Shell-only sidebar chrome
 /// stays in [`ShellChromeTokens`], which makes the compatibility boundary
-/// explicit while preserving the existing Sempal shell behavior.
+/// explicit while preserving the existing compatibility-shell behavior.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct StyleTokens {
     /// Viewport scale tier used to derive the token set.

@@ -61,9 +61,9 @@ pub use automation::{
 };
 pub use bridge::NativeAppBridge;
 pub use browser::{
-    BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
-    BrowserRowProcessingState, BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState,
-    MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
+    BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserPillEditorModel,
+    BrowserPillModel, BrowserPillState, BrowserRowModel, BrowserRowProcessingState, MapPanelModel,
+    MapPointModel, MapRenderModeModel, PlaybackAgeBucket, PlaybackAgeFilterChip,
 };
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 /// Compatibility alias for the generic shortcut resolution DTO.

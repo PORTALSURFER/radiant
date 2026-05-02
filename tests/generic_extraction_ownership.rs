@@ -301,25 +301,28 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     ))
     .expect("visualization module should be readable");
 
-    assert!(!browser_mod.contains("pub enum BrowserTagState"));
-    assert!(!browser_mod.contains("pub struct BrowserTagPillModel"));
-    assert!(!browser_mod.contains("pub struct BrowserTagSidebarModel"));
+    assert!(!browser_mod.contains("pub enum BrowserPillState"));
+    assert!(!browser_mod.contains("pub struct BrowserPillModel"));
+    assert!(!browser_mod.contains("pub struct BrowserPillEditorModel"));
+    assert!(!browser_mod.contains("BrowserTagState"));
+    assert!(!browser_mod.contains("BrowserTagPillModel"));
+    assert!(!browser_mod.contains("BrowserTagSidebarModel"));
     assert!(!actions_mod.contains("pub enum BrowserTagTarget"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
     assert!(!browser_mod.contains("pub struct MapPointModel"));
     assert!(!browser_mod.contains("pub struct MapPanelModel"));
     assert!(!waveform_mod.contains("pub enum WaveformChannelViewModel"));
     assert!(!waveform_mod.contains("pub struct WaveformSlicePreviewModel"));
-    assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserTagState;"));
+    assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
     assert!(
         actions_mod.contains("pub type BrowserTagTarget = crate::gui::selection::TriageTarget;")
     );
     assert!(selection_mod.contains("pub enum TriageTarget"));
     assert!(browser_mod.contains(
-        "pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;"
+        "pub type BrowserPillModel = crate::gui::badge::SelectablePill<BrowserPillState>;"
     ));
     assert!(browser_mod.contains(
-        "pub type BrowserTagSidebarModel = crate::gui::badge::PillEditorPanel<BrowserTagState>;"
+        "pub type BrowserPillEditorModel = crate::gui::badge::PillEditorPanel<BrowserPillState>;"
     ));
     assert!(
         browser_mod

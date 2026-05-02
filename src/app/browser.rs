@@ -5,14 +5,14 @@ pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;
 pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;
 pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 use crate::gui::retained::RetainedVec;
-pub use crate::gui::selection::TriState as BrowserTagState;
+pub use crate::gui::selection::TriState as BrowserPillState;
 pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;
 pub use crate::gui::visualization::SpatialPanel as MapPanelModel;
 pub use crate::gui::visualization::SpatialPoint as MapPointModel;
-/// One clickable tag pill projected into the browser metadata sidebar.
-pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
+/// One clickable pill projected into the browser metadata sidebar.
+pub type BrowserPillModel = crate::gui::badge::SelectablePill<BrowserPillState>;
 /// Browser-local metadata sidebar shown beside the content list.
-pub type BrowserTagSidebarModel = crate::gui::badge::PillEditorPanel<BrowserTagState>;
+pub type BrowserPillEditorModel = crate::gui::badge::PillEditorPanel<BrowserPillState>;
 
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -59,8 +59,8 @@ pub struct BrowserPanelModel {
     pub active_tab_label: Option<String>,
     /// Display label for the currently focused item, when known.
     pub focused_item_label: Option<String>,
-    /// Metadata-tag editor sidebar projection scoped to the list tab.
-    pub tag_sidebar: BrowserTagSidebarModel,
+    /// Metadata pill-editor sidebar projection scoped to the list tab.
+    pub tag_sidebar: BrowserPillEditorModel,
     /// Selection anchor in visible-row space.
     pub anchor_visible_row: Option<usize>,
     /// Visible rows rendered by the native browser panel.

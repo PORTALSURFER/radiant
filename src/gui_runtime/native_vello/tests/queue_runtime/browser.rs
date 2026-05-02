@@ -442,10 +442,10 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
         .browser
         .tag_sidebar
         .option_pills
-        .push(crate::compat_app_contract::BrowserTagPillModel {
+        .push(crate::compat_app_contract::BrowserPillModel {
             id: String::from("rare_fx"),
             label: String::from("Rare FX"),
-            state: crate::compat_app_contract::BrowserTagState::Off,
+            state: crate::compat_app_contract::BrowserPillState::Off,
         });
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout.clone()));

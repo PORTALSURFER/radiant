@@ -5,7 +5,7 @@ use super::helpers::{
 };
 use super::*;
 use crate::compat_app_contract::AutomationRole;
-use crate::compat_app_contract::BrowserTagState;
+use crate::compat_app_contract::BrowserPillState;
 
 /// Build semantic automation for the browser panel and its active content.
 pub(super) fn build_browser_automation(
@@ -370,14 +370,14 @@ fn build_browser_tag_sidebar_automation(
 
 fn browser_tag_sidebar_pill_node(
     id: impl Into<String>,
-    pill: &crate::compat_app_contract::BrowserTagPillModel,
+    pill: &crate::compat_app_contract::BrowserPillModel,
     rect: Rect,
     available_actions: Vec<String>,
 ) -> AutomationNodeSnapshot {
     let state = match pill.state {
-        BrowserTagState::Off => "off",
-        BrowserTagState::On => "on",
-        BrowserTagState::Mixed => "mixed",
+        BrowserPillState::Off => "off",
+        BrowserPillState::On => "on",
+        BrowserPillState::Mixed => "mixed",
     };
     let mut node = simple_node(
         id,
@@ -386,7 +386,7 @@ fn browser_tag_sidebar_pill_node(
         rect,
         Some(state.to_string()),
         true,
-        pill.state == BrowserTagState::On,
+        pill.state == BrowserPillState::On,
         available_actions,
     );
     node.metadata = metadata(&[("tag_state", state), ("tag_id", pill.id.as_str())]);

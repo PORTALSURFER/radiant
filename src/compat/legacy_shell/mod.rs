@@ -41,7 +41,6 @@
 //! - [`NativeAppBridge`](crate::compat::legacy_shell::NativeAppBridge) defines the host/runtime integration boundary.
 
 mod actions;
-mod automation;
 mod bridge;
 mod browser;
 mod dirty_segments;
@@ -59,7 +58,7 @@ pub use crate::gui::input::KeyPress;
 pub use crate::gui::retained::RetainedVec;
 pub use crate::gui::shortcuts::ShortcutResolution;
 pub use actions::{BrowserTriageTarget, UiAction};
-pub use automation::{
+pub use crate::gui::automation::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     GuiAutomationSnapshot,
 };

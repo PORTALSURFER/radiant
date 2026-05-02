@@ -1252,22 +1252,23 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
 
 #[test]
 fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
-    let app_automation_mod = fs::read_to_string(concat!(
+    let legacy_shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/automation.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
-    .expect("app automation module should be readable");
+    .expect("legacy shell module should be readable");
     let gui_automation_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/automation.rs"
     ))
     .expect("generic automation module should be readable");
 
-    assert!(!app_automation_mod.contains("pub enum AutomationRole"));
-    assert!(!app_automation_mod.contains("pub struct AutomationNodeSnapshot"));
-    assert!(!app_automation_mod.contains("pub struct GuiAutomationSnapshot"));
+    assert!(!legacy_shell_mod.contains("mod automation;"));
+    assert!(!legacy_shell_mod.contains("pub enum AutomationRole"));
+    assert!(!legacy_shell_mod.contains("pub struct AutomationNodeSnapshot"));
+    assert!(!legacy_shell_mod.contains("pub struct GuiAutomationSnapshot"));
     assert!(
-        app_automation_mod.contains(
+        legacy_shell_mod.contains(
             "pub use crate::gui::automation::{\n    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,\n    GuiAutomationSnapshot,\n};"
         )
     );

@@ -430,6 +430,12 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     assert!(
         !manifest_dir
+            .join("src/compat/legacy_shell/automation.rs")
+            .exists(),
+        "generic automation DTOs belong in gui::automation and should be re-exported directly when compatibility needs them"
+    );
+    assert!(
+        !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),
         "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"

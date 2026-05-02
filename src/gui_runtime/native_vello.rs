@@ -153,13 +153,6 @@ enum RuntimeUserEvent {
     RepaintRequested,
 }
 
-#[cfg(feature = "legacy-shell")]
-fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
-    pending
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_ok()
-}
-
 /// Return the ordered present-mode fallback chain for the configured frame target.
 fn present_mode_candidates(target_fps: u32) -> &'static [wgpu::PresentMode] {
     if target_fps >= 120 {

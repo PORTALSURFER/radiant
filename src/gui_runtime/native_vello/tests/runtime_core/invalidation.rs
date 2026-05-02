@@ -199,9 +199,9 @@ fn browser_navigation_selection_actions_use_model_overlay_scope() {
 fn repaint_event_pending_gate_coalesces_duplicate_requests() {
     let pending = AtomicBool::new(false);
 
-    assert!(try_mark_repaint_event_pending(&pending));
+    assert!(super::super::super::legacy_shell_runtime::try_mark_repaint_event_pending(&pending));
     assert!(pending.load(Ordering::Acquire));
-    assert!(!try_mark_repaint_event_pending(&pending));
+    assert!(!super::super::super::legacy_shell_runtime::try_mark_repaint_event_pending(&pending));
 }
 
 #[test]

@@ -689,6 +689,7 @@ fn legacy_shell_sources_are_feature_gated() {
         "pub struct NativeRuntimeArtifacts",
         "pub struct NativeRunReport",
         "struct EventLoopProxyRepaintSignal",
+        "fn try_mark_repaint_event_pending",
         "pub fn run_native_vello_app",
         "pub fn run_native_vello_app_with_artifacts",
         "pub fn run_native_vello_app_declarative",
@@ -707,6 +708,7 @@ fn legacy_shell_sources_are_feature_gated() {
     .expect("legacy_shell_runtime.rs should be readable");
     for required in [
         "struct EventLoopProxyRepaintSignal",
+        "fn try_mark_repaint_event_pending",
         "run_legacy_shell_vello_app_with_artifacts",
     ] {
         assert!(

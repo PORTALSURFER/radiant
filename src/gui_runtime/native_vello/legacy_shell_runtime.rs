@@ -2,6 +2,12 @@ use super::*;
 use crate::gui::repaint::RepaintSignal;
 use winit::event_loop::EventLoopProxy;
 
+pub(super) fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
+    pending
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
 #[derive(Clone)]
 struct EventLoopProxyRepaintSignal {
     proxy: EventLoopProxy<RuntimeUserEvent>,

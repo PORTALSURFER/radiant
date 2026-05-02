@@ -155,7 +155,7 @@ fn browser_scrollbar_stays_visible_and_hittable_with_tag_sidebar_open() {
     );
     assert_eq!(
         state.browser_action_at_point(&layout, &model, sidebar_point, false),
-        Some(UiAction::FocusBrowserTagSidebarInput)
+        Some(UiAction::FocusBrowserPillEditorInput)
     );
 }
 

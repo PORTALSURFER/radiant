@@ -149,7 +149,7 @@ fn open_tag_sidebar_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
     assert_eq!(state.browser_row_at_point(&layout, &model, point), None);
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
-        Some(UiAction::FocusBrowserTagSidebarInput)
+        Some(UiAction::FocusBrowserPillEditorInput)
     );
 
     let rows = state.cached_browser_rows(&layout, &style, &model);

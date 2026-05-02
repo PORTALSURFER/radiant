@@ -654,6 +654,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SignalToolState",
         "SignalRasterPreview",
         "TimelineViewport",
+        "TimelineTransportState",
         "TimelineEditPreview",
         "Style And Theme",
         "## Renderer",

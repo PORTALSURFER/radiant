@@ -8,6 +8,7 @@ pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewMo
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
+pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
 
@@ -180,6 +181,16 @@ impl WaveformPanelModel {
         )
     }
 
+    /// Return this panel's generic timeline transport state.
+    pub fn transport(&self) -> WaveformTransportModel {
+        WaveformTransportModel::new(
+            self.cursor_milli,
+            self.playhead_milli,
+            self.playhead_micros,
+            self.selection_milli,
+        )
+    }
+
     /// Return this panel's generic timeline edit preview.
     pub fn edit_preview(&self) -> WaveformEditPreviewModel {
         WaveformEditPreviewModel::new(
@@ -237,6 +248,23 @@ mod tests {
         assert_eq!(viewport.end_micros, 500_000);
         assert_eq!(viewport.start_nanos, 250_000_000);
         assert_eq!(viewport.end_nanos, 500_000_000);
+    }
+
+    #[test]
+    fn transport_projects_generic_timeline_positions() {
+        let model = WaveformPanelModel {
+            cursor_milli: Some(120),
+            playhead_milli: Some(250),
+            playhead_micros: None,
+            selection_milli: Some(crate::gui::range::NormalizedRange::new(100, 400)),
+            ..WaveformPanelModel::default()
+        };
+        let transport = model.transport();
+
+        assert_eq!(transport.cursor_milli, Some(120));
+        assert_eq!(transport.playhead_milli, Some(250));
+        assert_eq!(transport.resolved_playhead_micros(), Some(250_000));
+        assert_eq!(transport.selection, model.selection_milli);
     }
 
     #[test]

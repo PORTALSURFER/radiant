@@ -115,6 +115,7 @@ impl NativeMotionModel {
     /// Build a motion model from a full application model snapshot.
     pub fn from_app_model(model: &AppModel) -> Self {
         let viewport = model.waveform.viewport();
+        let transport = model.waveform.transport();
         let edit_preview = model.waveform.edit_preview();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
@@ -126,7 +127,7 @@ impl NativeMotionModel {
             active_rating_filters: model.browser.active_rating_filters,
             active_playback_age_filters: model.browser.active_recency_filters,
             marked_filter_active: model.browser.marked_filter_active,
-            waveform_selection_milli: model.waveform.selection_milli,
+            waveform_selection_milli: transport.selection,
             waveform_slices: model.waveform.slices.clone(),
             waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
             waveform_selection_export_failure_flash_nonce: model
@@ -148,14 +149,9 @@ impl NativeMotionModel {
             waveform_edit_fade_out_curve_milli: edit_preview.trailing_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_loop_lock_enabled: signal_tools.lock_enabled,
-            waveform_cursor_milli: model.waveform.cursor_milli,
-            waveform_playhead_milli: model.waveform.playhead_milli,
-            waveform_playhead_micros: model.waveform.playhead_micros.or_else(|| {
-                model
-                    .waveform
-                    .playhead_milli
-                    .map(|milli| u32::from(milli) * 1000)
-            }),
+            waveform_cursor_milli: transport.cursor_milli,
+            waveform_playhead_milli: transport.playhead_milli,
+            waveform_playhead_micros: transport.resolved_playhead_micros(),
             waveform_view_start_milli: viewport.start_milli,
             waveform_view_end_milli: viewport.end_milli,
             waveform_view_start_micros: viewport.start_micros,

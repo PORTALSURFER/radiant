@@ -126,6 +126,45 @@ pub struct SignalToolState {
     pub cleanup_available: bool,
 }
 
+/// Cursor, playhead, and selected range for a normalized timeline.
+///
+/// The playhead can carry both milli and micro precision so render loops can
+/// use a coarse label while preserving smoother motion when hosts provide it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TimelineTransportState {
+    /// Cursor position in normalized milli-units.
+    pub cursor_milli: Option<u16>,
+    /// Playhead position in normalized milli-units.
+    pub playhead_milli: Option<u16>,
+    /// Playhead position in normalized micro-units.
+    pub playhead_micros: Option<u32>,
+    /// Selected playback/review range.
+    pub selection: Option<NormalizedRange>,
+}
+
+impl TimelineTransportState {
+    /// Build a timeline transport state from explicit normalized values.
+    pub fn new(
+        cursor_milli: Option<u16>,
+        playhead_milli: Option<u16>,
+        playhead_micros: Option<u32>,
+        selection: Option<NormalizedRange>,
+    ) -> Self {
+        Self {
+            cursor_milli,
+            playhead_milli,
+            playhead_micros,
+            selection,
+        }
+    }
+
+    /// Return the most precise available playhead value in micro-units.
+    pub fn resolved_playhead_micros(self) -> Option<u32> {
+        self.playhead_micros
+            .or_else(|| self.playhead_milli.map(|milli| u32::from(milli) * 1000))
+    }
+}
+
 impl Default for SignalToolState {
     fn default() -> Self {
         Self {
@@ -357,7 +396,8 @@ pub struct TimelineMarkerPreview {
 mod tests {
     use super::{
         ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
-        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
+        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineMarkerPreview,
+        TimelineTransportState, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -443,6 +483,20 @@ mod tests {
         assert!(tools.markers_visible);
         assert!(tools.review_mode_enabled);
         assert!(!tools.cleanup_available);
+    }
+
+    #[test]
+    fn timeline_transport_state_preserves_positions_and_resolves_micro_playhead() {
+        let selection = NormalizedRange::new(100, 400);
+        let transport = TimelineTransportState::new(Some(120), Some(250), None, Some(selection));
+
+        assert_eq!(transport.cursor_milli, Some(120));
+        assert_eq!(transport.playhead_milli, Some(250));
+        assert_eq!(transport.resolved_playhead_micros(), Some(250_000));
+        assert_eq!(transport.selection, Some(selection));
+
+        let precise = TimelineTransportState::new(None, Some(250), Some(250_125), None);
+        assert_eq!(precise.resolved_playhead_micros(), Some(250_125));
     }
 
     #[test]

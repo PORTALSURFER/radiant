@@ -50,6 +50,7 @@ mod native_vello;
 mod shell;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/waveform.rs"]
 mod waveform;
 
 pub use crate::gui::automation::{

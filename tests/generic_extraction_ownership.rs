@@ -48,7 +48,7 @@ fn retained_vec_is_owned_by_generic_retained_module() {
 fn normalized_range_model_is_owned_by_generic_range_module() {
     let waveform_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/waveform.rs"
+        "/../../src/app_core/native_shell/composition/runtime/waveform.rs"
     ))
     .expect("waveform module should be readable");
     let range_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/range.rs"))
@@ -379,7 +379,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     .expect("browser module should be readable");
     let waveform_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/waveform.rs"
+        "/../../src/app_core/native_shell/composition/runtime/waveform.rs"
     ))
     .expect("waveform module should be readable");
     let actions_mod = fs::read_to_string(concat!(

@@ -122,6 +122,10 @@ but the serializable snapshot schema is generic Radiant API.
 
 ## Generic Panels And Forms
 
+`radiant::gui::chrome` contains generic chrome/status models such as
+`StatusSegments` and `ContentViewChrome`. Host applications map product-specific
+copy into these slots; Radiant defaults stay product-neutral.
+
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
 `PairedPickerValue`, and `PairedStatusPanel`. `PairedStatusPanel` models a

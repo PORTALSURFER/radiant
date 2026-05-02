@@ -671,6 +671,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "ThemeTokens",
         "SurfacePaintPlan",
         "InvalidationMask",
+        "ContentViewChrome",
         "PairedStatusPanel",
     ] {
         assert!(

@@ -1,5 +1,6 @@
 //! Browser/list/map-facing models exposed by the `radiant` app contract.
 
+pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;
 pub use crate::gui::list::ContentListRow as BrowserRowModel;
 pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;
 pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;
@@ -65,51 +66,6 @@ pub struct BrowserPanelModel {
     pub anchor_visible_row: Option<usize>,
     /// Visible rows rendered by the native browser panel.
     pub rows: RetainedVec<BrowserRowModel>,
-}
-
-/// Browser chrome copy used by the native shell toolbar and tab strip.
-///
-/// This separates rendered UI labels from interaction state so hosts can
-/// provide layout-specific wording without hardcoded renderer strings.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BrowserChromeModel {
-    /// Label for the list tab.
-    pub items_tab_label: String,
-    /// Label for the map tab.
-    pub map_tab_label: String,
-    /// Prefix label shown before active search queries.
-    pub search_prefix_label: String,
-    /// Placeholder label shown when no search query is active.
-    pub search_placeholder: String,
-    /// Status label shown when browser background work is idle.
-    pub activity_ready_label: String,
-    /// Status label shown when browser background work is running.
-    pub activity_busy_label: String,
-    /// Prefix label shown before active sort order labels.
-    pub sort_prefix_label: String,
-    /// Label describing the active sort order.
-    pub sort_order_label: String,
-    /// Label describing similarity mode in the map/header chrome.
-    pub similarity_toggle_label: String,
-    /// Footer/status label for total browser item counts.
-    pub item_count_label: String,
-}
-
-impl Default for BrowserChromeModel {
-    fn default() -> Self {
-        Self {
-            items_tab_label: String::from("Items"),
-            map_tab_label: String::from("Map"),
-            search_prefix_label: String::from("Search"),
-            search_placeholder: String::from("Search items (Ctrl+F)"),
-            activity_ready_label: String::from("Ready"),
-            activity_busy_label: String::from("Filtering"),
-            sort_prefix_label: String::from("Sort"),
-            sort_order_label: String::from("List order"),
-            similarity_toggle_label: String::from("points"),
-            item_count_label: String::from("0 items"),
-        }
-    }
 }
 
 /// Browser action availability consumed by the native shell action strip.

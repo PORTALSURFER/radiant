@@ -410,8 +410,10 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
             .expect("browser module should be readable");
     let shell_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/shell.rs"))
         .expect("shell module should be readable");
+    let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
+        .expect("chrome module should be readable");
 
-    for source in [&browser_mod, &shell_mod] {
+    for source in [&browser_mod, &shell_mod, &chrome_mod] {
         assert!(
             !source.contains("Search samples")
                 && !source.contains("Similarity map")
@@ -420,9 +422,14 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
         );
     }
 
-    assert!(browser_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
-    assert!(browser_mod.contains("items_tab_label: String::from(\"Items\")"));
-    assert!(browser_mod.contains("map_tab_label: String::from(\"Map\")"));
+    assert!(!browser_mod.contains("pub struct BrowserChromeModel"));
+    assert!(
+        browser_mod.contains("pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;")
+    );
+    assert!(chrome_mod.contains("pub struct ContentViewChrome"));
+    assert!(chrome_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
+    assert!(chrome_mod.contains("items_tab_label: String::from(\"Items\")"));
+    assert!(chrome_mod.contains("map_tab_label: String::from(\"Map\")"));
     assert!(shell_mod.contains("ColumnModel::new(\"Items\", 0)"));
 }
 

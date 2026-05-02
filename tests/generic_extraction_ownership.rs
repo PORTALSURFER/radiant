@@ -373,6 +373,38 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
 }
 
 #[test]
+fn compat_browser_contract_uses_generic_item_label_fields() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+    let frame_text_cache = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_text_cache.rs"
+    ))
+    .expect("frame text cache should be readable");
+
+    for source in [&browser_mod, &automation_browser, &frame_text_cache] {
+        assert!(!source.contains("focused_sample_label"));
+        assert!(!source.contains("samples_tab_label"));
+        assert!(!source.contains("can_normalize_focused_sample"));
+        assert!(!source.contains("can_loop_crossfade_focused_sample"));
+        assert!(!source.contains("samples_tab_text"));
+    }
+
+    assert!(browser_mod.contains("focused_item_label"));
+    assert!(browser_mod.contains("items_tab_label"));
+    assert!(browser_mod.contains("can_normalize_focused_item"));
+    assert!(browser_mod.contains("can_loop_crossfade_focused_item"));
+    assert!(automation_browser.contains("focused_item_label"));
+    assert!(frame_text_cache.contains("items_tab_text"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

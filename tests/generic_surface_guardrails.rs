@@ -36,6 +36,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/retained.rs",
     "src/gui/selection.rs",
     "src/gui/shortcuts.rs",
+    "src/gui/svg.rs",
     "src/gui/types.rs",
     "src/gui/visualization.rs",
 ];
@@ -414,6 +415,15 @@ fn legacy_shell_sources_are_feature_gated() {
             .join("src/gui/native_shell/ownership_inventory.tsv")
             .exists(),
         "Sempal native-shell ownership inventory belongs with Sempal composition tests, not Radiant"
+    );
+    assert!(
+        !manifest_dir
+            .join("src/gui/native_shell/state/svg_icons/parser.rs")
+            .exists()
+            && !manifest_dir
+                .join("src/gui/native_shell/state/svg_icons")
+                .exists(),
+        "generic SVG parsing belongs under Radiant gui primitives, not the Sempal native_shell compatibility tree"
     );
     assert!(
         !manifest_dir

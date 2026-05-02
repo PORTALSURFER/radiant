@@ -1,4 +1,4 @@
-//! XML-backed SVG parsing for native shell toolbar icons.
+//! XML-backed SVG subset parsing for retained icon rasterizers.
 //!
 //! The toolbar loader only needs filled vector glyphs, but users edit these
 //! assets in regular tools such as Inkscape. This parser accepts the common
@@ -11,22 +11,22 @@ use vello::kurbo::{
 
 /// Parsed SVG document ready for rasterization.
 #[derive(Clone, Debug)]
-pub(super) struct SvgDocument {
+pub struct SvgDocument {
     /// The minimum x coordinate in the declared view box.
-    pub(super) view_box_min_x: f32,
+    pub view_box_min_x: f32,
     /// The minimum y coordinate in the declared view box.
-    pub(super) view_box_min_y: f32,
+    pub view_box_min_y: f32,
     /// The width of the declared view box.
-    pub(super) view_box_width: f32,
+    pub view_box_width: f32,
     /// The height of the declared view box.
-    pub(super) view_box_height: f32,
+    pub view_box_height: f32,
     /// The transformed filled shapes emitted by the document.
-    pub(super) shapes: Vec<SvgShape>,
+    pub shapes: Vec<SvgShape>,
 }
 
 /// One rasterizable filled SVG shape.
 #[derive(Clone, Debug)]
-pub(super) struct SvgShape {
+pub struct SvgShape {
     path: BezPath,
     fill_rule: SvgFillRule,
 }
@@ -38,7 +38,7 @@ enum SvgFillRule {
 }
 
 /// Parse one SVG document from an asset file.
-pub(super) fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
+pub fn parse_svg_document(svg: &str) -> Option<SvgDocument> {
     let document = roxmltree::Document::parse(svg).ok()?;
     let root = document.root_element();
     if root.tag_name().name() != "svg" {
@@ -272,7 +272,7 @@ fn parse_number(raw: &str) -> Option<f64> {
 }
 
 /// Determine whether one point lands inside any parsed SVG shape.
-pub(super) fn point_in_svg_shapes(x: f32, y: f32, shapes: &[SvgShape]) -> bool {
+pub fn point_in_svg_shapes(x: f32, y: f32, shapes: &[SvgShape]) -> bool {
     let point = KurboPoint::new(x as f64, y as f64);
     shapes.iter().any(|shape| point_in_svg_shape(point, shape))
 }

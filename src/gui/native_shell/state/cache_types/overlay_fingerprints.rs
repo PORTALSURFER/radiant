@@ -185,7 +185,7 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub hovered_source_add_button: bool,
     /// Whether the status-bar options button is hovered.
     pub hovered_status_options_button: bool,
-    /// Whether the compact audio chip is currently in an error state.
+    /// Whether the status options button is currently in an error state.
     pub status_options_button_error: bool,
     /// Hovered waveform-toolbar icon/button target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,

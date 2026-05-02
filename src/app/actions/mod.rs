@@ -299,8 +299,8 @@ pub enum UiAction {
         /// Target visible row index in the browser list.
         visible_row: usize,
     },
-    /// Store the focused browser sample as the compare-anchor reference.
-    SetCompareAnchorFromFocusedBrowserSample,
+    /// Store the focused content item as the compare-anchor reference.
+    SetCompareAnchorFromFocusedContent,
     /// Commit the currently focused browser row as the active loaded sample.
     CommitFocusedBrowserRow,
     /// Save the current waveform selection or slices into the browser as a new sample.

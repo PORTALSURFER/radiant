@@ -419,6 +419,27 @@ fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_compare_anchor_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+
+    for source in [&actions_mod, &automation_helpers] {
+        assert!(!source.contains("SetCompareAnchorFromFocusedBrowserSample"));
+        assert!(!source.contains("set_compare_anchor_from_focused_browser_sample"));
+    }
+    assert!(actions_mod.contains("SetCompareAnchorFromFocusedContent"));
+    assert!(automation_helpers.contains("set_compare_anchor_from_focused_content"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

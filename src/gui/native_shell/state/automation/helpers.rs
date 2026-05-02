@@ -170,9 +170,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SetBrowserViewStart { .. } => "set_browser_view_start",
         UiAction::FocusBrowserRow { .. } => "focus_browser_row",
         UiAction::AutoRenameBrowserSelection { .. } => "auto_rename_browser_selection",
-        UiAction::SetCompareAnchorFromFocusedBrowserSample => {
-            "set_compare_anchor_from_focused_browser_sample"
-        }
+        UiAction::SetCompareAnchorFromFocusedContent => "set_compare_anchor_from_focused_content",
         UiAction::CommitFocusedBrowserRow => "commit_focused_browser_row",
         UiAction::SaveWaveformSelectionToBrowser => "save_waveform_selection_to_browser",
         UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {

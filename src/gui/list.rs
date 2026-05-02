@@ -369,6 +369,39 @@ impl<Row, Editor> ContentListPanel<Row, Editor> {
     }
 }
 
+/// Generic action availability for a selected or focused content-list item.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct ContentListActions {
+    /// Whether rename can be started for the focused row.
+    pub can_rename: bool,
+    /// Whether delete can be applied to focused or selected rows.
+    pub can_delete: bool,
+    /// Whether metadata-editor actions can be applied to focused or selected rows.
+    pub can_edit_pills: bool,
+    /// Whether a host-defined focused-item transform is currently available.
+    pub can_process_focused_item: bool,
+    /// Whether a host-defined focused-item secondary flow is currently available.
+    pub can_open_focused_item_flow: bool,
+    /// Whether sticky random navigation mode is currently enabled.
+    pub random_navigation_enabled: bool,
+    /// Whether duplicate cleanup mode is currently enabled.
+    pub duplicate_cleanup_active: bool,
+    /// Whether the list-local metadata editor is currently open.
+    pub pill_editor_open: bool,
+}
+
+impl ContentListActions {
+    /// Whether generic pill edits can be applied.
+    pub fn can_edit_pills(&self) -> bool {
+        self.can_edit_pills
+    }
+
+    /// Whether the generic pill editor is currently open.
+    pub fn pill_editor_open(&self) -> bool {
+        self.pill_editor_open
+    }
+}
+
 /// Generic recency filter chips for list rows with age-based state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RecencyFilterChip {
@@ -585,9 +618,9 @@ pub enum RowProcessingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ColumnSummary, ContentListPanel, ContentListRow, EditableRowKind, EditableTreeActions,
-        EditableTreeRow, RowProcessingState, VirtualListWindow, VirtualListWindowRequest,
-        resolve_virtual_list_window,
+        ColumnSummary, ContentListActions, ContentListPanel, ContentListRow, EditableRowKind,
+        EditableTreeActions, EditableTreeRow, RowProcessingState, VirtualListWindow,
+        VirtualListWindowRequest, resolve_virtual_list_window,
     };
 
     #[test]
@@ -639,6 +672,18 @@ mod tests {
         assert!(!panel.derived_label_filter_negated());
         assert_eq!(panel.pill_editor(), "");
         assert!(panel.rows.is_empty());
+    }
+
+    #[test]
+    fn content_list_actions_default_to_unavailable() {
+        let actions = ContentListActions::default();
+
+        assert!(!actions.can_rename);
+        assert!(!actions.can_delete);
+        assert!(!actions.can_edit_pills());
+        assert!(!actions.can_process_focused_item);
+        assert!(!actions.can_open_focused_item_flow);
+        assert!(!actions.pill_editor_open());
     }
 
     #[test]

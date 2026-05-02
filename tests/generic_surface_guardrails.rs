@@ -649,6 +649,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "## Layout",
         "VirtualListWindow",
         "ContentListPanel<Row, Editor>",
+        "ContentListActions",
         "Style And Theme",
         "## Renderer",
         "## Context",

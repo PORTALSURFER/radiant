@@ -452,6 +452,10 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat/legacy_shell/browser.rs"))
             .expect("browser module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+    let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
+        .expect("chrome module should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/automation/browser.rs"
@@ -471,12 +475,23 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
         assert!(!source.contains("samples_tab_text"));
     }
 
-    assert!(browser_mod.contains("focused_item_label"));
-    assert!(browser_mod.contains("items_tab_label"));
-    assert!(browser_mod.contains("can_normalize_focused_item"));
-    assert!(browser_mod.contains("can_loop_crossfade_focused_item"));
+    assert!(list_mod.contains("focused_item_label"));
+    assert!(chrome_mod.contains("items_tab_label"));
+    assert!(!browser_mod.contains("can_normalize_focused_item"));
+    assert!(!browser_mod.contains("can_loop_crossfade_focused_item"));
+    assert!(list_mod_contains_content_actions());
     assert!(automation_browser.contains("focused_item_label"));
     assert!(frame_text_cache.contains("items_tab_text"));
+}
+
+fn list_mod_contains_content_actions() -> bool {
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("list module should be readable");
+    list_mod.contains("pub struct ContentListActions")
+        && list_mod.contains("pub can_process_focused_item: bool")
+        && list_mod.contains("pub can_open_focused_item_flow: bool")
+        && !list_mod.contains("can_normalize_focused_item")
+        && !list_mod.contains("can_loop_crossfade_focused_item")
 }
 
 #[test]
@@ -743,8 +758,11 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
     for source in [&browser_mod, &toolbar_layout_tests] {
         assert!(!source.contains("can_tag"));
     }
-    assert!(browser_mod.contains("pub can_edit_pills: bool"));
-    assert!(browser_mod.contains("pub fn can_edit_pills(&self) -> bool"));
+    assert!(!browser_mod.contains("pub struct BrowserActionsModel"));
+    assert!(
+        browser_mod
+            .contains("pub use crate::gui::list::ContentListActions as BrowserActionsModel;")
+    );
     assert!(toolbar_layout_tests.contains("can_edit_pills"));
 }
 

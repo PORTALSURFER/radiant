@@ -69,6 +69,8 @@ continues to handle pixel-based scroll-container virtualization.
 `ContentListPanel<Row, Editor>` provides retained, product-neutral state for
 searchable and filterable large-list panels while hosts own row and editor
 payload semantics.
+`ContentListActions` provides product-neutral action availability for
+content-list toolbars and context menus.
 
 ## Style And Theme
 

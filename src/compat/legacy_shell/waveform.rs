@@ -7,7 +7,6 @@ pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
-pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -180,8 +179,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline transport state.
-    pub fn transport(&self) -> WaveformTransportModel {
-        WaveformTransportModel::new(
+    pub fn transport(&self) -> crate::gui::visualization::TimelineTransportState {
+        crate::gui::visualization::TimelineTransportState::new(
             self.cursor_milli,
             self.playhead_milli,
             self.playhead_micros,

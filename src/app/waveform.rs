@@ -3,30 +3,8 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
+pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 use std::sync::Arc;
-
-/// One detected waveform slice preview exposed to the runtime and native shell.
-///
-/// The slice range is expressed in normalized micro-units so the host can
-/// project it into the loaded waveform view without losing precision at deep
-/// zoom levels. Review focus, export marks, and edit selection stay separate so
-/// the shell can present keyboard review state without mutating the range
-/// bounds or overloading edit-selection semantics.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WaveformSlicePreviewModel {
-    /// Detected slice range in normalized milli and micro precision.
-    pub range: NormalizedRangeModel,
-    /// Whether this slice is currently selected for slice-edit operations.
-    pub selected: bool,
-    /// Whether this slice is focused for keyboard review audition.
-    pub focused: bool,
-    /// Whether this slice is marked for export.
-    pub marked_for_export: bool,
-    /// Whether this slice belongs to a duplicate-cleanup preview batch.
-    pub duplicate_cleanup_candidate: bool,
-    /// Whether this duplicate preview is currently exempted from cleanup.
-    pub duplicate_cleanup_exempted: bool,
-}
 
 /// Waveform preview metadata consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]

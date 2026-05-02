@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use crate::gui::range::NormalizedRange;
+
 /// Render mode for two-dimensional point-set visualizations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum PointRenderMode {
@@ -63,9 +65,33 @@ pub struct SpatialPanel {
     pub points: Arc<[SpatialPoint]>,
 }
 
+/// Generic marker preview for a normalized timeline or signal visualization.
+///
+/// The range is expressed in normalized milli, micro, and nano precision so
+/// hosts can project markers into deeply zoomed timelines without losing
+/// pointer precision.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TimelineMarkerPreview {
+    /// Marker range in normalized timeline precision.
+    pub range: NormalizedRange,
+    /// Whether this marker is currently selected for edit operations.
+    pub selected: bool,
+    /// Whether this marker is focused for keyboard review.
+    pub focused: bool,
+    /// Whether this marker is marked for a host-defined output operation.
+    pub marked_for_export: bool,
+    /// Whether this marker belongs to a cleanup/review candidate batch.
+    pub duplicate_cleanup_candidate: bool,
+    /// Whether this marker is currently exempted from cleanup/review.
+    pub duplicate_cleanup_exempted: bool,
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ChannelViewMode, PointRenderMode, SpatialPanel, SpatialPoint};
+    use super::{
+        ChannelViewMode, PointRenderMode, SpatialPanel, SpatialPoint, TimelineMarkerPreview,
+    };
+    use crate::gui::range::NormalizedRange;
     use std::sync::Arc;
 
     #[test]
@@ -102,5 +128,31 @@ mod tests {
         assert!(panel.points.is_empty());
         assert_eq!(panel.selected_item_id, None);
         assert_eq!(panel.focused_item_id, None);
+    }
+
+    #[test]
+    fn timeline_marker_preview_preserves_review_and_cleanup_state() {
+        let marker = TimelineMarkerPreview {
+            range: NormalizedRange {
+                start_milli: 100,
+                end_milli: 200,
+                start_micros: 100_000,
+                end_micros: 200_000,
+                start_nanos: 100_000_000,
+                end_nanos: 200_000_000,
+            },
+            selected: true,
+            focused: false,
+            marked_for_export: true,
+            duplicate_cleanup_candidate: true,
+            duplicate_cleanup_exempted: false,
+        };
+
+        assert_eq!(marker.range.start_micros, 100_000);
+        assert!(marker.selected);
+        assert!(!marker.focused);
+        assert!(marker.marked_for_export);
+        assert!(marker.duplicate_cleanup_candidate);
+        assert!(!marker.duplicate_cleanup_exempted);
     }
 }

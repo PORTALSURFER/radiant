@@ -670,6 +670,33 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_pill_option_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &automation_browser] {
+        assert!(!source.contains("ToggleBrowserSidebarNormalTag"));
+        assert!(!source.contains("toggle_browser_sidebar_normal_tag"));
+    }
+    assert!(actions_mod.contains("ToggleBrowserPillOption"));
+    assert!(automation_helpers.contains("toggle_browser_pill_option"));
+    assert!(automation_browser.contains("toggle_browser_pill_option"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

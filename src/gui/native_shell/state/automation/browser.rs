@@ -335,7 +335,7 @@ fn build_browser_pill_editor_automation(
             format!("browser.tag_sidebar.normal_tag.{}", slug(&pill.label)),
             pill,
             rect,
-            vec![String::from("toggle_browser_sidebar_normal_tag")],
+            vec![String::from("toggle_browser_pill_option")],
         )
     }));
     if let Some(pill) = sidebar.create_pill.as_ref() {
@@ -343,7 +343,7 @@ fn build_browser_pill_editor_automation(
             format!("browser.tag_sidebar.create_tag.{}", slug(&pill.id)),
             pill,
             rect,
-            vec![String::from("toggle_browser_sidebar_normal_tag")],
+            vec![String::from("toggle_browser_pill_option")],
         ));
     }
     let mut node = simple_node(

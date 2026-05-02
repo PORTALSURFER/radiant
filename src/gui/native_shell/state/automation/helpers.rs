@@ -219,7 +219,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::SetBrowserPillEditorInput { .. } => "set_browser_pill_editor_input",
         UiAction::CommitBrowserPillEditorInput => "commit_browser_pill_editor_input",
         UiAction::SetBrowserSidebarLooped { .. } => "set_browser_sidebar_looped",
-        UiAction::ToggleBrowserSidebarNormalTag { .. } => "toggle_browser_sidebar_normal_tag",
+        UiAction::ToggleBrowserPillOption { .. } => "toggle_browser_pill_option",
         UiAction::FocusSpatialContentItem { .. } => "focus_spatial_content_item",
         UiAction::SetPromptInput { .. } => "set_prompt_input",
         UiAction::StartBrowserRename => "start_browser_rename",

@@ -453,9 +453,9 @@ pub enum UiAction {
         /// Playback type to apply.
         looped: bool,
     },
-    /// Toggle one normal tag candidate for the browser selection.
-    ToggleBrowserSidebarNormalTag {
-        /// Normal tag label to assign or remove.
+    /// Toggle one pill option for the browser selection.
+    ToggleBrowserPillOption {
+        /// Pill option label to assign or remove.
         label: String,
     },
     /// Focus a specific spatial content item by stable content id.

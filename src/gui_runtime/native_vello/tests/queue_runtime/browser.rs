@@ -463,7 +463,7 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
                         point,
                         false,
                     ),
-                    Some(UiAction::ToggleBrowserSidebarNormalTag { ref label })
+                    Some(UiAction::ToggleBrowserPillOption { ref label })
                         if label == "Rare FX"
                 )
                 .then_some(point)
@@ -480,7 +480,7 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
     assert_eq!(runner.text_input_target, TextInputTarget::None);
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::ToggleBrowserSidebarNormalTag {
+        vec![UiAction::ToggleBrowserPillOption {
             label: String::from("Rare FX")
         }]
     );

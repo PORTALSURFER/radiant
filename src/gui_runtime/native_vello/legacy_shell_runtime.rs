@@ -1,4 +1,33 @@
 use super::*;
+use crate::gui::repaint::RepaintSignal;
+use winit::event_loop::EventLoopProxy;
+
+#[derive(Clone)]
+struct EventLoopProxyRepaintSignal {
+    proxy: EventLoopProxy<RuntimeUserEvent>,
+    pending: Arc<AtomicBool>,
+}
+
+impl EventLoopProxyRepaintSignal {
+    fn new(proxy: EventLoopProxy<RuntimeUserEvent>, pending: Arc<AtomicBool>) -> Self {
+        Self { proxy, pending }
+    }
+}
+
+impl RepaintSignal for EventLoopProxyRepaintSignal {
+    fn request_repaint(&self) {
+        if !try_mark_repaint_event_pending(self.pending.as_ref()) {
+            return;
+        }
+        if self
+            .proxy
+            .send_event(RuntimeUserEvent::RepaintRequested)
+            .is_err()
+        {
+            self.pending.store(false, Ordering::Release);
+        }
+    }
+}
 
 pub(crate) fn run_legacy_shell_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,

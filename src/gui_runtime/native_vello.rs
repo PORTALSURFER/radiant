@@ -25,7 +25,6 @@ use crate::gui::{
         TextFieldVisualState, WaveformMotionOverlayFingerprint,
     },
     paint::{PaintFrame as NativeViewFrame, Primitive},
-    repaint::RepaintSignal,
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
@@ -68,8 +67,7 @@ use winit::{
 };
 #[cfg(feature = "legacy-shell")]
 use winit::{
-    event::MouseScrollDelta, event_loop::EventLoopProxy, keyboard::ModifiersState,
-    window::CursorIcon,
+    event::MouseScrollDelta, keyboard::ModifiersState, window::CursorIcon,
 };
 
 mod generic_runtime;
@@ -211,36 +209,6 @@ fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
         point.x.clamp(0.0, f32::from(u16::MAX)).round() as u16,
         point.y.clamp(0.0, f32::from(u16::MAX)).round() as u16,
     )
-}
-
-#[cfg(feature = "legacy-shell")]
-#[derive(Clone)]
-struct EventLoopProxyRepaintSignal {
-    proxy: EventLoopProxy<RuntimeUserEvent>,
-    pending: Arc<AtomicBool>,
-}
-
-#[cfg(feature = "legacy-shell")]
-impl EventLoopProxyRepaintSignal {
-    fn new(proxy: EventLoopProxy<RuntimeUserEvent>, pending: Arc<AtomicBool>) -> Self {
-        Self { proxy, pending }
-    }
-}
-
-#[cfg(feature = "legacy-shell")]
-impl RepaintSignal for EventLoopProxyRepaintSignal {
-    fn request_repaint(&self) {
-        if !try_mark_repaint_event_pending(self.pending.as_ref()) {
-            return;
-        }
-        if self
-            .proxy
-            .send_event(RuntimeUserEvent::RepaintRequested)
-            .is_err()
-        {
-            self.pending.store(false, Ordering::Release);
-        }
-    }
 }
 
 #[cfg(feature = "legacy-shell")]

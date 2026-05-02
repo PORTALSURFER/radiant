@@ -2,7 +2,7 @@
 
 use super::{
     AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
-    WaveformEditPreviewModel, WaveformImagePreviewModel, WaveformToolStateModel,
+    WaveformImagePreviewModel, WaveformToolStateModel,
 };
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
@@ -202,8 +202,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic timeline edit-preview state.
-    pub fn waveform_edit_preview(&self) -> WaveformEditPreviewModel {
-        WaveformEditPreviewModel::new(
+    pub fn waveform_edit_preview(&self) -> crate::gui::visualization::TimelineEditPreview {
+        crate::gui::visualization::TimelineEditPreview::new(
             self.waveform_edit_selection_milli,
             self.waveform_edit_fade_in_end_milli,
             self.waveform_edit_fade_in_end_micros,

@@ -6,7 +6,6 @@ pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
-pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -189,8 +188,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline edit preview.
-    pub fn edit_preview(&self) -> WaveformEditPreviewModel {
-        WaveformEditPreviewModel::new(
+    pub fn edit_preview(&self) -> crate::gui::visualization::TimelineEditPreview {
+        crate::gui::visualization::TimelineEditPreview::new(
             self.edit_selection_milli,
             self.edit_fade_in_end_milli,
             self.edit_fade_in_end_micros,

@@ -471,9 +471,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("WaveformTransportModel"));
     assert!(waveform_mod.contains("crate::gui::visualization::TimelineTransportState"));
     assert!(motion_mod.contains("crate::gui::visualization::TimelineTransportState"));
-    assert!(waveform_mod.contains(
-        "pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;"
-    ));
+    assert!(!waveform_mod.contains("WaveformEditPreviewModel"));
+    assert!(waveform_mod.contains("crate::gui::visualization::TimelineEditPreview"));
+    assert!(motion_mod.contains("crate::gui::visualization::TimelineEditPreview"));
     assert!(!waveform_mod.contains("WaveformFeedbackEventsModel"));
     assert!(waveform_mod.contains("crate::gui::visualization::TimelineFeedbackEvents"));
     assert!(motion_mod.contains("crate::gui::visualization::TimelineFeedbackEvents"));

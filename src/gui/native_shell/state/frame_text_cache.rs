@@ -114,7 +114,7 @@ fn build_browser_segment_text_cache(
         &browser_tabs_surface_content(model),
     );
     let toolbar = browser_toolbar_layout(layout, style, model);
-    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, sizing);
+    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);
     let toolbar_text_layout = compute_browser_toolbar_text_layout(
         toolbar.search_field,
         toolbar.activity_chip,
@@ -128,7 +128,7 @@ fn build_browser_segment_text_cache(
         footer_text_rect,
         items_tab_label: truncate_to_width(
             &items_tab_text(model),
-            tabs_text_layout.samples_label.width().max(40.0),
+            tabs_text_layout.items_label.width().max(40.0),
             sizing.font_header,
         ),
         map_tab_label: model.browser_chrome.map_tab_label.clone(),

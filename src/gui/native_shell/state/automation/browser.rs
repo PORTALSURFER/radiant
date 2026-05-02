@@ -26,7 +26,7 @@ pub(super) fn build_browser_automation(
             "browser.tab.samples",
             AutomationRole::Tab,
             Some(model.browser_chrome.items_tab_label.clone()),
-            tabs.samples,
+            tabs.items,
             None,
             true,
             !model.map.active,

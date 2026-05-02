@@ -4,7 +4,7 @@ use super::*;
 fn browser_action_buttons_stay_inside_toolbar() {
     let mut model = AppModel::default();
     model.browser_actions.can_rename = true;
-    model.browser_actions.can_tag = true;
+    model.browser_actions.can_edit_pills = true;
     model.browser_actions.can_delete = true;
     for viewport in [
         Vector2::new(820.0, 520.0),
@@ -38,7 +38,7 @@ fn browser_action_buttons_stay_inside_toolbar() {
 fn browser_toolbar_controls_do_not_overlap_action_cluster() {
     let mut model = AppModel::default();
     model.browser_actions.can_rename = true;
-    model.browser_actions.can_tag = true;
+    model.browser_actions.can_edit_pills = true;
     model.browser_actions.can_delete = true;
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);

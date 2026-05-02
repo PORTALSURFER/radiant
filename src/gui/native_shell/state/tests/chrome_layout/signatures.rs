@@ -4,7 +4,7 @@ use super::super::*;
 fn browser_action_model_signature_changes_with_action_flags_and_chip_content() {
     let mut baseline = AppModel::default();
     baseline.browser_actions.can_rename = true;
-    baseline.browser_actions.can_tag = true;
+    baseline.browser_actions.can_edit_pills = true;
     baseline.browser_actions.can_delete = false;
     baseline.columns[0].title = String::from("Trash");
     baseline.columns[0].item_count = 10;

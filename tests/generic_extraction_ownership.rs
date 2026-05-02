@@ -651,6 +651,25 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
 }
 
 #[test]
+fn compat_browser_actions_use_generic_pill_edit_capability() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let toolbar_layout_tests = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/tests/browser_toolbar/layout.rs"
+    ))
+    .expect("toolbar layout tests should be readable");
+
+    for source in [&browser_mod, &toolbar_layout_tests] {
+        assert!(!source.contains("can_tag"));
+    }
+    assert!(browser_mod.contains("pub can_edit_pills: bool"));
+    assert!(browser_mod.contains("pub fn can_edit_pills(&self) -> bool"));
+    assert!(toolbar_layout_tests.contains("can_edit_pills"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

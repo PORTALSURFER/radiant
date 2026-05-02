@@ -119,8 +119,8 @@ pub struct BrowserActionsModel {
     pub can_rename: bool,
     /// Whether delete can be applied to focused/selected rows.
     pub can_delete: bool,
-    /// Whether tag actions can be applied to focused/selected rows.
-    pub can_tag: bool,
+    /// Whether pill-editor actions can be applied to focused/selected rows.
+    pub can_edit_pills: bool,
     /// Whether the focused browser row can be normalized in place.
     pub can_normalize_focused_item: bool,
     /// Whether the focused browser row can open the seamless loop-crossfade flow.
@@ -141,6 +141,11 @@ impl BrowserPanelModel {
 }
 
 impl BrowserActionsModel {
+    /// Whether generic browser pill edits can be applied.
+    pub fn can_edit_pills(&self) -> bool {
+        self.can_edit_pills
+    }
+
     /// Whether the generic browser pill editor is currently open.
     pub fn pill_editor_open(&self) -> bool {
         self.pill_editor_open

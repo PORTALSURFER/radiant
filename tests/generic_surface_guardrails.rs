@@ -36,6 +36,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/retained.rs",
     "src/gui/selection.rs",
     "src/gui/shortcuts.rs",
+    "src/gui/snapshot.rs",
     "src/gui/svg.rs",
     "src/gui/types.rs",
     "src/gui/visualization.rs",
@@ -338,6 +339,12 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
         source.contains("pub struct RuntimeRunReport<Artifacts>"),
         "radiant::gui_runtime should expose a generic runtime report envelope"
     );
+    let gui_mod = fs::read_to_string(manifest_dir.join("src/gui/mod.rs"))
+        .expect("gui module should be readable");
+    assert!(
+        gui_mod.contains("pub mod snapshot;"),
+        "radiant::gui should expose generic visual snapshot primitives"
+    );
 }
 
 #[test]
@@ -369,6 +376,22 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
+    let shell_snapshot =
+        fs::read_to_string(manifest_dir.join("src/compat/legacy_shell/shell_snapshot.rs"))
+            .expect("legacy shell snapshot module should be readable");
+    for forbidden in [
+        "pub struct NativeShellShotColor",
+        "pub struct NativeShellShotPoint",
+        "pub struct NativeShellShotRect",
+        "pub enum NativeShellShotPrimitive",
+        "pub enum NativeShellShotAlign",
+        "pub struct NativeShellShotTextRun",
+    ] {
+        assert!(
+            !shell_snapshot.contains(forbidden),
+            "serializable visual snapshot DTO `{forbidden}` belongs in generic gui::snapshot"
+        );
+    }
     assert!(
         !manifest_dir
             .join("src/gui_runtime/native_vello/text_bpm.rs")
@@ -928,9 +951,14 @@ fn collect_domain_bearing_rust_files(path: &Path, manifest_dir: &Path, files: &m
     }
     let source = fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    let source = strip_domain_scan_false_positives(&source);
     if contains_domain_term(&source) {
         files.push(relative);
     }
+}
+
+fn strip_domain_scan_false_positives(source: &str) -> String {
+    source.replace("#[serde(tag = \"kind\", rename_all = \"snake_case\")]", "")
 }
 
 fn contains_domain_term(source: &str) -> bool {

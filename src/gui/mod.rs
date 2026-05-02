@@ -54,6 +54,8 @@ pub mod retained;
 pub mod selection;
 /// Generic shortcut resolution primitives.
 pub mod shortcuts;
+/// Serializable visual snapshot primitives for deterministic GUI fixtures.
+pub mod snapshot;
 /// Generic SVG subset parsing helpers used by retained icon rasterizers.
 pub mod svg;
 /// Geometry and image buffer types shared by UI code.

@@ -17,6 +17,7 @@ mod state;
 mod status_surface;
 mod style;
 #[cfg(test)]
+#[path = "../../../../../src/app_core/native_shell/composition/tests/mod.rs"]
 mod tests;
 #[path = "../../../../../src/app_core/native_shell/composition/top_bar_surface.rs"]
 mod top_bar_surface;

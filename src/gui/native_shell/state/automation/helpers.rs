@@ -223,7 +223,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::StartBrowserRename => "start_browser_rename",
         UiAction::ConfirmBrowserRename => "confirm_browser_rename",
         UiAction::CancelBrowserRename => "cancel_browser_rename",
-        UiAction::TagBrowserSelection { .. } => "tag_browser_selection",
+        UiAction::SetBrowserTriageMark { .. } => "set_browser_triage_mark",
         UiAction::DeleteBrowserSelection => "delete_browser_selection",
         UiAction::NormalizeFocusedContentItem => "normalize_focused_content_item",
         UiAction::NormalizeWaveformSelectionOrLoadedContent => {

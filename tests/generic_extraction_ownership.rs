@@ -503,6 +503,27 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+
+    for source in [&actions_mod, &automation_helpers] {
+        assert!(!source.contains("TagBrowserSelection"));
+        assert!(!source.contains("tag_browser_selection"));
+    }
+    assert!(actions_mod.contains("SetBrowserTriageMark"));
+    assert!(automation_helpers.contains("set_browser_triage_mark"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

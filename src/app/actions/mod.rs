@@ -481,8 +481,8 @@ pub enum UiAction {
         /// Optional visible row that should join the current multi-selection.
         visible_row: Option<usize>,
     },
-    /// Apply a triage tag to focused/selected browser rows.
-    TagBrowserSelection {
+    /// Apply a triage mark to focused/selected browser rows.
+    SetBrowserTriageMark {
         /// Triage bucket applied to focused/selected browser rows.
         target: BrowserTriageTarget,
     },

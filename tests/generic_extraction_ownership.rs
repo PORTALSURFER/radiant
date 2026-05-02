@@ -180,22 +180,29 @@ fn editable_tree_row_is_owned_by_generic_list_module() {
 
 #[test]
 fn split_pane_slot_is_owned_by_generic_panel_module() {
-    let sources_mod = fs::read_to_string(concat!(
+    let compat_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/compat/legacy_shell/mod.rs"
     ))
-    .expect("sources module should be readable");
+    .expect("compat shell module should be readable");
+    let sources_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/runtime/sources.rs"
+    ))
+    .expect("host source sidebar module should be readable");
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");
 
-    assert!(!sources_mod.contains("pub enum FolderPaneIdModel"));
-    assert!(!sources_mod.contains("pub struct SourceRowModel"));
-    assert!(!sources_mod.contains("pub struct FolderPaneModel"));
+    assert!(!compat_mod.contains("pub struct SourcesPanelModel"));
+    assert!(compat_mod.contains("pub use sources::SourcesPanelModel;"));
+    assert!(!compat_mod.contains("pub enum FolderPaneIdModel"));
+    assert!(!compat_mod.contains("pub struct SourceRowModel"));
+    assert!(!compat_mod.contains("pub struct FolderPaneModel"));
     assert!(
-        sources_mod.contains("pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;")
+        compat_mod.contains("pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;")
     );
-    assert!(sources_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
-    assert!(sources_mod.contains(
+    assert!(compat_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
+    assert!(compat_mod.contains(
         "pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;"
     ));
     assert!(panel_mod.contains("pub enum SplitPaneSlot"));

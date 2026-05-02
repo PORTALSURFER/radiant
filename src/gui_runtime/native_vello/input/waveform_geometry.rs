@@ -1,9 +1,8 @@
 //! Waveform coordinate conversion and normalized-view helpers.
 
 use super::*;
-use crate::gui::native_shell::{
-    WaveformPixelSnap, waveform_plot_x_for_micros, waveform_view_window_from_bounds,
-};
+use crate::gui::native_shell::{waveform_plot_x_for_micros, waveform_view_window_from_bounds};
+use crate::gui::range::NormalizedPixelSnap;
 
 /// Absolute waveform position resolved from one pointer point.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -159,7 +158,7 @@ pub(super) fn waveform_x_for_micros(plot: UiRect, model: &AppModel, micros: u32)
         Some(model.waveform.view_start_nanos),
         Some(model.waveform.view_end_nanos),
     );
-    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
+    waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
 }
 
 /// Return the centered vertical hit span used by waveform resize edges.

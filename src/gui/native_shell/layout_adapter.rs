@@ -46,7 +46,6 @@ use crate::gui::layout_core::{
     LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
     SlotChild, SlotParams,
 };
-pub(crate) use crate::gui::range::NormalizedPixelSnap as WaveformPixelSnap;
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::compute_top_bar_band_sections;
 pub(crate) use bands::{

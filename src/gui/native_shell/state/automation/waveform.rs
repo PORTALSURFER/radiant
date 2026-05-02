@@ -246,5 +246,5 @@ fn waveform_selection_x_for_micros(plot: Rect, model: &AppModel, micros: u32) ->
         Some(model.waveform.view_start_nanos),
         Some(model.waveform.view_end_nanos),
     );
-    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
+    waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
 }

@@ -16,7 +16,7 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, BrowserTabsTextLayout, BrowserToolbarTextLayout, SidebarFolderRowLayout,
-        SidebarRowCounts, WaveformPixelSnap, compute_action_button_text_rect,
+        SidebarRowCounts, compute_action_button_text_rect,
         compute_browser_footer_text_rect, compute_browser_header_text_layout,
         compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
         compute_browser_map_point_center, compute_browser_row_text_layout,
@@ -52,6 +52,7 @@ use super::{
         resolve_waveform_toolbar_surface_layout,
     },
 };
+use crate::gui::range::NormalizedPixelSnap;
 use crate::gui::paint::{
     DrawImage, FillCircle, FillLinearGradient, FillRect, PaintFrame as NativeViewFrame, Primitive,
     TextAlign, TextRun,

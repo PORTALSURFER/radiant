@@ -71,6 +71,8 @@ searchable and filterable large-list panels while hosts own row and editor
 payload semantics.
 `ContentListActions` provides product-neutral action availability for
 content-list toolbars and context menus.
+Timeline and signal visualizations can use `TimelineViewport` for normalized
+viewport bounds and `TimelineMarkerPreview` for retained marker overlays.
 
 ## Style And Theme
 

@@ -114,6 +114,8 @@ pub struct NativeMotionModel {
 impl NativeMotionModel {
     /// Build a motion model from a full application model snapshot.
     pub fn from_app_model(model: &AppModel) -> Self {
+        let viewport = model.waveform.viewport();
+
         Self {
             transport_running: model.transport_running,
             map_active: model.map.active,
@@ -150,12 +152,12 @@ impl NativeMotionModel {
                     .playhead_milli
                     .map(|milli| u32::from(milli) * 1000)
             }),
-            waveform_view_start_milli: model.waveform.view_start_milli,
-            waveform_view_end_milli: model.waveform.view_end_milli,
-            waveform_view_start_micros: model.waveform.view_start_micros,
-            waveform_view_end_micros: model.waveform.view_end_micros,
-            waveform_view_start_nanos: model.waveform.view_start_nanos,
-            waveform_view_end_nanos: model.waveform.view_end_nanos,
+            waveform_view_start_milli: viewport.start_milli,
+            waveform_view_end_milli: viewport.end_milli,
+            waveform_view_start_micros: viewport.start_micros,
+            waveform_view_end_micros: viewport.end_micros,
+            waveform_view_start_nanos: viewport.start_nanos,
+            waveform_view_end_nanos: viewport.end_nanos,
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
             waveform_loaded_label: model.waveform.loaded_label.clone(),

@@ -4,6 +4,7 @@ pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
+pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -162,6 +163,20 @@ impl Default for WaveformPanelModel {
     }
 }
 
+impl WaveformPanelModel {
+    /// Return this panel's generic normalized timeline viewport.
+    pub fn viewport(&self) -> WaveformViewportModel {
+        WaveformViewportModel::new(
+            self.view_start_milli,
+            self.view_end_milli,
+            self.view_start_micros,
+            self.view_end_micros,
+            self.view_start_nanos,
+            self.view_end_nanos,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::WaveformPanelModel;
@@ -169,6 +184,27 @@ mod tests {
     #[test]
     fn default_bpm_grid_origin_is_zero() {
         assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
+    }
+
+    #[test]
+    fn viewport_projects_generic_timeline_bounds() {
+        let model = WaveformPanelModel {
+            view_start_milli: 250,
+            view_end_milli: 500,
+            view_start_micros: 250_000,
+            view_end_micros: 500_000,
+            view_start_nanos: 250_000_000,
+            view_end_nanos: 500_000_000,
+            ..WaveformPanelModel::default()
+        };
+        let viewport = model.viewport();
+
+        assert_eq!(viewport.start_milli, 250);
+        assert_eq!(viewport.end_milli, 500);
+        assert_eq!(viewport.start_micros, 250_000);
+        assert_eq!(viewport.end_micros, 500_000);
+        assert_eq!(viewport.start_nanos, 250_000_000);
+        assert_eq!(viewport.end_nanos, 500_000_000);
     }
 }
 

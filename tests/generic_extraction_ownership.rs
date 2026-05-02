@@ -378,6 +378,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("pub struct MapPanelModel"));
     assert!(!waveform_mod.contains("pub enum WaveformChannelViewModel"));
     assert!(!waveform_mod.contains("pub struct WaveformSlicePreviewModel"));
+    assert!(!waveform_mod.contains("pub struct WaveformViewportModel"));
     assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
     assert!(
         actions_mod.contains("pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;")
@@ -405,6 +406,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(waveform_mod.contains(
         "pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;"
     ));
+    assert!(waveform_mod.contains(
+        "pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;"
+    ));
     assert!(selection_mod.contains("pub enum TriState"));
     assert!(badge_mod.contains("pub struct SelectablePill<State>"));
     assert!(badge_mod.contains("pub struct PillEditorPanel<State>"));
@@ -413,6 +417,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(visualization_mod.contains("pub struct SpatialPanel"));
     assert!(visualization_mod.contains("pub enum ChannelViewMode"));
     assert!(visualization_mod.contains("pub struct TimelineMarkerPreview"));
+    assert!(visualization_mod.contains("pub struct TimelineViewport"));
     assert!(!visualization_mod.contains("waveform"));
     assert!(!visualization_mod.contains("Waveform"));
 }

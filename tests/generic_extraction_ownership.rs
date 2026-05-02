@@ -462,9 +462,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(waveform_mod.contains(
         "pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;"
     ));
-    assert!(waveform_mod.contains(
-        "pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;"
-    ));
+    assert!(!waveform_mod.contains("WaveformSlicePreviewModel"));
+    assert!(waveform_mod.contains("crate::gui::visualization::TimelineMarkerPreview"));
+    assert!(motion_mod.contains("crate::gui::visualization::TimelineMarkerPreview"));
     assert!(
         waveform_mod.contains(
             "pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;"

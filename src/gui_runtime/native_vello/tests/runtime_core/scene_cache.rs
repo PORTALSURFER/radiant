@@ -97,7 +97,7 @@ fn motion_overlay_signature_changes_for_waveform_toolbar_options() {
     let mut changed_slices = baseline.clone();
     changed_slices
         .waveform_slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(120, 240),
             selected: false,
             focused: false,

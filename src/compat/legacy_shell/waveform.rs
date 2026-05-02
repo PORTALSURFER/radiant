@@ -7,7 +7,6 @@ pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
-pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -33,7 +32,7 @@ pub struct WaveformPanelModel {
     /// Current waveform selection bounds.
     pub selection_milli: Option<NormalizedRangeModel>,
     /// Preview slices detected from silence-splitting the loaded waveform.
-    pub slices: Vec<WaveformSlicePreviewModel>,
+    pub slices: Vec<crate::gui::visualization::TimelineMarkerPreview>,
     /// One-shot token incremented when a waveform-selection export is queued.
     ///
     /// Native shells treat each new value as an optimistic event and can run
@@ -242,7 +241,9 @@ impl WaveformPanelModel {
     /// Return this panel's generic normalized timeline surface state.
     pub fn timeline_surface(
         &self,
-    ) -> crate::gui::visualization::TimelineSurfaceState<WaveformSlicePreviewModel> {
+    ) -> crate::gui::visualization::TimelineSurfaceState<
+        crate::gui::visualization::TimelineMarkerPreview,
+    > {
         crate::gui::visualization::TimelineSurfaceState::new(
             self.viewport(),
             self.transport(),

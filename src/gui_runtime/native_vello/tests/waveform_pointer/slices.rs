@@ -8,7 +8,7 @@ fn waveform_slice_preview_click_toggles_slice_selection() {
     model
         .waveform
         .slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
@@ -48,7 +48,7 @@ fn duplicate_cleanup_slice_click_and_right_click_use_duplicate_actions() {
     model
         .waveform
         .slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,

@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
-use crate::compat_app_contract::{AutomationRole, NormalizedRangeModel, WaveformSlicePreviewModel};
+use crate::compat_app_contract::{AutomationRole, NormalizedRangeModel};
 
 /// Build semantic automation for the waveform panel.
 pub(super) fn build_waveform_automation(
@@ -165,7 +165,7 @@ fn waveform_slice_node(
     index: usize,
     plot: Rect,
     model: &AppModel,
-    slice: WaveformSlicePreviewModel,
+    slice: crate::gui::visualization::TimelineMarkerPreview,
 ) -> AutomationNodeSnapshot {
     let selection_value = selection_micros_text(slice.range);
     AutomationNodeSnapshot {

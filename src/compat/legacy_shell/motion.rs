@@ -2,8 +2,8 @@
 
 use super::{
     AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
-    WaveformEditPreviewModel, WaveformImagePreviewModel, WaveformSlicePreviewModel,
-    WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
+    WaveformEditPreviewModel, WaveformImagePreviewModel, WaveformToolStateModel,
+    WaveformTransportModel, WaveformViewportModel,
 };
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
@@ -22,7 +22,7 @@ pub struct NativeMotionModel {
     /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
     /// Preview slices detected from silence-splitting the loaded waveform.
-    pub waveform_slices: Vec<WaveformSlicePreviewModel>,
+    pub waveform_slices: Vec<crate::gui::visualization::TimelineMarkerPreview>,
     /// One-shot token incremented when a waveform-selection export is queued.
     pub waveform_selection_export_flash_nonce: u64,
     /// One-shot token incremented when a queued waveform-selection export fails.
@@ -277,7 +277,9 @@ impl NativeMotionModel {
     /// Return this motion snapshot as a generic timeline motion aggregate.
     pub fn timeline_motion(
         &self,
-    ) -> crate::gui::visualization::TimelineMotionState<WaveformSlicePreviewModel> {
+    ) -> crate::gui::visualization::TimelineMotionState<
+        crate::gui::visualization::TimelineMarkerPreview,
+    > {
         crate::gui::visualization::TimelineMotionState::new(
             self.transport_running,
             crate::gui::visualization::TimelineSurfaceState::new(

@@ -413,7 +413,13 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui_runtime/native_vello/text_bpm")
                 .exists(),
-        "legacy shell BPM/text-entry helpers belong under src/compat/legacy_shell, not the generic native Vello runtime tree"
+        "legacy shell BPM/text-entry helpers belong with Sempal composition, not the generic native Vello runtime tree"
+    );
+    assert!(
+        !manifest_dir
+            .join("src/compat/legacy_shell/native_vello_text_bpm")
+            .exists(),
+        "legacy shell BPM/text-entry helpers belong with Sempal composition, not Radiant compatibility contracts"
     );
     assert!(
         !manifest_dir

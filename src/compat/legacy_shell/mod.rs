@@ -94,6 +94,6 @@ pub use sources::{
 pub use waveform::{
     NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformChromeStateModel,
     WaveformEditPreviewModel, WaveformFeedbackEventsModel, WaveformImagePreviewModel,
-    WaveformPanelModel, WaveformPresentationModel, WaveformSlicePreviewModel,
-    WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
+    WaveformPanelModel, WaveformSlicePreviewModel, WaveformToolStateModel, WaveformTransportModel,
+    WaveformViewportModel,
 };

@@ -9,7 +9,6 @@ pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
-pub use crate::gui::visualization::TimelinePresentationState as WaveformPresentationModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -220,8 +219,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline presentation state.
-    pub fn presentation(&self) -> WaveformPresentationModel {
-        WaveformPresentationModel::new(
+    pub fn presentation(&self) -> crate::gui::visualization::TimelinePresentationState {
+        crate::gui::visualization::TimelinePresentationState::new(
             self.beat_step_micros,
             self.bpm_grid_origin_micros,
             self.loop_enabled,

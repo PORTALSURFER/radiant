@@ -2,6 +2,14 @@
 
 use std::fs;
 
+fn host_aliases_mod() -> String {
+    fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/runtime/aliases.rs"
+    ))
+    .expect("host compatibility aliases module should be readable")
+}
+
 #[test]
 fn keypress_value_type_is_owned_by_generic_input_module() {
     let app_mod = fs::read_to_string(concat!(
@@ -14,11 +22,13 @@ fn keypress_value_type_is_owned_by_generic_input_module() {
     let shortcuts_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/shortcuts.rs"))
             .expect("shortcuts module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!app_mod.contains("pub struct KeyPress"));
-    assert!(app_mod.contains("pub use crate::gui::input::KeyPress;"));
-    assert!(app_mod.contains("pub use crate::gui::shortcuts::ShortcutResolution;"));
-    assert!(app_mod.contains("pub type HotkeyResolution = ShortcutResolution<UiAction>;"));
+    assert!(app_mod.contains("HotkeyResolution"));
+    assert!(aliases_mod.contains("pub use crate::gui::input::KeyPress;"));
+    assert!(aliases_mod.contains("pub use crate::gui::shortcuts::ShortcutResolution;"));
+    assert!(aliases_mod.contains("pub type HotkeyResolution = ShortcutResolution<UiAction>;"));
     assert!(input_mod.contains("pub struct KeyPress"));
     assert!(shortcuts_mod.contains("pub struct ShortcutResolution<Action>"));
 }
@@ -38,9 +48,11 @@ fn retained_vec_is_owned_by_generic_retained_module() {
     let retained_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/retained.rs"))
             .expect("retained module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!browser_mod.contains("pub struct RetainedVec"));
-    assert!(app_mod.contains("pub use crate::gui::retained::RetainedVec;"));
+    assert!(app_mod.contains("RetainedVec"));
+    assert!(aliases_mod.contains("pub use crate::gui::retained::RetainedVec;"));
     assert!(retained_mod.contains("pub struct RetainedVec"));
 }
 
@@ -69,15 +81,16 @@ fn row_processing_state_is_owned_by_generic_list_module() {
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!browser_mod.contains("pub struct BrowserRowModel"));
-    assert!(browser_mod.contains("pub use crate::gui::list::ContentListRow as BrowserRowModel;"));
+    assert!(aliases_mod.contains("pub use crate::gui::list::ContentListRow as BrowserRowModel;"));
     assert!(!browser_mod.contains("pub struct BrowserPanelModel"));
-    assert!(browser_mod.contains(
+    assert!(aliases_mod.contains(
         "pub type BrowserPanelModel =\n    crate::gui::list::ContentListPanel<BrowserRowModel, BrowserPillEditorModel>;"
     ));
     assert!(!browser_mod.contains("pub enum BrowserRowProcessingState"));
-    assert!(browser_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;"));
     assert!(list_mod.contains("pub struct ContentListPanel<Row, Editor>"));
     assert!(list_mod.contains("pub fn pill_editor(&self) -> &Editor"));
@@ -105,12 +118,13 @@ fn recency_state_is_owned_by_generic_list_module() {
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!browser_mod.contains("pub enum PlaybackAgeFilterChip"));
     assert!(!browser_mod.contains("pub enum PlaybackAgeBucket"));
-    assert!(browser_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;"));
-    assert!(browser_mod.contains("pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;"));
+    assert!(aliases_mod.contains("pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;"));
     assert!(list_mod.contains("pub enum RecencyFilterChip"));
     assert!(list_mod.contains("pub enum RecencyBucket"));
 }
@@ -124,9 +138,10 @@ fn column_summary_is_owned_by_generic_list_module() {
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!sources_mod.contains("pub struct ColumnModel"));
-    assert!(sources_mod.contains("pub use crate::gui::list::ColumnSummary as ColumnModel;"));
+    assert!(aliases_mod.contains("pub use crate::gui::list::ColumnSummary as ColumnModel;"));
     assert!(list_mod.contains("pub struct ColumnSummary"));
 }
 
@@ -139,9 +154,10 @@ fn editable_row_kind_is_owned_by_generic_list_module() {
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!sources_mod.contains("pub enum FolderRowKind"));
-    assert!(sources_mod.contains("pub use crate::gui::list::EditableRowKind as FolderRowKind;"));
+    assert!(aliases_mod.contains("pub use crate::gui::list::EditableRowKind as FolderRowKind;"));
     assert!(list_mod.contains("pub enum EditableRowKind"));
 }
 
@@ -154,9 +170,10 @@ fn editable_tree_actions_are_owned_by_generic_list_module() {
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!sources_mod.contains("pub struct FolderActionsModel"));
-    assert!(sources_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::list::EditableTreeActions as FolderActionsModel;"));
     assert!(list_mod.contains("pub struct EditableTreeActions"));
 }
@@ -170,9 +187,10 @@ fn editable_tree_row_is_owned_by_generic_list_module() {
     .expect("sources module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!sources_mod.contains("pub struct FolderRowModel"));
-    assert!(sources_mod.contains("pub use crate::gui::list::EditableTreeRow as FolderRowModel;"));
+    assert!(aliases_mod.contains("pub use crate::gui::list::EditableTreeRow as FolderRowModel;"));
     assert!(list_mod.contains("pub struct EditableTreeRow"));
     assert!(list_mod.contains("pub backing_index: Option<usize>"));
     assert!(!list_mod.contains("source_index"));
@@ -192,6 +210,7 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
     .expect("host source sidebar module should be readable");
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!compat_mod.contains("pub struct SourcesPanelModel"));
     assert!(compat_mod.contains("pub use sources::SourcesPanelModel;"));
@@ -199,10 +218,10 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
     assert!(!compat_mod.contains("pub struct SourceRowModel"));
     assert!(!compat_mod.contains("pub struct FolderPaneModel"));
     assert!(
-        compat_mod.contains("pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;")
+        aliases_mod.contains("pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;")
     );
-    assert!(compat_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
-    assert!(compat_mod.contains(
+    assert!(aliases_mod.contains("pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;"));
+    assert!(aliases_mod.contains(
         "pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;"
     ));
     assert!(panel_mod.contains("pub enum SplitPaneSlot"));
@@ -224,9 +243,10 @@ fn focus_context_model_is_owned_by_generic_focus_module() {
     .expect("sources module should be readable");
     let focus_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/focus.rs"))
         .expect("focus module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!sources_mod.contains("pub enum FocusContextModel"));
-    assert!(sources_mod.contains("pub use crate::gui::focus::FocusSurface as FocusContextModel;"));
+    assert!(aliases_mod.contains("pub use crate::gui::focus::FocusSurface as FocusContextModel;"));
     assert!(focus_mod.contains("pub enum FocusSurface"));
     assert!(focus_mod.contains("ContentList"));
     assert!(focus_mod.contains("NavigationTree"));
@@ -264,6 +284,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     let feedback_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
             .expect("feedback module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!shell_mod.contains("pub struct ProgressOverlayModel"));
     assert!(!shell_mod.contains("pub struct DragOverlayModel"));
@@ -295,7 +316,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(shell_mod.contains(
         "pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;"
     ));
-    assert!(sources_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;"));
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
     assert!(feedback_mod.contains("pub struct RecoverySummary"));
@@ -409,6 +430,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
         "/src/gui/visualization.rs"
     ))
     .expect("visualization module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!browser_mod.contains("pub enum BrowserPillState"));
     assert!(!browser_mod.contains("pub struct BrowserPillModel"));
@@ -429,24 +451,24 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("pub struct WaveformImagePreviewModel"));
     assert!(!waveform_mod.contains("pub struct WaveformChromeStateModel"));
     assert!(!waveform_mod.contains("pub struct WaveformToolStateModel"));
-    assert!(browser_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
+    assert!(aliases_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
     assert!(
         actions_mod.contains("pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;")
     );
     assert!(selection_mod.contains("pub enum TriageTarget"));
-    assert!(browser_mod.contains(
+    assert!(aliases_mod.contains(
         "pub type BrowserPillModel = crate::gui::badge::SelectablePill<BrowserPillState>;"
     ));
-    assert!(browser_mod.contains(
+    assert!(aliases_mod.contains(
         "pub type BrowserPillEditorModel = crate::gui::badge::PillEditorPanel<BrowserPillState>;"
     ));
-    assert!(browser_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;"));
     assert!(
-        browser_mod.contains("pub use crate::gui::visualization::SpatialPoint as MapPointModel;")
+        aliases_mod.contains("pub use crate::gui::visualization::SpatialPoint as MapPointModel;")
     );
     assert!(
-        browser_mod.contains("pub use crate::gui::visualization::SpatialPanel as MapPanelModel;")
+        aliases_mod.contains("pub use crate::gui::visualization::SpatialPanel as MapPanelModel;")
     );
     assert!(!waveform_mod.contains("WaveformChannelViewModel"));
     assert!(waveform_mod.contains("crate::gui::visualization::ChannelViewMode"));
@@ -523,6 +545,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     .expect("shell module should be readable");
     let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
         .expect("chrome module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     for source in [&browser_mod, &shell_mod, &chrome_mod] {
         assert!(
@@ -534,7 +557,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     }
 
     assert!(!browser_mod.contains("pub struct BrowserChromeModel"));
-    assert!(browser_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;"));
     assert!(chrome_mod.contains("pub struct ContentViewChrome"));
     assert!(chrome_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
@@ -814,6 +837,7 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
+    let aliases_mod = host_aliases_mod();
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("generic list module should be readable");
     let text_runtime = fs::read_to_string(concat!(
@@ -836,8 +860,8 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         assert!(!source.contains("tag_state"));
         assert!(!source.contains("tag_id"));
     }
-    assert!(browser_mod.contains("pub type BrowserPanelModel ="));
-    assert!(browser_mod.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
+    assert!(aliases_mod.contains("pub type BrowserPanelModel ="));
+    assert!(aliases_mod.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
     assert!(list_mod.contains("pub pill_editor: Editor"));
     assert!(list_mod.contains("pub pill_editor_open: bool"));
     assert!(text_runtime.contains("self.model.browser.pill_editor.input_value"));
@@ -855,6 +879,7 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
         "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
+    let aliases_mod = host_aliases_mod();
     let toolbar_layout_tests = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../src/app_core/native_shell/composition/state/tests/browser_toolbar/layout.rs"
@@ -865,7 +890,7 @@ fn compat_browser_actions_use_generic_pill_edit_capability() {
         assert!(!source.contains("can_tag"));
     }
     assert!(!browser_mod.contains("pub struct BrowserActionsModel"));
-    assert!(browser_mod
+    assert!(aliases_mod
         .contains("pub use crate::gui::list::ContentListActions as BrowserActionsModel;"));
     assert!(toolbar_layout_tests.contains("can_edit_pills"));
 }
@@ -948,6 +973,7 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
+    let aliases_mod = host_aliases_mod();
 
     for source in [
         &app_browser,
@@ -960,7 +986,7 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         assert!(!source.contains("tag_named_filter_chip"));
         assert!(!source.contains("browser.tag_named_filter"));
     }
-    assert!(app_browser.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
+    assert!(aliases_mod.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
     assert!(list_mod.contains("derived_label_filter_active"));
     assert!(list_mod.contains("derived_label_filter_negated"));
     assert!(shared_toolbar.contains("derived_label_filter_chip"));
@@ -1222,9 +1248,11 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         "/../../src/app_core/native_shell/composition/runtime/dirty_segments.rs"
     ))
     .expect("host dirty segment module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!app_mod.contains("pub struct FrameBuildResult"));
-    assert!(app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
+    assert!(app_mod.contains("FrameBuildResult"));
+    assert!(aliases_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
     assert!(frame_mod.contains("pub struct FrameBuildResult"));
     assert!(!app_mod.contains("pub struct NativeRuntimeArtifacts"));
     assert!(app_mod.contains("pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};"));
@@ -1257,13 +1285,14 @@ fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
         "/src/gui/automation.rs"
     ))
     .expect("generic automation module should be readable");
+    let aliases_mod = host_aliases_mod();
 
     assert!(!legacy_shell_mod.contains("mod automation;"));
     assert!(!legacy_shell_mod.contains("pub enum AutomationRole"));
     assert!(!legacy_shell_mod.contains("pub struct AutomationNodeSnapshot"));
     assert!(!legacy_shell_mod.contains("pub struct GuiAutomationSnapshot"));
     assert!(
-        legacy_shell_mod.contains(
+        aliases_mod.contains(
             "pub use crate::gui::automation::{\n    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,\n    GuiAutomationSnapshot,\n};"
         )
     );

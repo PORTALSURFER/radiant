@@ -190,6 +190,7 @@ mod chrome_layout;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/folder_visibility_toggle.rs"]
 mod folder_visibility_toggle;
 mod frame_build;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/overlay_controls.rs"]
 mod overlay_controls;
 mod overlays;
 mod playhead_trail_render;

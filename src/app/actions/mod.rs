@@ -547,7 +547,7 @@ pub enum UiAction {
     CancelPrompt,
     /// Request cancellation of the active progress operation.
     CancelProgress,
-    /// Copy the current browser sample file(s) or waveform selection clip to the clipboard.
+    /// Copy the current content file(s) or timeline selection clip to the clipboard.
     ///
     /// Hosts keep this action context-sensitive:
     /// - browser focus copies the selected or focused source file paths
@@ -559,7 +559,7 @@ pub enum UiAction {
     CopyStatusLog,
     /// Open the feedback-issue prompt flow.
     OpenFeedbackIssuePrompt,
-    /// Move all trashed samples into the configured trash folder.
+    /// Move all discarded items into the configured destination folder.
     MoveTrashedSamplesToFolder,
 
     // Options and persistent interaction toggles.
@@ -812,7 +812,7 @@ pub enum UiAction {
         hovered_folder_row: Option<usize>,
         /// Folder pane currently hovered by the pointer background, when any.
         over_folder_panel: Option<FolderPaneIdModel>,
-        /// Whether the pointer currently hovers the sample browser list.
+        /// Whether the pointer currently hovers the content list.
         over_browser_list: bool,
         /// Whether Shift is currently held.
         shift_down: bool,

@@ -22,7 +22,7 @@ fn browser_tabs_surface_uses_public_button_widgets() {
     assert_eq!(
         surface
             .find_widget(TABS_SAMPLES_ID)
-            .expect("samples tab")
+            .expect("primary tab")
             .widget()
             .kind(),
         WidgetKind::Button

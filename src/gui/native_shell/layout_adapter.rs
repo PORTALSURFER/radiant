@@ -47,6 +47,7 @@ use crate::gui::layout_core::{
     LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
     SlotChild, SlotParams,
 };
+pub(crate) use crate::gui::range::NormalizedPixelSnap as WaveformPixelSnap;
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::compute_top_bar_band_sections;
 pub(crate) use bands::{
@@ -95,9 +96,9 @@ pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_lin
 #[cfg(test)]
 pub(crate) use waveform_annotations::compute_waveform_annotation_rects;
 pub(crate) use waveform_annotations::{
-    WaveformPixelSnap, compute_waveform_annotation_rects_with_nanos,
-    compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
-    waveform_plot_x_for_micros, waveform_view_window_from_bounds,
+    compute_waveform_annotation_rects_with_nanos, compute_waveform_slice_preview_rects,
+    waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
+    waveform_view_window_from_bounds,
 };
 
 pub(crate) const SHELL_ROOT_ID: u64 = 1;

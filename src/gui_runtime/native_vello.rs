@@ -6,7 +6,7 @@ use super::{NativeRunOptions, WindowIconRgba};
 #[cfg(feature = "legacy-shell")]
 use crate::compat::legacy_shell::{
     self as legacy_shell, AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge,
-    NativeMotionModel, SegmentRevisions, UiAction,
+    NativeMotionModel, NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,
 };
 #[cfg(feature = "legacy-shell")]
 use crate::gui::input::KeyCode;
@@ -164,26 +164,6 @@ const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeUserEvent {
     RepaintRequested,
-}
-
-/// Structured runtime artifacts exported after one native run completes.
-#[cfg(feature = "legacy-shell")]
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct NativeRuntimeArtifacts {
-    /// Native startup timing artifact captured for this run, when startup began.
-    pub startup_timing: Option<NativeStartupTimingArtifact>,
-    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
-    pub shutdown_timing: Option<serde_json::Value>,
-}
-
-/// Result plus structured artifacts returned by one native runtime execution.
-#[cfg(feature = "legacy-shell")]
-#[derive(Debug)]
-pub struct NativeRunReport {
-    /// Structured artifacts captured during the run.
-    pub artifacts: NativeRuntimeArtifacts,
-    /// Native runtime success or error outcome.
-    pub result: Result<(), String>,
 }
 
 #[cfg(feature = "legacy-shell")]

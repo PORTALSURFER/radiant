@@ -364,6 +364,14 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
+    let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
+        .expect("native_vello.rs should be readable");
+    for forbidden in ["pub struct NativeRuntimeArtifacts", "pub struct NativeRunReport"] {
+        assert!(
+            !native_vello.contains(forbidden),
+            "legacy shell runtime report DTO `{forbidden}` belongs under src/compat/legacy_shell"
+        );
+    }
     let expectations: &[(&str, &[&str])] = &[
         (
             "src/lib.rs",

@@ -77,6 +77,8 @@ pub use native_vello::{
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };
+#[cfg(test)]
+pub(crate) use native_vello::PreviewBridge;
 pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use shell::{

@@ -8,6 +8,8 @@ use crate::compat::legacy_shell::{
     AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
     NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,
 };
+#[cfg(all(test, feature = "legacy-shell"))]
+use crate::compat::legacy_shell::PreviewBridge;
 #[cfg(feature = "legacy-shell")]
 use crate::gui::input::KeyCode;
 use crate::gui::{

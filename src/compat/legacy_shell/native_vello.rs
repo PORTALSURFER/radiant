@@ -7,7 +7,7 @@ use crate::gui_runtime::{NativeRunOptions, native_vello};
 use std::sync::Arc;
 
 #[derive(Default)]
-struct PreviewBridge;
+pub(crate) struct PreviewBridge;
 
 impl NativeAppBridge for PreviewBridge {
     fn project_model(&mut self) -> Arc<AppModel> {

@@ -81,6 +81,12 @@ Radiant's generic runtime produces a backend-neutral `SurfacePaintPlan` made of
 paint plan through `run_native_vello_runtime`. Renderers should consume paint
 plans and report frame results without owning host state.
 
+Native runtime entry points return `RuntimeRunReport<Artifacts>` when artifact
+capture is requested. The report envelope is generic: Radiant owns the
+success/error transport while each runtime path chooses its artifact payload.
+This keeps compatibility diagnostics and generic runtime diagnostics on the same
+mechanism without coupling the public runtime API to a host application model.
+
 ## Context
 
 Runtime context is split deliberately:
@@ -106,6 +112,21 @@ contracts rather than by host-domain code.
 `AutomationNodeSnapshot`, and `GuiAutomationSnapshot`. Backends and test tools
 can consume this semantic tree without depending on a host application's state
 types or reducer.
+
+`radiant::gui::snapshot` owns deterministic rendered-frame snapshot primitives:
+`VisualSnapshot`, `SnapshotPrimitive`, `SnapshotTextRun`, `SnapshotRect`,
+`SnapshotPoint`, `SnapshotColor`, and `SnapshotTextAlign`. These types are for
+fixture generation, renderer verification, and visual regression tooling. Host
+or compatibility adapters may build these snapshots from their own frame models,
+but the serializable snapshot schema is generic Radiant API.
+
+## Generic Panels And Forms
+
+`radiant::gui::form` contains reusable form and picker models such as
+`DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
+`PairedPickerValue`, and `PairedStatusPanel`. `PairedStatusPanel` models a
+two-sided status/picker surface with summary rows, active picker identity, and
+option lists while leaving the meaning of those options to the host.
 
 ## Invalidation And Lifecycle
 

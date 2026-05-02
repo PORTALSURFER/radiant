@@ -9,7 +9,6 @@ pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
 pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;
 pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;
-pub use crate::gui::form::PreferencePanelState as PreferencePanelStateModel;
 pub use crate::gui::form::SummaryField as SummaryFieldModel;
 
 use super::{
@@ -45,8 +44,8 @@ pub struct OptionsPanelModel {
 
 impl OptionsPanelModel {
     /// Return this panel's generic preference/settings state.
-    pub fn preference_state(&self) -> PreferencePanelStateModel<4> {
-        PreferencePanelStateModel::new(
+    pub fn preference_state(&self) -> crate::gui::form::PreferencePanelState<4> {
+        crate::gui::form::PreferencePanelState::new(
             self.visible,
             self.default_identifier.clone(),
             [

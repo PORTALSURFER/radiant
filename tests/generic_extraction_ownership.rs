@@ -337,11 +337,9 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
         shell_mod
             .contains("pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;")
     );
-    assert!(
-        shell_mod.contains(
-            "pub use crate::gui::form::PreferencePanelState as PreferencePanelStateModel;"
-        )
-    );
+    assert!(!shell_mod.contains("PreferencePanelStateModel"));
+    assert!(shell_mod.contains("crate::gui::form::PreferencePanelState<4>"));
+    assert!(shell_mod.contains("crate::gui::form::PreferencePanelState::new("));
     assert!(shell_mod.contains(
         "pub type PairedPickerValueModel = crate::gui::form::PairedPickerValue<String, u32>;"
     ));

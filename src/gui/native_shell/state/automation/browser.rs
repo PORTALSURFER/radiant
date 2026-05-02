@@ -295,7 +295,7 @@ fn build_browser_pill_editor_automation(
     style: &StyleTokens,
 ) -> Option<AutomationNodeSnapshot> {
     let rect = browser_pill_editor_panel_rect(layout.browser_rows, style.sizing, model)?;
-    let sidebar = &model.browser.tag_sidebar;
+    let sidebar = &model.browser.pill_editor;
     let normal_tag_labels = sidebar
         .option_pills
         .iter()

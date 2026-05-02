@@ -130,7 +130,7 @@ fn open_pill_editor_shrinks_browser_row_hit_area_and_focuses_sidebar_input() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.browser.tag_sidebar.open = true;
+    model.browser.pill_editor.open = true;
     model
         .browser
         .rows
@@ -161,7 +161,7 @@ fn pill_editor_auto_rename_button_maps_to_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = AppModel::default();
-    model.browser.tag_sidebar.open = true;
+    model.browser.pill_editor.open = true;
     let mut state = NativeShellState::new();
     let input_rect = state
         .browser_pill_editor_input_rect(&layout, &model)

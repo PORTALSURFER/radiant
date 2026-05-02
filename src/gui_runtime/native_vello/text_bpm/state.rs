@@ -82,7 +82,7 @@ pub(super) fn current_text_value<B: NativeAppBridge>(
         {
             TextInputTarget::BrowserSearch => Some(runner.model.browser.search_query.clone()),
             TextInputTarget::BrowserPillEditor => {
-                Some(runner.model.browser.tag_sidebar.input_value.clone())
+                Some(runner.model.browser.pill_editor.input_value.clone())
             }
             TextInputTarget::FolderSearch => Some(runner.model.sources.tree_search_query.clone()),
             TextInputTarget::PromptInput => runner.model.confirm_prompt.input_value.clone(),
@@ -128,7 +128,7 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
                     runner.text_input_buffer = Some(match runner.text_input_target {
                         TextInputTarget::BrowserSearch => runner.model.browser.search_query.clone(),
                         TextInputTarget::BrowserPillEditor => {
-                            runner.model.browser.tag_sidebar.input_value.clone()
+                            runner.model.browser.pill_editor.input_value.clone()
                         }
                         TextInputTarget::FolderSearch => {
                             runner.model.sources.tree_search_query.clone()

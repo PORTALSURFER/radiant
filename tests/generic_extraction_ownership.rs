@@ -624,6 +624,33 @@ fn compat_shell_uses_generic_pill_editor_layout_identifiers() {
 }
 
 #[test]
+fn compat_browser_model_uses_generic_pill_editor_fields() {
+    let browser_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("browser module should be readable");
+    let text_runtime = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/text_runtime.rs"
+    ))
+    .expect("text runtime should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+
+    for source in [&browser_mod, &text_runtime, &automation_browser] {
+        assert!(!source.contains("tag_sidebar: BrowserPillEditorModel"));
+        assert!(!source.contains("tag_sidebar_open: bool"));
+        assert!(!source.contains("model.browser.tag_sidebar"));
+    }
+    assert!(browser_mod.contains("pub pill_editor: BrowserPillEditorModel"));
+    assert!(browser_mod.contains("pub pill_editor_open: bool"));
+    assert!(text_runtime.contains("self.model.browser.pill_editor.input_value"));
+    assert!(automation_browser.contains("model.browser.pill_editor"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

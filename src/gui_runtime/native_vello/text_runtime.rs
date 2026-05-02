@@ -25,7 +25,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
             TextInputTarget::BrowserPillEditor => {
-                self.model.browser.tag_sidebar.input_value.clone()
+                self.model.browser.pill_editor.input_value.clone()
             }
             TextInputTarget::FolderSearch => self.model.sources.tree_search_query.clone(),
             TextInputTarget::FolderCreate => self

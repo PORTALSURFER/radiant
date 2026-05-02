@@ -59,8 +59,8 @@ pub struct BrowserPanelModel {
     pub active_tab_label: Option<String>,
     /// Display label for the currently focused item, when known.
     pub focused_item_label: Option<String>,
-    /// Metadata pill-editor sidebar projection scoped to the list tab.
-    pub tag_sidebar: BrowserPillEditorModel,
+    /// Metadata pill-editor panel projection scoped to the list tab.
+    pub pill_editor: BrowserPillEditorModel,
     /// Selection anchor in visible-row space.
     pub anchor_visible_row: Option<usize>,
     /// Visible rows rendered by the native browser panel.
@@ -129,6 +129,20 @@ pub struct BrowserActionsModel {
     pub random_navigation_enabled: bool,
     /// Whether browser duplicate cleanup mode is currently enabled.
     pub duplicate_cleanup_active: bool,
-    /// Whether the browser-local tag sidebar is currently open.
-    pub tag_sidebar_open: bool,
+    /// Whether the browser-local pill editor is currently open.
+    pub pill_editor_open: bool,
+}
+
+impl BrowserPanelModel {
+    /// Generic metadata-pill editor projected beside the content list.
+    pub fn pill_editor(&self) -> &BrowserPillEditorModel {
+        &self.pill_editor
+    }
+}
+
+impl BrowserActionsModel {
+    /// Whether the generic browser pill editor is currently open.
+    pub fn pill_editor_open(&self) -> bool {
+        self.pill_editor_open
+    }
 }

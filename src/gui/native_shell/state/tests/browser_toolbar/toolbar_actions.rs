@@ -105,7 +105,7 @@ fn browser_action_cache_invalidates_when_toolbar_model_state_changes() {
         .browser_action_hit_test_cache_key
         .expect("closed toolbar state should populate action cache");
 
-    model.browser_actions.tag_sidebar_open = true;
+    model.browser_actions.pill_editor_open = true;
     let _ = state
         .browser_action_button_rect(&layout, &model, "Tags")
         .expect("tags button should still render");

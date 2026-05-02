@@ -14,7 +14,7 @@ fn text_value_for_input_target<B: NativeAppBridge>(
         TextInputTarget::BrowserPillEditor => Some(
             runner
                 .current_text_value()
-                .unwrap_or_else(|| runner.model.browser.tag_sidebar.input_value.clone()),
+                .unwrap_or_else(|| runner.model.browser.pill_editor.input_value.clone()),
         ),
         TextInputTarget::WaveformBpm => Some(
             runner

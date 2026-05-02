@@ -87,11 +87,11 @@ fn overflowing_browser_lists_render_scrollbar_thumb_at_view_position() {
 }
 
 #[test]
-fn browser_scrollbar_stays_visible_and_hittable_with_tag_sidebar_open() {
+fn browser_scrollbar_stays_visible_and_hittable_with_pill_editor_open() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let mut model = browser_model_with_rows(500, 120);
-    model.browser.tag_sidebar.open = true;
+    model.browser.pill_editor.open = true;
     let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, &model);
     let sidebar_rect = browser_pill_editor_panel_rect(layout.browser_rows, style.sizing, &model)
         .expect("tag sidebar should reserve a panel");

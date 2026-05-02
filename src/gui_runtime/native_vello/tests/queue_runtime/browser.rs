@@ -436,11 +436,11 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.browser.tag_sidebar.open = true;
-    model.browser.tag_sidebar.input_value = String::from("rfx");
+    model.browser.pill_editor.open = true;
+    model.browser.pill_editor.input_value = String::from("rfx");
     model
         .browser
-        .tag_sidebar
+        .pill_editor
         .option_pills
         .push(crate::compat_app_contract::BrowserPillModel {
             id: String::from("rare_fx"),

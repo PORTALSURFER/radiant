@@ -406,6 +406,10 @@ fn legacy_shell_sources_are_feature_gated() {
         "Sempal native-shell composition tests belong with Sempal composition tests, not Radiant native_shell"
     );
     assert!(
+        !manifest_dir.join("assets/icons").exists(),
+        "Sempal native-shell icon assets belong with Sempal composition assets, not Radiant"
+    );
+    assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/status_bar_progress.rs")
             .exists(),

@@ -92,5 +92,5 @@ pub use sources::{
     FolderRecoveryModel, FolderRowKind, FolderRowModel, SourceRowModel, SourcesPanelModel,
 };
 pub use waveform::{
-    NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
+    NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel,
 };

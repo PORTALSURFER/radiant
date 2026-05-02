@@ -1,6 +1,6 @@
 //! Motion-only projection types exposed by the `radiant` app contract.
 
-use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel};
+use super::{AppModel, NormalizedRangeModel};
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,7 +92,7 @@ pub struct NativeMotionModel {
     /// Label for the stored compare anchor, when available.
     pub waveform_compare_anchor_label: Option<String>,
     /// Current waveform channel-view mode.
-    pub waveform_channel_view: WaveformChannelViewModel,
+    pub waveform_channel_view: crate::gui::visualization::ChannelViewMode,
     /// Whether normalized audition playback is enabled.
     pub waveform_normalized_audition_enabled: bool,
     /// Whether BPM snapping is enabled.
@@ -295,7 +295,7 @@ impl NativeMotionModel {
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeMotionModel, NormalizedRangeModel, WaveformChannelViewModel};
+    use super::{NativeMotionModel, NormalizedRangeModel};
 
     #[test]
     fn native_motion_projects_generic_timeline_motion_state() {
@@ -340,7 +340,7 @@ mod tests {
             waveform_transport_hint: String::from("playing"),
             waveform_compare_anchor_available: true,
             waveform_compare_anchor_label: Some(String::from("A")),
-            waveform_channel_view: WaveformChannelViewModel::Stereo,
+            waveform_channel_view: crate::gui::visualization::ChannelViewMode::Stereo,
             waveform_normalized_audition_enabled: true,
             waveform_bpm_snap_enabled: true,
             waveform_relative_bpm_grid_enabled: false,
@@ -366,7 +366,10 @@ mod tests {
             Some("Loaded")
         );
         assert_eq!(motion.chrome.status_hint, "playing");
-        assert_eq!(motion.chrome.channel_view, WaveformChannelViewModel::Stereo);
+        assert_eq!(
+            motion.chrome.channel_view,
+            crate::gui::visualization::ChannelViewMode::Stereo
+        );
         assert!(motion.tools.lock_enabled);
         assert!(motion.tools.cleanup_available);
     }

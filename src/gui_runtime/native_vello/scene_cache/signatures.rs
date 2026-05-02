@@ -77,8 +77,8 @@ pub(in super::super) fn hover_overlay_model_signature(
         match hint {
             WaveformToolbarHoverHint::ChannelView => {
                 state.mix_u8(match model.waveform_chrome.channel_view {
-                    crate::compat_app_contract::WaveformChannelViewModel::Mono => 0,
-                    crate::compat_app_contract::WaveformChannelViewModel::Stereo => 1,
+                    crate::gui::visualization::ChannelViewMode::Mono => 0,
+                    crate::gui::visualization::ChannelViewMode::Stereo => 1,
                 });
             }
             WaveformToolbarHoverHint::NormalizedAudition => {
@@ -318,8 +318,8 @@ pub(in super::super) fn chrome_motion_overlay_model_signature(model: &NativeMoti
     state.mix_option_str(model.waveform_zoom_label.as_deref());
     state.mix_option_str(model.waveform_loaded_label.as_deref());
     state.mix_u8(match model.waveform_channel_view {
-        crate::compat_app_contract::WaveformChannelViewModel::Mono => 0,
-        crate::compat_app_contract::WaveformChannelViewModel::Stereo => 1,
+        crate::gui::visualization::ChannelViewMode::Mono => 0,
+        crate::gui::visualization::ChannelViewMode::Stereo => 1,
     });
     state.mix_bool(model.waveform_normalized_audition_enabled);
     state.mix_bool(model.waveform_bpm_snap_enabled);

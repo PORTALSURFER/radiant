@@ -2,7 +2,6 @@
 
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
-pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -424,7 +423,7 @@ pub struct WaveformChromeModel {
     /// Whether loop state is locked against loaded-content auto-updates.
     pub loop_lock_enabled: bool,
     /// Current channel-view mode used by waveform rendering.
-    pub channel_view: WaveformChannelViewModel,
+    pub channel_view: crate::gui::visualization::ChannelViewMode,
     /// Whether normalized audition playback is enabled.
     pub normalized_audition_enabled: bool,
     /// Whether BPM snapping is enabled for waveform edits.
@@ -451,7 +450,7 @@ impl Default for WaveformChromeModel {
             compare_anchor_available: false,
             compare_anchor_label: None,
             loop_lock_enabled: false,
-            channel_view: WaveformChannelViewModel::Mono,
+            channel_view: crate::gui::visualization::ChannelViewMode::Mono,
             normalized_audition_enabled: false,
             bpm_snap_enabled: false,
             relative_bpm_grid_enabled: false,
@@ -491,7 +490,7 @@ impl WaveformChromeModel {
 
 #[cfg(test)]
 mod chrome_tests {
-    use super::{WaveformChannelViewModel, WaveformChromeModel};
+    use super::WaveformChromeModel;
 
     #[test]
     fn signal_chrome_projects_generic_status_reference_and_channel_state() {
@@ -499,7 +498,7 @@ mod chrome_tests {
             transport_hint: String::from("playing"),
             compare_anchor_available: true,
             compare_anchor_label: Some(String::from("A")),
-            channel_view: WaveformChannelViewModel::Stereo,
+            channel_view: crate::gui::visualization::ChannelViewMode::Stereo,
             ..WaveformChromeModel::default()
         };
         let signal_chrome = chrome.signal_chrome();
@@ -507,7 +506,10 @@ mod chrome_tests {
         assert_eq!(signal_chrome.status_hint, "playing");
         assert!(signal_chrome.reference_anchor_available);
         assert_eq!(signal_chrome.reference_anchor_label.as_deref(), Some("A"));
-        assert_eq!(signal_chrome.channel_view, WaveformChannelViewModel::Stereo);
+        assert_eq!(
+            signal_chrome.channel_view,
+            crate::gui::visualization::ChannelViewMode::Stereo
+        );
     }
 
     #[test]

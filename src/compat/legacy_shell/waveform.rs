@@ -4,7 +4,6 @@ pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;
-pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 use std::sync::Arc;
 
@@ -225,8 +224,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic retained raster preview.
-    pub fn image_preview(&self) -> WaveformImagePreviewModel {
-        WaveformImagePreviewModel::new(
+    pub fn image_preview(&self) -> crate::gui::visualization::SignalRasterPreview {
+        crate::gui::visualization::SignalRasterPreview::new(
             self.loaded_label.clone(),
             self.loading,
             self.image_rendering,

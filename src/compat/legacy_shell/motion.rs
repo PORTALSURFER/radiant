@@ -2,7 +2,7 @@
 
 use super::{
     AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
-    WaveformImagePreviewModel, WaveformToolStateModel,
+    WaveformToolStateModel,
 };
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
@@ -239,8 +239,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic retained raster preview state.
-    pub fn waveform_image_preview(&self) -> WaveformImagePreviewModel {
-        WaveformImagePreviewModel::new(
+    pub fn waveform_image_preview(&self) -> crate::gui::visualization::SignalRasterPreview {
+        crate::gui::visualization::SignalRasterPreview::new(
             self.waveform_loaded_label.clone(),
             self.waveform_loading,
             false,

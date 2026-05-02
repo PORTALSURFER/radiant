@@ -364,6 +364,15 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
+    assert!(
+        !manifest_dir
+            .join("src/gui_runtime/native_vello/text_bpm.rs")
+            .exists()
+            && !manifest_dir
+                .join("src/gui_runtime/native_vello/text_bpm")
+                .exists(),
+        "legacy shell BPM/text-entry helpers belong under src/compat/legacy_shell, not the generic native Vello runtime tree"
+    );
     let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
         .expect("native_vello.rs should be readable");
     for forbidden in [

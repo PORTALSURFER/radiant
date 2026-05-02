@@ -92,6 +92,7 @@ mod scene_cache;
 mod scene_rebuild;
 mod startup;
 #[cfg(feature = "legacy-shell")]
+#[path = "../compat/legacy_shell/native_vello_text_bpm/mod.rs"]
 mod text_bpm;
 #[cfg(feature = "legacy-shell")]
 mod text_edit;

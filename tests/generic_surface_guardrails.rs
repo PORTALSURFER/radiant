@@ -312,10 +312,9 @@ fn generic_native_example_stays_non_sempal_and_runtime_backed() {
 #[test]
 fn native_runtime_flags_use_radiant_names() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let font_source = fs::read_to_string(
-        manifest_dir.join("src/gui_runtime/native_vello/text_renderer/font.rs"),
-    )
-    .expect("native font source should be readable");
+    let font_source =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_renderer/font.rs"))
+            .expect("native font source should be readable");
 
     assert!(
         font_source.contains("RADIANT_NATIVE_FONT_PATH"),
@@ -489,7 +488,9 @@ fn legacy_shell_sources_are_feature_gated() {
         "Sempal waveform projection models belong with Sempal composition, not Radiant compatibility contracts"
     );
     assert!(
-        !manifest_dir.join("src/compat/legacy_shell/shell.rs").exists(),
+        !manifest_dir
+            .join("src/compat/legacy_shell/shell.rs")
+            .exists(),
         "Sempal shell model projection belongs with Sempal composition, not Radiant compatibility contracts"
     );
     assert!(
@@ -688,6 +689,7 @@ fn legacy_shell_sources_are_feature_gated() {
     for forbidden in [
         "pub struct NativeRuntimeArtifacts",
         "pub struct NativeRunReport",
+        "struct NativeVelloRunner",
         "struct EventLoopProxyRepaintSignal",
         "fn try_mark_repaint_event_pending",
         "pub fn run_native_vello_app",
@@ -702,6 +704,14 @@ fn legacy_shell_sources_are_feature_gated() {
             "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_shell"
         );
     }
+    let legacy_shell_runner = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_runner.rs"),
+    )
+    .expect("legacy_shell_runner.rs should be readable");
+    assert!(
+        legacy_shell_runner.contains("struct NativeVelloRunner"),
+        "legacy shell runner state should live in legacy_shell_runner.rs"
+    );
     let legacy_shell_runtime = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_runtime.rs"),
     )
@@ -736,6 +746,7 @@ fn legacy_shell_sources_are_feature_gated() {
             "src/gui_runtime/native_vello.rs",
             &[
                 "#[cfg(feature = \"legacy-shell\")]\nmod input",
+                "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runner",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runtime",
                 "#[cfg(feature = \"legacy-shell\")]\nmod runtime_events",
                 "#[cfg(all(test, feature = \"legacy-shell\"))]\nmod tests",
@@ -795,7 +806,9 @@ fn legacy_shell_facade_is_reexport_only_glue() {
         source.contains("pub use actions::{BrowserTriageTarget, UiAction};")
             && source.contains("pub use shell::{")
             && source.contains("pub use sources::SourcesPanelModel;")
-            && source.contains("pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};"),
+            && source.contains(
+                "pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};"
+            ),
         "legacy_shell/mod.rs should remain explicit re-export glue while the compatibility feature exists"
     );
 }

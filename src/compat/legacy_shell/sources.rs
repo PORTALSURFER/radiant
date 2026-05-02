@@ -8,7 +8,6 @@ pub use crate::gui::list::EditableRowKind as FolderRowKind;
 pub use crate::gui::list::EditableTreeActions as FolderActionsModel;
 pub use crate::gui::list::EditableTreeRow as FolderRowModel;
 pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
-pub use crate::gui::panel::SplitPaneSidebarState as GenericSourcesPanelModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
 /// Projected data for one fixed folder pane shown in the sidebar.
 pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;
@@ -66,8 +65,10 @@ impl SourcesPanelModel {
     }
 
     /// Return this source/sidebar model as a generic split-pane sidebar state.
-    pub fn split_pane_sidebar(&self) -> GenericSourcesPanelModel<SourceRowModel, FolderRowModel> {
-        GenericSourcesPanelModel {
+    pub fn split_pane_sidebar(
+        &self,
+    ) -> crate::gui::panel::SplitPaneSidebarState<SourceRowModel, FolderRowModel> {
+        crate::gui::panel::SplitPaneSidebarState {
             header: self.header.clone(),
             search_query: self.search_query.clone(),
             active_pane: self.active_folder_pane,

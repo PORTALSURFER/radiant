@@ -213,6 +213,7 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
     assert!(panel_mod.contains("pub struct SplitPaneTreePanel<Row = EditableTreeRow>"));
     assert!(panel_mod.contains("pub struct SplitPaneSidebarState"));
     assert!(sources_mod.contains("split_pane_sidebar"));
+    assert!(!sources_mod.contains("GenericSourcesPanelModel"));
 }
 
 #[test]

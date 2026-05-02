@@ -7,7 +7,6 @@ pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
-pub use crate::gui::visualization::TimelineFeedbackEvents as WaveformFeedbackEventsModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
@@ -210,8 +209,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline feedback events.
-    pub fn feedback_events(&self) -> WaveformFeedbackEventsModel {
-        WaveformFeedbackEventsModel::new(
+    pub fn feedback_events(&self) -> crate::gui::visualization::TimelineFeedbackEvents {
+        crate::gui::visualization::TimelineFeedbackEvents::new(
             self.selection_export_flash_nonce,
             self.selection_export_failure_flash_nonce,
             self.edit_selection_apply_flash_nonce,

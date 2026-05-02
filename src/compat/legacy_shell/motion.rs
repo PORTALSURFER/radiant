@@ -2,9 +2,8 @@
 
 use super::{
     AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeStateModel,
-    WaveformEditPreviewModel, WaveformFeedbackEventsModel, WaveformImagePreviewModel,
-    WaveformSlicePreviewModel, WaveformToolStateModel, WaveformTransportModel,
-    WaveformViewportModel,
+    WaveformEditPreviewModel, WaveformImagePreviewModel, WaveformSlicePreviewModel,
+    WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
 };
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
@@ -221,8 +220,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic timeline feedback event tokens.
-    pub fn waveform_feedback_events(&self) -> WaveformFeedbackEventsModel {
-        WaveformFeedbackEventsModel::new(
+    pub fn waveform_feedback_events(&self) -> crate::gui::visualization::TimelineFeedbackEvents {
+        crate::gui::visualization::TimelineFeedbackEvents::new(
             self.waveform_selection_export_flash_nonce,
             self.waveform_selection_export_failure_flash_nonce,
             self.waveform_edit_selection_apply_flash_nonce,

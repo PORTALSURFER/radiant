@@ -49,7 +49,7 @@ pub struct NativeMotionModel {
     pub waveform_edit_fade_out_curve_milli: Option<u16>,
     /// Whether loop playback is enabled for the active waveform selection.
     pub waveform_loop_enabled: bool,
-    /// Whether loop playback is currently locked against sample-driven updates.
+    /// Whether loop playback is currently locked against loaded-content updates.
     pub waveform_loop_lock_enabled: bool,
     /// Waveform cursor position in normalized milliseconds.
     pub waveform_cursor_milli: Option<u16>,
@@ -81,7 +81,7 @@ pub struct NativeMotionModel {
     pub waveform_zoom_label: Option<String>,
     /// Loaded waveform label shown in the waveform overlay header.
     pub waveform_loaded_label: Option<String>,
-    /// Whether the waveform plot is currently waiting for a new sample to load.
+    /// Whether the waveform plot is currently waiting for new content to load.
     pub waveform_loading: bool,
     /// Stable image signature for detecting waveform image updates during motion-only frames.
     pub waveform_image_signature: Option<u64>,

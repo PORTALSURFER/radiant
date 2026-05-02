@@ -14,7 +14,7 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
 /// Browser row text variants tracked in truncation cache keys.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
-    /// Primary sample label text in browser rows.
+    /// Primary item label text in browser rows.
     Sample,
     /// Secondary inline metadata text in browser rows.
     Bucket,
@@ -44,7 +44,7 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
     pub browser_rows_max_x: u32,
     /// Browser rows region maximum y-coordinate.
     pub browser_rows_max_y: u32,
-    /// Sample-label font size token bits.
+    /// Item-label font size token bits.
     pub font_body_bits: u32,
     /// Bucket-label font size token bits.
     pub font_meta_bits: u32,

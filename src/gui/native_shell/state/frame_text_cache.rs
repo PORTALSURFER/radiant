@@ -127,7 +127,7 @@ fn build_browser_segment_text_cache(
         toolbar_text_layout,
         footer_text_rect,
         items_tab_label: truncate_to_width(
-            &samples_tab_text(model),
+            &items_tab_text(model),
             tabs_text_layout.samples_label.width().max(40.0),
             sizing.font_header,
         ),
@@ -315,7 +315,7 @@ fn status_bar_text_model_signature(model: &AppModel, selected_column: usize) -> 
     hasher.finish()
 }
 
-fn samples_tab_text(model: &AppModel) -> String {
+fn items_tab_text(model: &AppModel) -> String {
     format!(
         "{} ({})",
         model.browser_chrome.items_tab_label,

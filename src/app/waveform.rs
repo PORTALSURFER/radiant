@@ -9,9 +9,9 @@ use std::sync::Arc;
 /// Waveform preview metadata consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WaveformPanelModel {
-    /// Display label for the loaded sample, when any.
+    /// Display label for the loaded content item, when any.
     pub loaded_label: Option<String>,
-    /// Whether a newly focused sample is still loading waveform data.
+    /// Whether a newly focused content item is still loading waveform data.
     pub loading: bool,
     /// Whether a replacement waveform image is still rendering in the background.
     pub image_rendering: bool,
@@ -181,7 +181,7 @@ pub struct WaveformChromeModel {
     pub compare_anchor_available: bool,
     /// Label for the stored compare anchor, when available.
     pub compare_anchor_label: Option<String>,
-    /// Whether loop state is locked against sample-driven auto-updates.
+    /// Whether loop state is locked against loaded-content auto-updates.
     pub loop_lock_enabled: bool,
     /// Current channel-view mode used by waveform rendering.
     pub channel_view: WaveformChannelViewModel,

@@ -15,7 +15,6 @@ mod controls;
 mod map_canvas;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_header.rs"]
 mod map_header;
-mod micro_layout;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlay_visuals.rs"]
 mod overlay_visuals;
 #[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlays.rs"]

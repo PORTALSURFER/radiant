@@ -197,7 +197,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::ToggleBrowserPlaybackAgeFilter { .. } => "toggle_browser_playback_age_filter",
         UiAction::ToggleContentMark => "toggle_content_mark",
         UiAction::ToggleBrowserMarkedFilter => "toggle_browser_marked_filter",
-        UiAction::ToggleBrowserTagNamedFilter { .. } => "toggle_browser_tag_named_filter",
+        UiAction::ToggleBrowserDerivedLabelFilter { .. } => "toggle_browser_derived_label_filter",
         UiAction::ToggleRandomNavigationMode => "toggle_random_navigation_mode",
         UiAction::ToggleBrowserPillEditor => "toggle_browser_pill_editor",
         UiAction::ToggleBrowserPillEditorPrimaryAction => {

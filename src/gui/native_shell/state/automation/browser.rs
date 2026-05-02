@@ -127,7 +127,7 @@ pub(super) fn build_browser_automation(
             None,
             true,
             model.browser.tag_named_filter_active,
-            vec![String::from("toggle_browser_tag_named_filter")],
+            vec![String::from("toggle_browser_derived_label_filter")],
         ));
     }
     for button in buttons {

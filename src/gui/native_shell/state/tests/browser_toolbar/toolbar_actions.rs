@@ -151,11 +151,11 @@ fn browser_tag_named_filter_chip_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
-        Some(UiAction::ToggleBrowserTagNamedFilter { invert: false })
+        Some(UiAction::ToggleBrowserDerivedLabelFilter { invert: false })
     );
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, true),
-        Some(UiAction::ToggleBrowserTagNamedFilter { invert: true })
+        Some(UiAction::ToggleBrowserDerivedLabelFilter { invert: true })
     );
 }
 
@@ -194,7 +194,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     );
     assert_eq!(
         tag_named_filter.available_actions,
-        vec![String::from("toggle_browser_tag_named_filter")]
+        vec![String::from("toggle_browser_derived_label_filter")]
     );
     assert_eq!(row.metadata.get("marked").map(String::as_str), Some("true"));
 }

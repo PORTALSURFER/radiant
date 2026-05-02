@@ -697,6 +697,33 @@ fn compat_action_catalog_uses_generic_pill_option_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_derived_label_filter_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &automation_browser] {
+        assert!(!source.contains("ToggleBrowserTagNamedFilter"));
+        assert!(!source.contains("toggle_browser_tag_named_filter"));
+    }
+    assert!(actions_mod.contains("ToggleBrowserDerivedLabelFilter"));
+    assert!(automation_helpers.contains("toggle_browser_derived_label_filter"));
+    assert!(automation_browser.contains("toggle_browser_derived_label_filter"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -399,9 +399,9 @@ pub enum UiAction {
     ToggleContentMark,
     /// Toggle whether the browser shows only session-marked items.
     ToggleBrowserMarkedFilter,
-    /// Toggle whether the browser shows items already named from tags.
-    ToggleBrowserTagNamedFilter {
-        /// Whether the click should show items not yet named from tags.
+    /// Toggle whether the browser matches the host-defined derived-label state.
+    ToggleBrowserDerivedLabelFilter {
+        /// Whether the click should invert the derived-label filter.
         invert: bool,
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.

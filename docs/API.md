@@ -66,6 +66,9 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+Dense card or tile grids can use `VirtualGridWindowRequest` and
+`VirtualGridWindow` from the same module to resolve an allocation-free
+row-major item window before projecting visible grid cells.
 `ContentListPanel<Row, Editor>` provides retained, product-neutral state for
 searchable and filterable large-list panels while hosts own row and editor
 payload semantics.

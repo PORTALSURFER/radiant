@@ -692,6 +692,8 @@ fn legacy_shell_sources_are_feature_gated() {
         "struct NativeVelloRunner",
         "struct EventLoopProxyRepaintSignal",
         "fn try_mark_repaint_event_pending",
+        "const INCREMENTAL_FRAME_PIPELINE_ENV",
+        "fn ui_action_pointer_coords",
         "pub fn run_native_vello_app",
         "pub fn run_native_vello_app_with_artifacts",
         "pub fn run_native_vello_app_declarative",
@@ -712,6 +714,19 @@ fn legacy_shell_sources_are_feature_gated() {
         legacy_shell_runner.contains("struct NativeVelloRunner"),
         "legacy shell runner state should live in legacy_shell_runner.rs"
     );
+    let legacy_shell_config = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_config.rs"),
+    )
+    .expect("legacy_shell_config.rs should be readable");
+    for required in [
+        "const INCREMENTAL_FRAME_PIPELINE_ENV",
+        "fn ui_action_pointer_coords",
+    ] {
+        assert!(
+            legacy_shell_config.contains(required),
+            "legacy shell runtime tuning helpers should live in legacy_shell_config.rs"
+        );
+    }
     let legacy_shell_runtime = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_runtime.rs"),
     )
@@ -746,6 +761,7 @@ fn legacy_shell_sources_are_feature_gated() {
             "src/gui_runtime/native_vello.rs",
             &[
                 "#[cfg(feature = \"legacy-shell\")]\nmod input",
+                "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_config",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runner",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runtime",
                 "#[cfg(feature = \"legacy-shell\")]\nmod runtime_events",

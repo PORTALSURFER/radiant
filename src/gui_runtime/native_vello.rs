@@ -72,6 +72,8 @@ mod generic_runtime;
 #[cfg(feature = "legacy-shell")]
 mod input;
 #[cfg(feature = "legacy-shell")]
+mod legacy_shell_config;
+#[cfg(feature = "legacy-shell")]
 mod legacy_shell_runner;
 #[cfg(feature = "legacy-shell")]
 mod legacy_shell_runtime;
@@ -113,6 +115,8 @@ use self::{startup::*, text_renderer::*};
 #[cfg(feature = "legacy-shell")]
 pub(in crate::gui_runtime::native_vello) use legacy_shell_runner::NativeVelloRunner;
 #[cfg(feature = "legacy-shell")]
+pub(in crate::gui_runtime::native_vello) use legacy_shell_config::*;
+#[cfg(feature = "legacy-shell")]
 pub(crate) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts;
 
 pub use self::{
@@ -123,16 +127,6 @@ pub use self::{
     startup::NativeStartupTimingArtifact,
 };
 
-#[cfg(feature = "legacy-shell")]
-const FOCUS_PULSE_HZ: u64 = 60;
-#[cfg(feature = "legacy-shell")]
-const IDLE_STATUS_REFRESH_HZ: u64 = 4;
-/// Short-lived redraw cadence used immediately after cursor movement.
-#[cfg(feature = "legacy-shell")]
-const CURSOR_ACTIVITY_REDRAW_HZ: u64 = 120;
-/// Duration to keep the high-frequency cursor redraw cadence active.
-#[cfg(feature = "legacy-shell")]
-const CURSOR_ACTIVITY_REDRAW_WINDOW: Duration = Duration::from_millis(100);
 /// High-refresh surface present-mode preference order for animation-heavy playback UI.
 const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
     wgpu::PresentMode::Mailbox,
@@ -141,14 +135,6 @@ const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
 ];
 /// Standard present-mode preference order for non-high-refresh UI.
 const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentMode::AutoVsync];
-/// Maximum retained image-upload blobs before cache reset.
-#[cfg(feature = "legacy-shell")]
-const IMAGE_UPLOAD_BLOB_CACHE_LIMIT: usize = 32;
-#[cfg(feature = "legacy-shell")]
-const INCREMENTAL_FRAME_PIPELINE_ENV: &str = "RADIANT_NATIVE_INCREMENTAL_FRAME_PIPELINE";
-/// Maximum time to wait for a deferred startup refresh before revealing anyway.
-#[cfg(feature = "legacy-shell")]
-const STARTUP_REVEAL_STALL_TIMEOUT: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RuntimeUserEvent {
@@ -195,15 +181,6 @@ fn startup_renderer_options() -> RendererOptions {
         antialiasing_support: AaSupport::area_only(),
         ..RendererOptions::default()
     }
-}
-
-/// Convert one logical pointer point into lossless-enough action coordinates.
-#[cfg(feature = "legacy-shell")]
-fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
-    (
-        point.x.clamp(0.0, f32::from(u16::MAX)).round() as u16,
-        point.y.clamp(0.0, f32::from(u16::MAX)).round() as u16,
-    )
 }
 
 #[cfg(all(test, feature = "legacy-shell"))]

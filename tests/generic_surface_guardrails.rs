@@ -736,6 +736,36 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
 }
 
 #[test]
+fn legacy_shell_facade_is_reexport_only_glue() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module_path = manifest_dir.join("src/compat/legacy_shell/mod.rs");
+    let source = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+
+    for forbidden in [
+        "pub struct ",
+        "pub enum ",
+        "pub type ",
+        "pub trait ",
+        "impl ",
+        "fn ",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "Radiant legacy shell facade must stay re-export-only glue; `{forbidden}` belongs in host-owned compatibility modules"
+        );
+    }
+
+    assert!(
+        source.contains("pub use actions::{BrowserTriageTarget, UiAction};")
+            && source.contains("pub use shell::{")
+            && source.contains("pub use sources::SourcesPanelModel;")
+            && source.contains("pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};"),
+        "legacy_shell/mod.rs should remain explicit re-export glue while the compatibility feature exists"
+    );
+}
+
+#[test]
 fn core_api_documentation_covers_public_boundary_concepts() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs_path = manifest_dir.join("docs/API.md");

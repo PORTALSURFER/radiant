@@ -206,7 +206,7 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         }
         TextInputTarget::BrowserTagSidebar => {
             runner.text_input_buffer = Some(value.clone());
-            UiAction::SetBrowserTagSidebarInput { value }
+            UiAction::SetBrowserPillEditorInput { value }
         }
         TextInputTarget::FolderSearch => {
             runner.text_input_buffer = Some(value.clone());

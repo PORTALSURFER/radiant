@@ -439,15 +439,15 @@ pub enum UiAction {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
     },
-    /// Focus the browser metadata tag input field.
-    FocusBrowserTagSidebarInput,
-    /// Set the browser metadata tag input value.
-    SetBrowserTagSidebarInput {
-        /// Full tag input text.
+    /// Focus the browser metadata pill-editor input field.
+    FocusBrowserPillEditorInput,
+    /// Set the browser metadata pill-editor input value.
+    SetBrowserPillEditorInput {
+        /// Full pill-editor input text.
         value: String,
     },
-    /// Commit the browser metadata tag input value.
-    CommitBrowserTagSidebarInput,
+    /// Commit the browser metadata pill-editor input value.
+    CommitBrowserPillEditorInput,
     /// Apply one playback-type value to the browser selection.
     SetBrowserSidebarLooped {
         /// Playback type to apply.

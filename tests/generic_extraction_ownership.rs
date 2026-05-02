@@ -524,6 +524,46 @@ fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+    let text_runtime = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/text_runtime.rs"
+    ))
+    .expect("text runtime should be readable");
+
+    for source in [
+        &actions_mod,
+        &automation_helpers,
+        &automation_browser,
+        &text_runtime,
+    ] {
+        assert!(!source.contains("BrowserTagSidebarInput"));
+        assert!(!source.contains("browser_tag_sidebar_input"));
+    }
+    assert!(actions_mod.contains("FocusBrowserPillEditorInput"));
+    assert!(actions_mod.contains("SetBrowserPillEditorInput"));
+    assert!(actions_mod.contains("CommitBrowserPillEditorInput"));
+    assert!(automation_helpers.contains("focus_browser_pill_editor_input"));
+    assert!(automation_helpers.contains("set_browser_pill_editor_input"));
+    assert!(automation_helpers.contains("commit_browser_pill_editor_input"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

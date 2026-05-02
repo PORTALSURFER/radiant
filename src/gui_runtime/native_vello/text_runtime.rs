@@ -314,7 +314,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::FocusBrowserSearch => {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
-            UiAction::FocusBrowserTagSidebarInput => {
+            UiAction::FocusBrowserPillEditorInput => {
                 self.activate_text_input_target(TextInputTarget::BrowserTagSidebar)
             }
             UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
@@ -332,7 +332,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::CancelPrompt
             | UiAction::ConfirmFolderCreate
             | UiAction::CancelFolderCreate
-            | UiAction::CommitBrowserTagSidebarInput => self.clear_text_input_target_state(),
+            | UiAction::CommitBrowserPillEditorInput => self.clear_text_input_target_state(),
             _ => {}
         }
         if self.text_input_target != TextInputTarget::WaveformBpm {

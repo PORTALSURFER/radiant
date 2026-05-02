@@ -107,7 +107,7 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
         }
         TextInputTarget::BrowserTagSidebar => {
             if runner.text_input_target != TextInputTarget::BrowserTagSidebar {
-                runner.emit_model_action(UiAction::FocusBrowserTagSidebarInput);
+                runner.emit_model_action(UiAction::FocusBrowserPillEditorInput);
                 runner.activate_text_input_target(TextInputTarget::BrowserTagSidebar);
             }
         }

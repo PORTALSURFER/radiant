@@ -262,7 +262,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 | TextInputTarget::WaveformBpm
         ) {
             if self.text_input_target == TextInputTarget::BrowserTagSidebar {
-                self.emit_keyboard_action(UiAction::CommitBrowserTagSidebarInput);
+                self.emit_keyboard_action(UiAction::CommitBrowserPillEditorInput);
             }
             self.deactivate_text_input_target();
             return true;

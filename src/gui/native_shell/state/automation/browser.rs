@@ -312,9 +312,9 @@ fn build_browser_tag_sidebar_automation(
             true,
             false,
             vec![
-                String::from("focus_browser_tag_sidebar_input"),
-                String::from("set_browser_tag_sidebar_input"),
-                String::from("commit_browser_tag_sidebar_input"),
+                String::from("focus_browser_pill_editor_input"),
+                String::from("set_browser_pill_editor_input"),
+                String::from("commit_browser_pill_editor_input"),
             ],
         ),
         browser_tag_sidebar_pill_node(

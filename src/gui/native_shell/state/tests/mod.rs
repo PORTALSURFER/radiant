@@ -182,6 +182,7 @@ fn playhead_trail_primitive_count(
 }
 
 mod browser_rows;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/browser_scrollbars.rs"]
 mod browser_scrollbars;
 mod browser_toolbar;
 mod chrome_layout;

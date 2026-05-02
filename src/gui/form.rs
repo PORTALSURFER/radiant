@@ -362,7 +362,7 @@ mod tests {
             true,
             "Default",
             [true, false, true],
-            Some(String::from("Folder")),
+            Some(String::from("Destination")),
         );
 
         assert!(panel.visible);
@@ -371,7 +371,7 @@ mod tests {
         assert!(panel.toggle_enabled(0));
         assert!(!panel.toggle_enabled(1));
         assert!(!panel.toggle_enabled(99));
-        assert_eq!(panel.auxiliary_label.as_deref(), Some("Folder"));
+        assert_eq!(panel.auxiliary_label.as_deref(), Some("Destination"));
     }
 
     #[test]

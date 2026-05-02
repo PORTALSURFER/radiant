@@ -74,7 +74,7 @@ pub struct SpatialPanel {
 pub struct SignalRasterPreview {
     /// Display label for the loaded item, when any.
     pub loaded_label: Option<String>,
-    /// Whether the preview is waiting for new source content.
+    /// Whether the preview is waiting for new input content.
     pub loading: bool,
     /// Whether a replacement image is still rendering in the background.
     pub image_rendering: bool,
@@ -128,7 +128,7 @@ pub struct SignalToolState {
 
 /// Cursor, playhead, and selected range for a normalized timeline.
 ///
-/// The playhead can carry both milli and micro precision so render loops can
+/// The playhead can carry both milli and micro precision so render passes can
 /// use a coarse label while preserving smoother motion when hosts provide it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct TimelineTransportState {
@@ -142,7 +142,7 @@ pub struct TimelineTransportState {
     pub selection: Option<NormalizedRange>,
 }
 
-/// One-shot feedback event tokens for a normalized timeline.
+/// Single-use feedback event tokens for a normalized timeline.
 ///
 /// Hosts increment these counters when user-visible operations complete or
 /// fail. Radiant renderers can compare tokens across frames and show transient
@@ -188,23 +188,23 @@ pub struct TimelineSurfaceState<Marker = TimelineMarkerPreview> {
     pub transport: TimelineTransportState,
     /// Editable range and handle preview state.
     pub edit_preview: TimelineEditPreview,
-    /// One-shot transient feedback tokens.
+    /// Single-use transient feedback tokens.
     pub feedback_events: TimelineFeedbackEvents,
     /// Guide, repeat, and label presentation state.
     pub presentation: TimelinePresentationState,
     /// Retained raster preview for the timeline body.
     pub raster_preview: SignalRasterPreview,
-    /// Host-projected markers or slices shown on the timeline.
+    /// Host-projected markers shown on the timeline.
     pub markers: Vec<Marker>,
 }
 
 /// Motion-frame state for a normalized timeline or signal visualization.
 ///
 /// This groups the retained timeline surface with reusable chrome and tool
-/// state for render loops that update overlays between full host projections.
+/// state for render passes that update overlays between full host projections.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TimelineMotionState<Marker = TimelineMarkerPreview> {
-    /// Whether the host transport or animation source is currently running.
+    /// Whether the host transport or animation input is currently running.
     pub transport_running: bool,
     /// Renderer-facing timeline surface state.
     pub surface: TimelineSurfaceState<Marker>,
@@ -424,8 +424,8 @@ pub struct TimelineViewport {
 ///
 /// The structure is deliberately host-neutral: it models a selected interval,
 /// optional leading/trailing handle positions, and optional curve controls.
-/// Hosts decide whether those controls represent audio fades, animation ramps,
-/// trim previews, or other domain behavior.
+/// Hosts decide whether those controls represent animation ramps, trim previews,
+/// easing handles, or other domain behavior.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct TimelineEditPreview {
     /// Range currently being edited.
@@ -662,14 +662,14 @@ mod tests {
             Some(125_000),
             10_000,
             true,
-            Some(String::from("128 BPM")),
+            Some(String::from("Guide 1")),
             Some(String::from("2x")),
         );
 
         assert_eq!(presentation.guide_step_micros, Some(125_000));
         assert_eq!(presentation.guide_origin_micros, 10_000);
         assert!(presentation.repeat_enabled);
-        assert_eq!(presentation.primary_label.as_deref(), Some("128 BPM"));
+        assert_eq!(presentation.primary_label.as_deref(), Some("Guide 1"));
         assert_eq!(presentation.viewport_label.as_deref(), Some("2x"));
     }
 

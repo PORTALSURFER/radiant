@@ -831,6 +831,11 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         "/src/compat/legacy_shell/browser.rs"
     ))
     .expect("browser module should be readable");
+    let list_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/list.rs"
+    ))
+    .expect("generic list module should be readable");
     let text_runtime = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/text_runtime.rs"
@@ -851,8 +856,10 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         assert!(!source.contains("tag_state"));
         assert!(!source.contains("tag_id"));
     }
-    assert!(browser_mod.contains("pub pill_editor: BrowserPillEditorModel"));
-    assert!(browser_mod.contains("pub pill_editor_open: bool"));
+    assert!(browser_mod.contains("pub type BrowserPanelModel ="));
+    assert!(browser_mod.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
+    assert!(list_mod.contains("pub pill_editor: Editor"));
+    assert!(list_mod.contains("pub pill_editor_open: bool"));
     assert!(text_runtime.contains("self.model.browser.pill_editor.input_value"));
     assert!(automation_browser.contains("model.browser.pill_editor"));
     assert!(automation_browser.contains("browser.pill_editor"));
@@ -946,6 +953,11 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         "/src/compat/legacy_shell/browser.rs"
     ))
     .expect("app browser model should be readable");
+    let list_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/list.rs"
+    ))
+    .expect("generic list module should be readable");
     let shared_toolbar = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../src/app_core/native_shell/composition/browser_chrome_surface.rs"
@@ -973,7 +985,9 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         assert!(!source.contains("tag_named_filter_chip"));
         assert!(!source.contains("browser.tag_named_filter"));
     }
-    assert!(app_browser.contains("derived_label_filter_active"));
+    assert!(app_browser.contains("ContentListPanel<BrowserRowModel, BrowserPillEditorModel>"));
+    assert!(list_mod.contains("derived_label_filter_active"));
+    assert!(list_mod.contains("derived_label_filter_negated"));
     assert!(shared_toolbar.contains("derived_label_filter_chip"));
     assert!(shared_hit_testing.contains("browser_derived_label_filter_chip_rect"));
     assert!(automation_browser.contains("browser.derived_label_filter"));

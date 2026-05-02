@@ -127,7 +127,7 @@ pub struct SplitPaneTreePanel<Row = EditableTreeRow> {
     pub recovery: RecoverySummary,
 }
 
-/// Generic sidebar state built around a source list plus a two-pane tree surface.
+/// Generic sidebar state built around an assignable row list plus a two-pane tree surface.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SplitPaneSidebarState<Row = SplitPaneAssignedRow, TreeRow = EditableTreeRow> {
     /// Header text for the sidebar.

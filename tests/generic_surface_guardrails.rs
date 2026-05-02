@@ -373,6 +373,12 @@ fn legacy_shell_sources_are_feature_gated() {
                 .exists(),
         "legacy shell BPM/text-entry helpers belong under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
+    assert!(
+        !manifest_dir
+            .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
+            .exists(),
+        "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"
+    );
     let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
         .expect("native_vello.rs should be readable");
     for forbidden in [

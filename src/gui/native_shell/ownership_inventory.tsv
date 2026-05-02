@@ -51,7 +51,7 @@ layout_adapter/waveform_annotations/**	sempal_composition	OPT-190	Waveform annot
 layout_adapter/waveform_header.rs	sempal_composition	OPT-190	Waveform header layout moves with waveform header composition.
 browser_chrome_surface.rs	sempal_composition	OPT-188	Browser chrome surface projection moves with browser chrome composition.
 browser_chrome_surface_helpers.rs	sempal_composition	OPT-188	Browser chrome surface helpers move with browser chrome composition.
-browser_chrome_surface_tests.rs	sempal_fixture	OPT-191	Sempal browser chrome fixture; relocate or replace after browser shell move.
+browser_chrome_surface_tests.rs	sempal_fixture	OPT-191	Sempal browser chrome fixture now lives beside Sempal composition and must not return to Radiant native_shell.
 sidebar_surface.rs	sempal_composition	OPT-189	Sidebar surface projection moves with source and folder composition.
 sidebar_surface_helpers.rs	sempal_composition	OPT-189	Sidebar surface helpers move with source and folder composition.
 sidebar_surface_tests.rs	sempal_fixture	OPT-191	Sempal sidebar fixture; relocate or replace after sidebar shell move.

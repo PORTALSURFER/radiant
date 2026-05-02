@@ -50,6 +50,8 @@ mod legacy_shell_runner;
 #[cfg(feature = "legacy-shell")]
 mod legacy_shell_runtime;
 #[cfg(feature = "legacy-shell")]
+mod legacy_shell_text_entry;
+#[cfg(feature = "legacy-shell")]
 mod profiling;
 #[cfg(feature = "legacy-shell")]
 mod runtime_actions;
@@ -71,9 +73,6 @@ mod scene_cache;
 mod scene_rebuild;
 mod startup;
 #[cfg(feature = "legacy-shell")]
-#[path = "../../../../src/app_core/native_shell/composition/runtime/text_entry/mod.rs"]
-mod text_bpm;
-#[cfg(feature = "legacy-shell")]
 mod text_edit;
 mod text_renderer;
 #[cfg(feature = "legacy-shell")]
@@ -81,8 +80,8 @@ mod text_runtime;
 
 #[cfg(feature = "legacy-shell")]
 use self::{
-    input::*, legacy_shell_prelude::*, profiling::*, runtime_state::*, scene_cache::*,
-    scene_rebuild::*, startup::*, text_bpm::*, text_edit::*, text_renderer::*,
+    input::*, legacy_shell_prelude::*, legacy_shell_text_entry::*, profiling::*,
+    runtime_state::*, scene_cache::*, scene_rebuild::*, startup::*, text_edit::*, text_renderer::*,
 };
 #[cfg(not(feature = "legacy-shell"))]
 use self::{startup::*, text_renderer::*};

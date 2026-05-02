@@ -42,6 +42,7 @@
 
 use crate::gui::invalidation::{RetainedSegmentMask, RetainedSegmentRevisions};
 
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/actions/mod.rs"]
 mod actions;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/bridge.rs"]
 mod bridge;

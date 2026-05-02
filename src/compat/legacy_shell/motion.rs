@@ -118,7 +118,7 @@ impl NativeMotionModel {
             transport_running: model.transport_running,
             map_active: model.map.active,
             active_rating_filters: model.browser.active_rating_filters,
-            active_playback_age_filters: model.browser.active_playback_age_filters,
+            active_playback_age_filters: model.browser.active_recency_filters,
             marked_filter_active: model.browser.marked_filter_active,
             waveform_selection_milli: model.waveform.selection_milli,
             waveform_slices: model.waveform.slices.clone(),

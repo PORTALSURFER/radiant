@@ -271,7 +271,7 @@ fn browser_segment_text_model_signature(model: &AppModel) -> u64 {
     model.map.active.hash(&mut hasher);
     model.browser.search_query.hash(&mut hasher);
     model.browser.busy.hash(&mut hasher);
-    model.browser.selected_path_count.hash(&mut hasher);
+    model.browser.selected_item_count.hash(&mut hasher);
     model.browser_chrome.search_placeholder.hash(&mut hasher);
     model.browser_chrome.activity_ready_label.hash(&mut hasher);
     model.browser_chrome.activity_busy_label.hash(&mut hasher);
@@ -300,7 +300,7 @@ fn status_bar_text_model_signature(model: &AppModel, selected_column: usize) -> 
     model.status.center.hash(&mut hasher);
     model.status.right.hash(&mut hasher);
     model.browser.visible_count.hash(&mut hasher);
-    model.browser.selected_path_count.hash(&mut hasher);
+    model.browser.selected_item_count.hash(&mut hasher);
     model.browser.anchor_visible_row.hash(&mut hasher);
     model.browser.search_query.hash(&mut hasher);
     model.browser.busy.hash(&mut hasher);
@@ -371,7 +371,7 @@ fn browser_footer_text(model: &AppModel) -> String {
     format!(
         "{} | {} selected{}",
         model.browser_chrome.item_count_label,
-        model.browser.selected_path_count,
+        model.browser.selected_item_count,
         if model.browser.busy {
             " | filtering…"
         } else {
@@ -411,7 +411,7 @@ fn status_center_text(model: &AppModel) -> String {
     format!(
         "rows: {} | selected: {} | anchor: {} | search: {}{}",
         model.browser.visible_count,
-        model.browser.selected_path_count,
+        model.browser.selected_item_count,
         model
             .browser
             .anchor_visible_row

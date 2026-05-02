@@ -1,5 +1,6 @@
 //! Generic list and row state primitives.
 
+use crate::gui::retained::RetainedVec;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -264,6 +265,110 @@ impl ContentListRow {
     }
 }
 
+/// Generic state for a searchable, filterable, virtualized content list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContentListPanel<Row, Editor> {
+    /// Number of rows currently visible in the list.
+    pub visible_count: usize,
+    /// Focused visible row index, if any.
+    pub selected_visible_row: Option<usize>,
+    /// Whether selection-driven list autoscroll is currently enabled.
+    pub autoscroll: bool,
+    /// Requested top visible-row index for manual viewport scrolling.
+    pub view_start_row: usize,
+    /// Number of rows currently in multi-selection.
+    pub selected_item_count: usize,
+    /// Active search query.
+    pub search_query: String,
+    /// Active signed-rating filter chip states for levels `-3..=3`, plus one protected state.
+    pub active_rating_filters: [bool; 8],
+    /// Active recency filter chip states ordered by host projection.
+    pub active_recency_filters: [bool; 3],
+    /// Whether the list is currently filtering down to marked rows.
+    pub marked_filter_active: bool,
+    /// Whether the list is currently filtering to host-derived label rows.
+    pub derived_label_filter_active: bool,
+    /// Whether the host-derived label filter is currently inverted.
+    pub derived_label_filter_negated: bool,
+    /// Placeholder shown when the search query is empty.
+    pub search_placeholder: Option<String>,
+    /// Whether search/filter work is still running in the background.
+    pub busy: bool,
+    /// Whether the selected data set is still hydrating before rows can project.
+    pub data_loading: bool,
+    /// Whether optimistic metadata writes are still pending background persistence.
+    pub metadata_pending: bool,
+    /// Whether background item mutations are still running.
+    pub mutation_pending: bool,
+    /// Whether the list is currently showing a relatedness-filtered result set.
+    pub similarity_filtered: bool,
+    /// Whether duplicate cleanup mode is currently active.
+    pub duplicate_cleanup_active: bool,
+    /// Display label for the active sort mode.
+    pub sort_label: Option<String>,
+    /// Display label for the currently active tab.
+    pub active_tab_label: Option<String>,
+    /// Display label for the currently focused item, when known.
+    pub focused_item_label: Option<String>,
+    /// Metadata editor panel projection scoped to the list tab.
+    pub pill_editor: Editor,
+    /// Selection anchor in visible-row space.
+    pub anchor_visible_row: Option<usize>,
+    /// Visible rows rendered by the content list.
+    pub rows: RetainedVec<Row>,
+}
+
+impl<Row, Editor> Default for ContentListPanel<Row, Editor>
+where
+    Editor: Default,
+{
+    fn default() -> Self {
+        Self {
+            visible_count: 0,
+            selected_visible_row: None,
+            autoscroll: false,
+            view_start_row: 0,
+            selected_item_count: 0,
+            search_query: String::new(),
+            active_rating_filters: [false; 8],
+            active_recency_filters: [false; 3],
+            marked_filter_active: false,
+            derived_label_filter_active: false,
+            derived_label_filter_negated: false,
+            search_placeholder: None,
+            busy: false,
+            data_loading: false,
+            metadata_pending: false,
+            mutation_pending: false,
+            similarity_filtered: false,
+            duplicate_cleanup_active: false,
+            sort_label: None,
+            active_tab_label: None,
+            focused_item_label: None,
+            pill_editor: Editor::default(),
+            anchor_visible_row: None,
+            rows: RetainedVec::new(),
+        }
+    }
+}
+
+impl<Row, Editor> ContentListPanel<Row, Editor> {
+    /// Whether the host-derived label filter is currently active.
+    pub fn derived_label_filter_active(&self) -> bool {
+        self.derived_label_filter_active
+    }
+
+    /// Whether the host-derived label filter is currently inverted.
+    pub fn derived_label_filter_negated(&self) -> bool {
+        self.derived_label_filter_negated
+    }
+
+    /// Metadata editor projected beside the content list.
+    pub fn pill_editor(&self) -> &Editor {
+        &self.pill_editor
+    }
+}
+
 /// Generic recency filter chips for list rows with age-based state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RecencyFilterChip {
@@ -480,8 +585,8 @@ pub enum RowProcessingState {
 #[cfg(test)]
 mod tests {
     use super::{
-        ColumnSummary, ContentListRow, EditableRowKind, EditableTreeActions, EditableTreeRow,
-        RowProcessingState, VirtualListWindow, VirtualListWindowRequest,
+        ColumnSummary, ContentListPanel, ContentListRow, EditableRowKind, EditableTreeActions,
+        EditableTreeRow, RowProcessingState, VirtualListWindow, VirtualListWindowRequest,
         resolve_virtual_list_window,
     };
 
@@ -522,6 +627,18 @@ mod tests {
     #[test]
     fn row_processing_state_defaults_to_none() {
         assert_eq!(RowProcessingState::default(), RowProcessingState::None);
+    }
+
+    #[test]
+    fn content_list_panel_defaults_to_empty_generic_projection() {
+        let panel: ContentListPanel<ContentListRow, String> = ContentListPanel::default();
+
+        assert_eq!(panel.visible_count, 0);
+        assert_eq!(panel.selected_visible_row, None);
+        assert!(!panel.derived_label_filter_active());
+        assert!(!panel.derived_label_filter_negated());
+        assert_eq!(panel.pill_editor(), "");
+        assert!(panel.rows.is_empty());
     }
 
     #[test]

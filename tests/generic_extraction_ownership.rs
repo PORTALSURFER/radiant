@@ -62,11 +62,25 @@ fn row_processing_state_is_owned_by_generic_list_module() {
 
     assert!(!browser_mod.contains("pub struct BrowserRowModel"));
     assert!(browser_mod.contains("pub use crate::gui::list::ContentListRow as BrowserRowModel;"));
+    assert!(!browser_mod.contains("pub struct BrowserPanelModel"));
+    assert!(browser_mod.contains(
+        "pub type BrowserPanelModel =\n    crate::gui::list::ContentListPanel<BrowserRowModel, BrowserPillEditorModel>;"
+    ));
     assert!(!browser_mod.contains("pub enum BrowserRowProcessingState"));
     assert!(
         browser_mod
             .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;")
     );
+    assert!(list_mod.contains("pub struct ContentListPanel<Row, Editor>"));
+    assert!(list_mod.contains("pub fn pill_editor(&self) -> &Editor"));
+    assert!(!list_mod.contains("source_loading"));
+    assert!(!list_mod.contains("active_playback_age_filters"));
+    assert!(!list_mod.contains("selected_path_count"));
+    assert!(!list_mod.contains("file_op_pending"));
+    assert!(list_mod.contains("pub data_loading: bool"));
+    assert!(list_mod.contains("pub active_recency_filters: [bool; 3]"));
+    assert!(list_mod.contains("pub selected_item_count: usize"));
+    assert!(list_mod.contains("pub mutation_pending: bool"));
     assert!(list_mod.contains("pub struct ContentListRow"));
     assert!(list_mod.contains("pub fn encode_similarity_display_strength"));
     assert!(!list_mod.contains("sample"));

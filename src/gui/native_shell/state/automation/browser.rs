@@ -102,7 +102,7 @@ pub(super) fn build_browser_automation(
             chip,
             None,
             true,
-            model.browser.active_playback_age_filters[index],
+            model.browser.active_recency_filters[index],
             vec![String::from("toggle_browser_playback_age_filter")],
         ));
     }

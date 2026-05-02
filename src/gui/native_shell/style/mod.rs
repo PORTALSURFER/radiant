@@ -2,7 +2,7 @@
 
 use std::ops::Deref;
 
-use crate::theme::ThemeTokens;
+use crate::theme::{self, ThemeTokens, ViewportScaleTier};
 
 /// Compatibility-only shell chrome tokens that do not belong in core theming.
 #[path = "../../../../../../src/app_core/native_shell/composition/style/chrome.rs"]
@@ -12,12 +12,10 @@ mod chrome;
 mod palette;
 /// Geometry and typography sizing tokens plus UI-scale inflation rules.
 mod sizing;
-/// Viewport tier selection and non-geometric tier policy values.
-mod tier;
 
 pub(crate) use chrome::ShellChromeTokens;
 pub(crate) use sizing::SizingTokens;
-pub(crate) use tier::LayoutScaleTier;
+pub(crate) use theme::ViewportScaleTier as LayoutScaleTier;
 
 /// Style tokens consumed by the retained shell paint pass.
 ///
@@ -57,10 +55,10 @@ impl StyleTokens {
     /// values cannot collapse or overinflate layout geometry. A small baseline
     /// multiplier is then applied to keep the default UI density slightly larger.
     pub(crate) fn for_viewport_with_scale(viewport_width: f32, ui_scale: f32) -> Self {
-        let mut tokens = Self::for_tier(LayoutScaleTier::from_viewport_width(viewport_width));
+        let mut tokens = Self::for_tier(ViewportScaleTier::from_viewport_width(viewport_width));
         tokens.sizing = tokens
             .sizing
-            .with_ui_scale(tier::effective_ui_scale(ui_scale));
+            .with_ui_scale(theme::effective_ui_scale(ui_scale));
         tokens
     }
 
@@ -72,7 +70,7 @@ impl StyleTokens {
     /// Build style tokens for an explicit scale tier.
     pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
         let (mut theme, chrome) = palette::tokens_for_tier(layout_tier);
-        let motion = tier::visual_policy_for_tier(layout_tier);
+        let motion = theme::visual_policy_for_tier(layout_tier);
         theme.state_hover_soft = motion.state_hover_soft;
         theme.state_hover_strong = motion.state_hover_strong;
         theme.state_selected_blend = motion.state_selected_blend;
@@ -94,7 +92,8 @@ impl StyleTokens {
 
 #[cfg(test)]
 mod tests {
-    use super::{LayoutScaleTier, StyleTokens, tier::DEFAULT_UI_SCALE};
+    use super::{LayoutScaleTier, StyleTokens};
+    use crate::theme::DEFAULT_UI_SCALE;
 
     #[test]
     fn viewport_width_maps_to_expected_tier() {

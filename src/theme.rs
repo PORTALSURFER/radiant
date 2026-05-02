@@ -6,6 +6,101 @@
 
 use crate::gui::types::Rgba8;
 
+/// Global baseline size multiplier used by compatibility shells that want a
+/// slightly larger default density than the raw host UI scale.
+pub const DEFAULT_UI_SCALE: f32 = 1.06;
+
+/// Viewport-width tier for host surfaces that choose density from available space.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewportScaleTier {
+    /// Compact layout tuned for narrow windows or embedded panels.
+    Compact,
+    /// Baseline layout for common desktop window sizes.
+    Standard,
+    /// Spacious layout tuned for wide desktop windows.
+    Wide,
+}
+
+impl ViewportScaleTier {
+    /// Resolve a scale tier from a logical viewport width.
+    pub fn from_viewport_width(viewport_width: f32) -> Self {
+        if viewport_width < 980.0 {
+            Self::Compact
+        } else if viewport_width > 2100.0 {
+            Self::Wide
+        } else {
+            Self::Standard
+        }
+    }
+}
+
+/// Clamp the requested UI scale to a safe range for geometry and typography.
+pub fn clamp_ui_scale(scale: f32) -> f32 {
+    scale.clamp(1.0, 3.0)
+}
+
+/// Apply Radiant's baseline density multiplier to a requested UI scale.
+pub fn effective_ui_scale(ui_scale: f32) -> f32 {
+    clamp_ui_scale(clamp_ui_scale(ui_scale) * DEFAULT_UI_SCALE)
+}
+
+#[cfg(feature = "legacy-shell")]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TierVisualPolicy {
+    pub state_hover_soft: f32,
+    pub state_hover_strong: f32,
+    pub state_selected_blend: f32,
+    pub state_focus_pulse_blend: f32,
+    pub motion_speed_transport: f32,
+    pub motion_speed_idle: f32,
+    pub motion_focus_wave_amp: f32,
+    pub motion_focus_text_wave_amp: f32,
+    pub scrim_soft_alpha: u8,
+    pub scrim_modal_alpha: u8,
+}
+
+#[cfg(feature = "legacy-shell")]
+pub(crate) fn visual_policy_for_tier(layout_tier: ViewportScaleTier) -> TierVisualPolicy {
+    match layout_tier {
+        ViewportScaleTier::Compact => TierVisualPolicy {
+            state_hover_soft: 0.10,
+            state_hover_strong: 0.16,
+            state_selected_blend: 0.10,
+            state_focus_pulse_blend: 0.20,
+            motion_speed_transport: 2.2,
+            motion_speed_idle: 1.0,
+            motion_focus_wave_amp: 0.06,
+            motion_focus_text_wave_amp: 0.03,
+            scrim_soft_alpha: 164,
+            scrim_modal_alpha: 180,
+        },
+        ViewportScaleTier::Wide => TierVisualPolicy {
+            state_hover_soft: 0.12,
+            state_hover_strong: 0.20,
+            state_selected_blend: 0.13,
+            state_focus_pulse_blend: 0.25,
+            motion_speed_transport: 2.8,
+            motion_speed_idle: 1.2,
+            motion_focus_wave_amp: 0.08,
+            motion_focus_text_wave_amp: 0.04,
+            scrim_soft_alpha: 180,
+            scrim_modal_alpha: 196,
+        },
+        ViewportScaleTier::Standard => TierVisualPolicy {
+            state_hover_soft: 0.12,
+            state_hover_strong: 0.20,
+            state_selected_blend: 0.12,
+            state_focus_pulse_blend: 0.24,
+            motion_speed_transport: 2.6,
+            motion_speed_idle: 1.2,
+            motion_focus_wave_amp: 0.08,
+            motion_focus_text_wave_amp: 0.04,
+            scrim_soft_alpha: 172,
+            scrim_modal_alpha: 188,
+        },
+    }
+}
+
 /// Generic core theme bundle for reusable Radiant primitives.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ThemeTokens {
@@ -133,7 +228,30 @@ const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
 
 #[cfg(test)]
 mod tests {
-    use super::ThemeTokens;
+    use super::{DEFAULT_UI_SCALE, ThemeTokens, ViewportScaleTier, effective_ui_scale};
+
+    #[test]
+    fn viewport_width_maps_to_scale_tiers() {
+        assert_eq!(
+            ViewportScaleTier::from_viewport_width(820.0),
+            ViewportScaleTier::Compact
+        );
+        assert_eq!(
+            ViewportScaleTier::from_viewport_width(1280.0),
+            ViewportScaleTier::Standard
+        );
+        assert_eq!(
+            ViewportScaleTier::from_viewport_width(2300.0),
+            ViewportScaleTier::Wide
+        );
+    }
+
+    #[test]
+    fn effective_ui_scale_clamps_and_applies_default_multiplier() {
+        assert_eq!(effective_ui_scale(0.5), DEFAULT_UI_SCALE);
+        assert!((effective_ui_scale(1.5) - (1.5 * DEFAULT_UI_SCALE)).abs() < 0.0001);
+        assert_eq!(effective_ui_scale(4.0), 3.0);
+    }
 
     #[test]
     fn dark_theme_uses_distinct_primary_and_overlay_surfaces() {

@@ -1,6 +1,6 @@
 //! Geometry and typography tokens for the native shell.
 
-use super::tier::clamp_ui_scale;
+use crate::theme::clamp_ui_scale;
 
 mod base;
 mod tier_deltas;
@@ -9,7 +9,7 @@ mod tier_deltas;
 mod tests;
 
 /// Resolve the shell sizing pack for the requested viewport tier.
-pub(super) fn sizing_for_tier(layout_tier: super::tier::LayoutScaleTier) -> SizingTokens {
+pub(super) fn sizing_for_tier(layout_tier: super::LayoutScaleTier) -> SizingTokens {
     tier_deltas::sizing_for_tier(layout_tier)
 }
 

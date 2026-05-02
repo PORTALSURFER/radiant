@@ -87,8 +87,11 @@ surface with generic signal chrome and tool state.
 
 `radiant::theme::ThemeTokens` and widget visual-token resolution provide
 domain-neutral colors, spacing, borders, typography scale, and interaction
-states. Product visual identity should be supplied by the host or translated
-through generic tokens instead of baked into Radiant primitives.
+states. `ViewportScaleTier`, `clamp_ui_scale`, and `effective_ui_scale` provide
+generic density policy for hosts that choose layout scale from available
+viewport width or user preferences. Product visual identity should be supplied
+by the host or translated through generic tokens instead of baked into Radiant
+primitives.
 
 ## Renderer
 

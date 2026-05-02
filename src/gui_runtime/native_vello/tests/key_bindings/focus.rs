@@ -215,7 +215,7 @@ fn semicolon_routes_browser_mark_without_conflicting_with_waveform_shortcuts() {
     };
     assert_eq!(
         resolved_action(KeyCode::Semicolon, ModifiersState::default(), &browser),
-        Some(UiAction::ToggleBrowserSampleMark)
+        Some(UiAction::ToggleContentMark)
     );
 
     let waveform = AppModel {

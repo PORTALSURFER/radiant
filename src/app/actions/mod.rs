@@ -395,8 +395,8 @@ pub enum UiAction {
         /// Whether the click should activate every playback-age chip except the clicked one.
         invert: bool,
     },
-    /// Toggle the session mark for the focused browser row or current multi-selection.
-    ToggleBrowserSampleMark,
+    /// Toggle the session mark for the focused content row or current multi-selection.
+    ToggleContentMark,
     /// Toggle whether the browser shows only session-marked samples.
     ToggleBrowserMarkedFilter,
     /// Toggle whether the browser shows samples already named from tags.

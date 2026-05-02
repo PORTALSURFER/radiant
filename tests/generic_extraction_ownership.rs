@@ -440,6 +440,33 @@ fn compat_action_catalog_uses_generic_compare_anchor_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_content_mark_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let key_bindings = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/tests/key_bindings.rs"
+    ))
+    .expect("key binding tests should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &key_bindings] {
+        assert!(!source.contains("ToggleBrowserSampleMark"));
+        assert!(!source.contains("toggle_browser_sample_mark"));
+    }
+    assert!(actions_mod.contains("ToggleContentMark"));
+    assert!(automation_helpers.contains("toggle_content_mark"));
+    assert!(key_bindings.contains("UiAction::ToggleContentMark"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

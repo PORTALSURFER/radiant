@@ -8,7 +8,6 @@ pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewMo
 pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineTransportState as WaveformTransportModel;
-pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -169,8 +168,8 @@ impl Default for WaveformPanelModel {
 
 impl WaveformPanelModel {
     /// Return this panel's generic normalized timeline viewport.
-    pub fn viewport(&self) -> WaveformViewportModel {
-        WaveformViewportModel::new(
+    pub fn viewport(&self) -> crate::gui::visualization::TimelineViewport {
+        crate::gui::visualization::TimelineViewport::new(
             self.view_start_milli,
             self.view_end_milli,
             self.view_start_micros,

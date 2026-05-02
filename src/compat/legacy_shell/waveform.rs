@@ -3,7 +3,6 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
-pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 use std::sync::Arc;
 
 /// Waveform preview metadata consumed by the native shell.
@@ -476,8 +475,8 @@ impl WaveformChromeModel {
     }
 
     /// Return this chrome model's generic signal visualization tool state.
-    pub fn signal_tools(&self) -> WaveformToolStateModel {
-        WaveformToolStateModel::new(
+    pub fn signal_tools(&self) -> crate::gui::visualization::SignalToolState {
+        crate::gui::visualization::SignalToolState::new(
             self.loop_lock_enabled,
             self.normalized_audition_enabled,
             self.bpm_snap_enabled,

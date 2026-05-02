@@ -493,11 +493,9 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("WaveformChromeStateModel"));
     assert!(waveform_mod.contains("crate::gui::visualization::SignalChromeState"));
     assert!(motion_mod.contains("crate::gui::visualization::SignalChromeState"));
-    assert!(
-        waveform_mod.contains(
-            "pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;"
-        )
-    );
+    assert!(!waveform_mod.contains("WaveformToolStateModel"));
+    assert!(waveform_mod.contains("crate::gui::visualization::SignalToolState"));
+    assert!(motion_mod.contains("crate::gui::visualization::SignalToolState"));
     assert!(selection_mod.contains("pub enum TriState"));
     assert!(badge_mod.contains("pub struct SelectablePill<State>"));
     assert!(badge_mod.contains("pub struct PillEditorPanel<State>"));

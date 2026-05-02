@@ -1,6 +1,6 @@
 //! Motion-only projection types exposed by the `radiant` app contract.
 
-use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel, WaveformToolStateModel};
+use super::{AppModel, NormalizedRangeModel, WaveformChannelViewModel};
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -257,8 +257,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic signal tool state.
-    pub fn signal_tools(&self) -> WaveformToolStateModel {
-        WaveformToolStateModel::new(
+    pub fn signal_tools(&self) -> crate::gui::visualization::SignalToolState {
+        crate::gui::visualization::SignalToolState::new(
             self.waveform_loop_lock_enabled,
             self.waveform_normalized_audition_enabled,
             self.waveform_bpm_snap_enabled,

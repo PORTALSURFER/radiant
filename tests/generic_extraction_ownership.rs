@@ -363,7 +363,7 @@ fn paired_picker_actions_use_generic_device_terms() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let shared_options_actions = fs::read_to_string(concat!(
@@ -569,7 +569,7 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
         .expect("chrome module should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
     let frame_text_cache = fs::read_to_string(concat!(
@@ -614,7 +614,7 @@ fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 
@@ -633,7 +633,7 @@ fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let pointer_routing = fs::read_to_string(concat!(
@@ -660,7 +660,7 @@ fn compat_action_catalog_uses_generic_compare_anchor_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 
@@ -681,7 +681,7 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let key_bindings = fs::read_to_string(concat!(
@@ -708,7 +708,7 @@ fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 
@@ -729,12 +729,12 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
     let text_runtime = fs::read_to_string(concat!(
@@ -778,7 +778,7 @@ fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 
@@ -839,7 +839,7 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
     .expect("text runtime should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
 
@@ -897,12 +897,12 @@ fn compat_action_catalog_uses_generic_pill_option_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
 
@@ -924,12 +924,12 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
 
@@ -966,7 +966,7 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
     .expect("shared browser hit testing should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
 
@@ -998,7 +998,7 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let key_bindings = fs::read_to_string(concat!(
@@ -1036,7 +1036,7 @@ fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let key_bindings = fs::read_to_string(concat!(
@@ -1063,7 +1063,7 @@ fn compat_action_catalog_uses_generic_random_content_actions() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 
@@ -1088,12 +1088,12 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let automation_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/browser.rs"
     ))
     .expect("automation browser should be readable");
     let runtime_actions = fs::read_to_string(concat!(
@@ -1143,7 +1143,7 @@ fn compat_action_catalog_uses_generic_content_item_drag_actions() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
     let runtime_shell = fs::read_to_string(concat!(
@@ -1199,7 +1199,7 @@ fn compat_action_catalog_uses_generic_waveform_content_actions() {
     .expect("actions module should be readable");
     let automation_helpers = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
+        "/../../src/app_core/native_shell/composition/state/automation/helpers.rs"
     ))
     .expect("automation helpers should be readable");
 

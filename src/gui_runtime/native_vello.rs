@@ -14,6 +14,7 @@ use crate::compat::legacy_shell::PreviewBridge;
 use crate::gui::input::KeyCode;
 use crate::gui::{
     input::key_code_from_winit,
+    paint::{TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 #[cfg(feature = "legacy-shell")]
@@ -23,7 +24,7 @@ use crate::gui::{
         ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment, StaticFrameSegments, StyleTokens,
         TextFieldVisualState, WaveformMotionOverlayFingerprint,
     },
-    paint::{PaintFrame as NativeViewFrame, Primitive, TextAlign, TextRun},
+    paint::{PaintFrame as NativeViewFrame, Primitive},
     repaint::RepaintSignal,
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
@@ -117,25 +118,6 @@ pub use self::{
     },
     startup::NativeStartupTimingArtifact,
 };
-
-#[cfg(not(feature = "legacy-shell"))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum TextAlign {
-    Left,
-    Center,
-    Right,
-}
-
-#[cfg(not(feature = "legacy-shell"))]
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct TextRun {
-    pub text: String,
-    pub position: Point,
-    pub font_size: f32,
-    pub color: Rgba8,
-    pub max_width: Option<f32>,
-    pub align: TextAlign,
-}
 
 #[cfg(feature = "legacy-shell")]
 const FOCUS_PULSE_HZ: u64 = 60;

@@ -341,7 +341,7 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.
     last_emitted_waveform_drag_action: Option<UiAction>,
-    /// Whether map sample focus drag is active for primary pointer movement.
+    /// Whether map content focus drag is active for primary pointer movement.
     map_focus_drag_active: bool,
     /// Last map content id emitted during active map focus drag.
     last_emitted_map_drag_content_id: Option<String>,

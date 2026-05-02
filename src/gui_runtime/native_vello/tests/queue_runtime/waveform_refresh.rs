@@ -22,7 +22,7 @@ fn begin_waveform_selection_press_does_not_project_zero_width_selection() {
 }
 
 #[test]
-fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_sample() {
+fn waveform_wheel_zoom_refreshes_local_view_before_next_drag_step() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let y = layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
     let wheel_point = Point::new(

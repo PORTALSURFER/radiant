@@ -431,7 +431,7 @@ fn folder_create_click_outside_cancels_then_processes_target_action() {
 }
 
 #[test]
-fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
+fn pill_editor_option_click_with_active_input_blurs_and_toggles_once() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -469,7 +469,7 @@ fn tag_sidebar_pill_click_with_active_input_blurs_and_toggles_once() {
                 .then_some(point)
             })
         })
-        .expect("normal tag pill should be hittable");
+        .expect("normal pill option should be hittable");
     let mut action_emitted = false;
 
     assert!(

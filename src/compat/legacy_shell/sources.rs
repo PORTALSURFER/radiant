@@ -8,6 +8,7 @@ pub use crate::gui::list::EditableRowKind as FolderRowKind;
 pub use crate::gui::list::EditableTreeActions as FolderActionsModel;
 pub use crate::gui::list::EditableTreeRow as FolderRowModel;
 pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
+pub use crate::gui::panel::SplitPaneSidebarState as GenericSourcesPanelModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
 /// Projected data for one fixed folder pane shown in the sidebar.
 pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;
@@ -62,5 +63,29 @@ impl SourcesPanelModel {
     /// Borrow the pane that currently drives browser and waveform state.
     pub fn active_folder_pane_model(&self) -> &FolderPaneModel {
         self.folder_pane(self.active_folder_pane)
+    }
+
+    /// Return this source/sidebar model as a generic split-pane sidebar state.
+    pub fn split_pane_sidebar(&self) -> GenericSourcesPanelModel<SourceRowModel, FolderRowModel> {
+        GenericSourcesPanelModel {
+            header: self.header.clone(),
+            search_query: self.search_query.clone(),
+            active_pane: self.active_folder_pane,
+            upper_pane: self.upper_folder_pane.clone(),
+            lower_pane: self.lower_folder_pane.clone(),
+            tree_search_query: self.tree_search_query.clone(),
+            show_all_items: self.show_all_items,
+            can_toggle_show_all_items: self.can_toggle_show_all_items,
+            flattened_view: self.flattened_view,
+            can_toggle_flattened_view: self.can_toggle_flattened_view,
+            selected_row: self.selected_row,
+            loading_row: self.loading_row,
+            mutation_busy_row: self.mutation_busy_row,
+            focused_tree_row: self.focused_tree_row,
+            rows: self.rows.clone(),
+            tree_rows: self.tree_rows.clone(),
+            tree_actions: self.tree_actions.clone(),
+            recovery: self.recovery.clone(),
+        }
     }
 }

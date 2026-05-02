@@ -680,6 +680,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SurfaceRuntime",
         "ThemeTokens",
         "SurfacePaintPlan",
+        "SplitPaneSidebarState",
         "InvalidationMask",
         "RetainedSegmentMask",
         "RetainedSegmentRevisions",

@@ -73,6 +73,40 @@ impl Rect {
             && point.y >= self.min.y
             && point.y <= self.max.y
     }
+
+    /// Return an empty rectangle at this rectangle's minimum corner.
+    pub fn empty_at_min(self) -> Self {
+        Self::from_min_max(self.min, self.min)
+    }
+
+    /// Clamp this rectangle inside `bounds`.
+    ///
+    /// If the rectangle does not overlap `bounds`, this returns an empty
+    /// rectangle at `bounds.min`.
+    pub fn clamp_to(self, bounds: Rect) -> Self {
+        let min = Point::new(self.min.x.max(bounds.min.x), self.min.y.max(bounds.min.y));
+        let max = Point::new(self.max.x.min(bounds.max.x), self.max.y.min(bounds.max.y));
+        if max.x < min.x || max.y < min.y {
+            return bounds.empty_at_min();
+        }
+        Self::from_min_max(min, max)
+    }
+
+    /// Return a centered square of side `side` constrained to this rectangle.
+    ///
+    /// Empty rectangles or non-positive sides return the original rectangle.
+    pub fn centered_square(self, side: f32) -> Self {
+        if self.width() <= 0.0 || self.height() <= 0.0 || side <= 0.0 {
+            return self;
+        }
+        let clamped_side = side.min(self.width()).min(self.height());
+        let min_x = self.min.x + ((self.width() - clamped_side) * 0.5);
+        let min_y = self.min.y + ((self.height() - clamped_side) * 0.5);
+        Self::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new(min_x + clamped_side, min_y + clamped_side),
+        )
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -86,6 +120,40 @@ pub struct Rgba8 {
     pub b: u8,
     /// Alpha channel.
     pub a: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Point, Rect};
+
+    #[test]
+    fn rect_clamp_to_limits_rect_to_bounds() {
+        let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0));
+        let rect = Rect::from_min_max(Point::new(0.0, 40.0), Point::new(50.0, 140.0));
+
+        assert_eq!(
+            rect.clamp_to(bounds),
+            Rect::from_min_max(Point::new(10.0, 40.0), Point::new(50.0, 120.0))
+        );
+    }
+
+    #[test]
+    fn rect_clamp_to_returns_empty_bounds_origin_for_disjoint_rect() {
+        let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 120.0));
+        let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));
+
+        assert_eq!(rect.clamp_to(bounds), bounds.empty_at_min());
+    }
+
+    #[test]
+    fn rect_centered_square_clamps_side_and_centers() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 70.0));
+
+        assert_eq!(
+            rect.centered_square(80.0),
+            Rect::from_min_max(Point::new(35.0, 20.0), Point::new(85.0, 70.0))
+        );
+    }
 }
 
 /// Owned RGBA image buffer used by the GUI layer.

@@ -137,13 +137,13 @@ fn browser_marked_filter_chip_click_maps_to_toggle_action() {
 }
 
 #[test]
-fn browser_tag_named_filter_chip_click_maps_to_toggle_action() {
+fn browser_derived_label_filter_chip_click_maps_to_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut state = NativeShellState::new();
     let chip = state
-        .browser_tag_named_filter_chip_rect(&layout, &model)
-        .expect("tag-named filter chip should render");
+        .browser_derived_label_filter_chip_rect(&layout, &model)
+        .expect("derived-label filter chip should render");
     let point = Point::new(
         (chip.min.x + chip.max.x) * 0.5,
         (chip.min.y + chip.max.y) * 0.5,
@@ -175,7 +175,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     let snapshot = state.automation_snapshot(&layout, &model);
     let browser = child(&snapshot.root, "browser.panel");
     let marked_filter = child(browser, "browser.marked_filter");
-    let tag_named_filter = child(browser, "browser.tag_named_filter");
+    let derived_label_filter = child(browser, "browser.derived_label_filter");
     let table = child(browser, "browser.table");
     let row = child(table, "browser.row.0");
 
@@ -189,11 +189,11 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
         vec![String::from("toggle_browser_marked_filter")]
     );
     assert_eq!(
-        tag_named_filter.role,
+        derived_label_filter.role,
         crate::compat_app_contract::AutomationRole::Button
     );
     assert_eq!(
-        tag_named_filter.available_actions,
+        derived_label_filter.available_actions,
         vec![String::from("toggle_browser_derived_label_filter")]
     );
     assert_eq!(row.metadata.get("marked").map(String::as_str), Some("true"));

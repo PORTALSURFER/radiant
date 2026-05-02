@@ -35,10 +35,10 @@ pub struct BrowserPanelModel {
     pub active_playback_age_filters: [bool; 3],
     /// Whether the browser is currently filtering down to only marked rows.
     pub marked_filter_active: bool,
-    /// Whether the browser is currently filtering to tag-named rows.
-    pub tag_named_filter_active: bool,
-    /// Whether the tag-named filter is currently inverted.
-    pub tag_named_filter_negated: bool,
+    /// Whether the browser is currently filtering to derived-label rows.
+    pub derived_label_filter_active: bool,
+    /// Whether the derived-label filter is currently inverted.
+    pub derived_label_filter_negated: bool,
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
@@ -134,6 +134,16 @@ pub struct BrowserActionsModel {
 }
 
 impl BrowserPanelModel {
+    /// Whether the generic derived-label filter is currently active.
+    pub fn derived_label_filter_active(&self) -> bool {
+        self.derived_label_filter_active
+    }
+
+    /// Whether the generic derived-label filter is currently inverted.
+    pub fn derived_label_filter_negated(&self) -> bool {
+        self.derived_label_filter_negated
+    }
+
     /// Generic metadata-pill editor projected beside the content list.
     pub fn pill_editor(&self) -> &BrowserPillEditorModel {
         &self.pill_editor

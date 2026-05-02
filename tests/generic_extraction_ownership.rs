@@ -724,6 +724,44 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
 }
 
 #[test]
+fn compat_browser_model_uses_generic_derived_label_filter_fields() {
+    let app_browser =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))
+            .expect("app browser model should be readable");
+    let shared_toolbar = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/browser_chrome_surface.rs"
+    ))
+    .expect("shared browser chrome surface should be readable");
+    let shared_hit_testing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/state/hit_testing/browser.rs"
+    ))
+    .expect("shared browser hit testing should be readable");
+    let automation_browser = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/browser.rs"
+    ))
+    .expect("automation browser should be readable");
+
+    for source in [
+        &app_browser,
+        &shared_toolbar,
+        &shared_hit_testing,
+        &automation_browser,
+    ] {
+        assert!(!source.contains("tag_named_filter_active"));
+        assert!(!source.contains("tag_named_filter_negated"));
+        assert!(!source.contains("tag_named_filter_chip"));
+        assert!(!source.contains("browser.tag_named_filter"));
+    }
+    assert!(app_browser.contains("derived_label_filter_active"));
+    assert!(shared_toolbar.contains("derived_label_filter_chip"));
+    assert!(shared_hit_testing.contains("browser_derived_label_filter_chip_rect"));
+    assert!(automation_browser.contains("browser.derived_label_filter"));
+}
+
+#[test]
 fn compat_action_catalog_uses_generic_find_similar_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

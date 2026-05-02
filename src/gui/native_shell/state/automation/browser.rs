@@ -118,15 +118,15 @@ pub(super) fn build_browser_automation(
             vec![String::from("toggle_browser_marked_filter")],
         ));
     }
-    if toolbar.tag_named_filter_chip.width() > 1.0 {
+    if toolbar.derived_label_filter_chip.width() > 1.0 {
         children.push(simple_node(
-            "browser.tag_named_filter",
+            "browser.derived_label_filter",
             AutomationRole::Button,
-            Some(String::from("Tag-named filter")),
-            toolbar.tag_named_filter_chip,
+            Some(String::from("Derived-label filter")),
+            toolbar.derived_label_filter_chip,
             None,
             true,
-            model.browser.tag_named_filter_active,
+            model.browser.derived_label_filter_active,
             vec![String::from("toggle_browser_derived_label_filter")],
         ));
     }

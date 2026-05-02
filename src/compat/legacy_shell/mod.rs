@@ -1,4 +1,4 @@
-//! Compatibility-facing contracts between `radiant` and the current Sempal shell.
+//! Compatibility-facing contracts between `radiant` and an existing host shell.
 //!
 //! The host provides one immutable [`AppModel`](crate::compat::legacy_shell::AppModel) snapshot per frame.
 //! `radiant` consumes that snapshot to:
@@ -12,7 +12,7 @@
 //!
 //! New host applications should prefer [`crate::runtime`], which exposes a
 //! generic declarative view tree plus host-defined message reduction without
-//! depending on Sempal-shaped top-level models or action enums.
+//! depending on host-shaped top-level models or action enums.
 //!
 //! This module remains as the legacy path for existing callers. The preferred
 //! compatibility entry point for shell-specific code is now

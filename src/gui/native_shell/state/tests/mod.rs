@@ -195,7 +195,9 @@ mod frame_build;
 mod overlay_controls;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/overlays.rs"]
 mod overlays;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/playhead_trail_render.rs"]
 mod playhead_trail_render;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/playhead_trail_state.rs"]
 mod playhead_trail_state;
 mod selection_states;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/sidebar.rs"]

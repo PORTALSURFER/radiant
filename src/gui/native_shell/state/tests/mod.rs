@@ -207,7 +207,9 @@ mod selection_states;
 mod sidebar;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/status_bar_progress.rs"]
 mod status_bar_progress;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_edit_fades.rs"]
 mod waveform_edit_fades;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_edit_handles.rs"]
 mod waveform_edit_handles;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/waveform_selection.rs"]
 mod waveform_selection;

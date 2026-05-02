@@ -471,6 +471,10 @@ fn legacy_shell_sources_are_feature_gated() {
         "Sempal waveform projection models belong with Sempal composition, not Radiant compatibility contracts"
     );
     assert!(
+        !manifest_dir.join("src/compat/legacy_shell/shell.rs").exists(),
+        "Sempal shell model projection belongs with Sempal composition, not Radiant compatibility contracts"
+    );
+    assert!(
         !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),

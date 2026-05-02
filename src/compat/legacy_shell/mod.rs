@@ -47,6 +47,7 @@ mod bridge;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/motion.rs"]
 mod motion;
 mod native_vello;
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
 #[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;

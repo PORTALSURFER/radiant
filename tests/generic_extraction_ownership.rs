@@ -231,7 +231,7 @@ fn focus_context_model_is_owned_by_generic_focus_module() {
 fn status_segments_are_owned_by_generic_chrome_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/shell.rs"
+        "/../../src/app_core/native_shell/composition/runtime/shell.rs"
     ))
     .expect("shell module should be readable");
     let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
@@ -246,7 +246,7 @@ fn status_segments_are_owned_by_generic_chrome_module() {
 fn feedback_models_are_owned_by_generic_feedback_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/shell.rs"
+        "/../../src/app_core/native_shell/composition/runtime/shell.rs"
     ))
     .expect("shell module should be readable");
     let sources_mod = fs::read_to_string(concat!(
@@ -309,7 +309,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/shell.rs"
+        "/../../src/app_core/native_shell/composition/runtime/shell.rs"
     ))
     .expect("shell module should be readable");
     let form_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/form.rs"))
@@ -511,7 +511,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     .expect("browser module should be readable");
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/shell.rs"
+        "/../../src/app_core/native_shell/composition/runtime/shell.rs"
     ))
     .expect("shell module should be readable");
     let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))

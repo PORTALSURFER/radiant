@@ -5,6 +5,7 @@ use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
 pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
+pub use crate::gui::visualization::SignalToolState as WaveformToolStateModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
@@ -349,6 +350,20 @@ impl WaveformChromeModel {
             self.channel_view,
         )
     }
+
+    /// Return this chrome model's generic signal visualization tool state.
+    pub fn signal_tools(&self) -> WaveformToolStateModel {
+        WaveformToolStateModel::new(
+            self.loop_lock_enabled,
+            self.normalized_audition_enabled,
+            self.bpm_snap_enabled,
+            self.relative_bpm_grid_enabled,
+            self.transient_snap_enabled,
+            self.transient_markers_enabled,
+            self.slice_mode_enabled,
+            self.exact_duplicate_cleanup_available,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -370,5 +385,30 @@ mod chrome_tests {
         assert!(signal_chrome.reference_anchor_available);
         assert_eq!(signal_chrome.reference_anchor_label.as_deref(), Some("A"));
         assert_eq!(signal_chrome.channel_view, WaveformChannelViewModel::Stereo);
+    }
+
+    #[test]
+    fn signal_tools_project_generic_tool_flags() {
+        let chrome = WaveformChromeModel {
+            loop_lock_enabled: true,
+            normalized_audition_enabled: true,
+            bpm_snap_enabled: false,
+            relative_bpm_grid_enabled: true,
+            transient_snap_enabled: false,
+            transient_markers_enabled: true,
+            slice_mode_enabled: true,
+            exact_duplicate_cleanup_available: false,
+            ..WaveformChromeModel::default()
+        };
+        let tools = chrome.signal_tools();
+
+        assert!(tools.lock_enabled);
+        assert!(tools.audition_enabled);
+        assert!(!tools.primary_snap_enabled);
+        assert!(tools.relative_grid_enabled);
+        assert!(!tools.secondary_snap_enabled);
+        assert!(tools.markers_visible);
+        assert!(tools.review_mode_enabled);
+        assert!(!tools.cleanup_available);
     }
 }

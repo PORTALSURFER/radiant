@@ -72,9 +72,10 @@ payload semantics.
 `ContentListActions` provides product-neutral action availability for
 content-list toolbars and context menus.
 Timeline and signal visualizations can use `SignalChromeState` for reusable
-status/reference/channel chrome, `SignalRasterPreview` for retained raster
-image payloads and loading state, `TimelineViewport` for normalized viewport
-bounds, `TimelineEditPreview` for editable range and fade/curve handles, and
+status/reference/channel chrome, `SignalToolState` for generic enabled/visible
+tool flags, `SignalRasterPreview` for retained raster image payloads and
+loading state, `TimelineViewport` for normalized viewport bounds,
+`TimelineEditPreview` for editable range and fade/curve handles, and
 `TimelineMarkerPreview` for retained marker overlays.
 
 ## Style And Theme

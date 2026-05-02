@@ -118,6 +118,7 @@ impl NativeMotionModel {
         let edit_preview = model.waveform.edit_preview();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
+        let signal_tools = model.waveform_chrome.signal_tools();
 
         Self {
             transport_running: model.transport_running,
@@ -146,7 +147,7 @@ impl NativeMotionModel {
             waveform_edit_fade_out_mute_end_micros: edit_preview.trailing_inner_end_micros,
             waveform_edit_fade_out_curve_milli: edit_preview.trailing_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
-            waveform_loop_lock_enabled: model.waveform_chrome.loop_lock_enabled,
+            waveform_loop_lock_enabled: signal_tools.lock_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
             waveform_playhead_milli: model.waveform.playhead_milli,
             waveform_playhead_micros: model.waveform.playhead_micros.or_else(|| {
@@ -170,15 +171,13 @@ impl NativeMotionModel {
             waveform_compare_anchor_available: signal_chrome.reference_anchor_available,
             waveform_compare_anchor_label: signal_chrome.reference_anchor_label,
             waveform_channel_view: signal_chrome.channel_view,
-            waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
-            waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,
-            waveform_relative_bpm_grid_enabled: model.waveform_chrome.relative_bpm_grid_enabled,
-            waveform_transient_snap_enabled: model.waveform_chrome.transient_snap_enabled,
-            waveform_transient_markers_enabled: model.waveform_chrome.transient_markers_enabled,
-            waveform_slice_mode_enabled: model.waveform_chrome.slice_mode_enabled,
-            waveform_exact_duplicate_cleanup_available: model
-                .waveform_chrome
-                .exact_duplicate_cleanup_available,
+            waveform_normalized_audition_enabled: signal_tools.audition_enabled,
+            waveform_bpm_snap_enabled: signal_tools.primary_snap_enabled,
+            waveform_relative_bpm_grid_enabled: signal_tools.relative_grid_enabled,
+            waveform_transient_snap_enabled: signal_tools.secondary_snap_enabled,
+            waveform_transient_markers_enabled: signal_tools.markers_visible,
+            waveform_slice_mode_enabled: signal_tools.review_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: signal_tools.cleanup_available,
             status_right: model.status.right.clone(),
         }
     }

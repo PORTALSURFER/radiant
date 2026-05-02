@@ -101,6 +101,72 @@ pub struct SignalChromeState {
     pub channel_view: ChannelViewMode,
 }
 
+/// Generic enabled/visible tool state for a signal visualization surface.
+///
+/// The fields intentionally describe interaction roles rather than domain
+/// operations. Hosts map these booleans to product-specific tools such as snap
+/// modes, overlays, review modes, or cleanup availability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignalToolState {
+    /// Whether the visualization's current mode is locked against host updates.
+    pub lock_enabled: bool,
+    /// Whether alternate/audition behavior is enabled.
+    pub audition_enabled: bool,
+    /// Whether the primary snap behavior is enabled.
+    pub primary_snap_enabled: bool,
+    /// Whether grid/guide alignment uses a relative anchor.
+    pub relative_grid_enabled: bool,
+    /// Whether the secondary snap behavior is enabled.
+    pub secondary_snap_enabled: bool,
+    /// Whether marker overlays are visible.
+    pub markers_visible: bool,
+    /// Whether marker/review mode is active.
+    pub review_mode_enabled: bool,
+    /// Whether a host-defined cleanup action is available.
+    pub cleanup_available: bool,
+}
+
+impl Default for SignalToolState {
+    fn default() -> Self {
+        Self {
+            lock_enabled: false,
+            audition_enabled: false,
+            primary_snap_enabled: false,
+            relative_grid_enabled: false,
+            secondary_snap_enabled: false,
+            markers_visible: true,
+            review_mode_enabled: false,
+            cleanup_available: false,
+        }
+    }
+}
+
+impl SignalToolState {
+    /// Build signal tool state from explicit generic flags.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        lock_enabled: bool,
+        audition_enabled: bool,
+        primary_snap_enabled: bool,
+        relative_grid_enabled: bool,
+        secondary_snap_enabled: bool,
+        markers_visible: bool,
+        review_mode_enabled: bool,
+        cleanup_available: bool,
+    ) -> Self {
+        Self {
+            lock_enabled,
+            audition_enabled,
+            primary_snap_enabled,
+            relative_grid_enabled,
+            secondary_snap_enabled,
+            markers_visible,
+            review_mode_enabled,
+            cleanup_available,
+        }
+    }
+}
+
 impl Default for SignalChromeState {
     fn default() -> Self {
         Self {
@@ -290,8 +356,8 @@ pub struct TimelineMarkerPreview {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SpatialPanel,
-        SpatialPoint, TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
+        ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
+        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -363,6 +429,20 @@ mod tests {
         assert!(chrome.reference_anchor_available);
         assert_eq!(chrome.reference_anchor_label.as_deref(), Some("A"));
         assert_eq!(chrome.channel_view, ChannelViewMode::Stereo);
+    }
+
+    #[test]
+    fn signal_tool_state_preserves_generic_interaction_flags() {
+        let tools = SignalToolState::new(true, true, false, true, false, true, true, false);
+
+        assert!(tools.lock_enabled);
+        assert!(tools.audition_enabled);
+        assert!(!tools.primary_snap_enabled);
+        assert!(tools.relative_grid_enabled);
+        assert!(!tools.secondary_snap_enabled);
+        assert!(tools.markers_visible);
+        assert!(tools.review_mode_enabled);
+        assert!(!tools.cleanup_available);
     }
 
     #[test]

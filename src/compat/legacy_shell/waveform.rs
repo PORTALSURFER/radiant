@@ -3,6 +3,7 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
+pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
 use std::sync::Arc;
@@ -175,6 +176,23 @@ impl WaveformPanelModel {
             self.view_end_nanos,
         )
     }
+
+    /// Return this panel's generic timeline edit preview.
+    pub fn edit_preview(&self) -> WaveformEditPreviewModel {
+        WaveformEditPreviewModel::new(
+            self.edit_selection_milli,
+            self.edit_fade_in_end_milli,
+            self.edit_fade_in_end_micros,
+            self.edit_fade_in_mute_start_milli,
+            self.edit_fade_in_mute_start_micros,
+            self.edit_fade_in_curve_milli,
+            self.edit_fade_out_start_milli,
+            self.edit_fade_out_start_micros,
+            self.edit_fade_out_mute_end_milli,
+            self.edit_fade_out_mute_end_micros,
+            self.edit_fade_out_curve_milli,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -205,6 +223,33 @@ mod tests {
         assert_eq!(viewport.end_micros, 500_000);
         assert_eq!(viewport.start_nanos, 250_000_000);
         assert_eq!(viewport.end_nanos, 500_000_000);
+    }
+
+    #[test]
+    fn edit_preview_projects_generic_timeline_handles() {
+        let model = WaveformPanelModel {
+            edit_selection_milli: Some(crate::gui::range::NormalizedRange::new(200, 800)),
+            edit_fade_in_end_milli: Some(300),
+            edit_fade_in_end_micros: Some(300_000),
+            edit_fade_in_mute_start_milli: Some(240),
+            edit_fade_in_mute_start_micros: Some(240_000),
+            edit_fade_in_curve_milli: Some(420),
+            edit_fade_out_start_milli: Some(700),
+            edit_fade_out_start_micros: Some(700_000),
+            edit_fade_out_mute_end_milli: Some(760),
+            edit_fade_out_mute_end_micros: Some(760_000),
+            edit_fade_out_curve_milli: Some(580),
+            ..WaveformPanelModel::default()
+        };
+        let preview = model.edit_preview();
+
+        assert_eq!(preview.selection, model.edit_selection_milli);
+        assert_eq!(preview.leading_end_milli, Some(300));
+        assert_eq!(preview.leading_inner_start_micros, Some(240_000));
+        assert_eq!(preview.leading_curve_milli, Some(420));
+        assert_eq!(preview.trailing_start_micros, Some(700_000));
+        assert_eq!(preview.trailing_inner_end_milli, Some(760));
+        assert_eq!(preview.trailing_curve_milli, Some(580));
     }
 }
 

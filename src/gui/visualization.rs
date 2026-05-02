@@ -85,6 +85,70 @@ pub struct TimelineViewport {
     pub end_nanos: u32,
 }
 
+/// Editable range and fade handles for a normalized timeline or signal view.
+///
+/// The structure is deliberately host-neutral: it models a selected interval,
+/// optional leading/trailing handle positions, and optional curve controls.
+/// Hosts decide whether those controls represent audio fades, animation ramps,
+/// trim previews, or other domain behavior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct TimelineEditPreview {
+    /// Range currently being edited.
+    pub selection: Option<NormalizedRange>,
+    /// End position for the leading/top handle in normalized milli-units.
+    pub leading_end_milli: Option<u16>,
+    /// End position for the leading/top handle in normalized micro-units.
+    pub leading_end_micros: Option<u32>,
+    /// Start position for the leading/bottom handle in normalized milli-units.
+    pub leading_inner_start_milli: Option<u16>,
+    /// Start position for the leading/bottom handle in normalized micro-units.
+    pub leading_inner_start_micros: Option<u32>,
+    /// Leading curve tension in normalized milli-units.
+    pub leading_curve_milli: Option<u16>,
+    /// Start position for the trailing/top handle in normalized milli-units.
+    pub trailing_start_milli: Option<u16>,
+    /// Start position for the trailing/top handle in normalized micro-units.
+    pub trailing_start_micros: Option<u32>,
+    /// End position for the trailing/bottom handle in normalized milli-units.
+    pub trailing_inner_end_milli: Option<u16>,
+    /// End position for the trailing/bottom handle in normalized micro-units.
+    pub trailing_inner_end_micros: Option<u32>,
+    /// Trailing curve tension in normalized milli-units.
+    pub trailing_curve_milli: Option<u16>,
+}
+
+impl TimelineEditPreview {
+    /// Build an edit preview with all handle positions supplied explicitly.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        selection: Option<NormalizedRange>,
+        leading_end_milli: Option<u16>,
+        leading_end_micros: Option<u32>,
+        leading_inner_start_milli: Option<u16>,
+        leading_inner_start_micros: Option<u32>,
+        leading_curve_milli: Option<u16>,
+        trailing_start_milli: Option<u16>,
+        trailing_start_micros: Option<u32>,
+        trailing_inner_end_milli: Option<u16>,
+        trailing_inner_end_micros: Option<u32>,
+        trailing_curve_milli: Option<u16>,
+    ) -> Self {
+        Self {
+            selection,
+            leading_end_milli,
+            leading_end_micros,
+            leading_inner_start_milli,
+            leading_inner_start_micros,
+            leading_curve_milli,
+            trailing_start_milli,
+            trailing_start_micros,
+            trailing_inner_end_milli,
+            trailing_inner_end_micros,
+            trailing_curve_milli,
+        }
+    }
+}
+
 impl TimelineViewport {
     /// Build a timeline viewport from explicit normalized bounds.
     pub fn new(
@@ -143,8 +207,8 @@ pub struct TimelineMarkerPreview {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChannelViewMode, PointRenderMode, SpatialPanel, SpatialPoint, TimelineMarkerPreview,
-        TimelineViewport,
+        ChannelViewMode, PointRenderMode, SpatialPanel, SpatialPoint, TimelineEditPreview,
+        TimelineMarkerPreview, TimelineViewport,
     };
     use crate::gui::range::NormalizedRange;
     use std::sync::Arc;
@@ -195,6 +259,39 @@ mod tests {
         assert_eq!(viewport.end_micros, 1_000_000);
         assert_eq!(viewport.start_nanos, 0);
         assert_eq!(viewport.end_nanos, 1_000_000_000);
+    }
+
+    #[test]
+    fn timeline_edit_preview_preserves_selection_and_handle_positions() {
+        let selection = NormalizedRange {
+            start_milli: 200,
+            end_milli: 800,
+            start_micros: 200_000,
+            end_micros: 800_000,
+            start_nanos: 200_000_000,
+            end_nanos: 800_000_000,
+        };
+        let preview = TimelineEditPreview::new(
+            Some(selection),
+            Some(300),
+            Some(300_000),
+            Some(240),
+            Some(240_000),
+            Some(420),
+            Some(700),
+            Some(700_000),
+            Some(760),
+            Some(760_000),
+            Some(580),
+        );
+
+        assert_eq!(preview.selection, Some(selection));
+        assert_eq!(preview.leading_end_micros, Some(300_000));
+        assert_eq!(preview.leading_inner_start_milli, Some(240));
+        assert_eq!(preview.leading_curve_milli, Some(420));
+        assert_eq!(preview.trailing_start_milli, Some(700));
+        assert_eq!(preview.trailing_inner_end_micros, Some(760_000));
+        assert_eq!(preview.trailing_curve_milli, Some(580));
     }
 
     #[test]

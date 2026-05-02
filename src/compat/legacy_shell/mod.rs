@@ -48,8 +48,8 @@ mod dirty_segments;
 mod motion;
 mod native_vello;
 mod runtime_artifacts;
-mod shell_snapshot;
 mod shell;
+mod shell_snapshot;
 mod sources;
 mod waveform;
 
@@ -72,26 +72,26 @@ pub use dirty_segments::{DirtySegments, SegmentRevisions};
 /// Compatibility alias for the generic shortcut resolution DTO.
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
+#[cfg(test)]
+pub(crate) use native_vello::PreviewBridge;
 pub use native_vello::{
     capture_gui_automation_snapshot, run_native_vello_app, run_native_vello_app_declarative,
     run_native_vello_app_declarative_with_artifacts, run_native_vello_app_with_artifacts,
     run_native_vello_preview,
 };
-#[cfg(test)]
-pub(crate) use native_vello::PreviewBridge;
 pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
-pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
     PairedPickerValueModel, ProgressOverlayModel, StatusBarModel, StatusChipStateModel,
     SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
+pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use sources::{
     ColumnModel, FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel,
     FolderRecoveryModel, FolderRowKind, FolderRowModel, SourceRowModel, SourcesPanelModel,
 };
 pub use waveform::{
-    NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformPanelModel,
-    WaveformSlicePreviewModel, WaveformViewportModel,
+    NormalizedRangeModel, WaveformChannelViewModel, WaveformChromeModel, WaveformEditPreviewModel,
+    WaveformPanelModel, WaveformSlicePreviewModel, WaveformViewportModel,
 };

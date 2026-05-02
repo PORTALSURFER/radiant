@@ -43,7 +43,7 @@ mod tests {
                 row_id,
                 width_bucket: 10,
                 font_size_bucket: 12,
-                text_kind: BrowserRowTextKind::Sample,
+                text_kind: BrowserRowTextKind::Item,
             };
             let _ = cache.resolve(key, "abcdefgh", 12.0, 10.0, &mut counts);
         }
@@ -57,13 +57,13 @@ mod tests {
             row_id: 0,
             width_bucket: 10,
             font_size_bucket: 12,
-            text_kind: BrowserRowTextKind::Sample,
+            text_kind: BrowserRowTextKind::Item,
         }));
         assert!(cache.values.contains_key(&BrowserRowTruncationEntryKey {
             row_id: BROWSER_ROW_TRUNCATION_CACHE_CAPACITY as u32,
             width_bucket: 10,
             font_size_bucket: 12,
-            text_kind: BrowserRowTextKind::Sample,
+            text_kind: BrowserRowTextKind::Item,
         }));
     }
 

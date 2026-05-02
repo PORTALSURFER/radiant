@@ -15,7 +15,7 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
     /// Primary item label text in browser rows.
-    Sample,
+    Item,
     /// Secondary inline metadata text in browser rows.
     Bucket,
 }
@@ -29,7 +29,7 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
     pub width_bucket: u16,
     /// Quantized font-size bucket used by truncation heuristics.
     pub font_size_bucket: u16,
-    /// Distinguishes sample-label vs bucket-label truncation outputs.
+    /// Distinguishes item-label vs bucket-label truncation outputs.
     pub text_kind: BrowserRowTextKind,
 }
 

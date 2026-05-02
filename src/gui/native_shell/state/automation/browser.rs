@@ -23,7 +23,7 @@ pub(super) fn build_browser_automation(
     );
     let mut children = vec![
         simple_node(
-            "browser.tab.samples",
+            "browser.tab.items",
             AutomationRole::Tab,
             Some(model.browser_chrome.items_tab_label.clone()),
             tabs.items,

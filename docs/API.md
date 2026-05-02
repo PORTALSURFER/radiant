@@ -153,10 +153,10 @@ label without owning product-specific preference names.
 
 Hosts project immutable surface snapshots. Radiant compares widget identity,
 layout inputs, style tokens, and paint data to keep redraw work focused. Generic
-invalidation primitives such as `InvalidationMask`, repaint signals, and frame
-feedback exist so backend runtimes can avoid unnecessary full-tree rebuilds and
-full redraws while still falling back conservatively when a host cannot provide
-fine-grained hints.
+invalidation primitives such as `InvalidationMask`, `RetainedSegmentMask`,
+repaint signals, and frame feedback exist so backend runtimes can avoid
+unnecessary full-tree rebuilds and full redraws while still falling back
+conservatively when a host cannot provide fine-grained hints.
 
 The lifecycle is:
 

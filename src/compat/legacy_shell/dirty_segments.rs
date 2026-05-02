@@ -1,11 +1,11 @@
 //! Retained-render segment invalidation contracts exposed by `radiant`.
 
-use crate::gui::invalidation::InvalidationMask;
+use crate::gui::invalidation::RetainedSegmentMask;
 
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DirtySegments {
-    mask: InvalidationMask,
+    mask: RetainedSegmentMask<0x00ff, 0x003f, 0x00c0>,
 }
 
 impl DirtySegments {
@@ -26,32 +26,24 @@ impl DirtySegments {
     /// Motion-overlay model fields.
     pub const MOTION_OVERLAY: u16 = 1 << 7;
 
-    const STATIC_MASK: u16 = Self::STATUS_BAR
-        | Self::BROWSER_FRAME
-        | Self::BROWSER_ROWS_WINDOW
-        | Self::MAP_PANEL
-        | Self::WAVEFORM_OVERLAY
-        | Self::GLOBAL_STATIC;
-    const OVERLAY_MASK: u16 = Self::STATE_OVERLAY | Self::MOTION_OVERLAY;
-
     /// Return an empty segment mask.
     pub const fn empty() -> Self {
         Self {
-            mask: InvalidationMask::empty(),
+            mask: RetainedSegmentMask::empty(),
         }
     }
 
     /// Return a full segment mask.
     pub const fn all() -> Self {
         Self {
-            mask: InvalidationMask::all(Self::VALID_MASK),
+            mask: RetainedSegmentMask::all(),
         }
     }
 
     /// Construct a segment mask from raw bits.
     pub const fn from_bits(bits: u16) -> Self {
         Self {
-            mask: InvalidationMask::from_bits(bits, Self::VALID_MASK),
+            mask: RetainedSegmentMask::from_bits(bits),
         }
     }
 
@@ -67,20 +59,18 @@ impl DirtySegments {
 
     /// Return `true` when any static segment requires rebuild.
     pub const fn requires_static_rebuild(self) -> bool {
-        self.mask.intersects(Self::STATIC_MASK)
+        self.mask.requires_static_rebuild()
     }
 
     /// Return `true` when any overlay segment requires rebuild.
     pub const fn requires_overlay_rebuild(self) -> bool {
-        self.mask.intersects(Self::OVERLAY_MASK)
+        self.mask.requires_overlay_rebuild()
     }
 
     /// Insert one or more segment bits into this mask.
     pub fn insert(&mut self, bits: u16) {
-        self.mask.insert(bits, Self::VALID_MASK);
+        self.mask.insert(bits);
     }
-
-    const VALID_MASK: u16 = Self::STATIC_MASK | Self::OVERLAY_MASK;
 }
 
 /// Monotonic revision counters for static projection segments.

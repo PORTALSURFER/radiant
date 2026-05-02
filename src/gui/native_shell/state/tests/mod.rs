@@ -199,6 +199,7 @@ mod overlays;
 mod playhead_trail_render;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/playhead_trail_state.rs"]
 mod playhead_trail_state;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/selection_states.rs"]
 mod selection_states;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/sidebar.rs"]
 mod sidebar;

@@ -3,6 +3,7 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
+pub use crate::gui::visualization::SignalChromeState as WaveformChromeStateModel;
 pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
@@ -335,5 +336,39 @@ impl Default for WaveformChromeModel {
             slice_mode_enabled: false,
             exact_duplicate_cleanup_available: false,
         }
+    }
+}
+
+impl WaveformChromeModel {
+    /// Return this chrome model's generic signal visualization display state.
+    pub fn signal_chrome(&self) -> WaveformChromeStateModel {
+        WaveformChromeStateModel::new(
+            self.transport_hint.clone(),
+            self.compare_anchor_available,
+            self.compare_anchor_label.clone(),
+            self.channel_view,
+        )
+    }
+}
+
+#[cfg(test)]
+mod chrome_tests {
+    use super::{WaveformChannelViewModel, WaveformChromeModel};
+
+    #[test]
+    fn signal_chrome_projects_generic_status_reference_and_channel_state() {
+        let chrome = WaveformChromeModel {
+            transport_hint: String::from("playing"),
+            compare_anchor_available: true,
+            compare_anchor_label: Some(String::from("A")),
+            channel_view: WaveformChannelViewModel::Stereo,
+            ..WaveformChromeModel::default()
+        };
+        let signal_chrome = chrome.signal_chrome();
+
+        assert_eq!(signal_chrome.status_hint, "playing");
+        assert!(signal_chrome.reference_anchor_available);
+        assert_eq!(signal_chrome.reference_anchor_label.as_deref(), Some("A"));
+        assert_eq!(signal_chrome.channel_view, WaveformChannelViewModel::Stereo);
     }
 }

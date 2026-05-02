@@ -84,6 +84,51 @@ pub struct SignalRasterPreview {
     pub image: Option<Arc<ImageRgba>>,
 }
 
+/// Generic chrome/status state for a signal visualization surface.
+///
+/// This captures reusable display state such as a transport/status hint,
+/// optional reference-anchor metadata, and channel layout. Host-specific tools
+/// and edit modes should remain in host state or compatibility adapters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SignalChromeState {
+    /// Extra status hint shown alongside visualization labels.
+    pub status_hint: String,
+    /// Whether a host-defined reference anchor is currently available.
+    pub reference_anchor_available: bool,
+    /// Label for the host-defined reference anchor, when available.
+    pub reference_anchor_label: Option<String>,
+    /// Channel layout used by the signal visualization.
+    pub channel_view: ChannelViewMode,
+}
+
+impl Default for SignalChromeState {
+    fn default() -> Self {
+        Self {
+            status_hint: String::from("idle"),
+            reference_anchor_available: false,
+            reference_anchor_label: None,
+            channel_view: ChannelViewMode::Mono,
+        }
+    }
+}
+
+impl SignalChromeState {
+    /// Build signal chrome state from explicit display values.
+    pub fn new(
+        status_hint: impl Into<String>,
+        reference_anchor_available: bool,
+        reference_anchor_label: Option<String>,
+        channel_view: ChannelViewMode,
+    ) -> Self {
+        Self {
+            status_hint: status_hint.into(),
+            reference_anchor_available,
+            reference_anchor_label,
+            channel_view,
+        }
+    }
+}
+
 impl SignalRasterPreview {
     /// Build a retained raster preview from explicit state.
     pub fn new(
@@ -245,8 +290,8 @@ pub struct TimelineMarkerPreview {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChannelViewMode, PointRenderMode, SignalRasterPreview, SpatialPanel, SpatialPoint,
-        TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
+        ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SpatialPanel,
+        SpatialPoint, TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
     };
     use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
@@ -303,6 +348,21 @@ mod tests {
         assert!(!preview.image_rendering);
         assert_eq!(preview.image_signature, Some(42));
         assert_eq!(preview.image.as_deref(), Some(image.as_ref()));
+    }
+
+    #[test]
+    fn signal_chrome_state_preserves_status_reference_and_channel_view() {
+        let chrome = SignalChromeState::new(
+            "playing",
+            true,
+            Some(String::from("A")),
+            ChannelViewMode::Stereo,
+        );
+
+        assert_eq!(chrome.status_hint, "playing");
+        assert!(chrome.reference_anchor_available);
+        assert_eq!(chrome.reference_anchor_label.as_deref(), Some("A"));
+        assert_eq!(chrome.channel_view, ChannelViewMode::Stereo);
     }
 
     #[test]

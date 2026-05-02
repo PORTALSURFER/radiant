@@ -650,6 +650,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "VirtualListWindow",
         "ContentListPanel<Row, Editor>",
         "ContentListActions",
+        "SignalChromeState",
         "SignalRasterPreview",
         "TimelineViewport",
         "TimelineEditPreview",

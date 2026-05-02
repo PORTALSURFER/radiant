@@ -169,6 +169,8 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
         "pub type FolderPaneModel = crate::gui::panel::SplitPaneTreePanel<FolderRowModel>;"
     ));
     assert!(panel_mod.contains("pub enum SplitPaneSlot"));
+    assert!(panel_mod.contains("pub fn select<'a, T>"));
+    assert!(panel_mod.contains("pub fn select_mut<'a, T>"));
     assert!(panel_mod.contains("pub struct SplitPaneAssignedRow"));
     assert!(panel_mod.contains("pub struct SplitPaneTreePanel<Row = EditableTreeRow>"));
 }

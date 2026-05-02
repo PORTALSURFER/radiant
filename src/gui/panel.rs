@@ -25,6 +25,22 @@ impl SplitPaneSlot {
             Self::Lower => "lower",
         }
     }
+
+    /// Select the value associated with this split-pane slot.
+    pub fn select<'a, T>(self, upper: &'a T, lower: &'a T) -> &'a T {
+        match self {
+            Self::Upper => upper,
+            Self::Lower => lower,
+        }
+    }
+
+    /// Select the mutable value associated with this split-pane slot.
+    pub fn select_mut<'a, T>(self, upper: &'a mut T, lower: &'a mut T) -> &'a mut T {
+        match self {
+            Self::Upper => upper,
+            Self::Lower => lower,
+        }
+    }
 }
 
 /// Labeled row that can be assigned to either side of a two-pane split surface.
@@ -149,6 +165,31 @@ mod tests {
     fn split_pane_slot_exposes_stable_routing_ids() {
         assert_eq!(SplitPaneSlot::Upper.as_str(), "upper");
         assert_eq!(SplitPaneSlot::Lower.as_str(), "lower");
+    }
+
+    #[test]
+    fn split_pane_slot_selects_matching_value() {
+        assert_eq!(
+            SplitPaneSlot::Upper.select(&"leading", &"trailing"),
+            &"leading"
+        );
+        assert_eq!(
+            SplitPaneSlot::Lower.select(&"leading", &"trailing"),
+            &"trailing"
+        );
+    }
+
+    #[test]
+    fn split_pane_slot_selects_matching_value_mutably() {
+        let mut upper = String::from("leading");
+        let mut lower = String::from("trailing");
+
+        SplitPaneSlot::Lower
+            .select_mut(&mut upper, &mut lower)
+            .push_str("-selected");
+
+        assert_eq!(upper, "leading");
+        assert_eq!(lower, "trailing-selected");
     }
 
     #[test]

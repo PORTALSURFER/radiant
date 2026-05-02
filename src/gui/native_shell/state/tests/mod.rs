@@ -193,6 +193,7 @@ mod folder_visibility_toggle;
 mod frame_build;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/overlay_controls.rs"]
 mod overlay_controls;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/overlays.rs"]
 mod overlays;
 mod playhead_trail_render;
 mod playhead_trail_state;

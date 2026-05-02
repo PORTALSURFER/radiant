@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::form::{DecimalTextInputPolicy, rounded_scaled_u16};
 
 /// Sanitize inserted BPM text so the field only accepts digits and one decimal
 /// separator while preserving the existing decimal point outside the selection.
@@ -7,32 +8,12 @@ pub(crate) fn sanitize_waveform_bpm_insert(
     selection_range: (usize, usize),
     inserted: &str,
 ) -> String {
-    let (selection_start, selection_end) = selection_range;
-    let mut sanitized = String::with_capacity(inserted.len());
-    let mut has_decimal =
-        current[..selection_start].contains('.') || current[selection_end..].contains('.');
-    for ch in inserted.chars() {
-        if ch.is_ascii_digit() {
-            sanitized.push(ch);
-        } else if ch == '.' && !has_decimal {
-            sanitized.push(ch);
-            has_decimal = true;
-        }
-    }
-    sanitized
+    DecimalTextInputPolicy::POSITIVE_FINITE.sanitize_insert(current, selection_range, inserted)
 }
 
 /// Parse a positive finite BPM value from one text field string.
 pub(crate) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let parsed = trimmed.parse::<f32>().ok()?;
-    if !parsed.is_finite() || parsed <= 0.0 {
-        return None;
-    }
-    Some(parsed)
+    DecimalTextInputPolicy::POSITIVE_FINITE.parse_value(text)
 }
 
 fn parse_projected_waveform_bpm_label(label: &str) -> Option<String> {
@@ -49,11 +30,7 @@ fn parse_projected_waveform_bpm_label(label: &str) -> Option<String> {
 
 /// Convert one BPM value into the tenths-based runtime action representation.
 pub(crate) fn bpm_tenths_from_value(value: f32) -> u16 {
-    let scaled = (value * 10.0).round();
-    if !scaled.is_finite() {
-        return 0;
-    }
-    scaled.clamp(0.0, u16::MAX as f32) as u16
+    rounded_scaled_u16(value, 10.0)
 }
 
 pub(super) fn waveform_bpm_text_from_model<B: NativeAppBridge>(

@@ -81,6 +81,8 @@ mod legacy_shell_runtime;
 mod profiling;
 #[cfg(feature = "legacy-shell")]
 mod runtime_actions;
+mod runtime_config;
+mod runtime_event;
 #[cfg(feature = "legacy-shell")]
 mod runtime_events;
 #[cfg(feature = "legacy-shell")]
@@ -116,6 +118,8 @@ use self::{startup::*, text_renderer::*};
 pub(in crate::gui_runtime::native_vello) use legacy_shell_runner::NativeVelloRunner;
 #[cfg(feature = "legacy-shell")]
 pub(in crate::gui_runtime::native_vello) use legacy_shell_config::*;
+pub(in crate::gui_runtime::native_vello) use runtime_config::*;
+pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
 #[cfg(feature = "legacy-shell")]
 pub(crate) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts;
 
@@ -126,62 +130,6 @@ pub use self::{
     },
     startup::NativeStartupTimingArtifact,
 };
-
-/// High-refresh surface present-mode preference order for animation-heavy playback UI.
-const HIGH_REFRESH_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 3] = [
-    wgpu::PresentMode::Mailbox,
-    wgpu::PresentMode::Immediate,
-    wgpu::PresentMode::AutoVsync,
-];
-/// Standard present-mode preference order for non-high-refresh UI.
-const STANDARD_PRESENT_MODE_CANDIDATES: [wgpu::PresentMode; 1] = [wgpu::PresentMode::AutoVsync];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RuntimeUserEvent {
-    RepaintRequested,
-}
-
-/// Return the ordered present-mode fallback chain for the configured frame target.
-fn present_mode_candidates(target_fps: u32) -> &'static [wgpu::PresentMode] {
-    if target_fps >= 120 {
-        &HIGH_REFRESH_PRESENT_MODE_CANDIDATES
-    } else {
-        &STANDARD_PRESENT_MODE_CANDIDATES
-    }
-}
-
-fn select_present_mode(
-    target_fps: u32,
-    supported_present_modes: &[wgpu::PresentMode],
-) -> wgpu::PresentMode {
-    present_mode_candidates(target_fps)
-        .iter()
-        .copied()
-        .find(|mode| present_mode_is_supported(*mode, supported_present_modes))
-        .or_else(|| supported_present_modes.first().copied())
-        .unwrap_or(wgpu::PresentMode::Fifo)
-}
-
-fn present_mode_is_supported(
-    present_mode: wgpu::PresentMode,
-    supported_present_modes: &[wgpu::PresentMode],
-) -> bool {
-    matches!(
-        present_mode,
-        wgpu::PresentMode::AutoVsync | wgpu::PresentMode::AutoNoVsync
-    ) || supported_present_modes.contains(&present_mode)
-}
-
-/// Build renderer startup options for the native shell's fixed AA strategy.
-///
-/// The native runtime currently renders every frame with [`AaConfig::Area`], so
-/// startup should avoid compiling MSAA shader variants that will never be used.
-fn startup_renderer_options() -> RendererOptions {
-    RendererOptions {
-        antialiasing_support: AaSupport::area_only(),
-        ..RendererOptions::default()
-    }
-}
 
 #[cfg(all(test, feature = "legacy-shell"))]
 mod tests;

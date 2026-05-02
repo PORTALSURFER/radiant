@@ -58,6 +58,8 @@ pub mod shortcuts;
 pub mod snapshot;
 /// Generic SVG subset parsing helpers used by retained icon rasterizers.
 pub mod svg;
+/// Retained text placement helpers for reusable layout and rendering adapters.
+pub mod text_layout;
 /// Geometry and image buffer types shared by UI code.
 pub mod types;
 /// Generic visualization primitives.

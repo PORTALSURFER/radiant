@@ -38,6 +38,7 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
     "src/gui/shortcuts.rs",
     "src/gui/snapshot.rs",
     "src/gui/svg.rs",
+    "src/gui/text_layout.rs",
     "src/gui/types.rs",
     "src/gui/visualization.rs",
 ];

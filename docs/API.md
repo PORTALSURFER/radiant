@@ -159,6 +159,11 @@ options to the host. `PreferencePanelState` models generic settings-panel
 visibility, a primary text value, fixed-size toggle state, and an auxiliary
 label without owning product-specific preference names.
 
+`radiant::gui::text_layout` contains retained text-line placement helpers such
+as `TextLineInsets`, `centered_text_line`, and `top_text_line`. These helpers
+provide deterministic cached geometry for renderer adapters that need to place
+single-line labels without owning host-domain text semantics.
+
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
 `TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,

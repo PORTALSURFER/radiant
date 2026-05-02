@@ -296,7 +296,7 @@ fn build_browser_pill_editor_automation(
 ) -> Option<AutomationNodeSnapshot> {
     let rect = browser_pill_editor_panel_rect(layout.browser_rows, style.sizing, model)?;
     let sidebar = &model.browser.pill_editor;
-    let normal_tag_labels = sidebar
+    let option_pill_labels = sidebar
         .option_pills
         .iter()
         .map(|pill| pill.label.as_str())
@@ -304,7 +304,7 @@ fn build_browser_pill_editor_automation(
         .join("|");
     let mut children = vec![
         simple_node(
-            "browser.tag_sidebar.input",
+            "browser.pill_editor.input",
             AutomationRole::SearchField,
             Some(sidebar.input_placeholder.clone()),
             rect,
@@ -318,13 +318,13 @@ fn build_browser_pill_editor_automation(
             ],
         ),
         browser_pill_editor_pill_node(
-            "browser.tag_sidebar.playback.loop",
+            "browser.pill_editor.exclusive.0",
             &sidebar.exclusive_pills[0],
             rect,
             vec![String::from("set_browser_sidebar_looped")],
         ),
         browser_pill_editor_pill_node(
-            "browser.tag_sidebar.playback.one_shot",
+            "browser.pill_editor.exclusive.1",
             &sidebar.exclusive_pills[1],
             rect,
             vec![String::from("set_browser_sidebar_looped")],
@@ -332,7 +332,7 @@ fn build_browser_pill_editor_automation(
     ];
     children.extend(sidebar.option_pills.iter().map(|pill| {
         browser_pill_editor_pill_node(
-            format!("browser.tag_sidebar.normal_tag.{}", slug(&pill.label)),
+            format!("browser.pill_editor.option.{}", slug(&pill.label)),
             pill,
             rect,
             vec![String::from("toggle_browser_pill_option")],
@@ -340,16 +340,16 @@ fn build_browser_pill_editor_automation(
     }));
     if let Some(pill) = sidebar.create_pill.as_ref() {
         children.push(browser_pill_editor_pill_node(
-            format!("browser.tag_sidebar.create_tag.{}", slug(&pill.id)),
+            format!("browser.pill_editor.create.{}", slug(&pill.id)),
             pill,
             rect,
             vec![String::from("toggle_browser_pill_option")],
         ));
     }
     let mut node = simple_node(
-        "browser.tag_sidebar",
+        "browser.pill_editor",
         AutomationRole::Panel,
-        Some(String::from("Tag sidebar")),
+        Some(String::from("Pill editor")),
         rect,
         Some(sidebar.header_label.clone()),
         true,
@@ -362,7 +362,7 @@ fn build_browser_pill_editor_automation(
             "primary_action_enabled",
             bool_text(sidebar.primary_action_enabled),
         ),
-        ("normal_tag_labels", &normal_tag_labels),
+        ("option_pill_labels", &option_pill_labels),
     ]);
     node.children = children;
     Some(node)
@@ -389,7 +389,7 @@ fn browser_pill_editor_pill_node(
         pill.state == BrowserPillState::On,
         available_actions,
     );
-    node.metadata = metadata(&[("tag_state", state), ("tag_id", pill.id.as_str())]);
+    node.metadata = metadata(&[("pill_state", state), ("pill_id", pill.id.as_str())]);
     node
 }
 

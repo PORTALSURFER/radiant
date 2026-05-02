@@ -643,11 +643,19 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         assert!(!source.contains("tag_sidebar: BrowserPillEditorModel"));
         assert!(!source.contains("tag_sidebar_open: bool"));
         assert!(!source.contains("model.browser.tag_sidebar"));
+        assert!(!source.contains("browser.tag_sidebar"));
+        assert!(!source.contains("normal_tag_labels"));
+        assert!(!source.contains("tag_state"));
+        assert!(!source.contains("tag_id"));
     }
     assert!(browser_mod.contains("pub pill_editor: BrowserPillEditorModel"));
     assert!(browser_mod.contains("pub pill_editor_open: bool"));
     assert!(text_runtime.contains("self.model.browser.pill_editor.input_value"));
     assert!(automation_browser.contains("model.browser.pill_editor"));
+    assert!(automation_browser.contains("browser.pill_editor"));
+    assert!(automation_browser.contains("option_pill_labels"));
+    assert!(automation_browser.contains("pill_state"));
+    assert!(automation_browser.contains("pill_id"));
 }
 
 #[test]

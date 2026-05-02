@@ -159,6 +159,11 @@ impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
             auxiliary_label,
         }
     }
+
+    /// Return one toggle state by stable host-defined index.
+    pub fn toggle_enabled(&self, index: usize) -> bool {
+        self.toggles.get(index).copied().unwrap_or(false)
+    }
 }
 
 /// Field currently expanded inside a paired picker surface.
@@ -363,6 +368,9 @@ mod tests {
         assert!(panel.visible);
         assert_eq!(panel.primary_text_value, "Default");
         assert_eq!(panel.toggles, [true, false, true]);
+        assert!(panel.toggle_enabled(0));
+        assert!(!panel.toggle_enabled(1));
+        assert!(!panel.toggle_enabled(99));
         assert_eq!(panel.auxiliary_label.as_deref(), Some("Folder"));
     }
 

@@ -454,6 +454,12 @@ fn legacy_shell_sources_are_feature_gated() {
     );
     assert!(
         !manifest_dir
+            .join("src/compat/legacy_shell/dirty_segments.rs")
+            .exists(),
+        "legacy dirty segment wrappers should not live in a separate compatibility module"
+    );
+    assert!(
+        !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),
         "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"
@@ -486,7 +492,9 @@ fn legacy_shell_sources_are_feature_gated() {
         "Sempal native-shell automation builders belong with Sempal composition, not Radiant native_shell"
     );
     assert!(
-        !manifest_dir.join("src/gui/native_shell/state/tests").exists(),
+        !manifest_dir
+            .join("src/gui/native_shell/state/tests")
+            .exists(),
         "Sempal native-shell state test harness belongs with Sempal composition tests, not Radiant native_shell"
     );
     assert!(

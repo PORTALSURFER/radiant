@@ -827,11 +827,8 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
-    let list_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/list.rs"
-    ))
-    .expect("generic list module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("generic list module should be readable");
     let text_runtime = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/text_runtime.rs"
@@ -949,11 +946,8 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("app browser model should be readable");
-    let list_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/list.rs"
-    ))
-    .expect("generic list module should be readable");
+    let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("generic list module should be readable");
     let shared_toolbar = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../src/app_core/native_shell/composition/browser_chrome_surface.rs"
@@ -1226,11 +1220,6 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("app module should be readable");
-    let dirty_segments_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/dirty_segments.rs"
-    ))
-    .expect("dirty segments module should be readable");
     let frame_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/frame.rs"))
         .expect("frame module should be readable");
     let invalidation_mod = fs::read_to_string(concat!(
@@ -1239,15 +1228,15 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     ))
     .expect("invalidation module should be readable");
 
-    assert!(!dirty_segments_mod.contains("pub struct FrameBuildResult"));
+    assert!(!app_mod.contains("pub struct FrameBuildResult"));
     assert!(app_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
     assert!(frame_mod.contains("pub struct FrameBuildResult"));
-    assert!(dirty_segments_mod.contains("RetainedSegmentMask"));
-    assert!(dirty_segments_mod.contains("RetainedSegmentRevisions"));
+    assert!(app_mod.contains("RetainedSegmentMask"));
+    assert!(app_mod.contains("RetainedSegmentRevisions"));
     assert!(invalidation_mod.contains("pub struct InvalidationMask"));
     assert!(invalidation_mod.contains("pub struct RetainedSegmentMask"));
     assert!(invalidation_mod.contains("pub struct RetainedSegmentRevisions"));
-    assert!(dirty_segments_mod.contains("retained_revisions"));
+    assert!(app_mod.contains("retained_revisions"));
 }
 
 #[test]

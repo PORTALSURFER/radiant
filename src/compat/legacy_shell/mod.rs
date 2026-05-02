@@ -40,9 +40,10 @@
 //! - [`DirtySegments`](crate::compat::legacy_shell::DirtySegments) and [`SegmentRevisions`](crate::compat::legacy_shell::SegmentRevisions) describe incremental rebuild hints.
 //! - [`NativeAppBridge`](crate::compat::legacy_shell::NativeAppBridge) defines the host/runtime integration boundary.
 
+use crate::gui::invalidation::{RetainedSegmentMask, RetainedSegmentRevisions};
+
 mod actions;
 mod bridge;
-mod dirty_segments;
 mod motion;
 mod native_vello;
 mod shell;
@@ -50,35 +51,34 @@ mod shell;
 mod shell_snapshot;
 mod waveform;
 
-pub use crate::gui::frame::FrameBuildResult;
-pub use crate::gui::input::KeyPress;
-pub use crate::gui::retained::RetainedVec;
-pub use crate::gui::shortcuts::ShortcutResolution;
-pub use actions::{BrowserTriageTarget, UiAction};
 pub use crate::gui::automation::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     GuiAutomationSnapshot,
 };
-pub use bridge::NativeAppBridge;
 pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;
-pub use crate::gui::list::ContentListActions as BrowserActionsModel;
-pub use crate::gui::list::ContentListRow as BrowserRowModel;
-pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;
-pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;
-pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 pub use crate::gui::feedback::RecoverySummary as FolderRecoveryModel;
 pub use crate::gui::focus::FocusSurface as FocusContextModel;
+pub use crate::gui::frame::FrameBuildResult;
+pub use crate::gui::input::KeyPress;
 pub use crate::gui::list::ColumnSummary as ColumnModel;
+pub use crate::gui::list::ContentListActions as BrowserActionsModel;
+pub use crate::gui::list::ContentListRow as BrowserRowModel;
 pub use crate::gui::list::EditableRowKind as FolderRowKind;
 pub use crate::gui::list::EditableTreeActions as FolderActionsModel;
 pub use crate::gui::list::EditableTreeRow as FolderRowModel;
+pub use crate::gui::list::RecencyBucket as PlaybackAgeBucket;
+pub use crate::gui::list::RecencyFilterChip as PlaybackAgeFilterChip;
+pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;
 pub use crate::gui::panel::SplitPaneAssignedRow as SourceRowModel;
 pub use crate::gui::panel::SplitPaneSlot as FolderPaneIdModel;
+pub use crate::gui::retained::RetainedVec;
 pub use crate::gui::selection::TriState as BrowserPillState;
+pub use crate::gui::shortcuts::ShortcutResolution;
 pub use crate::gui::visualization::PointRenderMode as MapRenderModeModel;
 pub use crate::gui::visualization::SpatialPanel as MapPanelModel;
 pub use crate::gui::visualization::SpatialPoint as MapPointModel;
-pub use dirty_segments::{DirtySegments, SegmentRevisions};
+pub use actions::{BrowserTriageTarget, UiAction};
+pub use bridge::NativeAppBridge;
 /// Compatibility alias for the generic shortcut resolution DTO.
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 pub use motion::NativeMotionModel;
@@ -96,9 +96,7 @@ pub use shell::{
     SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use shell_snapshot::capture_native_shell_shot_snapshot;
-pub use waveform::{
-    NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel,
-};
+pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};
 
 /// One clickable pill projected into the browser metadata sidebar.
 pub type BrowserPillModel = crate::gui::badge::SelectablePill<BrowserPillState>;
@@ -201,3 +199,145 @@ pub struct NativeRuntimeArtifacts {
 
 /// Result plus structured artifacts returned by one native compatibility-shell runtime execution.
 pub type NativeRunReport = crate::gui_runtime::RuntimeRunReport<NativeRuntimeArtifacts>;
+
+/// Bitmask describing which projection segments changed during the last model pull.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DirtySegments {
+    mask: RetainedSegmentMask<0x00ff, 0x003f, 0x00c0>,
+}
+
+impl DirtySegments {
+    /// Status-bar content segment.
+    pub const STATUS_BAR: u16 = 1 << 0;
+    /// Browser metadata/chrome segment.
+    pub const BROWSER_FRAME: u16 = 1 << 1;
+    /// Browser row-window segment.
+    pub const BROWSER_ROWS_WINDOW: u16 = 1 << 2;
+    /// Map-panel segment.
+    pub const MAP_PANEL: u16 = 1 << 3;
+    /// Waveform panel/chrome segment.
+    pub const WAVEFORM_OVERLAY: u16 = 1 << 4;
+    /// Static content that is outside explicit segment buckets.
+    pub const GLOBAL_STATIC: u16 = 1 << 5;
+    /// State-overlay model fields.
+    pub const STATE_OVERLAY: u16 = 1 << 6;
+    /// Motion-overlay model fields.
+    pub const MOTION_OVERLAY: u16 = 1 << 7;
+
+    /// Return an empty segment mask.
+    pub const fn empty() -> Self {
+        Self {
+            mask: RetainedSegmentMask::empty(),
+        }
+    }
+
+    /// Return a full segment mask.
+    pub const fn all() -> Self {
+        Self {
+            mask: RetainedSegmentMask::all(),
+        }
+    }
+
+    /// Construct a segment mask from raw bits.
+    pub const fn from_bits(bits: u16) -> Self {
+        Self {
+            mask: RetainedSegmentMask::from_bits(bits),
+        }
+    }
+
+    /// Return raw bit contents for diagnostics and tests.
+    pub const fn bits(self) -> u16 {
+        self.mask.bits()
+    }
+
+    /// Return `true` when the mask contains no segments.
+    pub const fn is_empty(self) -> bool {
+        self.mask.is_empty()
+    }
+
+    /// Return `true` when any static segment requires rebuild.
+    pub const fn requires_static_rebuild(self) -> bool {
+        self.mask.requires_static_rebuild()
+    }
+
+    /// Return `true` when any overlay segment requires rebuild.
+    pub const fn requires_overlay_rebuild(self) -> bool {
+        self.mask.requires_overlay_rebuild()
+    }
+
+    /// Insert one or more segment bits into this mask.
+    pub fn insert(&mut self, bits: u16) {
+        self.mask.insert(bits);
+    }
+}
+
+/// Monotonic revision counters for static projection segments.
+///
+/// Bridges bump the counters for segments whose projected model slices changed on
+/// the most recent `pull_model`. Runtimes use these revisions in retained-scene
+/// cache keys to avoid expensive segment hashing on every frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SegmentRevisions {
+    /// Status-bar projection revision.
+    pub status_bar: u64,
+    /// Browser metadata/chrome projection revision.
+    pub browser_frame: u64,
+    /// Browser visible-row window projection revision.
+    pub browser_rows_window: u64,
+    /// Map-panel projection revision.
+    pub map_panel: u64,
+    /// Waveform panel/chrome projection revision.
+    pub waveform_overlay: u64,
+    /// Global static fields projection revision.
+    pub global_static: u64,
+}
+
+impl SegmentRevisions {
+    /// Return these named compatibility revisions as a generic retained segment array.
+    pub const fn retained_revisions(self) -> RetainedSegmentRevisions<6> {
+        RetainedSegmentRevisions::new([
+            self.status_bar,
+            self.browser_frame,
+            self.browser_rows_window,
+            self.map_panel,
+            self.waveform_overlay,
+            self.global_static,
+        ])
+    }
+
+    /// Return whether any static-segment revision is non-zero.
+    pub fn has_static_revisions(self) -> bool {
+        self.retained_revisions().has_revisions()
+    }
+
+    /// Bump revisions for the static segments flagged in `dirty_segments`.
+    pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
+        let bits = dirty_segments.bits();
+        let mut revisions = self.retained_revisions();
+        revisions.bump_for_bits(
+            bits,
+            [
+                DirtySegments::STATUS_BAR,
+                DirtySegments::BROWSER_FRAME,
+                DirtySegments::BROWSER_ROWS_WINDOW,
+                DirtySegments::MAP_PANEL,
+                DirtySegments::WAVEFORM_OVERLAY,
+                DirtySegments::GLOBAL_STATIC,
+            ],
+        );
+        let [
+            status_bar,
+            browser_frame,
+            browser_rows_window,
+            map_panel,
+            waveform_overlay,
+            global_static,
+        ] = revisions.revisions;
+        self.status_bar = status_bar;
+        self.browser_frame = browser_frame;
+        self.browser_rows_window = browser_rows_window;
+        self.map_panel = map_panel;
+        self.waveform_overlay = waveform_overlay;
+        self.global_static = global_static;
+    }
+}

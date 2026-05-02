@@ -34,9 +34,9 @@ pub enum UiAction {
     // Transport and global playback actions.
     /// Toggle transport playback state.
     ToggleTransport,
-    /// Replay the stored compare-anchor sample without changing browser focus.
+    /// Replay the stored compare-anchor item without changing browser focus.
     PlayCompareAnchor,
-    /// Start playback from the beginning of the active sample.
+    /// Start playback from the beginning of the active content item.
     PlayFromStart,
     /// Start playback from the current playhead or cursor position.
     PlayFromCurrentPlayhead,
@@ -144,7 +144,7 @@ pub enum UiAction {
         /// Full folder-search query text.
         query: String,
     },
-    /// Toggle whether the folder tree shows disk folders without WAV-backed samples.
+    /// Toggle whether the folder tree shows disk folders without indexed content.
     ToggleShowAllFolders {
         /// Pane whose folder-visibility toggle was activated, or `None` for the active pane.
         pane: Option<FolderPaneIdModel>,
@@ -301,17 +301,17 @@ pub enum UiAction {
     },
     /// Store the focused content item as the compare-anchor reference.
     SetCompareAnchorFromFocusedContent,
-    /// Commit the currently focused browser row as the active loaded sample.
+    /// Commit the currently focused browser row as the active loaded content.
     CommitFocusedBrowserRow,
-    /// Save the current waveform selection or slices into the browser as a new sample.
+    /// Save the current waveform selection or slices into the browser as new content.
     SaveWaveformSelectionToBrowser,
     /// Save the current waveform selection or slices and mark exported clips keep-2.
     SaveWaveformSelectionToBrowserWithKeep2,
     /// Commit preview fades for the active waveform edit selection.
     CommitWaveformEditFades,
-    /// Detect silence-split waveform slices for the loaded sample.
+    /// Detect silence-split waveform slices for the loaded content.
     DetectWaveformSilenceSlices,
-    /// Detect near-duplicate windows for the loaded sample using the current selection size.
+    /// Detect near-duplicate windows for the loaded content using the current selection size.
     DetectWaveformExactDuplicateSlices,
     /// Clean near-duplicate windows while keeping the first occurrence.
     CleanWaveformExactDuplicateSlices,
@@ -397,11 +397,11 @@ pub enum UiAction {
     },
     /// Toggle the session mark for the focused content row or current multi-selection.
     ToggleContentMark,
-    /// Toggle whether the browser shows only session-marked samples.
+    /// Toggle whether the browser shows only session-marked items.
     ToggleBrowserMarkedFilter,
-    /// Toggle whether the browser shows samples already named from tags.
+    /// Toggle whether the browser shows items already named from tags.
     ToggleBrowserTagNamedFilter {
-        /// Whether the click should show samples not yet named from tags.
+        /// Whether the click should show items not yet named from tags.
         invert: bool,
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
@@ -410,11 +410,11 @@ pub enum UiAction {
     ToggleBrowserTagSidebar,
     /// Toggle auto-rename for browser metadata sidebar edits.
     ToggleBrowserTagSidebarAutoRename,
-    /// Toggle browser duplicate-cleanup mode for the focused browser sample.
+    /// Toggle browser duplicate-cleanup mode for the focused browser item.
     ToggleBrowserDuplicateCleanupMode,
-    /// Focus the previous browser sample from focus history.
+    /// Focus the previous browser item from focus history.
     FocusPreviousBrowserHistory,
-    /// Focus the next browser sample from focus history.
+    /// Focus the next browser item from focus history.
     FocusNextBrowserHistory,
     /// Toggle find-similar mode for the focused content item.
     ToggleFindSimilarFocusedContent,
@@ -585,7 +585,7 @@ pub enum UiAction {
     },
     /// Toggle loop-playback state.
     ToggleLoopPlayback,
-    /// Enter or cycle the locked loop override across sample changes.
+    /// Enter or cycle the locked loop override across content changes.
     ToggleLoopLock,
     /// Set waveform channel view mode.
     SetWaveformChannelView {
@@ -688,9 +688,9 @@ pub enum UiAction {
     },
     /// Begin one circular waveform-slide gesture from an exact anchor point.
     ///
-    /// Hosts use this for wrap-drag sample rotation: while the gesture is
+    /// Hosts use this for wrap-drag content rotation: while the gesture is
     /// active, pointer motion rotates the waveform preview in a wrapping
-    /// manner, and release commits the rotated sample to disk.
+    /// manner, and release commits the rotated content to disk.
     BeginWaveformCircularSlide {
         /// Exact anchor position in normalized micro-units.
         anchor_micros: u32,

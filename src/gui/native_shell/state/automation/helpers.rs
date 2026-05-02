@@ -225,7 +225,7 @@ pub(super) fn action_slug(action: &UiAction) -> String {
         UiAction::CancelBrowserRename => "cancel_browser_rename",
         UiAction::TagBrowserSelection { .. } => "tag_browser_selection",
         UiAction::DeleteBrowserSelection => "delete_browser_selection",
-        UiAction::NormalizeFocusedBrowserSample => "normalize_focused_browser_sample",
+        UiAction::NormalizeFocusedContentItem => "normalize_focused_content_item",
         UiAction::NormalizeWaveformSelectionOrSample => "normalize_waveform_selection_or_sample",
         UiAction::CropWaveformSelection => "crop_waveform_selection",
         UiAction::CropWaveformSelectionToNewSample => "crop_waveform_selection_to_new_sample",

@@ -80,7 +80,7 @@ fn global_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<U
 fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<UiAction> {
     match press {
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::N) => {
-            Some(UiAction::NormalizeFocusedBrowserSample)
+            Some(UiAction::NormalizeFocusedContentItem)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::D) => {
             Some(UiAction::DeleteBrowserSelection)

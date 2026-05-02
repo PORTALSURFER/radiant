@@ -488,8 +488,8 @@ pub enum UiAction {
     },
     /// Delete focused/selected browser rows.
     DeleteBrowserSelection,
-    /// Normalize the focused browser sample in-place.
-    NormalizeFocusedBrowserSample,
+    /// Normalize the focused list content item in-place.
+    NormalizeFocusedContentItem,
     /// Normalize the waveform selection, or the loaded sample when no selection is active.
     NormalizeWaveformSelectionOrSample,
     /// Crop the waveform file down to the active selection.

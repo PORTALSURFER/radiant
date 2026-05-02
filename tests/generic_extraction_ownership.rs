@@ -505,6 +505,33 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let key_bindings = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/tests/key_bindings.rs"
+    ))
+    .expect("key binding tests should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &key_bindings] {
+        assert!(!source.contains("NormalizeFocusedBrowserSample"));
+        assert!(!source.contains("normalize_focused_browser_sample"));
+    }
+    assert!(actions_mod.contains("NormalizeFocusedContentItem"));
+    assert!(automation_helpers.contains("normalize_focused_content_item"));
+    assert!(key_bindings.contains("UiAction::NormalizeFocusedContentItem"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

@@ -48,7 +48,7 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     };
     assert_eq!(
         resolved_action(KeyCode::N, ModifiersState::default(), &browser),
-        Some(UiAction::NormalizeFocusedBrowserSample)
+        Some(UiAction::NormalizeFocusedContentItem)
     );
     assert_eq!(
         resolved_action(KeyCode::D, ModifiersState::default(), &browser),

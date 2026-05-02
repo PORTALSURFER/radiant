@@ -117,6 +117,50 @@ pub struct SummaryField {
     pub value_label: String,
 }
 
+/// Generic state for a compact preferences/settings panel.
+///
+/// The fixed-size toggle array keeps projection cheap for hot signatures while
+/// avoiding product-specific setting names in Radiant-owned APIs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreferencePanelState<const TOGGLES: usize> {
+    /// Whether the panel is visible.
+    pub visible: bool,
+    /// Primary editable text value shown in the panel.
+    pub primary_text_value: String,
+    /// Enabled states for product-defined toggles.
+    pub toggles: [bool; TOGGLES],
+    /// Optional auxiliary path, destination, or detail label.
+    pub auxiliary_label: Option<String>,
+}
+
+impl<const TOGGLES: usize> Default for PreferencePanelState<TOGGLES> {
+    fn default() -> Self {
+        Self {
+            visible: false,
+            primary_text_value: String::new(),
+            toggles: [false; TOGGLES],
+            auxiliary_label: None,
+        }
+    }
+}
+
+impl<const TOGGLES: usize> PreferencePanelState<TOGGLES> {
+    /// Build preference panel state from explicit generic fields.
+    pub fn new(
+        visible: bool,
+        primary_text_value: impl Into<String>,
+        toggles: [bool; TOGGLES],
+        auxiliary_label: Option<String>,
+    ) -> Self {
+        Self {
+            visible,
+            primary_text_value: primary_text_value.into(),
+            toggles,
+            auxiliary_label,
+        }
+    }
+}
+
 /// Field currently expanded inside a paired picker surface.
 ///
 /// Paired pickers are useful for option panels that expose the same group/item/
@@ -282,8 +326,8 @@ impl<Value> PairedStatusPanel<Value> {
 mod tests {
     use super::{
         DecimalTextInputPolicy, OptionItem, PairedPickerTarget, PairedPickerValue,
-        PairedStatusPanel, SummaryField, parse_finite_decimal_text, rounded_scaled_u16,
-        sanitize_decimal_text_insert,
+        PairedStatusPanel, PreferencePanelState, SummaryField, parse_finite_decimal_text,
+        rounded_scaled_u16, sanitize_decimal_text_insert,
     };
 
     #[test]
@@ -305,6 +349,21 @@ mod tests {
 
         assert_eq!(field.label, "");
         assert_eq!(field.value_label, "");
+    }
+
+    #[test]
+    fn preference_panel_state_preserves_visibility_text_toggles_and_auxiliary_label() {
+        let panel = PreferencePanelState::new(
+            true,
+            "Default",
+            [true, false, true],
+            Some(String::from("Folder")),
+        );
+
+        assert!(panel.visible);
+        assert_eq!(panel.primary_text_value, "Default");
+        assert_eq!(panel.toggles, [true, false, true]);
+        assert_eq!(panel.auxiliary_label.as_deref(), Some("Folder"));
     }
 
     #[test]

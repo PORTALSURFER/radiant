@@ -9,6 +9,7 @@ pub use crate::gui::feedback::UpdatePanel as UpdatePanelModel;
 pub use crate::gui::feedback::UpdateStatus as UpdateStatusModel;
 pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;
 pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;
+pub use crate::gui::form::PreferencePanelState as PreferencePanelStateModel;
 pub use crate::gui::form::SummaryField as SummaryFieldModel;
 
 use super::{
@@ -40,6 +41,23 @@ pub struct OptionsPanelModel {
     pub invert_waveform_scroll_enabled: bool,
     /// Short display label for the configured trash folder, when available.
     pub trash_folder_label: Option<String>,
+}
+
+impl OptionsPanelModel {
+    /// Return this panel's generic preference/settings state.
+    pub fn preference_state(&self) -> PreferencePanelStateModel<4> {
+        PreferencePanelStateModel::new(
+            self.visible,
+            self.default_identifier.clone(),
+            [
+                self.input_monitoring_enabled,
+                self.advance_after_rating_enabled,
+                self.destructive_yolo_mode_enabled,
+                self.invert_waveform_scroll_enabled,
+            ],
+            self.trash_folder_label.clone(),
+        )
+    }
 }
 
 /// Modal confirmation prompt projected into the native shell.

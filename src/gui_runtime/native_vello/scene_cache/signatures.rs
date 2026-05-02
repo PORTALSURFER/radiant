@@ -351,22 +351,13 @@ pub(in super::super) fn focus_overlay_model_signature(
 
 pub(in super::super) fn modal_overlay_model_signature(model: &AppModel) -> u64 {
     let mut state = FINGERPRINT_FNV_OFFSET_BASIS;
-    fingerprint_mix_bool(&mut state, model.options_panel.visible);
-    fingerprint_mix_string(&mut state, &model.options_panel.default_identifier);
-    fingerprint_mix_bool(&mut state, model.options_panel.input_monitoring_enabled);
-    fingerprint_mix_bool(&mut state, model.options_panel.advance_after_rating_enabled);
-    fingerprint_mix_bool(
-        &mut state,
-        model.options_panel.destructive_yolo_mode_enabled,
-    );
-    fingerprint_mix_bool(
-        &mut state,
-        model.options_panel.invert_waveform_scroll_enabled,
-    );
-    fingerprint_mix_option_string(
-        &mut state,
-        model.options_panel.trash_folder_label.as_deref(),
-    );
+    let preferences = model.options_panel.preference_state();
+    fingerprint_mix_bool(&mut state, preferences.visible);
+    fingerprint_mix_string(&mut state, &preferences.primary_text_value);
+    for enabled in preferences.toggles {
+        fingerprint_mix_bool(&mut state, enabled);
+    }
+    fingerprint_mix_option_string(&mut state, preferences.auxiliary_label.as_deref());
     fingerprint_mix_string(&mut state, &model.browser_chrome.items_tab_label);
     fingerprint_mix_string(&mut state, &model.browser_chrome.map_tab_label);
     fingerprint_mix_usize(

@@ -683,6 +683,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "InvalidationMask",
         "ContentViewChrome",
         "PairedStatusPanel",
+        "PreferencePanelState",
     ] {
         assert!(
             docs.contains(required),

@@ -14,5 +14,4 @@
 pattern	disposition	issue	notes
 src/compat/legacy_shell/**	move_to_sempal	OPT-270	Sempal model action hotkey automation and DTO contracts must move to Sempal.
 src/gui/native_shell/**	split_generic_from_compat	OPT-275	Native-shell compatibility tree must split generic primitives from Sempal shell composition and move/delete the rest.
-src/gui_runtime/native_vello.rs	split_generic_from_compat	OPT-275	Native Vello facade still mixes generic and Sempal compatibility runtime entrypoints.
 src/gui_runtime/native_vello/**	split_generic_from_compat	OPT-275	Native Vello tree mixes generic runtime support with Sempal shell input render startup and test glue.

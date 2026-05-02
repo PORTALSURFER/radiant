@@ -3,28 +3,10 @@
 #![cfg_attr(not(feature = "legacy-shell"), allow(dead_code))]
 
 use super::{NativeRunOptions, WindowIconRgba};
-#[cfg(all(test, feature = "legacy-shell"))]
-use crate::compat::legacy_shell::PreviewBridge;
-#[cfg(feature = "legacy-shell")]
-use crate::compat::legacy_shell::{
-    AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
-    NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,
-};
-#[cfg(feature = "legacy-shell")]
-use crate::gui::input::KeyCode;
 use crate::gui::{
     input::key_code_from_winit,
     paint::{TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
-};
-#[cfg(feature = "legacy-shell")]
-use crate::gui::{
-    native_shell::{
-        ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, ShellLayout,
-        ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment, StaticFrameSegments, StyleTokens,
-        TextFieldVisualState, WaveformMotionOverlayFingerprint,
-    },
-    paint::{PaintFrame as NativeViewFrame, Primitive},
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
@@ -39,11 +21,6 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-#[cfg(feature = "legacy-shell")]
-use std::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
-};
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
@@ -51,11 +28,6 @@ use vello::{
     kurbo::{Affine, Rect as KurboRect},
     peniko::{Blob, Color, Fill, FontData},
     wgpu,
-};
-#[cfg(feature = "legacy-shell")]
-use vello::{
-    kurbo::{Circle, Point as KurboPoint},
-    peniko::{Gradient, ImageAlphaType, ImageData, ImageFormat},
 };
 use winit::{
     application::ApplicationHandler,
@@ -65,14 +37,14 @@ use winit::{
     keyboard::{Key, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},
 };
-#[cfg(feature = "legacy-shell")]
-use winit::{event::MouseScrollDelta, keyboard::ModifiersState, window::CursorIcon};
 
 mod generic_runtime;
 #[cfg(feature = "legacy-shell")]
 mod input;
 #[cfg(feature = "legacy-shell")]
 mod legacy_shell_config;
+#[cfg(feature = "legacy-shell")]
+mod legacy_shell_prelude;
 #[cfg(feature = "legacy-shell")]
 mod legacy_shell_runner;
 #[cfg(feature = "legacy-shell")]
@@ -109,8 +81,8 @@ mod text_runtime;
 
 #[cfg(feature = "legacy-shell")]
 use self::{
-    input::*, profiling::*, runtime_state::*, scene_cache::*, scene_rebuild::*, startup::*,
-    text_bpm::*, text_edit::*, text_renderer::*,
+    input::*, legacy_shell_prelude::*, profiling::*, runtime_state::*, scene_cache::*,
+    scene_rebuild::*, startup::*, text_bpm::*, text_edit::*, text_renderer::*,
 };
 #[cfg(not(feature = "legacy-shell"))]
 use self::{startup::*, text_renderer::*};

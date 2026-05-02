@@ -697,6 +697,8 @@ fn legacy_shell_sources_are_feature_gated() {
         "fn select_present_mode",
         "fn startup_renderer_options",
         "enum RuntimeUserEvent",
+        "crate::compat::legacy_shell",
+        "crate::gui::native_shell",
         "pub fn run_native_vello_app",
         "pub fn run_native_vello_app_with_artifacts",
         "pub fn run_native_vello_app_declarative",
@@ -765,6 +767,7 @@ fn legacy_shell_sources_are_feature_gated() {
             &[
                 "#[cfg(feature = \"legacy-shell\")]\nmod input",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_config",
+                "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_prelude",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runner",
                 "#[cfg(feature = \"legacy-shell\")]\nmod legacy_shell_runtime",
                 "mod runtime_config",

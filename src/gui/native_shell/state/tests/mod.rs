@@ -189,6 +189,7 @@ mod browser_toolbar;
 mod chrome_layout;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/folder_visibility_toggle.rs"]
 mod folder_visibility_toggle;
+#[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/frame_build.rs"]
 mod frame_build;
 #[path = "../../../../../../../src/app_core/native_shell/composition/state/tests/overlay_controls.rs"]
 mod overlay_controls;

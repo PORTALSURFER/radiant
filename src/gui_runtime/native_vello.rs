@@ -374,8 +374,8 @@ struct NativeVelloRunner<B: NativeAppBridge> {
     waveform_click_seek_press: Option<WaveformClickSeekPress>,
     /// Deferred browser-row press captured until click-vs-drag resolution.
     pending_browser_row_press: Option<PendingBrowserRowPress>,
-    /// Active browser sample drag state for primary pointer movement.
-    browser_sample_drag: Option<BrowserSampleDragState>,
+    /// Active browser content-item drag state for primary pointer movement.
+    content_item_drag: Option<ContentItemDragState>,
     /// Whether a waveform-selection export drag is currently active.
     selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.

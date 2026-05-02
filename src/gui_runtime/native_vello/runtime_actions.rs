@@ -49,9 +49,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::SetWaveformEditFadeOutMuteEnd { .. }
             | UiAction::SetWaveformEditFadeOutCurve { .. }
             | UiAction::FinishWaveformEditFadeDrag
-            | UiAction::StartBrowserSampleDrag { .. }
-            | UiAction::UpdateBrowserSampleDrag { .. }
-            | UiAction::FinishBrowserSampleDrag
+            | UiAction::StartContentItemDrag { .. }
+            | UiAction::UpdateContentItemDrag { .. }
+            | UiAction::FinishContentItemDrag
             | UiAction::StartWaveformSelectionDrag { .. }
             | UiAction::UpdateWaveformSelectionDrag { .. }
             | UiAction::FinishWaveformSelectionDrag
@@ -94,9 +94,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             UiAction::SetBrowserTab { map: true } | UiAction::FocusSpatialContentItem { .. } => {
                 Some(InteractionProfileKind::MapPanProxy)
             }
-            UiAction::StartBrowserSampleDrag { .. }
-            | UiAction::UpdateBrowserSampleDrag { .. }
-            | UiAction::FinishBrowserSampleDrag => Some(InteractionProfileKind::Hover),
+            UiAction::StartContentItemDrag { .. }
+            | UiAction::UpdateContentItemDrag { .. }
+            | UiAction::FinishContentItemDrag => Some(InteractionProfileKind::Hover),
             UiAction::SeekWaveformPrecise { .. }
             | UiAction::SeekWaveform { .. }
             | UiAction::PlayFromStart

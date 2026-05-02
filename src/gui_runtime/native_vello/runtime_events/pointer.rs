@@ -52,7 +52,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.last_cursor = Some(point);
         self.note_cursor_activity(Instant::now());
-        if self.maybe_start_browser_sample_drag(point) {
+        if self.maybe_start_content_item_drag(point) {
             return;
         }
         let session = self.active_pointer_session();
@@ -93,8 +93,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             ActivePointerSession::WaveformDrag => {
                 let _ = self.process_waveform_drag_immediately(point);
             }
-            ActivePointerSession::BrowserSampleDrag => {
-                let _ = self.process_browser_sample_drag_immediately(point);
+            ActivePointerSession::ContentItemDrag => {
+                let _ = self.process_content_item_drag_immediately(point);
                 let _ = self.maybe_launch_external_drag_session(false, false);
             }
             ActivePointerSession::SelectionDrag => {

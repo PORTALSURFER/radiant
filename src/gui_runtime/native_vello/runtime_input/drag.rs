@@ -176,12 +176,12 @@ where
         true
     }
 
-    /// Process one browser-sample drag cursor update.
-    pub(crate) fn process_browser_sample_drag_immediately(&mut self, point: Point) -> bool {
+    /// Process one browser content-item drag cursor update.
+    pub(crate) fn process_content_item_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
-        let Some(_drag) = self.browser_sample_drag else {
+        let Some(_drag) = self.content_item_drag else {
             return false;
         };
         let (hovered_projected_folder_row, over_folder_panel) = self
@@ -199,7 +199,7 @@ where
                     .or(Some(projected_index))
             });
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
-        self.emit_model_action(UiAction::UpdateBrowserSampleDrag {
+        self.emit_model_action(UiAction::UpdateContentItemDrag {
             pointer_x,
             pointer_y,
             hovered_folder_pane,
@@ -348,7 +348,7 @@ where
         })
     }
 
-    pub(crate) fn maybe_start_browser_sample_drag(&mut self, point: Point) -> bool {
+    pub(crate) fn maybe_start_content_item_drag(&mut self, point: Point) -> bool {
         let Some(pending_press) = self.pending_browser_row_press.clone() else {
             return false;
         };
@@ -357,13 +357,13 @@ where
         }
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
         self.pending_browser_row_press = None;
-        self.begin_browser_sample_drag(pending_press.visible_row);
-        self.emit_model_action(UiAction::StartBrowserSampleDrag {
+        self.begin_content_item_drag(pending_press.visible_row);
+        self.emit_model_action(UiAction::StartContentItemDrag {
             visible_row: pending_press.visible_row,
             pointer_x,
             pointer_y,
         });
-        self.process_browser_sample_drag_immediately(point)
+        self.process_content_item_drag_immediately(point)
     }
 }
 

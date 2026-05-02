@@ -603,6 +603,62 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
 }
 
 #[test]
+fn compat_action_catalog_uses_generic_content_item_drag_actions() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let runtime_shell = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello.rs"
+    ))
+    .expect("runtime shell should be readable");
+    let runtime_state = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/runtime_state.rs"
+    ))
+    .expect("runtime state should be readable");
+    let runtime_drag = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/runtime_input/drag.rs"
+    ))
+    .expect("runtime drag should be readable");
+
+    for source in [
+        &actions_mod,
+        &automation_helpers,
+        &runtime_shell,
+        &runtime_state,
+        &runtime_drag,
+    ] {
+        assert!(!source.contains("StartBrowserSampleDrag"));
+        assert!(!source.contains("UpdateBrowserSampleDrag"));
+        assert!(!source.contains("FinishBrowserSampleDrag"));
+        assert!(!source.contains("start_browser_sample_drag"));
+        assert!(!source.contains("update_browser_sample_drag"));
+        assert!(!source.contains("finish_browser_sample_drag"));
+        assert!(!source.contains("BrowserSampleDrag"));
+        assert!(!source.contains("browser_sample_drag"));
+        assert!(!source.contains("browser-sample drag"));
+    }
+    assert!(actions_mod.contains("StartContentItemDrag"));
+    assert!(actions_mod.contains("UpdateContentItemDrag"));
+    assert!(actions_mod.contains("FinishContentItemDrag"));
+    assert!(automation_helpers.contains("start_content_item_drag"));
+    assert!(automation_helpers.contains("update_content_item_drag"));
+    assert!(automation_helpers.contains("finish_content_item_drag"));
+    assert!(runtime_shell.contains("content_item_drag: Option<ContentItemDragState>"));
+    assert!(runtime_state.contains("pub(super) struct ContentItemDragState"));
+    assert!(runtime_drag.contains("UiAction::StartContentItemDrag"));
+}
+
+#[test]
 fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     let app_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/mod.rs"))
         .expect("app module should be readable");

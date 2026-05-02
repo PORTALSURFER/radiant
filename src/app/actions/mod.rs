@@ -320,12 +320,12 @@ pub enum UiAction {
         /// Target visible row index in the browser list.
         visible_row: usize,
     },
-    /// Start dragging one browser sample or the active browser multi-selection.
+    /// Start dragging one browser content item or the active browser multi-selection.
     ///
     /// The runtime emits this only after a browser-row press exceeds drag slop,
     /// so plain clicks can still resolve into the existing focus/selection
     /// actions on release without changing preview behavior.
-    StartBrowserSampleDrag {
+    StartContentItemDrag {
         /// Target visible row index that armed the drag session.
         visible_row: usize,
         /// Pointer x-position in logical UI coordinates.
@@ -333,8 +333,8 @@ pub enum UiAction {
         /// Pointer y-position in logical UI coordinates.
         pointer_y: u16,
     },
-    /// Update the active browser-sample drag with the latest pointer position.
-    UpdateBrowserSampleDrag {
+    /// Update the active browser content-item drag with the latest pointer position.
+    UpdateContentItemDrag {
         /// Pointer x-position in logical UI coordinates.
         pointer_x: u16,
         /// Pointer y-position in logical UI coordinates.
@@ -350,8 +350,8 @@ pub enum UiAction {
         /// Whether Alt is currently held.
         alt_down: bool,
     },
-    /// Finish the active browser-sample drag gesture.
-    FinishBrowserSampleDrag,
+    /// Finish the active browser content-item drag gesture.
+    FinishContentItemDrag,
     /// Extend selection from the anchor to the target visible row.
     ExtendBrowserSelectionToRow {
         /// Target visible row index used as selection endpoint.

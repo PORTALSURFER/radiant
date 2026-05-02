@@ -38,8 +38,8 @@ where
             && self.last_emitted_waveform_drag_action.is_some();
         let finish_selection_drag =
             self.selection_drag_active && matches!(released_button, Some(MouseButton::Left));
-        let finish_browser_sample_drag = self.browser_sample_drag.is_some()
-            && matches!(released_button, Some(MouseButton::Left));
+        let finish_content_item_drag =
+            self.content_item_drag.is_some() && matches!(released_button, Some(MouseButton::Left));
         let finish_selection_smart_scale_drag = matches!(released_button, Some(MouseButton::Left))
             && self.waveform_drag_mode.is_some_and(|mode| {
                 matches!(mode, WaveformPointerDragMode::SelectionSmartScale { .. })
@@ -74,12 +74,12 @@ where
         if finish_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionDrag);
         }
-        if finish_browser_sample_drag {
+        if finish_content_item_drag {
             info!(
                 last_cursor_present = self.last_cursor.is_some(),
-                "radiant external drag: releasing browser sample drag without external handoff"
+                "radiant external drag: releasing browser content-item drag without external handoff"
             );
-            self.emit_model_action(UiAction::FinishBrowserSampleDrag);
+            self.emit_model_action(UiAction::FinishContentItemDrag);
         }
         if finish_selection_smart_scale_drag {
             self.emit_model_action(UiAction::FinishWaveformSelectionSmartScaleDrag);
@@ -88,7 +88,7 @@ where
             self.emit_model_action(UiAction::FinishWaveformEditSelectionDrag);
         }
         let browser_row_click_release = matches!(released_button, Some(MouseButton::Left))
-            && !finish_browser_sample_drag
+            && !finish_content_item_drag
             && self.pending_browser_row_press.is_some();
         let pending_browser_row_press = if browser_row_click_release {
             self.pending_browser_row_press.take()

@@ -54,7 +54,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(crate) fn handle_cursor_left(&mut self) {
         if self.has_external_drag_candidate() {
             info!(
-                browser_sample_drag = self.browser_sample_drag.is_some(),
+                content_item_drag = self.content_item_drag.is_some(),
                 selection_drag_active = self.selection_drag_active,
                 "radiant external drag: cursor left window during active drag"
             );

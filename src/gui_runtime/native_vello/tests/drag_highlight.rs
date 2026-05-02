@@ -131,12 +131,12 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::StartBrowserSampleDrag {
+            UiAction::StartContentItemDrag {
                 visible_row: 0,
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
             },
-            UiAction::UpdateBrowserSampleDrag {
+            UiAction::UpdateContentItemDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
                 hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
@@ -209,12 +209,12 @@ fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::StartBrowserSampleDrag {
+            UiAction::StartContentItemDrag {
                 visible_row: 0,
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
             },
-            UiAction::UpdateBrowserSampleDrag {
+            UiAction::UpdateContentItemDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
                 hovered_folder_pane: None,

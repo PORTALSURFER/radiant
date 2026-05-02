@@ -56,9 +56,9 @@ pub(super) struct PendingBrowserRowPress {
     pub(super) press_point: Point,
 }
 
-/// Active browser-sample drag session while the primary pointer is held.
+/// Active browser content-item drag session while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct BrowserSampleDragState {
+pub(super) struct ContentItemDragState {
     pub(super) visible_row: usize,
 }
 
@@ -164,7 +164,7 @@ pub(super) enum ActivePointerSession {
     WaveformScrollbar,
     WaveformPan,
     WaveformDrag,
-    BrowserSampleDrag,
+    ContentItemDrag,
     SelectionDrag,
     MapFocusDrag,
     TextInputDrag,
@@ -253,7 +253,7 @@ where
     Bridge: crate::compat_app_contract::NativeAppBridge,
 {
     pub(super) fn has_external_drag_candidate(&self) -> bool {
-        self.browser_sample_drag.is_some() || self.selection_drag_active
+        self.content_item_drag.is_some() || self.selection_drag_active
     }
 
     pub(super) fn maybe_launch_external_drag_session(
@@ -271,7 +271,7 @@ where
                     pointer_outside,
                     pointer_left,
                     consumed,
-                    browser_sample_drag = self.browser_sample_drag.is_some(),
+                    content_item_drag = self.content_item_drag.is_some(),
                     selection_drag_active = self.selection_drag_active,
                     "radiant external drag: host bridge launch poll"
                 );
@@ -324,7 +324,7 @@ where
             window_bottom = rect.bottom,
             pointer_outside = !inside,
             pointer_left = !inside,
-            browser_sample_drag = self.browser_sample_drag.is_some(),
+            content_item_drag = self.content_item_drag.is_some(),
             selection_drag_active = self.selection_drag_active,
             "radiant external drag: polled native window bounds"
         );
@@ -344,8 +344,8 @@ where
             ActivePointerSession::WaveformPan
         } else if self.waveform_drag_mode.is_some() {
             ActivePointerSession::WaveformDrag
-        } else if self.browser_sample_drag.is_some() {
-            ActivePointerSession::BrowserSampleDrag
+        } else if self.content_item_drag.is_some() {
+            ActivePointerSession::ContentItemDrag
         } else if self.selection_drag_active {
             ActivePointerSession::SelectionDrag
         } else if self.map_focus_drag_active {
@@ -379,14 +379,14 @@ where
         #[cfg(target_os = "windows")]
         if self.has_external_drag_candidate() {
             info!(
-                browser_sample_drag = self.browser_sample_drag.is_some(),
+                content_item_drag = self.content_item_drag.is_some(),
                 selection_drag_active = self.selection_drag_active,
                 "radiant external drag: clearing runtime drag session"
             );
         }
         self.waveform_drag_mode = None;
         self.waveform_click_seek_press = None;
-        self.browser_sample_drag = None;
+        self.content_item_drag = None;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
         self.map_focus_drag_active = false;
@@ -446,12 +446,12 @@ where
         self.last_emitted_map_drag_content_id = content_id;
     }
 
-    pub(super) fn begin_browser_sample_drag(&mut self, visible_row: usize) {
-        self.browser_sample_drag = Some(BrowserSampleDragState { visible_row });
+    pub(super) fn begin_content_item_drag(&mut self, visible_row: usize) {
+        self.content_item_drag = Some(ContentItemDragState { visible_row });
         #[cfg(target_os = "windows")]
         info!(
             visible_row,
-            "radiant external drag: browser sample drag session started"
+            "radiant external drag: browser content-item drag session started"
         );
     }
 

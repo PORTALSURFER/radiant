@@ -218,12 +218,12 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::StartBrowserSampleDrag {
+            UiAction::StartContentItemDrag {
                 visible_row: 0,
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
             },
-            UiAction::UpdateBrowserSampleDrag {
+            UiAction::UpdateContentItemDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
                 hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
@@ -240,12 +240,12 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::StartBrowserSampleDrag {
+            UiAction::StartContentItemDrag {
                 visible_row: 0,
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
             },
-            UiAction::UpdateBrowserSampleDrag {
+            UiAction::UpdateContentItemDrag {
                 pointer_x: drag_point.x.round() as u16,
                 pointer_y: drag_point.y.round() as u16,
                 hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
@@ -254,7 +254,7 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
                 shift_down: false,
                 alt_down: false,
             },
-            UiAction::FinishBrowserSampleDrag,
+            UiAction::FinishContentItemDrag,
         ]
     );
 }
@@ -280,12 +280,12 @@ fn cursor_left_polls_external_drag_for_active_browser_drag_session() {
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
     );
     runner.handle_cursor_moved_for_tests(drag_point);
-    assert!(runner.browser_sample_drag.is_some());
+    assert!(runner.content_item_drag.is_some());
 
     runner.handle_cursor_left();
 
     assert_eq!(runner.bridge.external_drag_requests, vec![(false, true)]);
-    assert!(runner.browser_sample_drag.is_none());
+    assert!(runner.content_item_drag.is_none());
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn browser_row_drag_reports_folder_panel_background_without_row() {
         .expect("dragging should emit a browser drag update");
     assert_eq!(
         update,
-        UiAction::UpdateBrowserSampleDrag {
+        UiAction::UpdateContentItemDrag {
             pointer_x: drag_point.x.round() as u16,
             pointer_y: drag_point.y.round() as u16,
             hovered_folder_pane: None,

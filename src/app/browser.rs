@@ -11,7 +11,7 @@ pub use crate::gui::visualization::SpatialPanel as MapPanelModel;
 pub use crate::gui::visualization::SpatialPoint as MapPointModel;
 /// One clickable tag pill projected into the browser metadata sidebar.
 pub type BrowserTagPillModel = crate::gui::badge::SelectablePill<BrowserTagState>;
-/// Browser-local metadata sidebar shown beside the sample list.
+/// Browser-local metadata sidebar shown beside the content list.
 pub type BrowserTagSidebarModel = crate::gui::badge::PillEditorPanel<BrowserTagState>;
 
 /// Summary of browser/list state consumed by the native shell.
@@ -57,8 +57,8 @@ pub struct BrowserPanelModel {
     pub sort_label: Option<String>,
     /// Display label for the currently active browser tab.
     pub active_tab_label: Option<String>,
-    /// Display label for the currently focused sample, when known.
-    pub focused_sample_label: Option<String>,
+    /// Display label for the currently focused item, when known.
+    pub focused_item_label: Option<String>,
     /// Metadata-tag editor sidebar projection scoped to the list tab.
     pub tag_sidebar: BrowserTagSidebarModel,
     /// Selection anchor in visible-row space.
@@ -74,7 +74,7 @@ pub struct BrowserPanelModel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserChromeModel {
     /// Label for the list tab.
-    pub samples_tab_label: String,
+    pub items_tab_label: String,
     /// Label for the map tab.
     pub map_tab_label: String,
     /// Prefix label shown before active search queries.
@@ -98,7 +98,7 @@ pub struct BrowserChromeModel {
 impl Default for BrowserChromeModel {
     fn default() -> Self {
         Self {
-            samples_tab_label: String::from("Items"),
+            items_tab_label: String::from("Items"),
             map_tab_label: String::from("Map"),
             search_prefix_label: String::from("Search"),
             search_placeholder: String::from("Search items (Ctrl+F)"),
@@ -122,9 +122,9 @@ pub struct BrowserActionsModel {
     /// Whether tag actions can be applied to focused/selected rows.
     pub can_tag: bool,
     /// Whether the focused browser row can be normalized in place.
-    pub can_normalize_focused_sample: bool,
+    pub can_normalize_focused_item: bool,
     /// Whether the focused browser row can open the seamless loop-crossfade flow.
-    pub can_loop_crossfade_focused_sample: bool,
+    pub can_loop_crossfade_focused_item: bool,
     /// Whether sticky random navigation mode is currently enabled.
     pub random_navigation_enabled: bool,
     /// Whether browser duplicate cleanup mode is currently enabled.

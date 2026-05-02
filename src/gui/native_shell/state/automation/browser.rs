@@ -25,7 +25,7 @@ pub(super) fn build_browser_automation(
         simple_node(
             "browser.tab.samples",
             AutomationRole::Tab,
-            Some(model.browser_chrome.samples_tab_label.clone()),
+            Some(model.browser_chrome.items_tab_label.clone()),
             tabs.samples,
             None,
             true,
@@ -169,8 +169,8 @@ pub(super) fn build_browser_automation(
             ),
             ("search_query", model.browser.search_query.as_str()),
             (
-                "focused_sample_label",
-                model.browser.focused_sample_label.as_deref().unwrap_or(""),
+                "focused_item_label",
+                model.browser.focused_item_label.as_deref().unwrap_or(""),
             ),
             (
                 "selected_visible_row",

@@ -367,7 +367,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     }
 
     assert!(browser_mod.contains("String::from(\"Search items (Ctrl+F)\")"));
-    assert!(browser_mod.contains("samples_tab_label: String::from(\"Items\")"));
+    assert!(browser_mod.contains("items_tab_label: String::from(\"Items\")"));
     assert!(browser_mod.contains("map_tab_label: String::from(\"Map\")"));
     assert!(shell_mod.contains("ColumnModel::new(\"Items\", 0)"));
 }

@@ -126,7 +126,7 @@ fn build_browser_segment_text_cache(
         tabs_text_layout,
         toolbar_text_layout,
         footer_text_rect,
-        samples_tab_label: truncate_to_width(
+        items_tab_label: truncate_to_width(
             &samples_tab_text(model),
             tabs_text_layout.samples_label.width().max(40.0),
             sizing.font_header,
@@ -277,7 +277,7 @@ fn browser_segment_text_model_signature(model: &AppModel) -> u64 {
     model.browser_chrome.activity_busy_label.hash(&mut hasher);
     model.browser_chrome.sort_prefix_label.hash(&mut hasher);
     model.browser_chrome.sort_order_label.hash(&mut hasher);
-    model.browser_chrome.samples_tab_label.hash(&mut hasher);
+    model.browser_chrome.items_tab_label.hash(&mut hasher);
     model.browser_chrome.map_tab_label.hash(&mut hasher);
     model.browser_chrome.item_count_label.hash(&mut hasher);
     model.browser.sort_label.hash(&mut hasher);
@@ -318,7 +318,7 @@ fn status_bar_text_model_signature(model: &AppModel, selected_column: usize) -> 
 fn samples_tab_text(model: &AppModel) -> String {
     format!(
         "{} ({})",
-        model.browser_chrome.samples_tab_label,
+        model.browser_chrome.items_tab_label,
         model
             .columns
             .get(1)

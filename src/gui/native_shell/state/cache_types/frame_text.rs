@@ -58,7 +58,7 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
     /// Precomputed footer label rect.
     pub footer_text_rect: Rect,
     /// Final samples-tab label.
-    pub samples_tab_label: String,
+    pub items_tab_label: String,
     /// Final map-tab label.
     pub map_tab_label: String,
     /// Final browser-search label.

@@ -367,7 +367,7 @@ pub(in super::super) fn modal_overlay_model_signature(model: &AppModel) -> u64 {
         &mut state,
         model.options_panel.trash_folder_label.as_deref(),
     );
-    fingerprint_mix_string(&mut state, &model.browser_chrome.samples_tab_label);
+    fingerprint_mix_string(&mut state, &model.browser_chrome.items_tab_label);
     fingerprint_mix_string(&mut state, &model.browser_chrome.map_tab_label);
     fingerprint_mix_usize(
         &mut state,

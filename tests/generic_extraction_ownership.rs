@@ -278,6 +278,38 @@ fn paired_picker_models_are_owned_by_generic_form_module() {
 }
 
 #[test]
+fn paired_picker_actions_use_generic_device_terms() {
+    let actions_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/app/actions/mod.rs"
+    ))
+    .expect("actions module should be readable");
+    let automation_helpers = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/helpers.rs"
+    ))
+    .expect("automation helpers should be readable");
+    let shared_options_actions = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../src/app_core/native_shell/composition/state/options_panel/actions.rs"
+    ))
+    .expect("shared options-panel actions should be readable");
+
+    for source in [&actions_mod, &automation_helpers, &shared_options_actions] {
+        assert!(!source.contains("OpenAudio"));
+        assert!(!source.contains("SetAudio"));
+        assert!(!source.contains("open_audio"));
+        assert!(!source.contains("set_audio"));
+    }
+    assert!(actions_mod.contains("OpenPrimaryGroupPicker"));
+    assert!(actions_mod.contains("SetSecondaryNumber"));
+    assert!(automation_helpers.contains("open_primary_group_picker"));
+    assert!(automation_helpers.contains("set_secondary_number"));
+    assert!(shared_options_actions.contains("UiAction::OpenPrimaryGroupPicker"));
+    assert!(shared_options_actions.contains("UiAction::SetSecondaryNumber"));
+}
+
+#[test]
 fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let browser_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/app/browser.rs"))

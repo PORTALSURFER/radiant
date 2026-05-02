@@ -88,49 +88,49 @@ pub enum UiAction {
     OpenTrashFolder,
     /// Open the default-identifier prompt inside the options panel.
     EditDefaultIdentifier,
-    /// Return from one audio picker to the main options overview.
+    /// Return from one picker to the main options overview.
     ShowOptionsOverview,
-    /// Expand the output-host picker inside the options panel.
-    OpenAudioOutputHostPicker,
-    /// Expand the output-device picker inside the options panel.
-    OpenAudioOutputDevicePicker,
-    /// Expand the output sample-rate picker inside the options panel.
-    OpenAudioOutputSampleRatePicker,
-    /// Expand the input-host picker inside the options panel.
-    OpenAudioInputHostPicker,
-    /// Expand the input-device picker inside the options panel.
-    OpenAudioInputDevicePicker,
-    /// Expand the input sample-rate picker inside the options panel.
-    OpenAudioInputSampleRatePicker,
-    /// Apply one output-host selection.
-    SetAudioOutputHost {
-        /// Selected host identifier, or `None` for the system default.
-        host_id: Option<String>,
+    /// Expand the primary group picker inside the options panel.
+    OpenPrimaryGroupPicker,
+    /// Expand the primary item picker inside the options panel.
+    OpenPrimaryItemPicker,
+    /// Expand the primary numeric-setting picker inside the options panel.
+    OpenPrimaryNumberPicker,
+    /// Expand the secondary group picker inside the options panel.
+    OpenSecondaryGroupPicker,
+    /// Expand the secondary item picker inside the options panel.
+    OpenSecondaryItemPicker,
+    /// Expand the secondary numeric-setting picker inside the options panel.
+    OpenSecondaryNumberPicker,
+    /// Apply one primary group selection.
+    SetPrimaryGroup {
+        /// Selected group identifier, or `None` for the system default.
+        group_id: Option<String>,
     },
-    /// Apply one output-device selection.
-    SetAudioOutputDevice {
-        /// Selected device name, or `None` for the host default.
-        device_name: Option<String>,
+    /// Apply one primary item selection.
+    SetPrimaryItem {
+        /// Selected item name, or `None` for the group default.
+        item_name: Option<String>,
     },
-    /// Apply one output sample-rate selection.
-    SetAudioOutputSampleRate {
-        /// Selected sample rate in Hz, or `None` for the device default.
-        sample_rate: Option<u32>,
+    /// Apply one primary numeric-setting selection.
+    SetPrimaryNumber {
+        /// Selected numeric value, or `None` for the item default.
+        value: Option<u32>,
     },
-    /// Apply one input-host selection.
-    SetAudioInputHost {
-        /// Selected host identifier, or `None` for the system default.
-        host_id: Option<String>,
+    /// Apply one secondary group selection.
+    SetSecondaryGroup {
+        /// Selected group identifier, or `None` for the system default.
+        group_id: Option<String>,
     },
-    /// Apply one input-device selection.
-    SetAudioInputDevice {
-        /// Selected device name, or `None` for the host default.
-        device_name: Option<String>,
+    /// Apply one secondary item selection.
+    SetSecondaryItem {
+        /// Selected item name, or `None` for the group default.
+        item_name: Option<String>,
     },
-    /// Apply one input sample-rate selection.
-    SetAudioInputSampleRate {
-        /// Selected sample rate in Hz, or `None` for the device default.
-        sample_rate: Option<u32>,
+    /// Apply one secondary numeric-setting selection.
+    SetSecondaryNumber {
+        /// Selected numeric value, or `None` for the item default.
+        value: Option<u32>,
     },
     /// Focus the source-folder search field.
     FocusFolderSearch {

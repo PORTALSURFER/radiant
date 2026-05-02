@@ -472,12 +472,12 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
     assert_eq!(
         actions[..6],
         [
-            UiAction::OpenAudioOutputHostPicker,
-            UiAction::OpenAudioOutputDevicePicker,
-            UiAction::OpenAudioOutputSampleRatePicker,
-            UiAction::OpenAudioInputHostPicker,
-            UiAction::OpenAudioInputDevicePicker,
-            UiAction::OpenAudioInputSampleRatePicker,
+            UiAction::OpenPrimaryGroupPicker,
+            UiAction::OpenPrimaryItemPicker,
+            UiAction::OpenPrimaryNumberPicker,
+            UiAction::OpenSecondaryGroupPicker,
+            UiAction::OpenSecondaryItemPicker,
+            UiAction::OpenSecondaryNumberPicker,
         ]
     );
     assert_eq!(actions.last(), Some(&UiAction::CloseOptionsPanel));
@@ -536,8 +536,8 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
     );
     assert_eq!(
         state.options_panel_action_at_point(&layout, &model, sample_rate_point),
-        Some(UiAction::SetAudioOutputSampleRate {
-            sample_rate: Some(48_000),
+        Some(UiAction::SetPrimaryNumber {
+            value: Some(48_000),
         })
     );
 }

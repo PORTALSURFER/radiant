@@ -40,7 +40,7 @@ pub(crate) use layout_runtime::{
 };
 #[cfg(test)]
 pub(crate) use paint::FillLinearGradient;
-pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign, TextRun};
+pub(crate) use paint::{NativeViewFrame, Primitive, TextAlign};
 pub(crate) use state::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
     HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, StaticFrameSegment,

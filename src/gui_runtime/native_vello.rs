@@ -19,11 +19,11 @@ use crate::gui::{
 #[cfg(feature = "legacy-shell")]
 use crate::gui::{
     native_shell::{
-        ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, NativeViewFrame,
-        Primitive, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment,
-        StaticFrameSegments, StyleTokens, TextAlign, TextFieldVisualState, TextRun,
-        WaveformMotionOverlayFingerprint,
+        ChromeMotionOverlayFingerprint, CursorMoveEffect, NativeShellState, ShellLayout,
+        ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment, StaticFrameSegments, StyleTokens,
+        TextFieldVisualState, WaveformMotionOverlayFingerprint,
     },
+    paint::{PaintFrame as NativeViewFrame, Primitive, TextAlign, TextRun},
     repaint::RepaintSignal,
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};

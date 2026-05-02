@@ -3,6 +3,7 @@
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;
 pub use crate::gui::visualization::ChannelViewMode as WaveformChannelViewModel;
+pub use crate::gui::visualization::SignalRasterPreview as WaveformImagePreviewModel;
 pub use crate::gui::visualization::TimelineEditPreview as WaveformEditPreviewModel;
 pub use crate::gui::visualization::TimelineMarkerPreview as WaveformSlicePreviewModel;
 pub use crate::gui::visualization::TimelineViewport as WaveformViewportModel;
@@ -193,6 +194,17 @@ impl WaveformPanelModel {
             self.edit_fade_out_curve_milli,
         )
     }
+
+    /// Return this panel's generic retained raster preview.
+    pub fn image_preview(&self) -> WaveformImagePreviewModel {
+        WaveformImagePreviewModel::new(
+            self.loaded_label.clone(),
+            self.loading,
+            self.image_rendering,
+            self.waveform_image_signature,
+            self.waveform_image.clone(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -250,6 +262,28 @@ mod tests {
         assert_eq!(preview.trailing_start_micros, Some(700_000));
         assert_eq!(preview.trailing_inner_end_milli, Some(760));
         assert_eq!(preview.trailing_curve_milli, Some(580));
+    }
+
+    #[test]
+    fn image_preview_projects_generic_raster_state() {
+        let image = std::sync::Arc::new(
+            crate::gui::types::ImageRgba::new(1, 1, vec![0, 255, 0, 255]).unwrap(),
+        );
+        let model = WaveformPanelModel {
+            loaded_label: Some(String::from("Loaded")),
+            loading: true,
+            image_rendering: false,
+            waveform_image_signature: Some(99),
+            waveform_image: Some(std::sync::Arc::clone(&image)),
+            ..WaveformPanelModel::default()
+        };
+        let preview = model.image_preview();
+
+        assert_eq!(preview.loaded_label.as_deref(), Some("Loaded"));
+        assert!(preview.loading);
+        assert!(!preview.image_rendering);
+        assert_eq!(preview.image_signature, Some(99));
+        assert_eq!(preview.image.as_deref(), Some(image.as_ref()));
     }
 }
 

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::gui::range::NormalizedRange;
+use crate::gui::{range::NormalizedRange, types::ImageRgba};
 
 /// Render mode for two-dimensional point-set visualizations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -63,6 +63,44 @@ pub struct SpatialPanel {
     pub focused_item_id: Option<String>,
     /// Points available for rendering in normalized spatial coordinates.
     pub points: Arc<[SpatialPoint]>,
+}
+
+/// Retained raster preview for a timeline, signal, or visualization surface.
+///
+/// Hosts may render expensive visualization content into an image, project a
+/// stable signature for cache invalidation, and keep lightweight labels/loading
+/// state alongside the shared pixel payload.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct SignalRasterPreview {
+    /// Display label for the loaded item, when any.
+    pub loaded_label: Option<String>,
+    /// Whether the preview is waiting for new source content.
+    pub loading: bool,
+    /// Whether a replacement image is still rendering in the background.
+    pub image_rendering: bool,
+    /// Stable signature for detecting image updates.
+    pub image_signature: Option<u64>,
+    /// Optional rasterized image payload.
+    pub image: Option<Arc<ImageRgba>>,
+}
+
+impl SignalRasterPreview {
+    /// Build a retained raster preview from explicit state.
+    pub fn new(
+        loaded_label: Option<String>,
+        loading: bool,
+        image_rendering: bool,
+        image_signature: Option<u64>,
+        image: Option<Arc<ImageRgba>>,
+    ) -> Self {
+        Self {
+            loaded_label,
+            loading,
+            image_rendering,
+            image_signature,
+            image,
+        }
+    }
 }
 
 /// Visible normalized viewport for a timeline or signal visualization.
@@ -207,10 +245,10 @@ pub struct TimelineMarkerPreview {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChannelViewMode, PointRenderMode, SpatialPanel, SpatialPoint, TimelineEditPreview,
-        TimelineMarkerPreview, TimelineViewport,
+        ChannelViewMode, PointRenderMode, SignalRasterPreview, SpatialPanel, SpatialPoint,
+        TimelineEditPreview, TimelineMarkerPreview, TimelineViewport,
     };
-    use crate::gui::range::NormalizedRange;
+    use crate::gui::{range::NormalizedRange, types::ImageRgba};
     use std::sync::Arc;
 
     #[test]
@@ -247,6 +285,24 @@ mod tests {
         assert!(panel.points.is_empty());
         assert_eq!(panel.selected_item_id, None);
         assert_eq!(panel.focused_item_id, None);
+    }
+
+    #[test]
+    fn signal_raster_preview_preserves_label_flags_signature_and_image() {
+        let image = Arc::new(ImageRgba::new(1, 1, vec![255, 0, 0, 255]).unwrap());
+        let preview = SignalRasterPreview::new(
+            Some(String::from("preview")),
+            true,
+            false,
+            Some(42),
+            Some(Arc::clone(&image)),
+        );
+
+        assert_eq!(preview.loaded_label.as_deref(), Some("preview"));
+        assert!(preview.loading);
+        assert!(!preview.image_rendering);
+        assert_eq!(preview.image_signature, Some(42));
+        assert_eq!(preview.image.as_deref(), Some(image.as_ref()));
     }
 
     #[test]

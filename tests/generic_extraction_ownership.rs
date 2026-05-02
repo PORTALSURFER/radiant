@@ -60,11 +60,17 @@ fn row_processing_state_is_owned_by_generic_list_module() {
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
         .expect("list module should be readable");
 
+    assert!(!browser_mod.contains("pub struct BrowserRowModel"));
+    assert!(browser_mod.contains("pub use crate::gui::list::ContentListRow as BrowserRowModel;"));
     assert!(!browser_mod.contains("pub enum BrowserRowProcessingState"));
     assert!(
         browser_mod
             .contains("pub use crate::gui::list::RowProcessingState as BrowserRowProcessingState;")
     );
+    assert!(list_mod.contains("pub struct ContentListRow"));
+    assert!(list_mod.contains("pub fn encode_similarity_display_strength"));
+    assert!(!list_mod.contains("sample"));
+    assert!(!list_mod.contains("Sample"));
     assert!(list_mod.contains("pub enum RowProcessingState"));
 }
 

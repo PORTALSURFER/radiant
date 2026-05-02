@@ -14,7 +14,7 @@ pub(super) fn load_native_font() -> Option<FontData> {
 
 pub(super) fn native_font_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    if let Ok(path) = std::env::var("SEMPAL_NATIVE_FONT_PATH") {
+    if let Ok(path) = std::env::var("RADIANT_NATIVE_FONT_PATH") {
         candidates.push(PathBuf::from(path));
     }
 

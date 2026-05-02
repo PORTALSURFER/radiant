@@ -310,6 +310,24 @@ fn generic_native_example_stays_non_sempal_and_runtime_backed() {
 }
 
 #[test]
+fn native_runtime_flags_use_radiant_names() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let font_source = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/text_renderer/font.rs"),
+    )
+    .expect("native font source should be readable");
+
+    assert!(
+        font_source.contains("RADIANT_NATIVE_FONT_PATH"),
+        "native font override should use a Radiant-owned runtime flag"
+    );
+    assert!(
+        !font_source.contains("SEMPAL_NATIVE_FONT_PATH"),
+        "Radiant runtime code must not expose Sempal-named runtime flags"
+    );
+}
+
+#[test]
 fn gui_runtime_public_facade_exports_generic_runtime_only() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module_path = manifest_dir.join("src/gui_runtime/mod.rs");

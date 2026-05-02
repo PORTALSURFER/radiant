@@ -49,6 +49,7 @@ mod motion;
 mod native_vello;
 mod runtime_artifacts;
 mod shell;
+#[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
 mod sources;
 mod waveform;

@@ -545,6 +545,11 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
         "/src/gui_runtime/native_vello/text_runtime.rs"
     ))
     .expect("text runtime should be readable");
+    let runtime_state = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/runtime_state.rs"
+    ))
+    .expect("runtime state should be readable");
 
     for source in [
         &actions_mod,
@@ -554,6 +559,10 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
     ] {
         assert!(!source.contains("BrowserTagSidebarInput"));
         assert!(!source.contains("browser_tag_sidebar_input"));
+    }
+    for source in [&runtime_state, &text_runtime] {
+        assert!(!source.contains("BrowserTagSidebar"));
+        assert!(source.contains("BrowserPillEditor"));
     }
     assert!(actions_mod.contains("FocusBrowserPillEditorInput"));
     assert!(actions_mod.contains("SetBrowserPillEditorInput"));

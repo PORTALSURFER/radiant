@@ -11,7 +11,7 @@ fn text_value_for_input_target<B: NativeAppBridge>(
                 .current_text_value()
                 .unwrap_or_else(|| runner.model.browser.search_query.clone()),
         ),
-        TextInputTarget::BrowserTagSidebar => Some(
+        TextInputTarget::BrowserPillEditor => Some(
             runner
                 .current_text_value()
                 .unwrap_or_else(|| runner.model.browser.tag_sidebar.input_value.clone()),
@@ -40,7 +40,7 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
         TextInputTarget::BrowserSearch => runner
             .shell_state
             .browser_search_text_rect(layout, &runner.model),
-        TextInputTarget::BrowserTagSidebar => runner
+        TextInputTarget::BrowserPillEditor => runner
             .shell_state
             .browser_tag_sidebar_text_rect(layout, &runner.model),
         TextInputTarget::WaveformBpm => runner
@@ -87,7 +87,7 @@ pub(super) fn sync_text_editor_visual_state_for_target<B: NativeAppBridge>(
 ) {
     match target {
         TextInputTarget::BrowserSearch => runner.sync_browser_search_editor_state(),
-        TextInputTarget::BrowserTagSidebar => runner.sync_browser_tag_sidebar_editor_state(),
+        TextInputTarget::BrowserPillEditor => runner.sync_browser_pill_editor_state(),
         TextInputTarget::FolderCreate => runner.sync_folder_create_editor_state(),
         TextInputTarget::WaveformBpm => runner.sync_waveform_bpm_editor_state(),
         TextInputTarget::None | TextInputTarget::FolderSearch | TextInputTarget::PromptInput => {}
@@ -105,10 +105,10 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
                 runner.activate_text_input_target(TextInputTarget::BrowserSearch);
             }
         }
-        TextInputTarget::BrowserTagSidebar => {
-            if runner.text_input_target != TextInputTarget::BrowserTagSidebar {
+        TextInputTarget::BrowserPillEditor => {
+            if runner.text_input_target != TextInputTarget::BrowserPillEditor {
                 runner.emit_model_action(UiAction::FocusBrowserPillEditorInput);
-                runner.activate_text_input_target(TextInputTarget::BrowserTagSidebar);
+                runner.activate_text_input_target(TextInputTarget::BrowserPillEditor);
             }
         }
         TextInputTarget::WaveformBpm => {

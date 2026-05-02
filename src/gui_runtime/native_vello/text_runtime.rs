@@ -24,7 +24,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .is_some_and(|row| row.select_all_on_focus);
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
-            TextInputTarget::BrowserTagSidebar => {
+            TextInputTarget::BrowserPillEditor => {
                 self.model.browser.tag_sidebar.input_value.clone()
             }
             TextInputTarget::FolderSearch => self.model.sources.tree_search_query.clone(),
@@ -50,7 +50,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.waveform_bpm_input_buffer = None;
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
-        self.sync_browser_tag_sidebar_editor_state();
+        self.sync_browser_pill_editor_state();
         self.sync_folder_create_editor_state();
     }
 
@@ -60,7 +60,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.clear_text_input_target_state();
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
-        self.sync_browser_tag_sidebar_editor_state();
+        self.sync_browser_pill_editor_state();
         self.sync_folder_create_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
             self.emit_model_action(UiAction::BlurBrowserSearch);
@@ -181,8 +181,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.shell_state.set_browser_search_editor_state(visual);
     }
 
-    pub(super) fn sync_browser_tag_sidebar_editor_state(&mut self) {
-        if self.text_input_target != TextInputTarget::BrowserTagSidebar {
+    pub(super) fn sync_browser_pill_editor_state(&mut self) {
+        if self.text_input_target != TextInputTarget::BrowserPillEditor {
             self.shell_state.set_browser_tag_sidebar_editor_state(None);
             return;
         }
@@ -315,7 +315,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
             UiAction::FocusBrowserPillEditorInput => {
-                self.activate_text_input_target(TextInputTarget::BrowserTagSidebar)
+                self.activate_text_input_target(TextInputTarget::BrowserPillEditor)
             }
             UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
             UiAction::FocusFolderSearch { .. } => {
@@ -348,7 +348,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         self.sync_waveform_bpm_editor_state();
         self.sync_browser_search_editor_state();
-        self.sync_browser_tag_sidebar_editor_state();
+        self.sync_browser_pill_editor_state();
         self.sync_folder_create_editor_state();
     }
 

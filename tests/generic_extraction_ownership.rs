@@ -32,7 +32,7 @@ fn retained_vec_is_owned_by_generic_retained_module() {
     .expect("app module should be readable");
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let retained_mod =
@@ -66,7 +66,7 @@ fn normalized_range_model_is_owned_by_generic_range_module() {
 fn row_processing_state_is_owned_by_generic_list_module() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -104,7 +104,7 @@ fn row_processing_state_is_owned_by_generic_list_module() {
 fn recency_state_is_owned_by_generic_list_module() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -390,7 +390,7 @@ fn paired_picker_actions_use_generic_device_terms() {
 fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let waveform_mod = fs::read_to_string(concat!(
@@ -524,7 +524,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
 fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let shell_mod = fs::read_to_string(concat!(
@@ -560,7 +560,7 @@ fn compat_shell_defaults_do_not_bake_in_sample_browser_copy() {
 fn compat_browser_contract_uses_generic_item_label_fields() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
@@ -824,7 +824,7 @@ fn compat_shell_uses_generic_pill_editor_layout_identifiers() {
 fn compat_browser_model_uses_generic_pill_editor_fields() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let list_mod = fs::read_to_string(concat!(
@@ -868,7 +868,7 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
 fn compat_browser_actions_use_generic_pill_edit_capability() {
     let browser_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("browser module should be readable");
     let toolbar_layout_tests = fs::read_to_string(concat!(
@@ -946,7 +946,7 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
 fn compat_browser_model_uses_generic_derived_label_filter_fields() {
     let app_browser = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_shell/browser.rs"
+        "/src/compat/legacy_shell/mod.rs"
     ))
     .expect("app browser model should be readable");
     let list_mod = fs::read_to_string(concat!(

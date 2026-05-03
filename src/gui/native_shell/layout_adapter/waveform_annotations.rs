@@ -25,37 +25,6 @@ pub(crate) struct WaveformSlicePreviewRects {
     pub duplicate_cleanup_exempted: bool,
 }
 
-/// Compute waveform annotation rectangles constrained to the waveform plot.
-#[cfg(test)]
-pub(crate) fn compute_waveform_annotation_rects(
-    waveform_plot: Rect,
-    border_width: f32,
-    selection: Option<NormalizedRangeModel>,
-    cursor_milli: Option<u16>,
-    playhead_milli: Option<u16>,
-    view_start_micros: impl Into<u32>,
-    view_end_micros: impl Into<u32>,
-) -> WaveformAnnotationRects {
-    if waveform_plot.width() <= 0.0 || waveform_plot.height() <= 0.0 {
-        return WaveformAnnotationRects::default();
-    }
-    let view = waveform_view_window_from_bounds(
-        view_start_micros.into(),
-        view_end_micros.into(),
-        None,
-        None,
-    );
-    WaveformAnnotationRects {
-        selection: selection.and_then(|range| selection_rect(waveform_plot, range, view)),
-        cursor: cursor_milli.and_then(|milli| {
-            marker_rect(waveform_plot, border_width, u32::from(milli) * 1000, view)
-        }),
-        playhead: playhead_milli.and_then(|milli| {
-            marker_rect(waveform_plot, border_width, u32::from(milli) * 1000, view)
-        }),
-    }
-}
-
 /// Compute waveform annotation rectangles using nanosecond view bounds when available.
 pub(crate) fn compute_waveform_annotation_rects_with_nanos(
     waveform_plot: Rect,

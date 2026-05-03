@@ -1038,12 +1038,18 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
         "/src/gui_runtime/native_vello/tests/browser_pointer/browser_rows.rs"
     ))
     .expect("browser pointer tests should be readable");
+    let native_hit_testing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/browser.rs"
+    ))
+    .expect("native-shell browser hit testing should be readable");
 
     for source in [
         &actions_mod,
         &automation_helpers,
         &key_bindings,
         &browser_pointer,
+        &native_hit_testing,
     ] {
         assert!(!source.contains("ToggleFindSimilarFocusedSample"));
         assert!(!source.contains("toggle_find_similar_focused_sample"));
@@ -1138,6 +1144,11 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
         "/src/gui_runtime/native_vello/input/pointer.rs"
     ))
     .expect("runtime pointer should be readable");
+    let native_hit_testing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/browser.rs"
+    ))
+    .expect("native-shell browser hit testing should be readable");
 
     for source in [
         &actions_mod,
@@ -1146,6 +1157,7 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
         &runtime_actions,
         &runtime_drag,
         &runtime_pointer,
+        &native_hit_testing,
     ] {
         assert!(!source.contains("FocusMapSample"));
         assert!(!source.contains("focus_map_sample"));

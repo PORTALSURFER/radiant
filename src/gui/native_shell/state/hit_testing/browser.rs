@@ -1,6 +1,6 @@
+use super::*;
 #[cfg(test)]
 use crate::app as native_model;
-use super::*;
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
     #[cfg(test)]
@@ -456,26 +456,11 @@ impl NativeShellState {
 }
 
 fn spatial_focus_action(content_id: String) -> UiAction {
-    #[cfg(feature = "legacy-shell")]
-    {
-        UiAction::FocusSpatialContentItem { content_id }
-    }
-    #[cfg(not(feature = "legacy-shell"))]
-    {
-        let sample_id = content_id;
-        UiAction::FocusMapSample { sample_id }
-    }
+    UiAction::FocusSpatialContentItem { content_id }
 }
 
 fn focused_similarity_action() -> UiAction {
-    #[cfg(feature = "legacy-shell")]
-    {
-        UiAction::ToggleFindSimilarFocusedContent
-    }
-    #[cfg(not(feature = "legacy-shell"))]
-    {
-        UiAction::ToggleFindSimilarFocusedSample
-    }
+    UiAction::ToggleFindSimilarFocusedContent
 }
 
 #[derive(Clone, Debug)]
@@ -544,8 +529,7 @@ fn browser_pill_editor_layout(
     let pill_width = ((content_max_x - content_min_x - pill_gap * (pill_cols - 1) as f32)
         / pill_cols as f32)
         .max(40.0);
-    let mut option_pill_rects =
-        Vec::with_capacity(model.browser.pill_editor().option_pills.len());
+    let mut option_pill_rects = Vec::with_capacity(model.browser.pill_editor().option_pills.len());
     for index in 0..model.browser.pill_editor().option_pills.len() {
         let col = index % pill_cols;
         let row = index / pill_cols;
@@ -553,7 +537,10 @@ fn browser_pill_editor_layout(
         let min_y = pills_top + (field_height + pill_gap) * row as f32;
         option_pill_rects.push(Rect::from_min_max(
             Point::new(min_x, min_y),
-            Point::new((min_x + pill_width).min(content_max_x), min_y + field_height),
+            Point::new(
+                (min_x + pill_width).min(content_max_x),
+                min_y + field_height,
+            ),
         ));
     }
     let create_pill_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {

@@ -11,7 +11,7 @@
 //! interface.
 
 #[cfg(feature = "legacy-shell")]
-pub(crate) mod runtime_artifacts;
+pub mod runtime_artifacts;
 
 /// Compatibility namespace for the current legacy shell contract.
 ///
@@ -22,6 +22,5 @@ pub(crate) mod runtime_artifacts;
 /// `legacy_shell` contract is host-owned.
 #[cfg(feature = "legacy-shell")]
 pub mod legacy_shell {
-    pub use super::runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
     pub use crate::compat_app_contract::*;
 }

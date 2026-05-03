@@ -1897,8 +1897,12 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     assert!(aliases_mod.contains("pub use crate::gui::frame::FrameBuildResult;"));
     assert!(frame_mod.contains("pub struct FrameBuildResult"));
     assert!(!app_mod.contains("pub struct NativeRuntimeArtifacts"));
-    assert!(app_mod.contains("pub use crate::compat::runtime_artifacts::NativeRunReport;"));
+    assert!(!app_mod.contains("NativeRunReport"));
     assert!(!app_mod.contains("runtime/runtime_artifacts.rs"));
+    let compat_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat.rs"))
+        .expect("compat facade should be readable");
+    assert!(compat_mod.contains("pub mod runtime_artifacts;"));
+    assert!(!compat_mod.contains("pub use super::runtime_artifacts"));
     assert!(compat_runtime_artifacts_mod.contains("pub struct NativeRuntimeArtifacts"));
     assert!(compat_runtime_artifacts_mod.contains("pub type NativeRunReport"));
     assert!(host_runtime_artifacts_mod.contains("pub struct NativeRuntimeArtifacts"));

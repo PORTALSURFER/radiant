@@ -1,6 +1,9 @@
 pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
     AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
-    NativeRunReport, NativeRuntimeArtifacts, SegmentRevisions, UiAction,
+    SegmentRevisions, UiAction,
+};
+pub(in crate::gui_runtime::native_vello) use crate::compat::runtime_artifacts::{
+    NativeRunReport, NativeRuntimeArtifacts,
 };
 pub(in crate::gui_runtime::native_vello) use crate::gui::{
     input::KeyCode,

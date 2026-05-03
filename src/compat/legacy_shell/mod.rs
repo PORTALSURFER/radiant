@@ -50,7 +50,6 @@ mod shell;
 mod sources;
 mod waveform;
 
-pub use crate::compat::runtime_artifacts::NativeRunReport;
 pub use actions::{BrowserTriageTarget, UiAction};
 pub use aliases::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,

@@ -1,5 +1,6 @@
 use super::*;
-use crate::app as native_model;
+use crate::gui::focus::FocusSurface;
+use crate::gui::panel::SplitPaneSlot;
 
 mod shared;
 
@@ -23,14 +24,14 @@ fn render_sidebar_section_focus_overlay(
 ) {
     let sections = sidebar_sections(layout, style, model);
     match model.focus_context {
-        native_model::FocusContextModel::NavigationList => {
+        FocusSurface::NavigationList => {
             render_section_focus_surface(
                 primitives,
                 sections.source_rows(model.sources.active_folder_pane),
                 style,
             );
         }
-        native_model::FocusContextModel::NavigationTree => {
+        FocusSurface::NavigationTree => {
             let active_pane = model.sources.active_folder_pane;
             render_section_focus_surface(
                 primitives,
@@ -50,10 +51,7 @@ pub(super) fn render_waveform_focus_overlay(
     model: &AppModel,
     primitives: &mut impl PrimitiveSink,
 ) {
-    if matches!(
-        model.focus_context,
-        native_model::FocusContextModel::Timeline
-    ) {
+    if matches!(model.focus_context, FocusSurface::Timeline) {
         render_section_focus_surface(primitives, layout.waveform_card, style);
     }
 }
@@ -73,10 +71,7 @@ pub(super) fn render_source_focus_overlay(
     model: &AppModel,
     primitives: &mut impl PrimitiveSink,
 ) {
-    if matches!(
-        model.focus_context,
-        native_model::FocusContextModel::NavigationList
-    ) {
+    if matches!(model.focus_context, FocusSurface::NavigationList) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
     let source_rows = shell_state
@@ -87,8 +82,8 @@ pub(super) fn render_source_focus_overlay(
             continue;
         };
         let row_selected = match rendered_row.pane {
-            native_model::FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
-            native_model::FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
+            SplitPaneSlot::Upper => row.assigned_to_upper_pane,
+            SplitPaneSlot::Lower => row.assigned_to_lower_pane,
         };
         if !row_selected {
             continue;
@@ -115,16 +110,10 @@ pub(super) fn render_folder_focus_overlay(
     text_runs: &mut impl TextRunSink,
 ) {
     let sizing = style.sizing;
-    if matches!(
-        model.focus_context,
-        native_model::FocusContextModel::NavigationTree
-    ) {
+    if matches!(model.focus_context, FocusSurface::NavigationTree) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
-    for pane in [
-        native_model::FolderPaneIdModel::Upper,
-        native_model::FolderPaneIdModel::Lower,
-    ] {
+    for pane in [SplitPaneSlot::Upper, SplitPaneSlot::Lower] {
         let pane_rows = shell_state.cached_tree_rows(layout, style, model, pane);
         let pane_model = model.sources.folder_pane(pane);
         let last_folder_row_max_y = pane_rows.last().map(|row| row.rect.max.y);
@@ -215,10 +204,7 @@ pub(super) fn render_browser_focus_overlay(
     text_runs: &mut impl TextRunSink,
 ) {
     let sizing = style.sizing;
-    if matches!(
-        model.focus_context,
-        native_model::FocusContextModel::ContentList
-    ) {
+    if matches!(model.focus_context, FocusSurface::ContentList) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }
     let browser_rows = shell_state.cached_browser_rows(layout, style, model);

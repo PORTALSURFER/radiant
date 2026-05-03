@@ -134,7 +134,8 @@ tool flags, `SignalRasterPreview` for retained raster image payloads and
 loading state, `horizontal_progress_fill_rect` for resolving normalized
 progress-track fill geometry, `horizontal_progress_activity_rect` for
 indeterminate progress segments, `horizontal_meter_fill_rect` and
-`horizontal_discrete_meter_fill_rect` for reusable meter geometry,
+`horizontal_discrete_meter_fill_rect` for reusable meter geometry, and
+`inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` for editable range and fade/curve handles,

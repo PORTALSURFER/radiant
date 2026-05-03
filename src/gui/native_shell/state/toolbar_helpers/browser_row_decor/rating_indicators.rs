@@ -1,4 +1,8 @@
 use super::*;
+use crate::gui::feedback::{
+    InlineIndicatorAnchor, InlineIndicatorMetrics, inline_indicator_layout,
+    inline_indicator_reserved_width,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorLayout {
@@ -20,13 +24,10 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_reserved_wid
     sizing: SizingTokens,
 ) -> f32 {
     let count = browser_rating_indicator_count(rating_level, locked);
-    if count == 0 {
-        return 0.0;
-    }
-    let width = browser_rating_indicator_unit_width(rating_level, locked, sizing);
-    let gap = browser_rating_indicator_gap(sizing);
-    let text_gap = browser_rating_indicator_text_gap(sizing);
-    (count as f32 * width) + ((count.saturating_sub(1)) as f32 * gap) + text_gap
+    inline_indicator_reserved_width(
+        count,
+        browser_rating_indicator_metrics(rating_level, locked, sizing),
+    )
 }
 
 pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
@@ -37,33 +38,24 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
 ) -> Option<BrowserRatingIndicatorLayout> {
     let count = browser_rating_indicator_count(rating_level, locked);
     let item_label = anchor.item_label;
-    if count == 0 || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
-        return None;
-    }
-    let side = browser_rating_indicator_side(sizing).min(item_label.height().max(1.0));
-    let width = browser_rating_indicator_unit_width(rating_level, locked, sizing)
-        .min(item_label.width().max(1.0));
-    let gap = browser_rating_indicator_gap(sizing);
-    let total_width = (count as f32 * width) + ((count.saturating_sub(1)) as f32 * gap);
-    let ideal_start_x = anchor.label_origin_x
-        + anchor.label_rendered_width.max(0.0)
-        + browser_rating_indicator_text_gap(sizing);
-    let right_limit_x = anchor
-        .right_limit_x
-        .clamp(item_label.min.x, item_label.max.x);
-    let max_start_x = (right_limit_x - total_width).max(item_label.min.x);
-    let start_x = ideal_start_x.clamp(item_label.min.x, max_start_x);
-    let min_y = item_label.min.y + ((item_label.height() - side) * 0.5).floor();
-    let max_y = (min_y + side).min(item_label.max.y);
+    let layout = inline_indicator_layout(
+        InlineIndicatorAnchor {
+            content_rect: item_label,
+            text_origin_x: anchor.label_origin_x,
+            text_width: anchor.label_rendered_width,
+            right_limit_x: anchor.right_limit_x,
+        },
+        count,
+        browser_rating_indicator_metrics(rating_level, locked, sizing),
+    )?;
     let mut rects = [Rect::from_min_max(item_label.min, item_label.min); 3];
-    for (index, rect) in rects.iter_mut().take(count).enumerate() {
-        let min_x = start_x + index as f32 * (width + gap);
-        *rect = Rect::from_min_max(
-            Point::new(min_x, min_y),
-            Point::new((min_x + width).min(item_label.max.x), max_y),
-        );
+    for (target, source) in rects.iter_mut().zip(layout.rects).take(layout.count.min(3)) {
+        *target = source;
     }
-    Some(BrowserRatingIndicatorLayout { rects, count })
+    Some(BrowserRatingIndicatorLayout {
+        rects,
+        count: layout.count.min(3),
+    })
 }
 
 pub(in crate::gui::native_shell::state) fn browser_rating_indicator_color(
@@ -117,4 +109,18 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_text_gap(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.text_inset_x.min(5.0).max(2.0)
+}
+
+fn browser_rating_indicator_metrics(
+    rating_level: i8,
+    locked: bool,
+    sizing: SizingTokens,
+) -> InlineIndicatorMetrics {
+    InlineIndicatorMetrics {
+        unit_width: browser_rating_indicator_unit_width(rating_level, locked, sizing),
+        unit_height: browser_rating_indicator_side(sizing),
+        unit_gap: browser_rating_indicator_gap(sizing),
+        text_gap: browser_rating_indicator_text_gap(sizing),
+        max_count: 3,
+    }
 }

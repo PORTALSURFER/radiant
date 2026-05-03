@@ -213,6 +213,8 @@ baseline snapping for retained text rows.
 inset geometry.
 `Rect::inset_horizontal_saturating` provides symmetric horizontal insets capped
 at half width for centered zero-width collapse.
+`Rect::inset_uniform_saturating` provides symmetric two-axis insets capped at
+half width and height for centered zero-size collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border

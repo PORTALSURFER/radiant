@@ -111,6 +111,16 @@ impl Rect {
         )
     }
 
+    /// Return this rectangle with a symmetric inset capped at half width and height.
+    pub fn inset_uniform_saturating(self, inset: f32) -> Self {
+        let inset_x = inset.max(0.0).min((self.width() * 0.5).max(0.0));
+        let inset_y = inset.max(0.0).min((self.height() * 0.5).max(0.0));
+        Self::from_min_max(
+            Point::new(self.min.x + inset_x, self.min.y + inset_y),
+            Point::new(self.max.x - inset_x, self.max.y - inset_y),
+        )
+    }
+
     /// Return a centered square of side `side` constrained to this rectangle.
     ///
     /// Empty rectangles or non-positive sides return the original rectangle.
@@ -308,6 +318,20 @@ mod tests {
         assert_eq!(
             rect.inset_horizontal_saturating(80.0),
             Rect::from_min_max(Point::new(30.0, 20.0), Point::new(30.0, 30.0))
+        );
+    }
+
+    #[test]
+    fn rect_inset_uniform_saturating_caps_at_half_extents() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(
+            rect.inset_uniform_saturating(4.0),
+            Rect::from_min_max(Point::new(14.0, 24.0), Point::new(46.0, 26.0))
+        );
+        assert_eq!(
+            rect.inset_uniform_saturating(80.0),
+            Rect::from_min_max(Point::new(30.0, 25.0), Point::new(30.0, 25.0))
         );
     }
 

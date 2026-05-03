@@ -1023,6 +1023,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "snap_text_baseline_to_pixel",
         "inset_horizontal",
         "inset_horizontal_saturating",
+        "inset_uniform_saturating",
         "centered_pixel_square",
         "centered_odd_pixel_square",
         "stroke_aligned_rect",

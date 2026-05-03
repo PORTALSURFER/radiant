@@ -741,19 +741,28 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
         "/src/gui/native_shell/layout_adapter/sidebar_header/helpers.rs"
     ))
     .expect("sidebar header adapter should be readable");
+    let overlay_shared_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/overlays/shared.rs"
+    ))
+    .expect("overlay shared adapter should be readable");
 
     assert!(types_mod.contains("pub fn inset_horizontal"));
     assert!(types_mod.contains("pub fn inset_horizontal_saturating"));
+    assert!(types_mod.contains("pub fn inset_uniform_saturating"));
     assert!(control_text_mod.contains(".inset_horizontal("));
     assert!(sidebar_text_mod.contains(".inset_horizontal("));
     assert!(shell_geometry_mod.contains(".inset_horizontal_saturating("));
     assert!(browser_bands_mod.contains(".inset_horizontal_saturating("));
     assert!(sidebar_header_mod.contains(".inset_horizontal_saturating("));
+    assert!(overlay_shared_mod.contains(".inset_uniform_saturating("));
     assert!(!control_text_mod.contains("fn inset_horizontal"));
     assert!(!sidebar_text_mod.contains("fn inset_rect_horizontal"));
     assert!(!shell_geometry_mod.contains("fn inset_horizontal"));
     assert!(!browser_bands_mod.contains("fn inset_horizontal"));
     assert!(!sidebar_header_mod.contains("fn inset_horizontal"));
+    assert!(!overlay_shared_mod.contains("rect.width() * 0.5"));
+    assert!(!overlay_shared_mod.contains("rect.height() * 0.5"));
 }
 
 #[test]

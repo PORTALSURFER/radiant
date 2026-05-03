@@ -94,10 +94,5 @@ pub(super) fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
 
 /// Inset both axes with saturation.
 pub(super) fn inset_uniform(rect: Rect, inset: f32) -> Rect {
-    let inset_x = inset.max(0.0).min((rect.width() * 0.5).max(0.0));
-    let inset_y = inset.max(0.0).min((rect.height() * 0.5).max(0.0));
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset_x, rect.min.y + inset_y),
-        Point::new(rect.max.x - inset_x, rect.max.y - inset_y),
-    )
+    rect.inset_uniform_saturating(inset)
 }

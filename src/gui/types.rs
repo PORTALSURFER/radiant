@@ -66,6 +66,14 @@ impl Rect {
         self.max.y - self.min.y
     }
 
+    /// Return the geometric center point.
+    pub fn center(self) -> Point {
+        Point::new(
+            self.min.x + (self.width() * 0.5),
+            self.min.y + (self.height() * 0.5),
+        )
+    }
+
     /// Return whether the point lies inside the rectangle bounds.
     pub fn contains(self, point: Point) -> bool {
         point.x >= self.min.x
@@ -291,6 +299,13 @@ mod tests {
         let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));
 
         assert_eq!(rect.clamp_to(bounds), bounds.empty_at_min());
+    }
+
+    #[test]
+    fn rect_center_returns_midpoint() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(rect.center(), Point::new(30.0, 25.0));
     }
 
     #[test]

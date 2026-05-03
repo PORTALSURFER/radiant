@@ -213,7 +213,7 @@ fn centered_resize_edge_rect(
     let height = (selection_rect.height() * height_ratio.clamp(0.0, 1.0))
         .max(1.0)
         .min(selection_rect.height());
-    let center_y = selection_rect.min.y + (selection_rect.height() * 0.5);
+    let center_y = selection_rect.center().y;
     let top = (center_y - (height * 0.5)).max(selection_rect.min.y);
     let bottom = (top + height).min(selection_rect.max.y).max(top + 1.0);
     Rect::from_min_max(Point::new(left, top), Point::new(right, bottom))

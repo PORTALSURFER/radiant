@@ -1021,6 +1021,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "Event And Focus",
         "logical_point_to_u16_coords",
         "snap_text_baseline_to_pixel",
+        "Rect::center",
         "inset_horizontal",
         "inset_horizontal_saturating",
         "inset_uniform_saturating",

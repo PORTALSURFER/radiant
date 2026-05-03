@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
@@ -371,7 +371,7 @@ pub(in crate::gui::native_shell::state) fn waveform_centered_resize_edge_y_bound
     plot: Rect,
 ) -> (f32, f32) {
     let height = (plot.height() * 0.34).max(1.0).min(plot.height());
-    let center_y = plot.min.y + (plot.height() * 0.5);
+    let center_y = plot.center().y;
     let top = (center_y - (height * 0.5)).max(plot.min.y);
     let bottom = (top + height).min(plot.max.y).max(top + 1.0);
     (top, bottom)

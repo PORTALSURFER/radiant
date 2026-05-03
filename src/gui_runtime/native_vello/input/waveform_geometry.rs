@@ -165,7 +165,7 @@ pub(super) fn waveform_centered_resize_edge_y_bounds(plot: UiRect) -> (f32, f32)
     let height = (plot.height() * WAVEFORM_RESIZE_EDGE_HEIGHT_RATIO)
         .max(1.0)
         .min(plot.height());
-    let center_y = plot.min.y + (plot.height() * 0.5);
+    let center_y = plot.center().y;
     let top = (center_y - (height * 0.5)).max(plot.min.y);
     let bottom = (top + height).min(plot.max.y).max(top + 1.0);
     (top, bottom)

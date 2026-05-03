@@ -766,6 +766,40 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn rect_center_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("generic types module should be readable");
+    let routing_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/waveform_segments/routing.rs"
+    ))
+    .expect("waveform segment routing module should be readable");
+    let runtime_waveform_geometry_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/waveform_geometry.rs"
+    ))
+    .expect("native vello waveform geometry module should be readable");
+    let hit_testing_waveform_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/waveform.rs"
+    ))
+    .expect("waveform hit testing module should be readable");
+    let waveform_selection_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/waveform_segments/selection.rs"
+    ))
+    .expect("waveform selection rendering module should be readable");
+
+    assert!(types_mod.contains("pub fn center(self) -> Point"));
+    assert!(routing_mod.contains(".rect.center()"));
+    assert!(runtime_waveform_geometry_mod.contains("plot.center().y"));
+    assert!(hit_testing_waveform_mod.contains("plot.center().y"));
+    assert!(waveform_selection_mod.contains("selection_rect.center().y"));
+    assert!(!routing_mod.contains("fn rect_center"));
+    assert!(!routing_mod.contains("rect.min.x + (rect.width() * 0.5)"));
+}
+
+#[test]
 fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     let layout_types = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

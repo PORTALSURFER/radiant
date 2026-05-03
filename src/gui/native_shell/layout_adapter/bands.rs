@@ -122,7 +122,7 @@ pub(crate) fn compute_top_bar_band_sections(
     let cluster_output = layout_tree(&clusters_tree, title_row);
     let title_cluster = cluster_output.rect_for_clamped(
         TOP_TITLE_CLUSTER_ID,
-        Rect::from_min_max(title_inner.min, title_inner.min),
+        title_inner.empty_at_min(),
         title_row,
     );
     let action_cluster = cluster_output.rect_for_clamped(
@@ -265,5 +265,5 @@ fn fixed_width_slot(width: f32) -> SlotParams {
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }

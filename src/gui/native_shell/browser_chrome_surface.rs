@@ -141,7 +141,7 @@ pub(crate) fn resolve_browser_tabs_surface_layout(
 ) -> BrowserTabsSurfaceLayout {
     let surface = build_browser_tabs_surface(content, sizing, tabs_rect.width());
     let output = layout_tree(&surface.layout_node(), tabs_rect);
-    let empty = Rect::from_min_max(tabs_rect.min, tabs_rect.min);
+    let empty = tabs_rect.empty_at_min();
     BrowserTabsSurfaceLayout {
         items: output.rect_for_clamped(TABS_ITEMS_ID, empty, tabs_rect),
         map: output.rect_for_clamped(TABS_MAP_ID, empty, tabs_rect),
@@ -157,7 +157,7 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
     let widths = browser_toolbar_surface_widths(toolbar_rect, sizing);
     let surface = build_browser_toolbar_surface(content, toolbar_rect.height(), widths);
     let output = layout_tree(&surface.layout_node(), toolbar_rect);
-    let empty = Rect::from_min_max(toolbar_rect.min, toolbar_rect.min);
+    let empty = toolbar_rect.empty_at_min();
     BrowserToolbarSurfaceLayout {
         rating_filter_chips: std::array::from_fn(|index| {
             output.rect_for_clamped(TOOLBAR_RATING_BASE_ID + index as u64, empty, toolbar_rect)

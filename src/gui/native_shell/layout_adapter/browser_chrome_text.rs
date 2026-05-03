@@ -92,7 +92,7 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32, node
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 #[cfg(test)]

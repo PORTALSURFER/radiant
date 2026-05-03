@@ -222,8 +222,7 @@ fn render_prompt_input(
     } else {
         (input_text, style.text_primary)
     };
-    let resolved_input_text_rect =
-        input_text_rect.unwrap_or(Rect::from_min_max(input_rect.min, input_rect.min));
+    let resolved_input_text_rect = input_text_rect.unwrap_or(input_rect.empty_at_min());
     let input_text_width = input_text_rect
         .map(|line_rect| line_rect.width().max(24.0))
         .unwrap_or_else(|| (input_rect.width() - (sizing.text_inset_x * 2.0)).max(24.0));

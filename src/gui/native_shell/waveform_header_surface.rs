@@ -85,7 +85,7 @@ pub(crate) fn resolve_waveform_header_surface_layout(
 ) -> WaveformHeaderSurfaceLayout {
     let surface = build_waveform_header_surface(content, sizing);
     let output = layout_tree(&surface.layout_node(), header_rect);
-    let empty = Rect::from_min_max(header_rect.min, header_rect.min);
+    let empty = header_rect.empty_at_min();
     WaveformHeaderSurfaceLayout {
         title_text_rect: output.rect_for_clamped(WAVEFORM_HEADER_TITLE_ID, empty, header_rect),
         metadata_text_rect: output.rect_for_clamped(

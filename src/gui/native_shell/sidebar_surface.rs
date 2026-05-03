@@ -161,7 +161,7 @@ pub(crate) fn resolve_sidebar_header_surface_layout(
 ) -> SidebarHeaderSurfaceLayout {
     let surface = build_sidebar_header_surface(content, sizing);
     let output = layout_tree(&surface.layout_node(), header_rect);
-    let empty = Rect::from_min_max(header_rect.min, header_rect.min);
+    let empty = header_rect.empty_at_min();
     let add_button = rect_for(&output.rects, HEADER_ADD_BUTTON_ID, empty);
     SidebarHeaderSurfaceLayout {
         title_text_rect: clamp_rect_to_bounds(
@@ -185,7 +185,7 @@ pub(crate) fn resolve_sidebar_footer_surface_layout(
 ) -> SidebarFooterSurfaceLayout {
     let surface = build_sidebar_footer_surface(content, sizing, footer_rect.width());
     let output = layout_tree(&surface.layout_node(), footer_rect);
-    let empty = Rect::from_min_max(footer_rect.min, footer_rect.min);
+    let empty = footer_rect.empty_at_min();
     let action_buttons = content
         .actions
         .iter()

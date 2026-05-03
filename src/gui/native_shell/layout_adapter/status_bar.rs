@@ -56,7 +56,7 @@ pub(crate) fn compute_status_text_line_rect(
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 #[cfg(test)]
@@ -114,6 +114,6 @@ mod tests {
         let segment = Rect::from_min_max(Point::new(20.0, 4.0), Point::new(20.0, 4.0));
         let text_rect =
             compute_status_text_line_rect(segment, style.sizing, style.sizing.font_status);
-        assert_eq!(text_rect, Rect::from_min_max(segment.min, segment.min));
+        assert_eq!(text_rect, segment.empty_at_min());
     }
 }

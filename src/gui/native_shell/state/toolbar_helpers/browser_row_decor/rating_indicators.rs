@@ -48,7 +48,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
         count,
         browser_rating_indicator_metrics(rating_level, locked, sizing),
     )?;
-    let mut rects = [Rect::from_min_max(item_label.min, item_label.min); 3];
+    let mut rects = [item_label.empty_at_min(); 3];
     for (target, source) in rects.iter_mut().zip(layout.rects).take(layout.count.min(3)) {
         *target = source;
     }

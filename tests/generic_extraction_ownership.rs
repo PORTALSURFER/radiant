@@ -713,6 +713,42 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
 }
 
 #[test]
+fn native_empty_rect_construction_reuses_generic_rect_method() {
+    let source_paths = [
+        "/src/gui/native_shell/browser_chrome_surface.rs",
+        "/src/gui/native_shell/sidebar_surface.rs",
+        "/src/gui/native_shell/sidebar_surface_helpers.rs",
+        "/src/gui/native_shell/waveform_header_surface.rs",
+        "/src/gui/native_shell/layout_adapter/bands.rs",
+        "/src/gui/native_shell/layout_adapter/browser_chrome_text.rs",
+        "/src/gui/native_shell/layout_adapter/control_text.rs",
+        "/src/gui/native_shell/layout_adapter/controls/shared.rs",
+        "/src/gui/native_shell/layout_adapter/overlays/shared.rs",
+        "/src/gui/native_shell/layout_adapter/sidebar_header/helpers.rs",
+        "/src/gui/native_shell/layout_adapter/sidebar_sections.rs",
+        "/src/gui/native_shell/layout_adapter/sidebar_text.rs",
+        "/src/gui/native_shell/layout_adapter/status_bar.rs",
+        "/src/gui/native_shell/state/overlays/prompt.rs",
+        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/rating_indicators.rs",
+    ];
+
+    for path in source_paths {
+        let source = fs::read_to_string(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
+            .unwrap_or_else(|err| panic!("native source {path} should be readable: {err}"));
+        assert!(!source.contains("Rect::from_min_max(bounds.min, bounds.min)"));
+        assert!(!source.contains("Rect::from_min_max(rect.min, rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(header_rect.min, header_rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(footer_rect.min, footer_rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(tabs_rect.min, tabs_rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(toolbar_rect.min, toolbar_rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(title_inner.min, title_inner.min)"));
+        assert!(!source.contains("Rect::from_min_max(input_rect.min, input_rect.min)"));
+        assert!(!source.contains("Rect::from_min_max(item_label.min, item_label.min)"));
+        assert!(!source.contains("Rect::from_min_max(segment.min, segment.min)"));
+    }
+}
+
+#[test]
 fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("generic types module should be readable");

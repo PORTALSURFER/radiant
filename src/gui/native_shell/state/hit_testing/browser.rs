@@ -1,6 +1,6 @@
 use super::*;
 #[cfg(test)]
-use crate::app as native_model;
+use crate::gui::list::RecencyFilterChip;
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
     #[cfg(test)]
@@ -354,7 +354,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        chip: native_model::PlaybackAgeFilterChip,
+        chip: RecencyFilterChip,
     ) -> Option<Rect> {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)

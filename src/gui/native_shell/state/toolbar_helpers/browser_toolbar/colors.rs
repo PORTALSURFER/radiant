@@ -1,7 +1,7 @@
 //! Browser toolbar color and hover rendering helpers.
 
-use crate::app as native_model;
 use super::super::super::*;
+use crate::gui::list::RecencyFilterChip;
 
 pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_point(
     chip: Rect,
@@ -12,13 +12,13 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_p
 
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill(
     style: &StyleTokens,
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: RecencyFilterChip,
     active: bool,
 ) -> Rgba8 {
     let tint = match chip {
-        native_model::PlaybackAgeFilterChip::NeverPlayed => style.text_primary,
-        native_model::PlaybackAgeFilterChip::OlderThanMonth => style.text_muted,
-        native_model::PlaybackAgeFilterChip::OlderThanWeek => style.bg_tertiary,
+        RecencyFilterChip::NeverPlayed => style.text_primary,
+        RecencyFilterChip::OlderThanMonth => style.text_muted,
+        RecencyFilterChip::OlderThanWeek => style.bg_tertiary,
     };
     let amount = if active { 0.42 } else { 0.18 };
     blend_color(
@@ -34,18 +34,18 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill
 
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_border(
     style: &StyleTokens,
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: RecencyFilterChip,
     active: bool,
 ) -> Rgba8 {
     if active {
         match chip {
-            native_model::PlaybackAgeFilterChip::NeverPlayed => {
+            RecencyFilterChip::NeverPlayed => {
                 blend_color(style.text_primary, style.border_emphasis, 0.48)
             }
-            native_model::PlaybackAgeFilterChip::OlderThanMonth => {
+            RecencyFilterChip::OlderThanMonth => {
                 blend_color(style.text_muted, style.border_emphasis, 0.42)
             }
-            native_model::PlaybackAgeFilterChip::OlderThanWeek => {
+            RecencyFilterChip::OlderThanWeek => {
                 blend_color(style.border_emphasis, style.text_primary, 0.34)
             }
         }
@@ -56,7 +56,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_bord
 
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_fill(
     style: &StyleTokens,
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: RecencyFilterChip,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -69,7 +69,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hove
 
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_border(
     style: &StyleTokens,
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: RecencyFilterChip,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -85,7 +85,7 @@ pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_ch
     style: &StyleTokens,
     sizing: SizingTokens,
     chip_rect: Rect,
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: RecencyFilterChip,
     active: bool,
     motion_wave: f32,
 ) {

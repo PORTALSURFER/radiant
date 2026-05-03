@@ -1,5 +1,5 @@
 use super::*;
-use crate::app as native_model;
+use crate::gui::list::RecencyFilterChip;
 
 pub(super) fn render_browser_frame(
     state: &mut NativeShellState,
@@ -350,16 +350,10 @@ fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
     button_rect.centered_square(side)
 }
 
-fn browser_playback_age_filter_icon(
-    chip: native_model::PlaybackAgeFilterChip,
-) -> WaveformToolbarIcon {
+fn browser_playback_age_filter_icon(chip: RecencyFilterChip) -> WaveformToolbarIcon {
     match chip {
-        native_model::PlaybackAgeFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
-        native_model::PlaybackAgeFilterChip::OlderThanMonth => {
-            WaveformToolbarIcon::BrowserOlderThanMonth
-        }
-        native_model::PlaybackAgeFilterChip::OlderThanWeek => {
-            WaveformToolbarIcon::BrowserOlderThanWeek
-        }
+        RecencyFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
+        RecencyFilterChip::OlderThanMonth => WaveformToolbarIcon::BrowserOlderThanMonth,
+        RecencyFilterChip::OlderThanWeek => WaveformToolbarIcon::BrowserOlderThanWeek,
     }
 }

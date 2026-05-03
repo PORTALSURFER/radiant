@@ -1023,6 +1023,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SurfaceNode::list_item",
         "SurfaceNode::list_item_action",
         "SurfaceNode::list_item_mapped",
+        "SurfaceNode::image",
         "SurfaceNode::canvas",
         "WidgetSpec",
         "WidgetId",

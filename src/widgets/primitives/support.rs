@@ -1,7 +1,8 @@
 //! Shared widget support types plus non-interactive public primitives.
 
-use crate::gui::types::Rect;
+use crate::gui::types::{ImageRgba, Rect};
 use crate::layout::LayoutNode;
+use std::sync::Arc;
 
 use super::scrollbar::ScrollbarAxis;
 use crate::widgets::contract::{
@@ -173,6 +174,35 @@ impl CardWidget {
     }
 }
 
+/// Immutable public properties for a reusable image widget.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ImageProps {
+    /// Shared RGBA image payload.
+    pub image: Arc<ImageRgba>,
+}
+
+/// Public image primitive for raster content.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageWidget {
+    /// Shared widget contract.
+    pub common: WidgetCommon,
+    /// Immutable image configuration.
+    pub props: ImageProps,
+}
+
+impl ImageWidget {
+    /// Build a non-interactive image descriptor that reuses shared pixel storage.
+    pub fn new(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetKind::Image, sizing);
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            props: ImageProps { image },
+        }
+    }
+}
+
 /// Public canvas/custom-paint primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasWidget {
@@ -216,6 +246,8 @@ pub enum WidgetSpec {
     Badge(super::badge::BadgeWidget),
     /// Non-interactive card or panel surface.
     Card(CardWidget),
+    /// Non-interactive raster image surface.
+    Image(ImageWidget),
     /// Custom paint/input surface.
     Canvas(CanvasWidget),
 }
@@ -232,6 +264,7 @@ impl WidgetSpec {
             Self::ListItem(widget) => &widget.common,
             Self::Badge(widget) => &widget.common,
             Self::Card(widget) => &widget.common,
+            Self::Image(widget) => &widget.common,
             Self::Canvas(widget) => &widget.common,
         }
     }
@@ -268,7 +301,7 @@ impl WidgetSpec {
             Self::ListItem(widget) => widget
                 .handle_input(bounds, input)
                 .map(WidgetOutput::ListItem),
-            Self::Text(_) | Self::Card(_) | Self::Canvas(_) => None,
+            Self::Text(_) | Self::Card(_) | Self::Image(_) | Self::Canvas(_) => None,
         }
     }
 }

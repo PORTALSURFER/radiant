@@ -1,13 +1,14 @@
 //! Backend-neutral paint plans emitted from generic Radiant surfaces.
 
 use crate::{
-    gui::types::{Point, Rect, Rgba8},
+    gui::types::{ImageRgba, Point, Rect, Rgba8},
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
         PaintBounds, ScrollbarAxis, TextWrap, WidgetId, WidgetSpec, resolve_widget_visual_tokens,
     },
 };
+use std::sync::Arc;
 
 /// Horizontal alignment for generic text paint primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -76,6 +77,17 @@ pub struct PaintCustomSurface {
     pub bounds: PaintBounds,
 }
 
+/// Textured RGBA image primitive in logical surface coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintImage {
+    /// Widget that produced this image primitive.
+    pub widget_id: WidgetId,
+    /// Destination rectangle.
+    pub rect: Rect,
+    /// Shared RGBA image payload.
+    pub image: Arc<ImageRgba>,
+}
+
 /// One backend-neutral primitive emitted by a generic surface projection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaintPrimitive {
@@ -85,6 +97,8 @@ pub enum PaintPrimitive {
     StrokeRect(PaintStrokeRect),
     /// Paint one text run.
     Text(PaintTextRun),
+    /// Paint an RGBA image stretched into one destination rectangle.
+    Image(PaintImage),
     /// Reserve a host-painted custom surface.
     CustomSurface(PaintCustomSurface),
 }
@@ -248,6 +262,13 @@ pub(super) fn push_widget_paint(
         }
         WidgetSpec::Card(_) => {
             push_control_chrome(primitives, widget, bounds, theme);
+        }
+        WidgetSpec::Image(image) => {
+            primitives.push(PaintPrimitive::Image(PaintImage {
+                widget_id: widget.id(),
+                rect: bounds,
+                image: Arc::clone(&image.props.image),
+            }));
         }
         WidgetSpec::Canvas(canvas) => {
             primitives.push(PaintPrimitive::CustomSurface(PaintCustomSurface {

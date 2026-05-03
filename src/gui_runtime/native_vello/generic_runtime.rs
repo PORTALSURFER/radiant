@@ -2,6 +2,14 @@
 
 use super::*;
 
+struct GenericSharedPixelBytes(Arc<[u8]>);
+
+impl AsRef<[u8]> for GenericSharedPixelBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 /// Run a generic [`RuntimeBridge`] through the native Vello backend.
 ///
 /// This entrypoint is intentionally narrower than the compatibility
@@ -617,6 +625,36 @@ pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene(
                     max_width: Some(text.rect.width().max(0.0)),
                     align,
                 });
+            }
+            PaintPrimitive::Image(draw) => {
+                let (Ok(width), Ok(height)) = (
+                    u32::try_from(draw.image.width),
+                    u32::try_from(draw.image.height),
+                ) else {
+                    continue;
+                };
+                if width == 0
+                    || height == 0
+                    || draw.rect.width() <= 0.0
+                    || draw.rect.height() <= 0.0
+                {
+                    continue;
+                }
+                let image_data = ImageData {
+                    data: Blob::new(Arc::new(GenericSharedPixelBytes(Arc::clone(
+                        &draw.image.pixels,
+                    )))),
+                    format: ImageFormat::Rgba8,
+                    alpha_type: ImageAlphaType::Alpha,
+                    width,
+                    height,
+                };
+                let transform = Affine::translate((draw.rect.min.x as f64, draw.rect.min.y as f64))
+                    * Affine::scale_non_uniform(
+                        draw.rect.width() as f64 / f64::from(width),
+                        draw.rect.height() as f64 / f64::from(height),
+                    );
+                scene.draw_image(&image_data, transform);
             }
             PaintPrimitive::CustomSurface(custom) => {
                 scene.stroke(

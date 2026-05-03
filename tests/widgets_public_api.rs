@@ -1,16 +1,18 @@
 //! Public API coverage for `radiant::widgets`.
 
 use radiant::{
+    gui::types::ImageRgba,
     layout::{
         ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, CardWidget, ListItemWidget, ScrollbarAxis, ScrollbarWidget,
-        TextInputWidget, TextWidget, ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind,
-        WidgetOutput, WidgetSizing, WidgetSpec,
+        BadgeWidget, ButtonWidget, CardWidget, ImageWidget, ListItemWidget, ScrollbarAxis,
+        ScrollbarWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetInput, WidgetKey,
+        WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
+use std::sync::Arc;
 
 #[test]
 fn public_widgets_compose_with_public_layout_containers() {
@@ -53,6 +55,13 @@ fn public_widgets_compose_with_public_layout_containers() {
         "Document",
         WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
     ));
+    let image_payload =
+        Arc::new(ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image"));
+    let image = WidgetSpec::Image(ImageWidget::new(
+        15,
+        image_payload,
+        WidgetSizing::fixed(Vector2::new(32.0, 28.0)),
+    ));
 
     let root = LayoutNode::container(
         1,
@@ -70,12 +79,13 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
             SlotChild::new(SlotParams::fill(), card.layout_node()),
             SlotChild::new(SlotParams::fill(), item.layout_node()),
+            SlotChild::new(SlotParams::fill(), image.layout_node()),
         ],
     );
 
     let output = layout_tree(
         &root,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(760.0, 32.0)),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(800.0, 32.0)),
     );
 
     assert!(output.rects.contains_key(&header.id()));
@@ -86,6 +96,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&badge.id()));
     assert!(output.rects.contains_key(&card.id()));
     assert!(output.rects.contains_key(&item.id()));
+    assert!(output.rects.contains_key(&image.id()));
     assert_eq!(
         rename.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
@@ -106,6 +117,7 @@ fn public_widgets_compose_with_public_layout_containers() {
         item.common().emitted_messages,
         vec![WidgetMessageKind::ItemInvoked]
     );
+    assert!(image.common().emitted_messages.is_empty());
     assert_eq!(
         badge.common().emitted_messages,
         vec![WidgetMessageKind::Activate]

@@ -1,15 +1,16 @@
 //! Focused public behavior coverage for reusable widget primitives.
 
-use radiant::gui::types::{Point, Rect};
+use radiant::gui::types::{ImageRgba, Point, Rect};
 use radiant::{
     layout::Vector2,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ListItemMessage,
-        ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
-        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, WidgetInput, WidgetKey,
-        WidgetSizing,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ImageWidget,
+        ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget,
+        WidgetInput, WidgetKey, WidgetSizing,
     },
 };
+use std::sync::Arc;
 
 #[test]
 fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
@@ -91,6 +92,22 @@ fn card_intrinsic_sizing_is_public_and_non_interactive() {
     match card.common.layout_node() {
         radiant::layout::LayoutNode::Widget(node) => {
             assert_eq!(node.intrinsic, Vector2::new(240.0, 120.0));
+        }
+        other => panic!("expected widget leaf, got {other:?}"),
+    }
+}
+
+#[test]
+fn image_intrinsic_sizing_reuses_shared_rgba_payload() {
+    let image = Arc::new(ImageRgba::new(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255]).unwrap());
+    let sizing = WidgetSizing::fixed(Vector2::new(80.0, 40.0));
+    let widget = ImageWidget::new(10, Arc::clone(&image), sizing);
+
+    assert_eq!(widget.common.sizing, sizing);
+    assert!(Arc::ptr_eq(&widget.props.image, &image));
+    match widget.common.layout_node() {
+        radiant::layout::LayoutNode::Widget(node) => {
+            assert_eq!(node.intrinsic, Vector2::new(80.0, 40.0));
         }
         other => panic!("expected widget leaf, got {other:?}"),
     }

@@ -26,7 +26,7 @@ use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
     kurbo::{Affine, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData},
+    peniko::{Blob, Color, Fill, FontData, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{
@@ -80,19 +80,19 @@ mod text_runtime;
 
 #[cfg(feature = "legacy-shell")]
 use self::{
-    input::*, legacy_shell_prelude::*, legacy_shell_text_entry::*, profiling::*,
-    runtime_state::*, scene_cache::*, scene_rebuild::*, startup::*, text_edit::*, text_renderer::*,
+    input::*, legacy_shell_prelude::*, legacy_shell_text_entry::*, profiling::*, runtime_state::*,
+    scene_cache::*, scene_rebuild::*, startup::*, text_edit::*, text_renderer::*,
 };
 #[cfg(not(feature = "legacy-shell"))]
 use self::{startup::*, text_renderer::*};
 #[cfg(feature = "legacy-shell")]
+pub(in crate::gui_runtime::native_vello) use legacy_shell_config::*;
+#[cfg(feature = "legacy-shell")]
 pub(in crate::gui_runtime::native_vello) use legacy_shell_runner::NativeVelloRunner;
 #[cfg(feature = "legacy-shell")]
-pub(in crate::gui_runtime::native_vello) use legacy_shell_config::*;
+pub(crate) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts;
 pub(in crate::gui_runtime::native_vello) use runtime_config::*;
 pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
-#[cfg(feature = "legacy-shell")]
-pub(crate) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts;
 
 pub use self::{
     generic_runtime::{

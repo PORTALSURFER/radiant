@@ -2,16 +2,16 @@
 
 use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
-    gui::types::Rect,
+    gui::types::{ImageRgba, Rect},
     layout::{
         ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams,
     },
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, CardWidget,
-        FocusBehavior, ListItemMessage, ListItemWidget, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
-        ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget,
+        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -460,6 +460,11 @@ impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting card or panel leaf node.
     pub fn card(id: WidgetId, sizing: WidgetSizing) -> Self {
         Self::static_widget(WidgetSpec::Card(CardWidget::new(id, sizing)))
+    }
+
+    /// Build a non-emitting raster image leaf node.
+    pub fn image(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
+        Self::static_widget(WidgetSpec::Image(ImageWidget::new(id, image, sizing)))
     }
 
     /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.

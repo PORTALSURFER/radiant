@@ -21,7 +21,7 @@ pub(in crate::gui_runtime::native_vello) use std::{
 };
 pub(in crate::gui_runtime::native_vello) use vello::{
     kurbo::{Circle, Point as KurboPoint},
-    peniko::{Gradient, ImageAlphaType, ImageData, ImageFormat},
+    peniko::Gradient,
 };
 pub(in crate::gui_runtime::native_vello) use winit::{
     event::MouseScrollDelta, keyboard::ModifiersState, window::CursorIcon,

@@ -33,6 +33,8 @@ pub enum WidgetKind {
     Badge,
     /// Non-interactive panel, card, or grouped content surface.
     Card,
+    /// Non-interactive raster image surface.
+    Image,
     /// Custom paint surface that owns its own rendering and input interpretation.
     Canvas,
 }

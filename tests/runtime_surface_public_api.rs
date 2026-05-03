@@ -1,6 +1,7 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
 use radiant::{
+    gui::types::ImageRgba,
     layout::{Point, Rect, Vector2, layout_tree},
     runtime::{
         App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
@@ -186,6 +187,7 @@ fn surface_node_row_column_and_fill_helpers_project_layout() {
 
 #[test]
 fn surface_node_stack_and_card_helpers_project_grouped_surface() {
+    let image = Arc::new(ImageRgba::new(1, 1, vec![0, 128, 255, 255]).unwrap());
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::stack(
         23,
         vec![
@@ -201,6 +203,11 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
                     "Overview",
                     WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
                 ))],
+            )),
+            SurfaceChild::fill(SurfaceNode::image(
+                27,
+                Arc::clone(&image),
+                WidgetSizing::fixed(Vector2::new(16.0, 16.0)),
             )),
         ],
     ));
@@ -223,6 +230,16 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
             })
             .collect::<Vec<_>>(),
         vec![24]
+    );
+    assert_eq!(
+        plan.primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Image(draw) => Some((draw.widget_id, draw.image.width)),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![(27, 1)]
     );
 }
 

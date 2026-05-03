@@ -70,7 +70,6 @@ use std::{
     sync::Arc,
 };
 
-#[path = "../../../../../src/app_core/native_shell/composition/state/automation.rs"]
 mod automation;
 mod browser_rows;
 mod cache;

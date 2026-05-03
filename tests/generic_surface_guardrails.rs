@@ -242,6 +242,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
     let state_facade = fs::read_to_string(manifest_dir.join("src/gui/native_shell/state.rs"))
         .expect("native shell state facade");
     for module in [
+        "automation",
         "browser_rows",
         "motion_overlay",
         "options_panel",
@@ -671,15 +672,6 @@ fn legacy_shell_sources_are_feature_gated() {
             .join("src/gui/native_shell/state/tests/folder_visibility_toggle.rs")
             .exists(),
         "Sempal native-shell state fixtures belong with Sempal composition tests, not Radiant native_shell"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/gui/native_shell/state/automation.rs")
-            .exists()
-            && !manifest_dir
-                .join("src/gui/native_shell/state/automation")
-                .exists(),
-        "Sempal native-shell automation builders belong with Sempal composition, not Radiant native_shell"
     );
     assert!(
         !manifest_dir

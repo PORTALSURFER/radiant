@@ -1350,6 +1350,34 @@ fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
 }
 
 #[test]
+fn visual_snapshot_serialization_is_owned_by_generic_gui_module() {
+    let legacy_shell_snapshot_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/compat/legacy_shell/shell_snapshot.rs"
+    ))
+    .expect("legacy shell snapshot module should be readable");
+    let gui_snapshot_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/snapshot.rs"))
+            .expect("generic snapshot module should be readable");
+
+    assert!(gui_snapshot_mod.contains("pub fn visual_snapshot_from_paint_frame"));
+    assert!(legacy_shell_snapshot_mod.contains("visual_snapshot_from_paint_frame"));
+    for duplicate in [
+        "SnapshotPrimitive",
+        "SnapshotTextRun",
+        "fn snap_primitive",
+        "fn snap_rect",
+        "fn snap_color",
+        "fn snap_align",
+    ] {
+        assert!(
+            !legacy_shell_snapshot_mod.contains(duplicate),
+            "legacy shell snapshot capture should delegate `{duplicate}` handling to gui::snapshot"
+        );
+    }
+}
+
+#[test]
 fn native_shell_motion_helpers_do_not_use_sample_manager_terms_for_points() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let files = [

@@ -206,6 +206,8 @@ clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.
 `radiant::gui::text_layout::snap_text_baseline_to_pixel` provides shared
 baseline snapping for retained text rows.
+`Rect::inset_horizontal` provides product-neutral horizontal text and control
+inset geometry.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border

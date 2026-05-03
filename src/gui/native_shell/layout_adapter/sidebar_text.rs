@@ -21,7 +21,7 @@ pub(crate) struct SidebarFolderRowLayout {
 /// Compute source-row label bounds through strict slotized text layout.
 pub(crate) fn compute_sidebar_source_row_text_rect(row_rect: Rect, sizing: SizingTokens) -> Rect {
     let inset = sizing.text_inset_x + sizing.row_corner_inset;
-    let bounds = inset_rect_horizontal(row_rect, inset, inset);
+    let bounds = row_rect.inset_horizontal(inset, inset);
     compute_sidebar_text_line(
         bounds,
         sizing.font_body,
@@ -56,7 +56,7 @@ pub(crate) fn compute_sidebar_folder_row_layout(
         Point::new(disclosure_right, row_rect.max.y.max(row_rect.min.y)),
     );
     let left_inset = base_inset + depth_indent + gutter_width + gutter_spacing;
-    let bounds = inset_rect_horizontal(row_rect, left_inset, base_inset);
+    let bounds = row_rect.inset_horizontal(left_inset, base_inset);
     let label_rect = compute_sidebar_text_line(
         bounds,
         sizing.font_body,
@@ -76,7 +76,7 @@ pub(crate) fn compute_sidebar_recovery_badge_text_rect(
     sizing: SizingTokens,
 ) -> Rect {
     let inset = sizing.text_inset_x.max(0.0);
-    let bounds = inset_rect_horizontal(badge_rect, inset, inset);
+    let bounds = badge_rect.inset_horizontal(inset, inset);
     compute_sidebar_text_line(
         bounds,
         sizing.font_meta,
@@ -96,15 +96,6 @@ fn compute_sidebar_text_line(rect: Rect, font_size: f32, inset_y: f32, node_seed
         TextLineInsets::horizontal(0.0),
         inset_y.max(0.0),
         SIDEBAR_TEXT_LINE_ID + node_seed,
-    )
-}
-
-fn inset_rect_horizontal(rect: Rect, left: f32, right: f32) -> Rect {
-    let min_x = (rect.min.x + left.max(0.0)).min(rect.max.x);
-    let max_x = (rect.max.x - right.max(0.0)).max(min_x);
-    Rect::from_min_max(
-        Point::new(min_x, rect.min.y),
-        Point::new(max_x, rect.max.y.max(rect.min.y)),
     )
 }
 

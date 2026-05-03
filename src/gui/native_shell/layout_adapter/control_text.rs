@@ -2,7 +2,7 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::text_layout::{TextLineInsets, centered_text_line};
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::Rect;
 
 const ACTION_BUTTON_TEXT_BASE_ID: u64 = 1610;
 
@@ -28,7 +28,7 @@ fn compute_text_line_rect(
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let text_bounds = inset_horizontal(rect, horizontal_inset);
+    let text_bounds = rect.inset_horizontal(horizontal_inset, horizontal_inset);
     if text_bounds.width() <= 0.0 || text_bounds.height() <= 0.0 {
         return empty;
     }
@@ -38,15 +38,6 @@ fn compute_text_line_rect(
         TextLineInsets::horizontal(0.0),
         sizing.text_inset_y.max(0.0),
         node_id,
-    )
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let min_x = (rect.min.x + inset).min(rect.max.x);
-    let max_x = (rect.max.x - inset).max(min_x);
-    Rect::from_min_max(
-        Point::new(min_x, rect.min.y),
-        Point::new(max_x, rect.max.y.max(rect.min.y)),
     )
 }
 

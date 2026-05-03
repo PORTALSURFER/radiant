@@ -92,6 +92,16 @@ impl Rect {
         Self::from_min_max(min, max)
     }
 
+    /// Return this rectangle with horizontal insets applied.
+    pub fn inset_horizontal(self, left: f32, right: f32) -> Self {
+        let min_x = (self.min.x + left.max(0.0)).min(self.max.x);
+        let max_x = (self.max.x - right.max(0.0)).max(min_x);
+        Self::from_min_max(
+            Point::new(min_x, self.min.y),
+            Point::new(max_x, self.max.y.max(self.min.y)),
+        )
+    }
+
     /// Return a centered square of side `side` constrained to this rectangle.
     ///
     /// Empty rectangles or non-positive sides return the original rectangle.
@@ -262,6 +272,20 @@ mod tests {
         let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));
 
         assert_eq!(rect.clamp_to(bounds), bounds.empty_at_min());
+    }
+
+    #[test]
+    fn rect_inset_horizontal_clamps_to_rect_edges() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(
+            rect.inset_horizontal(4.0, 6.0),
+            Rect::from_min_max(Point::new(14.0, 20.0), Point::new(44.0, 30.0))
+        );
+        assert_eq!(
+            rect.inset_horizontal(80.0, 6.0),
+            Rect::from_min_max(Point::new(50.0, 20.0), Point::new(50.0, 30.0))
+        );
     }
 
     #[test]

@@ -713,6 +713,28 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
 }
 
 #[test]
+fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("generic types module should be readable");
+    let control_text_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/control_text.rs"
+    ))
+    .expect("control text adapter should be readable");
+    let sidebar_text_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/sidebar_text.rs"
+    ))
+    .expect("sidebar text adapter should be readable");
+
+    assert!(types_mod.contains("pub fn inset_horizontal"));
+    assert!(control_text_mod.contains(".inset_horizontal("));
+    assert!(sidebar_text_mod.contains(".inset_horizontal("));
+    assert!(!control_text_mod.contains("fn inset_horizontal"));
+    assert!(!sidebar_text_mod.contains("fn inset_rect_horizontal"));
+}
+
+#[test]
 fn text_baseline_snapping_is_owned_by_generic_text_layout() {
     let text_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

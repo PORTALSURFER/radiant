@@ -31,6 +31,8 @@ pub enum WidgetKind {
     ListItem,
     /// Compact label, badge, or pill surface for status and selectable filters.
     Badge,
+    /// Non-interactive panel, card, or grouped content surface.
+    Card,
     /// Custom paint surface that owns its own rendering and input interpretation.
     Canvas,
 }

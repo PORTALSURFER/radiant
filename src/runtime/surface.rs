@@ -8,10 +8,10 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, FocusBehavior,
-        ListItemWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, TextInputMessage,
-        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
-        WidgetOutput, WidgetSizing, WidgetSpec,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, CardWidget,
+        FocusBehavior, ListItemWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
+        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId,
+        WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -261,6 +261,18 @@ impl<Message> SurfaceNode<Message> {
         )
     }
 
+    /// Build a stack container that overlays children in slot order.
+    pub fn stack(id: NodeId, children: Vec<SurfaceChild<Message>>) -> Self {
+        Self::container(
+            id,
+            ContainerPolicy {
+                kind: ContainerKind::Stack,
+                ..ContainerPolicy::default()
+            },
+            children,
+        )
+    }
+
     /// Build a widget leaf node.
     pub fn widget(widget: WidgetSpec, messages: WidgetMessageMapper<Message>) -> Self {
         Self::Widget(SurfaceWidget::new(widget, messages))
@@ -408,6 +420,11 @@ impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
         Self::static_widget(WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)))
+    }
+
+    /// Build a non-emitting card or panel leaf node.
+    pub fn card(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::static_widget(WidgetSpec::Card(CardWidget::new(id, sizing)))
     }
 
     /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.

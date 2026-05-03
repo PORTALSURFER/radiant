@@ -112,6 +112,26 @@ impl ListItemWidget {
     }
 }
 
+/// Public card/panel primitive for grouped content surfaces.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CardWidget {
+    /// Shared widget contract.
+    pub common: WidgetCommon,
+}
+
+impl CardWidget {
+    /// Build a non-interactive card descriptor with neutral panel styling.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetKind::Card, sizing);
+        common.paint.paints_focus = false;
+        common.style = WidgetStyle {
+            tone: WidgetTone::Neutral,
+            prominence: WidgetProminence::Subtle,
+        };
+        Self { common }
+    }
+}
+
 /// Public canvas/custom-paint primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CanvasWidget {
@@ -153,6 +173,8 @@ pub enum WidgetSpec {
     ListItem(ListItemWidget),
     /// Compact badge or pill primitive.
     Badge(super::badge::BadgeWidget),
+    /// Non-interactive card or panel surface.
+    Card(CardWidget),
     /// Custom paint/input surface.
     Canvas(CanvasWidget),
 }
@@ -168,6 +190,7 @@ impl WidgetSpec {
             Self::Scrollbar(widget) => &widget.common,
             Self::ListItem(widget) => &widget.common,
             Self::Badge(widget) => &widget.common,
+            Self::Card(widget) => &widget.common,
             Self::Canvas(widget) => &widget.common,
         }
     }
@@ -201,7 +224,7 @@ impl WidgetSpec {
                 .handle_input(bounds, input)
                 .map(WidgetOutput::Scrollbar),
             Self::Badge(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Badge),
-            Self::Text(_) | Self::ListItem(_) | Self::Canvas(_) => None,
+            Self::Text(_) | Self::ListItem(_) | Self::Card(_) | Self::Canvas(_) => None,
         }
     }
 }

@@ -246,6 +246,9 @@ pub(super) fn push_widget_paint(
                 TextWrap::None,
             );
         }
+        WidgetSpec::Card(_) => {
+            push_control_chrome(primitives, widget, bounds, theme);
+        }
         WidgetSpec::Canvas(canvas) => {
             primitives.push(PaintPrimitive::CustomSurface(PaintCustomSurface {
                 widget_id: widget.id(),

@@ -184,6 +184,48 @@ fn surface_node_row_column_and_fill_helpers_project_layout() {
 }
 
 #[test]
+fn surface_node_stack_and_card_helpers_project_grouped_surface() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::stack(
+        23,
+        vec![
+            SurfaceChild::fill(SurfaceNode::card(
+                24,
+                WidgetSizing::fixed(Vector2::new(180.0, 96.0)),
+            )),
+            SurfaceChild::fill(SurfaceNode::column(
+                25,
+                4.0,
+                vec![SurfaceChild::fill(SurfaceNode::text(
+                    26,
+                    "Overview",
+                    WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+                ))],
+            )),
+        ],
+    ));
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 96.0)),
+    );
+    let theme = ThemeTokens::default();
+    let plan = surface.paint_plan(&output, &theme);
+
+    assert_eq!(output.rects.get(&24), output.rects.get(&25));
+    assert!(surface.find_widget(24).is_some());
+    assert_eq!(
+        plan.primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill.widget_id),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![24]
+    );
+}
+
+#[test]
 fn static_widget_helper_builds_non_emitting_leaf() {
     let title = WidgetSpec::Text(TextWidget::new(
         30,

@@ -4,9 +4,9 @@ use radiant::gui::types::{Point, Rect};
 use radiant::{
     layout::Vector2,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, PointerButton, ScrollbarAxis,
-        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, ToggleMessage,
-        ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, PointerButton,
+        ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget,
+        ToggleMessage, ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 
@@ -78,6 +78,21 @@ fn badge_intrinsic_sizing_and_activation_are_public_and_deterministic() {
         ),
         Some(BadgeMessage::Activate)
     );
+}
+
+#[test]
+fn card_intrinsic_sizing_is_public_and_non_interactive() {
+    let sizing = WidgetSizing::new(Vector2::new(160.0, 96.0), Vector2::new(240.0, 120.0));
+    let card = CardWidget::new(8, sizing);
+
+    assert_eq!(card.common.sizing, sizing);
+    assert!(card.common.emitted_messages.is_empty());
+    match card.common.layout_node() {
+        radiant::layout::LayoutNode::Widget(node) => {
+            assert_eq!(node.intrinsic, Vector2::new(240.0, 120.0));
+        }
+        other => panic!("expected widget leaf, got {other:?}"),
+    }
 }
 
 #[test]

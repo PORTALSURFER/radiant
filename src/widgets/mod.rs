@@ -71,8 +71,8 @@ pub use interaction::{
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,
-    ListItemWidget, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget, TextInputProps,
-    TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget,
-    WidgetCommon, WidgetSpec,
+    CardWidget, ListItemWidget, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget,
+    TextInputProps, TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps,
+    ToggleState, ToggleWidget, WidgetCommon, WidgetSpec,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

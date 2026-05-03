@@ -6,9 +6,9 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget, TextWidget,
-        ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing,
-        WidgetSpec,
+        BadgeWidget, ButtonWidget, CardWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget,
+        TextWidget, ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput,
+        WidgetSizing, WidgetSpec,
     },
 };
 
@@ -44,6 +44,10 @@ fn public_widgets_compose_with_public_layout_containers() {
         "Ready",
         WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
     ));
+    let card = WidgetSpec::Card(CardWidget::new(
+        8,
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
 
     let root = LayoutNode::container(
         1,
@@ -59,12 +63,13 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), snap.layout_node()),
             SlotChild::new(SlotParams::fill(), scroll.layout_node()),
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
+            SlotChild::new(SlotParams::fill(), card.layout_node()),
         ],
     );
 
     let output = layout_tree(
         &root,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(520.0, 32.0)),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 32.0)),
     );
 
     assert!(output.rects.contains_key(&header.id()));
@@ -73,6 +78,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&snap.id()));
     assert!(output.rects.contains_key(&scroll.id()));
     assert!(output.rects.contains_key(&badge.id()));
+    assert!(output.rects.contains_key(&card.id()));
     assert_eq!(
         rename.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
@@ -93,6 +99,7 @@ fn public_widgets_compose_with_public_layout_containers() {
         badge.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
     );
+    assert!(card.common().emitted_messages.is_empty());
 }
 
 #[test]

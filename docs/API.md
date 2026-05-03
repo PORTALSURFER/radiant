@@ -44,8 +44,8 @@ returns `Command<Message>` while keeping side effects and domain state host-owne
 public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
 entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
 `ButtonWidget`, `BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
-`ScrollbarWidget`, `CanvasWidget`, and `ListItemWidget` describe reusable UI
-behavior without host-domain semantics.
+`ScrollbarWidget`, `CardWidget`, `CanvasWidget`, and `ListItemWidget` describe
+reusable UI behavior without host-domain semantics.
 
 Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
@@ -56,8 +56,10 @@ widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
 `SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
 `SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
 `SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and
-`SurfaceNode::canvas` cover common leaf widgets without requiring hosts to
-manually wrap `WidgetSpec`. Lower-level `SurfaceNode::container` plus
+`SurfaceNode::card`, and `SurfaceNode::canvas` cover common leaf widgets without
+requiring hosts to manually wrap `WidgetSpec`. `SurfaceNode::stack` overlays
+children in slot order so hosts can compose a card background with nested rows,
+columns, labels, and controls. Lower-level `SurfaceNode::container` plus
 `ContainerPolicy` and `SlotParams` remains available for custom layout policy.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is

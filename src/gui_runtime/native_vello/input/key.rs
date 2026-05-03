@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{HotkeyResolution, KeyPress};
+use crate::gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution};
 
 pub(super) fn keypress_from_input(key: KeyCode, modifiers: ModifiersState) -> KeyPress {
     KeyPress {
@@ -18,9 +18,9 @@ pub(super) fn action_from_key(
     mut resolve_hotkey: impl FnMut(
         Option<KeyPress>,
         KeyPress,
-        crate::compat_app_contract::FocusContextModel,
-    ) -> HotkeyResolution,
-) -> HotkeyResolution {
+        FocusSurface,
+    ) -> ShortcutResolution<UiAction>,
+) -> ShortcutResolution<UiAction> {
     if model.confirm_prompt.visible {
         let confirm_enabled = model
             .confirm_prompt
@@ -28,17 +28,17 @@ pub(super) fn action_from_key(
             .as_ref()
             .is_none_or(|error| error.trim().is_empty());
         return match key {
-            KeyCode::Enter if confirm_enabled => HotkeyResolution {
+            KeyCode::Enter if confirm_enabled => ShortcutResolution {
                 action: Some(UiAction::ConfirmPrompt),
                 handled: true,
                 pending_chord: None,
             },
-            KeyCode::C => HotkeyResolution {
+            KeyCode::C => ShortcutResolution {
                 action: Some(UiAction::CancelPrompt),
                 handled: true,
                 pending_chord: None,
             },
-            _ => HotkeyResolution {
+            _ => ShortcutResolution {
                 action: None,
                 handled: false,
                 pending_chord: None,
@@ -46,14 +46,14 @@ pub(super) fn action_from_key(
         };
     }
     if model.options_panel.visible {
-        return HotkeyResolution {
+        return ShortcutResolution {
             action: None,
             handled: false,
             pending_chord: None,
         };
     }
     if matches!(key, KeyCode::P) && model.progress_overlay.cancelable {
-        return HotkeyResolution {
+        return ShortcutResolution {
             action: Some(UiAction::CancelProgress),
             handled: true,
             pending_chord: None,

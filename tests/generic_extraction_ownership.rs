@@ -620,6 +620,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(visualization_mod.contains("pub enum PointRenderMode"));
     assert!(visualization_mod.contains("pub struct SpatialPoint"));
     assert!(visualization_mod.contains("pub struct SpatialPanel"));
+    assert!(visualization_mod.contains("pub fn normalized_milli_point_in_rect"));
     assert!(visualization_mod.contains("pub enum ChannelViewMode"));
     assert!(visualization_mod.contains("pub struct TimelineMarkerPreview"));
     assert!(visualization_mod.contains("pub struct TimelineViewport"));
@@ -636,6 +637,27 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(visualization_mod.contains("pub struct TimelineSurfaceState"));
     assert!(waveform_mod.contains("timeline_surface"));
     assert!(motion_mod.contains("timeline_motion"));
+}
+
+#[test]
+fn spatial_point_projection_is_owned_by_generic_visualization_module() {
+    let visualization_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/visualization.rs"
+    ))
+    .expect("visualization module should be readable");
+    let map_canvas_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/map_canvas.rs"
+    ))
+    .expect("map canvas module should be readable");
+
+    assert!(visualization_mod.contains("pub fn normalized_milli_point_in_rect"));
+    assert!(map_canvas_mod.contains("normalized_milli_point_in_rect(canvas, x_milli, y_milli)"));
+    assert!(
+        !map_canvas_mod.contains("let x_ratio = f32::from(x_milli.min(1000))"),
+        "native map canvas wrapper should delegate normalized point projection to gui::visualization"
+    );
 }
 
 #[test]

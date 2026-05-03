@@ -1000,6 +1000,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SignalToolState",
         "SignalRasterPreview",
         "TimelineViewport",
+        "normalized_milli_point_in_rect",
         "TimelineTransportState",
         "TimelineEditPreview",
         "TimelineFeedbackEvents",

@@ -6,6 +6,7 @@ use crate::gui::layout_core::{
     SlotParams, layout_tree,
 };
 use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::visualization::normalized_milli_point_in_rect;
 
 const MAP_CANVAS_ROOT_ID: u64 = 1760;
 const MAP_CANVAS_FILL_ID: u64 = 1761;
@@ -45,12 +46,7 @@ pub(crate) fn compute_browser_map_canvas_rect(browser_rows: Rect, sizing: Sizing
 
 /// Compute a point center within the map canvas from normalized milli coords.
 pub(crate) fn compute_browser_map_point_center(canvas: Rect, x_milli: u16, y_milli: u16) -> Point {
-    let x_ratio = f32::from(x_milli.min(1000)) / 1000.0;
-    let y_ratio = f32::from(y_milli.min(1000)) / 1000.0;
-    Point::new(
-        canvas.min.x + (canvas.width().max(0.0) * x_ratio),
-        canvas.min.y + (canvas.height().max(0.0) * y_ratio),
-    )
+    normalized_milli_point_in_rect(canvas, x_milli, y_milli)
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {

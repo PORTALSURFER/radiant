@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use crate::gui::{range::NormalizedRange, types::ImageRgba};
+use crate::gui::{
+    range::NormalizedRange,
+    types::{ImageRgba, Point, Rect},
+};
 
 /// Render mode for two-dimensional point-set visualizations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -63,6 +66,16 @@ pub struct SpatialPanel {
     pub focused_item_id: Option<String>,
     /// Points available for rendering in normalized spatial coordinates.
     pub points: Arc<[SpatialPoint]>,
+}
+
+/// Project normalized milli-unit coordinates into a rectangular spatial canvas.
+pub fn normalized_milli_point_in_rect(rect: Rect, x_milli: u16, y_milli: u16) -> Point {
+    let x_ratio = f32::from(x_milli.min(1000)) / 1000.0;
+    let y_ratio = f32::from(y_milli.min(1000)) / 1000.0;
+    Point::new(
+        rect.min.x + (rect.width().max(0.0) * x_ratio),
+        rect.min.y + (rect.height().max(0.0) * y_ratio),
+    )
 }
 
 /// Retained raster preview for a timeline, signal, or visualization surface.
@@ -546,8 +559,12 @@ mod tests {
         SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
         TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
         TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+        normalized_milli_point_in_rect,
     };
-    use crate::gui::{range::NormalizedRange, types::ImageRgba};
+    use crate::gui::{
+        range::NormalizedRange,
+        types::{ImageRgba, Point, Rect},
+    };
     use std::sync::Arc;
 
     #[test]
@@ -584,6 +601,17 @@ mod tests {
         assert!(panel.points.is_empty());
         assert_eq!(panel.selected_item_id, None);
         assert_eq!(panel.focused_item_id, None);
+    }
+
+    #[test]
+    fn normalized_milli_point_projects_and_clamps_into_rect() {
+        let rect = Rect::from_min_max(Point::new(100.0, 200.0), Point::new(300.0, 500.0));
+
+        assert_eq!(
+            normalized_milli_point_in_rect(rect, 250, 500),
+            Point::new(150.0, 350.0)
+        );
+        assert_eq!(normalized_milli_point_in_rect(rect, 1400, 1300), rect.max);
     }
 
     #[test]

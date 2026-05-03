@@ -252,9 +252,10 @@ single-line labels without owning host-domain text semantics.
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,
 `TimelineFeedbackEvents`, `TimelinePresentationState`, `SignalRasterPreview`,
-`TimelineSurfaceState`, and `TimelineMotionState`. Hosts can map
-product-specific media surfaces into these reusable timeline and signal slots
-while keeping domain workflow state outside Radiant.
+`TimelineSurfaceState`, `TimelineMotionState`, and
+`normalized_milli_point_in_rect`. Hosts can map product-specific media or
+spatial surfaces into these reusable visualization slots while keeping domain
+workflow state outside Radiant.
 
 ## Invalidation And Lifecycle
 

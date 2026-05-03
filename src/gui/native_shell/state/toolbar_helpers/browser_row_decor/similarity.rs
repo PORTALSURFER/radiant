@@ -22,7 +22,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_reserved_
     browser_similarity_strength_width(sizing) + browser_similarity_strength_gap(sizing)
 }
 
-/// Return the leading sample-column button rect used to trigger row similarity mode.
+/// Return the leading item-column button rect used to trigger row similarity mode.
 pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     row_rect: Rect,
     sizing: SizingTokens,
@@ -30,20 +30,20 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     if row_rect.width() <= 0.0 || row_rect.height() <= 0.0 {
         return None;
     }
-    let sample_column = compute_browser_row_text_layout(row_rect, sizing)
+    let item_column = compute_browser_row_text_layout(row_rect, sizing)
         .columns
-        .sample;
-    if sample_column.width() <= 0.0 || sample_column.height() <= 0.0 {
+        .item;
+    if item_column.width() <= 0.0 || item_column.height() <= 0.0 {
         return None;
     }
     let inset = sizing.text_inset_x.min(5.0).max(2.0);
     let width = browser_similarity_button_width(sizing)
-        .min((sample_column.width() - (inset * 2.0)).max(0.0));
+        .min((item_column.width() - (inset * 2.0)).max(0.0));
     let height = browser_similarity_button_height(row_rect, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
     }
-    let min_x = sample_column.min.x + inset;
+    let min_x = item_column.min.x + inset;
     let min_y = row_rect.min.y + ((row_rect.height() - height) * 0.5).floor();
     Some(Rect::from_min_max(
         Point::new(min_x, min_y),
@@ -53,22 +53,22 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
 
 /// Return the compact right-edge track rect used to show row similarity strength.
 pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rect(
-    sample_label: Rect,
+    item_label: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
-    if sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+    if item_label.width() <= 0.0 || item_label.height() <= 0.0 {
         return None;
     }
-    let width = browser_similarity_strength_width(sizing).min(sample_label.width().max(0.0));
-    let height = browser_similarity_strength_height(sample_label, sizing);
+    let width = browser_similarity_strength_width(sizing).min(item_label.width().max(0.0));
+    let height = browser_similarity_strength_height(item_label, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
     }
     let inset = sizing.text_inset_x.min(4.0).max(2.0);
-    let max_x = (sample_label.max.x - inset).max(sample_label.min.x);
-    let min_x = (max_x - width).max(sample_label.min.x);
-    let min_y = sample_label.min.y + ((sample_label.height() - height) * 0.5).floor();
-    let max_y = (min_y + height).min(sample_label.max.y);
+    let max_x = (item_label.max.x - inset).max(item_label.min.x);
+    let min_x = (max_x - width).max(item_label.min.x);
+    let min_y = item_label.min.y + ((item_label.height() - height) * 0.5).floor();
+    let max_y = (min_y + height).min(item_label.max.y);
     (max_x > min_x && max_y > min_y).then_some(Rect::from_min_max(
         Point::new(min_x, min_y),
         Point::new(max_x, max_y),
@@ -164,10 +164,10 @@ fn browser_similarity_strength_width(sizing: SizingTokens) -> f32 {
     (sizing.font_meta * 4.2).round().clamp(36.0, 48.0)
 }
 
-fn browser_similarity_strength_height(sample_label: Rect, sizing: SizingTokens) -> f32 {
+fn browser_similarity_strength_height(item_label: Rect, sizing: SizingTokens) -> f32 {
     (sizing.font_meta * 0.84)
         .round()
-        .clamp(6.0, sample_label.height().max(6.0).min(10.0))
+        .clamp(6.0, item_label.height().max(6.0).min(10.0))
 }
 
 fn browser_similarity_strength_gap(sizing: SizingTokens) -> f32 {

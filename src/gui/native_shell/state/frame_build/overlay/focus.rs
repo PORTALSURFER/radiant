@@ -335,7 +335,7 @@ pub(super) fn render_browser_focus_overlay(
             }
         }
         if row.focused {
-            let mut label_position = row.text_layout.sample_label.min;
+            let mut label_position = row.text_layout.item_label.min;
             let show_similarity_button = !model.browser.duplicate_cleanup_active;
             let similarity_button_reserved_width =
                 browser_similarity_button_reserved_width(show_similarity_button, sizing);
@@ -346,16 +346,16 @@ pub(super) fn render_browser_focus_overlay(
             );
             let inline_tag_reserved_width =
                 browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, sizing);
-            let mut label_max_width = row.text_layout.sample_label.width().max(20.0);
+            let mut label_max_width = row.text_layout.item_label.width().max(20.0);
             if similarity_button_reserved_width > 0.0 {
                 label_position.x = (label_position.x + similarity_button_reserved_width)
-                    .min(row.text_layout.sample_label.max.x);
-                label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                    .min(row.text_layout.item_label.max.x);
+                label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
             if age_marker_reserved_width > 0.0 {
                 label_position.x = (label_position.x + age_marker_reserved_width)
-                    .min(row.text_layout.sample_label.max.x);
-                label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                    .min(row.text_layout.item_label.max.x);
+                label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
             label_max_width = (label_max_width
                 - browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
@@ -376,8 +376,8 @@ pub(super) fn render_browser_focus_overlay(
                     },
                 );
                 label_position.x =
-                    (label_position.x + marker_advance).min(row.text_layout.sample_label.max.x);
-                label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                    (label_position.x + marker_advance).min(row.text_layout.item_label.max.x);
+                label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
             emit_text(
                 text_runs,

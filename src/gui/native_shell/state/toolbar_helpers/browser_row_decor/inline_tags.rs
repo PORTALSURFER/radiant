@@ -52,16 +52,16 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_width(
 /// the available row height or disappear if no positive-height rect remains.
 #[cfg(test)]
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects(
-    sample_label: Rect,
+    item_label: Rect,
     text: &str,
     trailing_reserved_width: f32,
     sizing: SizingTokens,
 ) -> Vec<Rect> {
-    if text.is_empty() || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+    if text.is_empty() || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
         return Vec::new();
     }
     let labels = browser_inline_tag_labels_owned(text);
-    browser_inline_tag_chip_rects_for_labels(sample_label, &labels, trailing_reserved_width, sizing)
+    browser_inline_tag_chip_rects_for_labels(item_label, &labels, trailing_reserved_width, sizing)
 }
 
 /// Return reserved width for a pre-split inline metadata cluster.
@@ -84,12 +84,12 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_reserved_width_for
 
 /// Compute chip rects for pre-split inline browser metadata labels.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects_for_labels(
-    sample_label: Rect,
+    item_label: Rect,
     labels: &[String],
     trailing_reserved_width: f32,
     sizing: SizingTokens,
 ) -> Vec<Rect> {
-    if labels.is_empty() || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+    if labels.is_empty() || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
         return Vec::new();
     }
     let chip_gap = browser_inline_tag_chip_gap(sizing);
@@ -98,14 +98,14 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects_for_lab
         .map(|label| browser_inline_tag_chip_width(label, sizing))
         .sum::<f32>()
         + (labels.len().saturating_sub(1) as f32 * chip_gap);
-    let right_edge = (sample_label.max.x - trailing_reserved_width).max(sample_label.min.x);
-    let start_x = (right_edge - total_width).max(sample_label.min.x);
-    let chip_height = browser_inline_tag_chip_height(sample_label, sizing);
+    let right_edge = (item_label.max.x - trailing_reserved_width).max(item_label.min.x);
+    let start_x = (right_edge - total_width).max(item_label.min.x);
+    let chip_height = browser_inline_tag_chip_height(item_label, sizing);
     if chip_height <= 0.0 || right_edge <= start_x {
         return Vec::new();
     }
-    let min_y = sample_label.min.y + ((sample_label.height() - chip_height) * 0.5).floor();
-    let max_y = (min_y + chip_height).min(sample_label.max.y);
+    let min_y = item_label.min.y + ((item_label.height() - chip_height) * 0.5).floor();
+    let max_y = (min_y + chip_height).min(item_label.max.y);
     if max_y <= min_y {
         return Vec::new();
     }
@@ -141,10 +141,10 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_origin(
 /// less vertical space. In that case this helper caps the chip to the
 /// available label height instead of panicking on inverted clamp bounds.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_height(
-    sample_label: Rect,
+    item_label: Rect,
     sizing: SizingTokens,
 ) -> f32 {
-    let available_height = sample_label.height().max(0.0);
+    let available_height = item_label.height().max(0.0);
     if available_height <= 0.0 {
         return 0.0;
     }

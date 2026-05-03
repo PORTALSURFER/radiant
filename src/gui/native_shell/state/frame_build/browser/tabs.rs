@@ -8,7 +8,7 @@ pub(super) fn render_browser_table_header(
     let header_text_layout =
         compute_browser_header_text_layout(ctx.layout.browser_table_header, ctx.sizing);
     let header = header_text_layout.columns;
-    for separator_x in [header.index.max.x, header.sample.max.x] {
+    for separator_x in [header.index.max.x, header.item.max.x] {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
@@ -39,10 +39,10 @@ pub(super) fn render_browser_table_header(
         text_runs,
         TextRun {
             text: ctx.model.browser_chrome.item_column_label.clone(),
-            position: header_text_layout.sample_label.min,
+            position: header_text_layout.item_label.min,
             font_size: ctx.sizing.font_meta,
             color: ctx.style.text_primary,
-            max_width: Some(header_text_layout.sample_label.width().max(24.0)),
+            max_width: Some(header_text_layout.item_label.width().max(24.0)),
             align: TextAlign::Left,
         },
     );

@@ -157,7 +157,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             sizing,
         );
         let bucket_label_width = browser_inline_tag_max_width(
-            row_text_layout.sample_label.width()
+            row_text_layout.item_label.width()
                 - similarity_button_reserved_width
                 - similarity_strength_reserved_width,
             rating_reserved_width,
@@ -178,12 +178,12 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         };
         let inline_tag_labels = browser_inline_tag_labels_owned(&bucket_label);
         let inline_tag_rects = browser_inline_tag_chip_rects_for_labels(
-            row_text_layout.sample_label,
+            row_text_layout.item_label,
             &inline_tag_labels,
             similarity_strength_reserved_width,
             sizing,
         );
-        let label_width = (row_text_layout.sample_label.width()
+        let label_width = (row_text_layout.item_label.width()
             - rating_reserved_width
             - similarity_button_reserved_width
             - similarity_strength_reserved_width

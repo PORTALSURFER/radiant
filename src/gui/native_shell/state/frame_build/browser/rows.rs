@@ -92,7 +92,7 @@ pub(super) fn render_browser_rows_window(
                 );
             }
         }
-        for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
+        for separator_x in [row_columns.index.max.x, row_columns.item.max.x] {
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
@@ -149,17 +149,17 @@ pub(super) fn render_browser_rows_window(
                 align: TextAlign::Right,
             },
         );
-        let mut label_position = row.text_layout.sample_label.min;
-        let mut label_max_width = row.text_layout.sample_label.width().max(20.0);
+        let mut label_position = row.text_layout.item_label.min;
+        let mut label_max_width = row.text_layout.item_label.width().max(20.0);
         if similarity_button_reserved_width > 0.0 {
             label_position.x = (label_position.x + similarity_button_reserved_width)
-                .min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                .min(row.text_layout.item_label.max.x);
+            label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
         if age_marker_reserved_width > 0.0 {
             label_position.x = (label_position.x + age_marker_reserved_width)
-                .min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                .min(row.text_layout.item_label.max.x);
+            label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
         if row.missing {
             let marker_advance =
@@ -176,8 +176,8 @@ pub(super) fn render_browser_rows_window(
                 },
             );
             label_position.x =
-                (label_position.x + marker_advance).min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+                (label_position.x + marker_advance).min(row.text_layout.item_label.max.x);
+            label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
         let inline_tag_reserved_width =
             browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
@@ -185,10 +185,10 @@ pub(super) fn render_browser_rows_window(
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
         let rating_indicator_layout = browser_rating_indicator_layout(
             BrowserRatingIndicatorAnchor {
-                sample_label: row.text_layout.sample_label,
+                item_label: row.text_layout.item_label,
                 label_origin_x: label_position.x,
                 label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
-                right_limit_x: row.text_layout.sample_label.max.x
+                right_limit_x: row.text_layout.item_label.max.x
                     - inline_tag_reserved_width
                     - similarity_strength_reserved_width,
             },
@@ -269,7 +269,7 @@ pub(super) fn render_browser_rows_window(
         }
         if let Some(strength) = row.similarity_display_strength {
             if let Some(track_rect) =
-                browser_similarity_strength_track_rect(row.text_layout.sample_label, ctx.sizing)
+                browser_similarity_strength_track_rect(row.text_layout.item_label, ctx.sizing)
             {
                 emit_primitive(
                     primitives,

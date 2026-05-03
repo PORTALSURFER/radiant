@@ -8,7 +8,7 @@ pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorLayout {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorAnchor {
-    pub(in crate::gui::native_shell::state) sample_label: Rect,
+    pub(in crate::gui::native_shell::state) item_label: Rect,
     pub(in crate::gui::native_shell::state) label_origin_x: f32,
     pub(in crate::gui::native_shell::state) label_rendered_width: f32,
     pub(in crate::gui::native_shell::state) right_limit_x: f32,
@@ -36,13 +36,13 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
     sizing: SizingTokens,
 ) -> Option<BrowserRatingIndicatorLayout> {
     let count = browser_rating_indicator_count(rating_level, locked);
-    let sample_label = anchor.sample_label;
-    if count == 0 || sample_label.width() <= 0.0 || sample_label.height() <= 0.0 {
+    let item_label = anchor.item_label;
+    if count == 0 || item_label.width() <= 0.0 || item_label.height() <= 0.0 {
         return None;
     }
-    let side = browser_rating_indicator_side(sizing).min(sample_label.height().max(1.0));
+    let side = browser_rating_indicator_side(sizing).min(item_label.height().max(1.0));
     let width = browser_rating_indicator_unit_width(rating_level, locked, sizing)
-        .min(sample_label.width().max(1.0));
+        .min(item_label.width().max(1.0));
     let gap = browser_rating_indicator_gap(sizing);
     let total_width = (count as f32 * width) + ((count.saturating_sub(1)) as f32 * gap);
     let ideal_start_x = anchor.label_origin_x
@@ -50,17 +50,17 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
         + browser_rating_indicator_text_gap(sizing);
     let right_limit_x = anchor
         .right_limit_x
-        .clamp(sample_label.min.x, sample_label.max.x);
-    let max_start_x = (right_limit_x - total_width).max(sample_label.min.x);
-    let start_x = ideal_start_x.clamp(sample_label.min.x, max_start_x);
-    let min_y = sample_label.min.y + ((sample_label.height() - side) * 0.5).floor();
-    let max_y = (min_y + side).min(sample_label.max.y);
-    let mut rects = [Rect::from_min_max(sample_label.min, sample_label.min); 3];
+        .clamp(item_label.min.x, item_label.max.x);
+    let max_start_x = (right_limit_x - total_width).max(item_label.min.x);
+    let start_x = ideal_start_x.clamp(item_label.min.x, max_start_x);
+    let min_y = item_label.min.y + ((item_label.height() - side) * 0.5).floor();
+    let max_y = (min_y + side).min(item_label.max.y);
+    let mut rects = [Rect::from_min_max(item_label.min, item_label.min); 3];
     for (index, rect) in rects.iter_mut().take(count).enumerate() {
         let min_x = start_x + index as f32 * (width + gap);
         *rect = Rect::from_min_max(
             Point::new(min_x, min_y),
-            Point::new((min_x + width).min(sample_label.max.x), max_y),
+            Point::new((min_x + width).min(item_label.max.x), max_y),
         );
     }
     Some(BrowserRatingIndicatorLayout { rects, count })

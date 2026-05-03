@@ -14,8 +14,8 @@ pub(in crate::gui::native_shell::state) fn browser_rows_capacity(
         .min(sizing.browser_rows_max_per_column.max(1))
 }
 
-/// Resolve the track metrics used by the browser scrollbar lane.
-fn browser_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
+/// Resolve the track metrics used by the content-list scrollbar lane.
+fn content_list_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
     let track_inset_x = sizing.text_inset_x.clamp(2.0, 6.0);
     let track_inset_y = 0.0;
     let track_width = (sizing.border_width + 4.0).clamp(4.0, 8.0);
@@ -32,8 +32,8 @@ pub(in crate::gui::native_shell::state) fn browser_rows_content_rect(
     if visible_count <= row_capacity {
         return browser_rows_rect;
     }
-    let (track_inset_x, _, track_width) = browser_scrollbar_track_metrics(sizing);
-    let reserved_width = track_inset_x + track_width + super::BROWSER_SCROLLBAR_CONTENT_GAP;
+    let (track_inset_x, _, track_width) = content_list_scrollbar_track_metrics(sizing);
+    let reserved_width = track_inset_x + track_width + super::CONTENT_LIST_SCROLLBAR_CONTENT_GAP;
     let content_max_x = (browser_rows_rect.max.x - reserved_width)
         .round()
         .max(browser_rows_rect.min.x + 1.0);
@@ -43,13 +43,13 @@ pub(in crate::gui::native_shell::state) fn browser_rows_content_rect(
     )
 }
 
-/// Compute visual scrollbar geometry for one overflowing browser row viewport.
-pub(in crate::gui::native_shell::state) fn browser_scrollbar_layout(
+/// Compute visual scrollbar geometry for one overflowing content-list viewport.
+pub(in crate::gui::native_shell::state) fn content_list_scrollbar_layout(
     browser_rows_rect: Rect,
     rows: &[CachedBrowserRow],
     visible_count: usize,
     sizing: SizingTokens,
-) -> Option<BrowserScrollbarLayout> {
+) -> Option<ContentListScrollbarLayout> {
     if rows.is_empty() || visible_count <= rows.len() {
         return None;
     }
@@ -58,7 +58,7 @@ pub(in crate::gui::native_shell::state) fn browser_scrollbar_layout(
         .visible_row
         .min(visible_count.saturating_sub(1));
     let viewport_len = rows.len().min(visible_count);
-    let (track_inset_x, track_inset_y, track_width) = browser_scrollbar_track_metrics(sizing);
+    let (track_inset_x, track_inset_y, track_width) = content_list_scrollbar_track_metrics(sizing);
     let track_max_x = browser_rows_rect.max.x - track_inset_x;
     let track_min_x = (track_max_x - track_width).max(browser_rows_rect.min.x);
     let track_min_y = (browser_rows_rect.min.y + track_inset_y).min(browser_rows_rect.max.y);
@@ -89,12 +89,12 @@ pub(in crate::gui::native_shell::state) fn browser_scrollbar_layout(
         Point::new(track.max.x, thumb_max_y.max(thumb_min_y + 1.0)),
     );
 
-    Some(BrowserScrollbarLayout { track, thumb })
+    Some(ContentListScrollbarLayout { track, thumb })
 }
 
-/// Resolve the browser viewport start row for a dragged scrollbar thumb position.
-pub(in crate::gui::native_shell::state) fn browser_scrollbar_view_start_for_pointer(
-    scrollbar: BrowserScrollbarLayout,
+/// Resolve the content-list viewport start row for a dragged scrollbar thumb position.
+pub(in crate::gui::native_shell::state) fn content_list_scrollbar_view_start_for_pointer(
+    scrollbar: ContentListScrollbarLayout,
     viewport_len: usize,
     visible_count: usize,
     pointer_y: f32,

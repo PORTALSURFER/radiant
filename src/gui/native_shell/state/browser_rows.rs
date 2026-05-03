@@ -199,7 +199,7 @@ pub(super) struct BrowserToolbarLayout {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct BrowserScrollbarLayout {
+pub(super) struct ContentListScrollbarLayout {
     pub(super) track: Rect,
     pub(super) thumb: Rect,
 }
@@ -213,7 +213,7 @@ pub(super) struct FolderScrollbarLayout {
 /// Number of visible rows kept between focus and the viewport edge before scrolling.
 const BROWSER_VIEW_EDGE_MARGIN_ROWS: usize = 3;
 /// Horizontal gap left between browser rows and the visual scrollbar lane.
-const BROWSER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
+const CONTENT_LIST_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 /// Number of folder rows kept between focus and the viewport edge before scrolling.
 const FOLDER_VIEW_EDGE_MARGIN_ROWS: usize = 2;
 /// Horizontal gap left between folder rows and the visual scrollbar lane.

@@ -265,7 +265,7 @@ fn build_browser_table_automation(
             children: Vec::new(),
         })
         .collect();
-    if let Some((scrollbar, viewport_len)) = shell.cached_browser_scrollbar(layout, model) {
+    if let Some((scrollbar, viewport_len)) = shell.cached_content_list_scrollbar(layout, model) {
         let visible_count = model.browser.visible_count.to_string();
         let viewport_len = viewport_len.to_string();
         let view_start_row = first_visible_row.clone();
@@ -275,7 +275,7 @@ fn build_browser_table_automation(
             ("visible_count", &visible_count),
             ("view_start_row", &view_start_row),
         ]));
-        children.extend(browser_scrollbar_automation(
+        children.extend(content_list_scrollbar_automation(
             scrollbar,
             &viewport_len,
             &visible_count,
@@ -393,8 +393,8 @@ fn browser_pill_editor_pill_node(
     node
 }
 
-fn browser_scrollbar_automation(
-    scrollbar: BrowserScrollbarLayout,
+fn content_list_scrollbar_automation(
+    scrollbar: ContentListScrollbarLayout,
     viewport_len: &str,
     visible_count: &str,
 ) -> [AutomationNodeSnapshot; 2] {

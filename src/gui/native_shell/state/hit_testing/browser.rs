@@ -134,8 +134,8 @@ impl NativeShellState {
             .map(|row| row.visible_row)
     }
 
-    /// Return the pointer's offset within the browser scrollbar thumb when hovered.
-    pub(crate) fn browser_scrollbar_thumb_offset_at_point(
+    /// Return the pointer's offset within the content-list scrollbar thumb when hovered.
+    pub(crate) fn content_list_scrollbar_thumb_offset_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -145,12 +145,12 @@ impl NativeShellState {
         let scrollbar = geometry.scrollbar?;
         let hit_rect = Rect::from_min_max(
             Point::new(
-                scrollbar.track.min.x - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.min.y - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.track.min.x - CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.min.y - CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP,
             ),
             Point::new(
-                scrollbar.track.max.x + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.max.y + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.track.max.x + CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP,
+                scrollbar.thumb.max.y + CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP,
             ),
         );
         hit_rect
@@ -158,8 +158,8 @@ impl NativeShellState {
             .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
     }
 
-    /// Resolve the browser viewport start row for an active scrollbar-thumb drag.
-    pub(crate) fn browser_scrollbar_view_start_for_drag(
+    /// Resolve the content-list viewport start row for an active scrollbar-thumb drag.
+    pub(crate) fn content_list_scrollbar_view_start_for_drag(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -168,7 +168,7 @@ impl NativeShellState {
     ) -> Option<usize> {
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
-        browser_scrollbar_view_start_for_pointer(
+        content_list_scrollbar_view_start_for_pointer(
             scrollbar,
             geometry.scrollbar_viewport_len,
             model.browser.visible_count,
@@ -177,12 +177,12 @@ impl NativeShellState {
         )
     }
 
-    /// Resolve the browser viewport start for a click inside the scrollbar track.
+    /// Resolve the content-list viewport start for a click inside the scrollbar track.
     ///
     /// Track clicks jump the thumb so its center aligns with the clicked
     /// location, matching the visual expectation that the handle should move to
     /// the requested position immediately.
-    pub(crate) fn browser_scrollbar_view_start_at_point(
+    pub(crate) fn content_list_scrollbar_view_start_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -193,7 +193,7 @@ impl NativeShellState {
         if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
             return None;
         }
-        browser_scrollbar_view_start_for_pointer(
+        content_list_scrollbar_view_start_for_pointer(
             scrollbar,
             geometry.scrollbar_viewport_len,
             model.browser.visible_count,

@@ -6,7 +6,7 @@ use crate::compat_app_contract::FolderPaneIdModel;
 pub(super) struct BrowserInteractionGeometry<'a> {
     pub(super) style: StyleTokens,
     pub(super) rows: &'a [CachedBrowserRow],
-    pub(super) scrollbar: Option<BrowserScrollbarLayout>,
+    pub(super) scrollbar: Option<ContentListScrollbarLayout>,
     pub(super) scrollbar_viewport_len: usize,
     pub(super) buttons: &'a [ActionButton],
     pub(super) chips: &'a [BrowserColumnChip],
@@ -130,44 +130,44 @@ impl NativeShellState {
         &self.browser_rows
     }
 
-    pub(super) fn cached_browser_scrollbar(
+    pub(super) fn cached_content_list_scrollbar(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-    ) -> Option<(BrowserScrollbarLayout, usize)> {
+    ) -> Option<(ContentListScrollbarLayout, usize)> {
         let style = style_for_layout(layout);
-        self.cached_browser_scrollbar_for_style(layout, &style, model)
+        self.cached_content_list_scrollbar_for_style(layout, &style, model)
     }
 
-    pub(super) fn cached_browser_scrollbar_for_style(
+    pub(super) fn cached_content_list_scrollbar_for_style(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> Option<(BrowserScrollbarLayout, usize)> {
+    ) -> Option<(ContentListScrollbarLayout, usize)> {
         self.cached_browser_rows(layout, style, model);
         let Some(rows_key) = self.browser_rows_cache_key else {
-            self.browser_scrollbar = None;
-            self.browser_scrollbar_viewport_len = 0;
-            self.browser_scrollbar_cache_key = None;
+            self.content_list_scrollbar = None;
+            self.content_list_scrollbar_viewport_len = 0;
+            self.content_list_scrollbar_cache_key = None;
             return None;
         };
-        let cache_key = BrowserScrollbarCacheKey { rows_key };
-        if self.browser_scrollbar_cache_key != Some(cache_key) {
+        let cache_key = ContentListScrollbarCacheKey { rows_key };
+        if self.content_list_scrollbar_cache_key != Some(cache_key) {
             let rows = &self.browser_rows;
             let viewport_len = rows.len().min(model.browser.visible_count);
             let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
-            self.browser_scrollbar = browser_scrollbar_layout(
+            self.content_list_scrollbar = content_list_scrollbar_layout(
                 list_rect,
                 rows,
                 model.browser.visible_count,
                 style.sizing,
             );
-            self.browser_scrollbar_viewport_len = viewport_len;
-            self.browser_scrollbar_cache_key = Some(cache_key);
+            self.content_list_scrollbar_viewport_len = viewport_len;
+            self.content_list_scrollbar_cache_key = Some(cache_key);
         }
-        self.browser_scrollbar
-            .map(|scrollbar| (scrollbar, self.browser_scrollbar_viewport_len))
+        self.content_list_scrollbar
+            .map(|scrollbar| (scrollbar, self.content_list_scrollbar_viewport_len))
     }
 
     pub(super) fn cached_browser_action_hit_test(
@@ -205,13 +205,13 @@ impl NativeShellState {
     ) -> BrowserInteractionGeometry<'_> {
         let style = style_for_layout(layout);
         self.cached_browser_rows(layout, &style, model);
-        self.cached_browser_scrollbar_for_style(layout, &style, model);
+        self.cached_content_list_scrollbar_for_style(layout, &style, model);
         self.cached_browser_action_hit_test(layout, &style, model);
         BrowserInteractionGeometry {
             style,
             rows: &self.browser_rows,
-            scrollbar: self.browser_scrollbar,
-            scrollbar_viewport_len: self.browser_scrollbar_viewport_len,
+            scrollbar: self.content_list_scrollbar,
+            scrollbar_viewport_len: self.content_list_scrollbar_viewport_len,
             buttons: &self.browser_action_buttons,
             chips: &self.browser_column_chips,
             toolbar: self

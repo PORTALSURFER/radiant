@@ -111,7 +111,7 @@ where
         let Some(drag) = self.content_list_scrollbar_drag else {
             return false;
         };
-        let Some(visible_row) = self.shell_state.browser_scrollbar_view_start_for_drag(
+        let Some(visible_row) = self.shell_state.content_list_scrollbar_view_start_for_drag(
             layout,
             &self.model,
             point.y,
@@ -157,7 +157,7 @@ where
         };
         let Some(visible_row) =
             self.shell_state
-                .browser_scrollbar_view_start_at_point(layout, &self.model, point)
+                .content_list_scrollbar_view_start_at_point(layout, &self.model, point)
         else {
             return false;
         };

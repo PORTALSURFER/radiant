@@ -20,9 +20,9 @@ pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
     pub anchor: Point,
 }
 
-/// Invalidation key for the retained browser scrollbar interaction geometry.
+/// Invalidation key for the retained content-list scrollbar interaction geometry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserScrollbarCacheKey {
+pub(in crate::gui::native_shell::state) struct ContentListScrollbarCacheKey {
     /// The resolved browser-row cache key the scrollbar is derived from.
     pub rows_key: BrowserRowsCacheKey,
 }

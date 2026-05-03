@@ -14,21 +14,20 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, BrowserTabsTextLayout, BrowserToolbarTextLayout, SidebarFolderRowLayout,
-        SidebarRowCounts, compute_action_button_text_rect,
-        compute_browser_footer_text_rect, compute_browser_header_text_layout,
-        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
-        compute_browser_map_point_center, compute_browser_row_text_layout,
-        compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
-        compute_drag_overlay_text_layout, compute_drag_overlay_visual_layout,
-        compute_progress_overlay_text_layout, compute_progress_overlay_visual_layout,
-        compute_prompt_overlay_text_layout, compute_prompt_overlay_visual_layout,
-        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_depth_indent,
-        compute_sidebar_folder_row_layout, compute_sidebar_recovery_badge_text_rect,
-        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
-        compute_source_section_divider_rect, compute_status_text_line_rect,
-        compute_waveform_annotation_rects_with_nanos, compute_waveform_slice_preview_rects,
-        waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
-        waveform_view_window_from_bounds,
+        SidebarRowCounts, compute_action_button_text_rect, compute_browser_footer_text_rect,
+        compute_browser_header_text_layout, compute_browser_map_canvas_rect,
+        compute_browser_map_header_text_layout, compute_browser_map_point_center,
+        compute_browser_row_text_layout, compute_browser_tabs_text_layout,
+        compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
+        compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
+        compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
+        compute_prompt_overlay_visual_layout, compute_sidebar_folder_header_layout,
+        compute_sidebar_folder_row_depth_indent, compute_sidebar_folder_row_layout,
+        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
+        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
+        compute_status_text_line_rect, compute_waveform_annotation_rects_with_nanos,
+        compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
+        waveform_plot_x_for_micros, waveform_view_window_from_bounds,
     },
     sidebar_surface::{
         SidebarFooterActionSpec, SidebarFooterSurfaceContent, SidebarFooterSurfaceLayout,
@@ -50,14 +49,14 @@ use super::{
         resolve_waveform_toolbar_surface_layout,
     },
 };
-use crate::gui::range::NormalizedPixelSnap;
+use crate::compat_app_contract::{
+    AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction,
+};
 use crate::gui::paint::{
     DrawImage, FillCircle, FillLinearGradient, FillRect, PaintFrame as NativeViewFrame, Primitive,
     TextAlign, TextRun,
 };
-use crate::compat_app_contract::{
-    AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction,
-};
+use crate::gui::range::NormalizedPixelSnap;
 use crate::gui::{
     input::KeyCode,
     types::{ImageRgba, Point, Rect, Rgba8},
@@ -135,8 +134,8 @@ const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::compat_app_contract::PlaybackAg
     crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
     crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
 ];
-/// Additional hit slop for the narrow browser scrollbar thumb.
-const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
+/// Additional hit slop for the narrow content-list scrollbar thumb.
+const CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 /// Additional hit slop for the narrow folder scrollbar thumb.
 const FOLDER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 
@@ -229,9 +228,9 @@ pub(crate) struct NativeShellState {
     browser_rows: Vec<CachedBrowserRow>,
     browser_rows_window_start: usize,
     browser_rows_cache_key: Option<BrowserRowsCacheKey>,
-    browser_scrollbar: Option<BrowserScrollbarLayout>,
-    browser_scrollbar_viewport_len: usize,
-    browser_scrollbar_cache_key: Option<BrowserScrollbarCacheKey>,
+    content_list_scrollbar: Option<ContentListScrollbarLayout>,
+    content_list_scrollbar_viewport_len: usize,
+    content_list_scrollbar_cache_key: Option<ContentListScrollbarCacheKey>,
     browser_action_buttons: Vec<ActionButton>,
     browser_column_chips: Vec<BrowserColumnChip>,
     browser_toolbar_layout: Option<BrowserToolbarLayout>,
@@ -302,9 +301,9 @@ impl NativeShellState {
             browser_rows: Vec::new(),
             browser_rows_window_start: 0,
             browser_rows_cache_key: None,
-            browser_scrollbar: None,
-            browser_scrollbar_viewport_len: 0,
-            browser_scrollbar_cache_key: None,
+            content_list_scrollbar: None,
+            content_list_scrollbar_viewport_len: 0,
+            content_list_scrollbar_cache_key: None,
             browser_action_buttons: Vec::new(),
             browser_column_chips: Vec::new(),
             browser_toolbar_layout: None,

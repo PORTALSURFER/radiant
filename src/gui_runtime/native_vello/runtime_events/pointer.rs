@@ -267,7 +267,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if let Some(thumb_pointer_offset_y) = self
             .shell_state
-            .browser_scrollbar_thumb_offset_at_point(layout, &self.model, point)
+            .content_list_scrollbar_thumb_offset_at_point(layout, &self.model, point)
         {
             self.begin_content_list_scrollbar_drag(thumb_pointer_offset_y);
             return true;

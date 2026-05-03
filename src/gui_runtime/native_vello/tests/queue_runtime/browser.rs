@@ -73,16 +73,16 @@ fn content_list_scrollbar_drag_emit_updates_action_queue() {
             (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
                 let point = Point::new(x as f32, y as f32);
                 shell_state
-                    .browser_scrollbar_thumb_offset_at_point(&layout, &model, point)
+                    .content_list_scrollbar_thumb_offset_at_point(&layout, &model, point)
                     .map(|_| point)
             })
         })
         .expect("overflowing browser list should expose a hittable scrollbar thumb");
     let thumb_pointer_offset_y = shell_state
-        .browser_scrollbar_thumb_offset_at_point(&layout, &model, thumb_point)
+        .content_list_scrollbar_thumb_offset_at_point(&layout, &model, thumb_point)
         .expect("thumb center should be hittable");
     let expected_visible_row = shell_state
-        .browser_scrollbar_view_start_for_drag(
+        .content_list_scrollbar_view_start_for_drag(
             &layout,
             &model,
             layout.browser_rows.max.y,
@@ -122,12 +122,12 @@ fn content_list_scrollbar_track_click_emit_updates_action_queue() {
         .find_map(|x| {
             let point = Point::new(x as f32, layout.browser_rows.max.y - 24.0);
             shell_state
-                .browser_scrollbar_view_start_at_point(&layout, &model, point)
+                .content_list_scrollbar_view_start_at_point(&layout, &model, point)
                 .map(|_| point)
         })
         .expect("track click should find one hittable scrollbar point");
     let expected_visible_row = shell_state
-        .browser_scrollbar_view_start_at_point(&layout, &model, track_point)
+        .content_list_scrollbar_view_start_at_point(&layout, &model, track_point)
         .expect("track click should resolve a view start");
 
     runner.model = Arc::new(model);

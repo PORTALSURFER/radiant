@@ -197,10 +197,12 @@ types or reducer.
 
 `radiant::gui::snapshot` owns deterministic rendered-frame snapshot primitives:
 `VisualSnapshot`, `SnapshotPrimitive`, `SnapshotTextRun`, `SnapshotRect`,
-`SnapshotPoint`, `SnapshotColor`, and `SnapshotTextAlign`. These types are for
-fixture generation, renderer verification, and visual regression tooling. Host
-or compatibility adapters may build these snapshots from their own frame models,
-but the serializable snapshot schema is generic Radiant API.
+`SnapshotPoint`, `SnapshotColor`, and `SnapshotTextAlign`.
+`visual_snapshot_from_paint_frame` converts generic `PaintFrame` payloads into
+this serializable schema. These APIs are for fixture generation, renderer
+verification, and visual regression tooling. Host or compatibility adapters may
+build these snapshots from their own frame models, but the serializable
+snapshot schema is generic Radiant API.
 
 ## Generic Panels And Forms
 

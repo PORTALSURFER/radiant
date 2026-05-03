@@ -1012,6 +1012,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "VisualSnapshot",
         "SnapshotPrimitive",
         "SnapshotTextRun",
+        "visual_snapshot_from_paint_frame",
         "UiSurface",
         "SurfaceNode",
         "SurfaceNode::badge",

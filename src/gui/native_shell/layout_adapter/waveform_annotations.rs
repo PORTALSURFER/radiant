@@ -1,10 +1,8 @@
 //! Slotized waveform annotation geometry for selection, slice previews, cursor, and playhead.
 
-use crate::app as native_model;
-use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
+use crate::gui::range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
 use crate::gui::visualization::TimelineMarkerPreview;
-use native_model::NormalizedRangeModel;
 
 /// Waveform annotation rectangles resolved from normalized waveform anchors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -29,7 +27,7 @@ pub(crate) struct WaveformSlicePreviewRects {
 pub(crate) fn compute_waveform_annotation_rects_with_nanos(
     waveform_plot: Rect,
     border_width: f32,
-    selection: Option<NormalizedRangeModel>,
+    selection: Option<NormalizedRange>,
     cursor_milli: Option<u16>,
     playhead_milli: Option<u16>,
     view_start_micros: impl Into<u32>,
@@ -127,7 +125,7 @@ pub(crate) fn waveform_plot_x_for_absolute_ratio(
 
 fn slice_rect(
     waveform_plot: Rect,
-    range: NormalizedRangeModel,
+    range: NormalizedRange,
     view: WaveformViewWindow,
 ) -> Option<Rect> {
     let start = waveform_plot_x_for_micros(
@@ -157,7 +155,7 @@ fn slice_rect(
 
 fn selection_rect(
     waveform_plot: Rect,
-    selection: NormalizedRangeModel,
+    selection: NormalizedRange,
     view: WaveformViewWindow,
 ) -> Option<Rect> {
     let start = waveform_plot_x_for_micros(

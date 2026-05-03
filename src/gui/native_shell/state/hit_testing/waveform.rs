@@ -1,5 +1,5 @@
 use super::*;
-use crate::app as native_model;
+use crate::gui::range::NormalizedRange;
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
@@ -327,7 +327,7 @@ fn hovered_resize_edge_for_range(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
-    range: Option<native_model::NormalizedRangeModel>,
+    range: Option<NormalizedRange>,
 ) -> Option<bool> {
     let range = range?;
     let start_micros = range.start_micros.min(range.end_micros);

@@ -624,6 +624,33 @@ fn focus_border_edge_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn union_rect_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("types module should be readable");
+    let focus_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/focus.rs"
+    ))
+    .expect("focus overlay module should be readable");
+    let focus_shared_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/focus/shared.rs"
+    ))
+    .expect("focus overlay shared module should be readable");
+    let sidebar_automation_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/automation/sidebar.rs"
+    ))
+    .expect("sidebar automation module should be readable");
+
+    assert!(types_mod.contains("pub fn union"));
+    assert!(focus_mod.contains(".union(sections.tree_rows(active_pane))"));
+    assert!(sidebar_automation_mod.contains("header_rect.union(tree_rows_band)"));
+    assert!(!focus_shared_mod.contains("fn union_rect"));
+    assert!(!sidebar_automation_mod.contains("fn union_rect"));
+}
+
+#[test]
 fn context_menu_panel_placement_is_owned_by_generic_panel_module() {
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");

@@ -79,10 +79,3 @@ pub(super) fn render_section_focus_surface(
         style.sizing.focus_stroke_width,
     );
 }
-
-pub(super) fn union_rect(first: Rect, second: Rect) -> Rect {
-    Rect::from_min_max(
-        Point::new(first.min.x.min(second.min.x), first.min.y.min(second.min.y)),
-        Point::new(first.max.x.max(second.max.x), first.max.y.max(second.max.y)),
-    )
-}

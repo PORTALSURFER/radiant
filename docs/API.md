@@ -207,6 +207,8 @@ compose primary and secondary glyphs.
 `Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`, and
 `Rect::right_edge_strip` provide border-edge geometry for reusable retained
 paint paths.
+`Rect::union` provides shared bounding-box aggregation for retained rendering,
+hit testing, and automation paths.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

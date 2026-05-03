@@ -306,7 +306,7 @@ fn folder_browser_group(
         id: node_id(format!("sources.{}.folder_browser", folder_pane_slug(pane))),
         role: AutomationRole::Group,
         label: Some(format!("{} folder browser", pane_model.title)),
-        bounds: bounds(union_rect(header_rect, tree_rows_band)),
+        bounds: bounds(header_rect.union(tree_rows_band)),
         value: Some(pane_model.item_label.clone()),
         enabled: true,
         selected,
@@ -341,11 +341,4 @@ fn folder_pane_slug(pane: FolderPaneIdModel) -> &'static str {
         FolderPaneIdModel::Upper => "upper",
         FolderPaneIdModel::Lower => "lower",
     }
-}
-
-fn union_rect(first: Rect, second: Rect) -> Rect {
-    Rect::from_min_max(
-        Point::new(first.min.x.min(second.min.x), first.min.y.min(second.min.y)),
-        Point::new(first.max.x.max(second.max.x), first.max.y.max(second.max.y)),
-    )
 }

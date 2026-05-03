@@ -3,7 +3,7 @@ use crate::app as native_model;
 
 mod shared;
 
-use self::shared::{render_section_focus_surface, union_rect};
+use self::shared::render_section_focus_surface;
 
 pub(super) fn push_browser_row_border(
     primitives: &mut impl PrimitiveSink,
@@ -34,10 +34,9 @@ fn render_sidebar_section_focus_overlay(
             let active_pane = model.sources.active_folder_pane;
             render_section_focus_surface(
                 primitives,
-                union_rect(
-                    sections.folder_header(active_pane),
-                    sections.tree_rows(active_pane),
-                ),
+                sections
+                    .folder_header(active_pane)
+                    .union(sections.tree_rows(active_pane)),
                 style,
             );
         }

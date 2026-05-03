@@ -1022,6 +1022,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "bottom_edge_strip",
         "left_edge_strip",
         "right_edge_strip",
+        "Rect::union",
         "## Automation",
         "Generic Panels And Forms",
         "anchored_panel_rect",

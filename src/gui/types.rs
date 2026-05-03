@@ -218,6 +218,14 @@ impl Rect {
         let thickness = thickness.max(0.0).min(self.width().max(0.0));
         Self::from_min_max(Point::new(self.max.x - thickness, self.min.y), self.max)
     }
+
+    /// Return the smallest rectangle that contains both input rectangles.
+    pub fn union(self, other: Self) -> Self {
+        Self::from_min_max(
+            Point::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),
+            Point::new(self.max.x.max(other.max.x), self.max.y.max(other.max.y)),
+        )
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -370,6 +378,17 @@ mod tests {
         assert_eq!(
             rect.left_edge_strip(-1.0),
             Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 23.0))
+        );
+    }
+
+    #[test]
+    fn rect_union_covers_both_inputs() {
+        let first = Rect::from_min_max(Point::new(10.0, 40.0), Point::new(90.0, 70.0));
+        let second = Rect::from_min_max(Point::new(30.0, 20.0), Point::new(120.0, 60.0));
+
+        assert_eq!(
+            first.union(second),
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(120.0, 70.0))
         );
     }
 }

@@ -6,8 +6,6 @@
 //! rendering, hit-testing, cache, and overlay logic lives in sibling
 //! submodules.
 
-#[cfg(test)]
-use super::layout_adapter::compute_waveform_annotation_rects;
 use super::{
     browser_chrome_surface::{
         BrowserTabsSurfaceContent, browser_tabs_surface_content, browser_toolbar_surface_content,
@@ -87,8 +85,6 @@ mod text_fields;
 mod toolbar_helpers;
 mod waveform_segments;
 
-#[cfg(test)]
-use self::motion_overlay::status_motion_overlay_rect;
 use self::{
     browser_rows::*, cache_types::*, hit_testing::*, options_panel::*, overlays::*, svg_icons::*,
     text_fields::*, toolbar_helpers::*, waveform_segments::*,

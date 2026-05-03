@@ -856,13 +856,23 @@ fn legacy_shell_sources_are_feature_gated() {
     )
     .expect("legacy_shell_runtime.rs should be readable");
     for required in [
-        "struct EventLoopProxyRepaintSignal",
-        "fn try_mark_repaint_event_pending",
+        "CoalescingRepaintSignal",
         "run_legacy_shell_vello_app_with_artifacts",
     ] {
         assert!(
             legacy_shell_runtime.contains(required),
             "legacy shell event-loop compatibility glue should live in legacy_shell_runtime.rs"
+        );
+    }
+    let repaint = fs::read_to_string(manifest_dir.join("src/gui/repaint.rs"))
+        .expect("generic repaint module should be readable");
+    for required in [
+        "pub fn try_mark_repaint_pending",
+        "pub struct CoalescingRepaintSignal",
+    ] {
+        assert!(
+            repaint.contains(required),
+            "repaint coalescing primitive `{required}` belongs in generic gui::repaint"
         );
     }
     let expectations: &[(&str, &[&str])] = &[

@@ -1,39 +1,5 @@
 use super::*;
-use crate::gui::repaint::RepaintSignal;
-use winit::event_loop::EventLoopProxy;
-
-pub(super) fn try_mark_repaint_event_pending(pending: &AtomicBool) -> bool {
-    pending
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_ok()
-}
-
-#[derive(Clone)]
-struct EventLoopProxyRepaintSignal {
-    proxy: EventLoopProxy<RuntimeUserEvent>,
-    pending: Arc<AtomicBool>,
-}
-
-impl EventLoopProxyRepaintSignal {
-    fn new(proxy: EventLoopProxy<RuntimeUserEvent>, pending: Arc<AtomicBool>) -> Self {
-        Self { proxy, pending }
-    }
-}
-
-impl RepaintSignal for EventLoopProxyRepaintSignal {
-    fn request_repaint(&self) {
-        if !try_mark_repaint_event_pending(self.pending.as_ref()) {
-            return;
-        }
-        if self
-            .proxy
-            .send_event(RuntimeUserEvent::RepaintRequested)
-            .is_err()
-        {
-            self.pending.store(false, Ordering::Release);
-        }
-    }
-}
+use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
 
 pub(crate) fn run_legacy_shell_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
@@ -55,9 +21,10 @@ pub(crate) fn run_legacy_shell_vello_app_with_artifacts<B: NativeAppBridge>(
         options.inner_size, options.min_inner_size, options.target_fps
     );
     let mut runner = NativeVelloRunner::new(options, bridge);
-    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(EventLoopProxyRepaintSignal::new(
-        event_loop.create_proxy(),
+    let proxy = event_loop.create_proxy();
+    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(CoalescingRepaintSignal::new(
         Arc::clone(&runner.repaint_event_pending),
+        move || proxy.send_event(RuntimeUserEvent::RepaintRequested).is_ok(),
     ));
     runner.bridge.install_repaint_signal(repaint_signal);
     info!("radiant native vello: runner initialized");

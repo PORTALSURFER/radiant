@@ -38,8 +38,14 @@ fn generic_native_core_routes_pointer_messages() {
         .map(|rect| Point::new(rect.min.x + 1.0, rect.min.y + 1.0))
         .expect("button should be laid out");
 
-    assert!(core.route_pointer_press(point, PointerButton::Primary));
-    assert!(core.route_pointer_release(point, PointerButton::Primary));
+    assert!(
+        core.route_pointer_press(point, PointerButton::Primary)
+            .routed
+    );
+    assert!(
+        core.route_pointer_release(point, PointerButton::Primary)
+            .routed
+    );
     assert_eq!(core.runtime.bridge().state.activations, 1);
 }
 

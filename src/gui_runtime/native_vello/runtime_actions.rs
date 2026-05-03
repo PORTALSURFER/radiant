@@ -92,7 +92,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(super) fn classify_action_interaction(action: &UiAction) -> Option<InteractionProfileKind> {
         match action {
             UiAction::SetBrowserTab { map: true } | UiAction::FocusSpatialContentItem { .. } => {
-                Some(InteractionProfileKind::MapPanProxy)
+                Some(InteractionProfileKind::SpatialPanProxy)
             }
             UiAction::StartContentItemDrag { .. }
             | UiAction::UpdateContentItemDrag { .. }

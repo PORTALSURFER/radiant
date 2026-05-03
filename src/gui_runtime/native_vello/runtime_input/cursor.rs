@@ -93,7 +93,7 @@ where
         if handled {
             if let Some(start) = profile_start {
                 let kind = if self.model.map.active {
-                    InteractionProfileKind::MapPanProxy
+                    InteractionProfileKind::SpatialPanProxy
                 } else {
                     InteractionProfileKind::Hover
                 };

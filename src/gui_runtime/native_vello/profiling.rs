@@ -22,7 +22,7 @@ pub(super) use self::stats::NativeVelloProfiler;
 pub(super) enum InteractionProfileKind {
     Hover,
     Wheel,
-    MapPanProxy,
+    SpatialPanProxy,
     Timeline,
     Volume,
 }

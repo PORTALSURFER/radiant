@@ -232,7 +232,7 @@ where
             return false;
         }
         self.last_emitted_map_drag_content_id = Some(content_id.clone());
-        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::MapPanProxy));
+        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::SpatialPanProxy));
         true
     }
 

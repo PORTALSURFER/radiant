@@ -238,6 +238,29 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !frame_build.contains("app_core/native_shell/composition/state/frame_build/"),
         "native shell frame-build helpers must stay local to Radiant while the compatibility shell remains"
     );
+
+    let state_facade = fs::read_to_string(manifest_dir.join("src/gui/native_shell/state.rs"))
+        .expect("native shell state facade");
+    for module in [
+        "browser_rows",
+        "motion_overlay",
+        "options_panel",
+        "overlays",
+        "svg_icons",
+        "text_fields",
+        "waveform_segments",
+    ] {
+        assert!(
+            !state_facade.contains(&format!("app_core/native_shell/composition/state/{module}")),
+            "{module} must stay local to Radiant while the compatibility shell remains"
+        );
+    }
+    assert!(
+        !manifest_dir
+            .join("src/gui/native_shell/state/tests")
+            .exists(),
+        "Sempal native-shell state fixtures must stay out of Radiant native_shell"
+    );
 }
 
 #[test]

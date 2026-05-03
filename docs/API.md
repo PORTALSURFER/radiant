@@ -53,8 +53,10 @@ when a host only needs ordered row/column structure, fill slots, and display
 widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
 `SurfaceNode::button_mapped`, `SurfaceNode::text_input`,
 `SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
-`SurfaceNode::toggle_mapped` cover common leaf widgets without requiring hosts
-to manually wrap `WidgetSpec`. Lower-level `SurfaceNode::container` plus
+`SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
+`SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and
+`SurfaceNode::canvas` cover common leaf widgets without requiring hosts to
+manually wrap `WidgetSpec`. Lower-level `SurfaceNode::container` plus
 `ContainerPolicy` and `SlotParams` remains available for custom layout policy.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is

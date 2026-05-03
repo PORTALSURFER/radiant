@@ -10,9 +10,9 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ButtonWidget, PointerButton, TextInputMessage, TextInputWidget, TextWidget,
-        ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
-        resolve_widget_visual_tokens,
+        ButtonMessage, ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
+        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -315,6 +315,72 @@ fn text_input_and_toggle_helpers_map_value_messages() {
             radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
         ),
         Some(DemoMessage::SetActive(false))
+    );
+}
+
+#[test]
+fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::column(
+        6,
+        4.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::scrollbar(
+                60,
+                ScrollbarAxis::Vertical,
+                WidgetSizing::fixed(Vector2::new(12.0, 120.0)),
+                |offset| DemoMessage::Rename(format!("offset:{offset:.2}")),
+            )),
+            SurfaceChild::fill(SurfaceNode::scrollbar_mapped(
+                61,
+                ScrollbarAxis::Horizontal,
+                WidgetSizing::fixed(Vector2::new(120.0, 12.0)),
+                |message| match message {
+                    ScrollbarMessage::OffsetChanged { offset_fraction } => {
+                        DemoMessage::Rename(format!("raw:{offset_fraction:.1}"))
+                    }
+                },
+            )),
+            SurfaceChild::fill(SurfaceNode::list_item(
+                62,
+                "Row",
+                WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+            )),
+            SurfaceChild::fill(SurfaceNode::canvas(
+                63,
+                WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
+            )),
+        ],
+    ));
+
+    assert!(matches!(
+        surface.find_widget(60).map(|widget| widget.widget()),
+        Some(WidgetSpec::Scrollbar(_))
+    ));
+    assert!(matches!(
+        surface.find_widget(62).map(|widget| widget.widget()),
+        Some(WidgetSpec::ListItem(_))
+    ));
+    assert!(matches!(
+        surface.find_widget(63).map(|widget| widget.widget()),
+        Some(WidgetSpec::Canvas(_))
+    ));
+    assert_eq!(
+        surface.dispatch_widget_output(
+            60,
+            radiant::widgets::WidgetOutput::Scrollbar(ScrollbarMessage::OffsetChanged {
+                offset_fraction: 0.25,
+            })
+        ),
+        Some(DemoMessage::Rename(String::from("offset:0.25")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            61,
+            radiant::widgets::WidgetOutput::Scrollbar(ScrollbarMessage::OffsetChanged {
+                offset_fraction: 0.5,
+            })
+        ),
+        Some(DemoMessage::Rename(String::from("raw:0.5")))
     );
 }
 

@@ -8,9 +8,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ButtonWidget, FocusBehavior, ScrollbarMessage, TextInputMessage,
-        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
-        WidgetOutput, WidgetSizing, WidgetSpec,
+        ButtonMessage, ButtonWidget, CanvasWidget, FocusBehavior, ListItemWidget, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget,
+        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -342,6 +342,41 @@ impl<Message> SurfaceNode<Message> {
             WidgetSpec::Toggle(ToggleWidget::new(id, label, sizing)),
             WidgetMessageMapper::toggle(map),
         )
+    }
+
+    /// Build a scrollbar leaf that maps offset changes by normalized offset.
+    pub fn scrollbar(
+        id: WidgetId,
+        axis: ScrollbarAxis,
+        sizing: WidgetSizing,
+        map: impl Fn(f32) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::scrollbar_mapped(id, axis, sizing, move |message| match message {
+            ScrollbarMessage::OffsetChanged { offset_fraction } => map(offset_fraction),
+        })
+    }
+
+    /// Build a scrollbar leaf with a custom widget-to-host message mapper.
+    pub fn scrollbar_mapped(
+        id: WidgetId,
+        axis: ScrollbarAxis,
+        sizing: WidgetSizing,
+        map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Scrollbar(ScrollbarWidget::new(id, axis, sizing)),
+            WidgetMessageMapper::scrollbar(map),
+        )
+    }
+
+    /// Build a non-emitting list item leaf node.
+    pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+        Self::static_widget(WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)))
+    }
+
+    /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.
+    pub fn canvas(id: WidgetId, sizing: WidgetSizing) -> Self {
+        Self::static_widget(WidgetSpec::Canvas(CanvasWidget::new(id, sizing)))
     }
 
     /// Return the stable node id.

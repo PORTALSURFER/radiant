@@ -176,8 +176,8 @@ mod tests {
     fn intern_text_reuses_cached_atom_and_tracks_hits() {
         let mut renderer = NativeTextRenderer::new();
 
-        let first = renderer.intern_text("browser");
-        let second = renderer.intern_text("browser");
+        let first = renderer.intern_text("content row");
+        let second = renderer.intern_text("content row");
 
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(renderer.take_layout_profile_counters(), (0, 0, 0, 1, 1, 0));
@@ -199,9 +199,9 @@ mod tests {
     #[test]
     fn atom_cache_hit_queue_compacts_after_repeated_reuse() {
         let mut renderer = NativeTextRenderer::new();
-        let _ = renderer.intern_text("browser");
+        let _ = renderer.intern_text("content row");
         for _ in 0..=TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
-            let _ = renderer.intern_text("browser");
+            let _ = renderer.intern_text("content row");
         }
 
         assert_eq!(renderer.atom_cache.len(), 1);

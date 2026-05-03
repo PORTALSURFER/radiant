@@ -22,7 +22,7 @@ pub(super) fn native_font_candidates() -> Vec<PathBuf> {
     {
         if let Ok(windir) = std::env::var("WINDIR") {
             let base = PathBuf::from(windir).join("Fonts");
-            // Prefer fixed-pitch UI glyph advances so browser rows stay visually even.
+            // Prefer fixed-pitch UI glyph advances so dense rows stay visually even.
             candidates.push(base.join("consola.ttf"));
             candidates.push(base.join("segoeui.ttf"));
             candidates.push(base.join("arial.ttf"));

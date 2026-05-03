@@ -1,5 +1,7 @@
 //! Generic user-feedback surface primitives.
 
+use crate::gui::types::{Point, Rect};
+
 /// Progress overlay state for long-running operations.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ProgressOverlay {
@@ -19,6 +21,24 @@ pub struct ProgressOverlay {
     pub cancelable: bool,
     /// Whether cancel has already been requested.
     pub cancel_requested: bool,
+}
+
+/// Return the filled leading segment for a horizontal progress track.
+///
+/// The returned rect is clamped to `track` and omitted when either the track or
+/// the clamped progress fraction has no visible area.
+pub fn horizontal_progress_fill_rect(track: Rect, progress_fraction: f32) -> Option<Rect> {
+    if track.width() <= 0.0 || track.height() <= 0.0 {
+        return None;
+    }
+    let width = track.width() * progress_fraction.clamp(0.0, 1.0);
+    if width <= 0.0 {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        track.min,
+        Point::new(track.min.x + width.min(track.width()), track.max.y),
+    ))
 }
 
 /// Summary for recoverable background work surfaced in a sidebar, panel, or status region.
@@ -157,8 +177,9 @@ impl<Kind> Default for ConfirmPrompt<Kind> {
 mod tests {
     use super::{
         ConfirmPrompt, DragOverlay, HealthState, ProgressOverlay, PromptIntent, RecoverySummary,
-        UpdatePanel, UpdateStatus,
+        UpdatePanel, UpdateStatus, horizontal_progress_fill_rect,
     };
+    use crate::gui::types::{Point, Rect};
 
     #[test]
     fn progress_overlay_defaults_to_hidden_and_empty() {
@@ -172,6 +193,31 @@ mod tests {
         assert_eq!(overlay.total, 0);
         assert!(!overlay.cancelable);
         assert!(!overlay.cancel_requested);
+    }
+
+    #[test]
+    fn horizontal_progress_fill_rect_clamps_to_track() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+
+        let overfilled = horizontal_progress_fill_rect(track, 1.5).expect("filled rect");
+        assert_eq!(overfilled.min, track.min);
+        assert_eq!(overfilled.max, track.max);
+
+        let partial = horizontal_progress_fill_rect(track, 0.25).expect("partial rect");
+        assert_eq!(partial.min, track.min);
+        assert_eq!(partial.max, Point::new(35.0, 28.0));
+    }
+
+    #[test]
+    fn horizontal_progress_fill_rect_omits_empty_tracks_and_zero_fraction() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+        let empty_width = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 28.0));
+        let empty_height = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 20.0));
+
+        assert_eq!(horizontal_progress_fill_rect(track, 0.0), None);
+        assert_eq!(horizontal_progress_fill_rect(track, -0.5), None);
+        assert_eq!(horizontal_progress_fill_rect(empty_width, 0.5), None);
+        assert_eq!(horizontal_progress_fill_rect(empty_height, 0.5), None);
     }
 
     #[test]

@@ -4,8 +4,9 @@ use super::overlays::{
     ProgressOverlaySections, PromptOverlaySections, compute_drag_overlay_rect,
     compute_progress_overlay_sections, compute_prompt_overlay_sections,
 };
+use crate::gui::feedback::horizontal_progress_fill_rect;
 use crate::gui::native_shell::style::SizingTokens;
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::Rect;
 
 /// Slot-resolved visual geometry for the confirmation prompt overlay.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,7 +55,7 @@ pub(crate) fn compute_progress_overlay_visual_layout(
     ProgressOverlayVisualLayout {
         scrim: modal.then_some(root),
         sections,
-        progress_fill: compute_progress_fill_rect(sections.progress_bar, progress_fraction),
+        progress_fill: horizontal_progress_fill_rect(sections.progress_bar, progress_fraction),
     }
 }
 
@@ -67,20 +68,6 @@ pub(crate) fn compute_drag_overlay_visual_layout(
     DragOverlayVisualLayout {
         banner: compute_drag_overlay_rect(content, status_bar, sizing),
     }
-}
-
-fn compute_progress_fill_rect(track: Rect, progress_fraction: f32) -> Option<Rect> {
-    if track.width() <= 0.0 || track.height() <= 0.0 {
-        return None;
-    }
-    let width = track.width() * progress_fraction.clamp(0.0, 1.0);
-    if width <= 0.0 {
-        return None;
-    }
-    Some(Rect::from_min_max(
-        track.min,
-        Point::new(track.min.x + width, track.max.y),
-    ))
 }
 
 #[cfg(test)]

@@ -131,7 +131,8 @@ content-list toolbars and context menus.
 Timeline and signal visualizations can use `SignalChromeState` for reusable
 status/reference/channel chrome, `SignalToolState` for generic enabled/visible
 tool flags, `SignalRasterPreview` for retained raster image payloads and
-loading state, `TimelineViewport` for normalized viewport bounds,
+loading state, `horizontal_progress_fill_rect` for resolving normalized
+progress-track fill geometry, `TimelineViewport` for normalized viewport bounds,
 `TimelineTransportState` for cursor/playhead/selection positions,
 `TimelineEditPreview` for editable range and fade/curve handles,
 `TimelineFeedbackEvents` for transient operation feedback tokens,

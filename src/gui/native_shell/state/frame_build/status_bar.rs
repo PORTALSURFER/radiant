@@ -115,17 +115,7 @@ pub(super) fn status_progress_fill_rect(
     }
     let fraction = (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
         .clamp(0.0, 1.0);
-    let fill_width = (track_rect.width() * fraction).max(0.0);
-    if fill_width <= 0.0 {
-        return None;
-    }
-    Some(Rect::from_min_max(
-        track_rect.min,
-        Point::new(
-            track_rect.min.x + fill_width.min(track_rect.width()),
-            track_rect.max.y,
-        ),
-    ))
+    crate::gui::feedback::horizontal_progress_fill_rect(track_rect, fraction)
 }
 
 fn footer_progress_fill_color(style: &StyleTokens, indeterminate: bool) -> Rgba8 {

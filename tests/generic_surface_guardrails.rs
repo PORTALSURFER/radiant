@@ -530,6 +530,12 @@ fn legacy_shell_compatibility_is_not_enabled_by_default() {
         cargo.contains("legacy-shell = []"),
         "Radiant must expose an explicit legacy-shell feature for current Sempal compatibility"
     );
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("Radiant lib.rs should be readable");
+    assert!(
+        lib.contains("#[cfg(feature = \"legacy-shell\")]\npub mod compat;"),
+        "Radiant default builds should not expose the transitional compat namespace"
+    );
 }
 
 #[test]

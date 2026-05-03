@@ -17,8 +17,8 @@
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
 //!
-//! Transitional compatibility lives under [`compat`] while host applications
-//! migrate onto generic Radiant APIs.
+//! Transitional compatibility lives behind the `legacy-shell` feature while
+//! host applications migrate onto generic Radiant APIs.
 
 // `radiant` still carries several large transitional runtime and native-shell
 // modules. Keep this list narrow while the active cleanup lane continues to
@@ -42,6 +42,7 @@ pub(crate) mod app {
     pub(crate) use crate::compat_app_contract::*;
 }
 /// Explicit compatibility namespace for migration-time shell APIs.
+#[cfg(feature = "legacy-shell")]
 pub mod compat;
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;

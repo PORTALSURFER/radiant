@@ -995,6 +995,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "fixed_width_row_rects_start",
         "visible_suffix_widths",
         "grouped_fixed_width_row_width",
+        "fixed_width_item_extent_for_available_width",
         "ContentListPanel<Row, Editor>",
         "ContentListActions",
         "SignalChromeState",

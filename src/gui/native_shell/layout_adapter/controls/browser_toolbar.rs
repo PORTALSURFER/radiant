@@ -3,7 +3,10 @@ use super::super::super::style::SizingTokens;
 use super::shared::{
     center_square_rect, clamp_rect_to_bounds, empty_rect, layout_left_aligned_fixed_widths,
 };
-use crate::gui::layout_core::{fixed_width_group_width, grouped_fixed_width_row_width};
+use crate::gui::layout_core::{
+    fixed_width_group_width, fixed_width_item_extent_for_available_width,
+    grouped_fixed_width_row_width,
+};
 use crate::gui::types::{Point, Rect};
 
 const TOOLBAR_FILTER_ID: u64 = 801;
@@ -273,17 +276,16 @@ fn compute_filter_control_side(
     let chip_count = (RATING_FILTER_CHIP_COUNT
         + PLAYBACK_AGE_FILTER_CHIP_COUNT
         + MARKED_FILTER_CHIP_COUNT
-        + DERIVED_LABEL_FILTER_CHIP_COUNT) as f32;
+        + DERIVED_LABEL_FILTER_CHIP_COUNT) as usize;
     let intra_group_gap_count = (RATING_FILTER_CHIP_COUNT.saturating_sub(1)
         + PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1)) as f32;
-    let raw_side =
-        (available_width - (filter_gap * intra_group_gap_count) - (filter_group_gap * 2.0))
-            / chip_count;
-    if raw_side <= 0.0 {
-        0.0
-    } else {
-        raw_side.floor().clamp(6.0, max_filter_side)
-    }
+    fixed_width_item_extent_for_available_width(
+        available_width,
+        chip_count,
+        (filter_gap * intra_group_gap_count) + (filter_group_gap * 2.0),
+        6.0,
+        max_filter_side,
+    )
 }
 
 fn rating_filter_strip_width(chip_side: f32, gap: f32) -> f32 {

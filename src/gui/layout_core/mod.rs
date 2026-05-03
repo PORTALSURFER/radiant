@@ -73,7 +73,8 @@ pub use model::{
     VirtualizationPolicy, WrapPolicy,
 };
 pub use row_helpers::{
-    fixed_width_group_width, fixed_width_row_rects_end, fixed_width_row_rects_start,
-    grouped_fixed_width_row_width, visible_suffix_widths,
+    fixed_width_group_width, fixed_width_item_extent_for_available_width,
+    fixed_width_row_rects_end, fixed_width_row_rects_start, grouped_fixed_width_row_width,
+    visible_suffix_widths,
 };
 pub use tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};

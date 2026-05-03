@@ -117,7 +117,8 @@ Compact toolbars and action strips can use
 generic layout engine while preserving stable widget IDs.
 `layout::grouped_fixed_width_row_width` computes grouped control-cluster widths
 for compact toolbars without baking product-specific toolbar concepts into the
-layout adapter.
+layout adapter. `layout::fixed_width_item_extent_for_available_width` resolves
+the largest fixed item extent that fits a compact row after caller-reserved gaps.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as

@@ -346,11 +346,17 @@ fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
 
     assert!(row_helpers_mod.contains("pub fn fixed_width_group_width"));
     assert!(row_helpers_mod.contains("pub fn grouped_fixed_width_row_width"));
+    assert!(row_helpers_mod.contains("pub fn fixed_width_item_extent_for_available_width"));
     assert!(toolbar_mod.contains("fixed_width_group_width"));
     assert!(toolbar_mod.contains("grouped_fixed_width_row_width"));
+    assert!(toolbar_mod.contains("fixed_width_item_extent_for_available_width"));
     assert!(
         !toolbar_mod.contains("chip_side * RATING_FILTER_CHIP_COUNT"),
         "legacy browser toolbar adapter should delegate grouped chip cluster widths to layout_core"
+    );
+    assert!(
+        !toolbar_mod.contains("let raw_side ="),
+        "legacy browser toolbar adapter should delegate fixed item sizing to layout_core"
     );
 }
 

@@ -85,6 +85,27 @@ pub fn grouped_fixed_width_row_width(
     total
 }
 
+/// Resolve a fixed item width that fits `item_count` items after reserved gaps.
+pub fn fixed_width_item_extent_for_available_width(
+    available_width: f32,
+    item_count: usize,
+    reserved_gap_width: f32,
+    min_item_width: f32,
+    max_item_width: f32,
+) -> f32 {
+    if available_width <= 0.0 || item_count == 0 {
+        return 0.0;
+    }
+    let raw_width = (available_width - reserved_gap_width.max(0.0)) / item_count as f32;
+    if raw_width <= 0.0 {
+        0.0
+    } else {
+        raw_width
+            .floor()
+            .clamp(min_item_width.max(0.0), max_item_width.max(0.0))
+    }
+}
+
 fn fixed_width_row_rects(
     bounds: Rect,
     gap: f32,
@@ -158,8 +179,9 @@ fn fixed_width_child(node_id: u64, width: f32, left_margin: f32) -> SlotChild {
 #[cfg(test)]
 mod tests {
     use super::{
-        fixed_width_group_width, fixed_width_row_rects_end, fixed_width_row_rects_start,
-        grouped_fixed_width_row_width, visible_suffix_widths,
+        fixed_width_group_width, fixed_width_item_extent_for_available_width,
+        fixed_width_row_rects_end, fixed_width_row_rects_start, grouped_fixed_width_row_width,
+        visible_suffix_widths,
     };
     use crate::gui::types::{Point, Rect};
 
@@ -206,5 +228,25 @@ mod tests {
         );
         assert_eq!(grouped_fixed_width_row_width(0.0, &[3], 2.0, 6.0), 0.0);
         assert_eq!(grouped_fixed_width_row_width(10.0, &[], 2.0, 6.0), 0.0);
+    }
+
+    #[test]
+    fn fixed_width_item_extent_for_available_width_fits_items_after_reserved_gaps() {
+        assert_eq!(
+            fixed_width_item_extent_for_available_width(100.0, 4, 12.0, 6.0, 20.0),
+            20.0
+        );
+        assert_eq!(
+            fixed_width_item_extent_for_available_width(40.0, 4, 12.0, 6.0, 20.0),
+            7.0
+        );
+        assert_eq!(
+            fixed_width_item_extent_for_available_width(20.0, 4, 12.0, 6.0, 20.0),
+            6.0
+        );
+        assert_eq!(
+            fixed_width_item_extent_for_available_width(10.0, 4, 12.0, 6.0, 20.0),
+            0.0
+        );
     }
 }

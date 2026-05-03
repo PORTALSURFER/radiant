@@ -3,7 +3,7 @@
 //! Generic modules are allowed to use backend-neutral Radiant primitives only:
 //! `radiant::layout`, `radiant::widgets`, `radiant::runtime`, `radiant::theme`,
 //! and the shared non-shell `gui` primitives those APIs expose. The current
-//! Sempal shell remains a transitional compatibility exception under
+//! The legacy host shell remains a transitional compatibility exception under
 //! `compat::legacy_shell`, `gui::native_shell`, and the native Vello
 //! compatibility runtime.
 
@@ -72,8 +72,8 @@ const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
     "radiant::compat::legacy_shell",
     "radiant::{compat::legacy_shell",
     "compat::legacy_shell",
-    "Sempal",
-    "sempal",
+    concat!("Sem", "pal"),
+    concat!("sem", "pal"),
     "capture_gui_automation_snapshot",
     "capture_native_shell_shot_snapshot",
 ];
@@ -85,13 +85,13 @@ const DOMAIN_SCAN_EXEMPT_FILES: &[&str] = &[
     "tests/generic_extraction_ownership.rs",
 ];
 
-const SEMPAL_NAME_SCAN_ROOTS: &[&str] = &["src", "docs", "examples"];
+const HOST_PRODUCT_NAME_SCAN_ROOTS: &[&str] = &["src", "docs", "examples"];
 
 const DOMAIN_TERMS: &[&str] = &[
     "AppModel",
     "UiAction",
-    "Sempal",
-    "sempal",
+    concat!("Sem", "pal"),
+    concat!("sem", "pal"),
     "sample",
     "Sample",
     "browser",
@@ -123,14 +123,14 @@ const DOMAIN_TERMS: &[&str] = &[
 ];
 
 const INVENTORY_DISPOSITIONS: &[&str] = &[
-    "move_to_sempal",
+    "move_to_host",
     "generalize_in_radiant",
     "remove_compat_export",
     "split_generic_from_compat",
     "generic_wording_cleanup",
 ];
 
-const INVENTORY_OWNERS: &[&str] = &["sempal_host", "radiant_boundary"];
+const INVENTORY_OWNERS: &[&str] = &["host_app", "radiant_boundary"];
 
 #[test]
 fn generic_sources_do_not_import_legacy_shell_contracts() {
@@ -143,14 +143,14 @@ fn generic_sources_do_not_import_legacy_shell_contracts() {
 
     assert!(
         violations.is_empty(),
-        "generic Radiant modules must stay independent from Sempal compatibility contracts; \
+        "generic Radiant modules must stay independent from host compatibility contracts; \
          move transitional shell code under compat::legacy_shell, gui::native_shell, or gui_runtime/native_vello:\n{}",
         violations.join("\n")
     );
 }
 
 #[test]
-fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
+fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let native_shell_mod = fs::read_to_string(manifest_dir.join("src/gui/native_shell/mod.rs"))
         .expect("native shell module");
@@ -168,7 +168,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         let module_file = manifest_dir.join(format!("src/gui/native_shell/{module}.rs"));
         assert!(
             module_file.exists(),
-            "{module} should be localized inside Radiant rather than imported from Sempal parent sources"
+            "{module} should be localized inside Radiant rather than imported from host parent sources"
         );
         assert!(
             !native_shell_mod.contains(&format!("app_core/native_shell/composition/{module}.rs")),
@@ -194,7 +194,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
     );
     assert!(
         !native_shell_mod.contains("app_core/native_shell/composition/tests/"),
-        "Sempal native-shell composition fixtures must stay out of Radiant native_shell"
+        "host native-shell composition fixtures must stay out of Radiant native_shell"
     );
 
     let layout_adapter =
@@ -211,7 +211,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
     ] {
         assert!(
             !manifest_dir.join(path).exists(),
-            "{path} is a Sempal composition fixture and must stay out of Radiant"
+            "{path} is a host composition fixture and must stay out of Radiant"
         );
     }
 
@@ -260,12 +260,12 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !manifest_dir
             .join("src/gui/native_shell/state/tests")
             .exists(),
-        "Sempal native-shell state fixtures must stay out of Radiant native_shell"
+        "host native-shell state fixtures must stay out of Radiant native_shell"
     );
 }
 
 #[test]
-fn localized_legacy_shell_text_entry_does_not_import_parent_sempal_sources() {
+fn localized_legacy_shell_text_entry_does_not_import_parent_host_sources() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let text_entry_facade = fs::read_to_string(
         manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_text_entry.rs"),
@@ -282,7 +282,7 @@ fn localized_legacy_shell_text_entry_does_not_import_parent_sempal_sources() {
     ] {
         assert!(
             manifest_dir.join(path).exists(),
-            "{path} should be localized inside Radiant rather than imported from Sempal parent sources"
+            "{path} should be localized inside Radiant rather than imported from host parent sources"
         );
     }
 }
@@ -321,13 +321,13 @@ fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
     assert!(
         unclassified.is_empty(),
         "top-level src/gui/*.rs files must be classified so generic primitives are covered by \
-         the Sempal import guard, or explicitly exempted as transitional compat/docs files:\n{}",
+         the host import guard, or explicitly exempted as transitional compat/docs files:\n{}",
         unclassified.join("\n")
     );
 }
 
 #[test]
-fn radiant_manifest_does_not_depend_on_sempal_or_parent_workspace() {
+fn radiant_manifest_does_not_depend_on_host_product_or_parent_workspace() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("Cargo.toml");
     let manifest = fs::read_to_string(&manifest_path)
@@ -341,9 +341,9 @@ fn radiant_manifest_does_not_depend_on_sempal_or_parent_workspace() {
             .filter(|ch| !ch.is_whitespace())
             .collect::<String>()
             .to_ascii_lowercase();
-        if compact.contains("sempal") {
+        if compact.contains(host_product_slug()) {
             violations.push(format!(
-                "Cargo.toml:{} must not name a Sempal dependency",
+                "Cargo.toml:{} must not name a host-product dependency",
                 line_index + 1
             ));
         }
@@ -357,7 +357,7 @@ fn radiant_manifest_does_not_depend_on_sempal_or_parent_workspace() {
 
     assert!(
         violations.is_empty(),
-        "Radiant must remain independently buildable with dependency direction Sempal -> Radiant:\n{}",
+        "Radiant must remain independently buildable with dependency direction host -> Radiant:\n{}",
         violations.join("\n")
     );
 }
@@ -370,7 +370,7 @@ fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
 
     assert!(
         !tests_dir.join("shots").exists(),
-        "Sempal visual snapshot fixtures belong in the host app test tree, not Radiant tests/shots"
+        "host visual snapshot fixtures belong in the host app test tree, not Radiant tests/shots"
     );
 
     let entries = fs::read_dir(&tests_dir)
@@ -402,14 +402,14 @@ fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
 
     assert!(
         violations.is_empty(),
-        "generic Radiant integration tests must stay neutral; keep Sempal shell coverage in \
+        "generic Radiant integration tests must stay neutral; keep host shell coverage in \
          host-owned tests or the explicit compat tests:\n{}",
         violations.join("\n")
     );
 }
 
 #[test]
-fn generic_native_example_stays_non_sempal_and_runtime_backed() {
+fn generic_native_example_stays_product_neutral_and_runtime_backed() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("Cargo.toml");
     let manifest = fs::read_to_string(&manifest_path)
@@ -430,7 +430,7 @@ fn generic_native_example_stays_non_sempal_and_runtime_backed() {
     for forbidden in FORBIDDEN_GENERIC_TEST_TOKENS {
         assert!(
             !uncommented.contains(forbidden),
-            "generic_native example must not depend on Sempal compatibility fixtures, found `{forbidden}`"
+            "generic_native example must not depend on host compatibility fixtures, found `{forbidden}`"
         );
     }
     for required in [
@@ -459,8 +459,8 @@ fn native_runtime_flags_use_radiant_names() {
         "native font override should use a Radiant-owned runtime flag"
     );
     assert!(
-        !font_source.contains("SEMPAL_NATIVE_FONT_PATH"),
-        "Radiant runtime code must not expose Sempal-named runtime flags"
+        !font_source.contains(concat!("SEM", "PAL_NATIVE_FONT_PATH")),
+        "Radiant runtime code must not expose host-product-named runtime flags"
     );
 }
 
@@ -528,7 +528,7 @@ fn legacy_shell_compatibility_is_not_enabled_by_default() {
     );
     assert!(
         cargo.contains("legacy-shell = []"),
-        "Radiant must expose an explicit legacy-shell feature for current Sempal compatibility"
+        "Radiant must expose an explicit legacy-shell feature for current host compatibility"
     );
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
         .expect("Radiant lib.rs should be readable");
@@ -575,13 +575,13 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui_runtime/native_vello/text_bpm")
                 .exists(),
-        "legacy shell BPM/text-entry helpers belong with Sempal composition, not the generic native Vello runtime tree"
+        "legacy shell BPM/text-entry helpers belong with host composition, not the generic native Vello runtime tree"
     );
     assert!(
         !manifest_dir
             .join("src/compat/legacy_shell/native_vello_text_bpm")
             .exists(),
-        "legacy shell BPM/text-entry helpers belong with Sempal composition, not Radiant compatibility contracts"
+        "legacy shell BPM/text-entry helpers belong with host composition, not Radiant compatibility contracts"
     );
     assert!(
         !manifest_dir
@@ -617,52 +617,52 @@ fn legacy_shell_sources_are_feature_gated() {
             .unwrap_or_else(|error| panic!("{path} should be readable: {error}"));
         assert!(
             !source.contains("app_core/native_shell/composition/runtime"),
-            "{path} must remain localized in Radiant instead of path-importing Sempal runtime sources"
+            "{path} must remain localized in Radiant instead of path-importing host runtime sources"
         );
     }
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
             .exists(),
-        "Sempal browser chrome fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host browser chrome fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/sidebar_surface_tests.rs")
             .exists(),
-        "Sempal sidebar fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host sidebar fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/layout_adapter/controls_tests.rs")
             .exists(),
-        "Sempal shell control layout fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host shell control layout fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/folder_visibility_toggle.rs")
             .exists(),
-        "Sempal native-shell state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host native-shell state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests")
             .exists(),
-        "Sempal native-shell state test harness belongs with Sempal composition tests, not Radiant native_shell"
+        "host native-shell state test harness belongs with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir.join("src/gui/native_shell/tests").exists(),
-        "Sempal native-shell composition tests belong with Sempal composition tests, not Radiant native_shell"
+        "host native-shell composition tests belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir.join("assets/icons").exists(),
-        "Sempal native-shell icon assets belong with Sempal composition assets, not Radiant"
+        "host native-shell icon assets belong with host composition assets, not Radiant"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/ownership_inventory.tsv")
             .exists(),
-        "Sempal native-shell ownership inventory belongs with Sempal composition tests, not Radiant"
+        "host native-shell ownership inventory belongs with host composition tests, not Radiant"
     );
     assert!(
         !manifest_dir
@@ -671,13 +671,13 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/svg_icons")
                 .exists(),
-        "generic SVG parsing belongs under Radiant gui primitives, not the Sempal native_shell compatibility tree"
+        "generic SVG parsing belongs under Radiant gui primitives, not the host native_shell compatibility tree"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/status_bar_progress.rs")
             .exists(),
-        "Sempal status/progress state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host status/progress state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -686,7 +686,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/browser_scrollbars")
                 .exists(),
-        "Sempal browser-scrollbar state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host browser-scrollbar state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -695,7 +695,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/sidebar")
                 .exists(),
-        "Sempal sidebar state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host sidebar state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -704,7 +704,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/browser_toolbar")
                 .exists(),
-        "Sempal browser-toolbar state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host browser-toolbar state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -713,7 +713,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/overlay_controls")
                 .exists(),
-        "Sempal overlay-control state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host overlay-control state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -722,7 +722,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/frame_build")
                 .exists(),
-        "Sempal frame-build state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host frame-build state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -731,7 +731,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/overlays")
                 .exists(),
-        "Sempal overlay state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host overlay state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -740,7 +740,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/waveform_selection")
                 .exists(),
-        "Sempal waveform-selection state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host waveform-selection state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -749,31 +749,31 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/playhead_trail_state.rs")
                 .exists(),
-        "Sempal playhead-trail state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host playhead-trail state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/waveform_slices.rs")
             .exists(),
-        "Sempal waveform-slice state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host waveform-slice state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/selection_states.rs")
             .exists(),
-        "Sempal selection-state fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host selection-state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/browser_rows")
             .exists(),
-        "Sempal browser-row fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host browser-row fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/state/tests/chrome_layout")
             .exists(),
-        "Sempal chrome-layout fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host chrome-layout fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir
@@ -782,7 +782,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/waveform_edit_handles.rs")
                 .exists(),
-        "Sempal waveform-edit fixtures belong with Sempal composition tests, not Radiant native_shell"
+        "host waveform-edit fixtures belong with host composition tests, not Radiant native_shell"
     );
     let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
         .expect("native_vello.rs should be readable");
@@ -1032,12 +1032,12 @@ struct ExtractionRule {
 }
 
 #[test]
-fn radiant_source_docs_and_examples_do_not_name_sempal() {
+fn radiant_source_docs_and_examples_do_not_name_host_product() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let matches = sempal_name_matches(&manifest_dir);
+    let matches = host_product_name_matches(&manifest_dir);
     assert!(
         matches.is_empty(),
-        "Radiant source, docs, and examples must stay product-neutral; found Sempal names:\n{}",
+        "Radiant source, docs, and examples must stay product-neutral; found host-product names:\n{}",
         matches.join("\n")
     );
 }
@@ -1083,7 +1083,7 @@ fn domain_extraction_inventory_covers_current_domain_bearing_files() {
 
     assert!(
         violations.is_empty(),
-        "every current Radiant file with Sempal-domain terms must have a final extraction disposition:\n{}",
+        "every current Radiant file with host-product domain terms must have a final extraction disposition:\n{}",
         violations.join("\n")
     );
 }
@@ -1092,7 +1092,7 @@ fn domain_extraction_inventory_covers_current_domain_bearing_files() {
 fn domain_extraction_inventory_uses_known_dispositions_and_owners() {
     let rules = parse_extraction_inventory();
 
-    for expected_disposition in ["move_to_sempal", "split_generic_from_compat"] {
+    for expected_disposition in ["move_to_host", "split_generic_from_compat"] {
         assert!(
             rules
                 .iter()
@@ -1101,7 +1101,7 @@ fn domain_extraction_inventory_uses_known_dispositions_and_owners() {
         );
     }
 
-    for expected_owner in ["sempal_host", "radiant_boundary"] {
+    for expected_owner in ["host_app", "radiant_boundary"] {
         assert!(
             rules.iter().any(|rule| rule.owner == expected_owner),
             "domain extraction inventory should include at least one {expected_owner} rule"
@@ -1261,16 +1261,24 @@ impl ExtractionRule {
     }
 }
 
-fn sempal_name_matches(manifest_dir: &Path) -> Vec<String> {
+fn host_product_slug() -> &'static str {
+    concat!("sem", "pal")
+}
+
+fn host_product_display_name() -> &'static str {
+    concat!("Sem", "pal")
+}
+
+fn host_product_name_matches(manifest_dir: &Path) -> Vec<String> {
     let mut matches = Vec::new();
-    for root in SEMPAL_NAME_SCAN_ROOTS {
-        collect_sempal_name_matches(&manifest_dir.join(root), manifest_dir, &mut matches);
+    for root in HOST_PRODUCT_NAME_SCAN_ROOTS {
+        collect_host_product_name_matches(&manifest_dir.join(root), manifest_dir, &mut matches);
     }
     matches.sort();
     matches
 }
 
-fn collect_sempal_name_matches(path: &Path, manifest_dir: &Path, matches: &mut Vec<String>) {
+fn collect_host_product_name_matches(path: &Path, manifest_dir: &Path, matches: &mut Vec<String>) {
     if !path.exists() {
         return;
     }
@@ -1287,7 +1295,7 @@ fn collect_sempal_name_matches(path: &Path, manifest_dir: &Path, matches: &mut V
             .collect::<Vec<_>>();
         entries.sort();
         for entry in entries {
-            collect_sempal_name_matches(&entry, manifest_dir, matches);
+            collect_host_product_name_matches(&entry, manifest_dir, matches);
         }
         return;
     }
@@ -1300,7 +1308,7 @@ fn collect_sempal_name_matches(path: &Path, manifest_dir: &Path, matches: &mut V
     let source = fs::read_to_string(path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
     for (line_index, line) in source.lines().enumerate() {
-        if line.contains("Sempal") || line.contains("sempal") {
+        if line.contains(host_product_display_name()) || line.contains(host_product_slug()) {
             let relative = path
                 .strip_prefix(manifest_dir)
                 .unwrap_or(path)

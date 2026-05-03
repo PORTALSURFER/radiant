@@ -214,6 +214,14 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
             "{path} is a Sempal composition fixture and must stay out of Radiant"
         );
     }
+
+    let toolbar_helpers =
+        fs::read_to_string(manifest_dir.join("src/gui/native_shell/state/toolbar_helpers.rs"))
+            .expect("native shell toolbar helper facade");
+    assert!(
+        !toolbar_helpers.contains("app_core/native_shell/composition/state/toolbar_helpers/"),
+        "native shell toolbar helpers must stay local to Radiant while the compatibility shell remains"
+    );
 }
 
 #[test]

@@ -67,6 +67,7 @@ use std::{
     sync::Arc,
 };
 
+#[allow(dead_code)]
 mod automation;
 mod browser_rows;
 mod cache;

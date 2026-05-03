@@ -157,6 +157,8 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
 
     for module in [
         "status_surface",
+        "style/chrome",
+        "style/palette",
         "top_bar_surface",
         "waveform_header_surface",
         "waveform_toolbar_surface",
@@ -171,6 +173,13 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
             "{module} must stay a local Radiant module until the remaining compatibility shell is retired"
         );
     }
+
+    let style_mod = fs::read_to_string(manifest_dir.join("src/gui/native_shell/style/mod.rs"))
+        .expect("native shell style module");
+    assert!(
+        !style_mod.contains("app_core/native_shell/composition/style/"),
+        "native shell style modules must stay local to Radiant while the compatibility shell remains"
+    );
 }
 
 #[test]

@@ -1,6 +1,7 @@
 //! Wheel-to-action mapping for browser scrolling and waveform zoom.
 
 use super::*;
+use crate::gui::list::virtual_list_view_start_after_scroll_delta;
 
 pub(super) fn browser_wheel_row_delta(
     layout: &ShellLayout,
@@ -79,12 +80,12 @@ pub(super) fn browser_view_start_after_wheel(
     viewport_len: usize,
     steps: i8,
 ) -> Option<usize> {
-    if visible_count == 0 || viewport_len == 0 || steps == 0 {
-        return None;
-    }
-    let max_start = visible_count.saturating_sub(viewport_len.min(visible_count));
-    let target = (current_view_start as isize + steps as isize).clamp(0, max_start as isize);
-    Some(target as usize)
+    virtual_list_view_start_after_scroll_delta(
+        current_view_start,
+        visible_count,
+        viewport_len,
+        steps as isize,
+    )
 }
 
 /// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.

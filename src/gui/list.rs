@@ -121,6 +121,26 @@ pub fn resolve_virtual_list_window(request: VirtualListWindowRequest) -> Virtual
     }
 }
 
+/// Apply a signed logical-row scroll delta to a virtual list viewport start.
+///
+/// This helper is O(1), allocation-free, and clamps the result to the current
+/// visible item range. It is intentionally input-backend agnostic: native
+/// runtimes can map wheel/touchpad/key input into `delta`, while hosts keep
+/// ownership of hit testing and domain-specific scroll actions.
+pub fn virtual_list_view_start_after_scroll_delta(
+    current_view_start: usize,
+    total_items: usize,
+    viewport_len: usize,
+    delta: isize,
+) -> Option<usize> {
+    if total_items == 0 || viewport_len == 0 || delta == 0 {
+        return None;
+    }
+    let max_start = total_items.saturating_sub(viewport_len.min(total_items));
+    let target = (current_view_start as isize + delta).clamp(0, max_start as isize);
+    Some(target as usize)
+}
+
 /// Request used to resolve a materialized row window for a large logical grid.
 ///
 /// The request is item-index based and assumes a dense row-major grid. Hosts can
@@ -765,6 +785,7 @@ mod tests {
         EditableTreeActions, EditableTreeRow, RowProcessingState, VirtualGridWindow,
         VirtualGridWindowRequest, VirtualListWindow, VirtualListWindowRequest,
         resolve_virtual_grid_window, resolve_virtual_list_window,
+        virtual_list_view_start_after_scroll_delta,
     };
 
     #[test]
@@ -941,6 +962,34 @@ mod tests {
                 ..VirtualListWindowRequest::default()
             })
             .is_empty()
+        );
+    }
+
+    #[test]
+    fn virtual_list_scroll_delta_clamps_to_visible_bounds() {
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(10, 40, 12, -3),
+            Some(7)
+        );
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(0, 40, 12, -3),
+            Some(0)
+        );
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(27, 40, 12, 5),
+            Some(28)
+        );
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(4, 0, 12, 2),
+            None
+        );
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(4, 20, 0, 2),
+            None
+        );
+        assert_eq!(
+            virtual_list_view_start_after_scroll_delta(4, 20, 12, 0),
+            None
         );
     }
 

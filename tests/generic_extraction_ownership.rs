@@ -1378,6 +1378,24 @@ fn visual_snapshot_serialization_is_owned_by_generic_gui_module() {
 }
 
 #[test]
+fn virtual_list_scroll_clamping_is_owned_by_generic_list_module() {
+    let legacy_wheel_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/wheel.rs"
+    ))
+    .expect("legacy wheel module should be readable");
+    let gui_list_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/list.rs"))
+        .expect("generic list module should be readable");
+
+    assert!(gui_list_mod.contains("pub fn virtual_list_view_start_after_scroll_delta"));
+    assert!(legacy_wheel_mod.contains("virtual_list_view_start_after_scroll_delta"));
+    assert!(
+        !legacy_wheel_mod.contains("let max_start = visible_count.saturating_sub"),
+        "legacy wheel input should delegate virtual-list viewport clamping to gui::list"
+    );
+}
+
+#[test]
 fn native_shell_motion_helpers_do_not_use_sample_manager_terms_for_points() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let files = [

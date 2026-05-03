@@ -104,6 +104,10 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+`virtual_list_view_start_after_scroll_delta` applies signed logical-row scroll
+deltas to virtual-list viewport starts with the same allocation-free clamping
+contract, leaving hit testing and platform input normalization to the host or
+runtime adapter.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as

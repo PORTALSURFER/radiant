@@ -126,7 +126,7 @@ fn modal_overlay_signature_changes_for_drag_chip_pointer_motion() {
     let mut changed = baseline.clone();
     changed.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
-        label: String::from("kick.wav"),
+        label: String::from("content-item-1"),
         target_label: String::from("Folder: drums"),
         valid_target: true,
         pointer_x: Some(320),
@@ -148,7 +148,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
     let mut baseline = AppModel::default();
     baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
-        label: String::from("kick.wav"),
+        label: String::from("content-item-1"),
         target_label: String::from("Folder: drums"),
         valid_target: true,
         pointer_x: Some(320),
@@ -180,7 +180,7 @@ fn focus_overlay_signature_ignores_drag_chip_pointer_motion() {
     let mut baseline = AppModel::default();
     baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
-        label: String::from("kick.wav"),
+        label: String::from("content-item-1"),
         target_label: String::from("Folder: drums"),
         valid_target: true,
         pointer_x: Some(320),

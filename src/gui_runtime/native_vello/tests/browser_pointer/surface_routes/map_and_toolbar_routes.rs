@@ -13,16 +13,16 @@ fn map_point_click_routes_to_focus_spatial_content() {
             active: true,
             summary: String::from("1 point"),
             legend_label: String::from("Render: points"),
-            selection_label: String::from("Selection: source::kick.wav"),
-            hover_label: String::from("Hover: source::kick.wav"),
+            selection_label: String::from("Selection: content-item-1"),
+            hover_label: String::from("Hover: content-item-1"),
             cluster_label: String::from("Clusters: 1"),
             viewport_label: String::from("zoom 1.00x | pan (0, 0)"),
             error: None,
             render_mode: crate::compat_app_contract::MapRenderModeModel::Points,
-            selected_item_id: Some(String::from("source::kick.wav")),
-            focused_item_id: Some(String::from("source::kick.wav")),
+            selected_item_id: Some(String::from("content-item-1")),
+            focused_item_id: Some(String::from("content-item-1")),
             points: Arc::from(vec![MapPointModel {
-                id: Arc::<str>::from("source::kick.wav"),
+                id: Arc::<str>::from("content-item-1"),
                 x_milli: 500,
                 y_milli: 500,
                 cluster_id: Some(1),
@@ -39,7 +39,7 @@ fn map_point_click_routes_to_focus_spatial_content() {
             ModifiersState::default(),
         ),
         Some(UiAction::FocusSpatialContentItem {
-            content_id: String::from("source::kick.wav")
+            content_id: String::from("content-item-1")
         })
     );
 }

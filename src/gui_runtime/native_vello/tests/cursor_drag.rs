@@ -104,7 +104,7 @@ fn finish_volume_drag_flushes_pending_value_before_commit() {
         position_nanos: 915_000_000,
     });
     runner.spatial_focus_drag_active = true;
-    runner.last_emitted_spatial_drag_content_id = Some(String::from("source::kick.wav"));
+    runner.last_emitted_spatial_drag_content_id = Some(String::from("content-item-1"));
 
     runner.finish_volume_drag(None);
 

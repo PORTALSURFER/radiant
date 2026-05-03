@@ -33,6 +33,9 @@ Radiant does not define the domain model. The public `App<Message>` contract is
 implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
 or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
+Hosts whose update flow returns runtime-visible follow-up work can use
+`declarative_command_runtime_bridge(state, project, update)`; its update closure
+returns `Command<Message>` while keeping side effects and domain state host-owned.
 
 ## View, Element, And Widget
 

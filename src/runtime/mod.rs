@@ -28,7 +28,10 @@ pub use crate::gui_runtime::{
     NativeRunOptions, NativeStartupTimingArtifact, RuntimeRunReport, WindowIconRgba,
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
-pub use bridge::{App, DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
+pub use bridge::{
+    App, DeclarativeCommandRuntimeBridge, DeclarativeRuntimeBridge, RuntimeBridge,
+    declarative_command_runtime_bridge, declarative_runtime_bridge,
+};
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
 pub use paint::{

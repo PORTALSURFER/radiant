@@ -5,7 +5,8 @@ use radiant::{
     runtime::{
         App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
         NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_runtime_bridge,
+        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
+        declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -307,6 +308,37 @@ fn surface_runtime_executes_command_messages_and_repaint_requests() {
 }
 
 #[test]
+fn declarative_command_bridge_supports_command_update_flow() {
+    let bridge = declarative_command_runtime_bridge(
+        DemoState::default(),
+        project_demo_surface,
+        |state: &mut DemoState, message| match message {
+            CommandDemoMessage::Start => Command::batch([
+                Command::message(CommandDemoMessage::Rename(String::from("Closure"))),
+                Command::message(CommandDemoMessage::Increment),
+                Command::request_repaint(),
+            ]),
+            CommandDemoMessage::Increment => {
+                state.count += 1;
+                Command::none()
+            }
+            CommandDemoMessage::Rename(name) => {
+                state.name = name;
+                Command::none()
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let outcome = runtime.dispatch_message(CommandDemoMessage::Start);
+
+    assert_eq!(outcome.messages_dispatched, 3);
+    assert!(outcome.repaint_requested);
+    assert_eq!(runtime.bridge().state().count, 1);
+    assert_eq!(runtime.bridge().state().name, "Closure");
+}
+
+#[test]
 fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -512,47 +544,7 @@ struct CommandDemoBridge {
 
 impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<CommandDemoMessage>> {
-        let title = WidgetSpec::Text(TextWidget::new(
-            10,
-            format!("{} ({})", display_name(&self.state), self.state.count),
-            WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
-        ));
-        let button = WidgetSpec::Button(ButtonWidget::new(
-            11,
-            "Run",
-            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-        ));
-        let input = WidgetSpec::TextInput(TextInputWidget::new(
-            12,
-            self.state.name.clone(),
-            WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
-        ));
-
-        Arc::new(UiSurface::new(SurfaceNode::container(
-            1,
-            ContainerPolicy {
-                kind: ContainerKind::Row,
-                spacing: 8.0,
-                ..ContainerPolicy::default()
-            },
-            vec![
-                SurfaceChild::new(
-                    SlotParams::fill(),
-                    SurfaceNode::widget(title, WidgetMessageMapper::None),
-                ),
-                SurfaceChild::new(
-                    SlotParams::fill(),
-                    SurfaceNode::widget(
-                        button,
-                        WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
-                    ),
-                ),
-                SurfaceChild::new(
-                    SlotParams::fill(),
-                    SurfaceNode::widget(input, WidgetMessageMapper::None),
-                ),
-            ],
-        )))
+        project_demo_surface(&mut self.state)
     }
 
     fn update(&mut self, message: CommandDemoMessage) -> Command<CommandDemoMessage> {
@@ -572,4 +564,48 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
             }
         }
     }
+}
+
+fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMessage>> {
+    let title = WidgetSpec::Text(TextWidget::new(
+        10,
+        format!("{} ({})", display_name(state), state.count),
+        WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+    ));
+    let button = WidgetSpec::Button(ButtonWidget::new(
+        11,
+        "Run",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
+    let input = WidgetSpec::TextInput(TextInputWidget::new(
+        12,
+        state.name.clone(),
+        WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
+    ));
+
+    Arc::new(UiSurface::new(SurfaceNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::Row,
+            spacing: 8.0,
+            ..ContainerPolicy::default()
+        },
+        vec![
+            SurfaceChild::new(
+                SlotParams::fill(),
+                SurfaceNode::widget(title, WidgetMessageMapper::None),
+            ),
+            SurfaceChild::new(
+                SlotParams::fill(),
+                SurfaceNode::widget(
+                    button,
+                    WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
+                ),
+            ),
+            SurfaceChild::new(
+                SlotParams::fill(),
+                SurfaceNode::widget(input, WidgetMessageMapper::None),
+            ),
+        ],
+    )))
 }

@@ -3,8 +3,8 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, SlotParams, Vector2},
     runtime::{
-        NativeRunOptions, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
-        declarative_runtime_bridge, run_native_vello_runtime,
+        Command, NativeRunOptions, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{ButtonMessage, ButtonWidget, TextWidget, WidgetSizing, WidgetSpec},
 };
@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum DemoMessage {
+    ButtonPressed,
     Increment,
 }
 
@@ -21,11 +22,18 @@ struct DemoState {
 }
 
 fn main() -> Result<(), String> {
-    let bridge = declarative_runtime_bridge(
+    let bridge = declarative_command_runtime_bridge(
         DemoState::default(),
         project_surface,
         |state: &mut DemoState, message| match message {
-            DemoMessage::Increment => state.count += 1,
+            DemoMessage::ButtonPressed => Command::batch([
+                Command::message(DemoMessage::Increment),
+                Command::request_repaint(),
+            ]),
+            DemoMessage::Increment => {
+                state.count += 1;
+                Command::none()
+            }
         },
     );
 
@@ -69,7 +77,7 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
                 SurfaceNode::widget(
                     button,
                     WidgetMessageMapper::button(|message| match message {
-                        ButtonMessage::Activate => DemoMessage::Increment,
+                        ButtonMessage::Activate => DemoMessage::ButtonPressed,
                     }),
                 ),
             ),

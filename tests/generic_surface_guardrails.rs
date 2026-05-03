@@ -449,7 +449,9 @@ fn generic_native_example_stays_product_neutral_and_runtime_backed() {
         );
     }
     for required in [
-        "declarative_runtime_bridge",
+        "declarative_command_runtime_bridge",
+        "Command::message",
+        "Command::request_repaint",
         "run_native_vello_runtime",
         "UiSurface",
         "WidgetSpec::Button",
@@ -566,10 +568,9 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
-    let shell_snapshot = fs::read_to_string(
-        manifest_dir.join("src/compat/legacy_shell/shell_snapshot.rs"),
-    )
-    .expect("legacy shell snapshot module should be readable");
+    let shell_snapshot =
+        fs::read_to_string(manifest_dir.join("src/compat/legacy_shell/shell_snapshot.rs"))
+            .expect("legacy shell snapshot module should be readable");
     for forbidden in [
         "pub struct NativeShellShotColor",
         "pub struct NativeShellShotPoint",

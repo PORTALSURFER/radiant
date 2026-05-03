@@ -508,7 +508,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
     ] {
         assert!(
             !public_exports.contains(forbidden),
-            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::legacy_shell until the compatibility shell is removed"
+            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::legacy_native_vello until the compatibility runtime is removed"
         );
     }
     for required in [
@@ -1131,11 +1131,14 @@ fn core_api_documentation_covers_public_boundary_concepts() {
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
         normalized_docs.contains("compat::legacy_shell")
+            && normalized_docs.contains("compat::legacy_native_vello")
             && normalized_docs.contains("temporary")
-            && normalized_docs.contains("host-shaped migration glue")
-            && normalized_docs
-                .contains("generic Radiant code must not grow new dependencies on it"),
-        "docs/API.md should identify compat::legacy_shell as temporary host-shaped migration glue"
+            && normalized_docs.contains("host-shaped model/action/bridge migration glue")
+            && normalized_docs.contains("temporary native runtime entrypoint")
+            && normalized_docs.contains(
+                "generic Radiant code must not grow new dependencies on either compatibility namespace"
+            ),
+        "docs/API.md should identify legacy compatibility namespaces as temporary host-owned migration glue"
     );
 }
 

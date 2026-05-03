@@ -11,9 +11,11 @@ must not depend on host crates, host modules, product assets, or product-domain
 model names. In short: host -> Radiant, never Radiant -> host. Transitional
 compatibility code is isolated behind the `legacy-shell` feature and is not part
 of the default standalone API. The `compat::legacy_shell` contract is temporary
-host-shaped migration glue with its final host-owned disposition recorded in
+host-shaped model/action/bridge migration glue, and
+`compat::legacy_native_vello` is the matching temporary native runtime
+entrypoint for that bridge. Both have final host-owned dispositions recorded in
 `domain_extraction_inventory.tsv`; generic Radiant code must not grow new
-dependencies on it.
+dependencies on either compatibility namespace.
 
 New host applications should use:
 

@@ -2,11 +2,11 @@
 
 use super::super::*;
 
-mod inline_tags;
+mod inline_metadata;
 mod markers;
 mod rating_indicators;
 mod similarity;
 
 pub(in crate::gui::native_shell::state) use self::{
-    inline_tags::*, markers::*, rating_indicators::*, similarity::*,
+    inline_metadata::*, markers::*, rating_indicators::*, similarity::*,
 };

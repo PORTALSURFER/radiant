@@ -1,8 +1,8 @@
 //! Browser-row caches plus focused geometry, truncation, and visual helper modules.
 
-use crate::app as native_model;
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
+use crate::app as native_model;
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
 use native_model::FolderPaneIdModel;
 
@@ -25,8 +25,8 @@ pub(super) struct CachedBrowserRow {
     pub(super) visible_row_label: String,
     pub(super) label: String,
     pub(super) bucket_label: String,
-    pub(super) inline_tag_labels: Vec<String>,
-    pub(super) inline_tag_rects: Vec<Rect>,
+    pub(super) inline_metadata_labels: Vec<String>,
+    pub(super) inline_metadata_rects: Vec<Rect>,
     pub(super) text_layout: BrowserRowTextLayout,
     pub(super) label_rendered_width: f32,
     pub(super) column: usize,

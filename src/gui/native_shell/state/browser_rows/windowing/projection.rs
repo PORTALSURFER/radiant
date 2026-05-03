@@ -156,7 +156,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             row.focused && !model.browser.duplicate_cleanup_active,
             sizing,
         );
-        let bucket_label_width = browser_inline_tag_max_width(
+        let bucket_label_width = browser_inline_metadata_max_width(
             row_text_layout.item_label.width()
                 - similarity_button_reserved_width
                 - similarity_strength_reserved_width,
@@ -176,10 +176,10 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         } else {
             String::new()
         };
-        let inline_tag_labels = browser_inline_tag_labels_owned(&bucket_label);
-        let inline_tag_rects = browser_inline_tag_chip_rects_for_labels(
+        let inline_metadata_labels = browser_inline_metadata_labels_owned(&bucket_label);
+        let inline_metadata_rects = browser_inline_metadata_chip_rects_for_labels(
             row_text_layout.item_label,
-            &inline_tag_labels,
+            &inline_metadata_labels,
             similarity_strength_reserved_width,
             sizing,
         );
@@ -187,7 +187,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             - rating_reserved_width
             - similarity_button_reserved_width
             - similarity_strength_reserved_width
-            - browser_inline_tag_reserved_width_for_labels(&inline_tag_labels, sizing))
+            - browser_inline_metadata_reserved_width_for_labels(&inline_metadata_labels, sizing))
         .max(20.0);
         let label = truncate_browser_row_text_cached(
             truncation_cache,
@@ -204,8 +204,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             label_rendered_width: browser_approx_text_width(&label, sizing.font_body),
             label,
             bucket_label,
-            inline_tag_labels,
-            inline_tag_rects,
+            inline_metadata_labels,
+            inline_metadata_rects,
             text_layout: row_text_layout,
             column: row.column.min(2),
             rating_level: row.rating_level.clamp(-3, 3),
@@ -224,8 +224,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
 }
 
 /// Cap inline browser metadata width so the primary item label keeps most of the row.
-fn browser_inline_tag_max_width(sample_width: f32, rating_reserved_width: f32) -> f32 {
-    let sample_width = sample_width.max(0.0);
-    let available = (sample_width - rating_reserved_width - 24.0).max(0.0);
-    available.min((sample_width * 0.38).clamp(44.0, 120.0))
+fn browser_inline_metadata_max_width(item_width: f32, rating_reserved_width: f32) -> f32 {
+    let item_width = item_width.max(0.0);
+    let available = (item_width - rating_reserved_width - 24.0).max(0.0);
+    available.min((item_width * 0.38).clamp(44.0, 120.0))
 }

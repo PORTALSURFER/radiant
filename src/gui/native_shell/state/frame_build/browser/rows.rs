@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 
 pub(super) fn render_browser_rows_window(
     ctx: &StaticFrameCtx<'_>,
@@ -179,8 +179,10 @@ pub(super) fn render_browser_rows_window(
                 (label_position.x + marker_advance).min(row.text_layout.item_label.max.x);
             label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
-        let inline_tag_reserved_width =
-            browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
+        let inline_metadata_reserved_width = browser_inline_metadata_reserved_width_for_labels(
+            &row.inline_metadata_labels,
+            ctx.sizing,
+        );
         let rating_reserved_width =
             browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
         let rating_indicator_layout = browser_rating_indicator_layout(
@@ -189,7 +191,7 @@ pub(super) fn render_browser_rows_window(
                 label_origin_x: label_position.x,
                 label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
                 right_limit_x: row.text_layout.item_label.max.x
-                    - inline_tag_reserved_width
+                    - inline_metadata_reserved_width
                     - similarity_strength_reserved_width,
             },
             row.rating_level,
@@ -199,7 +201,7 @@ pub(super) fn render_browser_rows_window(
         if let Some(indicators) = rating_indicator_layout {
             label_max_width = (label_max_width
                 - rating_reserved_width
-                - inline_tag_reserved_width
+                - inline_metadata_reserved_width
                 - similarity_strength_reserved_width)
                 .max(4.0);
             for rect in indicators.rects.into_iter().take(indicators.count) {
@@ -218,9 +220,10 @@ pub(super) fn render_browser_rows_window(
                 );
             }
         } else {
-            label_max_width =
-                (label_max_width - inline_tag_reserved_width - similarity_strength_reserved_width)
-                    .max(4.0);
+            label_max_width = (label_max_width
+                - inline_metadata_reserved_width
+                - similarity_strength_reserved_width)
+                .max(4.0);
         }
         emit_text(
             text_runs,
@@ -235,12 +238,12 @@ pub(super) fn render_browser_rows_window(
         );
         if !row.bucket_label.is_empty() {
             for (chip_rect, chip_label) in row
-                .inline_tag_rects
+                .inline_metadata_rects
                 .iter()
                 .copied()
-                .zip(row.inline_tag_labels.iter())
+                .zip(row.inline_metadata_labels.iter())
             {
-                let text_origin = browser_inline_tag_text_origin(chip_rect, ctx.sizing);
+                let text_origin = browser_inline_metadata_text_origin(chip_rect, ctx.sizing);
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {

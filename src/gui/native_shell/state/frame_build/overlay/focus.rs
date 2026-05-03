@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 
 mod shared;
 
@@ -344,8 +344,10 @@ pub(super) fn render_browser_focus_overlay(
                 sizing,
                 similarity_button_reserved_width,
             );
-            let inline_tag_reserved_width =
-                browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, sizing);
+            let inline_metadata_reserved_width = browser_inline_metadata_reserved_width_for_labels(
+                &row.inline_metadata_labels,
+                sizing,
+            );
             let mut label_max_width = row.text_layout.item_label.width().max(20.0);
             if similarity_button_reserved_width > 0.0 {
                 label_position.x = (label_position.x + similarity_button_reserved_width)
@@ -359,7 +361,7 @@ pub(super) fn render_browser_focus_overlay(
             }
             label_max_width = (label_max_width
                 - browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
-                - inline_tag_reserved_width)
+                - inline_metadata_reserved_width)
                 .max(20.0);
             if row.missing {
                 let marker_advance =

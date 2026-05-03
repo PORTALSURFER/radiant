@@ -3,10 +3,9 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, NativeRunOptions, PaintPrimitive, Renderer,
-        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
-        WidgetMessageMapper,
-        declarative_runtime_bridge,
+        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, FocusTraversal, NativeRunOptions,
+        PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
+        UiSurface, View, WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -148,8 +147,65 @@ fn runtime_context_and_renderer_cover_paint_plan_boundary() {
 
     let plan = runtime.paint_plan(&theme);
     let mut renderer = CountingRenderer::default();
-    renderer.render(&plan).expect("counting renderer cannot fail");
+    renderer
+        .render(&plan)
+        .expect("counting renderer cannot fail");
     assert_eq!(renderer.rendered_primitives, plan.primitives.len());
+}
+
+#[test]
+fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(11));
+    assert_eq!(runtime.focused_widget(), Some(11));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(12));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Backward), Some(11));
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(11)
+    );
+
+    let title = runtime
+        .surface()
+        .find_widget(10)
+        .expect("title widget should still be present")
+        .widget();
+    match title {
+        WidgetSpec::Text(text) => assert_eq!(text.text, "Untitled (1)"),
+        other => panic!("expected text widget, got {other:?}"),
+    }
+
+    assert!(runtime.focus_widget(12));
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::Character('Q')),
+        Some(12)
+    );
+    runtime.clear_focus();
+    assert_eq!(runtime.focused_widget(), None);
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::Character('X')),
+        None
+    );
+
+    let field = runtime
+        .surface()
+        .find_widget(12)
+        .expect("text input widget should still be present")
+        .widget();
+    match field {
+        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Q"),
+        other => panic!("expected text input widget, got {other:?}"),
+    }
 }
 
 #[test]

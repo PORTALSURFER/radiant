@@ -6,8 +6,8 @@ use crate::{
     layout::{ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams},
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId, WidgetInput,
-        WidgetOutput, WidgetSpec,
+        ButtonMessage, FocusBehavior, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId,
+        WidgetInput, WidgetOutput, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -104,6 +104,16 @@ impl<Message> SurfaceWidget<Message> {
     /// Return the projected widget descriptor.
     pub fn widget(&self) -> &WidgetSpec {
         &self.widget
+    }
+
+    /// Return whether this widget participates in runtime focus management.
+    pub fn is_focusable(&self) -> bool {
+        self.widget.common().focus != FocusBehavior::None
+    }
+
+    /// Return whether this widget participates in keyboard focus traversal.
+    pub fn is_keyboard_focusable(&self) -> bool {
+        self.widget.common().focus == FocusBehavior::Keyboard
     }
 
     fn layout_node(&self) -> LayoutNode {
@@ -280,6 +290,21 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    fn collect_keyboard_focus_order(&self, order: &mut Vec<WidgetId>) {
+        match self {
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_keyboard_focus_order(order);
+                }
+            }
+            Self::Widget(widget) => {
+                if widget.is_keyboard_focusable() {
+                    order.push(widget.id());
+                }
+            }
+        }
+    }
+
     fn append_paint(
         &self,
         layout: &LayoutOutput,
@@ -379,5 +404,18 @@ impl<Message> UiSurface<Message> {
     /// Find one projected widget by stable id for in-place runtime interaction.
     pub fn find_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut SurfaceWidget<Message>> {
         self.root.find_widget_mut(widget_id)
+    }
+
+    /// Return whether a projected widget can own runtime focus.
+    pub fn is_focusable_widget(&self, widget_id: WidgetId) -> bool {
+        self.find_widget(widget_id)
+            .is_some_and(SurfaceWidget::is_focusable)
+    }
+
+    /// Return keyboard-focusable widgets in deterministic declarative tree order.
+    pub fn keyboard_focus_order(&self) -> Vec<WidgetId> {
+        let mut order = Vec::new();
+        self.root.collect_keyboard_focus_order(&mut order);
+        order
     }
 }

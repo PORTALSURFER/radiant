@@ -139,7 +139,13 @@ Backend input is normalized into Radiant input primitives such as
 `WidgetInput`, `PointerButton`, and `WidgetKey`. The runtime performs hit
 testing, focus changes, pointer press/release routing, keyboard routing to the
 focused widget, and message mapping. Focus behavior is declared by widget
-contracts rather than by host-domain code.
+contracts rather than by host-domain code. `SurfaceRuntime::focus_widget`,
+`SurfaceRuntime::clear_focus`, `SurfaceRuntime::focused_widget`,
+`SurfaceRuntime::traverse_focus`, and `FocusTraversal` expose deterministic
+keyboard focus ownership and traversal. Pointer dispatch through
+`dispatch_input_at` can assign focus from hit testing; keyboard dispatch through
+`dispatch_focused_input` routes input to the focused widget by stable
+`WidgetId`.
 
 ## Automation
 

@@ -182,7 +182,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.handle_hotkey_resolution(resolution)
     }
 
-    fn handle_hotkey_resolution(&mut self, resolution: ShortcutResolution) -> bool {
+    fn handle_hotkey_resolution(&mut self, resolution: ShortcutResolution<UiAction>) -> bool {
         self.pending_hotkey_chord = resolution.pending_chord;
         let Some(action) = resolution.action else {
             return resolution.handled;

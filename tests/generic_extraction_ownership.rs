@@ -1388,10 +1388,16 @@ fn virtual_list_scroll_clamping_is_owned_by_generic_list_module() {
         .expect("generic list module should be readable");
 
     assert!(gui_list_mod.contains("pub fn virtual_list_view_start_after_scroll_delta"));
+    assert!(gui_list_mod.contains("pub fn virtual_list_scroll_delta_from_units"));
     assert!(legacy_wheel_mod.contains("virtual_list_view_start_after_scroll_delta"));
+    assert!(legacy_wheel_mod.contains("virtual_list_scroll_delta_from_units"));
     assert!(
         !legacy_wheel_mod.contains("let max_start = visible_count.saturating_sub"),
         "legacy wheel input should delegate virtual-list viewport clamping to gui::list"
+    );
+    assert!(
+        !legacy_wheel_mod.contains("let mut steps = raw.round()"),
+        "legacy wheel input should delegate logical scroll-step normalization to gui::list"
     );
 }
 

@@ -991,6 +991,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "## Layout",
         "VirtualListWindow",
         "virtual_list_view_start_after_scroll_delta",
+        "virtual_list_scroll_delta_from_units",
         "ContentListPanel<Row, Editor>",
         "ContentListActions",
         "SignalChromeState",

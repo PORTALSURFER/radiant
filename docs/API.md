@@ -108,6 +108,9 @@ continues to handle pixel-based scroll-container virtualization.
 deltas to virtual-list viewport starts with the same allocation-free clamping
 contract, leaving hit testing and platform input normalization to the host or
 runtime adapter.
+`virtual_list_scroll_delta_from_units` converts already-normalized scroll units
+into bounded row deltas for wheel, touchpad, keyboard, or host-defined scroll
+inputs.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as

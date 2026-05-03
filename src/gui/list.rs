@@ -141,6 +141,34 @@ pub fn virtual_list_view_start_after_scroll_delta(
     Some(target as usize)
 }
 
+/// Convert signed logical scroll units into a bounded virtual-list row delta.
+///
+/// `raw_units` should already be normalized by the caller: for example,
+/// platform line deltas can be passed directly and pixel deltas can be divided
+/// by a row stride. Any nonzero sub-row movement rounds to one row in the same
+/// direction so high-resolution touchpads remain responsive.
+pub fn virtual_list_scroll_delta_from_units(raw_units: f32) -> Option<i8> {
+    if raw_units == 0.0 {
+        return None;
+    }
+    let mut steps = raw_units.round();
+    if steps.abs() < 1.0 {
+        steps = raw_units.signum();
+        if steps == 0.0 {
+            return None;
+        }
+    }
+    if steps == 0.0 {
+        return None;
+    }
+    let clamped = if steps > 1.0 {
+        steps.min(i8::MAX as f32)
+    } else {
+        steps.max(i8::MIN as f32)
+    };
+    Some(clamped as i8)
+}
+
 /// Request used to resolve a materialized row window for a large logical grid.
 ///
 /// The request is item-index based and assumes a dense row-major grid. Hosts can
@@ -785,7 +813,7 @@ mod tests {
         EditableTreeActions, EditableTreeRow, RowProcessingState, VirtualGridWindow,
         VirtualGridWindowRequest, VirtualListWindow, VirtualListWindowRequest,
         resolve_virtual_grid_window, resolve_virtual_list_window,
-        virtual_list_view_start_after_scroll_delta,
+        virtual_list_scroll_delta_from_units, virtual_list_view_start_after_scroll_delta,
     };
 
     #[test]
@@ -991,6 +1019,17 @@ mod tests {
             virtual_list_view_start_after_scroll_delta(4, 20, 12, 0),
             None
         );
+    }
+
+    #[test]
+    fn virtual_list_scroll_delta_from_units_rounds_and_clamps_steps() {
+        assert_eq!(virtual_list_scroll_delta_from_units(0.0), None);
+        assert_eq!(virtual_list_scroll_delta_from_units(0.2), Some(1));
+        assert_eq!(virtual_list_scroll_delta_from_units(-0.2), Some(-1));
+        assert_eq!(virtual_list_scroll_delta_from_units(3.4), Some(3));
+        assert_eq!(virtual_list_scroll_delta_from_units(-3.6), Some(-4));
+        assert_eq!(virtual_list_scroll_delta_from_units(400.0), Some(i8::MAX));
+        assert_eq!(virtual_list_scroll_delta_from_units(-400.0), Some(i8::MIN));
     }
 
     #[test]

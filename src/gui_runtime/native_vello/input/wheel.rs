@@ -1,7 +1,9 @@
 //! Wheel-to-action mapping for browser scrolling and waveform zoom.
 
 use super::*;
-use crate::gui::list::virtual_list_view_start_after_scroll_delta;
+use crate::gui::list::{
+    virtual_list_scroll_delta_from_units, virtual_list_view_start_after_scroll_delta,
+};
 
 pub(super) fn browser_wheel_row_delta(
     layout: &ShellLayout,
@@ -18,25 +20,7 @@ pub(super) fn browser_wheel_row_delta(
         MouseScrollDelta::LineDelta(_, y) => -y,
         MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
     };
-    if raw == 0.0 {
-        return None;
-    }
-    let mut steps = raw.round();
-    if steps.abs() < 1.0 {
-        steps = raw.signum();
-        if steps == 0.0 {
-            return None;
-        }
-    }
-    if steps == 0.0 {
-        return None;
-    }
-    let clamped = if steps > 1.0 {
-        steps.min(i8::MAX as f32)
-    } else {
-        steps.max(i8::MIN as f32)
-    };
-    Some(clamped as i8)
+    virtual_list_scroll_delta_from_units(raw)
 }
 
 pub(super) fn folder_wheel_row_delta(
@@ -55,22 +39,7 @@ pub(super) fn folder_wheel_row_delta(
         MouseScrollDelta::LineDelta(_, y) => -y,
         MouseScrollDelta::PixelDelta(position) => -(position.y as f32) / row_stride,
     };
-    if raw == 0.0 {
-        return None;
-    }
-    let mut steps = raw.round();
-    if steps.abs() < 1.0 {
-        steps = raw.signum();
-        if steps == 0.0 {
-            return None;
-        }
-    }
-    let clamped = if steps > 1.0 {
-        steps.min(i8::MAX as f32)
-    } else {
-        steps.max(i8::MIN as f32)
-    };
-    Some(clamped as i8)
+    virtual_list_scroll_delta_from_units(raw)
 }
 
 /// Clamp one wheel-derived browser viewport move to the current visible-row range.

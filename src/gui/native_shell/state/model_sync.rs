@@ -1,7 +1,12 @@
 //! Model-sync, editor-state, and animation bookkeeping for the native shell.
 
 use super::*;
-use crate::compat_app_contract::{FolderPaneIdModel, StatusChipStateModel};
+use crate::compat_app_contract::StatusChipStateModel;
+use crate::gui::{
+    focus::FocusSurface,
+    list::EditableTreeRow,
+    panel::{SplitPaneSlot, SplitPaneTreePanel},
+};
 
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
@@ -26,11 +31,11 @@ impl NativeShellState {
         }
         sync_folder_pane_model(
             &mut self.upper_folder_pane,
-            model.sources.folder_pane(FolderPaneIdModel::Upper),
+            model.sources.folder_pane(SplitPaneSlot::Upper),
         );
         sync_folder_pane_model(
             &mut self.lower_folder_pane,
-            model.sources.folder_pane(FolderPaneIdModel::Lower),
+            model.sources.folder_pane(SplitPaneSlot::Lower),
         );
         if self
             .source_context_menu
@@ -44,8 +49,7 @@ impl NativeShellState {
         {
             self.browser_context_menu = None;
         }
-        self.has_focus_emphasis = model.focus_context
-            != crate::compat_app_contract::FocusContextModel::None
+        self.has_focus_emphasis = model.focus_context != FocusSurface::None
             || model
                 .browser
                 .rows
@@ -312,7 +316,7 @@ impl NativeShellState {
 
 fn sync_folder_pane_model(
     pane_state: &mut FolderPaneRuntimeState,
-    pane_model: &crate::compat_app_contract::FolderPaneModel,
+    pane_model: &SplitPaneTreePanel<EditableTreeRow>,
 ) {
     if pane_state.last_focused_row != pane_model.focused_tree_row {
         pane_state.last_focused_row = pane_model.focused_tree_row;

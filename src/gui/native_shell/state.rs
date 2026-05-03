@@ -56,9 +56,11 @@ use crate::gui::paint::{
     DrawImage, FillCircle, FillLinearGradient, FillRect, PaintFrame as NativeViewFrame, Primitive,
     TextAlign, TextRun,
 };
-use crate::gui::range::NormalizedPixelSnap;
 use crate::gui::{
     input::KeyCode,
+    list::RecencyFilterChip,
+    panel::SplitPaneSlot,
+    range::NormalizedPixelSnap,
     types::{ImageRgba, Point, Rect, Rgba8},
 };
 use std::{
@@ -128,10 +130,10 @@ const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::compat_app_contract::PlaybackAgeFilterChip; 3] = [
-    crate::compat_app_contract::PlaybackAgeFilterChip::NeverPlayed,
-    crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
-    crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
+const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [RecencyFilterChip; 3] = [
+    RecencyFilterChip::NeverPlayed,
+    RecencyFilterChip::OlderThanMonth,
+    RecencyFilterChip::OlderThanWeek,
 ];
 /// Additional hit slop for the narrow content-list scrollbar thumb.
 const CONTENT_LIST_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
@@ -181,14 +183,13 @@ pub(crate) struct NativeShellState {
     hovered: Option<ShellNodeKind>,
     hovered_browser_visible_row: Option<usize>,
     hovered_browser_rating_filter_level: Option<i8>,
-    hovered_browser_playback_age_filter_chip:
-        Option<crate::compat_app_contract::PlaybackAgeFilterChip>,
+    hovered_browser_playback_age_filter_chip: Option<RecencyFilterChip>,
     hovered_browser_marked_filter: bool,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
     browser_pill_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
-    hovered_folder_pane: Option<crate::compat_app_contract::FolderPaneIdModel>,
+    hovered_folder_pane: Option<SplitPaneSlot>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -334,9 +335,7 @@ impl NativeShellState {
     }
 
     /// Return the pane currently associated with the hovered folder row, when any.
-    pub(crate) fn hovered_folder_pane(
-        &self,
-    ) -> Option<crate::compat_app_contract::FolderPaneIdModel> {
+    pub(crate) fn hovered_folder_pane(&self) -> Option<SplitPaneSlot> {
         self.hovered_folder_pane
     }
 
@@ -418,7 +417,7 @@ impl NativeShellState {
     /// Open the transient source context menu for one source row.
     pub(crate) fn open_source_context_menu_for_row(
         &mut self,
-        pane: crate::compat_app_contract::FolderPaneIdModel,
+        pane: SplitPaneSlot,
         row_index: usize,
         anchor: Point,
     ) {

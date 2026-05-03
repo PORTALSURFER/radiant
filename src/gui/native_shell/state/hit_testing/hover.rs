@@ -26,10 +26,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> (
-        Option<(crate::compat_app_contract::FolderPaneIdModel, usize)>,
-        Option<crate::compat_app_contract::FolderPaneIdModel>,
-    ) {
+    ) -> (Option<(SplitPaneSlot, usize)>, Option<SplitPaneSlot>) {
         let hovered_folder_row = self
             .folder_row_disclosure_at_point(layout, model, point)
             .or_else(|| self.folder_row_at_point(layout, model, point));
@@ -164,7 +161,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
         hover: Option<ShellNodeKind>,
-    ) -> Option<(crate::compat_app_contract::FolderPaneIdModel, usize)> {
+    ) -> Option<(SplitPaneSlot, usize)> {
         if hover != Some(ShellNodeKind::Sidebar) {
             return None;
         }
@@ -212,7 +209,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<crate::compat_app_contract::PlaybackAgeFilterChip> {
+    ) -> Option<RecencyFilterChip> {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;

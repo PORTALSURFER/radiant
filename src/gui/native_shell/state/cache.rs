@@ -1,7 +1,7 @@
 //! Retained geometry and hit-test cache accessors for the native shell.
 
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::gui::panel::SplitPaneSlot;
 
 pub(super) struct BrowserInteractionGeometry<'a> {
     pub(super) style: StyleTokens,
@@ -33,7 +33,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> &[CachedFolderRow] {
         let folder_pane = self.folder_pane_runtime_state_mut(pane);
         let cache_key = tree_rows_cache_key(
@@ -71,7 +71,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> Option<(FolderScrollbarLayout, usize)> {
         let style = style_for_layout(layout);
         let rows = self.cached_tree_rows(layout, &style, model, pane);
@@ -238,21 +238,18 @@ impl NativeShellState {
 
     pub(super) fn folder_pane_runtime_state_mut(
         &mut self,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> &mut FolderPaneRuntimeState {
         match pane {
-            FolderPaneIdModel::Upper => &mut self.upper_folder_pane,
-            FolderPaneIdModel::Lower => &mut self.lower_folder_pane,
+            SplitPaneSlot::Upper => &mut self.upper_folder_pane,
+            SplitPaneSlot::Lower => &mut self.lower_folder_pane,
         }
     }
 
-    pub(super) fn folder_pane_runtime_state(
-        &self,
-        pane: FolderPaneIdModel,
-    ) -> &FolderPaneRuntimeState {
+    pub(super) fn folder_pane_runtime_state(&self, pane: SplitPaneSlot) -> &FolderPaneRuntimeState {
         match pane {
-            FolderPaneIdModel::Upper => &self.upper_folder_pane,
-            FolderPaneIdModel::Lower => &self.lower_folder_pane,
+            SplitPaneSlot::Upper => &self.upper_folder_pane,
+            SplitPaneSlot::Lower => &self.lower_folder_pane,
         }
     }
 }

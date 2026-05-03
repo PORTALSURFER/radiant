@@ -1,5 +1,8 @@
 //! Sidebar action, source-add, and context-menu helper geometry.
 
+use crate::gui::panel::anchored_panel_rect;
+use crate::gui::types::Vector2;
+
 use super::super::*;
 
 pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
@@ -274,17 +277,11 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
     let panel_height = (button_height * button_count as f32)
         + (button_gap * button_count.saturating_sub(1) as f32)
         + panel_padding * 2.0;
-    let min_x = layout.sidebar.min.x + sizing.panel_inset;
-    let max_x = (layout.sidebar.max.x - sizing.panel_inset - panel_width).max(min_x);
-    let min_y = layout.sidebar.min.y + sizing.panel_inset;
-    let max_y = (layout.sidebar.max.y - sizing.panel_inset - panel_height).max(min_y);
-    let panel_min = Point::new(
-        menu.anchor.x.clamp(min_x, max_x),
-        menu.anchor.y.clamp(min_y, max_y),
-    );
-    let panel_rect = Rect::from_min_max(
-        panel_min,
-        Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
+    let panel_rect = anchored_panel_rect(
+        layout.sidebar,
+        menu.anchor,
+        Vector2::new(panel_width, panel_height),
+        sizing.panel_inset,
     );
     let mut buttons = Vec::with_capacity(button_count);
     let button_x = panel_rect.min.x + panel_padding;
@@ -333,17 +330,11 @@ pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
     let button_height = sizing.sidebar_action_button_height.max(18.0);
     let panel_width = button_width + panel_padding * 2.0;
     let panel_height = button_height + panel_padding * 2.0;
-    let min_x = layout.browser_rows.min.x + sizing.panel_inset;
-    let max_x = (layout.browser_rows.max.x - sizing.panel_inset - panel_width).max(min_x);
-    let min_y = layout.browser_rows.min.y + sizing.panel_inset;
-    let max_y = (layout.browser_rows.max.y - sizing.panel_inset - panel_height).max(min_y);
-    let panel_min = Point::new(
-        menu.anchor.x.clamp(min_x, max_x),
-        menu.anchor.y.clamp(min_y, max_y),
-    );
-    let panel_rect = Rect::from_min_max(
-        panel_min,
-        Point::new(panel_min.x + panel_width, panel_min.y + panel_height),
+    let panel_rect = anchored_panel_rect(
+        layout.browser_rows,
+        menu.anchor,
+        Vector2::new(panel_width, panel_height),
+        sizing.panel_inset,
     );
     let rect = Rect::from_min_max(
         Point::new(

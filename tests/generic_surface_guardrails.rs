@@ -1024,6 +1024,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "right_edge_strip",
         "## Automation",
         "Generic Panels And Forms",
+        "anchored_panel_rect",
         "InlineBadgeMetrics",
         "inline_badge_rects_for_labels",
         "Invalidation And Lifecycle",

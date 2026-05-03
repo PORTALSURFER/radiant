@@ -624,6 +624,24 @@ fn focus_border_edge_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn context_menu_panel_placement_is_owned_by_generic_panel_module() {
+    let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
+        .expect("panel module should be readable");
+    let sidebar_toolbar_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/sidebar_toolbar.rs"
+    ))
+    .expect("sidebar toolbar module should be readable");
+
+    assert!(panel_mod.contains("pub fn anchored_panel_rect"));
+    assert!(sidebar_toolbar_mod.contains("anchored_panel_rect("));
+    assert!(
+        !sidebar_toolbar_mod.contains("menu.anchor.x.clamp(min_x, max_x)"),
+        "native context menu placement should delegate anchored panel geometry to gui::panel"
+    );
+}
+
+#[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

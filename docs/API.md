@@ -239,8 +239,9 @@ copy into these slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
-`SplitPaneSidebarState`. Host applications map product-specific navigation,
-workspace, project, or asset concepts onto these reusable panel structures.
+`SplitPaneSidebarState`, plus `anchored_panel_rect` for clamped popup/panel
+placement. Host applications map product-specific navigation, workspace,
+project, or asset concepts onto these reusable panel structures.
 
 `radiant::gui::badge` contains compact label and pill primitives such as
 `SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,

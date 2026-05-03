@@ -4,6 +4,7 @@ use crate::gui::{
     feedback::RecoverySummary,
     list::{EditableTreeActions, EditableTreeRow},
     retained::RetainedVec,
+    types::{Point, Rect, Vector2},
 };
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +42,23 @@ impl SplitPaneSlot {
             Self::Lower => lower,
         }
     }
+}
+
+/// Return a panel rectangle anchored at a point and clamped inside `bounds`.
+///
+/// The panel keeps its requested size. If the available bounds are too small,
+/// the anchor clamps to the inset minimum and the panel may extend past the
+/// opposite edge rather than silently shrinking.
+pub fn anchored_panel_rect(bounds: Rect, anchor: Point, size: Vector2, inset: f32) -> Rect {
+    let inset = inset.max(0.0);
+    let width = size.x.max(0.0);
+    let height = size.y.max(0.0);
+    let min_x = bounds.min.x + inset;
+    let max_x = (bounds.max.x - inset - width).max(min_x);
+    let min_y = bounds.min.y + inset;
+    let max_y = (bounds.max.y - inset - height).max(min_y);
+    let panel_min = Point::new(anchor.x.clamp(min_x, max_x), anchor.y.clamp(min_y, max_y));
+    Rect::from_min_size(panel_min, Vector2::new(width, height))
 }
 
 /// Labeled row that can be assigned to either side of a two-pane split surface.
@@ -232,7 +250,10 @@ impl<Row, TreeRow> SplitPaneSidebarState<Row, TreeRow> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SplitPaneAssignedRow, SplitPaneSidebarState, SplitPaneSlot, SplitPaneTreePanel};
+    use super::{
+        Point, Rect, SplitPaneAssignedRow, SplitPaneSidebarState, SplitPaneSlot,
+        SplitPaneTreePanel, Vector2, anchored_panel_rect,
+    };
 
     #[test]
     fn split_pane_slot_defaults_to_upper() {
@@ -268,6 +289,36 @@ mod tests {
 
         assert_eq!(upper, "leading");
         assert_eq!(lower, "trailing-selected");
+    }
+
+    #[test]
+    fn anchored_panel_rect_clamps_anchor_inside_inset_bounds() {
+        let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 160.0));
+
+        assert_eq!(
+            anchored_panel_rect(
+                bounds,
+                Point::new(250.0, 0.0),
+                Vector2::new(80.0, 40.0),
+                8.0,
+            ),
+            Rect::from_min_max(Point::new(122.0, 28.0), Point::new(202.0, 68.0))
+        );
+    }
+
+    #[test]
+    fn anchored_panel_rect_keeps_size_when_bounds_are_cramped() {
+        let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 50.0));
+
+        assert_eq!(
+            anchored_panel_rect(
+                bounds,
+                Point::new(24.0, 32.0),
+                Vector2::new(80.0, 40.0),
+                8.0,
+            ),
+            Rect::from_min_max(Point::new(18.0, 28.0), Point::new(98.0, 68.0))
+        );
     }
 
     #[test]

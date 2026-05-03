@@ -130,15 +130,6 @@ impl NativeShellState {
         &self.browser_rows
     }
 
-    pub(super) fn cached_content_list_scrollbar(
-        &mut self,
-        layout: &ShellLayout,
-        model: &AppModel,
-    ) -> Option<(ContentListScrollbarLayout, usize)> {
-        let style = style_for_layout(layout);
-        self.cached_content_list_scrollbar_for_style(layout, &style, model)
-    }
-
     pub(super) fn cached_content_list_scrollbar_for_style(
         &mut self,
         layout: &ShellLayout,

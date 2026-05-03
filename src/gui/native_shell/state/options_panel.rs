@@ -36,14 +36,6 @@ pub(super) fn status_right_text_rect(
     geometry::status_right_text_rect(segment, sizing, button_rect)
 }
 
-pub(super) fn options_panel_layout(
-    layout: &ShellLayout,
-    style: &StyleTokens,
-    model: &AppModel,
-) -> Option<OptionsPanelLayout> {
-    geometry::options_panel_layout(layout, style, model)
-}
-
 pub(super) fn options_panel_contains_point(
     layout: &ShellLayout,
     style: &StyleTokens,

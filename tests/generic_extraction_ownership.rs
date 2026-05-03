@@ -823,6 +823,22 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn vertical_rect_insets_are_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("generic types module should be readable");
+    let sidebar_sections_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/sidebar_sections.rs"
+    ))
+    .expect("sidebar sections adapter should be readable");
+
+    assert!(types_mod.contains("pub fn inset_vertical"));
+    assert!(sidebar_sections_mod.contains("sidebar_rows.inset_vertical("));
+    assert!(!sidebar_sections_mod.contains("fn inset_vertical"));
+    assert!(!sidebar_sections_mod.contains("rect.height() * 0.5"));
+}
+
+#[test]
 fn rect_center_geometry_is_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("generic types module should be readable");

@@ -1024,6 +1024,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "Rect::center",
         "empty_at_max",
         "inset_horizontal",
+        "inset_vertical",
         "inset_horizontal_saturating",
         "inset_uniform_saturating",
         "centered_pixel_square",

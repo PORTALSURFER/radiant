@@ -215,6 +215,8 @@ inset geometry.
 retained rendering adapters.
 `Rect::empty_at_min` and `Rect::empty_at_max` provide explicit zero-size
 fallback geometry at either resolved corner.
+`Rect::inset_vertical` provides product-neutral vertical inset geometry for
+rows, panels, and scroll regions.
 `Rect::inset_horizontal_saturating` provides symmetric horizontal insets capped
 at half width for centered zero-width collapse.
 `Rect::inset_uniform_saturating` provides symmetric two-axis insets capped at

@@ -115,6 +115,16 @@ impl Rect {
         )
     }
 
+    /// Return this rectangle with vertical insets applied.
+    pub fn inset_vertical(self, top: f32, bottom: f32) -> Self {
+        let min_y = (self.min.y + top.max(0.0)).min(self.max.y);
+        let max_y = (self.max.y - bottom.max(0.0)).max(min_y);
+        Self::from_min_max(
+            Point::new(self.min.x, min_y),
+            Point::new(self.max.x.max(self.min.x), max_y),
+        )
+    }
+
     /// Return this rectangle with a symmetric horizontal inset capped at half width.
     pub fn inset_horizontal_saturating(self, inset: f32) -> Self {
         let inset = inset.max(0.0).min((self.width() * 0.5).max(0.0));
@@ -334,6 +344,20 @@ mod tests {
         assert_eq!(
             rect.inset_horizontal(80.0, 6.0),
             Rect::from_min_max(Point::new(50.0, 20.0), Point::new(50.0, 30.0))
+        );
+    }
+
+    #[test]
+    fn rect_inset_vertical_clamps_to_rect_edges() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(
+            rect.inset_vertical(2.0, 3.0),
+            Rect::from_min_max(Point::new(10.0, 22.0), Point::new(50.0, 27.0))
+        );
+        assert_eq!(
+            rect.inset_vertical(80.0, 3.0),
+            Rect::from_min_max(Point::new(10.0, 30.0), Point::new(50.0, 30.0))
         );
     }
 

@@ -41,8 +41,7 @@ pub(crate) fn compute_sidebar_row_sections(
     sizing: SizingTokens,
     counts: SidebarRowCounts,
 ) -> SidebarRowSections {
-    let section_bounds = inset_vertical(
-        sidebar_rows,
+    let section_bounds = sidebar_rows.inset_vertical(
         sizing.panel_section_padding_top,
         sizing.panel_section_padding_bottom,
     );
@@ -120,18 +119,6 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
         return bounds.empty_at_min();
     }
     Rect::from_min_max(min, max)
-}
-
-fn inset_vertical(rect: Rect, top: f32, bottom: f32) -> Rect {
-    let top = top.max(0.0);
-    let bottom = bottom.max(0.0);
-    let max_inset = (rect.height() * 0.5).max(0.0);
-    let top = top.min(max_inset);
-    let bottom = bottom.min(max_inset);
-    Rect::from_min_max(
-        Point::new(rect.min.x, (rect.min.y + top).min(rect.max.y)),
-        Point::new(rect.max.x, (rect.max.y - bottom).max(rect.min.y)),
-    )
 }
 
 fn resolve_pane_heights(

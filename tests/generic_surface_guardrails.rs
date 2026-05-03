@@ -183,6 +183,29 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
 }
 
 #[test]
+fn localized_legacy_shell_text_entry_does_not_import_parent_sempal_sources() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let text_entry_facade = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_text_entry.rs"),
+    )
+    .expect("legacy shell text-entry facade");
+    assert!(
+        !text_entry_facade.contains("app_core/native_shell/composition/runtime/text_entry"),
+        "legacy shell text-entry helpers must stay local to Radiant until the remaining compatibility runtime is retired"
+    );
+    for path in [
+        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/mod.rs",
+        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/pointer.rs",
+        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/state.rs",
+    ] {
+        assert!(
+            manifest_dir.join(path).exists(),
+            "{path} should be localized inside Radiant rather than imported from Sempal parent sources"
+        );
+    }
+}
+
+#[test]
 fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gui_dir = manifest_dir.join("src/gui");

@@ -2,17 +2,11 @@
 
 use super::*;
 
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/browser/mod.rs"]
 mod browser;
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/chrome/mod.rs"]
 mod chrome;
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/map.rs"]
 mod map;
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/overlay/mod.rs"]
 mod overlay;
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/status_bar.rs"]
 mod status_bar;
-#[path = "../../../../../../src/app_core/native_shell/composition/state/frame_build/waveform.rs"]
 mod waveform;
 
 use self::{browser::*, chrome::*, map::*, overlay::*, status_bar::*, waveform::*};

@@ -230,6 +230,14 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !hit_testing.contains("app_core/native_shell/composition/state/hit_testing/"),
         "native shell hit-testing helpers must stay local to Radiant while the compatibility shell remains"
     );
+
+    let frame_build =
+        fs::read_to_string(manifest_dir.join("src/gui/native_shell/state/frame_build.rs"))
+            .expect("native shell frame-build facade");
+    assert!(
+        !frame_build.contains("app_core/native_shell/composition/state/frame_build/"),
+        "native shell frame-build helpers must stay local to Radiant while the compatibility shell remains"
+    );
 }
 
 #[test]

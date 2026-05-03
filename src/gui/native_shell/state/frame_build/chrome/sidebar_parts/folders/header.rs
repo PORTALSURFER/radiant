@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 use native_model::FolderPaneModel;
 
 pub(super) fn render_folder_header(
@@ -163,18 +163,11 @@ fn render_folder_header_toggle_button(
 }
 
 fn centered_header_toggle_icon_rect(button_rect: Rect) -> Option<Rect> {
-    let size = (button_rect.width().min(button_rect.height()) - 6.0)
-        .floor()
-        .clamp(8.0, 14.0);
-    if size <= 0.0 {
-        return None;
-    }
-    let min_x = button_rect.min.x + ((button_rect.width() - size) * 0.5).floor();
-    let min_y = button_rect.min.y + ((button_rect.height() - size) * 0.5).floor();
-    Some(Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(min_x + size, min_y + size),
-    ))
+    button_rect.centered_pixel_square(
+        button_rect.width().min(button_rect.height()) - 6.0,
+        8.0,
+        14.0,
+    )
 }
 
 fn folder_toggle_fill(ctx: &StaticFrameCtx<'_>, active: bool, enabled: bool) -> Rgba8 {

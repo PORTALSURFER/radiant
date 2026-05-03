@@ -498,6 +498,35 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
 }
 
 #[test]
+fn pixel_centered_icon_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("types module should be readable");
+    let folder_rows_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/chrome/sidebar_parts/folders/rows.rs"
+    ))
+    .expect("folder rows module should be readable");
+    let folder_header_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/chrome/sidebar_parts/folders/header.rs"
+    ))
+    .expect("folder header module should be readable");
+
+    assert!(types_mod.contains("pub fn centered_pixel_square"));
+    assert!(types_mod.contains("pub fn centered_odd_pixel_square"));
+    assert!(folder_rows_mod.contains("centered_odd_pixel_square"));
+    assert!(folder_header_mod.contains("centered_pixel_square"));
+    assert!(
+        !folder_rows_mod.contains("let mut size ="),
+        "native folder row disclosure icons should delegate odd centered-square geometry to gui::types"
+    );
+    assert!(
+        !folder_header_mod.contains("let size ="),
+        "native folder header icons should delegate pixel centered-square geometry to gui::types"
+    );
+}
+
+#[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

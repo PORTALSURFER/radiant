@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 use native_model::{FolderPaneIdModel, FolderRowModel};
 
 pub(super) fn render_tree_rows(
@@ -232,26 +232,7 @@ fn folder_row_layout(
 }
 
 fn centered_tree_icon_rect(gutter_rect: Rect) -> Option<Rect> {
-    if gutter_rect.width() <= 1.0 || gutter_rect.height() <= 1.0 {
-        return None;
-    }
-    let mut size = gutter_rect
-        .width()
-        .min(gutter_rect.height())
-        .floor()
-        .clamp(5.0, 9.0);
-    if (size as i32) % 2 == 0 {
-        size -= 1.0;
-    }
-    if size < 5.0 {
-        return None;
-    }
-    let min_x = gutter_rect.min.x + ((gutter_rect.width() - size) * 0.5).floor();
-    let min_y = gutter_rect.min.y + ((gutter_rect.height() - size) * 0.5).floor();
-    Some(Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(min_x + size, min_y + size),
-    ))
+    gutter_rect.centered_odd_pixel_square(5.0, 9.0)
 }
 
 fn emit_right_triangle(primitives: &mut impl PrimitiveSink, rect: Rect, color: Rgba8) {

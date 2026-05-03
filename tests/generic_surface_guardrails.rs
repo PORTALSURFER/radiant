@@ -1014,6 +1014,8 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "## Context",
         "Event And Focus",
         "logical_point_to_u16_coords",
+        "centered_pixel_square",
+        "centered_odd_pixel_square",
         "## Automation",
         "Generic Panels And Forms",
         "InlineBadgeMetrics",

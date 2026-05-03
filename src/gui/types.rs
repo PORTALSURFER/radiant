@@ -107,6 +107,54 @@ impl Rect {
             Point::new(min_x + clamped_side, min_y + clamped_side),
         )
     }
+
+    /// Return a pixel-snapped centered square with a clamped side length.
+    pub fn centered_pixel_square(
+        self,
+        preferred_side: f32,
+        min_side: f32,
+        max_side: f32,
+    ) -> Option<Self> {
+        if self.width() <= 0.0 || self.height() <= 0.0 {
+            return None;
+        }
+        let side = preferred_side
+            .floor()
+            .clamp(min_side.max(0.0), max_side.max(0.0));
+        if side <= 0.0 {
+            return None;
+        }
+        let min_x = self.min.x + ((self.width() - side) * 0.5).floor();
+        let min_y = self.min.y + ((self.height() - side) * 0.5).floor();
+        Some(Self::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new(min_x + side, min_y + side),
+        ))
+    }
+
+    /// Return a pixel-snapped centered square with an odd side length.
+    pub fn centered_odd_pixel_square(self, min_side: f32, max_side: f32) -> Option<Self> {
+        if self.width() <= 1.0 || self.height() <= 1.0 {
+            return None;
+        }
+        let mut side = self
+            .width()
+            .min(self.height())
+            .floor()
+            .clamp(min_side.max(0.0), max_side.max(0.0));
+        if (side as i32) % 2 == 0 {
+            side -= 1.0;
+        }
+        if side < min_side.max(0.0) || side <= 0.0 {
+            return None;
+        }
+        let min_x = self.min.x + ((self.width() - side) * 0.5).floor();
+        let min_y = self.min.y + ((self.height() - side) * 0.5).floor();
+        Some(Self::from_min_max(
+            Point::new(min_x, min_y),
+            Point::new(min_x + side, min_y + side),
+        ))
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -152,6 +200,38 @@ mod tests {
         assert_eq!(
             rect.centered_square(80.0),
             Rect::from_min_max(Point::new(35.0, 20.0), Point::new(85.0, 70.0))
+        );
+    }
+
+    #[test]
+    fn rect_centered_pixel_square_clamps_and_snaps_origin() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(49.0, 61.0));
+
+        assert_eq!(
+            rect.centered_pixel_square(14.7, 8.0, 20.0),
+            Some(Rect::from_min_max(
+                Point::new(22.0, 33.0),
+                Point::new(36.0, 47.0)
+            ))
+        );
+        assert_eq!(rect.centered_pixel_square(0.0, 0.0, 20.0), None);
+    }
+
+    #[test]
+    fn rect_centered_odd_pixel_square_forces_odd_side() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(22.0, 32.0));
+
+        assert_eq!(
+            rect.centered_odd_pixel_square(5.0, 9.0),
+            Some(Rect::from_min_max(
+                Point::new(11.0, 21.0),
+                Point::new(20.0, 30.0)
+            ))
+        );
+        assert_eq!(
+            Rect::from_min_max(Point::new(0.0, 0.0), Point::new(1.0, 10.0))
+                .centered_odd_pixel_square(5.0, 9.0),
+            None
         );
     }
 }

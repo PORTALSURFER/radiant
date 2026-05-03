@@ -198,6 +198,8 @@ declared by widget contracts rather than by host-domain code.
 `radiant::gui::input::logical_point_to_u16_coords` provides the shared
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.
+`Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
+pixel-snapped icon-box geometry for reusable controls.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

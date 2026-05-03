@@ -1007,6 +1007,15 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         docs.contains("host -> Radiant, never Radiant -> host"),
         "docs/API.md should make the host -> Radiant dependency direction explicit"
     );
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        normalized_docs.contains("compat::legacy_shell")
+            && normalized_docs.contains("temporary")
+            && normalized_docs.contains("host-shaped migration glue")
+            && normalized_docs
+                .contains("generic Radiant code must not grow new dependencies on it"),
+        "docs/API.md should identify compat::legacy_shell as temporary host-shaped migration glue"
+    );
 }
 
 #[derive(Debug)]

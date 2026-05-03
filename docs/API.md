@@ -10,7 +10,10 @@ The dependency direction is host application to Radiant. Radiant default builds
 must not depend on host crates, host modules, product assets, or product-domain
 model names. In short: host -> Radiant, never Radiant -> host. Transitional
 compatibility code is isolated behind the `legacy-shell` feature and is not part
-of the default standalone API.
+of the default standalone API. The `compat::legacy_shell` contract is temporary
+host-shaped migration glue with its final host-owned disposition recorded in
+`domain_extraction_inventory.tsv`; generic Radiant code must not grow new
+dependencies on it.
 
 New host applications should use:
 

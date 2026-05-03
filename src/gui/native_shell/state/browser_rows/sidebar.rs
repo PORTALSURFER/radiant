@@ -1,8 +1,10 @@
 //! Sidebar/source-row geometry helpers shared by the native shell.
 
-use crate::app as native_model;
 use super::*;
-use native_model::{FolderPaneIdModel, FolderPaneModel};
+use crate::gui::{
+    list::EditableTreeRow,
+    panel::{SplitPaneSlot, SplitPaneTreePanel},
+};
 
 pub(in crate::gui::native_shell::state) fn rendered_source_rows(
     style: &StyleTokens,
@@ -96,15 +98,15 @@ pub(in crate::gui::native_shell::state) fn tree_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     folder_view_start_row: usize,
     autoscroll: bool,
 ) -> FolderRowsCacheKey {
     FolderRowsCacheKey {
         sidebar: sidebar_rows_cache_key(layout, style, model),
         pane: match pane {
-            FolderPaneIdModel::Upper => 0,
-            FolderPaneIdModel::Lower => 1,
+            SplitPaneSlot::Upper => 0,
+            SplitPaneSlot::Lower => 1,
         },
         folder_view_start_row: usize_to_u32(folder_view_start_row),
         focused_tree_row: folder_pane_model(model, pane)
@@ -123,7 +125,7 @@ pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
     let sections = sidebar_sections(layout, style, model);
     let row_count = rendered_source_rows(style, model);
     let mut rows = Vec::with_capacity(row_count.saturating_mul(2));
-    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+    for pane in [SplitPaneSlot::Upper, SplitPaneSlot::Lower] {
         rows.extend(
             build_stacked_rows(
                 sections.source_rows(pane),
@@ -233,7 +235,7 @@ pub(in crate::gui::native_shell::state) fn rendered_tree_rows_with_state(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     current_view_start: usize,
     autoscroll: bool,
 ) -> (Vec<CachedFolderRow>, usize) {
@@ -358,7 +360,7 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_point
 
 pub(in crate::gui::native_shell::state) fn folder_pane_model<'a>(
     model: &'a AppModel,
-    pane: FolderPaneIdModel,
-) -> &'a FolderPaneModel {
+    pane: SplitPaneSlot,
+) -> &'a SplitPaneTreePanel<EditableTreeRow> {
     model.sources.folder_pane(pane)
 }

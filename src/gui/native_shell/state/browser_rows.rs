@@ -2,9 +2,9 @@
 
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate::app as native_model;
+use crate::gui::list::{RecencyBucket, RowProcessingState};
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
-use native_model::FolderPaneIdModel;
+use crate::gui::panel::SplitPaneSlot;
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -31,27 +31,27 @@ pub(super) struct CachedBrowserRow {
     pub(super) label_rendered_width: f32,
     pub(super) column: usize,
     pub(super) rating_level: i8,
-    pub(super) playback_age_bucket: native_model::PlaybackAgeBucket,
+    pub(super) playback_age_bucket: RecencyBucket,
     pub(super) similarity_display_strength: Option<u8>,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,
     pub(super) locked: bool,
     pub(super) marked: bool,
-    pub(super) processing_state: native_model::BrowserRowProcessingState,
+    pub(super) processing_state: RowProcessingState,
     pub(super) rect: Rect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CachedFolderRow {
-    pub(super) pane: FolderPaneIdModel,
+    pub(super) pane: SplitPaneSlot,
     pub(super) row_index: usize,
     pub(super) rect: Rect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct CachedSourceRow {
-    pub(super) pane: FolderPaneIdModel,
+    pub(super) pane: SplitPaneSlot,
     pub(super) row_index: usize,
     pub(super) rect: Rect,
 }
@@ -163,24 +163,24 @@ pub(super) struct SidebarSections {
 }
 
 impl SidebarSections {
-    pub(super) fn source_rows(self, pane: FolderPaneIdModel) -> Rect {
+    pub(super) fn source_rows(self, pane: SplitPaneSlot) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper.source_rows,
-            FolderPaneIdModel::Lower => self.lower.source_rows,
+            SplitPaneSlot::Upper => self.upper.source_rows,
+            SplitPaneSlot::Lower => self.lower.source_rows,
         }
     }
 
-    pub(super) fn folder_header(self, pane: FolderPaneIdModel) -> Rect {
+    pub(super) fn folder_header(self, pane: SplitPaneSlot) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper.folder_header,
-            FolderPaneIdModel::Lower => self.lower.folder_header,
+            SplitPaneSlot::Upper => self.upper.folder_header,
+            SplitPaneSlot::Lower => self.lower.folder_header,
         }
     }
 
-    pub(super) fn tree_rows(self, pane: FolderPaneIdModel) -> Rect {
+    pub(super) fn tree_rows(self, pane: SplitPaneSlot) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper.tree_rows,
-            FolderPaneIdModel::Lower => self.lower.tree_rows,
+            SplitPaneSlot::Upper => self.upper.tree_rows,
+            SplitPaneSlot::Lower => self.lower.tree_rows,
         }
     }
 }

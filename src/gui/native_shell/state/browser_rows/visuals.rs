@@ -1,7 +1,7 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
-use crate::app as native_model;
 use super::*;
+use crate::gui::list::{RecencyBucket, RowProcessingState};
 
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,
@@ -118,40 +118,30 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
 pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
     style: &StyleTokens,
     base: Rgba8,
-    state: native_model::BrowserRowProcessingState,
+    state: RowProcessingState,
 ) -> Rgba8 {
     match state {
-        native_model::BrowserRowProcessingState::None => base,
-        native_model::BrowserRowProcessingState::Queued => {
-            translucent_overlay_color(base, style.highlight_blue, 0.14)
-        }
-        native_model::BrowserRowProcessingState::Active => {
-            translucent_overlay_color(base, style.highlight_orange, 0.28)
-        }
-        native_model::BrowserRowProcessingState::Completed => {
-            translucent_overlay_color(base, style.accent_mint, 0.18)
-        }
-        native_model::BrowserRowProcessingState::Skipped => {
-            translucent_overlay_color(base, style.text_muted, 0.14)
-        }
-        native_model::BrowserRowProcessingState::Failed => {
-            translucent_overlay_color(base, style.accent_trash, 0.24)
-        }
+        RowProcessingState::None => base,
+        RowProcessingState::Queued => translucent_overlay_color(base, style.highlight_blue, 0.14),
+        RowProcessingState::Active => translucent_overlay_color(base, style.highlight_orange, 0.28),
+        RowProcessingState::Completed => translucent_overlay_color(base, style.accent_mint, 0.18),
+        RowProcessingState::Skipped => translucent_overlay_color(base, style.text_muted, 0.14),
+        RowProcessingState::Failed => translucent_overlay_color(base, style.accent_trash, 0.24),
     }
 }
 
 /// Return the left-edge marker color for transient auto-rename processing state.
 pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
     style: &StyleTokens,
-    state: native_model::BrowserRowProcessingState,
+    state: RowProcessingState,
 ) -> Option<Rgba8> {
     match state {
-        native_model::BrowserRowProcessingState::None => None,
-        native_model::BrowserRowProcessingState::Queued => Some(style.highlight_blue),
-        native_model::BrowserRowProcessingState::Active => Some(style.highlight_orange),
-        native_model::BrowserRowProcessingState::Completed => Some(style.accent_mint),
-        native_model::BrowserRowProcessingState::Skipped => Some(style.text_muted),
-        native_model::BrowserRowProcessingState::Failed => Some(style.accent_trash),
+        RowProcessingState::None => None,
+        RowProcessingState::Queued => Some(style.highlight_blue),
+        RowProcessingState::Active => Some(style.highlight_orange),
+        RowProcessingState::Completed => Some(style.accent_mint),
+        RowProcessingState::Skipped => Some(style.text_muted),
+        RowProcessingState::Failed => Some(style.accent_trash),
     }
 }
 
@@ -181,13 +171,13 @@ pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
 /// Return the left-edge browser age marker color for the playback-age bucket.
 pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,
-    bucket: native_model::PlaybackAgeBucket,
+    bucket: RecencyBucket,
 ) -> Rgba8 {
     match bucket {
-        native_model::PlaybackAgeBucket::Fresh => style.text_primary,
-        native_model::PlaybackAgeBucket::OlderThanWeek => style.text_muted,
-        native_model::PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
-        native_model::PlaybackAgeBucket::NeverPlayed => style.grid_soft,
+        RecencyBucket::Fresh => style.text_primary,
+        RecencyBucket::OlderThanWeek => style.text_muted,
+        RecencyBucket::OlderThanMonth => style.border_emphasis,
+        RecencyBucket::NeverPlayed => style.grid_soft,
     }
 }
 

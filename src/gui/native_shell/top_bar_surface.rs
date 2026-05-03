@@ -11,7 +11,7 @@ use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
+        SizeModeCross, SizeModeMain, SlotParams, layout_tree, visible_suffix_widths,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     widgets::{ButtonWidget, CanvasWidget, TextWidget, WidgetSizing, WidgetSpec},
@@ -486,24 +486,6 @@ fn visible_update_widths(
         })
         .collect();
     visible_suffix_widths(&widths, available_width, sizing.action_button_gap.max(1.0))
-}
-
-fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {
-    if available_width <= 0.0 || widths.is_empty() {
-        return Vec::new();
-    }
-    let mut used = 0.0;
-    let mut reversed = Vec::new();
-    for (index, width) in widths.iter().rev().enumerate() {
-        let candidate = used + width + if index > 0 { gap } else { 0.0 };
-        if candidate >= available_width {
-            break;
-        }
-        reversed.push(*width);
-        used = candidate;
-    }
-    reversed.reverse();
-    reversed
 }
 
 fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<()> {

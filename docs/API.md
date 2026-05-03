@@ -111,6 +111,10 @@ runtime adapter.
 `virtual_list_scroll_delta_from_units` converts already-normalized scroll units
 into bounded row deltas for wheel, touchpad, keyboard, or host-defined scroll
 inputs.
+Compact toolbars and action strips can use
+`layout::fixed_width_row_rects_start`, `layout::fixed_width_row_rects_end`, and
+`layout::visible_suffix_widths` to place fixed-width controls through the
+generic layout engine while preserving stable widget IDs.
 Declarative views can use `SurfaceNode::scroll_area` and
 `SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
 generic rows, cards, images, badges, selectables, or host-defined canvas cells as

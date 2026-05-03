@@ -57,6 +57,7 @@
 mod constraints;
 mod engine;
 mod model;
+mod row_helpers;
 mod tree;
 
 pub use crate::gui::types::{Point, Rect, Vector2};
@@ -70,5 +71,8 @@ pub use model::{
     ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, OverflowPolicy,
     SizeModeCross, SizeModeMain, SlotParams, SwitchBreakpoint, VirtualizationAxis,
     VirtualizationPolicy, WrapPolicy,
+};
+pub use row_helpers::{
+    fixed_width_row_rects_end, fixed_width_row_rects_start, visible_suffix_widths,
 };
 pub use tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};

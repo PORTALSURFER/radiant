@@ -88,6 +88,41 @@ fn inline_badge_cluster_layout_is_owned_by_generic_badge_module() {
 }
 
 #[test]
+fn fixed_width_toolbar_row_helpers_are_owned_by_generic_layout_module() {
+    let layout_helpers_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/layout_core/row_helpers.rs"
+    ))
+    .expect("layout row helpers module should be readable");
+    let native_controls_shared = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/controls/shared.rs"
+    ))
+    .expect("native controls shared module should be readable");
+    let top_bar_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/top_bar_surface.rs"
+    ))
+    .expect("top bar surface module should be readable");
+
+    assert!(layout_helpers_mod.contains("pub fn fixed_width_row_rects_start"));
+    assert!(layout_helpers_mod.contains("pub fn fixed_width_row_rects_end"));
+    assert!(layout_helpers_mod.contains("pub fn visible_suffix_widths"));
+    assert!(native_controls_shared.contains("fixed_width_row_rects_start"));
+    assert!(native_controls_shared.contains("fixed_width_row_rects_end"));
+    assert!(native_controls_shared.contains("generic_visible_suffix_widths"));
+    assert!(top_bar_surface.contains("visible_suffix_widths"));
+    assert!(
+        !native_controls_shared.contains("LayoutNode::container"),
+        "native toolbar wrappers should delegate fixed-width row layout to gui::layout_core"
+    );
+    assert!(
+        !top_bar_surface.contains("let mut reversed = Vec::new()"),
+        "top-bar compatibility surface should reuse generic suffix fitting"
+    );
+}
+
+#[test]
 fn retained_vec_is_owned_by_generic_retained_module() {
     let app_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

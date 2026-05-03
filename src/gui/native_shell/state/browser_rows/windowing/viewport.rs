@@ -18,7 +18,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_window_bounds_with_previ
         return (0, 0);
     }
     let list_rect = browser_rows_list_rect(layout.browser_rows, sizing, model);
-    let window_len = super::scrollbars::browser_rows_capacity(list_rect, sizing);
+    let window_len = super::scrollbars::content_list_row_capacity(list_rect, sizing);
     let window_start = browser_window_start_with_previous(
         &model.browser.rows,
         window_len,

@@ -52,7 +52,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
     style: &StyleTokens,
     rows_key: BrowserRowsCacheKey,
 ) -> BrowserRowTruncationCacheKey {
-    let content_rect = browser_rows_content_rect(
+    let content_rect = content_list_content_rect(
         layout.browser_rows,
         rows_key.visible_count as usize,
         style.sizing,

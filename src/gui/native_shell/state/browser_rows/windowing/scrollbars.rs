@@ -1,12 +1,12 @@
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn browser_rows_capacity(
-    table_rows_rect: Rect,
+pub(in crate::gui::native_shell::state) fn content_list_row_capacity(
+    list_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
     let row_height = sizing.browser_row_height.max(1.0);
     let row_gap = sizing.browser_row_gap.max(0.0);
-    let geometric_capacity = ((table_rows_rect.height() + row_gap) / (row_height + row_gap))
+    let geometric_capacity = ((list_rect.height() + row_gap) / (row_height + row_gap))
         .floor()
         .max(1.0) as usize;
     geometric_capacity
@@ -22,25 +22,22 @@ fn content_list_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32)
     (track_inset_x, track_inset_y, track_width)
 }
 
-/// Return the browser-row content rect after reserving the scrollbar lane.
-pub(in crate::gui::native_shell::state) fn browser_rows_content_rect(
-    browser_rows_rect: Rect,
+/// Return the content-list rect after reserving the scrollbar lane.
+pub(in crate::gui::native_shell::state) fn content_list_content_rect(
+    list_rect: Rect,
     visible_count: usize,
     sizing: SizingTokens,
 ) -> Rect {
-    let row_capacity = browser_rows_capacity(browser_rows_rect, sizing);
+    let row_capacity = content_list_row_capacity(list_rect, sizing);
     if visible_count <= row_capacity {
-        return browser_rows_rect;
+        return list_rect;
     }
     let (track_inset_x, _, track_width) = content_list_scrollbar_track_metrics(sizing);
     let reserved_width = track_inset_x + track_width + super::CONTENT_LIST_SCROLLBAR_CONTENT_GAP;
-    let content_max_x = (browser_rows_rect.max.x - reserved_width)
+    let content_max_x = (list_rect.max.x - reserved_width)
         .round()
-        .max(browser_rows_rect.min.x + 1.0);
-    Rect::from_min_max(
-        browser_rows_rect.min,
-        Point::new(content_max_x, browser_rows_rect.max.y),
-    )
+        .max(list_rect.min.x + 1.0);
+    Rect::from_min_max(list_rect.min, Point::new(content_max_x, list_rect.max.y))
 }
 
 /// Compute visual scrollbar geometry for one overflowing content-list viewport.

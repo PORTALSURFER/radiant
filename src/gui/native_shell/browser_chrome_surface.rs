@@ -11,7 +11,7 @@ mod helpers;
 use super::style::SizingTokens;
 use crate::{
     app::AppModel,
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
@@ -143,8 +143,8 @@ pub(crate) fn resolve_browser_tabs_surface_layout(
     let output = layout_tree(&surface.layout_node(), tabs_rect);
     let empty = Rect::from_min_max(tabs_rect.min, tabs_rect.min);
     BrowserTabsSurfaceLayout {
-        items: clamp_rect_to_bounds(rect_for(&output.rects, TABS_ITEMS_ID, empty), tabs_rect),
-        map: clamp_rect_to_bounds(rect_for(&output.rects, TABS_MAP_ID, empty), tabs_rect),
+        items: output.rect_for_clamped(TABS_ITEMS_ID, empty, tabs_rect),
+        map: output.rect_for_clamped(TABS_MAP_ID, empty, tabs_rect),
     }
 }
 
@@ -160,60 +160,27 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
     let empty = Rect::from_min_max(toolbar_rect.min, toolbar_rect.min);
     BrowserToolbarSurfaceLayout {
         rating_filter_chips: std::array::from_fn(|index| {
-            clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_RATING_BASE_ID + index as u64, empty),
-                toolbar_rect,
-            )
+            output.rect_for_clamped(TOOLBAR_RATING_BASE_ID + index as u64, empty, toolbar_rect)
         }),
         playback_age_filter_chips: std::array::from_fn(|index| {
-            clamp_rect_to_bounds(
-                rect_for(
-                    &output.rects,
-                    TOOLBAR_PLAYBACK_BASE_ID + index as u64,
-                    empty,
-                ),
-                toolbar_rect,
-            )
+            output.rect_for_clamped(TOOLBAR_PLAYBACK_BASE_ID + index as u64, empty, toolbar_rect)
         }),
-        marked_filter_chip: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOOLBAR_MARKED_ID, empty),
-            toolbar_rect,
-        ),
-        derived_label_filter_chip: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOOLBAR_DERIVED_LABEL_ID, empty),
+        marked_filter_chip: output.rect_for_clamped(TOOLBAR_MARKED_ID, empty, toolbar_rect),
+        derived_label_filter_chip: output.rect_for_clamped(
+            TOOLBAR_DERIVED_LABEL_ID,
+            empty,
             toolbar_rect,
         ),
         action_slots: [
-            clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_RANDOM_ID, empty),
-                toolbar_rect,
-            ),
-            clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_CLEANUP_ID, empty),
-                toolbar_rect,
-            ),
-            clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_PILLS_ID, empty),
-                toolbar_rect,
-            ),
+            output.rect_for_clamped(TOOLBAR_RANDOM_ID, empty, toolbar_rect),
+            output.rect_for_clamped(TOOLBAR_CLEANUP_ID, empty, toolbar_rect),
+            output.rect_for_clamped(TOOLBAR_PILLS_ID, empty, toolbar_rect),
         ],
-        search_field: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOOLBAR_SEARCH_ID, empty),
-            toolbar_rect,
-        ),
-        activity_chip: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOOLBAR_ACTIVITY_ID, empty),
-            toolbar_rect,
-        ),
-        sort_chip: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOOLBAR_SORT_ID, empty),
-            toolbar_rect,
-        ),
+        search_field: output.rect_for_clamped(TOOLBAR_SEARCH_ID, empty, toolbar_rect),
+        activity_chip: output.rect_for_clamped(TOOLBAR_ACTIVITY_ID, empty, toolbar_rect),
+        sort_chip: output.rect_for_clamped(TOOLBAR_SORT_ID, empty, toolbar_rect),
         triage_chips: std::array::from_fn(|index| {
-            clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_TRIAGE_BASE_ID + index as u64, empty),
-                toolbar_rect,
-            )
+            output.rect_for_clamped(TOOLBAR_TRIAGE_BASE_ID + index as u64, empty, toolbar_rect)
         }),
     }
 }
@@ -305,17 +272,4 @@ fn fill_slot(min_width: f32) -> SlotParams {
         align_cross_override: Some(CrossAlign::Stretch),
         allow_fixed_compress: false,
     }
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
 }

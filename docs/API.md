@@ -99,6 +99,9 @@ snapshots, and host-defined messages.
 rows, columns, overlays, fixed sizing, fill behavior, spacing, padding, and
 stable output rectangles. Layout is deterministic and independent from any
 renderer backend.
+`LayoutOutput::rect_for` and `LayoutOutput::rect_for_clamped` provide the
+shared measured-rectangle lookup contract for adapters that need stable
+fallback bounds after a layout pass.
 
 Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This

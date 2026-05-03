@@ -173,6 +173,18 @@ pub struct LayoutOutput {
     pub stats: LayoutStats,
 }
 
+impl LayoutOutput {
+    /// Return one resolved node rectangle or the caller-provided fallback.
+    pub fn rect_for(&self, node_id: NodeId, fallback: Rect) -> Rect {
+        self.rects.get(&node_id).copied().unwrap_or(fallback)
+    }
+
+    /// Return one resolved node rectangle clamped inside `bounds`.
+    pub fn rect_for_clamped(&self, node_id: NodeId, fallback: Rect, bounds: Rect) -> Rect {
+        self.rect_for(node_id, fallback).clamp_to(bounds)
+    }
+}
+
 /// Virtualized window metadata for a scroll container.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VirtualWindowInfo {

@@ -8,7 +8,7 @@
 use super::style::SizingTokens;
 use crate::{
     app::NativeMotionModel,
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
@@ -87,12 +87,10 @@ pub(crate) fn resolve_waveform_header_surface_layout(
     let output = layout_tree(&surface.layout_node(), header_rect);
     let empty = Rect::from_min_max(header_rect.min, header_rect.min);
     WaveformHeaderSurfaceLayout {
-        title_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, WAVEFORM_HEADER_TITLE_ID, empty),
-            header_rect,
-        ),
-        metadata_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, WAVEFORM_HEADER_METADATA_ID, empty),
+        title_text_rect: output.rect_for_clamped(WAVEFORM_HEADER_TITLE_ID, empty, header_rect),
+        metadata_text_rect: output.rect_for_clamped(
+            WAVEFORM_HEADER_METADATA_ID,
+            empty,
             header_rect,
         ),
     }
@@ -187,19 +185,6 @@ fn text_slot(font_size: f32) -> SlotParams {
 
 fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 #[cfg(test)]

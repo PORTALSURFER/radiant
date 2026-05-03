@@ -114,13 +114,13 @@ pub(crate) fn compute_shell_sections_with_layout_engine(
     let output = engine.layout_with_state(&root, root_rect, state, LayoutDebugOptions::default());
 
     ShellSectionRects {
-        root: rect_for(&output.rects, SHELL_ROOT_ID, root_rect),
-        top_bar: rect_for(&output.rects, TOP_BAR_ID, root_rect),
-        sidebar: rect_for(&output.rects, SIDEBAR_ID, root_rect),
-        content: rect_for(&output.rects, CONTENT_ID, root_rect),
-        waveform_card: rect_for(&output.rects, WAVEFORM_ID, root_rect),
-        browser_panel: rect_for(&output.rects, BROWSER_ID, root_rect),
-        status_bar: rect_for(&output.rects, STATUS_ID, root_rect),
+        root: output.rect_for(SHELL_ROOT_ID, root_rect),
+        top_bar: output.rect_for(TOP_BAR_ID, root_rect),
+        sidebar: output.rect_for(SIDEBAR_ID, root_rect),
+        content: output.rect_for(CONTENT_ID, root_rect),
+        waveform_card: output.rect_for(WAVEFORM_ID, root_rect),
+        browser_panel: output.rect_for(BROWSER_ID, root_rect),
+        status_bar: output.rect_for(STATUS_ID, root_rect),
     }
 }
 
@@ -293,8 +293,4 @@ fn build_content_tree(style: &StyleTokens) -> LayoutNode {
             },
         ],
     )
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }

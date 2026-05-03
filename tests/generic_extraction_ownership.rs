@@ -757,6 +757,41 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn measured_rect_lookup_is_owned_by_generic_layout_output() {
+    let layout_types = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/layout_core/engine/types.rs"
+    ))
+    .expect("layout engine types module should be readable");
+    let layout_adapter = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter.rs"
+    ))
+    .expect("layout adapter should be readable");
+    let browser_chrome_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/browser_chrome_surface.rs"
+    ))
+    .expect("browser chrome surface should be readable");
+    let waveform_header_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/waveform_header_surface.rs"
+    ))
+    .expect("waveform header surface should be readable");
+
+    assert!(layout_types.contains("pub fn rect_for(&self, node_id: NodeId, fallback: Rect)"));
+    assert!(layout_types.contains("pub fn rect_for_clamped"));
+    assert!(layout_adapter.contains("output.rect_for("));
+    assert!(browser_chrome_surface.contains("output.rect_for_clamped("));
+    assert!(waveform_header_surface.contains("output.rect_for_clamped("));
+    assert!(!layout_adapter.contains("fn rect_for"));
+    assert!(!browser_chrome_surface.contains("fn rect_for"));
+    assert!(!browser_chrome_surface.contains("fn clamp_rect_to_bounds"));
+    assert!(!waveform_header_surface.contains("fn rect_for"));
+    assert!(!waveform_header_surface.contains("fn clamp_rect_to_bounds"));
+}
+
+#[test]
 fn text_baseline_snapping_is_owned_by_generic_text_layout() {
     let text_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

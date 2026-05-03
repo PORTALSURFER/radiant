@@ -36,6 +36,14 @@ fn public_layout_module_supports_generic_tree_construction() {
 
     let root_rect = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 90.0));
     let one_shot = layout_tree(&root, root_rect);
+    assert_eq!(
+        one_shot.rect_for(99, root_rect.empty_at_min()),
+        root_rect.empty_at_min()
+    );
+    assert_eq!(
+        one_shot.rect_for_clamped(2, root_rect.empty_at_min(), root_rect),
+        Rect::from_min_max(Point::new(4.0, 4.0), Point::new(116.0, 24.0))
+    );
 
     let mut engine = LayoutEngine::default();
     let stateful = engine.layout_with_state(

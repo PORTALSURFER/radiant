@@ -994,6 +994,8 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "virtual_list_scroll_delta_from_units",
         "fixed_width_row_rects_start",
         "visible_suffix_widths",
+        "LayoutOutput::rect_for",
+        "LayoutOutput::rect_for_clamped",
         "grouped_fixed_width_row_width",
         "fixed_width_item_extent_for_available_width",
         "ContentListPanel<Row, Editor>",

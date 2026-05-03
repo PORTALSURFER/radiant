@@ -86,7 +86,6 @@ where
 {
     pub(in crate::gui_runtime::native_vello) runtime: SurfaceRuntime<Bridge, Message>,
     theme: ThemeTokens,
-    focused_widget: Option<WidgetId>,
     pressed_widget: Option<WidgetId>,
 }
 
@@ -98,7 +97,6 @@ where
         Self {
             runtime: SurfaceRuntime::new(bridge, viewport),
             theme: ThemeTokens::default(),
-            focused_widget: None,
             pressed_widget: None,
         }
     }
@@ -130,10 +128,10 @@ where
             self.pressed_widget = None;
             return false;
         };
-        self.focus_widget(widget_id);
         self.pressed_widget = Some(widget_id);
         self.runtime
-            .dispatch_input(widget_id, WidgetInput::PointerPress { position, button })
+            .dispatch_input_at(position, WidgetInput::PointerPress { position, button })
+            .is_some()
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release(
@@ -153,45 +151,22 @@ where
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press(&mut self, key: WidgetKey) -> bool {
-        self.focused_widget.is_some_and(|widget_id| {
-            self.runtime
-                .dispatch_input(widget_id, WidgetInput::KeyPress(key))
-        })
+        self.runtime
+            .dispatch_focused_input(WidgetInput::KeyPress(key))
+            .is_some()
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_character(
         &mut self,
         character: char,
     ) -> bool {
-        self.focused_widget.is_some_and(|widget_id| {
-            self.runtime
-                .dispatch_input(widget_id, WidgetInput::Character(character))
-        })
-    }
-
-    fn focus_widget(&mut self, widget_id: WidgetId) {
-        if self.focused_widget == Some(widget_id) {
-            return;
-        }
-        if let Some(previous) = self.focused_widget.take() {
-            let _ = self
-                .runtime
-                .dispatch_input(previous, WidgetInput::FocusChanged(false));
-        }
-        if self
-            .runtime
-            .dispatch_input(widget_id, WidgetInput::FocusChanged(true))
-        {
-            self.focused_widget = Some(widget_id);
-        }
+        self.runtime
+            .dispatch_focused_input(WidgetInput::Character(character))
+            .is_some()
     }
 
     fn clear_focus(&mut self) {
-        if let Some(previous) = self.focused_widget.take() {
-            let _ = self
-                .runtime
-                .dispatch_input(previous, WidgetInput::FocusChanged(false));
-        }
+        self.runtime.clear_focus();
     }
 }
 

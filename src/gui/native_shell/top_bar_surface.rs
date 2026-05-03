@@ -40,7 +40,7 @@ pub(crate) struct TopBarSurfaceContent {
     pub volume_value: String,
     /// Short volume label paired with the meter.
     pub volume_label: String,
-    /// Compact audio-engine chip label shown on the options button.
+    /// Compact options label shown on the options button.
     pub options_label: String,
     /// Bounded update actions projected into the action cluster.
     pub update_actions: Vec<TopBarUpdateActionSpec>,

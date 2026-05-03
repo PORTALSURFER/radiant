@@ -3,7 +3,7 @@
 use crate::app as native_model;
 use super::*;
 
-pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
+pub(super) fn paired_device_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
     let paired_device = model.paired_device_panel();
     vec![
         (
@@ -110,7 +110,7 @@ pub(super) fn options_panel_title(model: &AppModel) -> String {
     paired_device
         .active_picker()
         .map(|target| paired_picker_title(paired_device, target))
-        .unwrap_or_else(|| String::from("Audio Engine"))
+        .unwrap_or_else(|| String::from("Device Options"))
 }
 
 pub(super) fn picker_options(

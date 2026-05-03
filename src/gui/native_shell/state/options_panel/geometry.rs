@@ -1,7 +1,7 @@
 //! Geometry and hit-testing helpers for the native-shell options panel.
 
 use super::actions::{
-    audio_overview_button_defs, legacy_options_panel_button_defs, options_panel_title,
+    legacy_options_panel_button_defs, options_panel_title, paired_device_overview_button_defs,
     picker_action, picker_options,
 };
 use super::*;
@@ -145,7 +145,7 @@ fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)
         return buttons;
     }
 
-    let mut buttons = audio_overview_button_defs(model)
+    let mut buttons = paired_device_overview_button_defs(model)
         .into_iter()
         .map(|(text, action)| (text, action, false))
         .collect::<Vec<_>>();

@@ -36,7 +36,7 @@ pub(super) fn build_top_bar_automation(
         children.push(simple_node(
             "shell.top_bar.options_button",
             AutomationRole::Button,
-            Some(String::from("Audio Engine")),
+            Some(String::from("Device Options")),
             button_rect,
             Some(model.paired_device_panel().status_label().to_string()),
             true,

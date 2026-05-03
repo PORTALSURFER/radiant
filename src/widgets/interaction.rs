@@ -96,6 +96,13 @@ pub enum ButtonMessage {
     Activate,
 }
 
+/// Message emitted by a reusable badge or pill primitive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BadgeMessage {
+    /// The badge was activated by pointer or keyboard input.
+    Activate,
+}
+
 /// Message emitted by a reusable toggle primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ToggleMessage {
@@ -136,6 +143,8 @@ pub enum ScrollbarMessage {
 pub enum WidgetOutput {
     /// Button activation output.
     Button(ButtonMessage),
+    /// Badge or pill activation output.
+    Badge(BadgeMessage),
     /// Toggle value-change output.
     Toggle(ToggleMessage),
     /// Text-input editing or submit output.

@@ -1,11 +1,13 @@
 //! Public primitive widget descriptors for `radiant::widgets`.
 
+mod badge;
 mod button;
 mod scrollbar;
 mod support;
 mod text_input;
 mod toggle;
 
+pub use badge::{BadgeProps, BadgeState, BadgeWidget};
 pub use button::{ButtonProps, ButtonState, ButtonWidget};
 pub use scrollbar::{ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget};
 pub use support::{CanvasWidget, ListItemWidget, TextWidget, TextWrap, WidgetCommon, WidgetSpec};

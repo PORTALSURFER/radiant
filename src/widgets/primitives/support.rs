@@ -151,6 +151,8 @@ pub enum WidgetSpec {
     Scrollbar(super::scrollbar::ScrollbarWidget),
     /// Focusable row/item primitive.
     ListItem(ListItemWidget),
+    /// Compact badge or pill primitive.
+    Badge(super::badge::BadgeWidget),
     /// Custom paint/input surface.
     Canvas(CanvasWidget),
 }
@@ -165,6 +167,7 @@ impl WidgetSpec {
             Self::TextInput(widget) => &widget.common,
             Self::Scrollbar(widget) => &widget.common,
             Self::ListItem(widget) => &widget.common,
+            Self::Badge(widget) => &widget.common,
             Self::Canvas(widget) => &widget.common,
         }
     }
@@ -197,6 +200,7 @@ impl WidgetSpec {
             Self::Scrollbar(widget) => widget
                 .handle_input(bounds, input)
                 .map(WidgetOutput::Scrollbar),
+            Self::Badge(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Badge),
             Self::Text(_) | Self::ListItem(_) | Self::Canvas(_) => None,
         }
     }

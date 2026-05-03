@@ -8,9 +8,10 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ButtonWidget, CanvasWidget, FocusBehavior, ListItemWidget, ScrollbarAxis,
-        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget,
-        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, FocusBehavior,
+        ListItemWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, TextInputMessage,
+        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
+        WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -26,6 +27,8 @@ pub enum WidgetMessageMapper<Message> {
     None,
     /// Map a button activation payload into a host-defined message.
     Button(MessageMapper<ButtonMessage, Message>),
+    /// Map a badge activation payload into a host-defined message.
+    Badge(MessageMapper<BadgeMessage, Message>),
     /// Map a toggle value-change payload into a host-defined message.
     Toggle(MessageMapper<ToggleMessage, Message>),
     /// Map a text-input edit payload into a host-defined message.
@@ -39,6 +42,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
         match self {
             Self::None => Self::None,
             Self::Button(map) => Self::Button(Arc::clone(map)),
+            Self::Badge(map) => Self::Badge(Arc::clone(map)),
             Self::Toggle(map) => Self::Toggle(Arc::clone(map)),
             Self::TextInput(map) => Self::TextInput(Arc::clone(map)),
             Self::Scrollbar(map) => Self::Scrollbar(Arc::clone(map)),
@@ -50,6 +54,11 @@ impl<Message> WidgetMessageMapper<Message> {
     /// Build a button-message mapper.
     pub fn button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
         Self::Button(Arc::new(map))
+    }
+
+    /// Build a badge-message mapper.
+    pub fn badge(map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::Badge(Arc::new(map))
     }
 
     /// Build a toggle-message mapper.
@@ -70,6 +79,7 @@ impl<Message> WidgetMessageMapper<Message> {
     fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match (self, output) {
             (Self::Button(map), WidgetOutput::Button(message)) => Some(map(message)),
+            (Self::Badge(map), WidgetOutput::Badge(message)) => Some(map(message)),
             (Self::Toggle(map), WidgetOutput::Toggle(message)) => Some(map(message)),
             (Self::TextInput(map), WidgetOutput::TextInput(message)) => Some(map(message)),
             (Self::Scrollbar(map), WidgetOutput::Scrollbar(message)) => Some(map(message)),
@@ -289,6 +299,32 @@ impl<Message> SurfaceNode<Message> {
         Self::widget(
             WidgetSpec::Button(ButtonWidget::new(id, label, sizing)),
             WidgetMessageMapper::button(map),
+        )
+    }
+
+    /// Build a badge or pill leaf node that emits one cloned host message when activated.
+    pub fn badge(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::badge_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build a badge or pill leaf node with a custom widget-to-host message mapper.
+    pub fn badge_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Badge(BadgeWidget::new(id, label, sizing)),
+            WidgetMessageMapper::badge(map),
         )
     }
 

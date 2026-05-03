@@ -6,8 +6,9 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget, TextWidget, ToggleWidget,
-        WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
+        BadgeWidget, ButtonWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget, TextWidget,
+        ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing,
+        WidgetSpec,
     },
 };
 
@@ -38,6 +39,11 @@ fn public_widgets_compose_with_public_layout_containers() {
         ScrollbarAxis::Vertical,
         WidgetSizing::fixed(Vector2::new(12.0, 28.0)),
     ));
+    let badge = WidgetSpec::Badge(BadgeWidget::new(
+        7,
+        "Ready",
+        WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
+    ));
 
     let root = LayoutNode::container(
         1,
@@ -52,6 +58,7 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), filter.layout_node()),
             SlotChild::new(SlotParams::fill(), snap.layout_node()),
             SlotChild::new(SlotParams::fill(), scroll.layout_node()),
+            SlotChild::new(SlotParams::fill(), badge.layout_node()),
         ],
     );
 
@@ -65,6 +72,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&filter.id()));
     assert!(output.rects.contains_key(&snap.id()));
     assert!(output.rects.contains_key(&scroll.id()));
+    assert!(output.rects.contains_key(&badge.id()));
     assert_eq!(
         rename.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
@@ -80,6 +88,10 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert_eq!(
         scroll.common().emitted_messages,
         vec![WidgetMessageKind::ScrollRequested]
+    );
+    assert_eq!(
+        badge.common().emitted_messages,
+        vec![WidgetMessageKind::Activate]
     );
 }
 
@@ -100,6 +112,11 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         12,
         "ab",
         WidgetSizing::new(Vector2::new(96.0, 28.0), Vector2::new(160.0, 28.0)),
+    ));
+    let mut badge = WidgetSpec::Badge(BadgeWidget::new(
+        13,
+        "Ready",
+        WidgetSizing::fixed(Vector2::new(64.0, 24.0)),
     ));
 
     assert_eq!(
@@ -134,6 +151,17 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("abz"),
             }
+        ))
+    );
+
+    assert_eq!(
+        badge.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        badge.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(WidgetOutput::Badge(
+            radiant::widgets::BadgeMessage::Activate
         ))
     );
 }

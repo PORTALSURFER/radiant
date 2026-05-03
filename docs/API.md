@@ -43,7 +43,7 @@ returns `Command<Message>` while keeping side effects and domain state host-owne
 `UiSurface<Message>`. `Element<Message>` is the generic element tree and is a
 public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
 entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
-`ButtonWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
+`ButtonWidget`, `BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
 `ScrollbarWidget`, `CanvasWidget`, and `ListItemWidget` describe reusable UI
 behavior without host-domain semantics.
 
@@ -51,7 +51,8 @@ Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
 when a host only needs ordered row/column structure, fill slots, and display
 widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
-`SurfaceNode::button_mapped`, `SurfaceNode::text_input`,
+`SurfaceNode::button_mapped`, `SurfaceNode::badge`, `SurfaceNode::badge_mapped`,
+`SurfaceNode::text_input`,
 `SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
 `SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
 `SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and

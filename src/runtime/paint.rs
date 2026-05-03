@@ -232,6 +232,20 @@ pub(super) fn push_widget_paint(
                 );
             }
         }
+        WidgetSpec::Badge(badge) => {
+            push_control_chrome(primitives, widget, bounds, theme);
+            push_text_run(
+                primitives,
+                widget.id(),
+                badge.props.label.clone(),
+                inset_rect(bounds, 8.0, 3.0),
+                badge.common.sizing.baseline,
+                resolve_widget_visual_tokens(theme, badge.common.style, badge.common.state)
+                    .foreground,
+                PaintTextAlign::Center,
+                TextWrap::None,
+            );
+        }
         WidgetSpec::Canvas(canvas) => {
             primitives.push(PaintPrimitive::CustomSurface(PaintCustomSurface {
                 widget_id: widget.id(),

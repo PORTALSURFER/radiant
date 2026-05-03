@@ -4,9 +4,9 @@ use radiant::gui::types::{Point, Rect};
 use radiant::{
     layout::Vector2,
     widgets::{
-        ButtonMessage, ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget,
-        WidgetInput, WidgetKey, WidgetSizing,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, PointerButton, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, ToggleMessage,
+        ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 
@@ -42,6 +42,41 @@ fn button_intrinsic_sizing_and_activation_are_public_and_deterministic() {
             },
         ),
         Some(ButtonMessage::Activate)
+    );
+}
+
+#[test]
+fn badge_intrinsic_sizing_and_activation_are_public_and_deterministic() {
+    let sizing = WidgetSizing::new(Vector2::new(56.0, 22.0), Vector2::new(72.0, 24.0));
+    let mut badge = BadgeWidget::new(7, "Ready", sizing);
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(72.0, 24.0));
+
+    assert_eq!(badge.common.sizing, sizing);
+    match badge.common.layout_node() {
+        radiant::layout::LayoutNode::Widget(node) => {
+            assert_eq!(node.intrinsic, Vector2::new(72.0, 24.0));
+        }
+        other => panic!("expected widget leaf, got {other:?}"),
+    }
+    assert_eq!(
+        badge.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(10.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        badge.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(10.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(BadgeMessage::Activate)
     );
 }
 

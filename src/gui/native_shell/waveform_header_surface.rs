@@ -264,7 +264,7 @@ mod tests {
             (820.0, AppModel::default()),
             (1440.0, {
                 let mut model = AppModel::default();
-                model.waveform.loaded_label = Some(String::from("kick.wav"));
+                model.waveform.loaded_label = Some(String::from("content-item-1"));
                 model.waveform.tempo_label = Some(String::from("128.0 BPM"));
                 model.waveform.zoom_label = Some(String::from("125%"));
                 model.waveform.cursor_milli = Some(315);
@@ -274,7 +274,7 @@ mod tests {
             }),
             (360.0, {
                 let mut model = AppModel::default();
-                model.waveform.loaded_label = Some(String::from("very_long_loaded_take_name.wav"));
+                model.waveform.loaded_label = Some(String::from("very_long_loaded_content_item"));
                 model.waveform.loading = true;
                 model
             }),

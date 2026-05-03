@@ -332,6 +332,29 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 }
 
 #[test]
+fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
+    let toolbar_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/controls/browser_toolbar.rs"
+    ))
+    .expect("browser toolbar layout adapter should be readable");
+    let row_helpers_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/layout_core/row_helpers.rs"
+    ))
+    .expect("generic row helper module should be readable");
+
+    assert!(row_helpers_mod.contains("pub fn fixed_width_group_width"));
+    assert!(row_helpers_mod.contains("pub fn grouped_fixed_width_row_width"));
+    assert!(toolbar_mod.contains("fixed_width_group_width"));
+    assert!(toolbar_mod.contains("grouped_fixed_width_row_width"));
+    assert!(
+        !toolbar_mod.contains("chip_side * RATING_FILTER_CHIP_COUNT"),
+        "legacy browser toolbar adapter should delegate grouped chip cluster widths to layout_core"
+    );
+}
+
+#[test]
 fn focus_context_model_is_owned_by_generic_focus_module() {
     let sources_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

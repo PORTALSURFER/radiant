@@ -3,6 +3,7 @@ use super::super::super::style::SizingTokens;
 use super::shared::{
     center_square_rect, clamp_rect_to_bounds, empty_rect, layout_left_aligned_fixed_widths,
 };
+use crate::gui::layout_core::{fixed_width_group_width, grouped_fixed_width_row_width};
 use crate::gui::types::{Point, Rect};
 
 const TOOLBAR_FILTER_ID: u64 = 801;
@@ -286,28 +287,20 @@ fn compute_filter_control_side(
 }
 
 fn rating_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
-    if chip_side <= 0.0 {
-        return 0.0;
-    }
-    (chip_side * RATING_FILTER_CHIP_COUNT as f32)
-        + (gap * (RATING_FILTER_CHIP_COUNT.saturating_sub(1) as f32))
+    fixed_width_group_width(chip_side, RATING_FILTER_CHIP_COUNT, gap)
 }
 
 fn playback_age_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
-    if chip_side <= 0.0 {
-        return 0.0;
-    }
-    (chip_side * PLAYBACK_AGE_FILTER_CHIP_COUNT as f32)
-        + (gap * (PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1) as f32))
+    fixed_width_group_width(chip_side, PLAYBACK_AGE_FILTER_CHIP_COUNT, gap)
 }
 
 fn browser_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
-    if chip_side <= 0.0 {
-        return 0.0;
-    }
-    rating_filter_strip_width(chip_side, gap)
-        + group_gap
-        + playback_age_filter_strip_width(chip_side, gap)
+    grouped_fixed_width_row_width(
+        chip_side,
+        &[RATING_FILTER_CHIP_COUNT, PLAYBACK_AGE_FILTER_CHIP_COUNT],
+        gap,
+        group_gap,
+    )
 }
 
 fn compute_action_slot_rects(cluster: Rect, action_side: f32, gap: f32) -> [Rect; 3] {

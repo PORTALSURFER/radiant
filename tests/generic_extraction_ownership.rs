@@ -423,6 +423,7 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     );
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
     assert!(feedback_mod.contains("pub fn horizontal_progress_fill_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_progress_activity_rect"));
     assert!(feedback_mod.contains("pub struct RecoverySummary"));
     assert!(feedback_mod.contains("pub enum HealthState"));
     assert!(feedback_mod.contains("pub struct DragOverlay"));
@@ -454,8 +455,10 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     .expect("status bar module should be readable");
 
     assert!(feedback_mod.contains("pub fn horizontal_progress_fill_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_progress_activity_rect"));
     assert!(overlay_visuals_mod.contains("horizontal_progress_fill_rect"));
     assert!(status_bar_mod.contains("horizontal_progress_fill_rect"));
+    assert!(status_bar_mod.contains("horizontal_progress_activity_rect"));
     assert!(
         !overlay_visuals_mod.contains("fn compute_progress_fill_rect"),
         "compat overlay geometry should delegate horizontal progress fill math to gui::feedback"
@@ -463,6 +466,10 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     assert!(
         !status_bar_mod.contains("let fill_width ="),
         "compat status bar should delegate determinate progress fill math to gui::feedback"
+    );
+    assert!(
+        !status_bar_mod.contains("let segment_width ="),
+        "compat status bar should delegate indeterminate progress segment math to gui::feedback"
     );
 }
 

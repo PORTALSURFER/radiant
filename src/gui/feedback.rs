@@ -41,6 +41,34 @@ pub fn horizontal_progress_fill_rect(track: Rect, progress_fraction: f32) -> Opt
     ))
 }
 
+/// Return the moving segment used for an indeterminate horizontal progress track.
+///
+/// `position_fraction` is the normalized travel position for the segment.
+/// `segment_fraction` controls the preferred width relative to the track, and
+/// `min_segment_width` keeps the activity segment visible on wider tracks.
+pub fn horizontal_progress_activity_rect(
+    track: Rect,
+    position_fraction: f32,
+    segment_fraction: f32,
+    min_segment_width: f32,
+) -> Option<Rect> {
+    if track.width() <= 0.0 || track.height() <= 0.0 {
+        return None;
+    }
+    let preferred_width = track.width() * segment_fraction.clamp(0.0, 1.0);
+    let segment_width =
+        preferred_width.clamp(min_segment_width.max(0.0).min(track.width()), track.width());
+    if segment_width <= 0.0 {
+        return None;
+    }
+    let travel = (track.width() - segment_width).max(0.0);
+    let min_x = track.min.x + (travel * position_fraction.clamp(0.0, 1.0));
+    Some(Rect::from_min_max(
+        Point::new(min_x, track.min.y),
+        Point::new((min_x + segment_width).min(track.max.x), track.max.y),
+    ))
+}
+
 /// Summary for recoverable background work surfaced in a sidebar, panel, or status region.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct RecoverySummary {
@@ -177,7 +205,8 @@ impl<Kind> Default for ConfirmPrompt<Kind> {
 mod tests {
     use super::{
         ConfirmPrompt, DragOverlay, HealthState, ProgressOverlay, PromptIntent, RecoverySummary,
-        UpdatePanel, UpdateStatus, horizontal_progress_fill_rect,
+        UpdatePanel, UpdateStatus, horizontal_progress_activity_rect,
+        horizontal_progress_fill_rect,
     };
     use crate::gui::types::{Point, Rect};
 
@@ -218,6 +247,34 @@ mod tests {
         assert_eq!(horizontal_progress_fill_rect(track, -0.5), None);
         assert_eq!(horizontal_progress_fill_rect(empty_width, 0.5), None);
         assert_eq!(horizontal_progress_fill_rect(empty_height, 0.5), None);
+    }
+
+    #[test]
+    fn horizontal_progress_activity_rect_resolves_moving_segment() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+
+        let start =
+            horizontal_progress_activity_rect(track, 0.0, 0.24, 18.0).expect("start segment");
+        assert_eq!(start.min, track.min);
+        assert_eq!(start.max, Point::new(34.0, 28.0));
+
+        let end = horizontal_progress_activity_rect(track, 1.0, 0.24, 18.0).expect("end segment");
+        assert_eq!(end.min, Point::new(86.0, 20.0));
+        assert_eq!(end.max, track.max);
+    }
+
+    #[test]
+    fn horizontal_progress_activity_rect_clamps_cramped_tracks() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(20.0, 28.0));
+
+        let segment =
+            horizontal_progress_activity_rect(track, 0.5, 0.24, 18.0).expect("cramped segment");
+        assert_eq!(segment, track);
+
+        assert_eq!(
+            horizontal_progress_activity_rect(track, 0.5, 0.0, 0.0),
+            None
+        );
     }
 
     #[test]

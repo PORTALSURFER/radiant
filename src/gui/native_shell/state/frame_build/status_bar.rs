@@ -102,16 +102,12 @@ pub(super) fn status_progress_fill_rect(
         return None;
     }
     if model.progress_overlay.total == 0 {
-        let segment_width = (track_rect.width() * 0.24).clamp(18.0, track_rect.width().max(18.0));
-        let travel = (track_rect.width() - segment_width).max(0.0);
-        let min_x = track_rect.min.x + (travel * motion_wave.clamp(0.0, 1.0));
-        return Some(Rect::from_min_max(
-            Point::new(min_x, track_rect.min.y),
-            Point::new(
-                (min_x + segment_width).min(track_rect.max.x),
-                track_rect.max.y,
-            ),
-        ));
+        return crate::gui::feedback::horizontal_progress_activity_rect(
+            track_rect,
+            motion_wave,
+            0.24,
+            18.0,
+        );
     }
     let fraction = (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
         .clamp(0.0, 1.0);

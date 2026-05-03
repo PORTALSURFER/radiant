@@ -1,6 +1,6 @@
 //! Generic declarative bridge traits for message-driven Radiant hosts.
 
-use super::surface::UiSurface;
+use super::{Command, surface::UiSurface};
 use std::sync::Arc;
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
@@ -18,6 +18,16 @@ pub trait RuntimeBridge<Message> {
 
     /// Reduce one host-defined message into application state.
     fn reduce_message(&mut self, _message: Message) {}
+
+    /// Update application state and return runtime-visible follow-up work.
+    ///
+    /// Existing hosts can keep implementing [`RuntimeBridge::reduce_message`].
+    /// Hosts that need command dispatch can override this method and return
+    /// [`Command`] values without moving side-effect ownership into Radiant.
+    fn update(&mut self, message: Message) -> Command<Message> {
+        self.reduce_message(message);
+        Command::none()
+    }
 }
 
 /// Public application contract for declarative Radiant hosts.

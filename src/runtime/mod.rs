@@ -30,7 +30,7 @@ pub use crate::gui_runtime::{
 };
 pub use bridge::{App, DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
 pub use command::Command;
-pub use controller::{Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
+pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
 pub use paint::{
     PaintCustomSurface, PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintTextAlign,
     PaintTextRun, Renderer, SurfacePaintPlan,

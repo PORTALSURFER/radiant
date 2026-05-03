@@ -4,7 +4,7 @@
 //! layout output together so backends can route normalized widget input without
 //! depending on host-specific shell contracts.
 
-use super::{RuntimeBridge, SurfacePaintPlan, UiSurface};
+use super::{Command, RuntimeBridge, SurfacePaintPlan, UiSurface};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutOutput, layout_tree},
@@ -73,6 +73,15 @@ pub struct RuntimeContext<'a, Message> {
     pub layout: &'a LayoutOutput,
 }
 
+/// Summary of one command-dispatch pass through a [`SurfaceRuntime`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommandOutcome {
+    /// Number of host-defined messages reduced during this pass.
+    pub messages_dispatched: usize,
+    /// Whether any command requested a repaint.
+    pub repaint_requested: bool,
+}
+
 /// Stateful generic runtime controller for message-driven Radiant hosts.
 ///
 /// The controller preserves one-way data flow:
@@ -92,6 +101,7 @@ where
     layout: LayoutOutput,
     focused_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
+    repaint_requested: bool,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -110,6 +120,7 @@ where
             layout,
             focused_widget: None,
             pointer_capture: None,
+            repaint_requested: false,
         }
     }
 
@@ -150,6 +161,18 @@ where
     /// Return the widget that currently owns pointer capture.
     pub fn pointer_capture(&self) -> Option<WidgetId> {
         self.pointer_capture
+    }
+
+    /// Return whether the host update flow requested another repaint.
+    pub fn repaint_requested(&self) -> bool {
+        self.repaint_requested
+    }
+
+    /// Return and clear the current repaint request flag.
+    pub fn take_repaint_requested(&mut self) -> bool {
+        let repaint_requested = self.repaint_requested;
+        self.repaint_requested = false;
+        repaint_requested
     }
 
     /// Return an immutable reference to the owned bridge.
@@ -285,6 +308,26 @@ where
         }
     }
 
+    /// Reduce one host-defined message and execute its runtime-visible command.
+    pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        self.dispatch_message_inner(message, &mut outcome);
+        self.refresh();
+        outcome
+    }
+
+    /// Execute a command without an initial widget message.
+    ///
+    /// This is useful for backend adapters or host shells that need to replay a
+    /// queued command through the same message/repaint handling path used by
+    /// widget dispatch.
+    pub fn execute_command(&mut self, command: Command<Message>) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        self.execute_command_inner(command, &mut outcome);
+        self.refresh();
+        outcome
+    }
+
     /// Route one normalized widget interaction by widget id.
     ///
     /// Returns `true` when the interaction targeted a projected widget, even if
@@ -297,8 +340,7 @@ where
             return self.surface.find_widget(widget_id).is_some();
         };
         if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
-            self.bridge.reduce_message(message);
-            self.refresh();
+            self.dispatch_message(message);
         } else {
             self.relayout();
         }
@@ -342,6 +384,28 @@ where
             bounds,
             WidgetInput::FocusChanged(focused),
         );
+    }
+
+    fn dispatch_message_inner(&mut self, message: Message, outcome: &mut CommandOutcome) {
+        outcome.messages_dispatched += 1;
+        let command = self.bridge.update(message);
+        self.execute_command_inner(command, outcome);
+    }
+
+    fn execute_command_inner(&mut self, command: Command<Message>, outcome: &mut CommandOutcome) {
+        match command {
+            Command::None => {}
+            Command::Message(message) => self.dispatch_message_inner(message, outcome),
+            Command::Batch(commands) => {
+                for command in commands {
+                    self.execute_command_inner(command, outcome);
+                }
+            }
+            Command::RequestRepaint => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+            }
+        }
     }
 }
 

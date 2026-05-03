@@ -3,9 +3,9 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal, NativeRunOptions,
-        PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
-        UiSurface, View, WidgetMessageMapper, declarative_runtime_bridge,
+        App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
+        NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
+        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -272,6 +272,41 @@ fn surface_runtime_routes_backend_neutral_events() {
 }
 
 #[test]
+fn surface_runtime_executes_command_messages_and_repaint_requests() {
+    let bridge = CommandDemoBridge {
+        state: DemoState::default(),
+    };
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    let outcome = runtime.dispatch_message(CommandDemoMessage::Start);
+
+    assert_eq!(outcome.messages_dispatched, 3);
+    assert!(outcome.repaint_requested);
+    assert!(runtime.repaint_requested());
+    assert!(runtime.take_repaint_requested());
+    assert!(!runtime.repaint_requested());
+
+    let title = runtime
+        .surface()
+        .find_widget(10)
+        .expect("title widget should still be present")
+        .widget();
+    let field = runtime
+        .surface()
+        .find_widget(12)
+        .expect("text input widget should still be present")
+        .widget();
+    match title {
+        WidgetSpec::Text(text) => assert_eq!(text.text, "Commands (1)"),
+        other => panic!("expected text widget, got {other:?}"),
+    }
+    match field {
+        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Commands"),
+        other => panic!("expected text input widget, got {other:?}"),
+    }
+}
+
+#[test]
 fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -462,5 +497,79 @@ fn display_name(state: &DemoState) -> &str {
         "Untitled"
     } else {
         &state.name
+    }
+}
+
+enum CommandDemoMessage {
+    Start,
+    Increment,
+    Rename(String),
+}
+
+struct CommandDemoBridge {
+    state: DemoState,
+}
+
+impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<CommandDemoMessage>> {
+        let title = WidgetSpec::Text(TextWidget::new(
+            10,
+            format!("{} ({})", display_name(&self.state), self.state.count),
+            WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+        ));
+        let button = WidgetSpec::Button(ButtonWidget::new(
+            11,
+            "Run",
+            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+        ));
+        let input = WidgetSpec::TextInput(TextInputWidget::new(
+            12,
+            self.state.name.clone(),
+            WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
+        ));
+
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing: 8.0,
+                ..ContainerPolicy::default()
+            },
+            vec![
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(title, WidgetMessageMapper::None),
+                ),
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(
+                        button,
+                        WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
+                    ),
+                ),
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(input, WidgetMessageMapper::None),
+                ),
+            ],
+        )))
+    }
+
+    fn update(&mut self, message: CommandDemoMessage) -> Command<CommandDemoMessage> {
+        match message {
+            CommandDemoMessage::Start => Command::batch([
+                Command::message(CommandDemoMessage::Rename(String::from("Commands"))),
+                Command::request_repaint(),
+                Command::message(CommandDemoMessage::Increment),
+            ]),
+            CommandDemoMessage::Increment => {
+                self.state.count += 1;
+                Command::none()
+            }
+            CommandDemoMessage::Rename(name) => {
+                self.state.name = name;
+                Command::none()
+            }
+        }
     }
 }

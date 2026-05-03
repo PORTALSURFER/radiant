@@ -4,7 +4,7 @@ use super::super::*;
 
 /// Horizontal click slop used to distinguish waveform clicks from drags.
 const WAVEFORM_CLICK_SEEK_SLOP_PX: f32 = 3.0;
-/// Pointer slop used to distinguish browser-row clicks from drag/drop.
+/// Pointer slop used to distinguish content-row clicks from drag/drop.
 const BROWSER_ROW_DRAG_SLOP_PX: f32 = 3.0;
 
 impl<Bridge> NativeVelloRunner<Bridge>
@@ -360,7 +360,7 @@ where
         let Some(pending_press) = self.pending_content_row_press.clone() else {
             return false;
         };
-        if !browser_drag_exceeds_click_slop(pending_press.press_point, point) {
+        if !content_item_drag_exceeds_click_slop(pending_press.press_point, point) {
             return false;
         }
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
@@ -375,7 +375,7 @@ where
     }
 }
 
-fn browser_drag_exceeds_click_slop(press_point: Point, point: Point) -> bool {
+fn content_item_drag_exceeds_click_slop(press_point: Point, point: Point) -> bool {
     (point.x - press_point.x).abs() > BROWSER_ROW_DRAG_SLOP_PX
         || (point.y - press_point.y).abs() > BROWSER_ROW_DRAG_SLOP_PX
 }

@@ -255,6 +255,11 @@ impl<Message> SurfaceNode<Message> {
         Self::Widget(SurfaceWidget::new(widget, messages))
     }
 
+    /// Build a widget leaf node that does not emit host-defined messages.
+    pub fn static_widget(widget: WidgetSpec) -> Self {
+        Self::widget(widget, WidgetMessageMapper::None)
+    }
+
     /// Return the stable node id.
     pub fn id(&self) -> NodeId {
         match self {

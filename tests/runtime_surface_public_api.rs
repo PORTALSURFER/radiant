@@ -147,7 +147,7 @@ fn surface_node_row_column_and_fill_helpers_project_layout() {
         2,
         6.0,
         vec![
-            SurfaceChild::fill(SurfaceNode::widget(header, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::static_widget(header)),
             SurfaceChild::fill(SurfaceNode::row(
                 3,
                 8.0,
@@ -174,6 +174,25 @@ fn surface_node_row_column_and_fill_helpers_project_layout() {
     assert!(output.rects.contains_key(&20));
     assert!(output.rects.contains_key(&21));
     assert!(output.rects.contains_key(&22));
+}
+
+#[test]
+fn static_widget_helper_builds_non_emitting_leaf() {
+    let title = WidgetSpec::Text(TextWidget::new(
+        30,
+        "Status",
+        WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+    ));
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::static_widget(title));
+
+    assert!(surface.find_widget(30).is_some());
+    assert_eq!(
+        surface.dispatch_widget_output(
+            30,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+        ),
+        None
+    );
 }
 
 #[test]
@@ -546,7 +565,7 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         1,
         8.0,
         vec![
-            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::static_widget(title)),
             SurfaceChild::fill(SurfaceNode::widget(
                 button,
                 WidgetMessageMapper::button(|_| DemoMessage::Increment),
@@ -626,7 +645,7 @@ fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMessa
         1,
         8.0,
         vec![
-            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::static_widget(title)),
             SurfaceChild::fill(SurfaceNode::widget(
                 button,
                 WidgetMessageMapper::button(|_| CommandDemoMessage::Start),

@@ -64,7 +64,7 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         1,
         12.0,
         vec![
-            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::static_widget(title)),
             SurfaceChild::fill(SurfaceNode::widget(
                 button,
                 WidgetMessageMapper::button(|message| match message {

@@ -48,8 +48,9 @@ entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
 behavior without host-domain semantics.
 
 Common declarative composition should use `SurfaceNode::row`,
-`SurfaceNode::column`, and `SurfaceChild::fill` when a host only needs ordered
-row/column structure and fill slots. Lower-level `SurfaceNode::container` plus
+`SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
+when a host only needs ordered row/column structure, fill slots, and display
+widgets that do not emit messages. Lower-level `SurfaceNode::container` plus
 `ContainerPolicy` and `SlotParams` remains available for custom layout policy.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is

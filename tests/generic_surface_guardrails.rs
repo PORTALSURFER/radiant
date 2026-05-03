@@ -455,6 +455,7 @@ fn generic_native_example_stays_product_neutral_and_runtime_backed() {
         "run_native_vello_runtime",
         "UiSurface",
         "SurfaceNode::row",
+        "SurfaceNode::static_widget",
         "SurfaceChild::fill",
         "WidgetSpec::Button",
         "WidgetSpec::Text",

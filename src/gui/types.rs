@@ -87,6 +87,11 @@ impl Rect {
         Self::from_min_max(self.min, self.min)
     }
 
+    /// Return an empty rectangle at this rectangle's maximum corner.
+    pub fn empty_at_max(self) -> Self {
+        Self::from_min_max(self.max, self.max)
+    }
+
     /// Clamp this rectangle inside `bounds`.
     ///
     /// If the rectangle does not overlap `bounds`, this returns an empty
@@ -299,6 +304,16 @@ mod tests {
         let rect = Rect::from_min_max(Point::new(200.0, 40.0), Point::new(250.0, 80.0));
 
         assert_eq!(rect.clamp_to(bounds), bounds.empty_at_min());
+    }
+
+    #[test]
+    fn rect_empty_at_max_returns_max_corner_empty_rect() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(
+            rect.empty_at_max(),
+            Rect::from_min_max(Point::new(50.0, 30.0), Point::new(50.0, 30.0))
+        );
     }
 
     #[test]

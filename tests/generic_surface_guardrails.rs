@@ -1022,6 +1022,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "logical_point_to_u16_coords",
         "snap_text_baseline_to_pixel",
         "Rect::center",
+        "empty_at_max",
         "inset_horizontal",
         "inset_horizontal_saturating",
         "inset_uniform_saturating",

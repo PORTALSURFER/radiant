@@ -749,6 +749,27 @@ fn native_empty_rect_construction_reuses_generic_rect_method() {
 }
 
 #[test]
+fn native_max_corner_empty_rect_construction_reuses_generic_rect_method() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("generic rect type should be readable");
+    let source_paths = [
+        "/src/gui/native_shell/layout_adapter/bands.rs",
+        "/src/gui/native_shell/layout_adapter/browser_text.rs",
+        "/src/gui/native_shell/layout_adapter/sidebar_sections.rs",
+    ];
+
+    assert!(types_mod.contains("pub fn empty_at_max(self) -> Self"));
+    for path in source_paths {
+        let source = fs::read_to_string(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
+            .unwrap_or_else(|err| panic!("native source {path} should be readable: {err}"));
+        assert!(source.contains(".empty_at_max()"));
+        assert!(!source.contains("Rect::from_min_max(title_inner.max, title_inner.max)"));
+        assert!(!source.contains("Rect::from_min_max(item.max, item.max)"));
+        assert!(!source.contains("Rect::from_min_max(section_bounds.max, section_bounds.max)"));
+    }
+}
+
+#[test]
 fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("generic types module should be readable");

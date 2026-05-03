@@ -127,7 +127,7 @@ pub(crate) fn compute_top_bar_band_sections(
     );
     let action_cluster = cluster_output.rect_for_clamped(
         TOP_ACTION_CLUSTER_ID,
-        Rect::from_min_max(title_inner.max, title_inner.max),
+        title_inner.empty_at_max(),
         title_row,
     );
     TopBarBandSections {

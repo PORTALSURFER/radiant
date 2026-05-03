@@ -78,7 +78,7 @@ pub(crate) fn compute_browser_table_columns(
         Point::new(item_min_x, raw_item.min.y),
         Point::new(raw_item.max.x.max(item_min_x), raw_item.max.y),
     );
-    let collapsed_bucket = Rect::from_min_max(item.max, item.max);
+    let collapsed_bucket = item.empty_at_max();
     BrowserTableColumns {
         index,
         item,

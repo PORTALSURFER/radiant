@@ -46,7 +46,7 @@ pub(crate) fn compute_sidebar_row_sections(
         sizing.panel_section_padding_top,
         sizing.panel_section_padding_bottom,
     );
-    let empty = Rect::from_min_max(section_bounds.max, section_bounds.max);
+    let empty = section_bounds.empty_at_max();
     let midpoint = section_bounds.min.y + (section_bounds.height() * 0.5);
     let upper_bounds = Rect::from_min_max(
         section_bounds.min,

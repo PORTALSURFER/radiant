@@ -1006,6 +1006,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "## Renderer",
         "## Context",
         "Event And Focus",
+        "logical_point_to_u16_coords",
         "## Automation",
         "Generic Panels And Forms",
         "Invalidation And Lifecycle",

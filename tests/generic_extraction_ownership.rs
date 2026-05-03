@@ -34,6 +34,34 @@ fn keypress_value_type_is_owned_by_generic_input_module() {
 }
 
 #[test]
+fn pointer_coordinate_quantization_is_owned_by_generic_input_module() {
+    let input_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/input.rs"))
+        .expect("input module should be readable");
+    let legacy_config_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/legacy_shell_config.rs"
+    ))
+    .expect("legacy shell config module should be readable");
+    let waveform_press_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/waveform_routing/press.rs"
+    ))
+    .expect("waveform press routing module should be readable");
+
+    assert!(input_mod.contains("pub fn logical_point_to_u16_coords"));
+    assert!(legacy_config_mod.contains("logical_point_to_u16_coords"));
+    assert!(waveform_press_mod.contains("ui_action_pointer_coords(point)"));
+    assert!(
+        !legacy_config_mod.contains("point.x.clamp(0.0"),
+        "legacy config should delegate pointer coordinate quantization to gui::input"
+    );
+    assert!(
+        !waveform_press_mod.contains("point.x.max(0.0).round() as u16"),
+        "legacy waveform press routing should delegate pointer coordinate quantization"
+    );
+}
+
+#[test]
 fn retained_vec_is_owned_by_generic_retained_module() {
     let app_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

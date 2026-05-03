@@ -157,11 +157,13 @@ pub(super) fn waveform_selection_drag_action_from_pointer(
     point: Point,
 ) -> Option<UiAction> {
     waveform_selection_drag_handle_hit_rect(layout, model).and_then(|rect| {
-        rect.contains(point)
-            .then_some(UiAction::StartWaveformSelectionDrag {
-                pointer_x: point.x.max(0.0).round() as u16,
-                pointer_y: point.y.max(0.0).round() as u16,
-            })
+        rect.contains(point).then(|| {
+            let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
+            UiAction::StartWaveformSelectionDrag {
+                pointer_x,
+                pointer_y,
+            }
+        })
     })
 }
 

@@ -187,6 +187,9 @@ backend-neutral runtime event surface for resize, pointer, keyboard, focus
 traversal, and focus-clear operations; `SurfaceRuntime::dispatch_event` is the
 primary event-routing entry point for backend adapters. Focus behavior is
 declared by widget contracts rather than by host-domain code.
+`radiant::gui::input::logical_point_to_u16_coords` provides the shared
+clamp/round contract for adapters that must project logical pointer positions
+into compact integer coordinates.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

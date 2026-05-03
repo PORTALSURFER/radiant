@@ -17,8 +17,5 @@ pub(in crate::gui_runtime::native_vello) const STARTUP_REVEAL_STALL_TIMEOUT: Dur
 
 /// Convert one logical pointer point into lossless-enough action coordinates.
 pub(in crate::gui_runtime::native_vello) fn ui_action_pointer_coords(point: Point) -> (u16, u16) {
-    (
-        point.x.clamp(0.0, f32::from(u16::MAX)).round() as u16,
-        point.y.clamp(0.0, f32::from(u16::MAX)).round() as u16,
-    )
+    crate::gui::input::logical_point_to_u16_coords(point)
 }

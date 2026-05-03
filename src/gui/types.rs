@@ -125,6 +125,15 @@ impl Rect {
         )
     }
 
+    /// Split this rectangle into upper and lower rectangles at `y`.
+    pub fn split_at_y(self, y: f32) -> (Self, Self) {
+        let y = y.max(self.min.y).min(self.max.y);
+        (
+            Self::from_min_max(self.min, Point::new(self.max.x, y)),
+            Self::from_min_max(Point::new(self.min.x, y), self.max),
+        )
+    }
+
     /// Return this rectangle with a symmetric horizontal inset capped at half width.
     pub fn inset_horizontal_saturating(self, inset: f32) -> Self {
         let inset = inset.max(0.0).min((self.width() * 0.5).max(0.0));
@@ -358,6 +367,26 @@ mod tests {
         assert_eq!(
             rect.inset_vertical(80.0, 3.0),
             Rect::from_min_max(Point::new(10.0, 30.0), Point::new(50.0, 30.0))
+        );
+    }
+
+    #[test]
+    fn rect_split_at_y_clamps_split_line_to_rect_bounds() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0));
+
+        assert_eq!(
+            rect.split_at_y(24.0),
+            (
+                Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 24.0)),
+                Rect::from_min_max(Point::new(10.0, 24.0), Point::new(50.0, 30.0))
+            )
+        );
+        assert_eq!(
+            rect.split_at_y(80.0),
+            (
+                Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 30.0)),
+                Rect::from_min_max(Point::new(10.0, 30.0), Point::new(50.0, 30.0))
+            )
         );
     }
 

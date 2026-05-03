@@ -47,14 +47,7 @@ pub(crate) fn compute_sidebar_row_sections(
     );
     let empty = section_bounds.empty_at_max();
     let midpoint = section_bounds.min.y + (section_bounds.height() * 0.5);
-    let upper_bounds = Rect::from_min_max(
-        section_bounds.min,
-        Point::new(section_bounds.max.x, midpoint.min(section_bounds.max.y)),
-    );
-    let lower_bounds = Rect::from_min_max(
-        Point::new(section_bounds.min.x, midpoint.max(section_bounds.min.y)),
-        section_bounds.max,
-    );
+    let (upper_bounds, lower_bounds) = section_bounds.split_at_y(midpoint);
     SidebarRowSections {
         upper_folder_pane: resolve_pane_sections(
             upper_bounds,

@@ -1025,6 +1025,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "empty_at_max",
         "inset_horizontal",
         "inset_vertical",
+        "split_at_y",
         "inset_horizontal_saturating",
         "inset_uniform_saturating",
         "centered_pixel_square",

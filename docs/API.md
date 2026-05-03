@@ -217,6 +217,8 @@ retained rendering adapters.
 fallback geometry at either resolved corner.
 `Rect::inset_vertical` provides product-neutral vertical inset geometry for
 rows, panels, and scroll regions.
+`Rect::split_at_y` provides reusable vertical partitioning for split panes,
+bands, and sectioned panels.
 `Rect::inset_horizontal_saturating` provides symmetric horizontal insets capped
 at half width for centered zero-width collapse.
 `Rect::inset_uniform_saturating` provides symmetric two-axis insets capped at

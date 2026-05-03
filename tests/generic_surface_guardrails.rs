@@ -222,6 +222,14 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !toolbar_helpers.contains("app_core/native_shell/composition/state/toolbar_helpers/"),
         "native shell toolbar helpers must stay local to Radiant while the compatibility shell remains"
     );
+
+    let hit_testing =
+        fs::read_to_string(manifest_dir.join("src/gui/native_shell/state/hit_testing/mod.rs"))
+            .expect("native shell hit-testing facade");
+    assert!(
+        !hit_testing.contains("app_core/native_shell/composition/state/hit_testing/"),
+        "native shell hit-testing helpers must stay local to Radiant while the compatibility shell remains"
+    );
 }
 
 #[test]

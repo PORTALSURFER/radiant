@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn browser_wheel_delta_is_bounded_and_directional() {
+fn content_list_wheel_delta_is_bounded_and_directional() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(layout.root.rect.width());
     let mut model = AppModel::default();
@@ -12,7 +12,7 @@ fn browser_wheel_delta_is_bounded_and_directional() {
     );
 
     assert_eq!(
-        browser_wheel_row_delta(
+        content_list_wheel_row_delta(
             &layout,
             &model,
             point,
@@ -22,7 +22,7 @@ fn browser_wheel_delta_is_bounded_and_directional() {
         Some(-3)
     );
     assert_eq!(
-        browser_wheel_row_delta(
+        content_list_wheel_row_delta(
             &layout,
             &model,
             point,
@@ -36,7 +36,7 @@ fn browser_wheel_delta_is_bounded_and_directional() {
         layout.browser_table_header.min.y + 5.0,
     );
     assert_eq!(
-        browser_wheel_row_delta(
+        content_list_wheel_row_delta(
             &layout,
             &model,
             header_point,
@@ -48,13 +48,13 @@ fn browser_wheel_delta_is_bounded_and_directional() {
 }
 
 #[test]
-fn browser_view_start_after_wheel_clamps_to_visible_bounds() {
-    assert_eq!(browser_view_start_after_wheel(10, 40, 12, -3), Some(7));
-    assert_eq!(browser_view_start_after_wheel(0, 40, 12, -3), Some(0));
-    assert_eq!(browser_view_start_after_wheel(27, 40, 12, 5), Some(28));
-    assert_eq!(browser_view_start_after_wheel(4, 0, 12, 2), None);
-    assert_eq!(browser_view_start_after_wheel(4, 20, 0, 2), None);
-    assert_eq!(browser_view_start_after_wheel(4, 20, 12, 0), None);
+fn content_list_view_start_after_wheel_clamps_to_visible_bounds() {
+    assert_eq!(content_list_view_start_after_wheel(10, 40, 12, -3), Some(7));
+    assert_eq!(content_list_view_start_after_wheel(0, 40, 12, -3), Some(0));
+    assert_eq!(content_list_view_start_after_wheel(27, 40, 12, 5), Some(28));
+    assert_eq!(content_list_view_start_after_wheel(4, 0, 12, 2), None);
+    assert_eq!(content_list_view_start_after_wheel(4, 20, 0, 2), None);
+    assert_eq!(content_list_view_start_after_wheel(4, 20, 12, 0), None);
 }
 
 #[test]

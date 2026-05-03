@@ -291,14 +291,14 @@ pub(super) fn waveform_selection_shift_handle_hit_rect(
     waveform_handles::waveform_selection_shift_handle_hit_rect(layout, model, selection)
 }
 
-pub(super) fn browser_wheel_row_delta(
+pub(super) fn content_list_wheel_row_delta(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
     style: &StyleTokens,
     delta: MouseScrollDelta,
 ) -> Option<i8> {
-    wheel::browser_wheel_row_delta(layout, model, point, style, delta)
+    wheel::content_list_wheel_row_delta(layout, model, point, style, delta)
 }
 
 pub(super) fn folder_wheel_row_delta(
@@ -312,13 +312,18 @@ pub(super) fn folder_wheel_row_delta(
     wheel::folder_wheel_row_delta(shell_state, layout, model, point, style, delta)
 }
 
-pub(super) fn browser_view_start_after_wheel(
+pub(super) fn content_list_view_start_after_wheel(
     current_view_start: usize,
     visible_count: usize,
     viewport_len: usize,
     steps: i8,
 ) -> Option<usize> {
-    wheel::browser_view_start_after_wheel(current_view_start, visible_count, viewport_len, steps)
+    wheel::content_list_view_start_after_wheel(
+        current_view_start,
+        visible_count,
+        viewport_len,
+        steps,
+    )
 }
 
 pub(super) fn waveform_wheel_zoom_action(

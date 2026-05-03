@@ -1,11 +1,11 @@
-//! Wheel-to-action mapping for browser scrolling and waveform zoom.
+//! Wheel-to-action mapping for content-list scrolling and timeline zoom.
 
 use super::*;
 use crate::gui::list::{
     virtual_list_scroll_delta_from_units, virtual_list_view_start_after_scroll_delta,
 };
 
-pub(super) fn browser_wheel_row_delta(
+pub(super) fn content_list_wheel_row_delta(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
@@ -42,8 +42,8 @@ pub(super) fn folder_wheel_row_delta(
     virtual_list_scroll_delta_from_units(raw)
 }
 
-/// Clamp one wheel-derived browser viewport move to the current visible-row range.
-pub(super) fn browser_view_start_after_wheel(
+/// Clamp one wheel-derived content-list viewport move to the current visible-row range.
+pub(super) fn content_list_view_start_after_wheel(
     current_view_start: usize,
     visible_count: usize,
     viewport_len: usize,
@@ -57,7 +57,7 @@ pub(super) fn browser_view_start_after_wheel(
     )
 }
 
-/// Map one mouse-wheel delta into waveform zoom action while hovering the waveform card.
+/// Map one mouse-wheel delta into timeline zoom action while hovering the timeline card.
 pub(super) fn waveform_wheel_zoom_action(
     layout: &ShellLayout,
     _model: &AppModel,

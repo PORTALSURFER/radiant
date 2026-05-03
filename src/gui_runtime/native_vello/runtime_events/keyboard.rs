@@ -72,7 +72,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                             .shell_state
                             .folder_viewport_start_row(layout, &this.model, pane)
                             .unwrap_or(0);
-                        if let Some(view_start_row) = browser_view_start_after_wheel(
+                        if let Some(view_start_row) = content_list_view_start_after_wheel(
                             current_view_start,
                             this.model.sources.folder_pane(pane).tree_rows.len(),
                             viewport_len,
@@ -93,14 +93,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                     .filter(|point| layout.browser_panel.contains(*point))
                     .unwrap_or(fallback_point);
                 if let Some(delta) =
-                    browser_wheel_row_delta(layout, &this.model, point, &style, delta)
+                    content_list_wheel_row_delta(layout, &this.model, point, &style, delta)
                 {
                     let viewport_len = this.shell_state.browser_viewport_len(layout, &this.model);
                     let current_view_start = this
                         .shell_state
                         .browser_viewport_start_row(layout, &this.model)
                         .unwrap_or(this.model.browser.view_start_row);
-                    if let Some(visible_row) = browser_view_start_after_wheel(
+                    if let Some(visible_row) = content_list_view_start_after_wheel(
                         current_view_start,
                         this.model.browser.visible_count,
                         viewport_len,

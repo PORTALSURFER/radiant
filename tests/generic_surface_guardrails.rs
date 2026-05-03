@@ -631,13 +631,19 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "browser/list/map compatibility aliases should be re-exported directly from legacy_shell or moved to generic primitives"
     );
+    assert!(
+        !manifest_dir
+            .join("src/compat/legacy_shell/native_vello.rs")
+            .exists(),
+        "legacy native Vello runtime entrypoints should live under compat::legacy_native_vello, not the model/action shell facade"
+    );
     for path in [
         "src/compat/legacy_shell/actions/mod.rs",
         "src/compat/legacy_shell/aliases.rs",
         "src/compat/legacy_shell/bridge.rs",
         "src/compat/legacy_shell/dirty_segments.rs",
         "src/compat/legacy_shell/motion.rs",
-        "src/compat/legacy_shell/native_vello.rs",
+        "src/compat/legacy_native_vello.rs",
         "src/compat/legacy_shell/shell.rs",
         "src/compat/legacy_shell/sources.rs",
         "src/compat/legacy_shell/waveform.rs",
@@ -838,7 +844,7 @@ fn legacy_shell_sources_are_feature_gated() {
     ] {
         assert!(
             !native_vello.contains(forbidden),
-            "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_shell"
+            "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_native_vello"
         );
     }
     let legacy_shell_runner = fs::read_to_string(
@@ -896,7 +902,10 @@ fn legacy_shell_sources_are_feature_gated() {
         ),
         (
             "src/compat.rs",
-            &["#[cfg(feature = \"legacy-shell\")]\npub mod legacy_shell"],
+            &[
+                "#[cfg(feature = \"legacy-shell\")]\npub mod legacy_native_vello",
+                "#[cfg(feature = \"legacy-shell\")]\npub mod legacy_shell",
+            ],
         ),
         (
             "src/gui/mod.rs",
@@ -961,6 +970,10 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
     assert!(
         !source.contains("run_native_vello_preview") && !source.contains("PreviewBridge"),
         "backend preview helpers should not remain in the legacy compatibility facade"
+    );
+    assert!(
+        !source.contains("run_native_vello_app_with_artifacts"),
+        "legacy_shell should expose model/action/bridge contracts only; native runtime entrypoints belong under compat::legacy_native_vello"
     );
 }
 

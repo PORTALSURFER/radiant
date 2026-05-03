@@ -1,6 +1,6 @@
-//! Legacy native Vello compatibility facade used by Radiant.
+//! Native Vello runtime entrypoint for the transitional legacy-shell bridge.
 
-use super::NativeAppBridge;
+use crate::compat::legacy_shell::NativeAppBridge;
 use crate::compat::runtime_artifacts::NativeRunReport;
 use crate::gui_runtime::{NativeRunOptions, native_vello};
 

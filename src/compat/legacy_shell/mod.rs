@@ -14,10 +14,9 @@
 //! generic declarative view tree plus host-defined message reduction without
 //! depending on host-shaped top-level models or action enums.
 //!
-//! This module remains as the legacy path for existing callers. The preferred
-//! compatibility entry point for shell-specific code is now
-//! [`crate::compat::legacy_shell`], which re-exports these contracts together
-//! with the matching native runtime helpers.
+//! This module remains as the legacy model/action path for existing callers.
+//! Native runtime entrypoints that still consume this bridge live under
+//! [`crate::compat::legacy_native_vello`].
 //!
 //! ## Diff/update model
 //! The update model is explicit and incremental:
@@ -45,7 +44,6 @@ mod aliases;
 mod bridge;
 mod dirty_segments;
 mod motion;
-mod native_vello;
 mod shell;
 mod sources;
 mod waveform;
@@ -63,7 +61,6 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use motion::NativeMotionModel;
-pub use native_vello::run_native_vello_app_with_artifacts;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,

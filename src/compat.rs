@@ -13,10 +13,17 @@
 #[cfg(feature = "legacy-shell")]
 pub mod runtime_artifacts;
 
+/// Native Vello entrypoint for the transitional legacy-shell bridge.
+///
+/// This remains separate from [`legacy_shell`] so the shell namespace can keep
+/// narrowing toward host-shaped model/action/bridge contracts only.
+#[cfg(feature = "legacy-shell")]
+pub mod legacy_native_vello;
+
 /// Compatibility namespace for the current legacy shell contract.
 ///
-/// This namespace groups the legacy model/action bridge plus the native-shell
-/// runtime entry points that still depend on those compatibility contracts.
+/// This namespace groups the legacy model/action bridge contracts that still
+/// depend on host-shaped shell DTOs.
 /// Keep new generic work out of this module unless it is explicitly about
 /// compatibility or migration support. The final disposition for the
 /// `legacy_shell` contract is host-owned.

@@ -192,6 +192,10 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !style_mod.contains("app_core/native_shell/composition/style/"),
         "native shell style modules must stay local to Radiant while the compatibility shell remains"
     );
+    assert!(
+        !native_shell_mod.contains("app_core/native_shell/composition/tests/"),
+        "Sempal native-shell composition fixtures must stay out of Radiant native_shell"
+    );
 }
 
 #[test]

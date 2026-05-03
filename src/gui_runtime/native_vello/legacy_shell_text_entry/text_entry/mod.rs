@@ -5,6 +5,7 @@
 //! out here so the native runtime stays readable.
 
 use super::*;
+use crate::gui::list::{EditableRowKind, EditableTreeRow};
 
 #[path = "pointer.rs"]
 mod pointer;
@@ -19,18 +20,18 @@ pub(in crate::gui_runtime::native_vello) use state::{
 impl<B: NativeAppBridge> NativeVelloRunner<B> {
     pub(in crate::gui_runtime::native_vello) fn folder_inline_edit_row(
         &self,
-    ) -> Option<&crate::compat_app_contract::FolderRowModel> {
+    ) -> Option<&EditableTreeRow> {
         self.model
             .sources
             .tree_rows
             .iter()
-            .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft)
+            .find(|row| row.kind == EditableRowKind::RenameDraft)
             .or_else(|| {
                 self.model
                     .sources
                     .tree_rows
                     .iter()
-                    .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == EditableRowKind::CreateDraft)
             })
     }
 

@@ -4,6 +4,7 @@ use super::{
     dirty_segments_for_layout_subtree,
 };
 use crate::compat_app_contract::DirtySegments;
+use crate::gui::panel::SplitPaneSlot;
 use crate::gui::types::Point;
 use std::mem;
 #[cfg(target_os = "windows")]
@@ -18,7 +19,7 @@ pub(super) struct ContentListScrollbarDragState {
 /// Active folder-scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct FolderScrollbarDragState {
-    pub(super) pane: crate::compat_app_contract::FolderPaneIdModel,
+    pub(super) pane: SplitPaneSlot,
     pub(super) thumb_pointer_offset_y: f32,
 }
 
@@ -401,7 +402,7 @@ where
 
     pub(super) fn begin_folder_scrollbar_drag(
         &mut self,
-        pane: crate::compat_app_contract::FolderPaneIdModel,
+        pane: SplitPaneSlot,
         thumb_pointer_offset_y: f32,
     ) {
         self.folder_scrollbar_drag = Some(FolderScrollbarDragState {

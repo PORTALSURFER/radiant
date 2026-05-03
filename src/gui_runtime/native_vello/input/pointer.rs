@@ -1,4 +1,8 @@
 use super::*;
+use crate::gui::{
+    list::{EditableRowKind, EditableTreeRow},
+    panel::{SplitPaneSlot, SplitPaneTreePanel},
+};
 
 pub(super) fn action_from_pointer_with_motion(
     layout: &ShellLayout,
@@ -161,11 +165,7 @@ fn route_sidebar_background(
     shell_state.sidebar_focus_action_at_point(layout, model, point)
 }
 
-fn folder_row_disclosure_action(
-    model: &AppModel,
-    pane: crate::compat_app_contract::FolderPaneIdModel,
-    index: usize,
-) -> UiAction {
+fn folder_row_disclosure_action(model: &AppModel, pane: SplitPaneSlot, index: usize) -> UiAction {
     let pane_model = model.sources.folder_pane(pane);
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
         return UiAction::FocusFolderRow {
@@ -175,8 +175,7 @@ fn folder_row_disclosure_action(
     };
     if matches!(
         row.kind,
-        crate::compat_app_contract::FolderRowKind::CreateDraft
-            | crate::compat_app_contract::FolderRowKind::RenameDraft
+        EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
     ) {
         return UiAction::FocusFolderCreateInput;
     }
@@ -194,11 +193,7 @@ fn folder_row_disclosure_action(
     }
 }
 
-fn folder_row_body_action(
-    model: &AppModel,
-    pane: crate::compat_app_contract::FolderPaneIdModel,
-    index: usize,
-) -> UiAction {
+fn folder_row_body_action(model: &AppModel, pane: SplitPaneSlot, index: usize) -> UiAction {
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
         return UiAction::FocusFolderRow {
             pane: Some(pane),
@@ -207,8 +202,7 @@ fn folder_row_body_action(
     };
     if matches!(
         row.kind,
-        crate::compat_app_contract::FolderRowKind::CreateDraft
-            | crate::compat_app_contract::FolderRowKind::RenameDraft
+        EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
     ) {
         return UiAction::FocusFolderCreateInput;
     }
@@ -221,9 +215,9 @@ fn folder_row_body_action(
 
 fn folder_row_for_pointer_action(
     model: &AppModel,
-    pane: crate::compat_app_contract::FolderPaneIdModel,
+    pane: SplitPaneSlot,
     index: usize,
-) -> Option<&crate::compat_app_contract::FolderRowModel> {
+) -> Option<&EditableTreeRow> {
     let pane_row = model.sources.folder_pane(pane).tree_rows.get(index);
     let flat_active_row = (pane == model.sources.active_folder_pane)
         .then(|| model.sources.tree_rows.get(index))
@@ -232,8 +226,7 @@ fn folder_row_for_pointer_action(
         .filter(|row| {
             matches!(
                 row.kind,
-                crate::compat_app_contract::FolderRowKind::CreateDraft
-                    | crate::compat_app_contract::FolderRowKind::RenameDraft
+                EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
             )
         })
         .or(pane_row)
@@ -241,7 +234,7 @@ fn folder_row_for_pointer_action(
 }
 
 fn folder_row_disclosure_toggles_expansion(
-    pane_model: &crate::compat_app_contract::FolderPaneModel,
+    pane_model: &SplitPaneTreePanel<EditableTreeRow>,
     index: usize,
 ) -> bool {
     let Some(row) = pane_model.tree_rows.get(index) else {
@@ -251,8 +244,7 @@ fn folder_row_disclosure_toggles_expansion(
         && !row.is_root
         && !matches!(
             row.kind,
-            crate::compat_app_contract::FolderRowKind::CreateDraft
-                | crate::compat_app_contract::FolderRowKind::RenameDraft
+            EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
         )
         && pane_model.tree_search_query.trim().is_empty()
 }

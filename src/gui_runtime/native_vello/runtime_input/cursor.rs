@@ -1,6 +1,7 @@
 //! Cursor-state and redraw-pacing helpers for the native Vello runner.
 
 use super::super::*;
+use crate::gui::focus::FocusSurface;
 
 impl<Bridge> NativeVelloRunner<Bridge>
 where
@@ -129,8 +130,7 @@ where
         }
         if self.modifiers.alt_key() {
             return !self.modifiers.shift_key()
-                && self.model.focus_context
-                    == crate::compat_app_contract::FocusContextModel::Timeline
+                && self.model.focus_context == FocusSurface::Timeline
                 && matches!(key, KeyCode::ArrowLeft | KeyCode::ArrowRight);
         }
         if self.modifiers.shift_key() {

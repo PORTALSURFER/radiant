@@ -1,6 +1,7 @@
 //! Viewport synchronization helpers for immediate native input paths.
 
 use super::super::*;
+use crate::gui::panel::SplitPaneSlot;
 
 impl<Bridge> NativeVelloRunner<Bridge>
 where
@@ -8,7 +9,7 @@ where
 {
     pub(crate) fn process_folder_view_start_immediately(
         &mut self,
-        pane: crate::compat_app_contract::FolderPaneIdModel,
+        pane: SplitPaneSlot,
         view_start_row: usize,
     ) -> bool {
         if !self

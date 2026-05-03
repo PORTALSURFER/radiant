@@ -942,11 +942,14 @@ fn legacy_shell_sources_are_feature_gated() {
 }
 
 #[test]
-fn legacy_shell_contract_does_not_reexport_application_title_alias() {
+fn legacy_shell_contract_keeps_runtime_helpers_out_of_model_facade() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let module_path = manifest_dir.join("src/compat/legacy_shell/mod.rs");
     let source = fs::read_to_string(&module_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+    let native_vello_path = manifest_dir.join("src/compat/legacy_native_vello.rs");
+    let native_vello = fs::read_to_string(&native_vello_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", native_vello_path.display()));
 
     assert!(
         !source.contains("DEFAULT_APP_TITLE"),
@@ -954,13 +957,13 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
          use gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE for the generic runtime default"
     );
     assert!(
-        !source.contains("run_native_vello_app_declarative"),
-        "Radiant legacy compatibility should expose one native Vello runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
+        !native_vello.contains("run_native_vello_app_declarative"),
+        "Radiant legacy native Vello compatibility should expose one runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
     );
     assert!(
-        !source.contains("run_native_vello_app,")
-            && !source.contains("pub fn run_native_vello_app<"),
-        "Radiant legacy compatibility should expose only the artifact-returning native Vello runner; host apps can derive result-only wrappers locally"
+        !native_vello.contains("run_native_vello_app,")
+            && !native_vello.contains("pub fn run_native_vello_app<"),
+        "Radiant legacy native Vello compatibility should expose only the artifact-returning runner; host apps can derive result-only wrappers locally"
     );
     assert!(
         !source.contains("capture_gui_automation_snapshot")
@@ -968,12 +971,17 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
         "host shell snapshot capture helpers belong in the consuming application once the local shell scaffold owns them"
     );
     assert!(
-        !source.contains("run_native_vello_preview") && !source.contains("PreviewBridge"),
-        "backend preview helpers should not remain in the legacy compatibility facade"
+        !native_vello.contains("run_native_vello_preview")
+            && !native_vello.contains("PreviewBridge"),
+        "backend preview helpers should not remain in the legacy native Vello compatibility entrypoint"
     );
     assert!(
         !source.contains("run_native_vello_app_with_artifacts"),
         "legacy_shell should expose model/action/bridge contracts only; native runtime entrypoints belong under compat::legacy_native_vello"
+    );
+    assert!(
+        native_vello.contains("pub fn run_native_vello_app_with_artifacts"),
+        "compat::legacy_native_vello should expose the current artifact-returning compatibility runner"
     );
 }
 

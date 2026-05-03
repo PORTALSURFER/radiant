@@ -101,10 +101,10 @@ pub(in crate::gui_runtime::native_vello) struct NativeVelloRunner<B: NativeAppBr
     pub(super) selection_drag_active: bool,
     /// Last waveform drag action emitted for pointer-move dedupe.
     pub(super) last_emitted_waveform_drag_action: Option<UiAction>,
-    /// Whether map content focus drag is active for primary pointer movement.
-    pub(super) map_focus_drag_active: bool,
-    /// Last map content id emitted during active map focus drag.
-    pub(super) last_emitted_map_drag_content_id: Option<String>,
+    /// Whether spatial-content focus drag is active for primary pointer movement.
+    pub(super) spatial_focus_drag_active: bool,
+    /// Last spatial content id emitted during active focus drag.
+    pub(super) last_emitted_spatial_drag_content_id: Option<String>,
     /// Active folder-scrollbar thumb drag state for primary pointer movement.
     pub(super) folder_scrollbar_drag: Option<FolderScrollbarDragState>,
     /// Active browser-scrollbar thumb drag state for primary pointer movement.

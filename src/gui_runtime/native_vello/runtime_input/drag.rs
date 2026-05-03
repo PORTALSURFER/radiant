@@ -211,8 +211,8 @@ where
         true
     }
 
-    /// Process one map-focus drag cursor update when map drag mode is active.
-    pub(crate) fn process_map_focus_drag_immediately(&mut self, point: Point) -> bool {
+    /// Process one spatial-focus drag cursor update while spatial drag mode is active.
+    pub(crate) fn process_spatial_focus_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
@@ -228,10 +228,10 @@ where
         let UiAction::FocusSpatialContentItem { content_id } = &action else {
             return false;
         };
-        if self.last_emitted_map_drag_content_id.as_deref() == Some(content_id.as_str()) {
+        if self.last_emitted_spatial_drag_content_id.as_deref() == Some(content_id.as_str()) {
             return false;
         }
-        self.last_emitted_map_drag_content_id = Some(content_id.clone());
+        self.last_emitted_spatial_drag_content_id = Some(content_id.clone());
         self.emit_model_action_with_profile(action, Some(InteractionProfileKind::SpatialPanProxy));
         true
     }
@@ -245,7 +245,7 @@ where
     pub(crate) fn handle_pointer_press_action(
         &mut self,
         action: UiAction,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
     ) -> bool {
         let click_seek_press =
             self.shell_layout
@@ -254,7 +254,11 @@ where
                 .and_then(|(layout, point)| {
                     self.waveform_click_seek_press_for_action(&action, layout.as_ref(), point)
                 });
-        self.handle_pointer_press_action_with_click_seek(action, map_drag_start, click_seek_press)
+        self.handle_pointer_press_action_with_click_seek(
+            action,
+            spatial_drag_start,
+            click_seek_press,
+        )
     }
 
     /// Handle one pointer-press action using the actively borrowed layout state.
@@ -266,19 +270,23 @@ where
     pub(crate) fn handle_pointer_press_action_at_point(
         &mut self,
         action: UiAction,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
         layout: &ShellLayout,
         point: Point,
     ) -> bool {
         let click_seek_press = self.waveform_click_seek_press_for_action(&action, layout, point);
-        self.handle_pointer_press_action_with_click_seek(action, map_drag_start, click_seek_press)
+        self.handle_pointer_press_action_with_click_seek(
+            action,
+            spatial_drag_start,
+            click_seek_press,
+        )
     }
 
     /// Handle one pointer-press action after any click-seek snapshot is prepared.
     fn handle_pointer_press_action_with_click_seek(
         &mut self,
         action: UiAction,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
         click_seek_press: Option<WaveformClickSeekPress>,
     ) -> bool {
         if let Some(visible_row) = browser_primary_row_action_visible_row(&action) {
@@ -290,13 +298,13 @@ where
             self.shell_state.clear_browser_row_hover();
             return true;
         }
-        self.emit_pointer_press_action_now(action, map_drag_start, click_seek_press)
+        self.emit_pointer_press_action_now(action, spatial_drag_start, click_seek_press)
     }
 
     pub(crate) fn emit_pointer_press_action_now(
         &mut self,
         action: UiAction,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
         click_seek_press: Option<WaveformClickSeekPress>,
     ) -> bool {
         if matches!(
@@ -309,7 +317,7 @@ where
         ) {
             self.shell_state.clear_browser_row_hover();
         }
-        let map_drag_content_id = match &action {
+        let spatial_drag_content_id = match &action {
             UiAction::FocusSpatialContentItem { content_id } => Some(content_id.clone()),
             _ => None,
         };
@@ -320,8 +328,8 @@ where
         self.sync_browser_viewport_for_pointer_row_action(&action);
         self.update_text_target_after_action(&action);
         self.emit_model_action(action);
-        if map_drag_start {
-            self.begin_map_focus_drag(map_drag_content_id);
+        if spatial_drag_start {
+            self.begin_spatial_focus_drag(spatial_drag_content_id);
         }
         true
     }

@@ -9,13 +9,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         &mut self,
         layout: &ShellLayout,
         point: Point,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
         self.begin_pointer_press_cycle();
         self.last_cursor = Some(point);
         self.refresh_cached_model_for_pending_input();
-        self.handle_left_pointer_press(layout, point, map_drag_start, action_emitted)
+        self.handle_left_pointer_press(layout, point, spatial_drag_start, action_emitted)
     }
 
     /// Route one right-pointer press through the production hit-testing path in tests.
@@ -101,8 +101,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 let _ = self.process_selection_drag_immediately(point);
                 let _ = self.maybe_launch_external_drag_session(false, false);
             }
-            ActivePointerSession::MapFocusDrag => {
-                let _ = self.process_map_focus_drag_immediately(point);
+            ActivePointerSession::SpatialFocusDrag => {
+                let _ = self.process_spatial_focus_drag_immediately(point);
             }
             ActivePointerSession::TextInputDrag => {
                 if !self.process_text_input_drag(point) {
@@ -138,7 +138,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 MouseButton::Left => {
                     this.refresh_cached_model_for_pending_input();
                     this.cancel_folder_inline_edit_for_external_pointer_target(layout, point);
-                    let map_drag_start =
+                    let spatial_drag_start =
                         this.model.map.active && layout.browser_rows.contains(point);
                     if let Some(action) = this.shell_state.source_context_menu_action_at_point(
                         layout,
@@ -186,7 +186,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                         handled = this.handle_left_pointer_press(
                             layout,
                             point,
-                            map_drag_start,
+                            spatial_drag_start,
                             &mut action_emitted,
                         );
                     }
@@ -227,7 +227,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         &mut self,
         layout: &ShellLayout,
         point: Point,
-        map_drag_start: bool,
+        spatial_drag_start: bool,
         action_emitted: &mut bool,
     ) -> bool {
         if self
@@ -313,7 +313,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             } else {
                 *action_emitted = self.handle_pointer_press_action_at_point(
                     action,
-                    map_drag_start,
+                    spatial_drag_start,
                     layout,
                     point,
                 );

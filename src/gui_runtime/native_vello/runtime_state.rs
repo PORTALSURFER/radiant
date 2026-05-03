@@ -166,7 +166,7 @@ pub(super) enum ActivePointerSession {
     WaveformDrag,
     ContentItemDrag,
     SelectionDrag,
-    MapFocusDrag,
+    SpatialFocusDrag,
     TextInputDrag,
     Hover,
 }
@@ -348,8 +348,8 @@ where
             ActivePointerSession::ContentItemDrag
         } else if self.selection_drag_active {
             ActivePointerSession::SelectionDrag
-        } else if self.map_focus_drag_active {
-            ActivePointerSession::MapFocusDrag
+        } else if self.spatial_focus_drag_active {
+            ActivePointerSession::SpatialFocusDrag
         } else if self.text_input_drag_active {
             ActivePointerSession::TextInputDrag
         } else {
@@ -389,8 +389,8 @@ where
         self.content_item_drag = None;
         self.selection_drag_active = false;
         self.last_emitted_waveform_drag_action = None;
-        self.map_focus_drag_active = false;
-        self.last_emitted_map_drag_content_id = None;
+        self.spatial_focus_drag_active = false;
+        self.last_emitted_spatial_drag_content_id = None;
         self.folder_scrollbar_drag = None;
         self.browser_scrollbar_drag = None;
         self.last_emitted_browser_view_start = None;
@@ -441,9 +441,9 @@ where
         self.last_emitted_waveform_view_center = None;
     }
 
-    pub(super) fn begin_map_focus_drag(&mut self, content_id: Option<String>) {
-        self.map_focus_drag_active = true;
-        self.last_emitted_map_drag_content_id = content_id;
+    pub(super) fn begin_spatial_focus_drag(&mut self, content_id: Option<String>) {
+        self.spatial_focus_drag_active = true;
+        self.last_emitted_spatial_drag_content_id = content_id;
     }
 
     pub(super) fn begin_content_item_drag(&mut self, visible_row: usize) {

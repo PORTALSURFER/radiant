@@ -1,13 +1,12 @@
-use crate::app as native_model;
 use super::*;
-use native_model::FolderPaneIdModel;
+use crate::gui::panel::SplitPaneSlot;
 
 impl NativeShellState {
     pub(crate) fn folder_viewport_len(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> usize {
         let style = style_for_layout(layout);
         self.cached_tree_rows(layout, &style, model, pane)
@@ -19,7 +18,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
         self.cached_tree_rows(layout, &style, model, pane)
@@ -32,8 +31,8 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(FolderPaneIdModel, f32)> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+    ) -> Option<(SplitPaneSlot, f32)> {
+        [SplitPaneSlot::Upper, SplitPaneSlot::Lower]
             .into_iter()
             .find_map(|pane| folder_scrollbar_thumb_hit(self, layout, model, pane, point))
     }
@@ -42,7 +41,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
         pointer_y: f32,
         thumb_pointer_offset_y: f32,
     ) -> Option<usize> {
@@ -61,15 +60,15 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(FolderPaneIdModel, usize)> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+    ) -> Option<(SplitPaneSlot, usize)> {
+        [SplitPaneSlot::Upper, SplitPaneSlot::Lower]
             .into_iter()
             .find_map(|pane| folder_scrollbar_track_jump(self, layout, model, pane, point))
     }
 
     pub(crate) fn set_folder_view_start_row(
         &mut self,
-        pane: FolderPaneIdModel,
+        pane: SplitPaneSlot,
         view_start_row: usize,
     ) -> bool {
         let pane_state = self.folder_pane_runtime_state_mut(pane);
@@ -87,9 +86,9 @@ fn folder_scrollbar_thumb_hit(
     shell_state: &mut NativeShellState,
     layout: &ShellLayout,
     model: &AppModel,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     point: Point,
-) -> Option<(FolderPaneIdModel, f32)> {
+) -> Option<(SplitPaneSlot, f32)> {
     let (scrollbar, _) = shell_state.cached_folder_scrollbar(layout, model, pane)?;
     let hit_rect = Rect::from_min_max(
         Point::new(
@@ -111,9 +110,9 @@ fn folder_scrollbar_track_jump(
     shell_state: &mut NativeShellState,
     layout: &ShellLayout,
     model: &AppModel,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     point: Point,
-) -> Option<(FolderPaneIdModel, usize)> {
+) -> Option<(SplitPaneSlot, usize)> {
     let (scrollbar, viewport_len) = shell_state.cached_folder_scrollbar(layout, model, pane)?;
     if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
         return None;

@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::gui::panel::SplitPaneSlot;
 
 impl NativeShellState {
     /// Resolve a rendered source-row index for a point within the sidebar.
@@ -8,7 +8,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(native_model::FolderPaneIdModel, usize)> {
+    ) -> Option<(SplitPaneSlot, usize)> {
         let style = style_for_layout(layout);
         self.cached_source_rows(layout, &style, model)
             .iter()
@@ -65,7 +65,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: native_model::FolderPaneIdModel,
+        pane: SplitPaneSlot,
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
         self.cached_source_rows(layout, &style, model)
@@ -207,10 +207,7 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        for pane in [
-            native_model::FolderPaneIdModel::Upper,
-            native_model::FolderPaneIdModel::Lower,
-        ] {
+        for pane in [SplitPaneSlot::Upper, SplitPaneSlot::Lower] {
             if sections.source_rows(pane).contains(point) {
                 return Some(UiAction::FocusSourcesPanel);
             }

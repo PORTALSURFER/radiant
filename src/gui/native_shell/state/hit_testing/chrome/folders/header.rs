@@ -1,6 +1,5 @@
-use crate::app as native_model;
 use super::*;
-use native_model::FolderPaneIdModel;
+use crate::gui::panel::SplitPaneSlot;
 
 impl NativeShellState {
     /// Return the folder-visibility toggle button rect for tests.
@@ -34,7 +33,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+        [SplitPaneSlot::Upper, SplitPaneSlot::Lower]
             .into_iter()
             .find_map(|pane| folder_header_action(layout, model, pane, point))
     }
@@ -43,7 +42,7 @@ impl NativeShellState {
 fn folder_header_layout(
     layout: &ShellLayout,
     model: &AppModel,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
 ) -> FolderHeaderHitTargets {
     let style = style_for_layout(layout);
     let pane_model = model.sources.folder_pane(pane);
@@ -76,7 +75,7 @@ fn folder_header_layout(
 fn folder_header_action(
     layout: &ShellLayout,
     model: &AppModel,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     point: Point,
 ) -> Option<UiAction> {
     let toggle = folder_header_layout(layout, model, pane);

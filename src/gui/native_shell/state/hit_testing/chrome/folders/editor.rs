@@ -1,6 +1,5 @@
-use crate::app as native_model;
 use super::*;
-use native_model::FolderRowKind;
+use crate::gui::list::EditableRowKind;
 
 impl NativeShellState {
     /// Return the projected inline folder-edit row index in the active pane, when present.
@@ -9,12 +8,12 @@ impl NativeShellState {
         pane_model
             .tree_rows
             .iter()
-            .position(|row| row.kind == FolderRowKind::RenameDraft)
+            .position(|row| row.kind == EditableRowKind::RenameDraft)
             .or_else(|| {
                 pane_model
                     .tree_rows
                     .iter()
-                    .position(|row| row.kind == FolderRowKind::CreateDraft)
+                    .position(|row| row.kind == EditableRowKind::CreateDraft)
             })
     }
 

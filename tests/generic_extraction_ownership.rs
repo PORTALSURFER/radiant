@@ -10,6 +10,27 @@ fn host_aliases_mod() -> String {
     .expect("host compatibility aliases module should be readable")
 }
 
+fn assert_native_shell_automation_removed() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let automation_dir = manifest_dir.join("src/gui/native_shell/state/automation");
+    let automation_files = automation_dir
+        .read_dir()
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "rs"))
+                .count()
+        })
+        .unwrap_or(0);
+    assert!(
+        !manifest_dir
+            .join("src/gui/native_shell/state/automation.rs")
+            .exists()
+            && automation_files == 0,
+        "host native-shell automation snapshot construction belongs in the consuming application, not Radiant"
+    );
+}
+
 #[test]
 fn keypress_value_type_is_owned_by_generic_input_module() {
     let app_mod = fs::read_to_string(concat!(
@@ -670,17 +691,11 @@ fn union_rect_geometry_is_owned_by_generic_rect_type() {
         "/src/gui/native_shell/state/frame_build/overlay/focus/shared.rs"
     ))
     .expect("focus overlay shared module should be readable");
-    let sidebar_automation_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/sidebar.rs"
-    ))
-    .expect("sidebar automation module should be readable");
+    assert_native_shell_automation_removed();
 
     assert!(types_mod.contains("pub fn union"));
     assert!(focus_mod.contains(".union(sections.tree_rows(active_pane))"));
-    assert!(sidebar_automation_mod.contains("header_rect.union(tree_rows_band)"));
     assert!(!focus_shared_mod.contains("fn union_rect"));
-    assert!(!sidebar_automation_mod.contains("fn union_rect"));
 }
 
 #[test]
@@ -1061,11 +1076,8 @@ fn paired_picker_actions_use_generic_device_terms() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let shared_options_actions = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../src/app_core/native_shell/composition/state/options_panel/actions.rs"
@@ -1080,8 +1092,6 @@ fn paired_picker_actions_use_generic_device_terms() {
     }
     assert!(actions_mod.contains("OpenPrimaryGroupPicker"));
     assert!(actions_mod.contains("SetSecondaryNumber"));
-    assert!(automation_helpers.contains("open_primary_group_picker"));
-    assert!(automation_helpers.contains("set_secondary_number"));
     assert!(shared_options_actions.contains("UiAction::OpenPrimaryGroupPicker"));
     assert!(shared_options_actions.contains("UiAction::SetSecondaryNumber"));
 }
@@ -1291,11 +1301,8 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
         .expect("list module should be readable");
     let chrome_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/chrome.rs"))
         .expect("chrome module should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
     let frame_text_cache = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/frame_text_cache.rs"
@@ -1315,7 +1322,6 @@ fn compat_browser_contract_uses_generic_item_label_fields() {
     assert!(!browser_mod.contains("can_normalize_focused_item"));
     assert!(!browser_mod.contains("can_loop_crossfade_focused_item"));
     assert!(list_mod_contains_content_actions());
-    assert!(automation_browser.contains("focused_item_label"));
     assert!(frame_text_cache.contains("items_tab_text"));
 }
 
@@ -1336,16 +1342,10 @@ fn compat_action_catalog_uses_generic_item_language_for_discard_flow() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
 
     assert!(!actions_mod.contains("MoveTrashedSamplesToFolder"));
     assert!(actions_mod.contains("MoveDiscardedItemsToFolder"));
-    assert!(!automation_helpers.contains("move_trashed_samples_to_folder"));
-    assert!(automation_helpers.contains("move_discarded_items_to_folder"));
 }
 
 #[test]
@@ -1355,11 +1355,8 @@ fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let pointer_routing = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/input/pointer.rs"
@@ -1371,7 +1368,6 @@ fn compat_action_catalog_uses_generic_loaded_content_focus_action() {
         assert!(!source.contains("focus_loaded_sample_in_browser"));
     }
     assert!(actions_mod.contains("FocusLoadedContentInList"));
-    assert!(automation_helpers.contains("focus_loaded_content_in_list"));
     assert!(pointer_routing.contains("UiAction::FocusLoadedContentInList"));
 }
 
@@ -1382,18 +1378,14 @@ fn compat_action_catalog_uses_generic_compare_anchor_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
 
     for source in [&actions_mod, &automation_helpers] {
         assert!(!source.contains("SetCompareAnchorFromFocusedBrowserSample"));
         assert!(!source.contains("set_compare_anchor_from_focused_browser_sample"));
     }
     assert!(actions_mod.contains("SetCompareAnchorFromFocusedContent"));
-    assert!(automation_helpers.contains("set_compare_anchor_from_focused_content"));
 }
 
 #[test]
@@ -1403,11 +1395,8 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let key_bindings = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/tests/key_bindings.rs"
@@ -1419,7 +1408,6 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
         assert!(!source.contains("toggle_browser_sample_mark"));
     }
     assert!(actions_mod.contains("ToggleContentMark"));
-    assert!(automation_helpers.contains("toggle_content_mark"));
     assert!(key_bindings.contains("UiAction::ToggleContentMark"));
 }
 
@@ -1430,18 +1418,14 @@ fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
 
     for source in [&actions_mod, &automation_helpers] {
         assert!(!source.contains("TagBrowserSelection"));
         assert!(!source.contains("tag_browser_selection"));
     }
     assert!(actions_mod.contains("SetBrowserTriageMark"));
-    assert!(automation_helpers.contains("set_browser_triage_mark"));
 }
 
 #[test]
@@ -1451,16 +1435,10 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
     let text_runtime = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/text_runtime.rs"
@@ -1488,9 +1466,6 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
     assert!(actions_mod.contains("FocusBrowserPillEditorInput"));
     assert!(actions_mod.contains("SetBrowserPillEditorInput"));
     assert!(actions_mod.contains("CommitBrowserPillEditorInput"));
-    assert!(automation_helpers.contains("focus_browser_pill_editor_input"));
-    assert!(automation_helpers.contains("set_browser_pill_editor_input"));
-    assert!(automation_helpers.contains("commit_browser_pill_editor_input"));
 }
 
 #[test]
@@ -1500,11 +1475,8 @@ fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
 
     for source in [&actions_mod, &automation_helpers] {
         assert!(!source.contains("ToggleBrowserTagSidebar"));
@@ -1512,8 +1484,6 @@ fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
     }
     assert!(actions_mod.contains("ToggleBrowserPillEditor"));
     assert!(actions_mod.contains("ToggleBrowserPillEditorPrimaryAction"));
-    assert!(automation_helpers.contains("toggle_browser_pill_editor"));
-    assert!(automation_helpers.contains("toggle_browser_pill_editor_primary_action"));
 }
 
 #[test]
@@ -1559,11 +1529,8 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
         "/src/gui_runtime/native_vello/text_runtime.rs"
     ))
     .expect("text runtime should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
 
     for source in [&browser_mod, &text_runtime, &automation_browser] {
         assert!(!source.contains("tag_sidebar: BrowserPillEditorModel"));
@@ -1579,11 +1546,6 @@ fn compat_browser_model_uses_generic_pill_editor_fields() {
     assert!(list_mod.contains("pub pill_editor: Editor"));
     assert!(list_mod.contains("pub pill_editor_open: bool"));
     assert!(text_runtime.contains("self.model.browser.pill_editor.input_value"));
-    assert!(automation_browser.contains("model.browser.pill_editor"));
-    assert!(automation_browser.contains("browser.pill_editor"));
-    assert!(automation_browser.contains("option_pill_labels"));
-    assert!(automation_browser.contains("pill_state"));
-    assert!(automation_browser.contains("pill_id"));
 }
 
 #[test]
@@ -1618,24 +1580,16 @@ fn compat_action_catalog_uses_generic_pill_option_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
 
     for source in [&actions_mod, &automation_helpers, &automation_browser] {
         assert!(!source.contains("ToggleBrowserSidebarNormalTag"));
         assert!(!source.contains("toggle_browser_sidebar_normal_tag"));
     }
     assert!(actions_mod.contains("ToggleBrowserPillOption"));
-    assert!(automation_helpers.contains("toggle_browser_pill_option"));
-    assert!(automation_browser.contains("toggle_browser_pill_option"));
 }
 
 #[test]
@@ -1645,24 +1599,16 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
 
     for source in [&actions_mod, &automation_helpers, &automation_browser] {
         assert!(!source.contains("ToggleBrowserTagNamedFilter"));
         assert!(!source.contains("toggle_browser_tag_named_filter"));
     }
     assert!(actions_mod.contains("ToggleBrowserDerivedLabelFilter"));
-    assert!(automation_helpers.contains("toggle_browser_derived_label_filter"));
-    assert!(automation_browser.contains("toggle_browser_derived_label_filter"));
 }
 
 #[test]
@@ -1684,11 +1630,8 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
         "/../../src/app_core/native_shell/composition/state/hit_testing/browser.rs"
     ))
     .expect("shared browser hit testing should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
     let aliases_mod = host_aliases_mod();
 
     for source in [
@@ -1707,7 +1650,6 @@ fn compat_browser_model_uses_generic_derived_label_filter_fields() {
     assert!(list_mod.contains("derived_label_filter_negated"));
     assert!(shared_toolbar.contains("derived_label_filter_chip"));
     assert!(shared_hit_testing.contains("browser_derived_label_filter_chip_rect"));
-    assert!(automation_browser.contains("browser.derived_label_filter"));
 }
 
 #[test]
@@ -1717,11 +1659,8 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let key_bindings = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/tests/key_bindings.rs"
@@ -1749,7 +1688,6 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
         assert!(!source.contains("toggle_find_similar_focused_sample"));
     }
     assert!(actions_mod.contains("ToggleFindSimilarFocusedContent"));
-    assert!(automation_helpers.contains("toggle_find_similar_focused_content"));
     assert!(key_bindings.contains("UiAction::ToggleFindSimilarFocusedContent"));
     assert!(browser_pointer.contains("UiAction::ToggleFindSimilarFocusedContent"));
 }
@@ -1761,11 +1699,8 @@ fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let key_bindings = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/tests/key_bindings.rs"
@@ -1777,7 +1712,6 @@ fn compat_action_catalog_uses_generic_normalize_focused_content_action() {
         assert!(!source.contains("normalize_focused_browser_sample"));
     }
     assert!(actions_mod.contains("NormalizeFocusedContentItem"));
-    assert!(automation_helpers.contains("normalize_focused_content_item"));
     assert!(key_bindings.contains("UiAction::NormalizeFocusedContentItem"));
 }
 
@@ -1788,11 +1722,8 @@ fn compat_action_catalog_uses_generic_random_content_actions() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
 
     for source in [&actions_mod, &automation_helpers] {
         assert!(!source.contains("PlayRandomSample"));
@@ -1802,8 +1733,6 @@ fn compat_action_catalog_uses_generic_random_content_actions() {
     }
     assert!(actions_mod.contains("PlayRandomContentItem"));
     assert!(actions_mod.contains("PlayPreviousRandomContentItem"));
-    assert!(automation_helpers.contains("play_random_content_item"));
-    assert!(automation_helpers.contains("play_previous_random_content_item"));
 }
 
 #[test]
@@ -1813,16 +1742,10 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
-    let automation_browser = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/browser.rs"
-    ))
-    .expect("automation browser should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
+    assert_native_shell_automation_removed();
+    let automation_browser = String::new();
     let runtime_actions = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/runtime_actions.rs"
@@ -1859,8 +1782,6 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     }
     assert!(actions_mod.contains("FocusSpatialContentItem"));
     assert!(actions_mod.contains("content_id: String"));
-    assert!(automation_helpers.contains("focus_spatial_content_item"));
-    assert!(automation_browser.contains("focus_spatial_content_item"));
     assert!(runtime_actions.contains("UiAction::FocusSpatialContentItem"));
     assert!(runtime_drag.contains("UiAction::FocusSpatialContentItem"));
     assert!(runtime_drag.contains("spatial_content_action_at_point"));
@@ -1874,11 +1795,8 @@ fn compat_action_catalog_uses_generic_content_item_drag_actions() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
     let legacy_shell_runner = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui_runtime/native_vello/legacy_shell_runner.rs"
@@ -1915,9 +1833,6 @@ fn compat_action_catalog_uses_generic_content_item_drag_actions() {
     assert!(actions_mod.contains("StartContentItemDrag"));
     assert!(actions_mod.contains("UpdateContentItemDrag"));
     assert!(actions_mod.contains("FinishContentItemDrag"));
-    assert!(automation_helpers.contains("start_content_item_drag"));
-    assert!(automation_helpers.contains("update_content_item_drag"));
-    assert!(automation_helpers.contains("finish_content_item_drag"));
     assert!(legacy_shell_runner.contains("content_item_drag: Option<ContentItemDragState>"));
     assert!(runtime_state.contains("pub(super) struct ContentItemDragState"));
     assert!(runtime_drag.contains("UiAction::StartContentItemDrag"));
@@ -1930,11 +1845,8 @@ fn compat_action_catalog_uses_generic_waveform_content_actions() {
         "/src/compat/legacy_shell/actions/mod.rs"
     ))
     .expect("actions module should be readable");
-    let automation_helpers = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/automation/helpers.rs"
-    ))
-    .expect("automation helpers should be readable");
+    assert_native_shell_automation_removed();
+    let automation_helpers = String::new();
 
     for source in [&actions_mod, &automation_helpers] {
         assert!(!source.contains("NormalizeWaveformSelectionOrSample"));
@@ -1947,9 +1859,6 @@ fn compat_action_catalog_uses_generic_waveform_content_actions() {
     assert!(actions_mod.contains("NormalizeWaveformSelectionOrLoadedContent"));
     assert!(actions_mod.contains("CropWaveformSelectionToNewContentItem"));
     assert!(actions_mod.contains("DeleteLoadedWaveformContent"));
-    assert!(automation_helpers.contains("normalize_waveform_selection_or_loaded_content"));
-    assert!(automation_helpers.contains("crop_waveform_selection_to_new_content_item"));
-    assert!(automation_helpers.contains("delete_loaded_waveform_content"));
 }
 
 #[test]

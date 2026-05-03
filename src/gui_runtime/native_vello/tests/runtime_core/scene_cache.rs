@@ -127,7 +127,7 @@ fn modal_overlay_signature_changes_for_drag_chip_pointer_motion() {
     changed.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("content-item-1"),
-        target_label: String::from("Folder: drums"),
+        target_label: String::from("Group: content"),
         valid_target: true,
         pointer_x: Some(320),
         pointer_y: Some(240),
@@ -149,7 +149,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
     baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("content-item-1"),
-        target_label: String::from("Folder: drums"),
+        target_label: String::from("Group: content"),
         valid_target: true,
         pointer_x: Some(320),
         pointer_y: Some(240),
@@ -181,7 +181,7 @@ fn focus_overlay_signature_ignores_drag_chip_pointer_motion() {
     baseline.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("content-item-1"),
-        target_label: String::from("Folder: drums"),
+        target_label: String::from("Group: content"),
         valid_target: true,
         pointer_x: Some(320),
         pointer_y: Some(240),
@@ -236,12 +236,12 @@ fn focus_overlay_signature_ignores_selected_only_browser_text_changes() {
         .rows
         .push(crate::compat_app_contract::BrowserRowModel::new(
             0,
-            String::from("kick"),
+            String::from("content-item-1"),
             1,
             true,
             false,
         ));
-    baseline.browser.rows.make_mut()[0].bucket_label = Some(String::from("drums").into());
+    baseline.browser.rows.make_mut()[0].bucket_label = Some(String::from("group-a").into());
     baseline.browser.rows.make_mut()[0].rating_level = 3;
     baseline.browser.rows.make_mut()[0].missing = true;
     let shell = FocusOverlayFingerprint {
@@ -250,8 +250,8 @@ fn focus_overlay_signature_ignores_selected_only_browser_text_changes() {
     let baseline_signature = focus_overlay_model_signature(&baseline, &shell);
 
     let mut changed = baseline.clone();
-    changed.browser.rows.make_mut()[0].label = String::from("snare").into();
-    changed.browser.rows.make_mut()[0].bucket_label = Some(String::from("perc").into());
+    changed.browser.rows.make_mut()[0].label = String::from("content-item-2").into();
+    changed.browser.rows.make_mut()[0].bucket_label = Some(String::from("group-b").into());
     changed.browser.rows.make_mut()[0].rating_level = -2;
     changed.browser.rows.make_mut()[0].missing = false;
 
@@ -270,7 +270,7 @@ fn focus_overlay_signature_changes_for_selected_only_browser_marker_state() {
         .rows
         .push(crate::compat_app_contract::BrowserRowModel::new(
             0,
-            String::from("kick"),
+            String::from("content-item-1"),
             1,
             true,
             false,

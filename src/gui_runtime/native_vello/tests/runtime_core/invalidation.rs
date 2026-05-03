@@ -107,7 +107,7 @@ fn action_scope_classification_routes_waveform_actions_by_cost() {
 fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_actions() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserSearch {
-            query: String::from("kick"),
+            query: String::from("item-a"),
         }),
         RuntimeInvalidationScope::ModelAndOverlays
     );

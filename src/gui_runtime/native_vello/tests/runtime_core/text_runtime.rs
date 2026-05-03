@@ -9,8 +9,8 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
     let text_rect = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 16.0));
 
     runner.text_input_target = TextInputTarget::BrowserSearch;
-    runner.text_input_buffer = Some(String::from("kick"));
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("kick"));
+    runner.text_input_buffer = Some(String::from("item-a"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("item-a"));
 
     let first = runner
         .build_active_text_field_visual_state(&layout, text_rect)
@@ -29,12 +29,12 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
         Some(first_cache.clone())
     );
 
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("kick"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("item-a"));
     runner
         .text_editor_state
         .as_mut()
         .expect("editor state")
-        .move_left("kick", false);
+        .move_left("item-a", false);
     let moved = runner
         .build_active_text_field_visual_state(&layout, text_rect)
         .expect("browser search visual after cursor move");
@@ -45,8 +45,8 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
     assert_ne!(moved_cache.editor, first_cache.editor);
     assert!(moved.caret_offset < first.caret_offset);
 
-    runner.text_input_buffer = Some(String::from("snare"));
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("snare"));
+    runner.text_input_buffer = Some(String::from("item-b"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("item-b"));
     let renamed = runner
         .build_active_text_field_visual_state(&layout, text_rect)
         .expect("browser search visual after text change");
@@ -54,6 +54,6 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
         .active_text_field_visual_cache
         .as_ref()
         .expect("cache entry after text change");
-    assert_eq!(renamed_cache.text, "snare");
-    assert_eq!(renamed.text, "snare");
+    assert_eq!(renamed_cache.text, "item-b");
+    assert_eq!(renamed.text, "item-b");
 }

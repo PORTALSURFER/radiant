@@ -1,7 +1,7 @@
 //! Standalone native Radiant example using the generic runtime surface.
 
 use radiant::{
-    layout::{ContainerKind, ContainerPolicy, SlotParams, Vector2},
+    layout::Vector2,
     runtime::{
         Command, NativeRunOptions, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
         declarative_command_runtime_bridge, run_native_vello_runtime,
@@ -60,27 +60,17 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         WidgetSizing::fixed(Vector2::new(96.0, 32.0)),
     ));
 
-    Arc::new(UiSurface::new(SurfaceNode::container(
+    Arc::new(UiSurface::new(SurfaceNode::row(
         1,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: 12.0,
-            ..ContainerPolicy::default()
-        },
+        12.0,
         vec![
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(title, WidgetMessageMapper::None),
-            ),
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(
-                    button,
-                    WidgetMessageMapper::button(|message| match message {
-                        ButtonMessage::Activate => DemoMessage::ButtonPressed,
-                    }),
-                ),
-            ),
+            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::widget(
+                button,
+                WidgetMessageMapper::button(|message| match message {
+                    ButtonMessage::Activate => DemoMessage::ButtonPressed,
+                }),
+            )),
         ],
     )))
 }

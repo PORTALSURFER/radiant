@@ -1,7 +1,7 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
 use radiant::{
-    layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
+    layout::{Point, Rect, Vector2, layout_tree},
     runtime::{
         App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
         NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
@@ -123,6 +123,57 @@ fn view_and_element_aliases_match_runtime_surface_types() {
 
     assert_eq!(root.id(), 1);
     assert!(surface.find_widget(11).is_some());
+}
+
+#[test]
+fn surface_node_row_column_and_fill_helpers_project_layout() {
+    let header = WidgetSpec::Text(TextWidget::new(
+        20,
+        "Header",
+        WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+    ));
+    let primary = WidgetSpec::Button(ButtonWidget::new(
+        21,
+        "Primary",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
+    let secondary = WidgetSpec::Button(ButtonWidget::new(
+        22,
+        "Secondary",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
+
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::column(
+        2,
+        6.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::widget(header, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::row(
+                3,
+                8.0,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        primary,
+                        WidgetMessageMapper::button(|_| DemoMessage::Increment),
+                    )),
+                    SurfaceChild::fill(SurfaceNode::widget(
+                        secondary,
+                        WidgetMessageMapper::button(|_| DemoMessage::Increment),
+                    )),
+                ],
+            )),
+        ],
+    ));
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 80.0)),
+    );
+
+    assert!(output.rects.contains_key(&2));
+    assert!(output.rects.contains_key(&3));
+    assert!(output.rects.contains_key(&20));
+    assert!(output.rects.contains_key(&21));
+    assert!(output.rects.contains_key(&22));
 }
 
 #[test]
@@ -491,35 +542,23 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
     ));
 
-    Arc::new(UiSurface::new(SurfaceNode::container(
+    Arc::new(UiSurface::new(SurfaceNode::row(
         1,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: 8.0,
-            ..ContainerPolicy::default()
-        },
+        8.0,
         vec![
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(title, WidgetMessageMapper::None),
-            ),
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(
-                    button,
-                    WidgetMessageMapper::button(|_| DemoMessage::Increment),
-                ),
-            ),
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(
-                    input,
-                    WidgetMessageMapper::text_input(|message| match message {
-                        TextInputMessage::Changed { value }
-                        | TextInputMessage::Submitted { value } => DemoMessage::Rename(value),
-                    }),
-                ),
-            ),
+            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::widget(
+                button,
+                WidgetMessageMapper::button(|_| DemoMessage::Increment),
+            )),
+            SurfaceChild::fill(SurfaceNode::widget(
+                input,
+                WidgetMessageMapper::text_input(|message| match message {
+                    TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                        DemoMessage::Rename(value)
+                    }
+                }),
+            )),
         ],
     )))
 }
@@ -583,29 +622,16 @@ fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMessa
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
     ));
 
-    Arc::new(UiSurface::new(SurfaceNode::container(
+    Arc::new(UiSurface::new(SurfaceNode::row(
         1,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: 8.0,
-            ..ContainerPolicy::default()
-        },
+        8.0,
         vec![
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(title, WidgetMessageMapper::None),
-            ),
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(
-                    button,
-                    WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
-                ),
-            ),
-            SurfaceChild::new(
-                SlotParams::fill(),
-                SurfaceNode::widget(input, WidgetMessageMapper::None),
-            ),
+            SurfaceChild::fill(SurfaceNode::widget(title, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::widget(
+                button,
+                WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
+            )),
+            SurfaceChild::fill(SurfaceNode::widget(input, WidgetMessageMapper::None)),
         ],
     )))
 }

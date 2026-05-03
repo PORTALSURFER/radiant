@@ -3,7 +3,9 @@
 use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
     gui::types::Rect,
-    layout::{ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams},
+    layout::{
+        ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams,
+    },
     theme::ThemeTokens,
     widgets::{
         ButtonMessage, FocusBehavior, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId,
@@ -160,6 +162,11 @@ impl<Message> SurfaceChild<Message> {
     pub fn new(slot: SlotParams, child: SurfaceNode<Message>) -> Self {
         Self { slot, child }
     }
+
+    /// Build a child that fills the parent slot on both axes.
+    pub fn fill(child: SurfaceNode<Message>) -> Self {
+        Self::new(SlotParams::fill(), child)
+    }
 }
 
 /// A generic declarative container node built on top of public layout policy.
@@ -215,6 +222,32 @@ impl<Message> SurfaceNode<Message> {
         children: Vec<SurfaceChild<Message>>,
     ) -> Self {
         Self::Container(SurfaceContainer::new(id, policy, children))
+    }
+
+    /// Build a row container with default policy and the requested spacing.
+    pub fn row(id: NodeId, spacing: f32, children: Vec<SurfaceChild<Message>>) -> Self {
+        Self::container(
+            id,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing,
+                ..ContainerPolicy::default()
+            },
+            children,
+        )
+    }
+
+    /// Build a column container with default policy and the requested spacing.
+    pub fn column(id: NodeId, spacing: f32, children: Vec<SurfaceChild<Message>>) -> Self {
+        Self::container(
+            id,
+            ContainerPolicy {
+                kind: ContainerKind::Column,
+                spacing,
+                ..ContainerPolicy::default()
+            },
+            children,
+        )
     }
 
     /// Build a widget leaf node.

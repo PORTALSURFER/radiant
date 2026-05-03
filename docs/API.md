@@ -47,6 +47,11 @@ entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
 `ScrollbarWidget`, `CanvasWidget`, and `ListItemWidget` describe reusable UI
 behavior without host-domain semantics.
 
+Common declarative composition should use `SurfaceNode::row`,
+`SurfaceNode::column`, and `SurfaceChild::fill` when a host only needs ordered
+row/column structure and fill slots. Lower-level `SurfaceNode::container` plus
+`ContainerPolicy` and `SlotParams` remains available for custom layout policy.
+
 Widget identity is explicit through stable `WidgetId` values. Stable identity is
 required for focus, input capture, message routing, and efficient updates.
 

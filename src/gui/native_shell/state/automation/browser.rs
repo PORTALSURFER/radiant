@@ -132,9 +132,9 @@ pub(super) fn build_browser_automation(
     }
     for button in buttons {
         children.push(simple_node(
-            format!("browser.action.{}", slug(button.label)),
+            format!("browser.action.{}", slug(&button.label)),
             AutomationRole::Button,
-            Some(String::from(button.label)),
+            Some(button.label.clone()),
             button.rect,
             None,
             button.enabled,

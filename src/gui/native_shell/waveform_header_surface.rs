@@ -26,7 +26,7 @@ const WAVEFORM_HEADER_FILL_ID: u64 = 1124;
 /// User-facing content projected into the generic waveform-header surface.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct WaveformHeaderSurfaceContent {
-    /// Primary loaded-sample title shown on the first row.
+    /// Primary loaded content title shown on the first row.
     pub title: String,
     /// Compact waveform metadata shown on the second row.
     pub metadata: String,

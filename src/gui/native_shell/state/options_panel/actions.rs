@@ -106,10 +106,10 @@ pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String,
 }
 
 pub(super) fn options_panel_title(model: &AppModel) -> String {
-    model
-        .paired_device_panel()
+    let paired_device = model.paired_device_panel();
+    paired_device
         .active_picker()
-        .map(audio_picker_title)
+        .map(|target| paired_picker_title(paired_device, target))
         .unwrap_or_else(|| String::from("Audio Engine"))
 }
 
@@ -148,15 +148,30 @@ pub(super) fn picker_action(value: &native_model::PairedPickerValueModel) -> UiA
     }
 }
 
-/// Return the title text for the active audio picker target.
-fn audio_picker_title(target: native_model::PairedPickerTargetModel) -> String {
+/// Return the title text for the active paired-picker target.
+fn paired_picker_title(
+    paired_device: &native_model::PairedDevicePanelModel,
+    target: native_model::PairedPickerTargetModel,
+) -> String {
     match target {
-        native_model::PairedPickerTargetModel::PrimaryGroup => String::from("Output Host"),
-        native_model::PairedPickerTargetModel::PrimaryItem => String::from("Output Device"),
-        native_model::PairedPickerTargetModel::PrimaryNumber => String::from("Output Sample Rate"),
-        native_model::PairedPickerTargetModel::SecondaryGroup => String::from("Input Host"),
-        native_model::PairedPickerTargetModel::SecondaryItem => String::from("Input Device"),
-        native_model::PairedPickerTargetModel::SecondaryNumber => String::from("Input Sample Rate"),
+        native_model::PairedPickerTargetModel::PrimaryGroup => {
+            paired_device.primary_group().label.clone()
+        }
+        native_model::PairedPickerTargetModel::PrimaryItem => {
+            paired_device.primary_item().label.clone()
+        }
+        native_model::PairedPickerTargetModel::PrimaryNumber => {
+            paired_device.primary_number().label.clone()
+        }
+        native_model::PairedPickerTargetModel::SecondaryGroup => {
+            paired_device.secondary_group().label.clone()
+        }
+        native_model::PairedPickerTargetModel::SecondaryItem => {
+            paired_device.secondary_item().label.clone()
+        }
+        native_model::PairedPickerTargetModel::SecondaryNumber => {
+            paired_device.secondary_number().label.clone()
+        }
     }
 }
 

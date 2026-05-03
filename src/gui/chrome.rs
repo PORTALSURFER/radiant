@@ -19,8 +19,12 @@ pub struct StatusSegments {
 pub struct ContentViewChrome {
     /// Label for the primary item/list tab.
     pub items_tab_label: String,
+    /// Label for the primary item/list column header.
+    pub item_column_label: String,
     /// Label for the secondary map or visualization tab.
     pub map_tab_label: String,
+    /// Label for the pill/badge editor action.
+    pub pill_editor_label: String,
     /// Prefix label shown before active search queries.
     pub search_prefix_label: String,
     /// Placeholder label shown when no search query is active.
@@ -43,7 +47,9 @@ impl Default for ContentViewChrome {
     fn default() -> Self {
         Self {
             items_tab_label: String::from("Items"),
+            item_column_label: String::from("Item"),
             map_tab_label: String::from("Map"),
+            pill_editor_label: String::from("Pills"),
             search_prefix_label: String::from("Search"),
             search_placeholder: String::from("Search items (Ctrl+F)"),
             activity_ready_label: String::from("Ready"),
@@ -72,7 +78,9 @@ mod tests {
         let chrome = ContentViewChrome::default();
 
         assert_eq!(chrome.items_tab_label, "Items");
+        assert_eq!(chrome.item_column_label, "Item");
         assert_eq!(chrome.map_tab_label, "Map");
+        assert_eq!(chrome.pill_editor_label, "Pills");
         assert_eq!(chrome.search_placeholder, "Search items (Ctrl+F)");
         assert_eq!(chrome.activity_busy_label, "Filtering");
         assert_eq!(chrome.item_count_label, "0 items");

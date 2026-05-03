@@ -12,7 +12,7 @@ pub(super) struct BrowserToolbarSurfaceWidths {
     pub(super) filter_side: f32,
     pub(super) action_side: f32,
     pub(super) search_width: f32,
-    pub(super) tag_width: f32,
+    pub(super) pill_width: f32,
     pub(super) activity_width: f32,
     pub(super) sort_width: f32,
     pub(super) gap: f32,
@@ -111,8 +111,13 @@ pub(super) fn build_toolbar_children(
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
     children.push(SurfaceChild::new(
-        fixed_slot(widths.tag_width, search_height),
-        button_widget(TOOLBAR_TAGS_ID, "Tags", widths.tag_width, search_height),
+        fixed_slot(widths.pill_width, search_height),
+        button_widget(
+            TOOLBAR_PILLS_ID,
+            &content.pill_editor_label,
+            widths.pill_width,
+            search_height,
+        ),
     ));
     if widths.activity_width > 0.0 {
         children.push(spacer_child(spacer_id, widths.gap));
@@ -181,7 +186,7 @@ pub(super) fn browser_toolbar_surface_widths(
             filter_side: 0.0,
             action_side: 0.0,
             search_width: 0.0,
-            tag_width: 0.0,
+            pill_width: 0.0,
             activity_width: 0.0,
             sort_width: 0.0,
             gap,
@@ -246,7 +251,7 @@ pub(super) fn browser_toolbar_surface_widths(
         search_width: desired_search_width
             .min(remaining_after_filters.max(min_search_width))
             .max(0.0),
-        tag_width: if action_side > 0.0 {
+        pill_width: if action_side > 0.0 {
             (action_side * 2.4).clamp(44.0, 72.0).min(available)
         } else {
             0.0

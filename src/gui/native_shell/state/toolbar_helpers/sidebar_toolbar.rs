@@ -202,7 +202,7 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
         .map(
             |(layout, (label, enabled, action, text_color))| ActionButton {
                 rect: layout.rect,
-                label,
+                label: String::from(label),
                 icon: None,
                 enabled,
                 active: false,
@@ -296,7 +296,7 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
         );
         buttons.push(ActionButton {
             rect,
-            label,
+            label: String::from(label),
             icon: None,
             enabled,
             active: false,
@@ -361,7 +361,7 @@ pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
             .into_iter()
             .map(|(label, enabled, action, text_color)| ActionButton {
                 rect,
-                label,
+                label: String::from(label),
                 icon: None,
                 enabled,
                 active: false,

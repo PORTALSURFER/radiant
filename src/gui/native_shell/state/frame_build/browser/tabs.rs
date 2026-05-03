@@ -38,7 +38,7 @@ pub(super) fn render_browser_table_header(
     emit_text(
         text_runs,
         TextRun {
-            text: String::from("Sample"),
+            text: ctx.model.browser_chrome.item_column_label.clone(),
             position: header_text_layout.sample_label.min,
             font_size: ctx.sizing.font_meta,
             color: ctx.style.text_primary,
@@ -81,7 +81,7 @@ pub(super) fn render_browser_tabs(
     );
     let wave = if animated { ctx.motion_wave * 0.1 } else { 0.0 };
     let map_active = ctx.model.map.active;
-    let (samples_fill, map_fill, samples_border, map_border, samples_text_color, map_text_color) =
+    let (items_fill, map_fill, items_border, map_border, items_text_color, map_text_color) =
         if !map_active {
             (
                 blend_color(
@@ -121,7 +121,7 @@ pub(super) fn render_browser_tabs(
         primitives,
         Primitive::Rect(FillRect {
             rect: tabs.items,
-            color: samples_fill,
+            color: items_fill,
         }),
     );
     emit_primitive(
@@ -134,7 +134,7 @@ pub(super) fn render_browser_tabs(
     push_border(
         primitives,
         tabs.items,
-        samples_border,
+        items_border,
         ctx.sizing.border_width,
     );
     push_border(primitives, tabs.map, map_border, ctx.sizing.border_width);
@@ -144,7 +144,7 @@ pub(super) fn render_browser_tabs(
             text: cached_text.items_tab_label.clone(),
             position: cached_text.tabs_text_layout.items_label.min,
             font_size: ctx.sizing.font_header,
-            color: samples_text_color,
+            color: items_text_color,
             max_width: Some(cached_text.tabs_text_layout.items_label.width().max(40.0)),
             align: TextAlign::Left,
         },

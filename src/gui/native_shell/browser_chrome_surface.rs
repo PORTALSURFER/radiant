@@ -37,7 +37,7 @@ const TOOLBAR_DERIVED_LABEL_ID: u64 = 1271;
 const TOOLBAR_RANDOM_ID: u64 = 1272;
 const TOOLBAR_CLEANUP_ID: u64 = 1273;
 const TOOLBAR_SEARCH_ID: u64 = 1274;
-const TOOLBAR_TAGS_ID: u64 = 1275;
+const TOOLBAR_PILLS_ID: u64 = 1275;
 const TOOLBAR_ACTIVITY_ID: u64 = 1276;
 const TOOLBAR_SORT_ID: u64 = 1277;
 const TOOLBAR_TRIAGE_BASE_ID: u64 = 1280;
@@ -71,6 +71,8 @@ pub(crate) struct BrowserToolbarSurfaceContent {
     pub search_value: String,
     /// Search-field placeholder text.
     pub search_placeholder: String,
+    /// Pill/badge editor action label.
+    pub pill_editor_label: String,
     /// Activity chip label.
     pub activity_label: String,
     /// Sort chip label.
@@ -88,7 +90,7 @@ pub(crate) struct BrowserToolbarSurfaceLayout {
     pub marked_filter_chip: Rect,
     /// Derived-label-filter chip bounds.
     pub derived_label_filter_chip: Rect,
-    /// Toolbar action button bounds in `Random`, `Cleanup`, `Tags` order.
+    /// Toolbar action button bounds in `Random`, `Cleanup`, `Pills` order.
     pub action_slots: [Rect; 3],
     /// Search-field bounds.
     pub search_field: Rect,
@@ -121,6 +123,7 @@ pub(crate) fn browser_toolbar_surface_content(model: &AppModel) -> BrowserToolba
     BrowserToolbarSurfaceContent {
         search_value: model.browser.search_query.clone(),
         search_placeholder: model.browser_chrome.search_placeholder.clone(),
+        pill_editor_label: model.browser_chrome.pill_editor_label.clone(),
         activity_label: if model.browser.busy {
             model.browser_chrome.activity_busy_label.clone()
         } else {
@@ -190,7 +193,7 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
                 toolbar_rect,
             ),
             clamp_rect_to_bounds(
-                rect_for(&output.rects, TOOLBAR_TAGS_ID, empty),
+                rect_for(&output.rects, TOOLBAR_PILLS_ID, empty),
                 toolbar_rect,
             ),
         ],

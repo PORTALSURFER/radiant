@@ -16,7 +16,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     if toolbar.action_slots[0].width() > 1.0 {
         buttons.push(ActionButton {
             rect: toolbar.action_slots[0],
-            label: "Random",
+            label: String::from("Random"),
             icon: Some(WaveformToolbarIcon::Dice),
             enabled: true,
             active: model.browser_actions.random_navigation_enabled,
@@ -31,7 +31,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     if toolbar.action_slots[1].width() > 1.0 {
         buttons.push(ActionButton {
             rect: toolbar.action_slots[1],
-            label: "Cleanup",
+            label: String::from("Cleanup"),
             icon: Some(WaveformToolbarIcon::Filter),
             enabled: true,
             active: model.browser_actions.duplicate_cleanup_active,
@@ -46,7 +46,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     if toolbar.action_slots[2].width() > 1.0 {
         buttons.push(ActionButton {
             rect: toolbar.action_slots[2],
-            label: "Tags",
+            label: model.browser_chrome.pill_editor_label.clone(),
             icon: None,
             enabled: true,
             active: model.browser_actions.pill_editor_open(),

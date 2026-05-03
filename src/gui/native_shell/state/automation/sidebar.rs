@@ -28,9 +28,9 @@ pub(super) fn build_sidebar_automation(
     }
     for button in source_action_buttons(layout, style, model) {
         children.push(simple_node(
-            format!("sources.action.{}", slug(button.label)),
+            format!("sources.action.{}", slug(&button.label)),
             AutomationRole::Button,
-            Some(String::from(button.label)),
+            Some(button.label.clone()),
             button.rect,
             None,
             button.enabled,

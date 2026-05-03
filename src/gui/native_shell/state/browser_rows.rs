@@ -118,7 +118,7 @@ pub(super) struct BrowserRowsCacheKey {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ActionButton {
     pub(super) rect: Rect,
-    pub(super) label: &'static str,
+    pub(super) label: String,
     pub(super) icon: Option<WaveformToolbarIcon>,
     pub(super) enabled: bool,
     pub(super) active: bool,

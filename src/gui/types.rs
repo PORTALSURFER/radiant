@@ -173,6 +173,27 @@ impl Rect {
             snapped
         }
     }
+
+    /// Return a square anchored to the rectangle's top-right corner.
+    ///
+    /// Non-positive sides or empty rectangles return an empty rectangle at the
+    /// top-right anchor.
+    pub fn top_right_square(self, side: f32, inset: f32) -> Self {
+        let inset = inset.max(0.0);
+        let max = Point::new(
+            (self.max.x - inset).max(self.min.x),
+            (self.min.y + inset).min(self.max.y),
+        );
+        if self.width() <= 0.0 || self.height() <= 0.0 || side <= 0.0 {
+            return Self::from_min_max(max, max);
+        }
+        let side = side.min(self.width()).min(self.height());
+        Self::from_min_max(
+            Point::new(max.x - side, max.y),
+            Point::new(max.x, max.y + side),
+        )
+        .clamp_to(self)
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -268,6 +289,30 @@ mod tests {
         let rect = Rect::from_min_max(Point::new(10.4, 20.6), Point::new(12.1, 22.2));
 
         assert_eq!(rect.stroke_aligned_rect(0.25), rect);
+    }
+
+    #[test]
+    fn rect_top_right_square_places_square_inside_anchor() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 70.0));
+
+        assert_eq!(
+            rect.top_right_square(12.0, 3.0),
+            Rect::from_min_max(Point::new(35.0, 23.0), Point::new(47.0, 35.0))
+        );
+    }
+
+    #[test]
+    fn rect_top_right_square_clamps_to_bounds() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(18.0, 26.0));
+
+        assert_eq!(
+            rect.top_right_square(20.0, 1.0),
+            Rect::from_min_max(Point::new(11.0, 21.0), Point::new(17.0, 26.0))
+        );
+        assert_eq!(
+            rect.top_right_square(0.0, 1.0),
+            Rect::from_min_max(Point::new(17.0, 21.0), Point::new(17.0, 21.0))
+        );
     }
 }
 

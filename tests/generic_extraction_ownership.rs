@@ -574,6 +574,24 @@ fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn top_right_overlay_icon_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("types module should be readable");
+    let waveform_visuals_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/waveform_visuals.rs"
+    ))
+    .expect("waveform visuals module should be readable");
+
+    assert!(types_mod.contains("pub fn top_right_square"));
+    assert!(waveform_visuals_mod.contains("base.top_right_square(side, inset)"));
+    assert!(
+        !waveform_visuals_mod.contains("base.max.x - side - inset"),
+        "native waveform overlay icon geometry should delegate top-right square placement to gui::types"
+    );
+}
+
+#[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

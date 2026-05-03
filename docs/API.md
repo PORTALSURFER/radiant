@@ -202,6 +202,8 @@ into compact integer coordinates.
 pixel-snapped icon-box geometry for reusable controls.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border
 geometry.
+`Rect::top_right_square` provides anchored overlay geometry for controls that
+compose primary and secondary glyphs.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

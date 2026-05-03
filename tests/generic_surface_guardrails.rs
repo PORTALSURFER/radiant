@@ -1017,6 +1017,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "centered_pixel_square",
         "centered_odd_pixel_square",
         "stroke_aligned_rect",
+        "top_right_square",
         "## Automation",
         "Generic Panels And Forms",
         "InlineBadgeMetrics",

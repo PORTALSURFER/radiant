@@ -47,7 +47,6 @@ mod dirty_segments;
 mod motion;
 mod native_vello;
 mod shell;
-mod shell_snapshot;
 mod sources;
 mod waveform;
 
@@ -65,15 +64,12 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use motion::NativeMotionModel;
-pub use native_vello::{
-    capture_gui_automation_snapshot, run_native_vello_app, run_native_vello_app_with_artifacts,
-};
+pub use native_vello::{run_native_vello_app, run_native_vello_app_with_artifacts};
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
     PairedPickerValueModel, ProgressOverlayModel, StatusBarModel, StatusChipStateModel,
     SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
-pub use shell_snapshot::capture_native_shell_shot_snapshot;
 pub use sources::SourcesPanelModel;
 pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};

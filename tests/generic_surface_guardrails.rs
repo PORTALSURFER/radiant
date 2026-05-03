@@ -590,24 +590,14 @@ fn legacy_shell_sources_are_feature_gated() {
         !manifest_dir
             .join("src/gui_runtime/native_vello/shell_snapshot.rs")
             .exists(),
-        "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
+        "host shell snapshot capture must not live in the generic native Vello runtime tree"
     );
-    let shell_snapshot =
-        fs::read_to_string(manifest_dir.join("src/compat/legacy_shell/shell_snapshot.rs"))
-            .expect("legacy shell snapshot module should be readable");
-    for forbidden in [
-        "pub struct NativeShellShotColor",
-        "pub struct NativeShellShotPoint",
-        "pub struct NativeShellShotRect",
-        "pub enum NativeShellShotPrimitive",
-        "pub enum NativeShellShotAlign",
-        "pub struct NativeShellShotTextRun",
-    ] {
-        assert!(
-            !shell_snapshot.contains(forbidden),
-            "serializable visual snapshot DTO `{forbidden}` belongs in generic gui::snapshot"
-        );
-    }
+    assert!(
+        !manifest_dir
+            .join("src/compat/legacy_shell/shell_snapshot.rs")
+            .exists(),
+        "host shell snapshot capture belongs in the consuming application, not the Radiant compatibility facade"
+    );
     assert!(
         !manifest_dir
             .join("src/gui_runtime/native_vello/text_bpm.rs")
@@ -649,7 +639,6 @@ fn legacy_shell_sources_are_feature_gated() {
         "src/compat/legacy_shell/motion.rs",
         "src/compat/legacy_shell/native_vello.rs",
         "src/compat/legacy_shell/shell.rs",
-        "src/compat/legacy_shell/shell_snapshot.rs",
         "src/compat/legacy_shell/sources.rs",
         "src/compat/legacy_shell/waveform.rs",
     ] {
@@ -958,6 +947,11 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
     assert!(
         !source.contains("run_native_vello_app_declarative"),
         "Radiant legacy compatibility should expose one native Vello runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
+    );
+    assert!(
+        !source.contains("capture_gui_automation_snapshot")
+            && !source.contains("capture_native_shell_shot_snapshot"),
+        "host shell snapshot capture helpers belong in the consuming application once the local shell scaffold owns them"
     );
     assert!(
         !source.contains("run_native_vello_preview") && !source.contains("PreviewBridge"),

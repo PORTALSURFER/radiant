@@ -4,7 +4,8 @@ use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
-        ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, NodeId, SlotChild, SlotParams,
+        ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, NodeId, OverflowPolicy,
+        SlotChild, SlotParams, VirtualizationAxis, VirtualizationPolicy,
     },
     theme::ThemeTokens,
     widgets::{
@@ -289,6 +290,46 @@ impl<Message> SurfaceNode<Message> {
                 ..ContainerPolicy::default()
             },
             children,
+        )
+    }
+
+    /// Build a scroll-area container around one content child.
+    pub fn scroll_area(id: NodeId, child: SurfaceNode<Message>) -> Self {
+        Self::scroll_area_with_virtualization(id, child, None)
+    }
+
+    /// Build a scroll-area container with a linear virtualization policy.
+    pub fn virtual_scroll_area(
+        id: NodeId,
+        child: SurfaceNode<Message>,
+        axis: VirtualizationAxis,
+        overscan_px: f32,
+    ) -> Self {
+        Self::scroll_area_with_virtualization(
+            id,
+            child,
+            Some(VirtualizationPolicy {
+                enabled: true,
+                axis,
+                overscan_px,
+            }),
+        )
+    }
+
+    fn scroll_area_with_virtualization(
+        id: NodeId,
+        child: SurfaceNode<Message>,
+        virtualization: Option<VirtualizationPolicy>,
+    ) -> Self {
+        Self::container(
+            id,
+            ContainerPolicy {
+                kind: ContainerKind::ScrollView,
+                overflow: OverflowPolicy::Scroll,
+                virtualization,
+                ..ContainerPolicy::default()
+            },
+            vec![SurfaceChild::fill(child)],
         )
     }
 

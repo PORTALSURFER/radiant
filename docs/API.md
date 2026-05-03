@@ -65,6 +65,9 @@ common leaf widgets without requiring hosts to manually wrap `WidgetSpec`.
 background with nested rows, columns, labels, and controls. Lower-level
 `SurfaceNode::container` plus `ContainerPolicy` and `SlotParams` remains
 available for custom layout policy.
+`SurfaceNode::scroll_area` wraps one content child in a generic scroll viewport;
+`SurfaceNode::virtual_scroll_area` adds a `VirtualizationPolicy` for large
+linear lists without tying the framework API to any host content-list model.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is
 required for focus, input capture, message routing, and efficient updates.
@@ -100,6 +103,10 @@ Large item-indexed lists can use `VirtualListWindowRequest` and
 `VirtualListWindow` from `radiant::gui::list` before projecting widgets. This
 keeps host-side list projection bounded while `layout::VirtualizationPolicy`
 continues to handle pixel-based scroll-container virtualization.
+Declarative views can use `SurfaceNode::scroll_area` and
+`SurfaceNode::virtual_scroll_area` for the scroll viewport itself, then project
+generic rows, cards, images, badges, selectables, or host-defined canvas cells as
+children.
 Dense card or tile grids can use `VirtualGridWindowRequest` and
 `VirtualGridWindow` from the same module to resolve an allocation-free
 row-major item window before projecting visible grid cells.

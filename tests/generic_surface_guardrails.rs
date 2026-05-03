@@ -1025,6 +1025,8 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SurfaceNode::list_item_mapped",
         "SurfaceNode::selectable",
         "SurfaceNode::selectable_mapped",
+        "SurfaceNode::scroll_area",
+        "SurfaceNode::virtual_scroll_area",
         "SurfaceNode::image",
         "SurfaceNode::canvas",
         "WidgetSpec",

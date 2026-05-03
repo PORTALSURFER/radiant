@@ -36,7 +36,7 @@ pub(in crate::gui::native_shell::state) fn map_point_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn map_content_id_at_point(
+pub(in crate::gui::native_shell::state) fn spatial_content_id_at_point(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,

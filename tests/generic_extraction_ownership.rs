@@ -1157,8 +1157,8 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     assert!(automation_browser.contains("focus_spatial_content_item"));
     assert!(runtime_actions.contains("UiAction::FocusSpatialContentItem"));
     assert!(runtime_drag.contains("UiAction::FocusSpatialContentItem"));
-    assert!(runtime_drag.contains("map_content_action_at_point"));
-    assert!(runtime_pointer.contains("map_content_action_at_point"));
+    assert!(runtime_drag.contains("spatial_content_action_at_point"));
+    assert!(runtime_pointer.contains("spatial_content_action_at_point"));
 }
 
 #[test]

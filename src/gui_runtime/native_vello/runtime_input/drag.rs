@@ -221,7 +221,7 @@ where
         }
         let Some(action) = self
             .shell_state
-            .map_content_action_at_point(layout, &self.model, point)
+            .spatial_content_action_at_point(layout, &self.model, point)
         else {
             return false;
         };

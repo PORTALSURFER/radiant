@@ -441,8 +441,8 @@ impl NativeShellState {
             })
     }
 
-    /// Resolve a map-point click to a focus action when map tab is active.
-    pub(crate) fn map_content_action_at_point(
+    /// Resolve a spatial-content click to a focus action when spatial view is active.
+    pub(crate) fn spatial_content_action_at_point(
         &self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -451,11 +451,11 @@ impl NativeShellState {
         if !model.map.active {
             return None;
         }
-        map_content_id_at_point(layout, model, point).map(map_focus_action)
+        spatial_content_id_at_point(layout, model, point).map(spatial_focus_action)
     }
 }
 
-fn map_focus_action(content_id: String) -> UiAction {
+fn spatial_focus_action(content_id: String) -> UiAction {
     #[cfg(feature = "legacy-shell")]
     {
         UiAction::FocusSpatialContentItem { content_id }

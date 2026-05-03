@@ -252,7 +252,7 @@ mod tests {
     use super::*;
     use crate::{gui::native_shell::style::StyleTokens, widgets::WidgetKind};
 
-    fn sample_content() -> WaveformToolbarSurfaceContent {
+    fn demo_content() -> WaveformToolbarSurfaceContent {
         WaveformToolbarSurfaceContent {
             items: vec![
                 WaveformToolbarSurfaceItem {
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn waveform_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
-        let content = sample_content();
+        let content = demo_content();
         let surface = build_waveform_toolbar_surface(
             header_rect,
             &content,
@@ -352,7 +352,7 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
         let layout =
-            resolve_waveform_toolbar_surface_layout(header_rect, style.sizing, &sample_content());
+            resolve_waveform_toolbar_surface_layout(header_rect, style.sizing, &demo_content());
         for rect in layout
             .item_rects
             .iter()

@@ -262,7 +262,7 @@ impl NativeShellState {
                 map_label: String::new(),
             },
         );
-        let (samples_fill, map_fill) = if !model.map_active {
+        let (items_fill, map_fill) = if !model.map_active {
             (
                 blend_color(
                     style.surface_overlay,
@@ -285,7 +285,7 @@ impl NativeShellState {
             primitives,
             Primitive::Rect(FillRect {
                 rect: tabs.items,
-                color: samples_fill,
+                color: items_fill,
             }),
         );
         emit_primitive(

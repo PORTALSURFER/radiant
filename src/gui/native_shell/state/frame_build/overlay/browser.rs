@@ -13,7 +13,7 @@ pub(super) fn render_browser_tab_overlay(
         sizing,
         &browser_tabs_surface_content(model),
     );
-    let (samples_fill, map_fill, samples_text_color, map_text_color) = if !model.map.active {
+    let (items_fill, map_fill, items_text_color, map_text_color) = if !model.map.active {
         (
             blend_color(
                 style.surface_overlay,
@@ -48,7 +48,7 @@ pub(super) fn render_browser_tab_overlay(
         primitives,
         Primitive::Rect(FillRect {
             rect: tabs.items,
-            color: samples_fill,
+            color: items_fill,
         }),
     );
     emit_primitive(
@@ -66,7 +66,7 @@ pub(super) fn render_browser_tab_overlay(
         sizing.border_width,
     );
     let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);
-    let samples_text = format!(
+    let items_text = format!(
         "{} ({})",
         model.browser_chrome.items_tab_label,
         model
@@ -79,13 +79,13 @@ pub(super) fn render_browser_tab_overlay(
         text_runs,
         TextRun {
             text: truncate_to_width(
-                &samples_text,
+                &items_text,
                 tabs_text_layout.items_label.width().max(40.0),
                 sizing.font_header,
             ),
             position: tabs_text_layout.items_label.min,
             font_size: sizing.font_header,
-            color: samples_text_color,
+            color: items_text_color,
             max_width: Some(tabs_text_layout.items_label.width().max(40.0)),
             align: TextAlign::Left,
         },

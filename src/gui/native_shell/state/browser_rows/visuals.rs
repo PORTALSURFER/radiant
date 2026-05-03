@@ -56,7 +56,7 @@ pub(crate) fn folder_drag_hover_fill(style: &StyleTokens, valid_target: bool) ->
     )
 }
 
-/// Return the stronger hover fill used for sample-browser rows.
+/// Return the stronger hover fill used for browser content rows.
 ///
 /// The browser hover needs to read clearly against alternating row fills, so it
 /// intentionally uses roughly double the shared item-list hover intensity.

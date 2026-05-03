@@ -145,11 +145,11 @@ pub(crate) fn compute_browser_toolbar_sections(
             - (gap * 2.0))
             .max(0.0);
     }
-    let right_tag_width = (action_side * 2.4).clamp(44.0, 72.0).min(available);
-    let right_tag_slot = if action_side > 0.0 && right_tag_width > 0.0 {
+    let right_pill_width = (action_side * 2.4).clamp(44.0, 72.0).min(available);
+    let right_pill_slot = if action_side > 0.0 && right_pill_width > 0.0 {
         clamp_rect_to_bounds(
             Rect::from_min_max(
-                Point::new((left_max - right_tag_width).max(left_min), host.min.y),
+                Point::new((left_max - right_pill_width).max(left_min), host.min.y),
                 Point::new(left_max, host.max.y),
             ),
             host,
@@ -157,8 +157,8 @@ pub(crate) fn compute_browser_toolbar_sections(
     } else {
         empty
     };
-    let search_right_edge = if right_tag_slot.width() > 1.0 {
-        right_tag_slot.min.x - gap
+    let search_right_edge = if right_pill_slot.width() > 1.0 {
+        right_pill_slot.min.x - gap
     } else {
         left_max
     };
@@ -234,7 +234,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         action_side,
         action_cluster_gap,
     );
-    action_slots[2] = right_tag_slot;
+    action_slots[2] = right_pill_slot;
     let rating_filter_chips = compute_rating_filter_chip_rects(
         filter_strip,
         filter_side,

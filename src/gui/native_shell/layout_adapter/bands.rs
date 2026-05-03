@@ -63,7 +63,7 @@ pub(crate) fn compute_top_bar_band_sections(
             sizing.top_bar_action_cluster_min_width,
             sizing.top_bar_action_cluster_max_width,
         );
-    let title_inner = inset_horizontal(title_row, sizing.panel_inset);
+    let title_inner = title_row.inset_horizontal_saturating(sizing.panel_inset);
     let max_action_cluster_width =
         (title_inner.width() - sizing.top_bar_action_cluster_title_reserve_width).max(0.0);
     let action_cluster_width = desired_action_cluster_width
@@ -300,13 +300,4 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
         return Rect::from_min_max(bounds.min, bounds.min);
     }
     Rect::from_min_max(min, max)
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let max_inset = (rect.width() * 0.5).max(0.0);
-    let inset = inset.min(max_inset).max(0.0);
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
 }

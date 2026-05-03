@@ -89,11 +89,7 @@ pub(super) fn empty_rect(bounds: Rect) -> Rect {
 
 /// Inset horizontally with saturation.
 pub(super) fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let inset = inset.max(0.0).min((rect.width() * 0.5).max(0.0));
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
+    rect.inset_horizontal_saturating(inset)
 }
 
 /// Inset both axes with saturation.

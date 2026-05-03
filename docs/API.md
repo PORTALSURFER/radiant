@@ -208,6 +208,8 @@ into compact integer coordinates.
 baseline snapping for retained text rows.
 `Rect::inset_horizontal` provides product-neutral horizontal text and control
 inset geometry.
+`Rect::inset_horizontal_saturating` provides symmetric horizontal insets capped
+at half width for centered zero-width collapse.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border

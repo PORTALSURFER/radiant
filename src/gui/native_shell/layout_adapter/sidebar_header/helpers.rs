@@ -37,7 +37,7 @@ pub(crate) fn compute_recovery_badge_layout(
     let badge_height = sizing
         .recovery_badge_height
         .min((header_rect.height() - 2.0).max(10.0));
-    let badge_bounds = inset_horizontal(header_rect, sizing.text_inset_x.max(0.0));
+    let badge_bounds = header_rect.inset_horizontal_saturating(sizing.text_inset_x);
     let badge_tree = LayoutNode::container(
         FOLDER_HEADER_BADGE_ALIGN_ID,
         ContainerPolicy {
@@ -209,14 +209,6 @@ fn compact_recovery_badge_label(
         return Some(long_label);
     }
     Some(recovery_entry_count.to_string())
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let inset = inset.max(0.0).min((rect.width() * 0.5).max(0.0));
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
 }
 
 fn fixed_height_child(node_id: u64, height: f32) -> SlotChild {

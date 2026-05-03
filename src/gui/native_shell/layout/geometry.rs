@@ -41,24 +41,13 @@ pub(super) fn build_column_sections(
         let rows_top = (header.max.y + sizing.header_to_rows_gap).min(column.max.y);
         let rows_bottom = (column.max.y - sizing.column_bottom_padding).max(header.max.y);
         column_headers[index] = header;
-        column_rows[index] = inset_horizontal(
-            Rect::from_min_max(
-                Point::new(column.min.x, rows_top),
-                Point::new(column.max.x, rows_bottom),
-            ),
-            sizing.panel_inset,
-        );
+        column_rows[index] = Rect::from_min_max(
+            Point::new(column.min.x, rows_top),
+            Point::new(column.max.x, rows_bottom),
+        )
+        .inset_horizontal_saturating(sizing.panel_inset);
     }
     (column_headers, column_rows)
-}
-
-fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
-    let max_inset = (rect.width() * 0.5).max(0.0);
-    let inset = inset.min(max_inset);
-    Rect::from_min_max(
-        Point::new(rect.min.x + inset, rect.min.y),
-        Point::new(rect.max.x - inset, rect.max.y),
-    )
 }
 
 /// Compute the reserved lane height for the waveform scrollbar track.

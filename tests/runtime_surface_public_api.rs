@@ -12,8 +12,8 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, ButtonMessage, ButtonWidget, ListItemMessage, PointerButton, ScrollbarAxis,
-        ScrollbarMessage, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
-        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        ScrollbarMessage, SelectableMessage, TextInputMessage, TextInputWidget, TextWidget,
+        ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
         resolve_widget_visual_tokens,
     },
 };
@@ -437,6 +437,13 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
                 WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
                 |_| DemoMessage::Rename(String::from("row")),
             )),
+            SurfaceChild::fill(SurfaceNode::selectable(
+                65,
+                "Choice",
+                false,
+                WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+                DemoMessage::SetActive,
+            )),
             SurfaceChild::fill(SurfaceNode::canvas(
                 63,
                 WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
@@ -455,6 +462,10 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     assert!(matches!(
         surface.find_widget(64).map(|widget| widget.widget()),
         Some(WidgetSpec::ListItem(_))
+    ));
+    assert!(matches!(
+        surface.find_widget(65).map(|widget| widget.widget()),
+        Some(WidgetSpec::Selectable(_))
     ));
     assert!(matches!(
         surface.find_widget(63).map(|widget| widget.widget()),
@@ -484,6 +495,15 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
             radiant::widgets::WidgetOutput::ListItem(ListItemMessage::Invoked)
         ),
         Some(DemoMessage::Rename(String::from("row")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            65,
+            radiant::widgets::WidgetOutput::Selectable(SelectableMessage::SelectionChanged {
+                selected: true,
+            })
+        ),
+        Some(DemoMessage::SetActive(true))
     );
 }
 

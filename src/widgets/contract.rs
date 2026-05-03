@@ -29,6 +29,8 @@ pub enum WidgetKind {
     Scrollbar,
     /// Focusable row or item primitive for lists, tables, and menus.
     ListItem,
+    /// Selectable content surface for cards, rows, tiles, and options.
+    Selectable,
     /// Compact label, badge, or pill surface for status and selectable filters.
     Badge,
     /// Non-interactive panel, card, or grouped content surface.

@@ -10,8 +10,9 @@ use crate::{
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, CardWidget,
         FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget, ScrollbarAxis,
-        ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget,
-        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
+        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
+        WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -37,6 +38,8 @@ pub enum WidgetMessageMapper<Message> {
     Scrollbar(MessageMapper<ScrollbarMessage, Message>),
     /// Map a list-item invocation payload into a host-defined message.
     ListItem(MessageMapper<ListItemMessage, Message>),
+    /// Map a selectable state-change payload into a host-defined message.
+    Selectable(MessageMapper<SelectableMessage, Message>),
 }
 
 impl<Message> Clone for WidgetMessageMapper<Message> {
@@ -49,6 +52,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
             Self::TextInput(map) => Self::TextInput(Arc::clone(map)),
             Self::Scrollbar(map) => Self::Scrollbar(Arc::clone(map)),
             Self::ListItem(map) => Self::ListItem(Arc::clone(map)),
+            Self::Selectable(map) => Self::Selectable(Arc::clone(map)),
         }
     }
 }
@@ -84,6 +88,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Self::ListItem(Arc::new(map))
     }
 
+    /// Build a selectable-message mapper.
+    pub fn selectable(map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::Selectable(Arc::new(map))
+    }
+
     fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match (self, output) {
             (Self::Button(map), WidgetOutput::Button(message)) => Some(map(message)),
@@ -92,6 +101,7 @@ impl<Message> WidgetMessageMapper<Message> {
             (Self::TextInput(map), WidgetOutput::TextInput(message)) => Some(map(message)),
             (Self::Scrollbar(map), WidgetOutput::Scrollbar(message)) => Some(map(message)),
             (Self::ListItem(map), WidgetOutput::ListItem(message)) => Some(map(message)),
+            (Self::Selectable(map), WidgetOutput::Selectable(message)) => Some(map(message)),
             _ => None,
         }
     }
@@ -454,6 +464,33 @@ impl<Message> SurfaceNode<Message> {
         Self::widget(
             WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)),
             WidgetMessageMapper::list_item(map),
+        )
+    }
+
+    /// Build a selectable leaf that maps selection changes by selected state.
+    pub fn selectable(
+        id: WidgetId,
+        label: impl Into<String>,
+        selected: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::selectable_mapped(id, label, selected, sizing, move |message| match message {
+            SelectableMessage::SelectionChanged { selected } => map(selected),
+        })
+    }
+
+    /// Build a selectable leaf with a custom widget-to-host message mapper.
+    pub fn selectable_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        selected: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Selectable(SelectableWidget::new(id, label, selected, sizing)),
+            WidgetMessageMapper::selectable(map),
         )
     }
 

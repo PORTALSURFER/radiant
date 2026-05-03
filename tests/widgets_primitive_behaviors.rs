@@ -6,8 +6,8 @@ use radiant::{
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ImageWidget,
         ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget,
-        WidgetInput, WidgetKey, WidgetSizing,
+        ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget,
+        ToggleMessage, ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -148,6 +148,47 @@ fn list_item_invocation_is_public_and_deterministic() {
         item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(ListItemMessage::Invoked)
     );
+}
+
+#[test]
+fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
+    let mut selectable = SelectableWidget::new(
+        11,
+        "Choice",
+        false,
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0));
+
+    assert!(!selectable.common.state.selected);
+    assert_eq!(
+        selectable.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        selectable.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(SelectableMessage::SelectionChanged { selected: true })
+    );
+    assert!(selectable.common.state.selected);
+
+    let _ = selectable.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(
+        selectable.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Some(SelectableMessage::SelectionChanged { selected: false })
+    );
+    assert!(!selectable.common.state.selected);
 }
 
 #[test]

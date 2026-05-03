@@ -110,6 +110,16 @@ pub enum ListItemMessage {
     Invoked,
 }
 
+/// Message emitted by a reusable selectable primitive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SelectableMessage {
+    /// Selection state changed to the provided value.
+    SelectionChanged {
+        /// New selected value after the interaction completed.
+        selected: bool,
+    },
+}
+
 /// Message emitted by a reusable toggle primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ToggleMessage {
@@ -154,6 +164,8 @@ pub enum WidgetOutput {
     Badge(BadgeMessage),
     /// List item invocation output.
     ListItem(ListItemMessage),
+    /// Selectable state-change output.
+    Selectable(SelectableMessage),
     /// Toggle value-change output.
     Toggle(ToggleMessage),
     /// Text-input editing or submit output.

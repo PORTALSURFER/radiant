@@ -246,6 +246,24 @@ pub(super) fn push_widget_paint(
                 );
             }
         }
+        WidgetSpec::Selectable(selectable) => {
+            push_control_chrome(primitives, widget, bounds, theme);
+            push_text_run(
+                primitives,
+                widget.id(),
+                selectable.props.label.clone(),
+                inset_rect(bounds, 8.0, 3.0),
+                selectable.common.sizing.baseline,
+                resolve_widget_visual_tokens(
+                    theme,
+                    selectable.common.style,
+                    selectable.common.state,
+                )
+                .foreground,
+                PaintTextAlign::Left,
+                TextWrap::None,
+            );
+        }
         WidgetSpec::Badge(badge) => {
             push_control_chrome(primitives, widget, bounds, theme);
             push_text_run(

@@ -67,12 +67,13 @@ pub use contract::{
 };
 pub use interaction::{
     BadgeMessage, ButtonMessage, ListItemMessage, PointerButton, ScrollbarMessage,
-    TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
+    SelectableMessage, TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,
     CardWidget, ImageProps, ImageWidget, ListItemWidget, ScrollbarAxis, ScrollbarProps,
-    ScrollbarState, ScrollbarWidget, TextInputProps, TextInputState, TextInputWidget, TextWidget,
-    TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon, WidgetSpec,
+    ScrollbarState, ScrollbarWidget, SelectableProps, SelectableWidget, TextInputProps,
+    TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget,
+    WidgetCommon, WidgetSpec,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

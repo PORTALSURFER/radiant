@@ -44,8 +44,9 @@ returns `Command<Message>` while keeping side effects and domain state host-owne
 public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
 entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
 `ButtonWidget`, `BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
-`ScrollbarWidget`, `CardWidget`, `ImageWidget`, `CanvasWidget`, and
-`ListItemWidget` describe reusable UI behavior without host-domain semantics.
+`ScrollbarWidget`, `SelectableWidget`, `CardWidget`, `ImageWidget`,
+`CanvasWidget`, and `ListItemWidget` describe reusable UI behavior without
+host-domain semantics.
 
 Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
@@ -57,6 +58,7 @@ widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
 `SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
 `SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and
 `SurfaceNode::list_item_action`, `SurfaceNode::list_item_mapped`,
+`SurfaceNode::selectable`, `SurfaceNode::selectable_mapped`,
 `SurfaceNode::card`, `SurfaceNode::image`, and `SurfaceNode::canvas` cover
 common leaf widgets without requiring hosts to manually wrap `WidgetSpec`.
 `SurfaceNode::stack` overlays children in slot order so hosts can compose a card

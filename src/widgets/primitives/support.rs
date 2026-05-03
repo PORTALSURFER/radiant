@@ -10,7 +10,7 @@ use crate::widgets::contract::{
     WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{
-    ListItemMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+    ListItemMessage, PointerButton, SelectableMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 
 /// Shared contract carried by every public widget descriptor.
@@ -154,6 +154,91 @@ impl ListItemWidget {
     }
 }
 
+/// Immutable public properties for a reusable selectable surface.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectableProps {
+    /// User-visible selectable label.
+    pub label: String,
+}
+
+/// Public selectable primitive for cards, rows, tiles, and options.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectableWidget {
+    /// Shared widget contract.
+    pub common: WidgetCommon,
+    /// Immutable user-facing selectable configuration.
+    pub props: SelectableProps,
+}
+
+impl SelectableWidget {
+    /// Build a selectable descriptor with the provided selected state.
+    pub fn new(
+        id: WidgetId,
+        label: impl Into<String>,
+        selected: bool,
+        sizing: WidgetSizing,
+    ) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetKind::Selectable, sizing);
+        common.focus = FocusBehavior::Keyboard;
+        common.state.selected = selected;
+        common
+            .emitted_messages
+            .push(crate::widgets::contract::WidgetMessageKind::ValueChanged);
+        Self {
+            common,
+            props: SelectableProps {
+                label: label.into(),
+            },
+        }
+    }
+
+    /// Route one backend-neutral interaction into the selectable.
+    pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<SelectableMessage> {
+        if self.common.state.disabled {
+            return None;
+        }
+
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.common.state.pressed = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                let was_pressed = self.common.state.pressed;
+                self.common.state.pressed = false;
+                (was_pressed && bounds.contains(position)).then(|| self.toggle_selected())
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                None
+            }
+            WidgetInput::KeyPress(key)
+                if self.common.state.focused && activate_on_keyboard(key) =>
+            {
+                Some(self.toggle_selected())
+            }
+            _ => None,
+        }
+    }
+
+    fn toggle_selected(&mut self) -> SelectableMessage {
+        self.common.state.selected = !self.common.state.selected;
+        SelectableMessage::SelectionChanged {
+            selected: self.common.state.selected,
+        }
+    }
+}
+
 /// Public card/panel primitive for grouped content surfaces.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CardWidget {
@@ -242,6 +327,8 @@ pub enum WidgetSpec {
     Scrollbar(super::scrollbar::ScrollbarWidget),
     /// Focusable row/item primitive.
     ListItem(ListItemWidget),
+    /// Selectable content surface.
+    Selectable(SelectableWidget),
     /// Compact badge or pill primitive.
     Badge(super::badge::BadgeWidget),
     /// Non-interactive card or panel surface.
@@ -262,6 +349,7 @@ impl WidgetSpec {
             Self::TextInput(widget) => &widget.common,
             Self::Scrollbar(widget) => &widget.common,
             Self::ListItem(widget) => &widget.common,
+            Self::Selectable(widget) => &widget.common,
             Self::Badge(widget) => &widget.common,
             Self::Card(widget) => &widget.common,
             Self::Image(widget) => &widget.common,
@@ -301,6 +389,9 @@ impl WidgetSpec {
             Self::ListItem(widget) => widget
                 .handle_input(bounds, input)
                 .map(WidgetOutput::ListItem),
+            Self::Selectable(widget) => widget
+                .handle_input(bounds, input)
+                .map(WidgetOutput::Selectable),
             Self::Text(_) | Self::Card(_) | Self::Image(_) | Self::Canvas(_) => None,
         }
     }

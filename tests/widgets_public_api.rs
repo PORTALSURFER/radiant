@@ -8,8 +8,8 @@ use radiant::{
     },
     widgets::{
         BadgeWidget, ButtonWidget, CardWidget, ImageWidget, ListItemWidget, ScrollbarAxis,
-        ScrollbarWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetInput, WidgetKey,
-        WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
+        ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetInput,
+        WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -55,6 +55,12 @@ fn public_widgets_compose_with_public_layout_containers() {
         "Document",
         WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
     ));
+    let selectable = WidgetSpec::Selectable(SelectableWidget::new(
+        16,
+        "Selected",
+        true,
+        WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+    ));
     let image_payload =
         Arc::new(ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image"));
     let image = WidgetSpec::Image(ImageWidget::new(
@@ -79,13 +85,14 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
             SlotChild::new(SlotParams::fill(), card.layout_node()),
             SlotChild::new(SlotParams::fill(), item.layout_node()),
+            SlotChild::new(SlotParams::fill(), selectable.layout_node()),
             SlotChild::new(SlotParams::fill(), image.layout_node()),
         ],
     );
 
     let output = layout_tree(
         &root,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(800.0, 32.0)),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(920.0, 32.0)),
     );
 
     assert!(output.rects.contains_key(&header.id()));
@@ -96,6 +103,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&badge.id()));
     assert!(output.rects.contains_key(&card.id()));
     assert!(output.rects.contains_key(&item.id()));
+    assert!(output.rects.contains_key(&selectable.id()));
     assert!(output.rects.contains_key(&image.id()));
     assert_eq!(
         rename.common().emitted_messages,
@@ -116,6 +124,10 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert_eq!(
         item.common().emitted_messages,
         vec![WidgetMessageKind::ItemInvoked]
+    );
+    assert_eq!(
+        selectable.common().emitted_messages,
+        vec![WidgetMessageKind::ValueChanged]
     );
     assert!(image.common().emitted_messages.is_empty());
     assert_eq!(
@@ -151,6 +163,12 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
     let mut item = WidgetSpec::ListItem(ListItemWidget::new(
         14,
         "Document",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+    ));
+    let mut selectable = WidgetSpec::Selectable(SelectableWidget::new(
+        16,
+        "Selected",
+        false,
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     ));
 
@@ -208,6 +226,17 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::ListItem(
             radiant::widgets::ListItemMessage::Invoked
+        ))
+    );
+
+    assert_eq!(
+        selectable.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        selectable.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Some(WidgetOutput::Selectable(
+            radiant::widgets::SelectableMessage::SelectionChanged { selected: true }
         ))
     );
 }

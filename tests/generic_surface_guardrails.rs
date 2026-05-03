@@ -150,6 +150,30 @@ fn generic_sources_do_not_import_legacy_shell_contracts() {
 }
 
 #[test]
+fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_shell_mod = fs::read_to_string(manifest_dir.join("src/gui/native_shell/mod.rs"))
+        .expect("native shell module");
+
+    for module in [
+        "status_surface",
+        "top_bar_surface",
+        "waveform_header_surface",
+        "waveform_toolbar_surface",
+    ] {
+        let module_file = manifest_dir.join(format!("src/gui/native_shell/{module}.rs"));
+        assert!(
+            module_file.exists(),
+            "{module} should be localized inside Radiant rather than imported from Sempal parent sources"
+        );
+        assert!(
+            !native_shell_mod.contains(&format!("app_core/native_shell/composition/{module}.rs")),
+            "{module} must stay a local Radiant module until the remaining compatibility shell is retired"
+        );
+    }
+}
+
+#[test]
 fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gui_dir = manifest_dir.join("src/gui");

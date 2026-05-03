@@ -1,16 +1,16 @@
-use crate::app as native_model;
 use super::*;
+use crate::gui::visualization::SpatialPoint;
 
 pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,
-    point: &native_model::MapPointModel,
+    point: &SpatialPoint,
 ) -> bool {
     model.map.selected_item_id.as_deref() == Some(point.id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_is_focused(
     model: &AppModel,
-    point: &native_model::MapPointModel,
+    point: &SpatialPoint,
 ) -> bool {
     model.map.focused_item_id.as_deref() == Some(point.id.as_ref())
 }
@@ -18,7 +18,7 @@ pub(in crate::gui::native_shell::state) fn map_point_is_focused(
 pub(in crate::gui::native_shell::state) fn map_point_color(
     style: &StyleTokens,
     model: &AppModel,
-    point: &native_model::MapPointModel,
+    point: &SpatialPoint,
 ) -> Rgba8 {
     if map_point_is_focused(model, point) {
         return style.accent_warning;

@@ -1,6 +1,6 @@
-use crate::app as native_model;
 use super::*;
-use native_model::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
+use crate::gui::list::{EditableRowKind, EditableTreeRow};
+use crate::gui::panel::SplitPaneSlot;
 
 impl NativeShellState {
     /// Resolve a rendered folder-row index for a point within the sidebar.
@@ -9,9 +9,9 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(FolderPaneIdModel, usize)> {
+    ) -> Option<(SplitPaneSlot, usize)> {
         let style = style_for_layout(layout);
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+        [SplitPaneSlot::Upper, SplitPaneSlot::Lower]
             .into_iter()
             .find_map(|pane| {
                 self.cached_tree_rows(layout, &style, model, pane)
@@ -27,10 +27,10 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<FolderPaneIdModel> {
+    ) -> Option<SplitPaneSlot> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
+        [SplitPaneSlot::Upper, SplitPaneSlot::Lower]
             .into_iter()
             .find(|pane| {
                 let folder_sections = sections.folder_header(*pane);
@@ -54,7 +54,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(FolderPaneIdModel, usize)> {
+    ) -> Option<(SplitPaneSlot, usize)> {
         let (pane, row_index) = self.folder_row_at_point(layout, model, point)?;
         let pane_model = model.sources.folder_pane(pane);
         if !pane_model.tree_search_query.trim().is_empty() {
@@ -120,10 +120,10 @@ impl NativeShellState {
     }
 }
 
-fn row_has_disclosure_target(row: &FolderRowModel) -> bool {
+fn row_has_disclosure_target(row: &EditableTreeRow) -> bool {
     matches!(
         row.kind,
-        FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
+        EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
     ) || row.is_root
         || !row.has_children
 }

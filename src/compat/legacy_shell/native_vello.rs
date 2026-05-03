@@ -15,11 +15,3 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
 ) -> NativeRunReport {
     native_vello::run_legacy_shell_vello_app_with_artifacts(options, bridge)
 }
-
-/// Run the native Vello backend window with a host-provided legacy shell bridge.
-pub fn run_native_vello_app<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> Result<(), String> {
-    run_native_vello_app_with_artifacts(options, bridge).result
-}

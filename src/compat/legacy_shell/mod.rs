@@ -64,7 +64,7 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use motion::NativeMotionModel;
-pub use native_vello::{run_native_vello_app, run_native_vello_app_with_artifacts};
+pub use native_vello::run_native_vello_app_with_artifacts;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,

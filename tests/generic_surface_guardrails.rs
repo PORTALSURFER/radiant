@@ -949,6 +949,11 @@ fn legacy_shell_contract_does_not_reexport_application_title_alias() {
         "Radiant legacy compatibility should expose one native Vello runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
     );
     assert!(
+        !source.contains("run_native_vello_app,")
+            && !source.contains("pub fn run_native_vello_app<"),
+        "Radiant legacy compatibility should expose only the artifact-returning native Vello runner; host apps can derive result-only wrappers locally"
+    );
+    assert!(
         !source.contains("capture_gui_automation_snapshot")
             && !source.contains("capture_native_shell_shot_snapshot"),
         "host shell snapshot capture helpers belong in the consuming application once the local shell scaffold owns them"

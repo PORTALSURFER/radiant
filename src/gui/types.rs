@@ -155,6 +155,24 @@ impl Rect {
             Point::new(min_x + side, min_y + side),
         ))
     }
+
+    /// Snap rectangle bounds to a stroke-width grid for even retained borders.
+    ///
+    /// Tiny rectangles keep their original bounds when snapping would leave too
+    /// little room for both stroke edges.
+    pub fn stroke_aligned_rect(self, stroke: f32) -> Self {
+        let stroke = stroke.max(1.0);
+        let snap = |value: f32| (value / stroke).round() * stroke;
+        let snapped = Self::from_min_max(
+            Point::new(snap(self.min.x), snap(self.min.y)),
+            Point::new(snap(self.max.x), snap(self.max.y)),
+        );
+        if snapped.width() <= stroke * 2.0 || snapped.height() <= stroke * 2.0 {
+            self
+        } else {
+            snapped
+        }
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -233,6 +251,23 @@ mod tests {
                 .centered_odd_pixel_square(5.0, 9.0),
             None
         );
+    }
+
+    #[test]
+    fn rect_stroke_aligned_rect_snaps_to_stroke_grid() {
+        let rect = Rect::from_min_max(Point::new(10.4, 20.6), Point::new(111.2, 119.1));
+
+        assert_eq!(
+            rect.stroke_aligned_rect(2.0),
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(112.0, 120.0))
+        );
+    }
+
+    #[test]
+    fn rect_stroke_aligned_rect_keeps_tiny_rects() {
+        let rect = Rect::from_min_max(Point::new(10.4, 20.6), Point::new(12.1, 22.2));
+
+        assert_eq!(rect.stroke_aligned_rect(0.25), rect);
     }
 }
 

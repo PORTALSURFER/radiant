@@ -93,16 +93,5 @@ pub(in crate::gui::native_shell::state) fn browser_row_border_rect(
     rect: Rect,
     stroke: f32,
 ) -> Rect {
-    let stroke = stroke.max(1.0);
-    let snap = |value: f32| (value / stroke).round() * stroke;
-    let min_x = snap(rect.min.x);
-    let min_y = snap(rect.min.y);
-    let max_x = snap(rect.max.x);
-    let max_y = snap(rect.max.y);
-    let snapped = Rect::from_min_max(Point::new(min_x, min_y), Point::new(max_x, max_y));
-    if snapped.width() <= stroke * 2.0 || snapped.height() <= stroke * 2.0 {
-        rect
-    } else {
-        snapped
-    }
+    rect.stroke_aligned_rect(stroke)
 }

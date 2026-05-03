@@ -556,6 +556,24 @@ fn centered_toolbar_icon_geometry_reuses_generic_rect_type() {
 }
 
 #[test]
+fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("types module should be readable");
+    let markers_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/markers.rs"
+    ))
+    .expect("browser row marker module should be readable");
+
+    assert!(types_mod.contains("pub fn stroke_aligned_rect"));
+    assert!(markers_mod.contains("rect.stroke_aligned_rect(stroke)"));
+    assert!(
+        !markers_mod.contains("let snap ="),
+        "native browser row borders should delegate stroke-grid snapping to gui::types"
+    );
+}
+
+#[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

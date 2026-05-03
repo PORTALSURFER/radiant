@@ -24,5 +24,4 @@ pub(crate) mod runtime_artifacts;
 pub mod legacy_shell {
     pub use super::runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
     pub use crate::compat_app_contract::*;
-    pub use crate::gui_runtime::{NativeRunOptions, NativeStartupTimingArtifact, WindowIconRgba};
 }

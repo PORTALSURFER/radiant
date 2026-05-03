@@ -558,6 +558,28 @@ fn legacy_shell_compatibility_is_not_enabled_by_default() {
 }
 
 #[test]
+fn legacy_shell_namespace_does_not_reexport_generic_runtime_types() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let compat = fs::read_to_string(manifest_dir.join("src/compat.rs"))
+        .expect("compat facade should be readable");
+
+    assert!(
+        !compat.contains("pub use crate::gui_runtime"),
+        "compat::legacy_shell must not re-export generic runtime types; host adapters should import them from radiant::gui_runtime"
+    );
+    for forbidden in [
+        "NativeRunOptions",
+        "NativeStartupTimingArtifact",
+        "WindowIconRgba",
+    ] {
+        assert!(
+            !compat.contains(forbidden),
+            "generic runtime type `{forbidden}` belongs under radiant::gui_runtime, not compat::legacy_shell"
+        );
+    }
+}
+
+#[test]
 fn legacy_shell_sources_are_feature_gated() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     assert!(

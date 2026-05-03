@@ -1,12 +1,13 @@
 pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
-    AppModel, DirtySegments, FrameBuildResult, KeyPress, NativeAppBridge, NativeMotionModel,
-    SegmentRevisions, UiAction,
+    AppModel, DirtySegments, NativeAppBridge, NativeMotionModel, SegmentRevisions, UiAction,
 };
 pub(in crate::gui_runtime::native_vello) use crate::compat::runtime_artifacts::{
     NativeRunReport, NativeRuntimeArtifacts,
 };
 pub(in crate::gui_runtime::native_vello) use crate::gui::{
+    frame::FrameBuildResult,
     input::KeyCode,
+    input::KeyPress,
     native_shell::{
         ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
         HoverOverlayFingerprint, ModalOverlayFingerprint, NativeShellState, ShellLayout,

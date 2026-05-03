@@ -3,10 +3,10 @@
 use radiant::{
     layout::Vector2,
     runtime::{
-        Command, NativeRunOptions, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        Command, NativeRunOptions, SurfaceChild, SurfaceNode, UiSurface,
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
-    widgets::{ButtonMessage, ButtonWidget, TextWidget, WidgetSizing, WidgetSpec},
+    widgets::WidgetSizing,
 };
 use std::sync::Arc;
 
@@ -49,28 +49,21 @@ fn main() -> Result<(), String> {
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
-    let title = WidgetSpec::Text(TextWidget::new(
+    let title = SurfaceNode::text(
         10,
         format!("Generic Radiant count: {}", state.count),
         WidgetSizing::fixed(Vector2::new(180.0, 24.0)).with_baseline(16.0),
-    ));
-    let button = WidgetSpec::Button(ButtonWidget::new(
+    );
+    let button = SurfaceNode::button(
         11,
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 32.0)),
-    ));
+        DemoMessage::ButtonPressed,
+    );
 
     Arc::new(UiSurface::new(SurfaceNode::row(
         1,
         12.0,
-        vec![
-            SurfaceChild::fill(SurfaceNode::static_widget(title)),
-            SurfaceChild::fill(SurfaceNode::widget(
-                button,
-                WidgetMessageMapper::button(|message| match message {
-                    ButtonMessage::Activate => DemoMessage::ButtonPressed,
-                }),
-            )),
-        ],
+        vec![SurfaceChild::fill(title), SurfaceChild::fill(button)],
     )))
 }

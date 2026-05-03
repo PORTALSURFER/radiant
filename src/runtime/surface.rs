@@ -8,8 +8,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, FocusBehavior, ScrollbarMessage, TextInputMessage, ToggleMessage, WidgetId,
-        WidgetInput, WidgetOutput, WidgetSpec,
+        ButtonMessage, ButtonWidget, FocusBehavior, ScrollbarMessage, TextInputMessage, TextWidget,
+        ToggleMessage, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -258,6 +258,37 @@ impl<Message> SurfaceNode<Message> {
     /// Build a widget leaf node that does not emit host-defined messages.
     pub fn static_widget(widget: WidgetSpec) -> Self {
         Self::widget(widget, WidgetMessageMapper::None)
+    }
+
+    /// Build a non-emitting text leaf node.
+    pub fn text(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
+        Self::static_widget(WidgetSpec::Text(TextWidget::new(id, text, sizing)))
+    }
+
+    /// Build a button leaf node that emits one cloned host message when activated.
+    pub fn button(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::button_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build a button leaf node with a custom widget-to-host message mapper.
+    pub fn button_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Button(ButtonWidget::new(id, label, sizing)),
+            WidgetMessageMapper::button(map),
+        )
     }
 
     /// Return the stable node id.

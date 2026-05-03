@@ -50,7 +50,9 @@ behavior without host-domain semantics.
 Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
 when a host only needs ordered row/column structure, fill slots, and display
-widgets that do not emit messages. Lower-level `SurfaceNode::container` plus
+widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
+and `SurfaceNode::button_mapped` cover common leaf widgets without requiring
+hosts to manually wrap `WidgetSpec`. Lower-level `SurfaceNode::container` plus
 `ContainerPolicy` and `SlotParams` remains available for custom layout policy.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is

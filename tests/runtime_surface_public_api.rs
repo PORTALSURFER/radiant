@@ -196,6 +196,49 @@ fn static_widget_helper_builds_non_emitting_leaf() {
 }
 
 #[test]
+fn text_and_button_helpers_build_common_leaf_nodes() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::row(
+        4,
+        8.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::text(
+                40,
+                "Counter",
+                WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
+            )),
+            SurfaceChild::fill(SurfaceNode::button(
+                41,
+                "Increment",
+                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                DemoMessage::Increment,
+            )),
+            SurfaceChild::fill(SurfaceNode::button_mapped(
+                42,
+                "Rename",
+                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                |_| DemoMessage::Rename(String::from("Mapped")),
+            )),
+        ],
+    ));
+
+    assert!(surface.find_widget(40).is_some());
+    assert_eq!(
+        surface.dispatch_widget_output(
+            41,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+        ),
+        Some(DemoMessage::Increment)
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            42,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+        ),
+        Some(DemoMessage::Rename(String::from("Mapped")))
+    );
+}
+
+#[test]
 fn runtime_context_and_renderer_cover_paint_plan_boundary() {
     let theme = ThemeTokens::default();
     let bridge = declarative_runtime_bridge(

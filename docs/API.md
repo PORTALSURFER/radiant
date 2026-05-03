@@ -225,6 +225,12 @@ copy into these slots; Radiant defaults stay product-neutral.
 `SplitPaneSidebarState`. Host applications map product-specific navigation,
 workspace, project, or asset concepts onto these reusable panel structures.
 
+`radiant::gui::badge` contains compact label and pill primitives such as
+`SelectablePill`, `PillEditorPanel`, `InlineBadgeMetrics`,
+`inline_badge_rects_for_labels`, and `inline_badge_text_origin`. Hosts can use
+these to render dense badge clusters for metadata, filters, status chips, or
+other product-specific labels without embedding domain terms in Radiant.
+
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,
 `PairedPickerValue`, `PairedStatusPanel`, and `PreferencePanelState`.

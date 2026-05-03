@@ -1009,6 +1009,8 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "logical_point_to_u16_coords",
         "## Automation",
         "Generic Panels And Forms",
+        "InlineBadgeMetrics",
+        "inline_badge_rects_for_labels",
         "Invalidation And Lifecycle",
         "GuiAutomationSnapshot",
         "AutomationNodeSnapshot",

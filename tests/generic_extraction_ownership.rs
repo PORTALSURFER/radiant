@@ -62,6 +62,32 @@ fn pointer_coordinate_quantization_is_owned_by_generic_input_module() {
 }
 
 #[test]
+fn inline_badge_cluster_layout_is_owned_by_generic_badge_module() {
+    let badge_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/badge.rs"))
+        .expect("badge module should be readable");
+    let inline_metadata_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/inline_metadata.rs"
+    ))
+    .expect("inline metadata module should be readable");
+
+    assert!(badge_mod.contains("pub struct InlineBadgeMetrics"));
+    assert!(badge_mod.contains("pub fn inline_badge_rects_for_labels"));
+    assert!(badge_mod.contains("pub fn inline_badge_text_origin"));
+    assert!(inline_metadata_mod.contains("InlineBadgeMetrics::new"));
+    assert!(inline_metadata_mod.contains("inline_badge_rects_for_labels"));
+    assert!(inline_metadata_mod.contains("inline_badge_text_origin"));
+    assert!(
+        !inline_metadata_mod.contains("text.split(\" · \")"),
+        "legacy browser metadata wrappers should delegate label splitting to gui::badge"
+    );
+    assert!(
+        !inline_metadata_mod.contains("let mut x = start_x"),
+        "legacy browser metadata wrappers should delegate rect placement to gui::badge"
+    );
+}
+
+#[test]
 fn retained_vec_is_owned_by_generic_retained_module() {
     let app_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

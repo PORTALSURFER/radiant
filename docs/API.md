@@ -28,10 +28,11 @@ New host applications should use:
 
 ## App
 
-An application is host-owned state plus a projection function. Radiant does not
-define the domain model. Hosts provide a `RuntimeBridge<Message>` or use
-`declarative_runtime_bridge(state, project, reduce)` to project an immutable
-`UiSurface<Message>` from state and reduce messages back into state.
+An application is host-owned state plus a projection function and reducer.
+Radiant does not define the domain model. The public `App<Message>` contract is
+implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
+or use `declarative_runtime_bridge(state, project, reduce)` to project an
+immutable `UiSurface<Message>` from state and reduce messages back into state.
 
 ## View, Element, And Widget
 

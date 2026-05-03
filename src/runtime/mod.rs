@@ -28,7 +28,7 @@ pub use crate::gui_runtime::{
     NativeRunOptions, NativeStartupTimingArtifact, RuntimeRunReport, WindowIconRgba,
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };
-pub use bridge::{DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
+pub use bridge::{App, DeclarativeRuntimeBridge, RuntimeBridge, declarative_runtime_bridge};
 pub use command::Command;
 pub use controller::SurfaceRuntime;
 pub use paint::{

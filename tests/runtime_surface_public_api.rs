@@ -3,8 +3,9 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, PaintPrimitive, RuntimeBridge, SurfaceChild,
-        SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper, declarative_runtime_bridge,
+        App, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, PaintPrimitive, RuntimeBridge,
+        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -100,6 +101,21 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
 }
 
 #[test]
+fn runtime_bridge_is_the_public_app_contract() {
+    let mut bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+
+    let surface = project_app_once(&mut bridge);
+    assert!(surface.find_widget(10).is_some());
+}
+
+#[test]
 fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -150,6 +166,10 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
         WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "F"),
         other => panic!("expected text input widget, got {other:?}"),
     }
+}
+
+fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessage>> {
+    app.project_surface()
 }
 
 #[test]

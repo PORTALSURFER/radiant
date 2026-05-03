@@ -64,7 +64,7 @@ pub(super) fn waveform_edit_fade_handle_action_from_pointer(
         waveform_edit_fade_top_handle_hit_rect(layout.waveform_plot, selection_rect, fade_out_x)
             .contains(point);
     let threshold = WAVEFORM_EDIT_FADE_HANDLE_HIT_HALF_WIDTH;
-    let bottom_half = point.y >= layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5);
+    let bottom_half = point.y >= layout.waveform_plot.center().y;
     let in_bottom_hit = has_fade_in && bottom_half && (point.x - fade_in_mute_x).abs() <= threshold;
     let out_bottom_hit =
         has_fade_out && bottom_half && (point.x - fade_out_mute_x).abs() <= threshold;

@@ -878,14 +878,24 @@ fn rect_center_geometry_is_owned_by_generic_rect_type() {
         "/src/gui/native_shell/state/waveform_segments/selection.rs"
     ))
     .expect("waveform selection rendering module should be readable");
+    let runtime_waveform_handles_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/waveform_handles.rs"
+    ))
+    .expect("native vello waveform handle module should be readable");
 
     assert!(types_mod.contains("pub fn center(self) -> Point"));
     assert!(routing_mod.contains(".rect.center()"));
     assert!(runtime_waveform_geometry_mod.contains("plot.center().y"));
+    assert!(runtime_waveform_handles_mod.contains("layout.waveform_plot.center().y"));
     assert!(hit_testing_waveform_mod.contains("plot.center().y"));
     assert!(waveform_selection_mod.contains("selection_rect.center().y"));
     assert!(!routing_mod.contains("fn rect_center"));
     assert!(!routing_mod.contains("rect.min.x + (rect.width() * 0.5)"));
+    assert!(
+        !runtime_waveform_handles_mod
+            .contains("layout.waveform_plot.min.y + (layout.waveform_plot.height() * 0.5)")
+    );
 }
 
 #[test]

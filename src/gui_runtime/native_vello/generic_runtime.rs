@@ -88,6 +88,18 @@ where
     theme: ThemeTokens,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
+    pub(in crate::gui_runtime::native_vello) routed: bool,
+    pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
+}
+
+impl GenericRouteOutcome {
+    fn needs_redraw(self) -> bool {
+        self.routed || self.repaint_requested
+    }
+}
+
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
 where
     Bridge: RuntimeBridge<Message>,
@@ -109,48 +121,68 @@ where
         self.runtime.paint_plan(&self.theme)
     }
 
+    fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
+        GenericRouteOutcome {
+            routed,
+            repaint_requested: self.runtime.take_repaint_requested(),
+        }
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_pointer_move(
         &mut self,
         position: Point,
-    ) -> bool {
-        self.runtime
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
             .dispatch_event(crate::runtime::Event::PointerMove { position })
-            .is_some()
+            .is_some();
+        self.route_outcome(routed)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_press(
         &mut self,
         position: Point,
         button: PointerButton,
-    ) -> bool {
-        self.runtime
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
             .dispatch_event(crate::runtime::Event::PointerPress { position, button })
-            .is_some()
+            .is_some();
+        self.route_outcome(routed)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_pointer_release(
         &mut self,
         position: Point,
         button: PointerButton,
-    ) -> bool {
-        self.runtime
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
             .dispatch_event(crate::runtime::Event::PointerRelease { position, button })
-            .is_some()
+            .is_some();
+        self.route_outcome(routed)
     }
 
-    pub(in crate::gui_runtime::native_vello) fn route_key_press(&mut self, key: WidgetKey) -> bool {
-        self.runtime
+    pub(in crate::gui_runtime::native_vello) fn route_key_press(
+        &mut self,
+        key: WidgetKey,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
             .dispatch_event(crate::runtime::Event::KeyPress(key))
-            .is_some()
+            .is_some();
+        self.route_outcome(routed)
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_character(
         &mut self,
         character: char,
-    ) -> bool {
-        self.runtime
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
             .dispatch_event(crate::runtime::Event::Character(character))
-            .is_some()
+            .is_some();
+        self.route_outcome(routed)
     }
 }
 
@@ -315,8 +347,8 @@ where
         }
     }
 
-    fn handle_pointer_route(&mut self, routed: bool) {
-        if routed {
+    fn handle_route_outcome(&mut self, outcome: GenericRouteOutcome) {
+        if outcome.needs_redraw() {
             self.rebuild_scene();
             self.request_redraw_if_needed();
         }
@@ -326,27 +358,32 @@ where
         if event.state != ElementState::Pressed || event.repeat {
             return;
         }
-        let mut routed = false;
+        let mut route_outcome = GenericRouteOutcome::default();
         if let Some(text) = event.text.as_ref() {
             for character in text.chars().filter(|character| !character.is_control()) {
-                routed |= self.core.route_character(character);
+                let outcome = self.core.route_character(character);
+                route_outcome.routed |= outcome.routed;
+                route_outcome.repaint_requested |= outcome.repaint_requested;
             }
         }
         if matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
-            routed |= self.core.route_key_press(WidgetKey::Backspace);
+            let outcome = self.core.route_key_press(WidgetKey::Backspace);
+            route_outcome.routed |= outcome.routed;
+            route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         if matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
-            routed |= self.core.route_key_press(WidgetKey::Delete);
+            let outcome = self.core.route_key_press(WidgetKey::Delete);
+            route_outcome.routed |= outcome.routed;
+            route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         if let PhysicalKey::Code(code) = event.physical_key
             && let Some(key) = key_code_from_winit(code).and_then(WidgetKey::from_key_code)
         {
-            routed |= self.core.route_key_press(key);
+            let outcome = self.core.route_key_press(key);
+            route_outcome.routed |= outcome.routed;
+            route_outcome.repaint_requested |= outcome.repaint_requested;
         }
-        if routed {
-            self.rebuild_scene();
-            self.request_redraw_if_needed();
-        }
+        self.handle_route_outcome(route_outcome);
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -465,8 +502,8 @@ where
             WindowEvent::CursorMoved { position, .. } => {
                 let position = Point::new(position.x as f32, position.y as f32);
                 self.last_cursor = Some(position);
-                let routed = self.core.route_pointer_move(position);
-                self.handle_pointer_route(routed);
+                let outcome = self.core.route_pointer_move(position);
+                self.handle_route_outcome(outcome);
             }
             WindowEvent::CursorLeft { .. } => {
                 self.last_cursor = None;
@@ -482,7 +519,7 @@ where
                     ElementState::Pressed => self.core.route_pointer_press(position, button),
                     ElementState::Released => self.core.route_pointer_release(position, button),
                 };
-                self.handle_pointer_route(routed);
+                self.handle_route_outcome(routed);
             }
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_event(event),
             WindowEvent::RedrawRequested => self.redraw(event_loop),
@@ -605,7 +642,7 @@ mod tests {
     use super::*;
     use crate::{
         layout::{ContainerKind, ContainerPolicy, SlotParams},
-        runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+        runtime::{Command, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
         widgets::{ButtonWidget, TextInputMessage, TextInputWidget, WidgetSizing, WidgetSpec},
     };
 
@@ -633,8 +670,14 @@ mod tests {
             .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
             .expect("button should be laid out");
 
-        assert!(core.route_pointer_press(button_point, PointerButton::Primary));
-        assert!(core.route_pointer_release(button_point, PointerButton::Primary));
+        assert!(
+            core.route_pointer_press(button_point, PointerButton::Primary)
+                .routed
+        );
+        assert!(
+            core.route_pointer_release(button_point, PointerButton::Primary)
+                .routed
+        );
         assert_eq!(core.runtime.bridge().state.count, 1);
 
         let input_point = core
@@ -644,10 +687,37 @@ mod tests {
             .get(&12)
             .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
             .expect("text input should be laid out");
-        assert!(core.route_pointer_press(input_point, PointerButton::Primary));
-        assert!(core.route_character('R'));
-        assert!(core.route_key_press(WidgetKey::Enter));
+        assert!(
+            core.route_pointer_press(input_point, PointerButton::Primary)
+                .routed
+        );
+        assert!(core.route_character('R').routed);
+        assert!(core.route_key_press(WidgetKey::Enter).routed);
         assert_eq!(core.runtime.bridge().state.name, "R");
+    }
+
+    #[test]
+    fn generic_core_drains_command_repaint_requests_after_routing() {
+        let bridge = RepaintBridge::default();
+        let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+        let button_point = core
+            .runtime
+            .layout()
+            .rects
+            .get(&11)
+            .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+            .expect("button should be laid out");
+
+        assert!(
+            core.route_pointer_press(button_point, PointerButton::Primary)
+                .routed
+        );
+        let outcome = core.route_pointer_release(button_point, PointerButton::Primary);
+
+        assert!(outcome.routed);
+        assert!(outcome.repaint_requested);
+        assert!(!core.runtime.repaint_requested());
+        assert_eq!(core.runtime.bridge().state.count, 1);
     }
 
     #[test]
@@ -667,45 +737,7 @@ mod tests {
 
     impl RuntimeBridge<DemoMessage> for DemoBridge {
         fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-            let button = WidgetSpec::Button(ButtonWidget::new(
-                11,
-                "Increment",
-                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-            ));
-            let input = WidgetSpec::TextInput(TextInputWidget::new(
-                12,
-                self.state.name.clone(),
-                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
-            ));
-            Arc::new(UiSurface::new(SurfaceNode::container(
-                1,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: 8.0,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        SurfaceNode::widget(
-                            button,
-                            WidgetMessageMapper::button(|_| DemoMessage::Increment),
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        SurfaceNode::widget(
-                            input,
-                            WidgetMessageMapper::text_input(|message| match message {
-                                TextInputMessage::Changed { value }
-                                | TextInputMessage::Submitted { value } => {
-                                    DemoMessage::Rename(value)
-                                }
-                            }),
-                        ),
-                    ),
-                ],
-            )))
+            demo_surface(&self.state)
         }
 
         fn reduce_message(&mut self, message: DemoMessage) {
@@ -718,5 +750,69 @@ mod tests {
 
     fn demo_bridge() -> DemoBridge {
         DemoBridge::default()
+    }
+
+    #[derive(Default)]
+    struct RepaintBridge {
+        state: DemoState,
+    }
+
+    impl RuntimeBridge<DemoMessage> for RepaintBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+            demo_surface(&self.state)
+        }
+
+        fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+            match message {
+                DemoMessage::Increment => {
+                    self.state.count += 1;
+                    Command::request_repaint()
+                }
+                DemoMessage::Rename(name) => {
+                    self.state.name = name;
+                    Command::none()
+                }
+            }
+        }
+    }
+
+    fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMessage>> {
+        let button = WidgetSpec::Button(ButtonWidget::new(
+            11,
+            "Increment",
+            WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+        ));
+        let input = WidgetSpec::TextInput(TextInputWidget::new(
+            12,
+            state.name.clone(),
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        ));
+        Arc::new(UiSurface::new(SurfaceNode::container(
+            1,
+            ContainerPolicy {
+                kind: ContainerKind::Row,
+                spacing: 8.0,
+                ..ContainerPolicy::default()
+            },
+            vec![
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(
+                        button,
+                        WidgetMessageMapper::button(|_| DemoMessage::Increment),
+                    ),
+                ),
+                SurfaceChild::new(
+                    SlotParams::fill(),
+                    SurfaceNode::widget(
+                        input,
+                        WidgetMessageMapper::text_input(|message| match message {
+                            TextInputMessage::Changed { value }
+                            | TextInputMessage::Submitted { value } => DemoMessage::Rename(value),
+                        }),
+                    ),
+                ),
+            ],
+        )))
     }
 }

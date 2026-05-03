@@ -6,7 +6,7 @@ use crate::gui::layout_core::{
     LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
     SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Rect, Vector2};
 
 const TOP_TITLE_CLUSTERS_ROOT_ID: u64 = 610;
 const TOP_TITLE_CLUSTERS_ROW_ID: u64 = 611;
@@ -120,20 +120,14 @@ pub(crate) fn compute_top_bar_band_sections(
         }],
     );
     let cluster_output = layout_tree(&clusters_tree, title_row);
-    let title_cluster = clamp_rect_to_bounds(
-        rect_for(
-            &cluster_output.rects,
-            TOP_TITLE_CLUSTER_ID,
-            Rect::from_min_max(title_inner.min, title_inner.min),
-        ),
+    let title_cluster = cluster_output.rect_for_clamped(
+        TOP_TITLE_CLUSTER_ID,
+        Rect::from_min_max(title_inner.min, title_inner.min),
         title_row,
     );
-    let action_cluster = clamp_rect_to_bounds(
-        rect_for(
-            &cluster_output.rects,
-            TOP_ACTION_CLUSTER_ID,
-            Rect::from_min_max(title_inner.max, title_inner.max),
-        ),
+    let action_cluster = cluster_output.rect_for_clamped(
+        TOP_ACTION_CLUSTER_ID,
+        Rect::from_min_max(title_inner.max, title_inner.max),
         title_row,
     );
     TopBarBandSections {
@@ -169,26 +163,11 @@ pub(crate) fn compute_browser_band_sections_with_layout_engine(
         LayoutDebugOptions::default(),
     );
     BrowserBandSections {
-        browser_tabs: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TABS_ID, empty),
-            browser_panel,
-        ),
-        browser_toolbar: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TOOLBAR_ID, empty),
-            browser_panel,
-        ),
-        browser_table_header: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_HEADER_ID, empty),
-            browser_panel,
-        ),
-        browser_rows: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_ROWS_ID, empty),
-            browser_panel,
-        ),
-        browser_footer: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_FOOTER_ID, empty),
-            browser_panel,
-        ),
+        browser_tabs: output.rect_for_clamped(BROWSER_TABS_ID, empty, browser_panel),
+        browser_toolbar: output.rect_for_clamped(BROWSER_TOOLBAR_ID, empty, browser_panel),
+        browser_table_header: output.rect_for_clamped(BROWSER_HEADER_ID, empty, browser_panel),
+        browser_rows: output.rect_for_clamped(BROWSER_ROWS_ID, empty, browser_panel),
+        browser_footer: output.rect_for_clamped(BROWSER_FOOTER_ID, empty, browser_panel),
     }
 }
 
@@ -285,19 +264,6 @@ fn fixed_width_slot(width: f32) -> SlotParams {
     }
 }
 
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
 fn empty_rect(bounds: Rect) -> Rect {
     Rect::from_min_max(bounds.min, bounds.min)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
 }

@@ -708,8 +708,8 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
     }
     assert!(text_layout_mod.contains(".empty_at_min()"));
     assert!(text_layout_mod.contains(".clamp_to(inner)"));
-    assert!(browser_text_mod.contains(".clamp_to(rect)"));
-    assert!(map_header_mod.contains(".clamp_to(header_rect)"));
+    assert!(browser_text_mod.contains("output.rect_for_clamped("));
+    assert!(map_header_mod.contains("output.rect_for_clamped("));
 }
 
 #[test]
@@ -778,17 +778,38 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
         "/src/gui/native_shell/waveform_header_surface.rs"
     ))
     .expect("waveform header surface should be readable");
+    let layout_adapter_files = [
+        "/src/gui/native_shell/layout_adapter/bands.rs",
+        "/src/gui/native_shell/layout_adapter/browser_tabs.rs",
+        "/src/gui/native_shell/layout_adapter/browser_text.rs",
+        "/src/gui/native_shell/layout_adapter/map_canvas.rs",
+        "/src/gui/native_shell/layout_adapter/map_header.rs",
+        "/src/gui/native_shell/layout_adapter/sidebar_bands.rs",
+    ]
+    .map(|path| {
+        fs::read_to_string(format!("{}{}", env!("CARGO_MANIFEST_DIR"), path))
+            .unwrap_or_else(|err| panic!("layout adapter file {path} should be readable: {err}"))
+    });
 
     assert!(layout_types.contains("pub fn rect_for(&self, node_id: NodeId, fallback: Rect)"));
     assert!(layout_types.contains("pub fn rect_for_clamped"));
     assert!(layout_adapter.contains("output.rect_for("));
     assert!(browser_chrome_surface.contains("output.rect_for_clamped("));
     assert!(waveform_header_surface.contains("output.rect_for_clamped("));
+    assert!(
+        layout_adapter_files
+            .iter()
+            .all(|source| source.contains("output.rect_for_clamped("))
+    );
     assert!(!layout_adapter.contains("fn rect_for"));
     assert!(!browser_chrome_surface.contains("fn rect_for"));
     assert!(!browser_chrome_surface.contains("fn clamp_rect_to_bounds"));
     assert!(!waveform_header_surface.contains("fn rect_for"));
     assert!(!waveform_header_surface.contains("fn clamp_rect_to_bounds"));
+    for source in layout_adapter_files {
+        assert!(!source.contains("fn rect_for"));
+        assert!(!source.contains("fn clamp_rect_to_bounds"));
+    }
 }
 
 #[test]

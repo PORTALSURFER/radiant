@@ -71,8 +71,8 @@ pub(crate) fn compute_browser_table_columns(
         ],
     );
     let output = layout_tree(&tree, rect);
-    let index = rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty).clamp_to(rect);
-    let raw_item = rect_for(&output.rects, BROWSER_COL_ITEM_ID, empty).clamp_to(rect);
+    let index = output.rect_for_clamped(BROWSER_COL_INDEX_ID, empty, rect);
+    let raw_item = output.rect_for_clamped(BROWSER_COL_ITEM_ID, empty, rect);
     let item_min_x = raw_item.min.x.max(index.max.x);
     let item = Rect::from_min_max(
         Point::new(item_min_x, raw_item.min.y),
@@ -162,10 +162,6 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> R
         0.0,
         BROWSER_TEXT_ROOT_ID,
     )
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 #[cfg(test)]

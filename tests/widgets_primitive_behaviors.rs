@@ -4,9 +4,10 @@ use radiant::gui::types::{Point, Rect};
 use radiant::{
     layout::Vector2,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, PointerButton,
-        ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, TextInputMessage, TextInputWidget,
-        ToggleMessage, ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ListItemMessage,
+        ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
+        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, WidgetInput, WidgetKey,
+        WidgetSizing,
     },
 };
 
@@ -93,6 +94,43 @@ fn card_intrinsic_sizing_is_public_and_non_interactive() {
         }
         other => panic!("expected widget leaf, got {other:?}"),
     }
+}
+
+#[test]
+fn list_item_invocation_is_public_and_deterministic() {
+    let mut item = ListItemWidget::new(
+        9,
+        "Document",
+        WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+    );
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0));
+
+    assert_eq!(
+        item.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        None
+    );
+    assert_eq!(
+        item.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(12.0, 10.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(ListItemMessage::Invoked)
+    );
+
+    let _ = item.handle_input(bounds, WidgetInput::FocusChanged(true));
+    assert_eq!(
+        item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(ListItemMessage::Invoked)
+    );
 }
 
 #[test]

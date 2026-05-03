@@ -8,7 +8,9 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, WidgetId, WidgetKind, WidgetProminence, WidgetSizing, WidgetState,
     WidgetStyle, WidgetTone,
 };
-use crate::widgets::interaction::{WidgetInput, WidgetKey, WidgetOutput};
+use crate::widgets::interaction::{
+    ListItemMessage, PointerButton, WidgetInput, WidgetKey, WidgetOutput,
+};
 
 /// Shared contract carried by every public widget descriptor.
 #[derive(Clone, Debug, PartialEq)]
@@ -108,6 +110,45 @@ impl ListItemWidget {
             common,
             label: label.into(),
             detail: None,
+        }
+    }
+
+    /// Route one backend-neutral interaction into the list item.
+    pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ListItemMessage> {
+        if self.common.state.disabled {
+            return None;
+        }
+
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.common.state.pressed = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                let was_pressed = self.common.state.pressed;
+                self.common.state.pressed = false;
+                (was_pressed && bounds.contains(position)).then_some(ListItemMessage::Invoked)
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                None
+            }
+            WidgetInput::KeyPress(key)
+                if self.common.state.focused && activate_on_keyboard(key) =>
+            {
+                Some(ListItemMessage::Invoked)
+            }
+            _ => None,
         }
     }
 }
@@ -224,7 +265,10 @@ impl WidgetSpec {
                 .handle_input(bounds, input)
                 .map(WidgetOutput::Scrollbar),
             Self::Badge(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Badge),
-            Self::Text(_) | Self::ListItem(_) | Self::Card(_) | Self::Canvas(_) => None,
+            Self::ListItem(widget) => widget
+                .handle_input(bounds, input)
+                .map(WidgetOutput::ListItem),
+            Self::Text(_) | Self::Card(_) | Self::Canvas(_) => None,
         }
     }
 }

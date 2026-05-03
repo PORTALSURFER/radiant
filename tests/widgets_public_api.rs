@@ -6,9 +6,9 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, CardWidget, ScrollbarAxis, ScrollbarWidget, TextInputWidget,
-        TextWidget, ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput,
-        WidgetSizing, WidgetSpec,
+        BadgeWidget, ButtonWidget, CardWidget, ListItemWidget, ScrollbarAxis, ScrollbarWidget,
+        TextInputWidget, TextWidget, ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind,
+        WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 
@@ -48,6 +48,11 @@ fn public_widgets_compose_with_public_layout_containers() {
         8,
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     ));
+    let item = WidgetSpec::ListItem(ListItemWidget::new(
+        9,
+        "Document",
+        WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+    ));
 
     let root = LayoutNode::container(
         1,
@@ -64,12 +69,13 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), scroll.layout_node()),
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
             SlotChild::new(SlotParams::fill(), card.layout_node()),
+            SlotChild::new(SlotParams::fill(), item.layout_node()),
         ],
     );
 
     let output = layout_tree(
         &root,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(640.0, 32.0)),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(760.0, 32.0)),
     );
 
     assert!(output.rects.contains_key(&header.id()));
@@ -79,6 +85,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&scroll.id()));
     assert!(output.rects.contains_key(&badge.id()));
     assert!(output.rects.contains_key(&card.id()));
+    assert!(output.rects.contains_key(&item.id()));
     assert_eq!(
         rename.common().emitted_messages,
         vec![WidgetMessageKind::Activate]
@@ -94,6 +101,10 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert_eq!(
         scroll.common().emitted_messages,
         vec![WidgetMessageKind::ScrollRequested]
+    );
+    assert_eq!(
+        item.common().emitted_messages,
+        vec![WidgetMessageKind::ItemInvoked]
     );
     assert_eq!(
         badge.common().emitted_messages,
@@ -124,6 +135,11 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         13,
         "Ready",
         WidgetSizing::fixed(Vector2::new(64.0, 24.0)),
+    ));
+    let mut item = WidgetSpec::ListItem(ListItemWidget::new(
+        14,
+        "Document",
+        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     ));
 
     assert_eq!(
@@ -169,6 +185,17 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         badge.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::Badge(
             radiant::widgets::BadgeMessage::Activate
+        ))
+    );
+
+    assert_eq!(
+        item.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        None
+    );
+    assert_eq!(
+        item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Some(WidgetOutput::ListItem(
+            radiant::widgets::ListItemMessage::Invoked
         ))
     );
 }

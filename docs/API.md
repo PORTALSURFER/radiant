@@ -56,6 +56,7 @@ widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
 `SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
 `SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
 `SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and
+`SurfaceNode::list_item_action`, `SurfaceNode::list_item_mapped`,
 `SurfaceNode::card`, and `SurfaceNode::canvas` cover common leaf widgets without
 requiring hosts to manually wrap `WidgetSpec`. `SurfaceNode::stack` overlays
 children in slot order so hosts can compose a card background with nested rows,

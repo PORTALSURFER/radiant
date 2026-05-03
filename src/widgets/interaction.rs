@@ -103,6 +103,13 @@ pub enum BadgeMessage {
     Activate,
 }
 
+/// Message emitted by a reusable list-item primitive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ListItemMessage {
+    /// The item was invoked by pointer or keyboard input.
+    Invoked,
+}
+
 /// Message emitted by a reusable toggle primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ToggleMessage {
@@ -145,6 +152,8 @@ pub enum WidgetOutput {
     Button(ButtonMessage),
     /// Badge or pill activation output.
     Badge(BadgeMessage),
+    /// List item invocation output.
+    ListItem(ListItemMessage),
     /// Toggle value-change output.
     Toggle(ToggleMessage),
     /// Text-input editing or submit output.

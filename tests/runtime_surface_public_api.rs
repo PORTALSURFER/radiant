@@ -10,9 +10,10 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, ButtonMessage, ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
-        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
+        BadgeMessage, ButtonMessage, ButtonWidget, ListItemMessage, PointerButton, ScrollbarAxis,
+        ScrollbarMessage, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
+        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -413,6 +414,12 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
                 "Row",
                 WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
             )),
+            SurfaceChild::fill(SurfaceNode::list_item_mapped(
+                64,
+                "Mapped row",
+                WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+                |_| DemoMessage::Rename(String::from("row")),
+            )),
             SurfaceChild::fill(SurfaceNode::canvas(
                 63,
                 WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
@@ -426,6 +433,10 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     ));
     assert!(matches!(
         surface.find_widget(62).map(|widget| widget.widget()),
+        Some(WidgetSpec::ListItem(_))
+    ));
+    assert!(matches!(
+        surface.find_widget(64).map(|widget| widget.widget()),
         Some(WidgetSpec::ListItem(_))
     ));
     assert!(matches!(
@@ -449,6 +460,13 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
             })
         ),
         Some(DemoMessage::Rename(String::from("raw:0.5")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            64,
+            radiant::widgets::WidgetOutput::ListItem(ListItemMessage::Invoked)
+        ),
+        Some(DemoMessage::Rename(String::from("row")))
     );
 }
 

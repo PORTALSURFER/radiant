@@ -9,9 +9,9 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, CardWidget,
-        FocusBehavior, ListItemWidget, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
-        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId,
-        WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        FocusBehavior, ListItemMessage, ListItemWidget, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
+        ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -35,6 +35,8 @@ pub enum WidgetMessageMapper<Message> {
     TextInput(MessageMapper<TextInputMessage, Message>),
     /// Map a scrollbar request payload into a host-defined message.
     Scrollbar(MessageMapper<ScrollbarMessage, Message>),
+    /// Map a list-item invocation payload into a host-defined message.
+    ListItem(MessageMapper<ListItemMessage, Message>),
 }
 
 impl<Message> Clone for WidgetMessageMapper<Message> {
@@ -46,6 +48,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
             Self::Toggle(map) => Self::Toggle(Arc::clone(map)),
             Self::TextInput(map) => Self::TextInput(Arc::clone(map)),
             Self::Scrollbar(map) => Self::Scrollbar(Arc::clone(map)),
+            Self::ListItem(map) => Self::ListItem(Arc::clone(map)),
         }
     }
 }
@@ -76,6 +79,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Self::Scrollbar(Arc::new(map))
     }
 
+    /// Build a list-item-message mapper.
+    pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::ListItem(Arc::new(map))
+    }
+
     fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match (self, output) {
             (Self::Button(map), WidgetOutput::Button(message)) => Some(map(message)),
@@ -83,6 +91,7 @@ impl<Message> WidgetMessageMapper<Message> {
             (Self::Toggle(map), WidgetOutput::Toggle(message)) => Some(map(message)),
             (Self::TextInput(map), WidgetOutput::TextInput(message)) => Some(map(message)),
             (Self::Scrollbar(map), WidgetOutput::Scrollbar(message)) => Some(map(message)),
+            (Self::ListItem(map), WidgetOutput::ListItem(message)) => Some(map(message)),
             _ => None,
         }
     }
@@ -420,6 +429,32 @@ impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
         Self::static_widget(WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)))
+    }
+
+    /// Build an invoking list item leaf node that emits one cloned host message.
+    pub fn list_item_action(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::list_item_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build an invoking list item leaf node with a custom widget-to-host message mapper.
+    pub fn list_item_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)),
+            WidgetMessageMapper::list_item(map),
+        )
     }
 
     /// Build a non-emitting card or panel leaf node.

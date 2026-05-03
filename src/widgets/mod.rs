@@ -66,8 +66,8 @@ pub use contract::{
     WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
 };
 pub use interaction::{
-    BadgeMessage, ButtonMessage, PointerButton, ScrollbarMessage, TextInputMessage, ToggleMessage,
-    WidgetInput, WidgetKey, WidgetOutput,
+    BadgeMessage, ButtonMessage, ListItemMessage, PointerButton, ScrollbarMessage,
+    TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,

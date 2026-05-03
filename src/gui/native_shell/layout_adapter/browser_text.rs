@@ -1,11 +1,11 @@
 //! Slotized browser table column, header-label, and row-label geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
@@ -45,7 +45,7 @@ pub(crate) fn compute_browser_table_columns(
     rect: Rect,
     sizing: SizingTokens,
 ) -> BrowserTableColumns {
-    let empty = empty_rect(rect);
+    let empty = rect.empty_at_min();
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
         return BrowserTableColumns {
             index: empty,
@@ -71,8 +71,8 @@ pub(crate) fn compute_browser_table_columns(
         ],
     );
     let output = layout_tree(&tree, rect);
-    let index = clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty), rect);
-    let raw_item = clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_ITEM_ID, empty), rect);
+    let index = rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty).clamp_to(rect);
+    let raw_item = rect_for(&output.rects, BROWSER_COL_ITEM_ID, empty).clamp_to(rect);
     let item_min_x = raw_item.min.x.max(index.max.x);
     let item = Rect::from_min_max(
         Point::new(item_min_x, raw_item.min.y),
@@ -151,7 +151,7 @@ fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
 }
 
 fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
-    let empty = empty_rect(rect);
+    let empty = rect.empty_at_min();
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
@@ -180,21 +180,8 @@ fn snap_browser_row_text_baseline(line: Rect) -> Rect {
     )
 }
 
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
 fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
     rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
 }
 
 #[cfg(test)]

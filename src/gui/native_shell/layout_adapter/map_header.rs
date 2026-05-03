@@ -1,12 +1,12 @@
 //! Slotized browser map-header text layout helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::types::{Rect, Vector2};
 
 const MAP_HEADER_ROOT_ID: u64 = 1300;
 const MAP_HEADER_ROW_ID: u64 = 1301;
@@ -28,7 +28,7 @@ pub(crate) fn compute_browser_map_header_text_layout(
     header_rect: Rect,
     sizing: SizingTokens,
 ) -> BrowserMapHeaderTextLayout {
-    let empty = empty_rect(header_rect);
+    let empty = header_rect.empty_at_min();
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return BrowserMapHeaderTextLayout {
             left_label: empty,
@@ -74,14 +74,8 @@ pub(crate) fn compute_browser_map_header_text_layout(
         }],
     );
     let output = layout_tree(&tree, header_rect);
-    let left_bounds = clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_HEADER_LEFT_ID, empty),
-        header_rect,
-    );
-    let right_bounds = clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_HEADER_RIGHT_ID, empty),
-        header_rect,
-    );
+    let left_bounds = rect_for(&output.rects, MAP_HEADER_LEFT_ID, empty).clamp_to(header_rect);
+    let right_bounds = rect_for(&output.rects, MAP_HEADER_RIGHT_ID, empty).clamp_to(header_rect);
     BrowserMapHeaderTextLayout {
         left_label: compute_map_header_text_line(left_bounds, sizing, sizing.font_meta),
         right_label: compute_map_header_text_line(right_bounds, sizing, sizing.font_meta),
@@ -104,7 +98,7 @@ fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
 }
 
 fn compute_map_header_text_line(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
-    let empty = empty_rect(rect);
+    let empty = rect.empty_at_min();
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
@@ -122,21 +116,8 @@ fn compute_map_header_text_line(rect: Rect, sizing: SizingTokens, font_size: f32
     )
 }
 
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
 fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
     rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
 }
 
 #[cfg(test)]

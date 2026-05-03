@@ -651,6 +651,35 @@ fn union_rect_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn text_layout_clamping_reuses_generic_rect_methods() {
+    let text_layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/text_layout.rs"
+    ))
+    .expect("text layout module should be readable");
+    let browser_text_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/browser_text.rs"
+    ))
+    .expect("browser text adapter should be readable");
+    let map_header_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/map_header.rs"
+    ))
+    .expect("map header adapter should be readable");
+
+    for source in [&text_layout_mod, &browser_text_mod, &map_header_mod] {
+        assert!(!source.contains("fn clamp_rect_to_bounds"));
+        assert!(!source.contains("fn empty_rect"));
+        assert!(!source.contains("Rect::from_min_max(bounds.min, bounds.min)"));
+    }
+    assert!(text_layout_mod.contains(".empty_at_min()"));
+    assert!(text_layout_mod.contains(".clamp_to(inner)"));
+    assert!(browser_text_mod.contains(".clamp_to(rect)"));
+    assert!(map_header_mod.contains(".clamp_to(header_rect)"));
+}
+
+#[test]
 fn context_menu_panel_placement_is_owned_by_generic_panel_module() {
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");

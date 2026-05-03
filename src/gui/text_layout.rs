@@ -104,12 +104,7 @@ pub fn centered_text_line(
 }
 
 /// Resolve a top-aligned text-line rect through the retained micro-layout cache.
-pub fn top_text_line(
-    bounds: Rect,
-    font_size: f32,
-    insets: TextLineInsets,
-    family_id: u64,
-) -> Rect {
+pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets, family_id: u64) -> Rect {
     text_line(bounds, font_size, insets, 0.0, family_id, TextLineMode::Top)
 }
 
@@ -121,7 +116,7 @@ fn text_line(
     family_id: u64,
     mode: TextLineMode,
 ) -> Rect {
-    let empty = empty_rect(bounds);
+    let empty = bounds.empty_at_min();
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
@@ -169,7 +164,7 @@ fn compute_text_line(
 ) -> Rect {
     let inner = inset_rect(bounds, insets);
     if inner.width() <= 0.0 || inner.height() <= 0.0 {
-        return empty_rect(bounds);
+        return bounds.empty_at_min();
     }
     let line_height = font_size.max(1.0);
     let line = match mode {
@@ -186,7 +181,7 @@ fn compute_text_line(
         ),
     };
     let line = clamp_min_top(line, inner, min_top_inset.max(0.0));
-    clamp_rect_to_bounds(line, inner)
+    line.clamp_to(inner)
 }
 
 fn clamp_min_top(line: Rect, bounds: Rect, min_top_inset: f32) -> Rect {
@@ -209,19 +204,6 @@ fn inset_rect(rect: Rect, insets: TextLineInsets) -> Rect {
     let min_y = (rect.min.y + insets.top.max(0.0)).min(rect.max.y);
     let max_y = (rect.max.y - insets.bottom.max(0.0)).max(min_y);
     Rect::from_min_max(Point::new(min_x, min_y), Point::new(max_x, max_y))
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return empty_rect(bounds);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
 }
 
 fn cache() -> &'static Mutex<TextLineCache> {

@@ -154,7 +154,7 @@ impl NativeShellState {
         }
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         let rows = geometry.rows;
-        row_index_for_visible_rows(rows, point, layout.browser_rows)
+        content_list_row_index_at_point(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
     }
 

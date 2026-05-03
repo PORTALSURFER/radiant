@@ -1,18 +1,18 @@
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn row_index_for_visible_rows(
+pub(in crate::gui::native_shell::state) fn content_list_row_index_at_point(
     rows: &[CachedBrowserRow],
     point: Point,
-    browser_rows: Rect,
+    list_rect: Rect,
 ) -> Option<usize> {
-    if rows.is_empty() || !browser_rows.contains(point) {
+    if rows.is_empty() || !list_rect.contains(point) {
         return None;
     }
-    row_index_for_stacked_geometry(rows, point)
+    stacked_row_index_at_point(rows, point)
 }
 
-/// Resolve one browser-row index from stacked row geometry in constant time.
-pub(in crate::gui::native_shell::state) fn row_index_for_stacked_geometry(
+/// Resolve one content-list row index from stacked row geometry in constant time.
+pub(in crate::gui::native_shell::state) fn stacked_row_index_at_point(
     rows: &[CachedBrowserRow],
     point: Point,
 ) -> Option<usize> {

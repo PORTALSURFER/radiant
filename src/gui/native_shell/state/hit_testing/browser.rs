@@ -36,7 +36,7 @@ impl NativeShellState {
         }
         let list_rect = browser_rows_list_rect(layout.browser_rows, geometry.style.sizing, model);
         let rows = geometry.rows;
-        row_index_for_visible_rows(rows, point, list_rect).map(|index| rows[index].visible_row)
+        content_list_row_index_at_point(rows, point, list_rect).map(|index| rows[index].visible_row)
     }
 
     /// Resolve the focused-row similarity button into its native action.

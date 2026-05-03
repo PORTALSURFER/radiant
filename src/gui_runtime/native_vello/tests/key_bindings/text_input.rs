@@ -11,16 +11,16 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::BrowserSearch;
-    runner.text_input_buffer = Some(String::from("dr"));
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("dr"));
+    runner.text_input_buffer = Some(String::from("it"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("it"));
 
     runner.handle_character_key_for_tests(KeyCode::X, "x");
 
-    assert_eq!(runner.text_input_buffer.as_deref(), Some("drx"));
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("itx"));
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetBrowserSearch {
-            query: String::from("drx"),
+            query: String::from("itx"),
         }]
     );
 
@@ -29,21 +29,21 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::FolderSearch;
-    runner.text_input_buffer = Some(String::from("ki"));
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("ki"));
+    runner.text_input_buffer = Some(String::from("gr"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("gr"));
 
     runner.handle_character_key_for_tests(KeyCode::X, "x");
 
-    assert_eq!(runner.text_input_buffer.as_deref(), Some("kix"));
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("grx"));
     assert_eq!(
         runner.bridge.actions,
         vec![
             UiAction::SetBrowserSearch {
-                query: String::from("drx"),
+                query: String::from("itx"),
             },
             UiAction::SetFolderSearch {
                 pane: Some(FolderPaneIdModel::Upper),
-                query: String::from("kix"),
+                query: String::from("grx"),
             },
         ]
     );
@@ -59,14 +59,14 @@ fn text_input_targets_consume_command_c_without_emitting_copy_selection_action()
         ..AppModel::default()
     });
     runner.text_input_target = TextInputTarget::BrowserSearch;
-    runner.text_input_buffer = Some(String::from("drums"));
-    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("drums"));
+    runner.text_input_buffer = Some(String::from("query"));
+    runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("query"));
     runner.modifiers = ModifiersState::CONTROL;
 
     runner.handle_character_key_for_tests(KeyCode::C, "c");
 
     assert!(runner.bridge.actions.is_empty());
-    assert_eq!(runner.text_input_buffer.as_deref(), Some("drums"));
+    assert_eq!(runner.text_input_buffer.as_deref(), Some("query"));
 }
 
 #[test]

@@ -8,7 +8,7 @@ fn browser_drag_model() -> AppModel {
         )
         .with_backing_index(0),
         crate::compat_app_contract::FolderRowModel::new(
-            "Drums", "drums", 1, false, false, false, true, true,
+            "Group A", "group-a", 1, false, false, false, true, true,
         )
         .with_backing_index(7),
     ];

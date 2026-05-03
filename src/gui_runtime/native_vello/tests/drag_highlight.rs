@@ -9,7 +9,7 @@ fn browser_drag_model() -> AppModel {
         )
         .with_backing_index(0),
         crate::compat_app_contract::FolderRowModel::new(
-            "Drums", "drums", 1, false, false, false, true, true,
+            "Group A", "group-a", 1, false, false, false, true, true,
         )
         .with_backing_index(7),
     ];
@@ -153,7 +153,7 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
     drag_model.drag_overlay = crate::compat_app_contract::DragOverlayModel {
         active: true,
         label: String::from("row_0000"),
-        target_label: String::from("Folder: drums"),
+        target_label: String::from("Folder: group-a"),
         valid_target: true,
         pointer_x: Some(drag_point.x.round() as u16),
         pointer_y: Some(drag_point.y.round() as u16),

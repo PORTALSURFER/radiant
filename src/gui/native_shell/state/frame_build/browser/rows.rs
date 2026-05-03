@@ -451,17 +451,17 @@ fn render_browser_pill_editor_overlay(
         .iter()
         .zip(layout.playback_rects.iter())
     {
-        render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
+        render_sidebar_pill(primitives, text_runs, ctx, *rect, pill);
     }
     for (pill, rect) in sidebar
         .option_pills
         .iter()
-        .zip(layout.normal_tag_rects.iter())
+        .zip(layout.option_pill_rects.iter())
     {
-        render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
+        render_sidebar_pill(primitives, text_runs, ctx, *rect, pill);
     }
-    if let (Some(create), Some(rect)) = (sidebar.create_pill.as_ref(), layout.create_tag_rect) {
-        render_sidebar_tag_pill(primitives, text_runs, ctx, rect, create);
+    if let (Some(create), Some(rect)) = (sidebar.create_pill.as_ref(), layout.create_pill_rect) {
+        render_sidebar_pill(primitives, text_runs, ctx, rect, create);
     }
 }
 
@@ -504,7 +504,7 @@ fn render_sidebar_toggle_button(
     );
 }
 
-fn render_sidebar_tag_pill(
+fn render_sidebar_pill(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
@@ -555,8 +555,8 @@ struct BrowserPillEditorLayout {
     input_rect: Rect,
     input_text_rect: Rect,
     playback_rects: [Rect; 2],
-    normal_tag_rects: Vec<Rect>,
-    create_tag_rect: Option<Rect>,
+    option_pill_rects: Vec<Rect>,
+    create_pill_rect: Option<Rect>,
 }
 
 fn browser_pill_editor_rect(
@@ -610,27 +610,28 @@ fn browser_pill_editor_layout(
             Point::new(content_max_x, playback_top + field_height),
         ),
     ];
-    let tags_top = playback_rects[0].max.y + 12.0;
-    let tag_cols = 3usize;
-    let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
-        / tag_cols as f32)
+    let pills_top = playback_rects[0].max.y + 12.0;
+    let pill_cols = 3usize;
+    let pill_width = ((content_max_x - content_min_x - pill_gap * (pill_cols - 1) as f32)
+        / pill_cols as f32)
         .max(40.0);
-    let mut normal_tag_rects = Vec::with_capacity(model.browser.pill_editor().option_pills.len());
+    let mut option_pill_rects =
+        Vec::with_capacity(model.browser.pill_editor().option_pills.len());
     for index in 0..model.browser.pill_editor().option_pills.len() {
-        let col = index % tag_cols;
-        let row = index / tag_cols;
-        let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
-        let min_y = tags_top + (field_height + pill_gap) * row as f32;
-        normal_tag_rects.push(Rect::from_min_max(
+        let col = index % pill_cols;
+        let row = index / pill_cols;
+        let min_x = content_min_x + (pill_width + pill_gap) * col as f32;
+        let min_y = pills_top + (field_height + pill_gap) * row as f32;
+        option_pill_rects.push(Rect::from_min_max(
             Point::new(min_x, min_y),
-            Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
+            Point::new((min_x + pill_width).min(content_max_x), min_y + field_height),
         ));
     }
-    let create_tag_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {
-        let y = normal_tag_rects
+    let create_pill_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {
+        let y = option_pill_rects
             .last()
             .map(|rect| rect.max.y + 12.0)
-            .unwrap_or(tags_top);
+            .unwrap_or(pills_top);
         Rect::from_min_max(
             Point::new(content_min_x, y),
             Point::new(content_max_x, y + field_height),
@@ -641,7 +642,7 @@ fn browser_pill_editor_layout(
         input_rect,
         input_text_rect,
         playback_rects,
-        normal_tag_rects,
-        create_tag_rect,
+        option_pill_rects,
+        create_pill_rect,
     })
 }

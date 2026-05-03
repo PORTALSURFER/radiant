@@ -1,4 +1,4 @@
-//! Sempal native Vello compatibility facade used by the legacy Radiant path.
+//! Legacy native Vello compatibility facade used by Radiant.
 
 use super::{AppModel, GuiAutomationSnapshot, NativeAppBridge, NativeRunReport};
 use crate::gui::{

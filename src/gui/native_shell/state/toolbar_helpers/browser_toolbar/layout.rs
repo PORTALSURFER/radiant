@@ -1,8 +1,7 @@
 //! Browser toolbar layout and hit-testing helpers.
 
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::super::super::*;
-use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     layout: &ShellLayout,

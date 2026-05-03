@@ -1,7 +1,6 @@
 //! Slotized waveform annotation geometry for selection, slice previews, cursor, and playhead.
 
-use self::sempal_crate::app as native_model;
-use crate as sempal_crate;
+use crate::app as native_model;
 use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
 use crate::gui::visualization::TimelineMarkerPreview;

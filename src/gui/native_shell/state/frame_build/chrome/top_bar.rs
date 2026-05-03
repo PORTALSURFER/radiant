@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 use native_model::StatusChipStateModel;
 
 pub(super) fn render_top_bar_controls(

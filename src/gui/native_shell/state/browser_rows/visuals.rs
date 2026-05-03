@@ -1,8 +1,7 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,

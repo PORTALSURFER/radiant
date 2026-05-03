@@ -1,8 +1,7 @@
 //! Options-panel action definitions and paired-picker helpers.
 
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
     let paired_device = model.paired_device_panel();

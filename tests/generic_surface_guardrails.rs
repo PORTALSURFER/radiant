@@ -85,6 +85,8 @@ const DOMAIN_SCAN_EXEMPT_FILES: &[&str] = &[
     "tests/generic_extraction_ownership.rs",
 ];
 
+const SEMPAL_NAME_SCAN_ROOTS: &[&str] = &["src", "docs", "examples"];
+
 const DOMAIN_TERMS: &[&str] = &[
     "AppModel",
     "UiAction",
@@ -1017,6 +1019,17 @@ struct ExtractionRule {
 }
 
 #[test]
+fn radiant_source_docs_and_examples_do_not_name_sempal() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let matches = sempal_name_matches(&manifest_dir);
+    assert!(
+        matches.is_empty(),
+        "Radiant source, docs, and examples must stay product-neutral; found Sempal names:\n{}",
+        matches.join("\n")
+    );
+}
+
+#[test]
 fn domain_extraction_inventory_covers_current_domain_bearing_files() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let rules = parse_extraction_inventory();
@@ -1231,6 +1244,56 @@ impl ExtractionRule {
             file.starts_with(&format!("{prefix}/"))
         } else {
             self.pattern == file
+        }
+    }
+}
+
+fn sempal_name_matches(manifest_dir: &Path) -> Vec<String> {
+    let mut matches = Vec::new();
+    for root in SEMPAL_NAME_SCAN_ROOTS {
+        collect_sempal_name_matches(&manifest_dir.join(root), manifest_dir, &mut matches);
+    }
+    matches.sort();
+    matches
+}
+
+fn collect_sempal_name_matches(path: &Path, manifest_dir: &Path, matches: &mut Vec<String>) {
+    if !path.exists() {
+        return;
+    }
+    if path.is_dir() {
+        let mut entries = fs::read_dir(path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|err| {
+                        panic!("failed to read entry in {}: {err}", path.display())
+                    })
+                    .path()
+            })
+            .collect::<Vec<_>>();
+        entries.sort();
+        for entry in entries {
+            collect_sempal_name_matches(&entry, manifest_dir, matches);
+        }
+        return;
+    }
+
+    let extension = path.extension().and_then(|extension| extension.to_str());
+    if !matches!(extension, Some("rs" | "md")) {
+        return;
+    }
+
+    let source = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    for (line_index, line) in source.lines().enumerate() {
+        if line.contains("Sempal") || line.contains("sempal") {
+            let relative = path
+                .strip_prefix(manifest_dir)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            matches.push(format!("{}:{}", relative, line_index + 1));
         }
     }
 }

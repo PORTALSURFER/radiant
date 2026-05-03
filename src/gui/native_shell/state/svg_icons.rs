@@ -7,10 +7,9 @@
 //! kind.
 
 #[cfg(test)]
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
 #[cfg(test)]
-use crate as sempal_crate;
 use std::sync::Arc;
 
 use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};

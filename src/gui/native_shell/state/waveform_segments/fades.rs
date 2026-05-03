@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;

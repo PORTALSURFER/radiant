@@ -1,7 +1,6 @@
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::StaticFrameCtx;
 use super::*;
-use crate as sempal_crate;
 
 pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl PrimitiveSink) {
     let canvas = compute_browser_map_canvas_rect(ctx.layout.browser_rows, ctx.sizing);

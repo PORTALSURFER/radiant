@@ -1,9 +1,8 @@
 //! Browser-row caches plus focused geometry, truncation, and visual helper modules.
 
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate as sempal_crate;
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
 use native_model::FolderPaneIdModel;
 

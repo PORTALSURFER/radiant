@@ -1,4 +1,4 @@
-//! Sempal user-intent actions emitted through the legacy Radiant compatibility path.
+//! Legacy host user-intent actions emitted through the Radiant compatibility path.
 //!
 //! [`UiAction`] intentionally remains the single compatibility surface between
 //! the native runtime and the host bridge. The enum stays centralized so hosts

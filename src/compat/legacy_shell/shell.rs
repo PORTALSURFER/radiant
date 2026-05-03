@@ -1,4 +1,4 @@
-//! Sempal shell and overlay models used by the legacy Radiant compatibility path.
+//! Legacy shell and overlay models used by the Radiant compatibility path.
 
 pub use crate::gui::chrome::StatusSegments as StatusBarModel;
 pub use crate::gui::feedback::DragOverlay as DragOverlayModel;

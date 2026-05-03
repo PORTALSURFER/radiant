@@ -1,9 +1,6 @@
 #[cfg(test)]
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-#[cfg(test)]
-use crate as sempal_crate;
-
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
     #[cfg(test)]

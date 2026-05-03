@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 impl NativeShellState {
     /// Resolve a rendered source-row index for a point within the sidebar.

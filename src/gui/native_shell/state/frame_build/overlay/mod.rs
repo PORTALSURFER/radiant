@@ -1,8 +1,7 @@
 //! State-driven overlay builders for the native shell.
 
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 #[path = "browser.rs"]
 mod browser;

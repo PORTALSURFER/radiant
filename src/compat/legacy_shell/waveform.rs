@@ -1,4 +1,4 @@
-//! Sempal waveform models used by the legacy Radiant compatibility path.
+//! Legacy timeline models used by the Radiant compatibility path.
 
 pub use crate::gui::range::NormalizedRange as NormalizedRangeModel;
 use crate::gui::types::ImageRgba;

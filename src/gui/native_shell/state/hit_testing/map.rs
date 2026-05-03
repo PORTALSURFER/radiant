@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
+use crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,

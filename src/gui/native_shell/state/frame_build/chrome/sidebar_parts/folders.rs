@@ -1,6 +1,5 @@
-use crate::app as native_model;
 use super::*;
-use native_model::FolderPaneIdModel;
+use crate::gui::panel::SplitPaneSlot;
 
 mod header;
 mod rows;
@@ -13,7 +12,7 @@ pub(super) fn render_folder_section(
 ) -> usize {
     let sections = sidebar_sections(ctx.layout, ctx.style, ctx.model);
     let mut rendered_count = 0;
-    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
+    for pane in [SplitPaneSlot::Upper, SplitPaneSlot::Lower] {
         render_source_section_divider(ctx, primitives, sections, pane);
         header::render_folder_header(
             ctx,
@@ -54,7 +53,7 @@ fn render_source_section_divider(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     sections: SidebarSections,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
 ) {
     let Some(divider_rect) = compute_source_section_divider_rect(
         sections.source_rows(pane),

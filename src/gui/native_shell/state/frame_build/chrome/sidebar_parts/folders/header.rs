@@ -1,13 +1,13 @@
 use super::*;
-use crate::app as native_model;
-use native_model::FolderPaneModel;
+use crate::gui::list::EditableTreeRow;
+use crate::gui::panel::SplitPaneTreePanel;
 
 pub(super) fn render_folder_header(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     header_rect: Rect,
-    pane: &FolderPaneModel,
+    pane: &SplitPaneTreePanel<EditableTreeRow>,
 ) {
     let header_layout = compute_sidebar_folder_header_layout(
         header_rect,

@@ -1,12 +1,12 @@
 use super::*;
-use crate::app as native_model;
-use native_model::{FolderPaneIdModel, FolderRowModel};
+use crate::gui::list::{EditableRowKind, EditableTreeRow};
+use crate::gui::panel::SplitPaneSlot;
 
 pub(super) fn render_tree_rows(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    pane: FolderPaneIdModel,
+    pane: SplitPaneSlot,
     rows: &[CachedFolderRow],
 ) {
     let pane_model = ctx.model.sources.folder_pane(pane);
@@ -19,7 +19,7 @@ pub(super) fn render_tree_rows(
         let visual_rect = folder_row_visual_rect(row_rect, ctx.sizing);
         if matches!(
             row.kind,
-            native_model::FolderRowKind::CreateDraft | native_model::FolderRowKind::RenameDraft
+            EditableRowKind::CreateDraft | EditableRowKind::RenameDraft
         ) {
             render_folder_inline_draft_row(ctx, primitives, text_runs, row_rect, visual_rect, row);
             continue;
@@ -54,7 +54,7 @@ fn render_folder_inline_draft_row(
     text_runs: &mut impl TextRunSink,
     row_rect: Rect,
     visual_rect: Rect,
-    row: &FolderRowModel,
+    row: &EditableTreeRow,
 ) {
     let field_rect = create_draft_field_rect(row_rect, ctx.sizing, row.depth);
     let text_rect = create_draft_text_rect(field_rect, ctx.sizing);
@@ -126,7 +126,7 @@ fn render_folder_inline_draft_row(
     );
 }
 
-fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &EditableTreeRow) -> Rgba8 {
     if row.focused {
         translucent_overlay_color(
             ctx.style.bg_tertiary,
@@ -145,7 +145,7 @@ fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
     }
 }
 
-fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &EditableTreeRow) -> Rgba8 {
     if row.focused {
         blend_color(
             ctx.style.accent_warning,
@@ -163,7 +163,7 @@ fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
     }
 }
 
-fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f32 {
+fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &EditableTreeRow) -> f32 {
     if row.focused {
         ctx.sizing.focus_stroke_width
     } else {
@@ -171,7 +171,7 @@ fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f3
     }
 }
 
-fn folder_row_text_color(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
+fn folder_row_text_color(ctx: &StaticFrameCtx<'_>, row: &EditableTreeRow) -> Rgba8 {
     if row.focused {
         ctx.style.accent_warning
     } else if row.selected {
@@ -185,7 +185,7 @@ fn emit_folder_row_disclosure(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     row_rect: Rect,
-    row: &FolderRowModel,
+    row: &EditableTreeRow,
 ) {
     if row.is_root || !row.has_children {
         return;
@@ -205,7 +205,7 @@ fn emit_folder_row_label(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
     row_rect: Rect,
-    row: &FolderRowModel,
+    row: &EditableTreeRow,
 ) {
     let label_rect = folder_row_layout(ctx, row_rect, row).label_rect;
     let label_width = label_rect.width().max(24.0);
@@ -225,7 +225,7 @@ fn emit_folder_row_label(
 fn folder_row_layout(
     ctx: &StaticFrameCtx<'_>,
     row_rect: Rect,
-    row: &FolderRowModel,
+    row: &EditableTreeRow,
 ) -> SidebarFolderRowLayout {
     let depth_indent = compute_sidebar_folder_row_depth_indent(row_rect, ctx.sizing, row.depth);
     compute_sidebar_folder_row_layout(row_rect, ctx.sizing, depth_indent)

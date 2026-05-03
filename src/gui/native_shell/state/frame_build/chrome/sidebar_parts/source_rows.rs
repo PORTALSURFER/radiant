@@ -1,6 +1,5 @@
-use crate::app as native_model;
 use super::*;
-use native_model::{FolderPaneIdModel, SourceRowModel};
+use crate::gui::panel::{SplitPaneAssignedRow, SplitPaneSlot};
 
 pub(super) fn render_source_rows(
     state: &mut NativeShellState,
@@ -33,10 +32,10 @@ pub(super) fn render_source_rows(
     rendered
 }
 
-fn source_row_selected(row: &SourceRowModel, pane: FolderPaneIdModel) -> bool {
+fn source_row_selected(row: &SplitPaneAssignedRow, pane: SplitPaneSlot) -> bool {
     match pane {
-        FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
-        FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
+        SplitPaneSlot::Upper => row.assigned_to_upper_pane,
+        SplitPaneSlot::Lower => row.assigned_to_lower_pane,
     }
 }
 
@@ -52,7 +51,11 @@ fn source_row_fill(ctx: &StaticFrameCtx<'_>, row_selected: bool) -> Rgba8 {
     }
 }
 
-fn source_row_border(ctx: &StaticFrameCtx<'_>, row: &SourceRowModel, row_selected: bool) -> Rgba8 {
+fn source_row_border(
+    ctx: &StaticFrameCtx<'_>,
+    row: &SplitPaneAssignedRow,
+    row_selected: bool,
+) -> Rgba8 {
     if row_selected {
         blend_color(
             ctx.style.accent_mint,
@@ -70,7 +73,7 @@ fn emit_source_row_label(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
     row_rect: Rect,
-    row: &SourceRowModel,
+    row: &SplitPaneAssignedRow,
     row_selected: bool,
 ) {
     let label_rect = compute_sidebar_source_row_text_rect(row_rect, ctx.sizing);

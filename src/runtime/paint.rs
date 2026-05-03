@@ -98,6 +98,20 @@ pub struct SurfacePaintPlan {
     pub primitives: Vec<PaintPrimitive>,
 }
 
+/// Backend-neutral renderer contract for generic Radiant paint plans.
+///
+/// A renderer consumes the deterministic [`SurfacePaintPlan`] emitted by a
+/// [`crate::runtime::View`] or [`crate::runtime::SurfaceRuntime`]. Renderer
+/// implementations own backend resources and frame submission policy; Radiant
+/// only defines the replayable paint-plan boundary.
+pub trait Renderer {
+    /// Backend-specific error type.
+    type Error;
+
+    /// Render one backend-neutral paint plan.
+    fn render(&mut self, plan: &SurfacePaintPlan) -> Result<(), Self::Error>;
+}
+
 impl SurfacePaintPlan {
     /// Build an empty paint plan for the provided theme.
     pub fn empty(theme: &ThemeTokens) -> Self {

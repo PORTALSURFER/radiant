@@ -12,6 +12,21 @@ use crate::{
     widgets::{WidgetId, WidgetInput},
 };
 
+/// Borrowed runtime context for one projected Radiant surface.
+///
+/// This context exposes the current viewport, immutable view tree, and resolved
+/// layout without giving renderers or host code ownership of the runtime
+/// controller. Style remains an explicit argument to paint-plan generation so
+/// hosts can swap themes without rebuilding runtime state.
+pub struct RuntimeContext<'a, Message> {
+    /// Current logical viewport rectangle.
+    pub viewport: Rect,
+    /// Current immutable declarative view snapshot.
+    pub surface: &'a UiSurface<Message>,
+    /// Current resolved layout output for the surface.
+    pub layout: &'a LayoutOutput,
+}
+
 /// Stateful generic runtime controller for message-driven Radiant hosts.
 ///
 /// The controller preserves one-way data flow:
@@ -56,6 +71,15 @@ where
     /// Return the current layout output for the projected surface.
     pub fn layout(&self) -> &LayoutOutput {
         &self.layout
+    }
+
+    /// Return a borrowed context view of the current runtime state.
+    pub fn context(&self) -> RuntimeContext<'_, Message> {
+        RuntimeContext {
+            viewport: self.viewport,
+            surface: &self.surface,
+            layout: &self.layout,
+        }
     }
 
     /// Project the current surface and layout into backend-neutral paint data.

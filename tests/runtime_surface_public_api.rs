@@ -3,7 +3,7 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, NativeRunOptions, PaintPrimitive,
+        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, NativeRunOptions, PaintPrimitive, Renderer,
         RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
         WidgetMessageMapper,
         declarative_runtime_bridge,
@@ -126,6 +126,33 @@ fn view_and_element_aliases_match_runtime_surface_types() {
 }
 
 #[test]
+fn runtime_context_and_renderer_cover_paint_plan_boundary() {
+    let theme = ThemeTokens::default();
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            count: 3,
+            name: String::from("Panels"),
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+    let context = runtime.context();
+
+    assert_eq!(context.viewport.width(), 420.0);
+    assert!(context.surface.find_widget(11).is_some());
+    assert!(context.layout.rects.contains_key(&11));
+
+    let plan = runtime.paint_plan(&theme);
+    let mut renderer = CountingRenderer::default();
+    renderer.render(&plan).expect("counting renderer cannot fail");
+    assert_eq!(renderer.rendered_primitives, plan.primitives.len());
+}
+
+#[test]
 fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -175,6 +202,20 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     match field {
         WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "F"),
         other => panic!("expected text input widget, got {other:?}"),
+    }
+}
+
+#[derive(Default)]
+struct CountingRenderer {
+    rendered_primitives: usize,
+}
+
+impl Renderer for CountingRenderer {
+    type Error = std::convert::Infallible;
+
+    fn render(&mut self, plan: &radiant::runtime::SurfacePaintPlan) -> Result<(), Self::Error> {
+        self.rendered_primitives += plan.primitives.len();
+        Ok(())
     }
 }
 

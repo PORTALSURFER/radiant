@@ -105,9 +105,11 @@ primitives.
 ## Renderer
 
 Radiant's generic runtime produces a backend-neutral `SurfacePaintPlan` made of
-`PaintPrimitive` values. Native Vello support is an adapter that consumes this
-paint plan through `run_native_vello_runtime`. Renderers should consume paint
-plans and report frame results without owning host state.
+`PaintPrimitive` values. The public `Renderer` trait is the minimal replay
+boundary for backend adapters that consume those paint plans. Native Vello
+support is an adapter that consumes this paint plan through
+`run_native_vello_runtime`. Renderers should consume paint plans and report
+frame results without owning host state.
 
 Native runtime entry points return `RuntimeRunReport<Artifacts>` when artifact
 capture is requested. The report envelope is generic: Radiant owns the
@@ -126,8 +128,10 @@ Runtime context is split deliberately:
 - Host context lives in the host application state and reducer.
 - Layout context is the viewport and resolved `LayoutOutput`.
 - Style context is the active `ThemeTokens`.
-- Runtime context is held by `SurfaceRuntime`, including the current surface,
-  focus target, widget hit testing, and message dispatch.
+- Runtime context is exposed as `RuntimeContext`, a borrowed view over
+  `SurfaceRuntime` containing the current viewport, surface, and resolved
+  layout. `SurfaceRuntime` owns focus target, widget hit testing, and message
+  dispatch.
 
 ## Event And Focus
 

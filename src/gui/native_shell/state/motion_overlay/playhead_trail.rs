@@ -87,7 +87,7 @@ impl NativeShellState {
         let previous_capture_seconds = self
             .playhead_trail_points
             .last()
-            .map(|sample| sample.captured_at_seconds)
+            .map(|point| point.captured_at_seconds)
             .unwrap_or(captured_at_seconds - PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS);
         let capture_delta_seconds = (captured_at_seconds - previous_capture_seconds)
             .max(PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS);

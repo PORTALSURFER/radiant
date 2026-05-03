@@ -5,7 +5,7 @@ use super::*;
 pub(crate) struct PlayheadTrailLine {
     /// Normalized x-position in `0.0..=1.0`.
     pub ratio: f32,
-    /// Blend amount for the trail sample or connecting span.
+    /// Blend amount for the trail point or connecting span.
     pub alpha: f32,
 }
 

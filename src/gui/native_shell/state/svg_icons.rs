@@ -6,9 +6,9 @@
 //! so toolbar controls can render iconography without adding a new primitive
 //! kind.
 
+use super::*;
 #[cfg(test)]
 use crate::app as native_model;
-use super::*;
 #[cfg(test)]
 use std::sync::Arc;
 
@@ -93,7 +93,7 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
     let svg = icon_svg_asset(icon);
     let document = parse_svg_document(svg)?;
     let mut pixels = vec![0_u8; side.saturating_mul(side).saturating_mul(4)];
-    let sample_offsets = [
+    let coverage_offsets = [
         (0.25_f32, 0.25_f32),
         (0.75, 0.25),
         (0.25, 0.75),
@@ -103,7 +103,7 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
     for y in 0..side {
         for x in 0..side {
             let mut hits = 0_u8;
-            for (offset_x, offset_y) in sample_offsets {
+            for (offset_x, offset_y) in coverage_offsets {
                 let world_x = document.view_box_min_x
                     + ((x as f32 + offset_x) / side as f32) * document.view_box_width;
                 let world_y = document.view_box_min_y
@@ -115,7 +115,7 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
             if hits == 0 {
                 continue;
             }
-            let coverage = hits as f32 / sample_offsets.len() as f32;
+            let coverage = hits as f32 / coverage_offsets.len() as f32;
             let alpha = ((color.a as f32) * coverage).round().clamp(0.0, 255.0) as u8;
             let index = (y * side + x) * 4;
             pixels[index] = color.r;

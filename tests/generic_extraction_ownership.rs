@@ -1348,3 +1348,23 @@ fn automation_snapshot_primitives_are_owned_by_generic_gui_module() {
     assert!(!gui_automation_mod.contains("MapCanvas"));
     assert!(!gui_automation_mod.contains("MapPoint"));
 }
+
+#[test]
+fn native_shell_motion_helpers_do_not_use_sample_manager_terms_for_points() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let files = [
+        "/src/gui/native_shell/state/motion_overlay/playhead_trail.rs",
+        "/src/gui/native_shell/state/svg_icons.rs",
+        "/src/gui/native_shell/state/waveform_segments/trail.rs",
+        "/src/gui/native_shell/state/waveform_segments/surface.rs",
+    ];
+
+    for file in files {
+        let source = fs::read_to_string(format!("{manifest_dir}{file}"))
+            .expect("native-shell helper should be readable");
+        assert!(
+            !source.contains("sample") && !source.contains("Sample"),
+            "{file} should describe generic points, offsets, or profile data without sample-manager terms"
+        );
+    }
+}

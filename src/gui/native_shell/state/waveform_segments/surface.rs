@@ -29,11 +29,11 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_loading_placeholder(
         .clamp(48.0, waveform_plot.width())
         .min(waveform_plot.width());
     let left = waveform_plot.min.x + ((waveform_plot.width() - silhouette_width) * 0.5).max(0.0);
-    let sample_count = LOADING_WAVEFORM_PROFILE.len();
-    if sample_count < 2 {
+    let profile_point_count = LOADING_WAVEFORM_PROFILE.len();
+    if profile_point_count < 2 {
         return;
     }
-    let step = silhouette_width / (sample_count.saturating_sub(1) as f32);
+    let step = silhouette_width / (profile_point_count.saturating_sub(1) as f32);
     let rail_width = (step * 0.58).clamp(2.0, 10.0).min(waveform_plot.width());
     let center_y = waveform_plot.min.y + (waveform_plot.height() * 0.5);
     let max_half_height = (waveform_plot.height() * 0.22).clamp(8.0, waveform_plot.height() * 0.36);

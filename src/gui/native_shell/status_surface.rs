@@ -7,7 +7,7 @@
 
 use super::style::SizingTokens;
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
@@ -170,44 +170,17 @@ pub(crate) fn resolve_status_surface_layout(
 ) -> StatusSurfaceLayout {
     let surface = build_status_surface(content, sizing, status_bar.width());
     let output = layout_tree(&surface.layout_node(), status_bar);
-    let empty = Rect::from_min_max(status_bar.min, status_bar.min);
+    let empty = status_bar.empty_at_min();
     StatusSurfaceLayout {
-        left_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_LEFT_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        center_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_CENTER_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        right_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_RIGHT_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        progress_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        left_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_LEFT_TEXT_ID, empty),
-            status_bar,
-        ),
-        center_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_CENTER_TEXT_ID, empty),
-            status_bar,
-        ),
-        right_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_RIGHT_TEXT_ID, empty),
-            status_bar,
-        ),
-        progress_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_TEXT_ID, empty),
-            status_bar,
-        ),
-        progress_track_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_TRACK_ID, empty),
-            status_bar,
-        ),
+        left_segment: output.rect_for_clamped(STATUS_LEFT_SEGMENT_ID, empty, status_bar),
+        center_segment: output.rect_for_clamped(STATUS_CENTER_SEGMENT_ID, empty, status_bar),
+        right_segment: output.rect_for_clamped(STATUS_RIGHT_SEGMENT_ID, empty, status_bar),
+        progress_segment: output.rect_for_clamped(STATUS_PROGRESS_SEGMENT_ID, empty, status_bar),
+        left_text_rect: output.rect_for_clamped(STATUS_LEFT_TEXT_ID, empty, status_bar),
+        center_text_rect: output.rect_for_clamped(STATUS_CENTER_TEXT_ID, empty, status_bar),
+        right_text_rect: output.rect_for_clamped(STATUS_RIGHT_TEXT_ID, empty, status_bar),
+        progress_text_rect: output.rect_for_clamped(STATUS_PROGRESS_TEXT_ID, empty, status_bar),
+        progress_track_rect: output.rect_for_clamped(STATUS_PROGRESS_TRACK_ID, empty, status_bar),
     }
 }
 
@@ -391,23 +364,10 @@ fn text_slot(font_size: f32) -> SlotParams {
     }
 }
 
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::{gui::native_shell::style::StyleTokens, gui::types::Point};
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);

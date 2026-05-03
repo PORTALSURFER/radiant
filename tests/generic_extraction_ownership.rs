@@ -856,6 +856,31 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
 }
 
 #[test]
+fn chrome_surface_rect_lookup_reuses_generic_layout_output() {
+    let status_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/status_surface.rs"
+    ))
+    .expect("status surface should be readable");
+    let top_bar_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/top_bar_surface.rs"
+    ))
+    .expect("top bar surface should be readable");
+    let waveform_toolbar_surface = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/waveform_toolbar_surface.rs"
+    ))
+    .expect("waveform toolbar surface should be readable");
+
+    for source in [&status_surface, &top_bar_surface, &waveform_toolbar_surface] {
+        assert!(source.contains("output.rect_for_clamped("));
+        assert!(!source.contains("fn rect_for"));
+        assert!(!source.contains("fn clamp_rect_to_bounds"));
+    }
+}
+
+#[test]
 fn text_baseline_snapping_is_owned_by_generic_text_layout() {
     let text_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

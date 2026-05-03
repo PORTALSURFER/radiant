@@ -70,7 +70,7 @@ pub(crate) fn resolve_waveform_toolbar_surface_layout(
     if content.items.is_empty() || header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
         return WaveformToolbarSurfaceLayout::default();
     }
-    let empty = Rect::from_min_max(header_rect.min, header_rect.min);
+    let empty = header_rect.empty_at_min();
     let legacy_rects = legacy_toolbar_rects(header_rect, sizing, content);
     let mut item_rects = vec![empty; content.items.len()];
     let visible_start = content.items.len().saturating_sub(legacy_rects.len());
@@ -81,8 +81,7 @@ pub(crate) fn resolve_waveform_toolbar_surface_layout(
     let output = layout_tree(&surface.layout_node(), header_rect);
     for item_index in visible_start..content.items.len() {
         let id = waveform_toolbar_widget_id(item_index);
-        item_rects[item_index] =
-            clamp_rect_to_bounds(rect_for(&output.rects, id, empty), header_rect);
+        item_rects[item_index] = output.rect_for_clamped(id, empty, header_rect);
     }
     WaveformToolbarSurfaceLayout { item_rects }
 }
@@ -232,19 +231,6 @@ fn waveform_toolbar_layout_label(item: &WaveformToolbarSurfaceItem) -> String {
 
 fn waveform_toolbar_widget_id(index: usize) -> NodeId {
     WAVEFORM_TOOLBAR_BASE_ID + index as u64 + 1
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
 }
 
 #[cfg(test)]

@@ -8,7 +8,7 @@
 use super::style::SizingTokens;
 use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Rect, Vector2},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree, visible_suffix_widths,
@@ -151,29 +151,17 @@ pub(crate) fn resolve_top_bar_surface_layout(
 ) -> TopBarSurfaceLayout {
     let surface = build_top_bar_surface(content, sizing, top_bar.width());
     let output = layout_tree(&surface.layout_node(), top_bar);
-    let empty = Rect::from_min_max(top_bar.min, top_bar.min);
-    let title_cluster = clamp_rect_to_bounds(
-        rect_for(&output.rects, TOP_TITLE_CLUSTER_ID, empty),
-        top_bar,
-    );
-    let action_cluster = clamp_rect_to_bounds(
-        rect_for(&output.rects, TOP_ACTION_CLUSTER_ID, empty),
-        top_bar,
-    );
-    let options_button_rect = rect_for(&output.rects, TOP_OPTIONS_BUTTON_ID, empty);
+    let empty = top_bar.empty_at_min();
+    let title_cluster = output.rect_for_clamped(TOP_TITLE_CLUSTER_ID, empty, top_bar);
+    let action_cluster = output.rect_for_clamped(TOP_ACTION_CLUSTER_ID, empty, top_bar);
+    let options_button_rect = output.rect_for(TOP_OPTIONS_BUTTON_ID, empty);
     let update_buttons = content
         .update_actions
         .iter()
         .enumerate()
         .filter_map(|(index, spec)| {
-            let rect = clamp_rect_to_bounds(
-                rect_for(
-                    &output.rects,
-                    TOP_UPDATE_BUTTON_BASE_ID + index as u64,
-                    empty,
-                ),
-                top_bar,
-            );
+            let rect =
+                output.rect_for_clamped(TOP_UPDATE_BUTTON_BASE_ID + index as u64, empty, top_bar);
             (rect.width() > 0.0 && rect.height() > 0.0).then(|| TopBarUpdateButtonLayout {
                 spec: spec.clone(),
                 rect,
@@ -183,25 +171,13 @@ pub(crate) fn resolve_top_bar_surface_layout(
     TopBarSurfaceLayout {
         title_cluster,
         action_cluster,
-        title_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_TITLE_TEXT_ID, empty),
-            top_bar,
-        ),
-        volume_meter_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_METER_ID, empty),
-            top_bar,
-        ),
-        volume_value_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_VALUE_ID, empty),
-            top_bar,
-        ),
-        volume_label_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_LABEL_ID, empty),
-            top_bar,
-        ),
+        title_text_rect: output.rect_for_clamped(TOP_TITLE_TEXT_ID, empty, top_bar),
+        volume_meter_rect: output.rect_for_clamped(TOP_VOLUME_METER_ID, empty, top_bar),
+        volume_value_rect: output.rect_for_clamped(TOP_VOLUME_VALUE_ID, empty, top_bar),
+        volume_label_rect: output.rect_for_clamped(TOP_VOLUME_LABEL_ID, empty, top_bar),
         options_button_rect: (options_button_rect.width() > 0.0
             && options_button_rect.height() > 0.0)
-            .then_some(clamp_rect_to_bounds(options_button_rect, top_bar)),
+            .then_some(options_button_rect.clamp_to(top_bar)),
         update_buttons,
     }
 }
@@ -535,23 +511,10 @@ fn fixed_slot_with_cross(width: f32, height: f32) -> SlotParams {
     }
 }
 
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{gui::native_shell::style::StyleTokens, widgets::WidgetKind};
+    use crate::{gui::native_shell::style::StyleTokens, gui::types::Point, widgets::WidgetKind};
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);

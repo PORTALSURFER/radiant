@@ -1,45 +1,20 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/bands.rs"]
 mod bands;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_chrome_text.rs"]
 mod browser_chrome_text;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_tabs.rs"]
 mod browser_tabs;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/browser_text.rs"]
 mod browser_text;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/control_text.rs"]
 mod control_text;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/controls.rs"]
 mod controls;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_canvas.rs"]
 mod map_canvas;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/map_header.rs"]
 mod map_header;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlay_visuals.rs"]
 mod overlay_visuals;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/overlays.rs"]
 mod overlays;
-#[cfg(test)]
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/row_hit_test.rs"]
-mod row_hit_test;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_bands.rs"]
 mod sidebar_bands;
-#[cfg(test)]
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_chrome_text.rs"]
-mod sidebar_chrome_text;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_header.rs"]
 mod sidebar_header;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_sections.rs"]
 mod sidebar_sections;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/sidebar_text.rs"]
 mod sidebar_text;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/status_bar.rs"]
 mod status_bar;
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/waveform_annotations.rs"]
 mod waveform_annotations;
-#[cfg(test)]
-#[path = "../../../../../src/app_core/native_shell/composition/layout_adapter/waveform_header.rs"]
-mod waveform_header;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,

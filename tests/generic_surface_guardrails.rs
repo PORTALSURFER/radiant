@@ -196,6 +196,24 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         !native_shell_mod.contains("app_core/native_shell/composition/tests/"),
         "Sempal native-shell composition fixtures must stay out of Radiant native_shell"
     );
+
+    let layout_adapter =
+        fs::read_to_string(manifest_dir.join("src/gui/native_shell/layout_adapter.rs"))
+            .expect("native shell layout adapter");
+    assert!(
+        !layout_adapter.contains("app_core/native_shell/composition/layout_adapter/"),
+        "native shell layout-adapter modules must stay local to Radiant while the compatibility shell remains"
+    );
+    for path in [
+        "src/gui/native_shell/layout_adapter/controls_tests.rs",
+        "src/gui/native_shell/layout_adapter/sidebar_header/tests.rs",
+        "src/gui/native_shell/layout_adapter/waveform_annotations/tests.rs",
+    ] {
+        assert!(
+            !manifest_dir.join(path).exists(),
+            "{path} is a Sempal composition fixture and must stay out of Radiant"
+        );
+    }
 }
 
 #[test]

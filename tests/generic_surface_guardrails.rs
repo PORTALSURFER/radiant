@@ -1004,6 +1004,8 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SnapshotTextRun",
         "UiSurface",
         "SurfaceNode",
+        "SurfaceNode::text_input",
+        "SurfaceNode::toggle",
         "WidgetSpec",
         "WidgetId",
         "Command<Message>",

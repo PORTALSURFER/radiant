@@ -8,8 +8,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ButtonWidget, FocusBehavior, ScrollbarMessage, TextInputMessage, TextWidget,
-        ToggleMessage, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        ButtonMessage, ButtonWidget, FocusBehavior, ScrollbarMessage, TextInputMessage,
+        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
+        WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -288,6 +289,58 @@ impl<Message> SurfaceNode<Message> {
         Self::widget(
             WidgetSpec::Button(ButtonWidget::new(id, label, sizing)),
             WidgetMessageMapper::button(map),
+        )
+    }
+
+    /// Build a single-line text input that maps edits and submissions by value.
+    pub fn text_input(
+        id: WidgetId,
+        value: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(String) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::text_input_mapped(id, value, sizing, move |message| match message {
+            TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                map(value)
+            }
+        })
+    }
+
+    /// Build a single-line text input with a custom widget-to-host message mapper.
+    pub fn text_input_mapped(
+        id: WidgetId,
+        value: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::TextInput(TextInputWidget::new(id, value, sizing)),
+            WidgetMessageMapper::text_input(map),
+        )
+    }
+
+    /// Build a toggle leaf that maps value changes by checked state.
+    pub fn toggle(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::toggle_mapped(id, label, sizing, move |message| match message {
+            ToggleMessage::ValueChanged { checked } => map(checked),
+        })
+    }
+
+    /// Build a toggle leaf with a custom widget-to-host message mapper.
+    pub fn toggle_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Toggle(ToggleWidget::new(id, label, sizing)),
+            WidgetMessageMapper::toggle(map),
         )
     }
 

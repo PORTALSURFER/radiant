@@ -11,7 +11,7 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         ButtonMessage, ButtonWidget, PointerButton, TextInputMessage, TextInputWidget, TextWidget,
-        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
         resolve_widget_visual_tokens,
     },
 };
@@ -21,6 +21,7 @@ use std::sync::Arc;
 enum DemoMessage {
     Increment,
     Rename(String),
+    SetActive(bool),
 }
 
 #[derive(Default)]
@@ -58,6 +59,9 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
 
@@ -109,6 +113,9 @@ fn runtime_bridge_is_the_public_app_contract() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
 
@@ -239,6 +246,79 @@ fn text_and_button_helpers_build_common_leaf_nodes() {
 }
 
 #[test]
+fn text_input_and_toggle_helpers_map_value_messages() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::row(
+        5,
+        8.0,
+        vec![
+            SurfaceChild::fill(SurfaceNode::text_input(
+                50,
+                "Draft",
+                WidgetSizing::fixed(Vector2::new(140.0, 28.0)),
+                DemoMessage::Rename,
+            )),
+            SurfaceChild::fill(SurfaceNode::text_input_mapped(
+                51,
+                "Raw",
+                WidgetSizing::fixed(Vector2::new(140.0, 28.0)),
+                |message| match message {
+                    TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
+                        DemoMessage::Rename(format!("raw:{value}"))
+                    }
+                },
+            )),
+            SurfaceChild::fill(SurfaceNode::toggle(
+                52,
+                "Enabled",
+                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                DemoMessage::SetActive,
+            )),
+            SurfaceChild::fill(SurfaceNode::toggle_mapped(
+                53,
+                "Raw toggle",
+                WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+                |message| match message {
+                    ToggleMessage::ValueChanged { checked } => DemoMessage::SetActive(!checked),
+                },
+            )),
+        ],
+    ));
+
+    assert_eq!(
+        surface.dispatch_widget_output(
+            50,
+            radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Changed {
+                value: String::from("Edited"),
+            })
+        ),
+        Some(DemoMessage::Rename(String::from("Edited")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            51,
+            radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Submitted {
+                value: String::from("Submitted"),
+            })
+        ),
+        Some(DemoMessage::Rename(String::from("raw:Submitted")))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            52,
+            radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
+        ),
+        Some(DemoMessage::SetActive(true))
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            53,
+            radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
+        ),
+        Some(DemoMessage::SetActive(false))
+    );
+}
+
+#[test]
 fn runtime_context_and_renderer_cover_paint_plan_boundary() {
     let theme = ThemeTokens::default();
     let bridge = declarative_runtime_bridge(
@@ -250,6 +330,9 @@ fn runtime_context_and_renderer_cover_paint_plan_boundary() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -275,6 +358,9 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -330,6 +416,9 @@ fn surface_runtime_routes_backend_neutral_events() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -459,6 +548,9 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -549,6 +641,9 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
         |state: &mut DemoState, message| match message {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
         },
     );
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -598,12 +693,6 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
     ));
-    let input = WidgetSpec::TextInput(TextInputWidget::new(
-        12,
-        state.name.clone(),
-        WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
-    ));
-
     Arc::new(UiSurface::new(SurfaceNode::row(
         1,
         8.0,
@@ -613,13 +702,11 @@ fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
                 button,
                 WidgetMessageMapper::button(|_| DemoMessage::Increment),
             )),
-            SurfaceChild::fill(SurfaceNode::widget(
-                input,
-                WidgetMessageMapper::text_input(|message| match message {
-                    TextInputMessage::Changed { value } | TextInputMessage::Submitted { value } => {
-                        DemoMessage::Rename(value)
-                    }
-                }),
+            SurfaceChild::fill(SurfaceNode::text_input(
+                12,
+                state.name.clone(),
+                WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
+                DemoMessage::Rename,
             )),
         ],
     )))

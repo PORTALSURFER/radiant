@@ -51,11 +51,11 @@ pub(super) enum WaveformToolbarIcon {
     Filter,
     /// Sidebar flattened-view toggle icon.
     Flatten,
-    /// Browser playback-age filter icon for samples with no playback history.
+    /// Browser playback-age filter icon for content with no playback history.
     BrowserNeverPlayed,
-    /// Browser playback-age filter icon for samples older than one month.
+    /// Browser playback-age filter icon for content older than one month.
     BrowserOlderThanMonth,
-    /// Browser playback-age filter icon for samples older than one week.
+    /// Browser playback-age filter icon for content older than one week.
     BrowserOlderThanWeek,
     /// Browser marked-only filter icon.
     BrowserMarked,

@@ -105,7 +105,7 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
         }
         WaveformToolbarHoverHint::RelativeBpmGrid => {
             if tools.relative_grid_enabled {
-                String::from("Use sample-start BPM grid")
+                String::from("Use content-start BPM grid")
             } else {
                 String::from("Use selection-relative BPM grid")
             }

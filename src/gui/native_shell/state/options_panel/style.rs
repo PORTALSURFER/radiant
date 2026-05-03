@@ -1,4 +1,4 @@
-//! Style helpers for the native-shell audio chip and options-panel surface.
+//! Style helpers for the native-shell options chip and options-panel surface.
 
 use super::*;
 

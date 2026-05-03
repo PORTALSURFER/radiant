@@ -49,9 +49,10 @@ entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
 host-domain semantics.
 
 Common declarative composition should use `SurfaceNode::row`,
-`SurfaceNode::column`, `SurfaceChild::fill`, and `SurfaceNode::static_widget`
-when a host only needs ordered row/column structure, fill slots, and display
-widgets that do not emit messages. `SurfaceNode::text`, `SurfaceNode::button`,
+`SurfaceNode::column`, `SurfaceNode::grid`, `SurfaceChild::fill`, and
+`SurfaceNode::static_widget` when a host only needs ordered row/column/grid
+structure, fill slots, and display widgets that do not emit messages.
+`SurfaceNode::text`, `SurfaceNode::button`,
 `SurfaceNode::button_mapped`, `SurfaceNode::badge`, `SurfaceNode::badge_mapped`,
 `SurfaceNode::text_input`,
 `SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
@@ -109,7 +110,8 @@ generic rows, cards, images, badges, selectables, or host-defined canvas cells a
 children.
 Dense card or tile grids can use `VirtualGridWindowRequest` and
 `VirtualGridWindow` from the same module to resolve an allocation-free
-row-major item window before projecting visible grid cells.
+row-major item window before projecting visible grid cells into
+`SurfaceNode::grid` or a virtual scroll area.
 `ContentListPanel<Row, Editor>` provides retained, product-neutral state for
 searchable and filterable large-list panels while hosts own row and editor
 payload semantics.

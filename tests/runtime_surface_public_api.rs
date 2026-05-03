@@ -189,6 +189,42 @@ fn surface_node_row_column_and_fill_helpers_project_layout() {
 }
 
 #[test]
+fn surface_node_grid_helper_projects_tile_layout() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::grid(
+        28,
+        2,
+        10.0,
+        5.0,
+        vec![
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::card(29, WidgetSizing::fixed(Vector2::new(40.0, 24.0))),
+            ),
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::card(30, WidgetSizing::fixed(Vector2::new(40.0, 24.0))),
+            ),
+            SurfaceChild::new(
+                intrinsic_slot(),
+                SurfaceNode::card(35, WidgetSizing::fixed(Vector2::new(40.0, 24.0))),
+            ),
+        ],
+    ));
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 80.0)),
+    );
+    let first = output.rects.get(&29).expect("first tile");
+    let second = output.rects.get(&30).expect("second tile");
+    let third = output.rects.get(&35).expect("third tile");
+
+    assert!(second.min.x > first.min.x);
+    assert_eq!(first.min.y, second.min.y);
+    assert!(third.min.y > first.min.y);
+}
+
+#[test]
 fn surface_node_stack_and_card_helpers_project_grouped_surface() {
     let image = Arc::new(ImageRgba::new(1, 1, vec![0, 128, 255, 255]).unwrap());
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::stack(

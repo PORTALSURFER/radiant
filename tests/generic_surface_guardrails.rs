@@ -1017,6 +1017,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SurfaceNode::badge",
         "SurfaceNode::card",
         "SurfaceNode::stack",
+        "SurfaceNode::grid",
         "SurfaceNode::text_input",
         "SurfaceNode::toggle",
         "SurfaceNode::scrollbar",

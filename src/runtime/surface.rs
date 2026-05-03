@@ -4,8 +4,8 @@ use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
-        ContainerKind, ContainerPolicy, LayoutNode, LayoutOutput, NodeId, OverflowPolicy,
-        SlotChild, SlotParams, VirtualizationAxis, VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, LayoutNode, LayoutOutput, NodeId,
+        OverflowPolicy, SlotChild, SlotParams, VirtualizationAxis, VirtualizationPolicy,
     },
     theme::ThemeTokens,
     widgets::{
@@ -287,6 +287,29 @@ impl<Message> SurfaceNode<Message> {
             id,
             ContainerPolicy {
                 kind: ContainerKind::Stack,
+                ..ContainerPolicy::default()
+            },
+            children,
+        )
+    }
+
+    /// Build a grid container with a fixed column count and explicit gaps.
+    pub fn grid(
+        id: NodeId,
+        columns: usize,
+        column_gap: f32,
+        row_gap: f32,
+        children: Vec<SurfaceChild<Message>>,
+    ) -> Self {
+        Self::container(
+            id,
+            ContainerPolicy {
+                kind: ContainerKind::Grid,
+                grid: GridPolicy {
+                    columns,
+                    column_gap,
+                    row_gap,
+                },
                 ..ContainerPolicy::default()
             },
             children,

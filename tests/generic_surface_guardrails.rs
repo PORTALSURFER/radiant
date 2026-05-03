@@ -545,16 +545,10 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "legacy shell snapshot capture belongs under src/compat/legacy_shell, not the generic native Vello runtime tree"
     );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/shell_snapshot.rs")
-            .exists(),
-        "legacy shell snapshot capture belongs with Sempal composition, not Radiant compatibility contracts"
-    );
     let shell_snapshot = fs::read_to_string(
-        manifest_dir.join("../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"),
+        manifest_dir.join("src/compat/legacy_shell/shell_snapshot.rs"),
     )
-    .expect("Sempal-owned legacy shell snapshot module should be readable");
+    .expect("legacy shell snapshot module should be readable");
     for forbidden in [
         "pub struct NativeShellShotColor",
         "pub struct NativeShellShotPoint",
@@ -601,54 +595,25 @@ fn legacy_shell_sources_are_feature_gated() {
             .exists(),
         "browser/list/map compatibility aliases should be re-exported directly from legacy_shell or moved to generic primitives"
     );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/sources.rs")
-            .exists(),
-        "source/sidebar compatibility aliases should be re-exported directly from legacy_shell or moved to generic primitives"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/dirty_segments.rs")
-            .exists(),
-        "legacy dirty segment wrappers should not live in a separate compatibility module"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/motion.rs")
-            .exists(),
-        "Sempal native-shell motion projection belongs with Sempal composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/waveform.rs")
-            .exists(),
-        "Sempal waveform projection models belong with Sempal composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/shell.rs")
-            .exists(),
-        "Sempal shell model projection belongs with Sempal composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/bridge.rs")
-            .exists(),
-        "Sempal native-shell bridge contract belongs with Sempal composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/actions")
-            .exists(),
-        "Sempal native-shell action catalog belongs with Sempal composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/native_vello.rs")
-            .exists(),
-        "Sempal native Vello compatibility facade belongs with Sempal composition, not Radiant compatibility contracts"
-    );
+    for path in [
+        "src/compat/legacy_shell/actions/mod.rs",
+        "src/compat/legacy_shell/aliases.rs",
+        "src/compat/legacy_shell/bridge.rs",
+        "src/compat/legacy_shell/dirty_segments.rs",
+        "src/compat/legacy_shell/motion.rs",
+        "src/compat/legacy_shell/native_vello.rs",
+        "src/compat/legacy_shell/shell.rs",
+        "src/compat/legacy_shell/shell_snapshot.rs",
+        "src/compat/legacy_shell/sources.rs",
+        "src/compat/legacy_shell/waveform.rs",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|error| panic!("{path} should be readable: {error}"));
+        assert!(
+            !source.contains("app_core/native_shell/composition/runtime"),
+            "{path} must remain localized in Radiant instead of path-importing Sempal runtime sources"
+        );
+    }
     assert!(
         !manifest_dir
             .join("src/gui/native_shell/browser_chrome_surface_tests.rs")

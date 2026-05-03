@@ -40,25 +40,15 @@
 //! - [`DirtySegments`](crate::compat::legacy_shell::DirtySegments) and [`SegmentRevisions`](crate::compat::legacy_shell::SegmentRevisions) describe incremental rebuild hints.
 //! - [`NativeAppBridge`](crate::compat::legacy_shell::NativeAppBridge) defines the host/runtime integration boundary.
 
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/actions/mod.rs"]
 mod actions;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/aliases.rs"]
 mod aliases;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/bridge.rs"]
 mod bridge;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/dirty_segments.rs"]
 mod dirty_segments;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/motion.rs"]
 mod motion;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/native_vello.rs"]
 mod native_vello;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/sources.rs"]
 mod sources;
-#[path = "../../../../../src/app_core/native_shell/composition/runtime/waveform.rs"]
 mod waveform;
 
 pub use crate::compat::runtime_artifacts::NativeRunReport;

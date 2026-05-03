@@ -130,9 +130,7 @@ const INVENTORY_DISPOSITIONS: &[&str] = &[
     "generic_wording_cleanup",
 ];
 
-const EXTRACTION_ISSUES: &[&str] = &[
-    "OPT-270", "OPT-271", "OPT-272", "OPT-273", "OPT-274", "OPT-275", "OPT-276",
-];
+const INVENTORY_OWNERS: &[&str] = &["sempal_host", "radiant_boundary"];
 
 #[test]
 fn generic_sources_do_not_import_legacy_shell_contracts() {
@@ -1015,7 +1013,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
 struct ExtractionRule {
     pattern: String,
     disposition: String,
-    issue: String,
+    owner: String,
 }
 
 #[test]
@@ -1076,7 +1074,7 @@ fn domain_extraction_inventory_covers_current_domain_bearing_files() {
 }
 
 #[test]
-fn domain_extraction_inventory_uses_known_dispositions_and_issues() {
+fn domain_extraction_inventory_uses_known_dispositions_and_owners() {
     let rules = parse_extraction_inventory();
 
     for expected_disposition in ["move_to_sempal", "split_generic_from_compat"] {
@@ -1088,10 +1086,10 @@ fn domain_extraction_inventory_uses_known_dispositions_and_issues() {
         );
     }
 
-    for expected_issue in ["OPT-270", "OPT-275"] {
+    for expected_owner in ["sempal_host", "radiant_boundary"] {
         assert!(
-            rules.iter().any(|rule| rule.issue == expected_issue),
-            "domain extraction inventory should include at least one {expected_issue} rule"
+            rules.iter().any(|rule| rule.owner == expected_owner),
+            "domain extraction inventory should include at least one {expected_owner} rule"
         );
     }
 }
@@ -1219,16 +1217,16 @@ fn parse_extraction_inventory() -> Vec<ExtractionRule> {
             "unknown extraction disposition {disposition:?} on line {}",
             line_index + 1
         );
-        let issue = columns[2].to_owned();
+        let owner = columns[2].to_owned();
         assert!(
-            EXTRACTION_ISSUES.contains(&issue.as_str()),
-            "unknown extraction issue {issue:?} on line {}",
+            INVENTORY_OWNERS.contains(&owner.as_str()),
+            "unknown extraction owner {owner:?} on line {}",
             line_index + 1
         );
         rules.push(ExtractionRule {
             pattern: columns[0].to_owned(),
             disposition,
-            issue,
+            owner,
         });
     }
     assert!(

@@ -1,17 +1,16 @@
-# Final Radiant standalone extraction inventory for OPT-269.
+# Radiant standalone extraction inventory.
 #
 # This inventory classifies every current Rust source, test, or example file
-# under this crate that still contains Sempal-domain terminology. It is not the
-# active backlog; Linear is. The issue column points at the implementation
-# ticket that owns the final disposition.
+# under this crate that still contains Sempal-domain terminology. It is a
+# repo-owned boundary artifact, not a planning backlog.
 #
 # Columns:
 # - pattern: exact path under the Radiant crate, or a directory prefix ending in /**
 # - disposition: move_to_sempal, generalize_in_radiant, remove_compat_export,
 #   split_generic_from_compat, or generic_wording_cleanup
-# - issue: Linear issue that owns the final disposition
+# - owner: repo boundary responsible for the final disposition
 # - notes: short rationale without tabs
-pattern	disposition	issue	notes
-src/compat/legacy_shell/**	move_to_sempal	OPT-270	Sempal model action hotkey automation and DTO contracts must move to Sempal.
-src/gui/native_shell/**	split_generic_from_compat	OPT-275	Native-shell compatibility tree must split generic primitives from Sempal shell composition and move/delete the rest.
-src/gui_runtime/native_vello/**	split_generic_from_compat	OPT-275	Native Vello tree mixes generic runtime support with Sempal shell input render startup and test glue.
+pattern	disposition	owner	notes
+src/compat/legacy_shell/**	move_to_sempal	sempal_host	Sempal model action hotkey automation and DTO contracts must move to Sempal.
+src/gui/native_shell/**	split_generic_from_compat	radiant_boundary	Native-shell compatibility tree must split generic primitives from Sempal shell composition and move/delete the rest.
+src/gui_runtime/native_vello/**	split_generic_from_compat	radiant_boundary	Native Vello tree mixes generic runtime support with Sempal shell input render startup and test glue.

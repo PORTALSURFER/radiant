@@ -291,7 +291,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             *action_emitted = true;
             return true;
         }
-        if self.process_browser_scrollbar_track_click_immediately(point) {
+        if self.process_content_list_scrollbar_track_click_immediately(point) {
             *action_emitted = true;
             return true;
         }

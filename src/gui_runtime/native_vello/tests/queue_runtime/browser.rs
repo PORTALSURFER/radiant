@@ -111,7 +111,7 @@ fn content_list_scrollbar_drag_emit_updates_action_queue() {
 }
 
 #[test]
-fn browser_scrollbar_track_click_emit_updates_action_queue() {
+fn content_list_scrollbar_track_click_emit_updates_action_queue() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -134,7 +134,7 @@ fn browser_scrollbar_track_click_emit_updates_action_queue() {
     runner.shell_layout = Some(Arc::new(layout));
     runner.shell_state = shell_state;
 
-    assert!(runner.process_browser_scrollbar_track_click_immediately(track_point));
+    assert!(runner.process_content_list_scrollbar_track_click_immediately(track_point));
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetBrowserViewStart {

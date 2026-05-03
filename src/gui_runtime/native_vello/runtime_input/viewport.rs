@@ -65,7 +65,7 @@ where
     }
 
     pub(crate) fn sync_browser_viewport_for_pointer_row_action(&mut self, action: &UiAction) {
-        let Some(target_visible_row) = browser_pointer_action_visible_row(action) else {
+        let Some(target_visible_row) = content_list_pointer_action_visible_row(action) else {
             return;
         };
         let Some(layout) = self.shell_layout.as_ref() else {
@@ -76,7 +76,7 @@ where
             .shell_state
             .browser_viewport_start_row(layout, &self.model)
             .unwrap_or(self.model.browser.view_start_row);
-        let Some(next_view_start) = browser_view_start_after_focus(
+        let Some(next_view_start) = content_list_view_start_after_focus(
             current_view_start,
             self.model.browser.visible_count,
             viewport_len,
@@ -93,7 +93,7 @@ where
         });
     }
 
-    /// Emit one wheel-derived browser viewport-scroll action immediately.
+    /// Emit one wheel-derived content-list viewport-scroll action immediately.
     pub(crate) fn process_wheel_rows_immediately(&mut self, visible_row: usize) -> bool {
         self.shell_state.clear_browser_row_hover();
         self.emit_model_action_with_profile(
@@ -147,8 +147,8 @@ where
         self.process_folder_view_start_immediately(drag.pane, view_start_row)
     }
 
-    /// Emit one browser-scrollbar track-click viewport update immediately.
-    pub(crate) fn process_browser_scrollbar_track_click_immediately(
+    /// Emit one content-list scrollbar track-click viewport update immediately.
+    pub(crate) fn process_content_list_scrollbar_track_click_immediately(
         &mut self,
         point: Point,
     ) -> bool {
@@ -240,7 +240,7 @@ where
     }
 }
 
-fn browser_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
+fn content_list_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
     match action {
         UiAction::FocusBrowserRow { visible_row }
         | UiAction::ToggleBrowserRowSelection { visible_row }
@@ -250,7 +250,7 @@ fn browser_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
     }
 }
 
-fn browser_view_start_after_focus(
+fn content_list_view_start_after_focus(
     current_view_start: usize,
     visible_count: usize,
     viewport_len: usize,

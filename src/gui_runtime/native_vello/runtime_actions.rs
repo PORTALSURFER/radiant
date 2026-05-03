@@ -146,7 +146,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::CommitWaveformEditFades
             | UiAction::ZoomWaveform { .. }
             | UiAction::ZoomWaveformToSelection
-            | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Waveform),
+            | UiAction::ZoomWaveformFull => Some(InteractionProfileKind::Timeline),
             UiAction::SetVolume { .. } => Some(InteractionProfileKind::Volume),
             _ => None,
         }

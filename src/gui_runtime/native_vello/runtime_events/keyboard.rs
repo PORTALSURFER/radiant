@@ -41,7 +41,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .last_cursor
                 .and_then(|point| waveform_wheel_zoom_action(layout, &this.model, point, delta));
             let waveform_zoom_emitted = if let Some(action) = waveform_zoom_action {
-                this.emit_model_action_with_profile(action, Some(InteractionProfileKind::Waveform));
+                this.emit_model_action_with_profile(action, Some(InteractionProfileKind::Timeline));
                 this.waveform_view_refresh_pending = true;
                 true
             } else {

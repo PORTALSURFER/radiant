@@ -86,7 +86,7 @@ impl NativeVelloProfiler {
              build_static_ms={avg_build_static_ms:.3} build_state_overlay_ms={avg_build_state_overlay_ms:.3} build_motion_overlay_ms={avg_build_motion_overlay_ms:.3} \
              encode_static_ms={avg_encode_static_ms:.3} encode_state_overlay_ms={avg_encode_state_overlay_ms:.3} encode_motion_overlay_ms={avg_encode_motion_overlay_ms:.3} \
              hover_samples={} hover_avg_ms={:.3} hover_max_ms={:.3} wheel_samples={} wheel_avg_ms={:.3} wheel_max_ms={:.3} \
-             map_proxy_samples={} map_proxy_avg_ms={:.3} map_proxy_max_ms={:.3} waveform_samples={} waveform_avg_ms={:.3} waveform_max_ms={:.3} \
+             map_proxy_samples={} map_proxy_avg_ms={:.3} map_proxy_max_ms={:.3} timeline_samples={} timeline_avg_ms={:.3} timeline_max_ms={:.3} \
              volume_samples={} volume_avg_ms={:.3} volume_max_ms={:.3} \
              text_layout_hits={text_hits} text_layout_misses={text_misses} text_layout_evictions={text_evictions} text_hit_rate={text_cache_hit_rate:.1}% text_miss_rate={text_cache_miss_rate:.1}% \
              text_atom_hits={atom_hits} text_atom_misses={atom_misses} text_atom_evictions={atom_evictions} text_atom_hit_rate={atom_cache_hit_rate:.1}% text_atom_miss_rate={atom_cache_miss_rate:.1}%",
@@ -99,9 +99,9 @@ impl NativeVelloProfiler {
             self.map_pan_proxy_latency.samples,
             self.map_pan_proxy_latency.avg_ms(),
             self.map_pan_proxy_latency.max_ms(),
-            self.waveform_latency.samples,
-            self.waveform_latency.avg_ms(),
-            self.waveform_latency.max_ms(),
+            self.timeline_latency.samples,
+            self.timeline_latency.avg_ms(),
+            self.timeline_latency.max_ms(),
             self.volume_latency.samples,
             self.volume_latency.avg_ms(),
             self.volume_latency.max_ms(),
@@ -138,7 +138,7 @@ impl NativeVelloProfiler {
         self.hover_latency = InteractionProfileStats::default();
         self.wheel_latency = InteractionProfileStats::default();
         self.map_pan_proxy_latency = InteractionProfileStats::default();
-        self.waveform_latency = InteractionProfileStats::default();
+        self.timeline_latency = InteractionProfileStats::default();
         self.volume_latency = InteractionProfileStats::default();
     }
 }

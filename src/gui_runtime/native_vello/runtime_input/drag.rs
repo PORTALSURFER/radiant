@@ -81,7 +81,7 @@ where
                 center_micros,
                 center_nanos: Some(center_nanos),
             },
-            Some(InteractionProfileKind::Waveform),
+            Some(InteractionProfileKind::Timeline),
         );
         true
     }
@@ -92,7 +92,7 @@ where
             return;
         }
         self.last_emitted_waveform_drag_action = Some(action.clone());
-        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::Waveform));
+        self.emit_model_action_with_profile(action, Some(InteractionProfileKind::Timeline));
     }
 
     /// Process one waveform drag cursor update when waveform drag mode is active.
@@ -171,7 +171,7 @@ where
                 shift_down: self.modifiers.shift_key(),
                 alt_down: self.modifiers.alt_key(),
             },
-            Some(InteractionProfileKind::Waveform),
+            Some(InteractionProfileKind::Timeline),
         );
         true
     }

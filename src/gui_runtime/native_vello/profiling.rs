@@ -23,6 +23,6 @@ pub(super) enum InteractionProfileKind {
     Hover,
     Wheel,
     MapPanProxy,
-    Waveform,
+    Timeline,
     Volume,
 }

@@ -208,7 +208,7 @@ where
                 center_micros,
                 center_nanos: None,
             },
-            Some(InteractionProfileKind::Waveform),
+            Some(InteractionProfileKind::Timeline),
         );
         true
     }
@@ -234,7 +234,7 @@ where
                 center_micros,
                 center_nanos: None,
             },
-            Some(InteractionProfileKind::Waveform),
+            Some(InteractionProfileKind::Timeline),
         );
         true
     }

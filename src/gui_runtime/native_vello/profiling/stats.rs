@@ -60,7 +60,7 @@ pub(in crate::gui_runtime::native_vello) struct NativeVelloProfiler {
     pub(super) hover_latency: InteractionProfileStats,
     pub(super) wheel_latency: InteractionProfileStats,
     pub(super) map_pan_proxy_latency: InteractionProfileStats,
-    pub(super) waveform_latency: InteractionProfileStats,
+    pub(super) timeline_latency: InteractionProfileStats,
     pub(super) volume_latency: InteractionProfileStats,
 }
 
@@ -186,7 +186,7 @@ impl NativeVelloProfiler {
             InteractionProfileKind::Hover => self.hover_latency.record(duration),
             InteractionProfileKind::Wheel => self.wheel_latency.record(duration),
             InteractionProfileKind::MapPanProxy => self.map_pan_proxy_latency.record(duration),
-            InteractionProfileKind::Waveform => self.waveform_latency.record(duration),
+            InteractionProfileKind::Timeline => self.timeline_latency.record(duration),
             InteractionProfileKind::Volume => self.volume_latency.record(duration),
         }
     }

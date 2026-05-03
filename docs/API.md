@@ -198,6 +198,8 @@ declared by widget contracts rather than by host-domain code.
 `radiant::gui::input::logical_point_to_u16_coords` provides the shared
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.
+`radiant::gui::text_layout::snap_text_baseline_to_pixel` provides shared
+baseline snapping for retained text rows.
 `Rect::centered_pixel_square` and `Rect::centered_odd_pixel_square` provide
 pixel-snapped icon-box geometry for reusable controls.
 `Rect::stroke_aligned_rect` provides stroke-grid snapping for retained border

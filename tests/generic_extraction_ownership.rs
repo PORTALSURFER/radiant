@@ -680,6 +680,28 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
 }
 
 #[test]
+fn text_baseline_snapping_is_owned_by_generic_text_layout() {
+    let text_layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/text_layout.rs"
+    ))
+    .expect("text layout module should be readable");
+    let browser_text_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout_adapter/browser_text.rs"
+    ))
+    .expect("browser text adapter should be readable");
+
+    assert!(text_layout_mod.contains("pub fn snap_text_baseline_to_pixel"));
+    assert!(browser_text_mod.contains("snap_text_baseline_to_pixel("));
+    assert!(!browser_text_mod.contains("fn snap_browser_row_text_baseline"));
+    assert!(
+        !browser_text_mod.contains("let baseline = (line.min.y + height).round()"),
+        "native browser text should delegate baseline snapping to gui::text_layout"
+    );
+}
+
+#[test]
 fn context_menu_panel_placement_is_owned_by_generic_panel_module() {
     let panel_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/panel.rs"))
         .expect("panel module should be readable");

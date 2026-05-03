@@ -5,7 +5,7 @@ use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line, snap_text_baseline_to_pixel};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
@@ -107,17 +107,17 @@ pub(crate) fn compute_browser_row_text_layout(
 ) -> BrowserRowTextLayout {
     let columns = compute_browser_table_columns(row_rect, sizing);
     let bucket_chip = columns.bucket;
-    let index_label = snap_browser_row_text_baseline(compute_text_line_rect(
+    let index_label = snap_text_baseline_to_pixel(compute_text_line_rect(
         columns.index,
         sizing,
         sizing.font_meta,
     ));
-    let item_label = snap_browser_row_text_baseline(compute_text_line_rect(
+    let item_label = snap_text_baseline_to_pixel(compute_text_line_rect(
         columns.item,
         sizing,
         sizing.font_body,
     ));
-    let bucket_label = snap_browser_row_text_baseline(compute_text_line_rect(
+    let bucket_label = snap_text_baseline_to_pixel(compute_text_line_rect(
         bucket_chip,
         sizing,
         sizing.font_meta,
@@ -161,22 +161,6 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> R
         TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
         0.0,
         BROWSER_TEXT_ROOT_ID,
-    )
-}
-
-/// Snap a browser-row label line so the rendered text baseline lands on a full
-/// pixel. This keeps repeated table rows from alternating between adjacent
-/// raster rows when compact density tokens produce fractional heights.
-fn snap_browser_row_text_baseline(line: Rect) -> Rect {
-    let height = line.height().max(0.0);
-    if height <= 0.0 {
-        return line;
-    }
-    let baseline = (line.min.y + height).round();
-    let min_y = baseline - height;
-    Rect::from_min_max(
-        Point::new(line.min.x, min_y),
-        Point::new(line.max.x, baseline),
     )
 }
 

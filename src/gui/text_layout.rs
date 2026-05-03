@@ -108,6 +108,23 @@ pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets, famil
     text_line(bounds, font_size, insets, 0.0, family_id, TextLineMode::Top)
 }
 
+/// Snap a text-line rectangle so its bottom edge lands on a full pixel.
+///
+/// This keeps repeated text rows from alternating between adjacent raster rows
+/// when compact density tokens produce fractional line positions.
+pub fn snap_text_baseline_to_pixel(line: Rect) -> Rect {
+    let height = line.height().max(0.0);
+    if height <= 0.0 {
+        return line;
+    }
+    let baseline = (line.min.y + height).round();
+    let min_y = baseline - height;
+    Rect::from_min_max(
+        Point::new(line.min.x, min_y),
+        Point::new(line.max.x, baseline),
+    )
+}
+
 fn text_line(
     bounds: Rect,
     font_size: f32,
@@ -301,5 +318,15 @@ mod tests {
         let line = top_text_line(bounds, 11.0, TextLineInsets::horizontal(5.0), 3);
         assert_eq!(line.min, Point::new(15.0, 20.0));
         assert_eq!(line.max, Point::new(205.0, 31.0));
+    }
+
+    #[test]
+    fn snap_text_baseline_to_pixel_keeps_height_and_rounds_bottom_edge() {
+        let line = Rect::from_min_max(Point::new(10.0, 20.25), Point::new(110.0, 34.75));
+
+        assert_eq!(
+            snap_text_baseline_to_pixel(line),
+            Rect::from_min_max(Point::new(10.0, 20.5), Point::new(110.0, 35.0))
+        );
     }
 }

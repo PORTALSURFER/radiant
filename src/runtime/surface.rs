@@ -304,6 +304,20 @@ pub struct UiSurface<Message> {
     root: SurfaceNode<Message>,
 }
 
+/// Public declarative view snapshot alias for host applications.
+///
+/// `View<Message>` is the framework vocabulary for the top-level immutable UI
+/// projection. It is an alias for [`UiSurface`] so existing code keeps the same
+/// storage, cloning, layout, input, and paint behavior.
+pub type View<Message> = UiSurface<Message>;
+
+/// Public declarative element tree alias for host applications.
+///
+/// `Element<Message>` is the framework vocabulary for one node in a projected
+/// view tree. It is an alias for [`SurfaceNode`] to keep identity and layout
+/// behavior exactly shared with the existing runtime surface.
+pub type Element<Message> = SurfaceNode<Message>;
+
 impl<Message> Clone for UiSurface<Message> {
     fn clone(&self) -> Self {
         Self {

@@ -36,6 +36,6 @@ pub use paint::{
     PaintTextRun, SurfacePaintPlan,
 };
 pub use surface::{
-    MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,
-    WidgetMessageMapper,
+    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,
+    View, WidgetMessageMapper,
 };

@@ -36,11 +36,13 @@ immutable `UiSurface<Message>` from state and reduce messages back into state.
 
 ## View, Element, And Widget
 
-`UiSurface` is the root declarative view snapshot. `SurfaceNode` is the generic
-element tree: container nodes hold `SurfaceChild` entries and widget nodes hold
-`WidgetSpec` leaves. Widget primitives such as `ButtonWidget`, `TextWidget`,
-`TextInputWidget`, `ToggleWidget`, `ScrollbarWidget`, `CanvasWidget`, and
-`ListItemWidget` describe reusable UI behavior without host-domain semantics.
+`View<Message>` is the root declarative view snapshot and is a public alias for
+`UiSurface<Message>`. `Element<Message>` is the generic element tree and is a
+public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
+entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
+`ButtonWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
+`ScrollbarWidget`, `CanvasWidget`, and `ListItemWidget` describe reusable UI
+behavior without host-domain semantics.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is
 required for focus, input capture, message routing, and efficient updates.

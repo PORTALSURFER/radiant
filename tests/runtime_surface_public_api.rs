@@ -3,8 +3,9 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        App, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, PaintPrimitive, RuntimeBridge,
-        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, NativeRunOptions, PaintPrimitive,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
+        WidgetMessageMapper,
         declarative_runtime_bridge,
     },
     theme::ThemeTokens,
@@ -113,6 +114,15 @@ fn runtime_bridge_is_the_public_app_contract() {
 
     let surface = project_app_once(&mut bridge);
     assert!(surface.find_widget(10).is_some());
+}
+
+#[test]
+fn view_and_element_aliases_match_runtime_surface_types() {
+    let surface: Arc<View<DemoMessage>> = project_surface(&mut DemoState::default());
+    let root: &Element<DemoMessage> = surface.root();
+
+    assert_eq!(root.id(), 1);
+    assert!(surface.find_widget(11).is_some());
 }
 
 #[test]

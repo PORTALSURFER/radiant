@@ -136,16 +136,19 @@ Runtime context is split deliberately:
 ## Event And Focus
 
 Backend input is normalized into Radiant input primitives such as
-`WidgetInput`, `PointerButton`, and `WidgetKey`. The runtime performs hit
-testing, focus changes, pointer press/release routing, keyboard routing to the
-focused widget, and message mapping. Focus behavior is declared by widget
-contracts rather than by host-domain code. `SurfaceRuntime::focus_widget`,
-`SurfaceRuntime::clear_focus`, `SurfaceRuntime::focused_widget`,
-`SurfaceRuntime::traverse_focus`, and `FocusTraversal` expose deterministic
-keyboard focus ownership and traversal. Pointer dispatch through
-`dispatch_input_at` can assign focus from hit testing; keyboard dispatch through
-`dispatch_focused_input` routes input to the focused widget by stable
-`WidgetId`.
+`Event`, `WidgetInput`, `PointerButton`, and `WidgetKey`. The runtime performs
+hit testing, pointer capture, focus changes, pointer press/release routing,
+keyboard routing to the focused widget, and message mapping. `Event` is the
+backend-neutral runtime event surface for resize, pointer, keyboard, focus
+traversal, and focus-clear operations; `SurfaceRuntime::dispatch_event` is the
+primary event-routing entry point for backend adapters. Focus behavior is
+declared by widget contracts rather than by host-domain code.
+`SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
+`SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
+`FocusTraversal` expose deterministic keyboard focus ownership and traversal.
+Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
+keyboard dispatch through `dispatch_focused_input` routes input to the focused
+widget by stable `WidgetId`.
 
 ## Automation
 

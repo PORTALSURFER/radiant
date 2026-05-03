@@ -9,7 +9,7 @@ use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{LayoutOutput, layout_tree},
     theme::ThemeTokens,
-    widgets::{WidgetId, WidgetInput},
+    widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey},
 };
 
 /// Direction for deterministic keyboard focus traversal.
@@ -19,6 +19,43 @@ pub enum FocusTraversal {
     Forward,
     /// Move to the previous keyboard-focusable widget in declarative tree order.
     Backward,
+}
+
+/// Backend-neutral runtime event routed through a [`SurfaceRuntime`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Event {
+    /// Viewport size changed and layout should be recomputed.
+    Resize {
+        /// New logical viewport size.
+        viewport: Vector2,
+    },
+    /// Pointer hover moved across the surface.
+    PointerMove {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+    },
+    /// Pointer press started at the given surface position.
+    PointerPress {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Pointer button that started the press.
+        button: PointerButton,
+    },
+    /// Pointer press ended at the given surface position.
+    PointerRelease {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Pointer button that ended the press.
+        button: PointerButton,
+    },
+    /// One non-text key intent should route to the focused widget.
+    KeyPress(WidgetKey),
+    /// One printable character should route to the focused widget.
+    Character(char),
+    /// Move keyboard focus in declarative tree order.
+    TraverseFocus(FocusTraversal),
+    /// Clear current runtime focus ownership.
+    ClearFocus,
 }
 
 /// Borrowed runtime context for one projected Radiant surface.
@@ -54,6 +91,7 @@ where
     surface: UiSurface<Message>,
     layout: LayoutOutput,
     focused_widget: Option<WidgetId>,
+    pointer_capture: Option<WidgetId>,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -71,6 +109,7 @@ where
             surface,
             layout,
             focused_widget: None,
+            pointer_capture: None,
         }
     }
 
@@ -108,6 +147,11 @@ where
         self.focused_widget
     }
 
+    /// Return the widget that currently owns pointer capture.
+    pub fn pointer_capture(&self) -> Option<WidgetId> {
+        self.pointer_capture
+    }
+
     /// Return an immutable reference to the owned bridge.
     pub fn bridge(&self) -> &Bridge {
         &self.bridge
@@ -138,6 +182,12 @@ where
             .is_some_and(|widget_id| !self.surface.is_focusable_widget(widget_id))
         {
             self.focused_widget = None;
+        }
+        if self
+            .pointer_capture
+            .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
+        {
+            self.pointer_capture = None;
         }
         if let Some(widget_id) = self.focused_widget {
             self.route_focus_changed(widget_id, true);
@@ -190,6 +240,49 @@ where
     pub fn dispatch_focused_input(&mut self, input: WidgetInput) -> Option<WidgetId> {
         let widget_id = self.focused_widget?;
         self.dispatch_input(widget_id, input).then_some(widget_id)
+    }
+
+    /// Route one backend-neutral runtime event.
+    ///
+    /// Returns the targeted widget id when the event routes to a widget. Events
+    /// that only update runtime state, such as resize or focus clearing, return
+    /// `None`.
+    pub fn dispatch_event(&mut self, event: Event) -> Option<WidgetId> {
+        match event {
+            Event::Resize { viewport } => {
+                self.set_viewport(viewport);
+                None
+            }
+            Event::PointerMove { position } => {
+                self.dispatch_input_at(position, WidgetInput::PointerMove { position })
+            }
+            Event::PointerPress { position, button } => {
+                let Some(widget_id) = self.widget_at(position) else {
+                    self.pointer_capture = None;
+                    self.clear_focus();
+                    return None;
+                };
+                self.pointer_capture = Some(widget_id);
+                self.dispatch_input_at(position, WidgetInput::PointerPress { position, button })
+            }
+            Event::PointerRelease { position, button } => {
+                let widget_id = self
+                    .pointer_capture
+                    .take()
+                    .or_else(|| self.widget_at(position))?;
+                self.dispatch_input(widget_id, WidgetInput::PointerRelease { position, button })
+                    .then_some(widget_id)
+            }
+            Event::KeyPress(key) => self.dispatch_focused_input(WidgetInput::KeyPress(key)),
+            Event::Character(character) => {
+                self.dispatch_focused_input(WidgetInput::Character(character))
+            }
+            Event::TraverseFocus(direction) => self.traverse_focus(direction),
+            Event::ClearFocus => {
+                self.clear_focus();
+                None
+            }
+        }
     }
 
     /// Route one normalized widget interaction by widget id.

@@ -10,7 +10,7 @@ use crate::gui::{
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
-use crate::widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey};
+use crate::widgets::{PointerButton, WidgetKey};
 use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},

@@ -86,7 +86,6 @@ where
 {
     pub(in crate::gui_runtime::native_vello) runtime: SurfaceRuntime<Bridge, Message>,
     theme: ThemeTokens,
-    pressed_widget: Option<WidgetId>,
 }
 
 impl<Bridge, Message> GenericNativeRuntimeCore<Bridge, Message>
@@ -97,12 +96,13 @@ where
         Self {
             runtime: SurfaceRuntime::new(bridge, viewport),
             theme: ThemeTokens::default(),
-            pressed_widget: None,
         }
     }
 
     fn set_viewport(&mut self, viewport: Vector2) {
-        self.runtime.set_viewport(viewport);
+        let _ = self
+            .runtime
+            .dispatch_event(crate::runtime::Event::Resize { viewport });
     }
 
     fn paint_plan(&self) -> crate::runtime::SurfacePaintPlan {
@@ -114,7 +114,7 @@ where
         position: Point,
     ) -> bool {
         self.runtime
-            .dispatch_input_at(position, WidgetInput::PointerMove { position })
+            .dispatch_event(crate::runtime::Event::PointerMove { position })
             .is_some()
     }
 
@@ -123,14 +123,8 @@ where
         position: Point,
         button: PointerButton,
     ) -> bool {
-        let Some(widget_id) = self.runtime.widget_at(position) else {
-            self.clear_focus();
-            self.pressed_widget = None;
-            return false;
-        };
-        self.pressed_widget = Some(widget_id);
         self.runtime
-            .dispatch_input_at(position, WidgetInput::PointerPress { position, button })
+            .dispatch_event(crate::runtime::Event::PointerPress { position, button })
             .is_some()
     }
 
@@ -139,20 +133,14 @@ where
         position: Point,
         button: PointerButton,
     ) -> bool {
-        let widget_id = self
-            .pressed_widget
-            .take()
-            .or_else(|| self.runtime.widget_at(position));
-        let Some(widget_id) = widget_id else {
-            return false;
-        };
         self.runtime
-            .dispatch_input(widget_id, WidgetInput::PointerRelease { position, button })
+            .dispatch_event(crate::runtime::Event::PointerRelease { position, button })
+            .is_some()
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press(&mut self, key: WidgetKey) -> bool {
         self.runtime
-            .dispatch_focused_input(WidgetInput::KeyPress(key))
+            .dispatch_event(crate::runtime::Event::KeyPress(key))
             .is_some()
     }
 
@@ -161,12 +149,8 @@ where
         character: char,
     ) -> bool {
         self.runtime
-            .dispatch_focused_input(WidgetInput::Character(character))
+            .dispatch_event(crate::runtime::Event::Character(character))
             .is_some()
-    }
-
-    fn clear_focus(&mut self) {
-        self.runtime.clear_focus();
     }
 }
 

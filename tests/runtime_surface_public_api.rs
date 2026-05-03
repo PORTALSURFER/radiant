@@ -3,14 +3,14 @@
 use radiant::{
     layout::{ContainerKind, ContainerPolicy, Point, Rect, SlotParams, Vector2, layout_tree},
     runtime::{
-        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, FocusTraversal, NativeRunOptions,
+        App, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal, NativeRunOptions,
         PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
         UiSurface, View, WidgetMessageMapper, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
-        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, WidgetInput,
-        WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        ButtonMessage, ButtonWidget, PointerButton, TextInputMessage, TextInputWidget, TextWidget,
+        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
         resolve_widget_visual_tokens,
     },
 };
@@ -204,6 +204,69 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         .widget();
     match field {
         WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Q"),
+        other => panic!("expected text input widget, got {other:?}"),
+    }
+}
+
+#[test]
+fn surface_runtime_routes_backend_neutral_events() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::Resize {
+            viewport: Vector2::new(360.0, 40.0),
+        }),
+        None
+    );
+    assert_eq!(runtime.viewport(), Vector2::new(360.0, 40.0));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(150.0, 10.0),
+            button: PointerButton::Primary,
+        }),
+        Some(11)
+    );
+    assert_eq!(runtime.focused_widget(), Some(11));
+    assert_eq!(runtime.pointer_capture(), Some(11));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerRelease {
+            position: Point::new(150.0, 10.0),
+            button: PointerButton::Primary,
+        }),
+        Some(11)
+    );
+    assert_eq!(runtime.pointer_capture(), None);
+    assert_eq!(
+        runtime.dispatch_event(Event::TraverseFocus(FocusTraversal::Forward)),
+        Some(12)
+    );
+    assert_eq!(runtime.dispatch_event(Event::Character('R')), Some(12));
+
+    let title = runtime
+        .surface()
+        .find_widget(10)
+        .expect("title widget should still be present")
+        .widget();
+    let field = runtime
+        .surface()
+        .find_widget(12)
+        .expect("text input widget should still be present")
+        .widget();
+    match title {
+        WidgetSpec::Text(text) => assert_eq!(text.text, "R (1)"),
+        other => panic!("expected text widget, got {other:?}"),
+    }
+    match field {
+        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "R"),
         other => panic!("expected text input widget, got {other:?}"),
     }
 }

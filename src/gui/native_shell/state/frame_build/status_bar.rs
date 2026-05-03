@@ -98,20 +98,14 @@ pub(super) fn status_progress_fill_rect(
     model: &AppModel,
     motion_wave: f32,
 ) -> Option<Rect> {
-    if track_rect.width() <= 0.0 || track_rect.height() <= 0.0 {
-        return None;
-    }
-    if model.progress_overlay.total == 0 {
-        return crate::gui::feedback::horizontal_progress_activity_rect(
-            track_rect,
-            motion_wave,
-            0.24,
-            18.0,
-        );
-    }
-    let fraction = (model.progress_overlay.completed as f32 / model.progress_overlay.total as f32)
-        .clamp(0.0, 1.0);
-    crate::gui::feedback::horizontal_progress_fill_rect(track_rect, fraction)
+    crate::gui::feedback::horizontal_progress_track_rect(
+        track_rect,
+        model.progress_overlay.completed,
+        model.progress_overlay.total,
+        motion_wave,
+        0.24,
+        18.0,
+    )
 }
 
 fn footer_progress_fill_color(style: &StyleTokens, indeterminate: bool) -> Rgba8 {

@@ -69,6 +69,31 @@ pub fn horizontal_progress_activity_rect(
     ))
 }
 
+/// Return the visible segment for determinate or indeterminate progress.
+///
+/// When `total` is zero, the returned segment uses indeterminate activity
+/// geometry. Otherwise, `completed / total` resolves the determinate fill.
+pub fn horizontal_progress_track_rect(
+    track: Rect,
+    completed: usize,
+    total: usize,
+    activity_position_fraction: f32,
+    activity_segment_fraction: f32,
+    min_activity_segment_width: f32,
+) -> Option<Rect> {
+    if total == 0 {
+        horizontal_progress_activity_rect(
+            track,
+            activity_position_fraction,
+            activity_segment_fraction,
+            min_activity_segment_width,
+        )
+    } else {
+        let fraction = (completed as f32 / total as f32).clamp(0.0, 1.0);
+        horizontal_progress_fill_rect(track, fraction)
+    }
+}
+
 /// Return a leading fill rect for a normalized horizontal meter.
 ///
 /// `min_visible_width` can keep non-empty meter values visible on very narrow
@@ -348,8 +373,8 @@ mod tests {
         ConfirmPrompt, DragOverlay, HealthState, InlineIndicatorAnchor, InlineIndicatorMetrics,
         ProgressOverlay, PromptIntent, RecoverySummary, UpdatePanel, UpdateStatus,
         horizontal_discrete_meter_fill_rect, horizontal_meter_fill_rect,
-        horizontal_progress_activity_rect, horizontal_progress_fill_rect, inline_indicator_layout,
-        inline_indicator_reserved_width,
+        horizontal_progress_activity_rect, horizontal_progress_fill_rect,
+        horizontal_progress_track_rect, inline_indicator_layout, inline_indicator_reserved_width,
     };
     use crate::gui::types::{Point, Rect};
 
@@ -418,6 +443,21 @@ mod tests {
             horizontal_progress_activity_rect(track, 0.5, 0.0, 0.0),
             None
         );
+    }
+
+    #[test]
+    fn horizontal_progress_track_rect_switches_between_activity_and_fill() {
+        let track = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(110.0, 28.0));
+
+        let activity =
+            horizontal_progress_track_rect(track, 0, 0, 0.5, 0.24, 18.0).expect("activity");
+        assert_eq!(activity.min, Point::new(48.0, 20.0));
+        assert_eq!(activity.max, Point::new(72.0, 28.0));
+
+        let determinate =
+            horizontal_progress_track_rect(track, 1, 4, 0.5, 0.24, 18.0).expect("fill");
+        assert_eq!(determinate.min, track.min);
+        assert_eq!(determinate.max, Point::new(35.0, 28.0));
     }
 
     #[test]

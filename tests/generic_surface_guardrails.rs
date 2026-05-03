@@ -1001,6 +1001,7 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "SignalChromeState",
         "horizontal_progress_fill_rect",
         "horizontal_progress_activity_rect",
+        "horizontal_progress_track_rect",
         "horizontal_meter_fill_rect",
         "horizontal_discrete_meter_fill_rect",
         "inline_indicator_layout",

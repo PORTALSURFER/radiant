@@ -497,11 +497,11 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
 
     assert!(feedback_mod.contains("pub fn horizontal_progress_fill_rect"));
     assert!(feedback_mod.contains("pub fn horizontal_progress_activity_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_progress_track_rect"));
     assert!(feedback_mod.contains("pub fn horizontal_meter_fill_rect"));
     assert!(feedback_mod.contains("pub fn horizontal_discrete_meter_fill_rect"));
     assert!(overlay_visuals_mod.contains("horizontal_progress_fill_rect"));
-    assert!(status_bar_mod.contains("horizontal_progress_fill_rect"));
-    assert!(status_bar_mod.contains("horizontal_progress_activity_rect"));
+    assert!(status_bar_mod.contains("horizontal_progress_track_rect"));
     assert!(similarity_mod.contains("horizontal_discrete_meter_fill_rect"));
     assert!(top_bar_mod.contains("horizontal_meter_fill_rect"));
     assert!(
@@ -515,6 +515,10 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     assert!(
         !status_bar_mod.contains("let segment_width ="),
         "compat status bar should delegate indeterminate progress segment math to gui::feedback"
+    );
+    assert!(
+        !status_bar_mod.contains("if model.progress_overlay.total == 0"),
+        "compat status bar should delegate progress mode switching to gui::feedback"
     );
     assert!(
         !similarity_mod.contains("let fill_width ="),

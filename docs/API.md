@@ -137,7 +137,8 @@ status/reference/channel chrome, `SignalToolState` for generic enabled/visible
 tool flags, `SignalRasterPreview` for retained raster image payloads and
 loading state, `horizontal_progress_fill_rect` for resolving normalized
 progress-track fill geometry, `horizontal_progress_activity_rect` for
-indeterminate progress segments, `horizontal_meter_fill_rect` and
+indeterminate progress segments, `horizontal_progress_track_rect` for switching
+between determinate and indeterminate progress tracks, `horizontal_meter_fill_rect` and
 `horizontal_discrete_meter_fill_rect` for reusable meter geometry, and
 `inline_indicator_layout` for compact text-relative status indicator clusters,
 `TimelineViewport` for normalized viewport bounds,

@@ -4,12 +4,10 @@
 //! deterministic layout tree, run hit testing against that tree, then derive
 //! backend-neutral paint primitives (shapes + text runs).
 
-#[path = "../../../../../src/app_core/native_shell/composition/browser_chrome_surface.rs"]
 mod browser_chrome_surface;
 mod layout;
 mod layout_adapter;
 mod layout_runtime;
-#[path = "../../../../../src/app_core/native_shell/composition/sidebar_surface.rs"]
 mod sidebar_surface;
 mod state;
 mod status_surface;

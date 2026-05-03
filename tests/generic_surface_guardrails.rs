@@ -156,9 +156,11 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         .expect("native shell module");
 
     for module in [
+        "browser_chrome_surface",
         "status_surface",
         "style/chrome",
         "style/palette",
+        "sidebar_surface",
         "top_bar_surface",
         "waveform_header_surface",
         "waveform_toolbar_surface",
@@ -171,6 +173,16 @@ fn localized_native_shell_surfaces_do_not_import_parent_sempal_sources() {
         assert!(
             !native_shell_mod.contains(&format!("app_core/native_shell/composition/{module}.rs")),
             "{module} must stay a local Radiant module until the remaining compatibility shell is retired"
+        );
+    }
+
+    for path in [
+        "src/gui/native_shell/browser_chrome_surface_helpers.rs",
+        "src/gui/native_shell/sidebar_surface_helpers.rs",
+    ] {
+        assert!(
+            manifest_dir.join(path).exists(),
+            "{path} should be localized with its surface module inside Radiant"
         );
     }
 

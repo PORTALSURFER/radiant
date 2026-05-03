@@ -157,8 +157,8 @@ copy into these slots; Radiant defaults stay product-neutral.
 
 `radiant::gui::panel` contains generic split-pane and sidebar models such as
 `SplitPaneSlot`, `SplitPaneAssignedRow`, `SplitPaneTreePanel`, and
-`SplitPaneSidebarState`. Host applications map product-specific source, folder,
-project, or asset concepts onto these reusable panel structures.
+`SplitPaneSidebarState`. Host applications map product-specific navigation,
+workspace, project, or asset concepts onto these reusable panel structures.
 
 `radiant::gui::form` contains reusable form and picker models such as
 `DecimalTextInputPolicy`, `SummaryField`, `OptionItem`, `PairedPickerTarget`,

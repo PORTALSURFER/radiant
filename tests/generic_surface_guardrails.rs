@@ -122,6 +122,21 @@ const DOMAIN_TERMS: &[&str] = &[
     "Oneshot",
 ];
 
+const DOC_PRODUCT_DOMAIN_TERMS: &[&str] = &[
+    "sample",
+    "Sample",
+    "browser",
+    "Browser",
+    "audio",
+    "Audio",
+    "waveform",
+    "Waveform",
+    "tag",
+    "Tag",
+    "collection",
+    "Collection",
+];
+
 const INVENTORY_DISPOSITIONS: &[&str] = &[
     "move_to_host",
     "generalize_in_radiant",
@@ -1043,6 +1058,26 @@ fn radiant_source_docs_and_examples_do_not_name_host_product() {
 }
 
 #[test]
+fn radiant_docs_do_not_use_host_product_domain_examples() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs_dir = manifest_dir.join("docs");
+    let mut violations = Vec::new();
+
+    collect_markdown_token_violations(
+        &docs_dir,
+        &manifest_dir,
+        DOC_PRODUCT_DOMAIN_TERMS,
+        &mut violations,
+    );
+
+    assert!(
+        violations.is_empty(),
+        "Radiant docs should describe reusable GUI concepts without host-product domain examples:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
 fn domain_extraction_inventory_covers_current_domain_bearing_files() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let rules = parse_extraction_inventory();
@@ -1154,6 +1189,53 @@ fn collect_token_violations(
                 let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
                 violations.push(format!(
                     "{}:{} imports or names `{}`",
+                    relative.display(),
+                    line_index + 1,
+                    token
+                ));
+            }
+        }
+    }
+}
+
+fn collect_markdown_token_violations(
+    path: &Path,
+    manifest_dir: &Path,
+    forbidden_tokens: &[&str],
+    violations: &mut Vec<String>,
+) {
+    if !path.exists() {
+        return;
+    }
+    if path.is_dir() {
+        let mut entries = fs::read_dir(path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|err| {
+                        panic!("failed to read entry in {}: {err}", path.display())
+                    })
+                    .path()
+            })
+            .collect::<Vec<_>>();
+        entries.sort();
+        for entry in entries {
+            collect_markdown_token_violations(&entry, manifest_dir, forbidden_tokens, violations);
+        }
+        return;
+    }
+    if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
+        return;
+    }
+
+    let source = fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    for (line_index, line) in source.lines().enumerate() {
+        for token in forbidden_tokens {
+            if line.contains(token) {
+                let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
+                violations.push(format!(
+                    "{}:{} names `{}`",
                     relative.display(),
                     line_index + 1,
                     token

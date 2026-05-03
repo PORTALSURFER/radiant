@@ -3,13 +3,14 @@
 use super::*;
 use crate::gui::{
     fingerprint::StableFingerprint,
+    focus::FocusSurface,
+    list::EditableRowKind,
     native_shell::{FocusOverlayFingerprint, HoverOverlayFingerprint, WaveformToolbarHoverHint},
+    panel::SplitPaneSlot,
+    range::NormalizedRange,
 };
 
-fn fingerprint_mix_range(
-    state: &mut StableFingerprint,
-    range: &crate::compat_app_contract::NormalizedRangeModel,
-) {
+fn fingerprint_mix_range(state: &mut StableFingerprint, range: &NormalizedRange) {
     state.mix_u16(range.start_milli);
     state.mix_u16(range.end_milli);
     state.mix_u32(range.start_micros);
@@ -109,9 +110,7 @@ pub(in super::super) fn hover_overlay_model_signature(
             WaveformToolbarHoverHint::Compare => {
                 state.mix_option_str(model.waveform_chrome.compare_anchor_label.as_deref());
             }
-            WaveformToolbarHoverHint::Play => {
-                state.mix_bool(model.transport_running)
-            }
+            WaveformToolbarHoverHint::Play => state.mix_bool(model.transport_running),
             WaveformToolbarHoverHint::SilenceSplit
             | WaveformToolbarHoverHint::ExactDedupe
             | WaveformToolbarHoverHint::CleanDuplicates
@@ -130,9 +129,9 @@ pub(in super::super) fn hover_overlay_model_signature(
         state.mix_bool(model.drag_overlay.valid_target);
         if let Some(row) = model.sources.folder_pane(pane).tree_rows.get(row_index) {
             state.mix_u8(match row.kind {
-                crate::compat_app_contract::FolderRowKind::CreateDraft => 0,
-                crate::compat_app_contract::FolderRowKind::RenameDraft => 1,
-                crate::compat_app_contract::FolderRowKind::Existing => 2,
+                EditableRowKind::CreateDraft => 0,
+                EditableRowKind::RenameDraft => 1,
+                EditableRowKind::Existing => 2,
             });
         } else {
             state.mix_u8(u8::MAX);
@@ -143,24 +142,24 @@ pub(in super::super) fn hover_overlay_model_signature(
     if shell.folder_create_editor_signature != 0 {
         state.mix_bool(true);
         state.mix_u8(match model.sources.active_folder_pane {
-            crate::compat_app_contract::FolderPaneIdModel::Upper => 0,
-            crate::compat_app_contract::FolderPaneIdModel::Lower => 1,
+            SplitPaneSlot::Upper => 0,
+            SplitPaneSlot::Lower => 1,
         });
         let active_tree_rows = &model.sources.active_folder_pane_model().tree_rows;
         let draft_row = active_tree_rows
             .iter()
-            .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft)
+            .find(|row| row.kind == EditableRowKind::RenameDraft)
             .or_else(|| {
                 active_tree_rows
                     .iter()
-                    .find(|row| row.kind == crate::compat_app_contract::FolderRowKind::CreateDraft)
+                    .find(|row| row.kind == EditableRowKind::CreateDraft)
             });
         if let Some(row) = draft_row {
             state.mix_bool(true);
             state.mix_u8(match row.kind {
-                crate::compat_app_contract::FolderRowKind::CreateDraft => 0,
-                crate::compat_app_contract::FolderRowKind::RenameDraft => 1,
-                crate::compat_app_contract::FolderRowKind::Existing => 2,
+                EditableRowKind::CreateDraft => 0,
+                EditableRowKind::RenameDraft => 1,
+                EditableRowKind::Existing => 2,
             });
             state.mix_option_str(row.input_error.as_deref());
         } else {
@@ -183,11 +182,11 @@ pub(in super::super) fn focus_overlay_model_signature(
     state.mix_bool(model.browser.similarity_filtered);
     state.mix_bool(model.browser.duplicate_cleanup_active);
     state.mix_u8(match model.focus_context {
-        crate::compat_app_contract::FocusContextModel::None => 0,
-        crate::compat_app_contract::FocusContextModel::NavigationList => 1,
-        crate::compat_app_contract::FocusContextModel::NavigationTree => 2,
-        crate::compat_app_contract::FocusContextModel::ContentList => 3,
-        crate::compat_app_contract::FocusContextModel::Timeline => 4,
+        FocusSurface::None => 0,
+        FocusSurface::NavigationList => 1,
+        FocusSurface::NavigationTree => 2,
+        FocusSurface::ContentList => 3,
+        FocusSurface::Timeline => 4,
     });
     for row in model
         .browser

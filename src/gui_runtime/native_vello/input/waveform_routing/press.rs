@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::range::NormalizedRange;
 
 /// Resolve the highest-priority waveform press gesture for the current modifiers.
 pub(super) fn waveform_primary_press_action_from_pointer(
@@ -281,7 +282,7 @@ pub(super) fn waveform_selection_resize_action_from_pointer(
 fn waveform_edge_adjust_action(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: Option<crate::compat_app_contract::NormalizedRangeModel>,
+    selection: Option<NormalizedRange>,
     point: Point,
     shift: bool,
     build: impl FnOnce(u32, u32) -> UiAction,
@@ -321,7 +322,7 @@ fn waveform_edge_adjust_action(
 fn waveform_slide_action_from_pointer(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: Option<crate::compat_app_contract::NormalizedRangeModel>,
+    selection: Option<NormalizedRange>,
     point: Point,
     build: impl FnOnce(u32, u32) -> UiAction,
 ) -> Option<UiAction> {

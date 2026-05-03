@@ -1,6 +1,7 @@
 //! Waveform selection/edit/fade handle hit-testing helpers.
 
 use super::*;
+use crate::gui::range::NormalizedRange;
 
 /// Resolve one fade-handle action when a pointer lands near edit fade handles.
 pub(super) fn waveform_edit_fade_handle_action_from_pointer(
@@ -267,7 +268,7 @@ pub(super) fn waveform_selection_drag_handle_hit_rect(
 pub(super) fn waveform_selection_shift_handle_hit_rect(
     layout: &ShellLayout,
     model: &AppModel,
-    selection: crate::compat_app_contract::NormalizedRangeModel,
+    selection: NormalizedRange,
 ) -> Option<UiRect> {
     let start_micros = selection.start_micros.min(selection.end_micros);
     let end_micros = selection.start_micros.max(selection.end_micros);

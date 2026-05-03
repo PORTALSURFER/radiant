@@ -194,6 +194,30 @@ impl Rect {
         )
         .clamp_to(self)
     }
+
+    /// Return a strip along the top edge, clamped to this rectangle.
+    pub fn top_edge_strip(self, thickness: f32) -> Self {
+        let thickness = thickness.max(0.0).min(self.height().max(0.0));
+        Self::from_min_max(self.min, Point::new(self.max.x, self.min.y + thickness))
+    }
+
+    /// Return a strip along the bottom edge, clamped to this rectangle.
+    pub fn bottom_edge_strip(self, thickness: f32) -> Self {
+        let thickness = thickness.max(0.0).min(self.height().max(0.0));
+        Self::from_min_max(Point::new(self.min.x, self.max.y - thickness), self.max)
+    }
+
+    /// Return a strip along the left edge, clamped to this rectangle.
+    pub fn left_edge_strip(self, thickness: f32) -> Self {
+        let thickness = thickness.max(0.0).min(self.width().max(0.0));
+        Self::from_min_max(self.min, Point::new(self.min.x + thickness, self.max.y))
+    }
+
+    /// Return a strip along the right edge, clamped to this rectangle.
+    pub fn right_edge_strip(self, thickness: f32) -> Self {
+        let thickness = thickness.max(0.0).min(self.width().max(0.0));
+        Self::from_min_max(Point::new(self.max.x - thickness, self.min.y), self.max)
+    }
 }
 
 /// RGBA color in 8-bit per channel sRGB space.
@@ -312,6 +336,40 @@ mod tests {
         assert_eq!(
             rect.top_right_square(0.0, 1.0),
             Rect::from_min_max(Point::new(17.0, 21.0), Point::new(17.0, 21.0))
+        );
+    }
+
+    #[test]
+    fn rect_edge_strips_resolve_each_side() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 70.0));
+
+        assert_eq!(
+            rect.top_edge_strip(3.0),
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(50.0, 23.0))
+        );
+        assert_eq!(
+            rect.bottom_edge_strip(4.0),
+            Rect::from_min_max(Point::new(10.0, 66.0), Point::new(50.0, 70.0))
+        );
+        assert_eq!(
+            rect.left_edge_strip(5.0),
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(15.0, 70.0))
+        );
+        assert_eq!(
+            rect.right_edge_strip(6.0),
+            Rect::from_min_max(Point::new(44.0, 20.0), Point::new(50.0, 70.0))
+        );
+    }
+
+    #[test]
+    fn rect_edge_strips_clamp_to_rect_dimensions() {
+        let rect = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(14.0, 23.0));
+
+        assert_eq!(rect.top_edge_strip(99.0), rect);
+        assert_eq!(rect.right_edge_strip(99.0), rect);
+        assert_eq!(
+            rect.left_edge_strip(-1.0),
+            Rect::from_min_max(Point::new(10.0, 20.0), Point::new(10.0, 23.0))
         );
     }
 }

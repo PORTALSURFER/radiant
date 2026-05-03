@@ -592,6 +592,38 @@ fn top_right_overlay_icon_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn focus_border_edge_geometry_is_owned_by_generic_rect_type() {
+    let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
+        .expect("types module should be readable");
+    let focus_shared_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/focus/shared.rs"
+    ))
+    .expect("focus overlay shared module should be readable");
+
+    for method in [
+        "pub fn top_edge_strip",
+        "pub fn bottom_edge_strip",
+        "pub fn left_edge_strip",
+        "pub fn right_edge_strip",
+    ] {
+        assert!(types_mod.contains(method));
+    }
+    for call in [
+        "rect.top_edge_strip(stroke)",
+        "rect.bottom_edge_strip(stroke)",
+        "rect.left_edge_strip(stroke)",
+        "rect.right_edge_strip(stroke)",
+    ] {
+        assert!(focus_shared_mod.contains(call));
+    }
+    assert!(
+        !focus_shared_mod.contains("rect.max.y - stroke"),
+        "native focus border rendering should delegate edge strip geometry to gui::types"
+    );
+}
+
+#[test]
 fn paired_picker_models_are_owned_by_generic_form_module() {
     let shell_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

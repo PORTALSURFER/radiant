@@ -15,7 +15,7 @@ pub(super) fn push_browser_row_border(
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
+                rect: rect.top_edge_strip(stroke),
                 color,
             }),
         );
@@ -24,7 +24,7 @@ pub(super) fn push_browser_row_border(
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
+                rect: rect.bottom_edge_strip(stroke),
                 color,
             }),
         );
@@ -33,7 +33,7 @@ pub(super) fn push_browser_row_border(
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
+                rect: rect.left_edge_strip(stroke),
                 color,
             }),
         );
@@ -42,7 +42,7 @@ pub(super) fn push_browser_row_border(
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
+                rect: rect.right_edge_strip(stroke),
                 color,
             }),
         );

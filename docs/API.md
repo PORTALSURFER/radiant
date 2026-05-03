@@ -204,6 +204,9 @@ pixel-snapped icon-box geometry for reusable controls.
 geometry.
 `Rect::top_right_square` provides anchored overlay geometry for controls that
 compose primary and secondary glyphs.
+`Rect::top_edge_strip`, `Rect::bottom_edge_strip`, `Rect::left_edge_strip`, and
+`Rect::right_edge_strip` provide border-edge geometry for reusable retained
+paint paths.
 `SurfaceRuntime::focus_widget`, `SurfaceRuntime::clear_focus`,
 `SurfaceRuntime::focused_widget`, `SurfaceRuntime::traverse_focus`, and
 `FocusTraversal` expose deterministic keyboard focus ownership and traversal.

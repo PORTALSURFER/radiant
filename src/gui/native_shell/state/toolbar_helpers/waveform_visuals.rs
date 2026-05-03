@@ -100,15 +100,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_icon_rect(
         0.0
     };
     let icon_side = (max_side + emphasis).clamp(8.0, 18.0);
-    let offset_x = (button_rect.width() - icon_side).max(0.0) * 0.5;
-    let offset_y = (button_rect.height() - icon_side).max(0.0) * 0.5;
-    Rect::from_min_max(
-        Point::new(button_rect.min.x + offset_x, button_rect.min.y + offset_y),
-        Point::new(
-            button_rect.min.x + offset_x + icon_side,
-            button_rect.min.y + offset_y + icon_side,
-        ),
-    )
+    button_rect.centered_square(icon_side)
 }
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_rect(

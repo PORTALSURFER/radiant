@@ -93,12 +93,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
         .min(button_rect.height())
         .min((button_rect.height() - (sizing.text_inset_y * 0.8)).max(8.0))
         .clamp(8.0, 16.0);
-    let min_x = button_rect.min.x + ((button_rect.width() - side) * 0.5);
-    let min_y = button_rect.min.y + ((button_rect.height() - side) * 0.5);
-    Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(min_x + side, min_y + side),
-    )
+    button_rect.centered_square(side)
 }
 
 /// Render the focused-row similarity button using the shared native icon pipeline.

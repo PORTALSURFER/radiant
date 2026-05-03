@@ -37,8 +37,8 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
         return None;
     }
     let inset = sizing.text_inset_x.min(5.0).max(2.0);
-    let width = browser_similarity_button_width(sizing)
-        .min((item_column.width() - (inset * 2.0)).max(0.0));
+    let width =
+        browser_similarity_button_width(sizing).min((item_column.width() - (inset * 2.0)).max(0.0));
     let height = browser_similarity_button_height(row_rect, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
@@ -80,16 +80,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_fill_rect
     track_rect: Rect,
     strength: u8,
 ) -> Option<Rect> {
-    if track_rect.width() <= 0.0 || track_rect.height() <= 0.0 || strength == 0 {
-        return None;
-    }
-    let fill_width = (track_rect.width() * (f32::from(strength) / 255.0))
-        .round()
-        .clamp(0.0, track_rect.width());
-    (fill_width > 0.0).then_some(Rect::from_min_max(
-        track_rect.min,
-        Point::new(track_rect.min.x + fill_width, track_rect.max.y),
-    ))
+    crate::gui::feedback::horizontal_discrete_meter_fill_rect(track_rect, u32::from(strength), 255)
 }
 
 /// Return the centered icon rect used inside the browser similarity button.

@@ -424,6 +424,8 @@ fn feedback_models_are_owned_by_generic_feedback_module() {
     assert!(feedback_mod.contains("pub struct ProgressOverlay"));
     assert!(feedback_mod.contains("pub fn horizontal_progress_fill_rect"));
     assert!(feedback_mod.contains("pub fn horizontal_progress_activity_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_meter_fill_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_discrete_meter_fill_rect"));
     assert!(feedback_mod.contains("pub struct RecoverySummary"));
     assert!(feedback_mod.contains("pub enum HealthState"));
     assert!(feedback_mod.contains("pub struct DragOverlay"));
@@ -453,12 +455,26 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
         "/src/gui/native_shell/state/frame_build/status_bar.rs"
     ))
     .expect("status bar module should be readable");
+    let similarity_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/similarity.rs"
+    ))
+    .expect("similarity module should be readable");
+    let top_bar_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/chrome/top_bar.rs"
+    ))
+    .expect("top bar module should be readable");
 
     assert!(feedback_mod.contains("pub fn horizontal_progress_fill_rect"));
     assert!(feedback_mod.contains("pub fn horizontal_progress_activity_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_meter_fill_rect"));
+    assert!(feedback_mod.contains("pub fn horizontal_discrete_meter_fill_rect"));
     assert!(overlay_visuals_mod.contains("horizontal_progress_fill_rect"));
     assert!(status_bar_mod.contains("horizontal_progress_fill_rect"));
     assert!(status_bar_mod.contains("horizontal_progress_activity_rect"));
+    assert!(similarity_mod.contains("horizontal_discrete_meter_fill_rect"));
+    assert!(top_bar_mod.contains("horizontal_meter_fill_rect"));
     assert!(
         !overlay_visuals_mod.contains("fn compute_progress_fill_rect"),
         "compat overlay geometry should delegate horizontal progress fill math to gui::feedback"
@@ -470,6 +486,14 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     assert!(
         !status_bar_mod.contains("let segment_width ="),
         "compat status bar should delegate indeterminate progress segment math to gui::feedback"
+    );
+    assert!(
+        !similarity_mod.contains("let fill_width ="),
+        "compat similarity meter should delegate discrete fill math to gui::feedback"
+    );
+    assert!(
+        !top_bar_mod.contains("let fill_width ="),
+        "compat volume meter should delegate continuous fill math to gui::feedback"
     );
 }
 

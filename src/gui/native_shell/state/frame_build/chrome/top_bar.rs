@@ -1,5 +1,5 @@
-use crate::app as native_model;
 use super::*;
+use crate::app as native_model;
 use native_model::StatusChipStateModel;
 
 pub(super) fn render_top_bar_controls(
@@ -48,21 +48,19 @@ fn render_volume_controls(
         ctx.sizing.border_width,
     );
     let volume_level = ctx.model.volume.clamp(0.0, 1.0);
-    let fill_width = (surface.volume_meter_rect.width() * volume_level)
-        .clamp(1.0, surface.volume_meter_rect.width());
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(
-                surface.volume_meter_rect.min,
-                Point::new(
-                    surface.volume_meter_rect.min.x + fill_width,
-                    surface.volume_meter_rect.max.y,
-                ),
-            ),
-            color: blend_color(ctx.style.accent_mint, ctx.style.text_primary, 0.28),
-        }),
-    );
+    if let Some(fill_rect) = crate::gui::feedback::horizontal_meter_fill_rect(
+        surface.volume_meter_rect,
+        volume_level,
+        1.0,
+    ) {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: fill_rect,
+                color: blend_color(ctx.style.accent_mint, ctx.style.text_primary, 0.28),
+            }),
+        );
+    }
     emit_text(
         text_runs,
         TextRun {

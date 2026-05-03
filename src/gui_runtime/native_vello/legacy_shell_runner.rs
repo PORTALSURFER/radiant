@@ -94,7 +94,7 @@ pub(in crate::gui_runtime::native_vello) struct NativeVelloRunner<B: NativeAppBr
     /// Exact press snapshot used for plain waveform click-to-seek release handling.
     pub(super) waveform_click_seek_press: Option<WaveformClickSeekPress>,
     /// Deferred browser-row press captured until click-vs-drag resolution.
-    pub(super) pending_browser_row_press: Option<PendingBrowserRowPress>,
+    pub(super) pending_content_row_press: Option<PendingContentRowPress>,
     /// Active browser content-item drag state for primary pointer movement.
     pub(super) content_item_drag: Option<ContentItemDragState>,
     /// Whether a waveform-selection export drag is currently active.
@@ -108,9 +108,9 @@ pub(in crate::gui_runtime::native_vello) struct NativeVelloRunner<B: NativeAppBr
     /// Active folder-scrollbar thumb drag state for primary pointer movement.
     pub(super) folder_scrollbar_drag: Option<FolderScrollbarDragState>,
     /// Active browser-scrollbar thumb drag state for primary pointer movement.
-    pub(super) browser_scrollbar_drag: Option<BrowserScrollbarDragState>,
-    /// Last emitted browser viewport start during an active scrollbar drag.
-    pub(super) last_emitted_browser_view_start: Option<usize>,
+    pub(super) content_list_scrollbar_drag: Option<ContentListScrollbarDragState>,
+    /// Last emitted content-list viewport start during an active scrollbar drag.
+    pub(super) last_emitted_content_list_view_start: Option<usize>,
     /// Active waveform-scrollbar thumb drag state for primary pointer movement.
     pub(super) waveform_scrollbar_drag: Option<WaveformScrollbarDragState>,
     /// Active middle-button waveform pan drag state.

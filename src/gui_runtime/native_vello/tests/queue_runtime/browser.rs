@@ -61,7 +61,7 @@ fn browser_wheel_uses_rendered_viewport_start_when_model_start_is_stale() {
 }
 
 #[test]
-fn browser_scrollbar_drag_emit_updates_action_queue() {
+fn content_list_scrollbar_drag_emit_updates_action_queue() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -93,7 +93,7 @@ fn browser_scrollbar_drag_emit_updates_action_queue() {
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout));
     runner.shell_state = shell_state;
-    runner.browser_scrollbar_drag = Some(BrowserScrollbarDragState {
+    runner.content_list_scrollbar_drag = Some(ContentListScrollbarDragState {
         thumb_pointer_offset_y,
     });
 
@@ -101,7 +101,7 @@ fn browser_scrollbar_drag_emit_updates_action_queue() {
         thumb_point.x,
         runner.shell_layout.as_ref().unwrap().browser_rows.max.y,
     );
-    assert!(runner.process_browser_scrollbar_drag_immediately(drag_point));
+    assert!(runner.process_content_list_scrollbar_drag_immediately(drag_point));
     assert_eq!(
         runner.bridge.actions,
         vec![UiAction::SetBrowserViewStart {
@@ -153,7 +153,7 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 12 }, false)
     );
-    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
 
     runner.finish_volume_drag(Some(MouseButton::Left));
@@ -183,7 +183,7 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 18 }, false)
     );
-    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
 
     runner.finish_volume_drag(Some(MouseButton::Left));
@@ -344,7 +344,7 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     assert!(
         runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 15 }, false)
     );
-    assert!(runner.pending_browser_row_press.is_some());
+    assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
 
     runner.finish_volume_drag(Some(MouseButton::Left));

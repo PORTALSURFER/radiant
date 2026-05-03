@@ -56,11 +56,11 @@ where
             return;
         };
         if visible_row == self.model.browser.view_start_row
-            || self.last_emitted_browser_view_start == Some(visible_row)
+            || self.last_emitted_content_list_view_start == Some(visible_row)
         {
             return;
         }
-        self.last_emitted_browser_view_start = Some(visible_row);
+        self.last_emitted_content_list_view_start = Some(visible_row);
         self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
     }
 
@@ -87,7 +87,7 @@ where
         if next_view_start == self.model.browser.view_start_row {
             return;
         }
-        self.last_emitted_browser_view_start = Some(next_view_start);
+        self.last_emitted_content_list_view_start = Some(next_view_start);
         self.emit_model_action(UiAction::SetBrowserViewStart {
             visible_row: next_view_start,
         });
@@ -103,12 +103,12 @@ where
         true
     }
 
-    /// Emit one browser-scrollbar drag viewport update immediately.
-    pub(crate) fn process_browser_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
+    /// Emit one content-list scrollbar drag viewport update immediately.
+    pub(crate) fn process_content_list_scrollbar_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
         };
-        let Some(drag) = self.browser_scrollbar_drag else {
+        let Some(drag) = self.content_list_scrollbar_drag else {
             return false;
         };
         let Some(visible_row) = self.shell_state.browser_scrollbar_view_start_for_drag(
@@ -119,10 +119,10 @@ where
         ) else {
             return false;
         };
-        if self.last_emitted_browser_view_start == Some(visible_row) {
+        if self.last_emitted_content_list_view_start == Some(visible_row) {
             return true;
         }
-        self.last_emitted_browser_view_start = Some(visible_row);
+        self.last_emitted_content_list_view_start = Some(visible_row);
         self.shell_state.clear_browser_row_hover();
         self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
         true

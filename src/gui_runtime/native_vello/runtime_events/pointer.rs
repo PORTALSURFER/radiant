@@ -81,8 +81,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             ActivePointerSession::FolderScrollbar => {
                 let _ = self.process_folder_scrollbar_drag_immediately(point);
             }
-            ActivePointerSession::BrowserScrollbar => {
-                let _ = self.process_browser_scrollbar_drag_immediately(point);
+            ActivePointerSession::ContentListScrollbar => {
+                let _ = self.process_content_list_scrollbar_drag_immediately(point);
             }
             ActivePointerSession::WaveformScrollbar => {
                 let _ = self.process_waveform_scrollbar_drag_immediately(point);
@@ -269,7 +269,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .shell_state
             .browser_scrollbar_thumb_offset_at_point(layout, &self.model, point)
         {
-            self.begin_browser_scrollbar_drag(thumb_pointer_offset_y);
+            self.begin_content_list_scrollbar_drag(thumb_pointer_offset_y);
             return true;
         }
         if let Some(thumb_pointer_offset_x) = self

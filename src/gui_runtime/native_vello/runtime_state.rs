@@ -9,9 +9,9 @@ use std::mem;
 #[cfg(target_os = "windows")]
 use tracing::{debug, info};
 
-/// Active browser-scrollbar thumb drag state while the primary pointer is held.
+/// Active content-list scrollbar thumb drag state while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct BrowserScrollbarDragState {
+pub(super) struct ContentListScrollbarDragState {
     pub(super) thumb_pointer_offset_y: f32,
 }
 
@@ -48,9 +48,9 @@ pub(super) struct WaveformClickSeekPress {
     pub(super) clear_selection_on_release: bool,
 }
 
-/// Deferred browser-row press used to preserve click behavior until release.
+/// Deferred content-list row press used to preserve click behavior until release.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct PendingBrowserRowPress {
+pub(super) struct PendingContentRowPress {
     pub(super) action: crate::compat_app_contract::UiAction,
     pub(super) visible_row: usize,
     pub(super) press_point: Point,
@@ -160,7 +160,7 @@ impl RuntimeLayoutInvalidation {
 pub(super) enum ActivePointerSession {
     Volume,
     FolderScrollbar,
-    BrowserScrollbar,
+    ContentListScrollbar,
     WaveformScrollbar,
     WaveformPan,
     WaveformDrag,
@@ -336,8 +336,8 @@ where
             ActivePointerSession::Volume
         } else if self.folder_scrollbar_drag.is_some() {
             ActivePointerSession::FolderScrollbar
-        } else if self.browser_scrollbar_drag.is_some() {
-            ActivePointerSession::BrowserScrollbar
+        } else if self.content_list_scrollbar_drag.is_some() {
+            ActivePointerSession::ContentListScrollbar
         } else if self.waveform_scrollbar_drag.is_some() {
             ActivePointerSession::WaveformScrollbar
         } else if self.waveform_pan_drag.is_some() {
@@ -361,17 +361,17 @@ where
         self.pending_volume_milli = None;
         self.volume_drag_active = false;
         self.last_emitted_volume_milli = None;
-        self.pending_browser_row_press = None;
+        self.pending_content_row_press = None;
         self.clear_pointer_drag_session();
     }
 
     pub(super) fn clear_pointer_release_state(&mut self) {
         self.text_input_drag_active = false;
         self.folder_scrollbar_drag = None;
-        self.browser_scrollbar_drag = None;
+        self.content_list_scrollbar_drag = None;
         self.waveform_scrollbar_drag = None;
         self.waveform_pan_drag = None;
-        self.last_emitted_browser_view_start = None;
+        self.last_emitted_content_list_view_start = None;
         self.last_emitted_waveform_view_center = None;
     }
 
@@ -392,8 +392,8 @@ where
         self.spatial_focus_drag_active = false;
         self.last_emitted_spatial_drag_content_id = None;
         self.folder_scrollbar_drag = None;
-        self.browser_scrollbar_drag = None;
-        self.last_emitted_browser_view_start = None;
+        self.content_list_scrollbar_drag = None;
+        self.last_emitted_content_list_view_start = None;
         self.waveform_scrollbar_drag = None;
         self.waveform_pan_drag = None;
         self.last_emitted_waveform_view_center = None;
@@ -410,11 +410,11 @@ where
         });
     }
 
-    pub(super) fn begin_browser_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
-        self.browser_scrollbar_drag = Some(BrowserScrollbarDragState {
+    pub(super) fn begin_content_list_scrollbar_drag(&mut self, thumb_pointer_offset_y: f32) {
+        self.content_list_scrollbar_drag = Some(ContentListScrollbarDragState {
             thumb_pointer_offset_y,
         });
-        self.last_emitted_browser_view_start = None;
+        self.last_emitted_content_list_view_start = None;
     }
 
     pub(super) fn begin_waveform_scrollbar_drag(

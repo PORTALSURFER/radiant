@@ -87,13 +87,13 @@ where
         if finish_edit_selection_drag {
             self.emit_model_action(UiAction::FinishWaveformEditSelectionDrag);
         }
-        let browser_row_click_release = matches!(released_button, Some(MouseButton::Left))
+        let content_row_click_release = matches!(released_button, Some(MouseButton::Left))
             && !finish_content_item_drag
-            && self.pending_browser_row_press.is_some();
-        let pending_browser_row_press = if browser_row_click_release {
-            self.pending_browser_row_press.take()
+            && self.pending_content_row_press.is_some();
+        let pending_content_row_press = if content_row_click_release {
+            self.pending_content_row_press.take()
         } else {
-            self.pending_browser_row_press = None;
+            self.pending_content_row_press = None;
             None
         };
         self.clear_pointer_drag_session();
@@ -101,9 +101,9 @@ where
             let _ = self.process_cursor_move_immediately(point);
             self.update_waveform_resize_cursor(point);
         }
-        if let Some(pending_browser_row_press) = pending_browser_row_press {
+        if let Some(pending_content_row_press) = pending_content_row_press {
             let _ =
-                self.emit_pointer_press_action_now(pending_browser_row_press.action, false, None);
+                self.emit_pointer_press_action_now(pending_content_row_press.action, false, None);
         }
         if seek_on_waveform_click_release && let Some(click_seek_press) = click_seek_press {
             if click_seek_press.clear_selection_on_release {

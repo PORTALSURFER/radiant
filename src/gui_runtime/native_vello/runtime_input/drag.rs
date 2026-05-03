@@ -219,9 +219,9 @@ where
         if !self.model.map.active {
             return false;
         }
-        let Some(action) = self
-            .shell_state
-            .spatial_content_action_at_point(layout, &self.model, point)
+        let Some(action) =
+            self.shell_state
+                .spatial_content_action_at_point(layout, &self.model, point)
         else {
             return false;
         };
@@ -290,7 +290,7 @@ where
         click_seek_press: Option<WaveformClickSeekPress>,
     ) -> bool {
         if let Some(visible_row) = browser_primary_row_action_visible_row(&action) {
-            self.pending_browser_row_press = Some(PendingBrowserRowPress {
+            self.pending_content_row_press = Some(PendingContentRowPress {
                 action,
                 visible_row,
                 press_point: self.last_cursor.unwrap_or(Point::new(0.0, 0.0)),
@@ -357,14 +357,14 @@ where
     }
 
     pub(crate) fn maybe_start_content_item_drag(&mut self, point: Point) -> bool {
-        let Some(pending_press) = self.pending_browser_row_press.clone() else {
+        let Some(pending_press) = self.pending_content_row_press.clone() else {
             return false;
         };
         if !browser_drag_exceeds_click_slop(pending_press.press_point, point) {
             return false;
         }
         let (pointer_x, pointer_y) = ui_action_pointer_coords(point);
-        self.pending_browser_row_press = None;
+        self.pending_content_row_press = None;
         self.begin_content_item_drag(pending_press.visible_row);
         self.emit_model_action(UiAction::StartContentItemDrag {
             visible_row: pending_press.visible_row,

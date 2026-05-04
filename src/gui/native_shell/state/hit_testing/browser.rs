@@ -606,11 +606,11 @@ fn pill_editor_action_at_point(
     None
 }
 
-pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(
+pub(in crate::gui::native_shell::state) fn content_action_hit_test_cache_key(
     layout: &ShellLayout,
     model: &AppModel,
-) -> BrowserActionHitTestCacheKey {
-    BrowserActionHitTestCacheKey {
+) -> ContentActionHitTestCacheKey {
+    ContentActionHitTestCacheKey {
         content_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
         content_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
         content_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),

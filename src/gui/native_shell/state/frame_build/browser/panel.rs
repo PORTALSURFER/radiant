@@ -10,7 +10,7 @@ pub(super) fn render_browser_frame(
     let search_editor_active = state.browser_search_editor_visual.is_some();
     let toolbar = {
         let (buttons, column_chips, toolbar) =
-            state.cached_browser_action_hit_test(ctx.layout, ctx.style, ctx.model);
+            state.cached_content_action_hit_test(ctx.layout, ctx.style, ctx.model);
         for button in buttons {
             emit_primitive(
                 primitives,

@@ -54,9 +54,9 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
     pub row_text_revision: u64,
 }
 
-/// Invalidation key for browser action/button hit-test geometry caches.
+/// Invalidation key for content action/button hit-test geometry caches.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserActionHitTestCacheKey {
+pub(in crate::gui::native_shell::state) struct ContentActionHitTestCacheKey {
     /// Content toolbar region minimum x-coordinate.
     pub content_toolbar_min_x: u32,
     /// Content toolbar region minimum y-coordinate.

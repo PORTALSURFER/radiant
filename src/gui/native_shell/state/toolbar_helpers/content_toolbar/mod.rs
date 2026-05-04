@@ -5,7 +5,7 @@ mod colors;
 mod layout;
 
 #[allow(unused_imports)]
-pub(in crate::gui::native_shell::state) use buttons::browser_action_buttons;
+pub(in crate::gui::native_shell::state) use buttons::content_action_buttons;
 #[allow(unused_imports)]
 pub(in crate::gui::native_shell::state) use colors::{
     marked_filter_chip_border, marked_filter_chip_contains_point,

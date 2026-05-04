@@ -161,29 +161,29 @@ impl NativeShellState {
             .map(|scrollbar| (scrollbar, self.content_list_scrollbar_viewport_len))
     }
 
-    pub(super) fn cached_browser_action_hit_test(
+    pub(super) fn cached_content_action_hit_test(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
     ) -> (&[ActionButton], &[ColumnChip], ContentToolbarLayout) {
-        let cache_key = browser_action_hit_test_cache_key(layout, model);
-        if self.browser_action_hit_test_cache_key != Some(cache_key) {
+        let cache_key = content_action_hit_test_cache_key(layout, model);
+        if self.content_action_hit_test_cache_key != Some(cache_key) {
             let toolbar = content_toolbar_layout(layout, style, model);
-            self.browser_action_buttons = browser_action_buttons(layout, style, model, &toolbar);
+            self.content_action_buttons = content_action_buttons(layout, style, model, &toolbar);
             self.content_column_chips =
-                column_chips(layout, style, model, &self.browser_action_buttons);
+                column_chips(layout, style, model, &self.content_action_buttons);
             self.content_toolbar_layout = Some(toolbar);
-            self.browser_action_hit_test_cache_key = Some(cache_key);
+            self.content_action_hit_test_cache_key = Some(cache_key);
         } else if self.content_toolbar_layout.is_none() {
             let toolbar = content_toolbar_layout(layout, style, model);
             self.content_toolbar_layout = Some(toolbar);
         }
         let toolbar = self
             .content_toolbar_layout
-            .expect("browser action hit-test cache must retain toolbar layout");
+            .expect("content action hit-test cache must retain toolbar layout");
         (
-            &self.browser_action_buttons,
+            &self.content_action_buttons,
             &self.content_column_chips,
             toolbar,
         )
@@ -197,13 +197,13 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         self.cached_browser_rows(layout, &style, model);
         self.cached_content_list_scrollbar_for_style(layout, &style, model);
-        self.cached_browser_action_hit_test(layout, &style, model);
+        self.cached_content_action_hit_test(layout, &style, model);
         BrowserInteractionGeometry {
             style,
             rows: &self.browser_rows,
             scrollbar: self.content_list_scrollbar,
             scrollbar_viewport_len: self.content_list_scrollbar_viewport_len,
-            buttons: &self.browser_action_buttons,
+            buttons: &self.content_action_buttons,
             chips: &self.content_column_chips,
             toolbar: self
                 .content_toolbar_layout

@@ -58,10 +58,10 @@ pub(in crate::gui::native_shell::state) fn content_row_truncation_cache_key(
         style.sizing,
     );
     ContentRowTruncationCacheKey {
-        browser_rows_min_x: f32_to_bits(content_rect.min.x),
-        browser_rows_min_y: f32_to_bits(content_rect.min.y),
-        browser_rows_max_x: f32_to_bits(content_rect.max.x),
-        browser_rows_max_y: f32_to_bits(content_rect.max.y),
+        content_rows_min_x: f32_to_bits(content_rect.min.x),
+        content_rows_min_y: f32_to_bits(content_rect.min.y),
+        content_rows_max_x: f32_to_bits(content_rect.max.x),
+        content_rows_max_y: f32_to_bits(content_rect.max.y),
         font_body_bits: f32_to_bits(style.sizing.font_body),
         font_meta_bits: f32_to_bits(style.sizing.font_meta),
         ui_scale: f32_to_bits(layout.ui_scale),

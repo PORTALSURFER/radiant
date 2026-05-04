@@ -37,13 +37,13 @@ pub(in crate::gui::native_shell::state) struct ContentRowTruncationEntryKey {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct ContentRowTruncationCacheKey {
     /// Content rows region minimum x-coordinate.
-    pub browser_rows_min_x: u32,
+    pub content_rows_min_x: u32,
     /// Content rows region minimum y-coordinate.
-    pub browser_rows_min_y: u32,
+    pub content_rows_min_y: u32,
     /// Content rows region maximum x-coordinate.
-    pub browser_rows_max_x: u32,
+    pub content_rows_max_x: u32,
     /// Content rows region maximum y-coordinate.
-    pub browser_rows_max_y: u32,
+    pub content_rows_max_y: u32,
     /// Item-label font size token bits.
     pub font_body_bits: u32,
     /// Bucket-label font size token bits.

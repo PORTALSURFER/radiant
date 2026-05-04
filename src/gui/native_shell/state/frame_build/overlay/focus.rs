@@ -345,7 +345,7 @@ pub(super) fn render_browser_focus_overlay(
                 label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
             label_max_width = (label_max_width
-                - browser_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
+                - row_rating_indicator_reserved_width(row.rating_level, row.locked, sizing)
                 - inline_metadata_reserved_width)
                 .max(20.0);
             if row.missing {

@@ -2011,11 +2011,11 @@ fn virtual_list_scroll_clamping_is_owned_by_generic_list_module() {
 
 #[test]
 fn inline_indicator_layout_is_owned_by_generic_feedback_module() {
-    let browser_indicators_mod = fs::read_to_string(concat!(
+    let row_indicators_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/rating_indicators.rs"
     ))
-    .expect("browser rating indicator module should be readable");
+    .expect("row rating indicator module should be readable");
     let feedback_mod =
         fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/feedback.rs"))
             .expect("generic feedback module should be readable");
@@ -2023,11 +2023,18 @@ fn inline_indicator_layout_is_owned_by_generic_feedback_module() {
     assert!(feedback_mod.contains("pub struct InlineIndicatorMetrics"));
     assert!(feedback_mod.contains("pub fn inline_indicator_reserved_width"));
     assert!(feedback_mod.contains("pub fn inline_indicator_layout"));
-    assert!(browser_indicators_mod.contains("inline_indicator_reserved_width"));
-    assert!(browser_indicators_mod.contains("inline_indicator_layout"));
+    assert!(row_indicators_mod.contains("inline_indicator_reserved_width"));
+    assert!(row_indicators_mod.contains("inline_indicator_layout"));
+    assert!(row_indicators_mod.contains("RowRatingIndicatorLayout"));
+    assert!(row_indicators_mod.contains("row_rating_indicator_layout"));
     assert!(
-        !browser_indicators_mod.contains("let total_width = (count as f32 * width)"),
-        "legacy browser rating indicators should delegate cluster width and placement to gui::feedback"
+        !row_indicators_mod.contains("BrowserRatingIndicator")
+            && !row_indicators_mod.contains("browser_rating_indicator"),
+        "row rating indicator helpers should use product-neutral row naming"
+    );
+    assert!(
+        !row_indicators_mod.contains("let total_width = (count as f32 * width)"),
+        "legacy row rating indicators should delegate cluster width and placement to gui::feedback"
     );
 }
 

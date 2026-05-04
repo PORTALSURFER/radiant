@@ -185,9 +185,9 @@ pub(super) fn render_browser_rows_window(
             ctx.sizing,
         );
         let rating_reserved_width =
-            browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
-        let rating_indicator_layout = browser_rating_indicator_layout(
-            BrowserRatingIndicatorAnchor {
+            row_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
+        let rating_indicator_layout = row_rating_indicator_layout(
+            RowRatingIndicatorAnchor {
                 item_label: row.text_layout.item_label,
                 label_origin_x: label_position.x,
                 label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
@@ -210,7 +210,7 @@ pub(super) fn render_browser_rows_window(
                     primitives,
                     Primitive::Rect(FillRect {
                         rect,
-                        color: browser_rating_indicator_color(ctx.style, row.rating_level),
+                        color: row_rating_indicator_color(ctx.style, row.rating_level),
                     }),
                 );
                 push_border(

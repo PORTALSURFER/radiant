@@ -133,14 +133,14 @@ fn build_content_segment_text_cache(
         ),
         map_tab_label: model.browser_chrome.map_tab_label.clone(),
         search_label: truncate_to_width(
-            &browser_search_text(model),
+            &content_search_text(model),
             toolbar_text_layout.search_label.width().max(24.0),
             sizing.font_meta,
         ),
-        activity_label: browser_activity_text(model),
-        sort_label: browser_sort_text(model),
+        activity_label: content_activity_text(model),
+        sort_label: content_sort_text(model),
         footer_label: truncate_to_width(
-            &browser_footer_text(model),
+            &content_footer_text(model),
             footer_text_rect.width().max(36.0),
             sizing.font_meta,
         ),
@@ -327,7 +327,7 @@ fn items_tab_text(model: &AppModel) -> String {
     )
 }
 
-fn browser_search_text(model: &AppModel) -> String {
+fn content_search_text(model: &AppModel) -> String {
     if model.browser.search_query.is_empty() {
         model.browser_chrome.search_placeholder.clone()
     } else {
@@ -335,7 +335,7 @@ fn browser_search_text(model: &AppModel) -> String {
     }
 }
 
-fn browser_activity_text(model: &AppModel) -> String {
+fn content_activity_text(model: &AppModel) -> String {
     if model.browser.busy {
         model.browser_chrome.activity_busy_label.clone()
     } else {
@@ -343,7 +343,7 @@ fn browser_activity_text(model: &AppModel) -> String {
     }
 }
 
-fn browser_sort_text(model: &AppModel) -> String {
+fn content_sort_text(model: &AppModel) -> String {
     let sort_label = if model.browser_chrome.sort_order_label.is_empty() {
         model.browser.sort_label.as_deref().unwrap_or("List order")
     } else {
@@ -356,7 +356,7 @@ fn browser_sort_text(model: &AppModel) -> String {
     }
 }
 
-fn browser_footer_text(model: &AppModel) -> String {
+fn content_footer_text(model: &AppModel) -> String {
     if model.map.active {
         let mut parts = Vec::new();
         push_non_empty(&mut parts, &model.map.summary);

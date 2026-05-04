@@ -406,7 +406,7 @@ fn static_segment_graph_diff_targets_dirty_and_changed_segments() {
 }
 
 #[test]
-fn static_segment_graph_diff_targets_browser_band_layout_dirty_segments() {
+fn static_segment_graph_diff_targets_content_band_layout_dirty_segments() {
     let mut graph = StaticSegmentStateGraph::default();
     let fingerprints = test_segment_fingerprints(40);
     let first_plan = graph.diff(DirtySegments::empty(), false, fingerprints.clone());
@@ -415,7 +415,7 @@ fn static_segment_graph_diff_targets_browser_band_layout_dirty_segments() {
     }
 
     let dirty =
-        dirty_segments_for_layout_subtree(ShellLayoutTreeKind::BrowserBands, BROWSER_BANDS_ROOT_ID);
+        dirty_segments_for_layout_subtree(ShellLayoutTreeKind::ContentBands, BROWSER_BANDS_ROOT_ID);
     let dirty_plan = graph.diff(dirty, false, fingerprints);
 
     assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserFrame));

@@ -184,32 +184,32 @@ impl ShellLayout {
         );
         let browser_panel =
             Rect::from_min_max(Point::new(content.min.x, waveform_card.max.y), content.max);
-        let browser_bands = runtime.compute_browser_band_sections(browser_panel, sizing);
-        let browser_tabs = browser_bands.browser_tabs;
-        let browser_footer = browser_bands.browser_footer;
+        let content_bands = runtime.compute_content_band_sections(browser_panel, sizing);
+        let browser_tabs = content_bands.browser_tabs;
+        let browser_footer = content_bands.browser_footer;
         let browser_toolbar = Rect::from_min_max(
-            Point::new(browser_bands.browser_toolbar.min.x, browser_tabs.max.y),
+            Point::new(content_bands.browser_toolbar.min.x, browser_tabs.max.y),
             Point::new(
-                browser_bands.browser_toolbar.max.x,
-                (browser_tabs.max.y + browser_bands.browser_toolbar.height())
+                content_bands.browser_toolbar.max.x,
+                (browser_tabs.max.y + content_bands.browser_toolbar.height())
                     .min(browser_footer.min.y),
             ),
         );
         let browser_table_header = Rect::from_min_max(
             Point::new(
-                browser_bands.browser_table_header.min.x,
+                content_bands.browser_table_header.min.x,
                 browser_toolbar.max.y,
             ),
             Point::new(
-                browser_bands.browser_table_header.max.x,
-                (browser_toolbar.max.y + browser_bands.browser_table_header.height())
+                content_bands.browser_table_header.max.x,
+                (browser_toolbar.max.y + content_bands.browser_table_header.height())
                     .min(browser_footer.min.y),
             ),
         );
         let browser_rows = Rect::from_min_max(
-            Point::new(browser_bands.browser_rows.min.x, browser_table_header.max.y),
+            Point::new(content_bands.browser_rows.min.x, browser_table_header.max.y),
             Point::new(
-                browser_bands.browser_rows.max.x,
+                content_bands.browser_rows.max.x,
                 browser_footer.min.y.max(browser_table_header.max.y),
             ),
         );

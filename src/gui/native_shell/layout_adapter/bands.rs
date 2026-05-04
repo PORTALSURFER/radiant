@@ -30,9 +30,9 @@ pub(crate) struct TopBarBandSections {
     pub top_bar_action_cluster: Rect,
 }
 
-/// Slot-resolved browser band rectangles.
+/// Slot-resolved content band rectangles.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserBandSections {
+pub(crate) struct ContentBandSections {
     pub browser_tabs: Rect,
     pub browser_toolbar: Rect,
     pub browser_table_header: Rect,
@@ -138,16 +138,16 @@ pub(crate) fn compute_top_bar_band_sections(
     }
 }
 
-/// Compute browser band sections with a caller-provided persistent layout engine.
-pub(crate) fn compute_browser_band_sections_with_layout_engine(
+/// Compute content band sections with a caller-provided persistent layout engine.
+pub(crate) fn compute_content_band_sections_with_layout_engine(
     browser_panel: Rect,
     sizing: SizingTokens,
     engine: &mut LayoutEngine,
     state: &LayoutState,
-) -> BrowserBandSections {
+) -> ContentBandSections {
     let empty = empty_rect(browser_panel);
     if browser_panel.width() <= 0.0 || browser_panel.height() <= 0.0 {
-        return BrowserBandSections {
+        return ContentBandSections {
             browser_tabs: empty,
             browser_toolbar: empty,
             browser_table_header: empty,
@@ -155,14 +155,14 @@ pub(crate) fn compute_browser_band_sections_with_layout_engine(
             browser_footer: empty,
         };
     }
-    let band_tree = build_browser_bands_tree(browser_panel, sizing);
+    let band_tree = build_content_bands_tree(browser_panel, sizing);
     let output = engine.layout_with_state(
         &band_tree,
         browser_panel,
         state,
         LayoutDebugOptions::default(),
     );
-    BrowserBandSections {
+    ContentBandSections {
         browser_tabs: output.rect_for_clamped(BROWSER_TABS_ID, empty, browser_panel),
         browser_toolbar: output.rect_for_clamped(BROWSER_TOOLBAR_ID, empty, browser_panel),
         browser_table_header: output.rect_for_clamped(BROWSER_HEADER_ID, empty, browser_panel),
@@ -171,10 +171,10 @@ pub(crate) fn compute_browser_band_sections_with_layout_engine(
     }
 }
 
-/// Build browser tabs/toolbar/header/rows/footer tree for persistent runtime caching.
-pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens) -> LayoutNode {
+/// Build content tabs/toolbar/header/rows/footer tree for persistent runtime caching.
+pub(crate) fn build_content_bands_tree(browser_panel: Rect, sizing: SizingTokens) -> LayoutNode {
     let panel_height = browser_panel.height();
-    // Browser bands are framed sections, so they should meet directly with no
+    // Content bands are framed sections, so they should meet directly with no
     // spacer gutter between them.
     let gap = 0.0;
     let tabs_height = sizing

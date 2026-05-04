@@ -6,11 +6,11 @@
 
 use super::layout_adapter::{
     BODY_ID, BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID,
-    BROWSER_ROWS_ID, BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, BrowserBandSections, CONTENT_ID,
+    BROWSER_ROWS_ID, BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, ContentBandSections, CONTENT_ID,
     SHELL_ROOT_ID, SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID,
     SIDEBAR_ROWS_ID, STATUS_ID, ShellSectionRects, SidebarBandSections, TOP_BAR_ID, WAVEFORM_ID,
-    build_browser_bands_tree, build_shell_sections_tree, build_sidebar_bands_tree,
-    compute_browser_band_sections_with_layout_engine, compute_shell_sections_with_layout_engine,
+    build_content_bands_tree, build_shell_sections_tree, build_sidebar_bands_tree,
+    compute_content_band_sections_with_layout_engine, compute_shell_sections_with_layout_engine,
     compute_sidebar_band_sections_with_layout_engine,
 };
 use super::style::{SizingTokens, StyleTokens};
@@ -24,8 +24,8 @@ use crate::gui::types::{Rect, Vector2};
 pub(crate) enum ShellLayoutTreeKind {
     /// Top-level shell sections (`top_bar`, `sidebar`, `content`, `status`).
     ShellSections,
-    /// Browser panel tabs/toolbar/header/rows/footer bands.
-    BrowserBands,
+    /// Content panel tabs/toolbar/header/rows/footer bands.
+    ContentBands,
     /// Sidebar header/rows/footer bands.
     SidebarBands,
 }
@@ -83,7 +83,7 @@ impl TreeRuntime {
 #[derive(Default)]
 pub(crate) struct ShellLayoutRuntime {
     shell_sections: TreeRuntime,
-    browser_bands: TreeRuntime,
+    content_bands: TreeRuntime,
     sidebar_bands: TreeRuntime,
 }
 
@@ -105,19 +105,19 @@ impl ShellLayoutRuntime {
         )
     }
 
-    /// Resolve browser panel bands with persistent engine/state caches.
-    pub(crate) fn compute_browser_band_sections(
+    /// Resolve content panel bands with persistent engine/state caches.
+    pub(crate) fn compute_content_band_sections(
         &mut self,
         browser_panel: Rect,
         sizing: SizingTokens,
-    ) -> BrowserBandSections {
-        self.browser_bands
-            .remember_tree(build_browser_bands_tree(browser_panel, sizing));
-        compute_browser_band_sections_with_layout_engine(
+    ) -> ContentBandSections {
+        self.content_bands
+            .remember_tree(build_content_bands_tree(browser_panel, sizing));
+        compute_content_band_sections_with_layout_engine(
             browser_panel,
             sizing,
-            &mut self.browser_bands.engine,
-            &self.browser_bands.state,
+            &mut self.content_bands.engine,
+            &self.content_bands.state,
         )
     }
 
@@ -148,8 +148,8 @@ impl ShellLayoutRuntime {
             ShellLayoutTreeKind::ShellSections => {
                 self.shell_sections.mark_subtree_dirty(node_id, dirty_kind);
             }
-            ShellLayoutTreeKind::BrowserBands => {
-                self.browser_bands.mark_subtree_dirty(node_id, dirty_kind);
+            ShellLayoutTreeKind::ContentBands => {
+                self.content_bands.mark_subtree_dirty(node_id, dirty_kind);
             }
             ShellLayoutTreeKind::SidebarBands => {
                 self.sidebar_bands.mark_subtree_dirty(node_id, dirty_kind);
@@ -166,7 +166,7 @@ impl ShellLayoutRuntime {
             dirty_kind,
         );
         self.mark_subtree_dirty(
-            ShellLayoutTreeKind::BrowserBands,
+            ShellLayoutTreeKind::ContentBands,
             super::layout_adapter::BROWSER_BANDS_ROOT_ID,
             dirty_kind,
         );
@@ -180,7 +180,7 @@ impl ShellLayoutRuntime {
     /// Drop all cached tree state, for example on viewport scale changes.
     pub(crate) fn reset(&mut self) {
         self.shell_sections.reset();
-        self.browser_bands.reset();
+        self.content_bands.reset();
         self.sidebar_bands.reset();
     }
 }
@@ -216,7 +216,7 @@ pub(crate) fn dirty_segments_for_layout_subtree(
                     | DirtySegments::GLOBAL_STATIC
             }
         },
-        ShellLayoutTreeKind::BrowserBands => match node_id {
+        ShellLayoutTreeKind::ContentBands => match node_id {
             BROWSER_ROWS_ID => DirtySegments::BROWSER_ROWS_WINDOW | DirtySegments::MAP_PANEL,
             BROWSER_TABS_ID | BROWSER_TOOLBAR_ID | BROWSER_HEADER_ID | BROWSER_FOOTER_ID => {
                 DirtySegments::BROWSER_FRAME
@@ -282,9 +282,9 @@ mod tests {
     }
 
     #[test]
-    fn browser_band_subtree_maps_to_browser_segments_only() {
+    fn content_band_subtree_maps_to_content_segments_only() {
         let dirty = dirty_segments_for_layout_subtree(
-            ShellLayoutTreeKind::BrowserBands,
+            ShellLayoutTreeKind::ContentBands,
             crate::gui::native_shell::layout_adapter::BROWSER_BANDS_ROOT_ID,
         );
 

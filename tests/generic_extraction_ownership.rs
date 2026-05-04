@@ -714,7 +714,7 @@ fn content_row_visual_fills_use_product_neutral_row_naming() {
 fn toolbar_filter_chip_visuals_use_product_neutral_helper_names() {
     let toolbar_colors_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/colors.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_toolbar/colors.rs"
     ))
     .expect("toolbar colors module should be readable");
 
@@ -780,7 +780,7 @@ fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
     .expect("native shell state module should be readable");
     let toolbar_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/layout.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_toolbar/layout.rs"
     ))
     .expect("toolbar layout module should be readable");
 
@@ -827,7 +827,7 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
     .expect("content rows module should be readable");
     let toolbar_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/layout.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_toolbar/layout.rs"
     ))
     .expect("toolbar layout module should be readable");
 

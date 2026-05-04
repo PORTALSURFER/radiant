@@ -1,4 +1,4 @@
-//! Browser toolbar action-button helpers.
+//! Content toolbar action-button helpers.
 
 use super::super::super::*;
 

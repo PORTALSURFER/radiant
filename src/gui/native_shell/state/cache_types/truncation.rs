@@ -57,14 +57,14 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
 /// Invalidation key for browser action/button hit-test geometry caches.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserActionHitTestCacheKey {
-    /// Browser toolbar region minimum x-coordinate.
-    pub browser_toolbar_min_x: u32,
-    /// Browser toolbar region minimum y-coordinate.
-    pub browser_toolbar_min_y: u32,
-    /// Browser toolbar region maximum x-coordinate.
-    pub browser_toolbar_max_x: u32,
-    /// Browser toolbar region maximum y-coordinate.
-    pub browser_toolbar_max_y: u32,
+    /// Content toolbar region minimum x-coordinate.
+    pub content_toolbar_min_x: u32,
+    /// Content toolbar region minimum y-coordinate.
+    pub content_toolbar_min_y: u32,
+    /// Content toolbar region maximum x-coordinate.
+    pub content_toolbar_max_x: u32,
+    /// Content toolbar region maximum y-coordinate.
+    pub content_toolbar_max_y: u32,
     /// Effective UI scale token bits.
     pub ui_scale: u32,
     /// Stable digest of action-strip and triage-chip model fields.

@@ -611,10 +611,10 @@ pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(
     model: &AppModel,
 ) -> BrowserActionHitTestCacheKey {
     BrowserActionHitTestCacheKey {
-        browser_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
-        browser_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
-        browser_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),
-        browser_toolbar_max_y: f32_to_bits(layout.browser_toolbar.max.y),
+        content_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
+        content_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
+        content_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),
+        content_toolbar_max_y: f32_to_bits(layout.browser_toolbar.max.y),
         ui_scale: f32_to_bits(layout.ui_scale),
         model_signature: browser_action_model_signature(model),
     }

@@ -22,14 +22,14 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
     pub browser_tabs_max_x: u32,
     /// Browser tabs region maximum y-coordinate.
     pub browser_tabs_max_y: u32,
-    /// Browser toolbar region minimum x-coordinate.
-    pub browser_toolbar_min_x: u32,
-    /// Browser toolbar region minimum y-coordinate.
-    pub browser_toolbar_min_y: u32,
-    /// Browser toolbar region maximum x-coordinate.
-    pub browser_toolbar_max_x: u32,
-    /// Browser toolbar region maximum y-coordinate.
-    pub browser_toolbar_max_y: u32,
+    /// Content toolbar region minimum x-coordinate.
+    pub content_toolbar_min_x: u32,
+    /// Content toolbar region minimum y-coordinate.
+    pub content_toolbar_min_y: u32,
+    /// Content toolbar region maximum x-coordinate.
+    pub content_toolbar_max_x: u32,
+    /// Content toolbar region maximum y-coordinate.
+    pub content_toolbar_max_y: u32,
     /// Browser footer region minimum x-coordinate.
     pub browser_footer_min_x: u32,
     /// Browser footer mininum y-coordinate.

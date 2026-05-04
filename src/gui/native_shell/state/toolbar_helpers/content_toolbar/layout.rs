@@ -1,4 +1,4 @@
-//! Browser toolbar layout and hit-testing helpers.
+//! Content toolbar layout and hit-testing helpers.
 
 use super::super::super::*;
 use crate::gui::list::RecencyFilterChip;

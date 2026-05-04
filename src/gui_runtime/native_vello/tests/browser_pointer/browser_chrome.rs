@@ -106,7 +106,7 @@ fn browser_cleanup_action_button_click_routes_toggle_duplicate_cleanup_mode() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ToggleBrowserDuplicateCleanupMode)
+        Some(UiAction::ToggleContentDuplicateCleanupMode)
     );
 }
 

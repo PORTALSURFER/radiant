@@ -184,7 +184,7 @@ fn enter_confirms_browser_duplicate_cleanup_when_browser_has_focus() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::ConfirmBrowserDuplicateCleanup]
+        vec![UiAction::ConfirmContentDuplicateCleanup]
     );
 }
 

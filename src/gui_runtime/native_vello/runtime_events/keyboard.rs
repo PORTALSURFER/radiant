@@ -277,7 +277,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             && matches!(self.model.focus_context, FocusSurface::ContentList)
             && self.model.browser.duplicate_cleanup_active
         {
-            self.emit_model_action(UiAction::ConfirmBrowserDuplicateCleanup);
+            self.emit_model_action(UiAction::ConfirmContentDuplicateCleanup);
             return true;
         }
         false

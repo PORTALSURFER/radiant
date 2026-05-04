@@ -411,21 +411,21 @@ pub enum UiAction {
     ToggleContentPillEditor,
     /// Toggle the host-defined primary side effect for content metadata edits.
     ToggleContentPillEditorPrimaryAction,
-    /// Toggle browser duplicate-cleanup mode for the focused browser item.
-    ToggleBrowserDuplicateCleanupMode,
+    /// Toggle content duplicate-cleanup mode for the focused content item.
+    ToggleContentDuplicateCleanupMode,
     /// Focus the previous browser item from focus history.
     FocusPreviousBrowserHistory,
     /// Focus the next browser item from focus history.
     FocusNextBrowserHistory,
     /// Toggle find-similar mode for the focused content item.
     ToggleFindSimilarFocusedContent,
-    /// Toggle whether one duplicate-cleanup browser row should be kept.
-    ToggleBrowserDuplicateCleanupKeep {
-        /// Target visible row index in the browser list.
+    /// Toggle whether one duplicate-cleanup content row should be kept.
+    ToggleContentDuplicateCleanupKeep {
+        /// Target visible row index in the content list.
         visible_row: usize,
     },
-    /// Confirm duplicate cleanup and trash every unkept duplicate.
-    ConfirmBrowserDuplicateCleanup,
+    /// Confirm duplicate cleanup and discard every unkept duplicate.
+    ConfirmContentDuplicateCleanup,
     /// Play a random visible content item.
     PlayRandomContentItem,
     /// Replay the previous random-visible content item.

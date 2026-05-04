@@ -35,7 +35,7 @@ pub(in crate::gui::native_shell::state) fn content_action_buttons(
             icon: Some(ShellSvgIcon::Filter),
             enabled: true,
             active: model.browser_actions.duplicate_cleanup_active,
-            action: UiAction::ToggleBrowserDuplicateCleanupMode,
+            action: UiAction::ToggleContentDuplicateCleanupMode,
             text_color: if model.browser_actions.duplicate_cleanup_active {
                 style.highlight_orange
             } else {

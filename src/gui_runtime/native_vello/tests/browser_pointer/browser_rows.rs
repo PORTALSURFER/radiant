@@ -197,6 +197,6 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
     assert!(!source_menu_state_changed);
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row: 5 }]
+        vec![UiAction::ToggleContentDuplicateCleanupKeep { visible_row: 5 }]
     );
 }

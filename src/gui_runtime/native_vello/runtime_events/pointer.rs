@@ -395,7 +395,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.shell_state
                     .browser_row_at_point(layout, &self.model, point)
         {
-            self.emit_model_action(UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row });
+            self.emit_model_action(UiAction::ToggleContentDuplicateCleanupKeep { visible_row });
             *action_emitted = true;
             return true;
         }

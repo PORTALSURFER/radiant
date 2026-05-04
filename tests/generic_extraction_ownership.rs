@@ -1780,9 +1780,9 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
         assert!(!source.contains("BrowserTagSidebar"));
         assert!(source.contains("BrowserPillEditor"));
     }
-    assert!(actions_mod.contains("FocusBrowserPillEditorInput"));
-    assert!(actions_mod.contains("SetBrowserPillEditorInput"));
-    assert!(actions_mod.contains("CommitBrowserPillEditorInput"));
+    assert!(actions_mod.contains("FocusContentPillEditorInput"));
+    assert!(actions_mod.contains("SetContentPillEditorInput"));
+    assert!(actions_mod.contains("CommitContentPillEditorInput"));
 }
 
 #[test]
@@ -1799,8 +1799,8 @@ fn compat_action_catalog_uses_generic_pill_editor_toggle_actions() {
         assert!(!source.contains("ToggleBrowserTagSidebar"));
         assert!(!source.contains("toggle_browser_tag_sidebar"));
     }
-    assert!(actions_mod.contains("ToggleBrowserPillEditor"));
-    assert!(actions_mod.contains("ToggleBrowserPillEditorPrimaryAction"));
+    assert!(actions_mod.contains("ToggleContentPillEditor"));
+    assert!(actions_mod.contains("ToggleContentPillEditorPrimaryAction"));
 }
 
 #[test]

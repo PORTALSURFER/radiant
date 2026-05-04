@@ -183,7 +183,7 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         }
         TextInputTarget::BrowserPillEditor => {
             runner.text_input_buffer = Some(value.clone());
-            UiAction::SetBrowserPillEditorInput { value }
+            UiAction::SetContentPillEditorInput { value }
         }
         TextInputTarget::FolderSearch => {
             runner.text_input_buffer = Some(value.clone());

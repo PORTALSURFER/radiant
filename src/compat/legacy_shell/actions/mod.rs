@@ -406,10 +406,10 @@ pub enum UiAction {
     },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
-    /// Toggle the browser-local metadata pill editor.
-    ToggleBrowserPillEditor,
-    /// Toggle the host-defined primary side effect for browser metadata edits.
-    ToggleBrowserPillEditorPrimaryAction,
+    /// Toggle the content-local metadata pill editor.
+    ToggleContentPillEditor,
+    /// Toggle the host-defined primary side effect for content metadata edits.
+    ToggleContentPillEditorPrimaryAction,
     /// Toggle browser duplicate-cleanup mode for the focused browser item.
     ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous browser item from focus history.
@@ -439,15 +439,15 @@ pub enum UiAction {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
     },
-    /// Focus the browser metadata pill-editor input field.
-    FocusBrowserPillEditorInput,
-    /// Set the browser metadata pill-editor input value.
-    SetBrowserPillEditorInput {
+    /// Focus the content metadata pill-editor input field.
+    FocusContentPillEditorInput,
+    /// Set the content metadata pill-editor input value.
+    SetContentPillEditorInput {
         /// Full pill-editor input text.
         value: String,
     },
-    /// Commit the browser metadata pill-editor input value.
-    CommitBrowserPillEditorInput,
+    /// Commit the content metadata pill-editor input value.
+    CommitContentPillEditorInput,
     /// Apply one playback-type value to the browser selection.
     SetBrowserSidebarLooped {
         /// Playback type to apply.

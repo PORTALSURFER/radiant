@@ -262,7 +262,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 | TextInputTarget::WaveformBpm
         ) {
             if self.text_input_target == TextInputTarget::BrowserPillEditor {
-                self.emit_keyboard_action(UiAction::CommitBrowserPillEditorInput);
+                self.emit_keyboard_action(UiAction::CommitContentPillEditorInput);
             }
             self.deactivate_text_input_target();
             return true;

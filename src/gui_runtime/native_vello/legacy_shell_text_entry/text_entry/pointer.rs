@@ -107,7 +107,7 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
         }
         TextInputTarget::BrowserPillEditor => {
             if runner.text_input_target != TextInputTarget::BrowserPillEditor {
-                runner.emit_model_action(UiAction::FocusBrowserPillEditorInput);
+                runner.emit_model_action(UiAction::FocusContentPillEditorInput);
                 runner.activate_text_input_target(TextInputTarget::BrowserPillEditor);
             }
         }

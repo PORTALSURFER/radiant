@@ -50,7 +50,7 @@ pub(in crate::gui::native_shell::state) fn content_action_buttons(
             icon: None,
             enabled: true,
             active: model.browser_actions.pill_editor_open(),
-            action: UiAction::ToggleBrowserPillEditor,
+            action: UiAction::ToggleContentPillEditor,
             text_color: if model.browser_actions.pill_editor_open() {
                 style.highlight_cyan
             } else {

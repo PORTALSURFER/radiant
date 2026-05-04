@@ -571,10 +571,10 @@ fn pill_editor_action_at_point(
 ) -> Option<UiAction> {
     let layout = pill_editor_layout(rows_rect, sizing, model)?;
     if layout.auto_rename_rect.contains(point) {
-        return Some(UiAction::ToggleBrowserPillEditorPrimaryAction);
+        return Some(UiAction::ToggleContentPillEditorPrimaryAction);
     }
     if layout.input_rect.contains(point) {
-        return Some(UiAction::FocusBrowserPillEditorInput);
+        return Some(UiAction::FocusContentPillEditorInput);
     }
     for (index, rect) in layout.playback_rects.iter().enumerate() {
         if rect.contains(point) {

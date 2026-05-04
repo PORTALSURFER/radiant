@@ -389,7 +389,7 @@ impl NativeShellState {
         if geometry.toolbar.search_field.width() <= 1.0 {
             return None;
         }
-        let toolbar_text_layout = compute_browser_toolbar_text_layout(
+        let toolbar_text_layout = compute_content_toolbar_text_layout(
             geometry.toolbar.search_field,
             geometry.toolbar.activity_chip,
             geometry.toolbar.sort_chip,

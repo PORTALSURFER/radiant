@@ -1052,7 +1052,7 @@ fn native_empty_rect_construction_reuses_generic_rect_method() {
         "/src/gui/native_shell/sidebar_surface_helpers.rs",
         "/src/gui/native_shell/signal_header_surface.rs",
         "/src/gui/native_shell/layout_adapter/bands.rs",
-        "/src/gui/native_shell/layout_adapter/browser_chrome_text.rs",
+        "/src/gui/native_shell/layout_adapter/content_chrome_text.rs",
         "/src/gui/native_shell/layout_adapter/control_text.rs",
         "/src/gui/native_shell/layout_adapter/controls/shared.rs",
         "/src/gui/native_shell/layout_adapter/overlays/shared.rs",

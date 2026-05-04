@@ -114,14 +114,14 @@ fn build_browser_segment_text_cache(
         &content_tabs_surface_content(model),
     );
     let toolbar = browser_toolbar_layout(layout, style, model);
-    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);
-    let toolbar_text_layout = compute_browser_toolbar_text_layout(
+    let tabs_text_layout = compute_content_tabs_text_layout(tabs.items, tabs.map, sizing);
+    let toolbar_text_layout = compute_content_toolbar_text_layout(
         toolbar.search_field,
         toolbar.activity_chip,
         toolbar.sort_chip,
         sizing,
     );
-    let footer_text_rect = compute_browser_footer_text_rect(layout.browser_footer, sizing);
+    let footer_text_rect = compute_content_footer_text_rect(layout.browser_footer, sizing);
     BrowserSegmentTextCacheValue {
         tabs_text_layout,
         toolbar_text_layout,

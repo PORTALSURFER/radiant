@@ -65,7 +65,7 @@ pub(super) fn render_browser_tab_overlay(
         blend_color(style.accent_mint, style.text_primary, 0.42),
         sizing.border_width,
     );
-    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);
+    let tabs_text_layout = compute_content_tabs_text_layout(tabs.items, tabs.map, sizing);
     let items_text = format!(
         "{} ({})",
         model.browser_chrome.items_tab_label,

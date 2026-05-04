@@ -52,9 +52,9 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
     /// Precomputed browser-tab label rects.
-    pub tabs_text_layout: BrowserTabsTextLayout,
+    pub tabs_text_layout: ContentTabsTextLayout,
     /// Precomputed toolbar label rects.
-    pub toolbar_text_layout: BrowserToolbarTextLayout,
+    pub toolbar_text_layout: ContentToolbarTextLayout,
     /// Precomputed footer label rect.
     pub footer_text_rect: Rect,
     /// Final items-tab label.

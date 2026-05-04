@@ -1,6 +1,6 @@
 //! Adapter that maps native shell section geometry onto the slot-based layout core.
 mod bands;
-mod browser_chrome_text;
+mod content_chrome_text;
 mod browser_tabs;
 mod browser_text;
 mod control_text;
@@ -28,9 +28,9 @@ pub(crate) use bands::{
     BROWSER_TOOLBAR_ID, BrowserBandSections, build_browser_bands_tree,
     compute_browser_band_sections_with_layout_engine,
 };
-pub(super) use browser_chrome_text::{
-    BrowserTabsTextLayout, BrowserToolbarTextLayout, compute_browser_footer_text_rect,
-    compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
+pub(super) use content_chrome_text::{
+    ContentTabsTextLayout, ContentToolbarTextLayout, compute_content_footer_text_rect,
+    compute_content_tabs_text_layout, compute_content_toolbar_text_layout,
 };
 #[allow(unused_imports)]
 pub(super) use browser_tabs::{BrowserTabsRects, compute_browser_tabs_rects};

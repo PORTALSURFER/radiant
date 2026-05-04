@@ -1,4 +1,4 @@
-//! Slotized browser chrome text-line geometry helpers.
+//! Slotized content chrome text-line geometry helpers.
 
 use super::super::style::SizingTokens;
 use crate::gui::text_layout::{TextLineInsets, centered_text_line};
@@ -11,28 +11,28 @@ const TOOLBAR_TEXT_ACTIVITY_ID: u64 = 1511;
 const TOOLBAR_TEXT_SORT_ID: u64 = 1512;
 const FOOTER_TEXT_SUMMARY_ID: u64 = 1520;
 
-/// Slot-resolved browser-tab label bounds.
+/// Slot-resolved content-tab label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserTabsTextLayout {
+pub(crate) struct ContentTabsTextLayout {
     pub items_label: Rect,
     pub map_label: Rect,
 }
 
-/// Slot-resolved browser-toolbar chip and field label bounds.
+/// Slot-resolved content-toolbar chip and field label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserToolbarTextLayout {
+pub(crate) struct ContentToolbarTextLayout {
     pub search_label: Rect,
     pub activity_label: Rect,
     pub sort_label: Rect,
 }
 
-/// Compute browser tab label bounds through strict slotized text-line layout.
-pub(crate) fn compute_browser_tabs_text_layout(
+/// Compute content tab label bounds through strict slotized text-line layout.
+pub(crate) fn compute_content_tabs_text_layout(
     items_tab: Rect,
     map_tab: Rect,
     sizing: SizingTokens,
-) -> BrowserTabsTextLayout {
-    BrowserTabsTextLayout {
+) -> ContentTabsTextLayout {
+    ContentTabsTextLayout {
         items_label: compute_text_line_rect(
             items_tab,
             sizing,
@@ -43,14 +43,14 @@ pub(crate) fn compute_browser_tabs_text_layout(
     }
 }
 
-/// Compute browser toolbar search/activity/sort label bounds.
-pub(crate) fn compute_browser_toolbar_text_layout(
+/// Compute content toolbar search/activity/sort label bounds.
+pub(crate) fn compute_content_toolbar_text_layout(
     search_field: Rect,
     activity_chip: Rect,
     sort_chip: Rect,
     sizing: SizingTokens,
-) -> BrowserToolbarTextLayout {
-    BrowserToolbarTextLayout {
+) -> ContentToolbarTextLayout {
+    ContentToolbarTextLayout {
         search_label: compute_text_line_rect(
             search_field,
             sizing,
@@ -72,8 +72,8 @@ pub(crate) fn compute_browser_toolbar_text_layout(
     }
 }
 
-/// Compute browser footer summary label bounds.
-pub(crate) fn compute_browser_footer_text_rect(footer: Rect, sizing: SizingTokens) -> Rect {
+/// Compute content footer summary label bounds.
+pub(crate) fn compute_content_footer_text_rect(footer: Rect, sizing: SizingTokens) -> Rect {
     compute_text_line_rect(footer, sizing, sizing.font_meta, FOOTER_TEXT_SUMMARY_ID)
 }
 
@@ -113,7 +113,7 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let items = Rect::from_min_max(Point::new(220.0, 292.0), Point::new(720.0, 320.0));
         let map = Rect::from_min_max(Point::new(724.0, 292.0), Point::new(1220.0, 320.0));
-        let layout = compute_browser_tabs_text_layout(items, map, style.sizing);
+        let layout = compute_content_tabs_text_layout(items, map, style.sizing);
         assert_inside(items, layout.items_label);
         assert_inside(map, layout.map_label);
     }
@@ -124,7 +124,7 @@ mod tests {
         let search = Rect::from_min_max(Point::new(220.0, 326.0), Point::new(760.0, 350.0));
         let activity = Rect::from_min_max(Point::new(768.0, 326.0), Point::new(920.0, 350.0));
         let sort = Rect::from_min_max(Point::new(928.0, 326.0), Point::new(1080.0, 350.0));
-        let layout = compute_browser_toolbar_text_layout(search, activity, sort, style.sizing);
+        let layout = compute_content_toolbar_text_layout(search, activity, sort, style.sizing);
         assert_inside(search, layout.search_label);
         assert_inside(activity, layout.activity_label);
         assert_inside(sort, layout.sort_label);
@@ -134,7 +134,7 @@ mod tests {
     fn footer_text_layout_stays_inside_footer_band() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let footer = Rect::from_min_max(Point::new(220.0, 722.0), Point::new(1220.0, 748.0));
-        let line = compute_browser_footer_text_rect(footer, style.sizing);
+        let line = compute_content_footer_text_rect(footer, style.sizing);
         assert_inside(footer, line);
     }
 
@@ -143,7 +143,7 @@ mod tests {
         let style = StyleTokens::for_viewport_width(1280.0);
         let search = Rect::from_min_max(Point::new(220.0, 326.0), Point::new(760.0, 350.0));
         let empty = Rect::from_min_max(Point::new(768.0, 326.0), Point::new(768.0, 326.0));
-        let layout = compute_browser_toolbar_text_layout(search, empty, empty, style.sizing);
+        let layout = compute_content_toolbar_text_layout(search, empty, empty, style.sizing);
         assert_eq!(layout.activity_label, empty);
         assert_eq!(layout.sort_label, empty);
     }

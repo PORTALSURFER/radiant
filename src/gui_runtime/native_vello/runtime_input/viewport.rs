@@ -52,7 +52,7 @@ where
     pub(crate) fn sync_browser_viewport_from_shell(&mut self, layout: &ShellLayout) {
         let Some(visible_row) = self
             .shell_state
-            .browser_viewport_start_row(layout, &self.model)
+            .content_viewport_start_row(layout, &self.model)
         else {
             return;
         };
@@ -72,10 +72,10 @@ where
         let Some(layout) = self.shell_layout.as_ref() else {
             return;
         };
-        let viewport_len = self.shell_state.browser_viewport_len(layout, &self.model);
+        let viewport_len = self.shell_state.content_viewport_len(layout, &self.model);
         let current_view_start = self
             .shell_state
-            .browser_viewport_start_row(layout, &self.model)
+            .content_viewport_start_row(layout, &self.model)
             .unwrap_or(self.model.browser.view_start_row);
         let Some(next_view_start) = content_list_view_start_after_focus(
             current_view_start,

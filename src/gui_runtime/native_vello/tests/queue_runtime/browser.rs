@@ -8,7 +8,7 @@ fn browser_wheel_uses_rendered_viewport_start_when_model_start_is_stale() {
     let host_window_start = 100usize;
     let projected_rows = runner
         .shell_state
-        .browser_viewport_len(&layout, &browser_model_with_rows(5_000, 0))
+        .content_viewport_len(&layout, &browser_model_with_rows(5_000, 0))
         .saturating_add(12);
 
     let build_model = |focused_visible_row: usize| {
@@ -33,12 +33,12 @@ fn browser_wheel_uses_rendered_viewport_start_when_model_start_is_stale() {
 
     let row_capacity = runner
         .shell_state
-        .browser_viewport_len(&layout, &build_model(host_window_start));
+        .content_viewport_len(&layout, &build_model(host_window_start));
     let bottom_focus = host_window_start + row_capacity.saturating_sub(1);
     let bottom_model = build_model(bottom_focus);
     let scrolled_start = runner
         .shell_state
-        .browser_viewport_start_row(&layout, &bottom_model)
+        .content_viewport_start_row(&layout, &bottom_model)
         .expect("bottom viewport should render at least one row");
     assert!(scrolled_start > host_window_start);
 
@@ -332,7 +332,7 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     let model = browser_model_with_rows(40, 20);
     let resolved_view_start = runner
         .shell_state
-        .browser_viewport_start_row(&layout, &model)
+        .content_viewport_start_row(&layout, &model)
         .expect("focused content viewport should resolve a visible start");
     assert_eq!(resolved_view_start, 3);
 
@@ -457,7 +457,7 @@ fn pill_editor_option_click_with_active_input_blurs_and_toggles_once() {
             (layout.browser_rows.min.y as i32..=layout.browser_rows.max.y as i32).find_map(|y| {
                 let point = Point::new(x as f32, y as f32);
                 matches!(
-                    runner.shell_state.browser_action_at_point(
+                    runner.shell_state.content_action_at_point(
                         &layout,
                         &runner.model,
                         point,
@@ -494,7 +494,7 @@ fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
     let model = browser_model_with_rows(40, 20);
     let resolved_view_start = runner
         .shell_state
-        .browser_viewport_start_row(&layout, &model)
+        .content_viewport_start_row(&layout, &model)
         .expect("focused content viewport should resolve a visible start");
     assert_eq!(resolved_view_start, 3);
 

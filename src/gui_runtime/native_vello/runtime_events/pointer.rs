@@ -393,7 +393,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if self.model.browser.duplicate_cleanup_active
             && let Some(visible_row) =
                 self.shell_state
-                    .browser_row_at_point(layout, &self.model, point)
+                    .content_row_at_point(layout, &self.model, point)
         {
             self.emit_model_action(UiAction::ToggleContentDuplicateCleanupKeep { visible_row });
             *action_emitted = true;
@@ -401,7 +401,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         if let Some(visible_row) = self
             .shell_state
-            .browser_row_at_point(layout, &self.model, point)
+            .content_row_at_point(layout, &self.model, point)
         {
             self.shell_state
                 .open_content_context_menu_for_row(visible_row, point);

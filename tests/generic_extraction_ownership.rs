@@ -809,6 +809,31 @@ fn native_shell_view_tree_uses_product_neutral_content_node_names() {
 }
 
 #[test]
+fn native_shell_content_hit_testing_uses_product_neutral_method_names() {
+    let content_hit_testing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/content.rs"
+    ))
+    .expect("native shell content hit-testing module should be readable");
+    let pointer_routing = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/pointer.rs"
+    ))
+    .expect("native Vello pointer routing module should be readable");
+
+    for source in [&content_hit_testing, &pointer_routing] {
+        assert!(!source.contains("browser_row_at_point"));
+        assert!(!source.contains("browser_action_at_point"));
+        assert!(!source.contains("browser_tab_action_at_point"));
+        assert!(!source.contains("browser_row_similarity_action_at_point"));
+    }
+    assert!(content_hit_testing.contains("content_row_at_point"));
+    assert!(content_hit_testing.contains("content_action_at_point"));
+    assert!(content_hit_testing.contains("content_tab_action_at_point"));
+    assert!(pointer_routing.contains("route_content_or_folder_row"));
+}
+
+#[test]
 fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
     let state_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

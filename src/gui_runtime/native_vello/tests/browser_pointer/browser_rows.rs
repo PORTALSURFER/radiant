@@ -95,7 +95,7 @@ fn focused_browser_row_similarity_button_routes_toggle_action() {
         ..AppModel::default()
     };
     let button = shell_state
-        .browser_similarity_button_rect(&layout, &model)
+        .content_similarity_button_rect(&layout, &model)
         .expect("focused row should expose a similarity button");
     let point = Point::new(
         (button.min.x + button.max.x) * 0.5,
@@ -178,7 +178,7 @@ fn browser_row_right_click_routes_duplicate_cleanup_keep_toggle() {
                 let point = Point::new(x as f32, y as f32);
                 (runner
                     .shell_state
-                    .browser_row_at_point(&layout, &runner.model, point)
+                    .content_row_at_point(&layout, &runner.model, point)
                     == Some(5))
                 .then_some(point)
             })

@@ -97,10 +97,10 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 if let Some(delta) =
                     content_list_wheel_row_delta(layout, &this.model, point, &style, delta)
                 {
-                    let viewport_len = this.shell_state.browser_viewport_len(layout, &this.model);
+                    let viewport_len = this.shell_state.content_viewport_len(layout, &this.model);
                     let current_view_start = this
                         .shell_state
-                        .browser_viewport_start_row(layout, &this.model)
+                        .content_viewport_start_row(layout, &this.model)
                         .unwrap_or(this.model.browser.view_start_row);
                     if let Some(visible_row) = content_list_view_start_after_wheel(
                         current_view_start,

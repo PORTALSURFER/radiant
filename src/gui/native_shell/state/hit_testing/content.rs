@@ -4,7 +4,7 @@ use crate::gui::list::RecencyFilterChip;
 impl NativeShellState {
     /// Return a content column-chip rect for one column index in tests.
     #[cfg(test)]
-    pub(crate) fn browser_column_chip_rect(
+    pub(crate) fn content_column_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -18,7 +18,7 @@ impl NativeShellState {
     }
 
     /// Resolve a rendered content visible-row index for a point in the triage pane.
-    pub(crate) fn browser_row_at_point(
+    pub(crate) fn content_row_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -40,7 +40,7 @@ impl NativeShellState {
     }
 
     /// Resolve the focused-row similarity button into its native action.
-    pub(crate) fn browser_row_similarity_action_at_point(
+    pub(crate) fn content_row_similarity_action_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -110,7 +110,7 @@ impl NativeShellState {
     }
 
     /// Return the current rendered content viewport length.
-    pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
+    pub(crate) fn content_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
         self.cached_content_interaction_geometry(layout, model)
             .rows
             .len()
@@ -123,7 +123,7 @@ impl NativeShellState {
     /// host-projected `view_start_row` is briefly stale. Callers that need to
     /// continue scrolling from the rows the user is actually seeing should use
     /// this value instead of the raw model field.
-    pub(crate) fn browser_viewport_start_row(
+    pub(crate) fn content_viewport_start_row(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -203,7 +203,7 @@ impl NativeShellState {
     }
 
     /// Resolve a content action-strip click into a native UI action.
-    pub(crate) fn browser_action_at_point(
+    pub(crate) fn content_action_at_point(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -266,7 +266,7 @@ impl NativeShellState {
     }
 
     /// Resolve a content tab click into a list/map tab selection action.
-    pub(crate) fn browser_tab_action_at_point(
+    pub(crate) fn content_tab_action_at_point(
         &self,
         layout: &ShellLayout,
         point: Point,
@@ -305,9 +305,9 @@ impl NativeShellState {
         (geometry.toolbar.search_field.width() > 1.0).then_some(geometry.toolbar.search_field)
     }
 
-    /// Return one browser rating-filter chip rect for the given signed level.
+    /// Return one content rating-filter chip rect for the given signed level.
     #[cfg(test)]
-    pub(crate) fn browser_rating_filter_chip_rect(
+    pub(crate) fn content_rating_filter_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -323,7 +323,7 @@ impl NativeShellState {
 
     /// Return the marked-filter chip rect when the toolbar is available.
     #[cfg(test)]
-    pub(crate) fn browser_marked_filter_chip_rect(
+    pub(crate) fn content_marked_filter_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -336,7 +336,7 @@ impl NativeShellState {
 
     /// Return the derived-label-filter chip rect when the toolbar is available.
     #[cfg(test)]
-    pub(crate) fn browser_derived_label_filter_chip_rect(
+    pub(crate) fn content_derived_label_filter_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -348,9 +348,9 @@ impl NativeShellState {
             .then_some(toolbar.derived_label_filter_chip)
     }
 
-    /// Return one browser playback-age filter chip rect for the given chip.
+    /// Return one content recency filter chip rect for the given chip.
     #[cfg(test)]
-    pub(crate) fn browser_playback_age_filter_chip_rect(
+    pub(crate) fn content_recency_filter_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -364,9 +364,9 @@ impl NativeShellState {
         (rect.width() > 1.0).then_some(rect)
     }
 
-    /// Return one browser action-button rect for the given label.
+    /// Return one content action-button rect for the given label.
     #[cfg(test)]
-    pub(crate) fn browser_action_button_rect(
+    pub(crate) fn content_action_button_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -426,7 +426,7 @@ impl NativeShellState {
 
     /// Return the focused-row similarity button rect when present.
     #[cfg(test)]
-    pub(crate) fn browser_similarity_button_rect(
+    pub(crate) fn content_similarity_button_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,

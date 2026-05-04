@@ -13,7 +13,7 @@ pub(super) fn action_from_pointer_with_motion(
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
     route_modal_and_chrome_actions(layout, model, motion_model, shell_state, point, modifiers)
-        .or_else(|| route_browser_or_folder_row(layout, model, shell_state, point, modifiers))
+        .or_else(|| route_content_or_folder_row(layout, model, shell_state, point, modifiers))
         .or_else(|| route_shell_background(layout, model, shell_state, point, modifiers))
 }
 
@@ -49,14 +49,14 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, model, point) {
         return Some(action);
     }
-    if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
+    if let Some(action) = shell_state.content_tab_action_at_point(layout, point) {
         return Some(action);
     }
     if let Some(action) = shell_state.spatial_content_action_at_point(layout, model, point) {
         return Some(action);
     }
     if let Some(action) =
-        shell_state.browser_action_at_point(layout, model, point, modifiers.alt_key())
+        shell_state.content_action_at_point(layout, model, point, modifiers.alt_key())
     {
         return Some(action);
     }
@@ -84,17 +84,17 @@ fn route_modal_and_chrome_actions(
     )
 }
 
-fn route_browser_or_folder_row(
+fn route_content_or_folder_row(
     layout: &ShellLayout,
     model: &AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
     modifiers: ModifiersState,
 ) -> Option<UiAction> {
-    if let Some(action) = shell_state.browser_row_similarity_action_at_point(layout, model, point) {
+    if let Some(action) = shell_state.content_row_similarity_action_at_point(layout, model, point) {
         return Some(action);
     }
-    if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
+    if let Some(visible_row) = shell_state.content_row_at_point(layout, model, point) {
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();
         return Some(if shift && command {

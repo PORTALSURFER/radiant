@@ -6,7 +6,7 @@ fn browser_toolbar_alt_click_maps_to_inverted_rating_filter_action() {
     let model = AppModel::default();
     let mut shell_state = NativeShellState::new();
     let chip = shell_state
-        .browser_rating_filter_chip_rect(&layout, &model, 4)
+        .content_rating_filter_chip_rect(&layout, &model, 4)
         .expect("locked keep rating filter chip should exist");
     let point = Point::new(
         (chip.min.x + chip.max.x) * 0.5,
@@ -34,7 +34,7 @@ fn browser_toolbar_click_maps_to_content_recency_filter_action() {
     let model = AppModel::default();
     let mut shell_state = NativeShellState::new();
     let chip = shell_state
-        .browser_playback_age_filter_chip_rect(
+        .content_recency_filter_chip_rect(
             &layout,
             &model,
             crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
@@ -66,7 +66,7 @@ fn browser_random_action_button_click_routes_toggle_random_navigation_mode() {
     let model = AppModel::default();
     let mut shell_state = NativeShellState::new();
     let button = shell_state
-        .browser_action_button_rect(&layout, &model, "Random")
+        .content_action_button_rect(&layout, &model, "Random")
         .expect("random browser action button should exist");
     let point = Point::new(
         (button.min.x + button.max.x) * 0.5,
@@ -91,7 +91,7 @@ fn browser_cleanup_action_button_click_routes_toggle_duplicate_cleanup_mode() {
     let model = AppModel::default();
     let mut shell_state = NativeShellState::new();
     let button = shell_state
-        .browser_action_button_rect(&layout, &model, "Cleanup")
+        .content_action_button_rect(&layout, &model, "Cleanup")
         .expect("cleanup browser action button should exist");
     let point = Point::new(
         (button.min.x + button.max.x) * 0.5,

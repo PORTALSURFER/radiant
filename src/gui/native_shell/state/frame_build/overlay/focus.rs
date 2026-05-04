@@ -216,8 +216,8 @@ pub(super) fn render_browser_focus_overlay(
         let similarity_anchor_active = (model.browser.similarity_filtered
             || model.browser.duplicate_cleanup_active)
             && row.visible_row == 0;
-        let row_border_stroke = browser_row_border_stroke(layout);
-        let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
+        let border_stroke = row_border_stroke(layout);
+        let border_rect = row_border_rect(row.rect, border_stroke);
         if row.focused {
             emit_primitive(
                 primitives,
@@ -275,19 +275,19 @@ pub(super) fn render_browser_focus_overlay(
                 0.0
             };
         if let Some(marker_rect) =
-            browser_playback_age_marker_rect(row.rect, sizing, focus_similarity_reserved_width)
+            row_recency_marker_rect(row.rect, sizing, focus_similarity_reserved_width)
         {
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: marker_rect,
-                    color: browser_playback_age_marker_color(style, row.playback_age_bucket),
+                    color: row_recency_marker_color(style, row.playback_age_bucket),
                 }),
             );
         }
         push_browser_row_border(
             primitives,
-            row_border_rect,
+            border_rect,
             if row.focused {
                 blend_color(
                     style.accent_warning,
@@ -297,7 +297,7 @@ pub(super) fn render_browser_focus_overlay(
             } else {
                 style.border
             },
-            row_border_stroke,
+            border_stroke,
             BorderSides {
                 top: true,
                 bottom: row.focused || Some(row.rect.max.y) == last_row_max_y,
@@ -306,9 +306,9 @@ pub(super) fn render_browser_focus_overlay(
             },
         );
         if row.locked {
-            let focus_left_border_width = if row.focused { row_border_stroke } else { 0.0 };
+            let focus_left_border_width = if row.focused { border_stroke } else { 0.0 };
             if let Some(marker_rect) =
-                browser_locked_marker_rect(row.rect, sizing, focus_left_border_width)
+                row_locked_marker_rect(row.rect, sizing, focus_left_border_width)
             {
                 emit_primitive(
                     primitives,
@@ -324,7 +324,7 @@ pub(super) fn render_browser_focus_overlay(
             let show_similarity_button = !model.browser.duplicate_cleanup_active;
             let similarity_button_reserved_width =
                 row_similarity_button_reserved_width(show_similarity_button, sizing);
-            let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
+            let recency_marker_reserved_width = row_recency_marker_reserved_width(
                 row.rect,
                 sizing,
                 similarity_button_reserved_width,
@@ -339,8 +339,8 @@ pub(super) fn render_browser_focus_overlay(
                     .min(row.text_layout.item_label.max.x);
                 label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
-            if age_marker_reserved_width > 0.0 {
-                label_position.x = (label_position.x + age_marker_reserved_width)
+            if recency_marker_reserved_width > 0.0 {
+                label_position.x = (label_position.x + recency_marker_reserved_width)
                     .min(row.text_layout.item_label.max.x);
                 label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
             }
@@ -350,7 +350,7 @@ pub(super) fn render_browser_focus_overlay(
                 .max(20.0);
             if row.missing {
                 let marker_advance =
-                    browser_missing_marker_advance(sizing.font_body).min(label_max_width.max(0.0));
+                    row_missing_marker_advance(sizing.font_body).min(label_max_width.max(0.0));
                 emit_text(
                     text_runs,
                     TextRun {

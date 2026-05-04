@@ -10,8 +10,8 @@ pub(super) fn render_browser_rows_window(
 ) {
     let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
     for row in browser_rows {
-        let row_border_stroke = browser_row_border_stroke(ctx.layout);
-        let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
+        let border_stroke = row_border_stroke(ctx.layout);
+        let border_rect = row_border_rect(row.rect, border_stroke);
         let row_columns = row.text_layout.columns;
         let similarity_active =
             ctx.model.browser.similarity_filtered || ctx.model.browser.duplicate_cleanup_active;
@@ -35,7 +35,7 @@ pub(super) fn render_browser_rows_window(
             browser_row_stripe_fill(ctx.style, row.visible_row)
         };
         let base_fill = browser_processing_row_fill(ctx.style, base_fill, row.processing_state);
-        let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
+        let recency_marker_reserved_width = row_recency_marker_reserved_width(
             row.rect,
             ctx.sizing,
             similarity_button_reserved_width,
@@ -58,19 +58,19 @@ pub(super) fn render_browser_rows_window(
             );
         }
         if let Some(marker_rect) =
-            browser_playback_age_marker_rect(row.rect, ctx.sizing, similarity_button_reserved_width)
+            row_recency_marker_rect(row.rect, ctx.sizing, similarity_button_reserved_width)
         {
             emit_primitive(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: marker_rect,
-                    color: browser_playback_age_marker_color(ctx.style, row.playback_age_bucket),
+                    color: row_recency_marker_color(ctx.style, row.playback_age_bucket),
                 }),
             );
         }
         let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
         if row.marked {
-            if let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
+            if let Some(marker_rect) = row_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
@@ -82,7 +82,7 @@ pub(super) fn render_browser_rows_window(
         }
         if row.locked {
             if let Some(marker_rect) =
-                browser_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
+                row_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
             {
                 emit_primitive(
                     primitives,
@@ -110,9 +110,9 @@ pub(super) fn render_browser_rows_window(
         }
         push_browser_row_border(
             primitives,
-            row_border_rect,
+            border_rect,
             ctx.style.border,
-            row_border_stroke,
+            border_stroke,
             BorderSides {
                 top: true,
                 bottom: Some(row.rect.max.y) == last_row_max_y,
@@ -157,14 +157,14 @@ pub(super) fn render_browser_rows_window(
                 .min(row.text_layout.item_label.max.x);
             label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
-        if age_marker_reserved_width > 0.0 {
-            label_position.x = (label_position.x + age_marker_reserved_width)
+        if recency_marker_reserved_width > 0.0 {
+            label_position.x = (label_position.x + recency_marker_reserved_width)
                 .min(row.text_layout.item_label.max.x);
             label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
         if row.missing {
             let marker_advance =
-                browser_missing_marker_advance(ctx.sizing.font_body).min(label_max_width.max(0.0));
+                row_missing_marker_advance(ctx.sizing.font_body).min(label_max_width.max(0.0));
             emit_text(
                 text_runs,
                 TextRun {

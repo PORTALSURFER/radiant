@@ -635,9 +635,33 @@ fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
 
     assert!(types_mod.contains("pub fn stroke_aligned_rect"));
     assert!(markers_mod.contains("rect.stroke_aligned_rect(stroke)"));
+    for required in [
+        "row_border_stroke",
+        "row_border_rect",
+        "row_recency_marker_rect",
+        "row_locked_marker_rect",
+        "row_missing_marker_advance",
+    ] {
+        assert!(
+            markers_mod.contains(required),
+            "row marker module should expose generic helper `{required}`"
+        );
+    }
+    for forbidden in [
+        "browser_row_border_stroke",
+        "browser_row_border_rect",
+        "browser_playback_age_marker",
+        "browser_locked_marker",
+        "browser_missing_marker",
+    ] {
+        assert!(
+            !markers_mod.contains(forbidden),
+            "row marker helpers should use product-neutral row naming, found `{forbidden}`"
+        );
+    }
     assert!(
         !markers_mod.contains("let snap ="),
-        "native browser row borders should delegate stroke-grid snapping to gui::types"
+        "native row borders should delegate stroke-grid snapping to gui::types"
     );
 }
 

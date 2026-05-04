@@ -68,7 +68,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_hover_fill(style: &StyleT
     )
 }
 
-/// Return the alternating neutral fill used for non-selected browser rows.
+/// Return the alternating neutral fill used for non-selected rows.
 pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
     style: &StyleTokens,
     visible_row: usize,
@@ -145,7 +145,7 @@ pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
     }
 }
 
-/// Return the stronger neutral fill used for selected browser rows.
+/// Return the stronger neutral fill used for selected rows.
 pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
@@ -154,22 +154,22 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
     )
 }
 
-/// Return the accent fill used for the selected browser-row index cell.
+/// Return the accent fill used for the selected row index cell.
 pub(in crate::gui::native_shell::state) fn selected_browser_index_fill(
     style: &StyleTokens,
 ) -> Rgba8 {
     style.highlight_orange
 }
 
-/// Return the accent fill used for the similarity-anchor browser-row index cell.
+/// Return the accent fill used for the similarity-anchor row index cell.
 pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
     style: &StyleTokens,
 ) -> Rgba8 {
     style.highlight_blue
 }
 
-/// Return the left-edge browser age marker color for the playback-age bucket.
-pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
+/// Return the left-edge row recency marker color for the recency bucket.
+pub(in crate::gui::native_shell::state) fn row_recency_marker_color(
     style: &StyleTokens,
     bucket: RecencyBucket,
 ) -> Rgba8 {

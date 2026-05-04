@@ -21,7 +21,7 @@ pub type ContentTriageTarget = crate::gui::selection::TriageTarget;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiAction {
     // Column / triage compatibility actions.
-    /// Select a target triage/browser column.
+    /// Select a target triage/content column.
     SelectColumn {
         /// Target column index in the visible triage column set.
         index: usize,
@@ -35,7 +35,7 @@ pub enum UiAction {
     // Transport and global playback actions.
     /// Toggle transport playback state.
     ToggleTransport,
-    /// Replay the stored compare-anchor item without changing browser focus.
+    /// Replay the stored compare-anchor item without changing content focus.
     PlayCompareAnchor,
     /// Start playback from the beginning of the active content item.
     PlayFromStart,
@@ -60,13 +60,13 @@ pub enum UiAction {
     HandleEscape,
 
     // Focus and shell-surface actions.
-    /// Focus the browser/list panel.
+    /// Focus the content/list panel.
     FocusContentPanel,
     /// Focus the sources panel.
     FocusSourcesPanel,
     /// Focus the waveform panel.
     FocusWaveformPanel,
-    /// Focus the folder browser section inside the sources panel.
+    /// Focus the folder list section inside the sources panel.
     FocusFolderPanel {
         /// Pane that should become active, or `None` for the current active pane.
         pane: Option<FolderPaneIdModel>,
@@ -281,7 +281,7 @@ pub enum UiAction {
     /// Clear staged delete recovery log entries.
     ClearFolderDeleteRecoveryLog,
 
-    // Browser navigation, selection, search, and map actions.
+    // Content navigation, selection, search, and map actions.
     /// Move content focus by a row delta in the visible list.
     ///
     /// Hosts should treat this as lightweight preview navigation so held-arrow
@@ -551,7 +551,7 @@ pub enum UiAction {
     /// Copy the current content file(s) or timeline selection clip to the clipboard.
     ///
     /// Hosts keep this action context-sensitive:
-    /// - browser focus copies the selected or focused source file paths
+    /// - content focus copies the selected or focused source file paths
     /// - waveform focus copies the current exported selection clip, when any
     CopySelectionToClipboard,
     /// Toggle the hotkey/help overlay.
@@ -569,7 +569,7 @@ pub enum UiAction {
         /// Target enabled state.
         enabled: bool,
     },
-    /// Enable/disable rating-based browser auto-advance.
+    /// Enable/disable rating-based content auto-advance.
     SetAdvanceAfterRatingEnabled {
         /// Target enabled state.
         enabled: bool,

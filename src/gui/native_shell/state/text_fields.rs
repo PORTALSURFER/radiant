@@ -96,10 +96,10 @@ pub(crate) fn render_active_browser_search_editor(
         search_field_rect,
         search_text_rect,
         visual,
-        browser_search_field_active_fill(style),
-        browser_search_field_active_border(style),
-        browser_search_selection_fill(style),
-        browser_search_caret_color(style),
+        text_field_active_fill(style),
+        text_field_active_border(style),
+        text_field_selection_fill(style),
+        text_field_caret_color(style),
     );
 }
 
@@ -121,10 +121,10 @@ pub(crate) fn render_active_waveform_bpm_editor(
         input_rect,
         input_text_rect,
         visual,
-        browser_search_field_active_fill(style),
-        browser_search_field_active_border(style),
-        browser_search_selection_fill(style),
-        browser_search_caret_color(style),
+        text_field_active_fill(style),
+        text_field_active_border(style),
+        text_field_selection_fill(style),
+        text_field_caret_color(style),
     );
 }
 
@@ -147,14 +147,14 @@ pub(crate) fn render_active_folder_create_editor(
         input_rect,
         input_text_rect,
         visual,
-        browser_search_field_active_fill(style),
+        text_field_active_fill(style),
         if has_error {
             blend_color(style.accent_warning, style.accent_trash, 0.6)
         } else {
-            browser_search_field_active_border(style)
+            text_field_active_border(style)
         },
-        browser_search_selection_fill(style),
-        browser_search_caret_color(style),
+        text_field_selection_fill(style),
+        text_field_caret_color(style),
     );
 }
 
@@ -172,18 +172,18 @@ pub(crate) fn text_field_visual_signature(visual: Option<&TextFieldVisualState>)
     hasher.finish()
 }
 
-pub(crate) fn browser_search_field_active_fill(style: &StyleTokens) -> Rgba8 {
+pub(crate) fn text_field_active_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(style.surface_base, style.highlight_orange_soft, 0.22)
 }
 
-pub(crate) fn browser_search_field_active_border(style: &StyleTokens) -> Rgba8 {
+pub(crate) fn text_field_active_border(style: &StyleTokens) -> Rgba8 {
     blend_color(style.border_emphasis, style.highlight_orange, 0.6)
 }
 
-fn browser_search_selection_fill(style: &StyleTokens) -> Rgba8 {
+fn text_field_selection_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(style.highlight_orange_soft, style.text_primary, 0.22)
 }
 
-fn browser_search_caret_color(style: &StyleTokens) -> Rgba8 {
+fn text_field_caret_color(style: &StyleTokens) -> Rgba8 {
     blend_color(style.text_primary, style.highlight_orange, 0.24)
 }

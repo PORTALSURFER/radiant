@@ -71,8 +71,8 @@ pub(super) fn render_hover_overlay(
             input_rect,
             text_rect,
             visual,
-            browser_search_field_active_fill(style),
-            browser_search_field_active_border(style),
+            text_field_active_fill(style),
+            text_field_active_border(style),
             translucent_overlay_color(style.highlight_orange_soft, style.text_primary, 0.22),
             blend_color(style.text_primary, style.highlight_orange, 0.24),
         );

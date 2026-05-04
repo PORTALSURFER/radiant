@@ -772,6 +772,39 @@ fn toolbar_filter_chip_visuals_use_product_neutral_helper_names() {
 }
 
 #[test]
+fn active_text_field_visual_helpers_use_product_neutral_names() {
+    let text_fields_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/text_fields.rs"
+    ))
+    .expect("text fields module should be readable");
+
+    for required in [
+        "text_field_active_fill",
+        "text_field_active_border",
+        "text_field_selection_fill",
+        "text_field_caret_color",
+    ] {
+        assert!(
+            text_fields_mod.contains(required),
+            "text field module should expose product-neutral helper `{required}`"
+        );
+    }
+
+    for forbidden in [
+        "browser_search_field_active_fill",
+        "browser_search_field_active_border",
+        "browser_search_selection_fill",
+        "browser_search_caret_color",
+    ] {
+        assert!(
+            !text_fields_mod.contains(forbidden),
+            "text field visuals should not use browser-search-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn top_right_overlay_icon_geometry_is_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("types module should be readable");

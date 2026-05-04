@@ -73,7 +73,7 @@ fn render_folder_inline_draft_row(
         primitives,
         Primitive::Rect(FillRect {
             rect: field_rect,
-            color: browser_search_field_active_fill(ctx.style),
+            color: text_field_active_fill(ctx.style),
         }),
     );
     push_border(
@@ -82,7 +82,7 @@ fn render_folder_inline_draft_row(
         if has_error {
             blend_color(ctx.style.accent_copper, ctx.style.text_primary, 0.45)
         } else {
-            browser_search_field_active_border(ctx.style)
+            text_field_active_border(ctx.style)
         },
         ctx.sizing.border_width,
     );

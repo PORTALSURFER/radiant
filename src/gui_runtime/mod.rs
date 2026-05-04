@@ -97,7 +97,7 @@ pub type LegacyNativeRunReport = RuntimeRunReport<LegacyNativeRuntimeArtifacts>;
 /// consuming application. New hosts should use [`run_native_vello_runtime`] with
 /// a generic [`crate::runtime::RuntimeBridge`].
 #[cfg(feature = "legacy-shell")]
-pub fn run_legacy_native_vello_app_with_artifacts<B: crate::compat::legacy_shell::NativeAppBridge>(
+pub fn run_legacy_native_vello_app_with_artifacts<B: crate::compat_app_contract::NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> LegacyNativeRunReport {

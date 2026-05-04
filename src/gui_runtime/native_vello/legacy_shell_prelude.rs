@@ -1,4 +1,4 @@
-pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
+pub(in crate::gui_runtime::native_vello) use crate::compat_app_contract::{
     AppModel, DirtySegments, NativeAppBridge, NativeMotionModel, SegmentRevisions, UiAction,
 };
 pub(in crate::gui_runtime::native_vello) use crate::gui_runtime::{

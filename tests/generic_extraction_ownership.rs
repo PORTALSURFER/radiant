@@ -1022,25 +1022,25 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
         "/src/gui/text_layout.rs"
     ))
     .expect("text layout module should be readable");
-    let browser_text_mod = fs::read_to_string(concat!(
+    let content_row_text_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/layout_adapter/browser_text.rs"
+        "/src/gui/native_shell/layout_adapter/content_row_text.rs"
     ))
-    .expect("browser text adapter should be readable");
+    .expect("content row text adapter should be readable");
     let map_header_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/layout_adapter/map_header.rs"
     ))
     .expect("map header adapter should be readable");
 
-    for source in [&text_layout_mod, &browser_text_mod, &map_header_mod] {
+    for source in [&text_layout_mod, &content_row_text_mod, &map_header_mod] {
         assert!(!source.contains("fn clamp_rect_to_bounds"));
         assert!(!source.contains("fn empty_rect"));
         assert!(!source.contains("Rect::from_min_max(bounds.min, bounds.min)"));
     }
     assert!(text_layout_mod.contains(".empty_at_min()"));
     assert!(text_layout_mod.contains(".clamp_to(inner)"));
-    assert!(browser_text_mod.contains("output.rect_for_clamped("));
+    assert!(content_row_text_mod.contains("output.rect_for_clamped("));
     assert!(map_header_mod.contains("output.rect_for_clamped("));
 }
 
@@ -1086,7 +1086,7 @@ fn native_max_corner_empty_rect_construction_reuses_generic_rect_method() {
         .expect("generic rect type should be readable");
     let source_paths = [
         "/src/gui/native_shell/layout_adapter/bands.rs",
-        "/src/gui/native_shell/layout_adapter/browser_text.rs",
+        "/src/gui/native_shell/layout_adapter/content_row_text.rs",
         "/src/gui/native_shell/layout_adapter/sidebar_sections.rs",
     ];
 
@@ -1255,7 +1255,7 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     let layout_adapter_files = [
         "/src/gui/native_shell/layout_adapter/bands.rs",
         "/src/gui/native_shell/layout_adapter/browser_tabs.rs",
-        "/src/gui/native_shell/layout_adapter/browser_text.rs",
+        "/src/gui/native_shell/layout_adapter/content_row_text.rs",
         "/src/gui/native_shell/layout_adapter/map_canvas.rs",
         "/src/gui/native_shell/layout_adapter/map_header.rs",
         "/src/gui/native_shell/layout_adapter/sidebar_bands.rs",
@@ -1318,18 +1318,18 @@ fn text_baseline_snapping_is_owned_by_generic_text_layout() {
         "/src/gui/text_layout.rs"
     ))
     .expect("text layout module should be readable");
-    let browser_text_mod = fs::read_to_string(concat!(
+    let content_row_text_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/layout_adapter/browser_text.rs"
+        "/src/gui/native_shell/layout_adapter/content_row_text.rs"
     ))
-    .expect("browser text adapter should be readable");
+    .expect("content row text adapter should be readable");
 
     assert!(text_layout_mod.contains("pub fn snap_text_baseline_to_pixel"));
-    assert!(browser_text_mod.contains("snap_text_baseline_to_pixel("));
-    assert!(!browser_text_mod.contains("fn snap_browser_row_text_baseline"));
+    assert!(content_row_text_mod.contains("snap_text_baseline_to_pixel("));
+    assert!(!content_row_text_mod.contains("fn snap_browser_row_text_baseline"));
     assert!(
-        !browser_text_mod.contains("let baseline = (line.min.y + height).round()"),
-        "native browser text should delegate baseline snapping to gui::text_layout"
+        !content_row_text_mod.contains("let baseline = (line.min.y + height).round()"),
+        "native content row text should delegate baseline snapping to gui::text_layout"
     );
 }
 

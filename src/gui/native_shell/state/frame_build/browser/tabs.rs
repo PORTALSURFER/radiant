@@ -6,7 +6,7 @@ pub(super) fn render_browser_table_header(
     text_runs: &mut impl TextRunSink,
 ) {
     let header_text_layout =
-        compute_browser_header_text_layout(ctx.layout.browser_table_header, ctx.sizing);
+        compute_content_header_text_layout(ctx.layout.browser_table_header, ctx.sizing);
     let header = header_text_layout.columns;
     for separator_x in [header.index.max.x, header.item.max.x] {
         emit_primitive(

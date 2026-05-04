@@ -146,7 +146,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
 
     let mut rendered = Vec::with_capacity(window.len());
     for (row, rect) in window.iter().zip(row_rects) {
-        let row_text_layout = compute_browser_row_text_layout(rect, sizing);
+        let row_text_layout = compute_content_row_text_layout(rect, sizing);
         let rating_reserved_width =
             row_rating_indicator_reserved_width(row.rating_level, row.locked, sizing);
         let similarity_strength_reserved_width = row_similarity_strength_reserved_width(

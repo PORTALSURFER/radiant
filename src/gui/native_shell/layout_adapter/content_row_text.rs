@@ -1,4 +1,4 @@
-//! Slotized browser table column, header-label, and row-label geometry helpers.
+//! Slotized content table column, header-label, and row-label geometry helpers.
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
@@ -8,53 +8,53 @@ use crate::gui::layout_core::{
 use crate::gui::text_layout::{TextLineInsets, centered_text_line, snap_text_baseline_to_pixel};
 use crate::gui::types::{Point, Rect, Vector2};
 
-const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
-const BROWSER_COL_INDEX_ID: u64 = 1201;
-const BROWSER_COL_ITEM_ID: u64 = 1202;
-const BROWSER_TEXT_ROOT_ID: u64 = 1210;
+const CONTENT_COLUMNS_ROOT_ID: u64 = 1200;
+const CONTENT_COL_INDEX_ID: u64 = 1201;
+const CONTENT_COL_ITEM_ID: u64 = 1202;
+const CONTENT_TEXT_ROOT_ID: u64 = 1210;
 
-/// Slot-resolved browser table columns.
+/// Slot-resolved content table columns.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserTableColumns {
+pub(crate) struct ContentTableColumns {
     pub index: Rect,
     pub item: Rect,
     pub bucket: Rect,
 }
 
-/// Slot-resolved browser table-header labels.
+/// Slot-resolved content table-header labels.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserHeaderTextLayout {
-    pub columns: BrowserTableColumns,
+pub(crate) struct ContentHeaderTextLayout {
+    pub columns: ContentTableColumns,
     pub index_label: Rect,
     pub item_label: Rect,
     pub bucket_label: Rect,
 }
 
-/// Slot-resolved browser row text geometry.
+/// Slot-resolved content row text geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserRowTextLayout {
-    pub columns: BrowserTableColumns,
+pub(crate) struct ContentRowTextLayout {
+    pub columns: ContentTableColumns,
     pub index_label: Rect,
     pub item_label: Rect,
     pub bucket_chip: Rect,
     pub bucket_label: Rect,
 }
 
-/// Compute browser index/item columns via strict slot layout.
-pub(crate) fn compute_browser_table_columns(
+/// Compute content index/item columns via strict slot layout.
+pub(crate) fn compute_content_table_columns(
     rect: Rect,
     sizing: SizingTokens,
-) -> BrowserTableColumns {
+) -> ContentTableColumns {
     let empty = rect.empty_at_min();
     if rect.width() <= 0.0 || rect.height() <= 0.0 {
-        return BrowserTableColumns {
+        return ContentTableColumns {
             index: empty,
             item: empty,
             bucket: empty,
         };
     }
     let tree = LayoutNode::container(
-        BROWSER_COLUMNS_ROOT_ID,
+        CONTENT_COLUMNS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::Row,
             align_main: MainAlign::Start,
@@ -63,36 +63,36 @@ pub(crate) fn compute_browser_table_columns(
             ..ContainerPolicy::default()
         },
         vec![
-            fixed_width_child(BROWSER_COL_INDEX_ID, index_width(rect, sizing)),
+            fixed_width_child(CONTENT_COL_INDEX_ID, index_width(rect, sizing)),
             SlotChild {
                 slot: SlotParams::fill(),
-                child: LayoutNode::widget(BROWSER_COL_ITEM_ID, Vector2::new(1.0, 1.0)),
+                child: LayoutNode::widget(CONTENT_COL_ITEM_ID, Vector2::new(1.0, 1.0)),
             },
         ],
     );
     let output = layout_tree(&tree, rect);
-    let index = output.rect_for_clamped(BROWSER_COL_INDEX_ID, empty, rect);
-    let raw_item = output.rect_for_clamped(BROWSER_COL_ITEM_ID, empty, rect);
+    let index = output.rect_for_clamped(CONTENT_COL_INDEX_ID, empty, rect);
+    let raw_item = output.rect_for_clamped(CONTENT_COL_ITEM_ID, empty, rect);
     let item_min_x = raw_item.min.x.max(index.max.x);
     let item = Rect::from_min_max(
         Point::new(item_min_x, raw_item.min.y),
         Point::new(raw_item.max.x.max(item_min_x), raw_item.max.y),
     );
     let collapsed_bucket = item.empty_at_max();
-    BrowserTableColumns {
+    ContentTableColumns {
         index,
         item,
         bucket: collapsed_bucket,
     }
 }
 
-/// Compute browser table-header label bounds for `#` and the primary item column.
-pub(crate) fn compute_browser_header_text_layout(
+/// Compute content table-header label bounds for `#` and the primary item column.
+pub(crate) fn compute_content_header_text_layout(
     header_rect: Rect,
     sizing: SizingTokens,
-) -> BrowserHeaderTextLayout {
-    let columns = compute_browser_table_columns(header_rect, sizing);
-    BrowserHeaderTextLayout {
+) -> ContentHeaderTextLayout {
+    let columns = compute_content_table_columns(header_rect, sizing);
+    ContentHeaderTextLayout {
         columns,
         index_label: compute_text_line_rect(columns.index, sizing, sizing.font_meta),
         item_label: compute_text_line_rect(columns.item, sizing, sizing.font_meta),
@@ -100,12 +100,12 @@ pub(crate) fn compute_browser_header_text_layout(
     }
 }
 
-/// Compute browser-row index/item label bounds plus collapsed inline-metadata anchors.
-pub(crate) fn compute_browser_row_text_layout(
+/// Compute content-row index/item label bounds plus collapsed inline-metadata anchors.
+pub(crate) fn compute_content_row_text_layout(
     row_rect: Rect,
     sizing: SizingTokens,
-) -> BrowserRowTextLayout {
-    let columns = compute_browser_table_columns(row_rect, sizing);
+) -> ContentRowTextLayout {
+    let columns = compute_content_table_columns(row_rect, sizing);
     let bucket_chip = columns.bucket;
     let index_label = snap_text_baseline_to_pixel(compute_text_line_rect(
         columns.index,
@@ -122,7 +122,7 @@ pub(crate) fn compute_browser_row_text_layout(
         sizing,
         sizing.font_meta,
     ));
-    BrowserRowTextLayout {
+    ContentRowTextLayout {
         columns,
         index_label,
         item_label,
@@ -160,7 +160,7 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> R
         font_size,
         TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
         0.0,
-        BROWSER_TEXT_ROOT_ID,
+        CONTENT_TEXT_ROOT_ID,
     )
 }
 
@@ -177,10 +177,10 @@ mod tests {
     }
 
     #[test]
-    fn browser_columns_preserve_left_to_right_order() {
+    fn content_columns_preserve_left_to_right_order() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let rect = Rect::from_min_max(Point::new(100.0, 50.0), Point::new(1120.0, 78.0));
-        let columns = compute_browser_table_columns(rect, style.sizing);
+        let columns = compute_content_table_columns(rect, style.sizing);
         assert_inside(rect, columns.index);
         assert_inside(rect, columns.item);
         assert_inside(rect, columns.bucket);
@@ -189,20 +189,20 @@ mod tests {
     }
 
     #[test]
-    fn browser_header_labels_stay_inside_columns() {
+    fn content_header_labels_stay_inside_columns() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header = Rect::from_min_max(Point::new(80.0, 16.0), Point::new(1240.0, 42.0));
-        let layout = compute_browser_header_text_layout(header, style.sizing);
+        let layout = compute_content_header_text_layout(header, style.sizing);
         assert_inside(layout.columns.index, layout.index_label);
         assert_inside(layout.columns.item, layout.item_label);
         assert_inside(layout.columns.bucket, layout.bucket_label);
     }
 
     #[test]
-    fn browser_row_chip_and_labels_stay_inside_row() {
+    fn content_row_chip_and_labels_stay_inside_row() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let row = Rect::from_min_max(Point::new(200.0, 90.0), Point::new(1200.0, 118.0));
-        let layout = compute_browser_row_text_layout(row, style.sizing);
+        let layout = compute_content_row_text_layout(row, style.sizing);
         assert_inside(row, layout.columns.index);
         assert_inside(row, layout.columns.item);
         assert_inside(row, layout.columns.bucket);
@@ -213,13 +213,13 @@ mod tests {
     }
 
     #[test]
-    fn browser_row_labels_snap_baselines_to_pixels() {
+    fn content_row_labels_snap_baselines_to_pixels() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let row = Rect::from_min_max(
             Point::new(200.0, 90.0),
             Point::new(1200.0, 90.0 + style.sizing.browser_row_height),
         );
-        let layout = compute_browser_row_text_layout(row, style.sizing);
+        let layout = compute_content_row_text_layout(row, style.sizing);
         for label in [layout.index_label, layout.item_label, layout.bucket_label] {
             let baseline = label.min.y + label.height();
             assert!(

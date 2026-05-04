@@ -2,7 +2,7 @@
 mod bands;
 mod content_chrome_text;
 mod browser_tabs;
-mod browser_text;
+mod content_row_text;
 mod control_text;
 mod controls;
 mod map_canvas;
@@ -34,9 +34,9 @@ pub(super) use content_chrome_text::{
 };
 #[allow(unused_imports)]
 pub(super) use browser_tabs::{BrowserTabsRects, compute_browser_tabs_rects};
-pub(crate) use browser_text::BrowserRowTextLayout;
-pub(super) use browser_text::{
-    compute_browser_header_text_layout, compute_browser_row_text_layout,
+pub(crate) use content_row_text::ContentRowTextLayout;
+pub(super) use content_row_text::{
+    compute_content_header_text_layout, compute_content_row_text_layout,
 };
 pub(super) use control_text::compute_action_button_text_rect;
 #[allow(unused_imports)]

@@ -30,7 +30,7 @@ pub(in crate::gui::native_shell::state) fn row_similarity_button_rect(
     if row_rect.width() <= 0.0 || row_rect.height() <= 0.0 {
         return None;
     }
-    let item_column = compute_browser_row_text_layout(row_rect, sizing)
+    let item_column = compute_content_row_text_layout(row_rect, sizing)
         .columns
         .item;
     if item_column.width() <= 0.0 || item_column.height() <= 0.0 {

@@ -3,7 +3,7 @@
 use super::svg_icons::ShellSvgIcon;
 use super::*;
 use crate::gui::list::{RecencyBucket, RowProcessingState};
-use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
+use crate::gui::native_shell::layout_adapter::ContentRowTextLayout;
 use crate::gui::panel::SplitPaneSlot;
 
 #[path = "browser_rows/sidebar.rs"]
@@ -27,7 +27,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) bucket_label: String,
     pub(super) inline_metadata_labels: Vec<String>,
     pub(super) inline_metadata_rects: Vec<Rect>,
-    pub(super) text_layout: BrowserRowTextLayout,
+    pub(super) text_layout: ContentRowTextLayout,
     pub(super) label_rendered_width: f32,
     pub(super) column: usize,
     pub(super) rating_level: i8,

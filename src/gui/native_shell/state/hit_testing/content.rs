@@ -2,7 +2,7 @@ use super::*;
 #[cfg(test)]
 use crate::gui::list::RecencyFilterChip;
 impl NativeShellState {
-    /// Return a browser column-chip rect for one column index in tests.
+    /// Return a content column-chip rect for one column index in tests.
     #[cfg(test)]
     pub(crate) fn browser_column_chip_rect(
         &mut self,
@@ -17,7 +17,7 @@ impl NativeShellState {
             .map(|chip| chip.rect)
     }
 
-    /// Resolve a rendered browser visible-row index for a point in the triage pane.
+    /// Resolve a rendered content visible-row index for a point in the triage pane.
     pub(crate) fn browser_row_at_point(
         &mut self,
         layout: &ShellLayout,
@@ -92,7 +92,7 @@ impl NativeShellState {
         panel_rect.contains(point)
     }
 
-    /// Return a browser-context-menu button rect for one action in tests.
+    /// Return a content-row context-menu button rect for one action in tests.
     #[cfg(test)]
     pub(crate) fn browser_context_menu_button_rect(
         &self,
@@ -109,7 +109,7 @@ impl NativeShellState {
             .map(|button| button.rect)
     }
 
-    /// Return the current rendered browser viewport length.
+    /// Return the current rendered content viewport length.
     pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
         self.cached_content_interaction_geometry(layout, model)
             .rows
@@ -117,7 +117,7 @@ impl NativeShellState {
             .min(model.browser.visible_count)
     }
 
-    /// Return the current rendered browser viewport start row.
+    /// Return the current rendered content viewport start row.
     ///
     /// The shell can preserve a previously resolved visible window even when the
     /// host-projected `view_start_row` is briefly stale. Callers that need to

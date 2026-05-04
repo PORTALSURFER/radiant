@@ -6,11 +6,11 @@ use std::cell::RefCell;
 pub(crate) enum StaticFrameSegment {
     /// Status-bar text and chrome.
     StatusBar,
-    /// Browser metadata/chrome outside row-window and map canvas.
+    /// Content metadata/chrome outside row-window and map canvas.
     BrowserFrame,
     /// Content row-window list content.
     BrowserRowsWindow,
-    /// Browser map panel content and map-header details.
+    /// Spatial map panel content and map-header details.
     MapPanel,
     /// Waveform panel/chrome static content.
     WaveformOverlay,

@@ -69,7 +69,7 @@ pub(crate) struct StateOverlayFingerprint {
     pub selected_column: usize,
     /// Current hovered shell node kind.
     pub hovered: Option<ShellNodeKind>,
-    /// Hovered browser row in visible-row space.
+    /// Hovered content row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
     pub hovered_folder_pane: Option<crate::gui::panel::SplitPaneSlot>,
@@ -77,9 +77,9 @@ pub(crate) struct StateOverlayFingerprint {
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
-    /// Active browser-search editor visual signature.
+    /// Active content-search editor visual signature.
     pub browser_search_editor_signature: u64,
-    /// Active browser pill-editor visual signature.
+    /// Active content pill-editor visual signature.
     pub browser_search_sidebar_signature: u64,
     /// Active inline folder-create editor visual signature.
     pub folder_create_editor_signature: u64,
@@ -92,7 +92,7 @@ pub(crate) struct StateOverlayFingerprint {
 pub(crate) struct HoverOverlayFingerprint {
     /// Current hovered shell node kind.
     pub hovered: Option<ShellNodeKind>,
-    /// Hovered browser row in visible-row space.
+    /// Hovered content row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
     pub hovered_folder_pane: Option<crate::gui::panel::SplitPaneSlot>,
@@ -100,7 +100,7 @@ pub(crate) struct HoverOverlayFingerprint {
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
-    /// Active browser-search editor visual signature.
+    /// Active content-search editor visual signature.
     pub browser_search_editor_signature: u64,
     /// Active inline folder-create editor visual signature.
     pub folder_create_editor_signature: u64,
@@ -124,7 +124,7 @@ pub(crate) struct ModalOverlayFingerprint {
     pub source_context_menu_anchor_x_bits: Option<u32>,
     /// Source-context-menu anchor y-position bits, if any.
     pub source_context_menu_anchor_y_bits: Option<u32>,
-    /// Active browser-context-menu row, if any.
+    /// Active content-row context-menu row, if any.
     pub browser_context_menu_row_index: Option<usize>,
     /// Content-row context-menu anchor x-position bits, if any.
     pub browser_context_menu_anchor_x_bits: Option<u32>,
@@ -172,13 +172,13 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub transport_running: bool,
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
-    /// Hovered browser rating-filter chip level, if any.
+    /// Hovered content rating-filter chip level, if any.
     pub hovered_browser_rating_filter_level: Option<i8>,
-    /// Hovered browser playback-age filter chip, if any.
+    /// Hovered content recency-filter chip, if any.
     pub hovered_browser_playback_age_filter_chip: Option<crate::gui::list::RecencyFilterChip>,
-    /// Whether the browser marked-filter chip is hovered.
+    /// Whether the content marked-filter chip is hovered.
     pub hovered_browser_marked_filter: bool,
-    /// Whether the browser search field is hovered.
+    /// Whether the content search field is hovered.
     pub hovered_browser_search_field: bool,
     /// Whether the source-add button is hovered.
     pub hovered_source_add_button: bool,

@@ -333,7 +333,7 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     let resolved_view_start = runner
         .shell_state
         .browser_viewport_start_row(&layout, &model)
-        .expect("focused browser viewport should resolve a visible start");
+        .expect("focused content viewport should resolve a visible start");
     assert_eq!(resolved_view_start, 3);
 
     runner.model = Arc::new(model);
@@ -495,7 +495,7 @@ fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
     let resolved_view_start = runner
         .shell_state
         .browser_viewport_start_row(&layout, &model)
-        .expect("focused browser viewport should resolve a visible start");
+        .expect("focused content viewport should resolve a visible start");
     assert_eq!(resolved_view_start, 3);
 
     runner.model = Arc::new(model);

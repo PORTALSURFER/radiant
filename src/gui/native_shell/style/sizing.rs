@@ -58,9 +58,9 @@ pub(crate) struct SizingTokens {
     pub content_tabs_height: f32,
     /// Minimum tabs-band height when content panel space is constrained.
     pub content_tabs_min_height: f32,
-    /// Height of the browser toolbar band.
+    /// Height of the content toolbar band.
     pub browser_toolbar_height: f32,
-    /// Minimum toolbar height when browser panel space is constrained.
+    /// Minimum toolbar height when content panel space is constrained.
     pub browser_toolbar_min_height: f32,
     /// Height of the content table-header band.
     pub content_table_header_height: f32,
@@ -72,13 +72,13 @@ pub(crate) struct SizingTokens {
     pub content_footer_min_height: f32,
     /// Maximum content footer height to preserve row density.
     pub content_footer_max_height: f32,
-    /// Minimum width reserved for browser search controls.
+    /// Minimum width reserved for content search controls.
     pub browser_search_field_min_width: f32,
-    /// Preferred browser search width as a ratio of toolbar width.
+    /// Preferred content search width as a ratio of toolbar width.
     pub browser_search_field_ratio: f32,
-    /// Width reserved for the browser row index column.
+    /// Width reserved for the content row index column.
     pub browser_index_col_width: f32,
-    /// Width reserved for the browser metadata-bucket column.
+    /// Width reserved for the content metadata-bucket column.
     pub browser_bucket_col_width: f32,
     /// Shared panel inset for nested regions.
     pub panel_inset: f32,
@@ -146,7 +146,7 @@ pub(crate) struct SizingTokens {
     pub column_bottom_padding: f32,
     /// Minimum content width reserved while clamping sidebar width.
     pub content_tail_min_width: f32,
-    /// Minimum content height reserved for the browser panel.
+    /// Minimum content height reserved for the content panel.
     pub content_browser_min_height: f32,
     /// Minimum waveform card height when content is constrained.
     pub waveform_card_floor_height: f32,

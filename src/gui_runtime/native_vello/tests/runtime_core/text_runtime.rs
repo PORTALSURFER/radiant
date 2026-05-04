@@ -14,7 +14,7 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
 
     let first = runner
         .build_active_text_field_visual_state(&layout, text_rect)
-        .expect("browser search visual");
+        .expect("content search visual");
     let first_cache = runner
         .active_text_field_visual_cache
         .clone()
@@ -22,7 +22,7 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
 
     let second = runner
         .build_active_text_field_visual_state(&layout, text_rect)
-        .expect("browser search visual on cache hit");
+        .expect("content search visual on cache hit");
     assert_eq!(second, first);
     assert_eq!(
         runner.active_text_field_visual_cache,
@@ -37,7 +37,7 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
         .move_left("item-a", false);
     let moved = runner
         .build_active_text_field_visual_state(&layout, text_rect)
-        .expect("browser search visual after cursor move");
+        .expect("content search visual after cursor move");
     let moved_cache = runner
         .active_text_field_visual_cache
         .clone()
@@ -49,7 +49,7 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
     runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("item-b"));
     let renamed = runner
         .build_active_text_field_visual_state(&layout, text_rect)
-        .expect("browser search visual after text change");
+        .expect("content search visual after text change");
     let renamed_cache = runner
         .active_text_field_visual_cache
         .as_ref()

@@ -79,7 +79,7 @@ fn clicking_browser_search_field_focuses_text_input() {
     };
     let search_field = shell_state
         .browser_search_field_rect(&layout, &model)
-        .expect("browser search field should be present");
+        .expect("content search field should be present");
     let point = Point::new(
         (search_field.min.x + search_field.max.x) * 0.5,
         (search_field.min.y + search_field.max.y) * 0.5,

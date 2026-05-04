@@ -30,14 +30,14 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
     pub content_toolbar_max_x: u32,
     /// Content toolbar region maximum y-coordinate.
     pub content_toolbar_max_y: u32,
-    /// Browser footer region minimum x-coordinate.
-    pub browser_footer_min_x: u32,
-    /// Browser footer mininum y-coordinate.
-    pub browser_footer_min_y: u32,
-    /// Browser footer region maximum x-coordinate.
-    pub browser_footer_max_x: u32,
-    /// Browser footer region maximum y-coordinate.
-    pub browser_footer_max_y: u32,
+    /// Content footer region minimum x-coordinate.
+    pub content_footer_min_x: u32,
+    /// Content footer mininum y-coordinate.
+    pub content_footer_min_y: u32,
+    /// Content footer region maximum x-coordinate.
+    pub content_footer_max_x: u32,
+    /// Content footer region maximum y-coordinate.
+    pub content_footer_max_y: u32,
     /// Meta-label font size token bits.
     pub font_meta_bits: u32,
     /// Header-label font size token bits.
@@ -67,7 +67,7 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
     pub activity_label: String,
     /// Final sort-chip label.
     pub sort_label: String,
-    /// Final browser footer summary label.
+    /// Final content footer summary label.
     pub footer_label: String,
 }
 

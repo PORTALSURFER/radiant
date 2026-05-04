@@ -188,14 +188,14 @@ pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens
         .min((panel_height - toolbar_top).max(0.0));
     let header_top = (toolbar_top + toolbar_height + gap).min(panel_height);
     let header_height = sizing
-        .browser_table_header_height
-        .max(sizing.browser_table_header_min_height)
+        .content_table_header_height
+        .max(sizing.content_table_header_min_height)
         .min((panel_height - header_top).max(0.0));
     let footer_height = sizing
-        .browser_footer_height
+        .content_footer_height
         .clamp(
-            sizing.browser_footer_min_height,
-            sizing.browser_footer_max_height,
+            sizing.content_footer_min_height,
+            sizing.content_footer_max_height,
         )
         .min(panel_height);
     LayoutNode::container(

@@ -179,7 +179,7 @@ mod tests {
         );
         assert!(standard.sizing.content_tabs_height <= 20.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.browser_toolbar_height <= 21.0 * DEFAULT_UI_SCALE);
-        assert!(standard.sizing.browser_table_header_height <= 20.0 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.content_table_header_height <= 20.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.waveform_ratio <= 0.36);
         assert!(standard.sizing.sidebar_max_width <= 220.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.font_body <= 9.1 * DEFAULT_UI_SCALE);

@@ -34,8 +34,8 @@ fn apply_compact_sizing(sizing: &mut SizingTokens) {
     sizing.header_label_gutter = 3.0;
     sizing.content_tabs_height = 18.0;
     sizing.browser_toolbar_height = 19.0;
-    sizing.browser_table_header_height = 18.0;
-    sizing.browser_footer_height = 16.0;
+    sizing.content_table_header_height = 18.0;
+    sizing.content_footer_height = 16.0;
     sizing.browser_search_field_min_width = 88.0;
     sizing.browser_search_field_ratio = 0.22;
     sizing.browser_index_col_width = 38.0;
@@ -118,8 +118,8 @@ fn apply_wide_sizing(sizing: &mut SizingTokens) {
     sizing.header_label_gutter = 3.5;
     sizing.content_tabs_height = 18.0;
     sizing.browser_toolbar_height = 19.0;
-    sizing.browser_table_header_height = 18.0;
-    sizing.browser_footer_height = 16.0;
+    sizing.content_table_header_height = 18.0;
+    sizing.content_footer_height = 16.0;
     sizing.browser_search_field_min_width = 108.0;
     sizing.browser_search_field_ratio = 0.24;
     sizing.browser_index_col_width = 36.0;

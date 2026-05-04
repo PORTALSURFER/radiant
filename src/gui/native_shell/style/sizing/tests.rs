@@ -6,11 +6,11 @@ fn assert_common_invariants(sizing: SizingTokens) {
     assert!(sizing.min_viewport_height > 0.0);
     assert!(sizing.sidebar_min_width <= sizing.sidebar_max_width);
     assert!(sizing.waveform_min_height <= sizing.waveform_max_height);
-    assert!(sizing.browser_footer_min_height <= sizing.browser_footer_max_height);
+    assert!(sizing.content_footer_min_height <= sizing.content_footer_max_height);
     assert!(sizing.source_rows_min_when_split <= sizing.source_rows_max);
     assert!(sizing.tree_rows_min <= sizing.tree_rows_max);
     assert!(sizing.browser_toolbar_min_height <= sizing.browser_toolbar_height);
-    assert!(sizing.browser_table_header_min_height <= sizing.browser_table_header_height);
+    assert!(sizing.content_table_header_min_height <= sizing.content_table_header_height);
     assert!(sizing.content_tabs_min_height <= sizing.content_tabs_height);
     assert!(sizing.prompt_width > sizing.overlay_button_width);
     assert!(sizing.prompt_min_height > sizing.overlay_button_height);

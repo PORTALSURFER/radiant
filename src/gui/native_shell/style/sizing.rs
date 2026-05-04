@@ -62,16 +62,16 @@ pub(crate) struct SizingTokens {
     pub browser_toolbar_height: f32,
     /// Minimum toolbar height when browser panel space is constrained.
     pub browser_toolbar_min_height: f32,
-    /// Height of the browser table-header band.
-    pub browser_table_header_height: f32,
-    /// Minimum table-header height when browser panel space is constrained.
-    pub browser_table_header_min_height: f32,
-    /// Height of the browser footer band.
-    pub browser_footer_height: f32,
-    /// Minimum browser footer height to keep summary labels visible.
-    pub browser_footer_min_height: f32,
-    /// Maximum browser footer height to preserve row density.
-    pub browser_footer_max_height: f32,
+    /// Height of the content table-header band.
+    pub content_table_header_height: f32,
+    /// Minimum table-header height when content panel space is constrained.
+    pub content_table_header_min_height: f32,
+    /// Height of the content footer band.
+    pub content_footer_height: f32,
+    /// Minimum content footer height to keep summary labels visible.
+    pub content_footer_min_height: f32,
+    /// Maximum content footer height to preserve row density.
+    pub content_footer_max_height: f32,
     /// Minimum width reserved for browser search controls.
     pub browser_search_field_min_width: f32,
     /// Preferred browser search width as a ratio of toolbar width.
@@ -243,11 +243,11 @@ impl SizingTokens {
         self.content_tabs_min_height *= scale;
         self.browser_toolbar_height *= scale;
         self.browser_toolbar_min_height *= scale;
-        self.browser_table_header_height *= scale;
-        self.browser_table_header_min_height *= scale;
-        self.browser_footer_height *= scale;
-        self.browser_footer_min_height *= scale;
-        self.browser_footer_max_height *= scale;
+        self.content_table_header_height *= scale;
+        self.content_table_header_min_height *= scale;
+        self.content_footer_height *= scale;
+        self.content_footer_min_height *= scale;
+        self.content_footer_max_height *= scale;
         self.browser_search_field_min_width *= scale;
         self.browser_index_col_width *= scale;
         self.browser_bucket_col_width *= scale;

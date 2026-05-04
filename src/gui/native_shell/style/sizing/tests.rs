@@ -11,7 +11,7 @@ fn assert_common_invariants(sizing: SizingTokens) {
     assert!(sizing.tree_rows_min <= sizing.tree_rows_max);
     assert!(sizing.browser_toolbar_min_height <= sizing.browser_toolbar_height);
     assert!(sizing.browser_table_header_min_height <= sizing.browser_table_header_height);
-    assert!(sizing.browser_tabs_min_height <= sizing.browser_tabs_height);
+    assert!(sizing.content_tabs_min_height <= sizing.content_tabs_height);
     assert!(sizing.prompt_width > sizing.overlay_button_width);
     assert!(sizing.prompt_min_height > sizing.overlay_button_height);
 }

@@ -178,8 +178,8 @@ pub(crate) fn build_browser_bands_tree(browser_panel: Rect, sizing: SizingTokens
     // spacer gutter between them.
     let gap = 0.0;
     let tabs_height = sizing
-        .browser_tabs_height
-        .max(sizing.browser_tabs_min_height)
+        .content_tabs_height
+        .max(sizing.content_tabs_min_height)
         .min(panel_height);
     let toolbar_top = (tabs_height + gap).min(panel_height);
     let toolbar_height = sizing

@@ -177,7 +177,7 @@ mod tests {
             (15.5 * DEFAULT_UI_SCALE..=17.0 * DEFAULT_UI_SCALE)
                 .contains(&standard.sizing.browser_row_height)
         );
-        assert!(standard.sizing.browser_tabs_height <= 20.0 * DEFAULT_UI_SCALE);
+        assert!(standard.sizing.content_tabs_height <= 20.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.browser_toolbar_height <= 21.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.browser_table_header_height <= 20.0 * DEFAULT_UI_SCALE);
         assert!(standard.sizing.waveform_ratio <= 0.36);

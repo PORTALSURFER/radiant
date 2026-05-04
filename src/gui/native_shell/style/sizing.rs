@@ -54,10 +54,10 @@ pub(crate) struct SizingTokens {
     pub browser_rows_max_per_column: usize,
     /// Minimum width allowed for each triage column.
     pub column_min_width: f32,
-    /// Height of the browser tab band.
-    pub browser_tabs_height: f32,
-    /// Minimum tabs-band height when browser panel space is constrained.
-    pub browser_tabs_min_height: f32,
+    /// Height of the content tab band.
+    pub content_tabs_height: f32,
+    /// Minimum tabs-band height when content panel space is constrained.
+    pub content_tabs_min_height: f32,
     /// Height of the browser toolbar band.
     pub browser_toolbar_height: f32,
     /// Minimum toolbar height when browser panel space is constrained.
@@ -239,8 +239,8 @@ impl SizingTokens {
         self.waveform_max_height *= scale;
         self.column_gap *= scale;
         self.column_min_width *= scale;
-        self.browser_tabs_height *= scale;
-        self.browser_tabs_min_height *= scale;
+        self.content_tabs_height *= scale;
+        self.content_tabs_min_height *= scale;
         self.browser_toolbar_height *= scale;
         self.browser_toolbar_min_height *= scale;
         self.browser_table_header_height *= scale;

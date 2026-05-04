@@ -14,14 +14,14 @@ pub(crate) struct SegmentTextCacheFrameCounts {
 /// Invalidation key for retained browser-frame/tab/footer text payloads.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
-    /// Browser tabs region minimum x-coordinate.
-    pub browser_tabs_min_x: u32,
-    /// Browser tabs region minimum y-coordinate.
-    pub browser_tabs_min_y: u32,
-    /// Browser tabs region maximum x-coordinate.
-    pub browser_tabs_max_x: u32,
-    /// Browser tabs region maximum y-coordinate.
-    pub browser_tabs_max_y: u32,
+    /// Content tabs region minimum x-coordinate.
+    pub content_tabs_min_x: u32,
+    /// Content tabs region minimum y-coordinate.
+    pub content_tabs_min_y: u32,
+    /// Content tabs region maximum x-coordinate.
+    pub content_tabs_max_x: u32,
+    /// Content tabs region maximum y-coordinate.
+    pub content_tabs_max_y: u32,
     /// Content toolbar region minimum x-coordinate.
     pub content_toolbar_min_x: u32,
     /// Content toolbar region minimum y-coordinate.

@@ -32,7 +32,7 @@ fn apply_compact_sizing(sizing: &mut SizingTokens) {
     sizing.browser_rows_max_per_column = 36;
     sizing.panel_inset = 5.0;
     sizing.header_label_gutter = 3.0;
-    sizing.browser_tabs_height = 18.0;
+    sizing.content_tabs_height = 18.0;
     sizing.browser_toolbar_height = 19.0;
     sizing.browser_table_header_height = 18.0;
     sizing.browser_footer_height = 16.0;
@@ -116,7 +116,7 @@ fn apply_wide_sizing(sizing: &mut SizingTokens) {
     sizing.browser_rows_max_per_column = 64;
     sizing.panel_inset = 5.0;
     sizing.header_label_gutter = 3.5;
-    sizing.browser_tabs_height = 18.0;
+    sizing.content_tabs_height = 18.0;
     sizing.browser_toolbar_height = 19.0;
     sizing.browser_table_header_height = 18.0;
     sizing.browser_footer_height = 16.0;

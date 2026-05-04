@@ -211,10 +211,10 @@ fn browser_segment_text_cache_key(
     model: &AppModel,
 ) -> BrowserSegmentTextCacheKey {
     BrowserSegmentTextCacheKey {
-        browser_tabs_min_x: f32_to_bits(layout.browser_tabs.min.x),
-        browser_tabs_min_y: f32_to_bits(layout.browser_tabs.min.y),
-        browser_tabs_max_x: f32_to_bits(layout.browser_tabs.max.x),
-        browser_tabs_max_y: f32_to_bits(layout.browser_tabs.max.y),
+        content_tabs_min_x: f32_to_bits(layout.browser_tabs.min.x),
+        content_tabs_min_y: f32_to_bits(layout.browser_tabs.min.y),
+        content_tabs_max_x: f32_to_bits(layout.browser_tabs.max.x),
+        content_tabs_max_y: f32_to_bits(layout.browser_tabs.max.y),
         content_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
         content_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
         content_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),

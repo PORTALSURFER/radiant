@@ -1,4 +1,4 @@
-//! Slotized geometry helpers for browser tab surfaces.
+//! Slotized geometry helpers for content tab surfaces.
 #![allow(dead_code)]
 
 use super::super::style::SizingTokens;
@@ -8,32 +8,32 @@ use crate::gui::layout_core::{
 };
 use crate::gui::types::{Rect, Vector2};
 
-const BROWSER_TABS_ROOT_ID: u64 = 1770;
-const BROWSER_TABS_ITEMS_ID: u64 = 1771;
-const BROWSER_TABS_MAP_ID: u64 = 1772;
+const CONTENT_TABS_ROOT_ID: u64 = 1770;
+const CONTENT_TABS_ITEMS_ID: u64 = 1771;
+const CONTENT_TABS_MAP_ID: u64 = 1772;
 
-/// Slot-resolved browser tab button rects.
+/// Slot-resolved content tab button rects.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserTabsRects {
+pub(crate) struct ContentTabsRects {
     pub items: Rect,
     pub map: Rect,
 }
 
-/// Compute browser tab button geometry via strict slotized row layout.
-pub(crate) fn compute_browser_tabs_rects(
+/// Compute content tab button geometry via strict slotized row layout.
+pub(crate) fn compute_content_tabs_rects(
     tabs_rect: Rect,
     sizing: SizingTokens,
-) -> BrowserTabsRects {
+) -> ContentTabsRects {
     let empty = empty_rect(tabs_rect);
     if tabs_rect.width() <= 0.0 || tabs_rect.height() <= 0.0 {
-        return BrowserTabsRects {
+        return ContentTabsRects {
             items: empty,
             map: empty,
         };
     }
     let tab_min_width = 64.0_f32.min(tabs_rect.width().max(0.0));
     let tree = LayoutNode::container(
-        BROWSER_TABS_ROOT_ID,
+        CONTENT_TABS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::Row,
             spacing: sizing.action_button_gap.max(1.0),
@@ -43,14 +43,14 @@ pub(crate) fn compute_browser_tabs_rects(
             ..ContainerPolicy::default()
         },
         vec![
-            fill_tab_slot(BROWSER_TABS_ITEMS_ID, tab_min_width),
-            fill_tab_slot(BROWSER_TABS_MAP_ID, tab_min_width),
+            fill_tab_slot(CONTENT_TABS_ITEMS_ID, tab_min_width),
+            fill_tab_slot(CONTENT_TABS_MAP_ID, tab_min_width),
         ],
     );
     let output = layout_tree(&tree, tabs_rect);
-    BrowserTabsRects {
-        items: output.rect_for_clamped(BROWSER_TABS_ITEMS_ID, empty, tabs_rect),
-        map: output.rect_for_clamped(BROWSER_TABS_MAP_ID, empty, tabs_rect),
+    ContentTabsRects {
+        items: output.rect_for_clamped(CONTENT_TABS_ITEMS_ID, empty, tabs_rect),
+        map: output.rect_for_clamped(CONTENT_TABS_MAP_ID, empty, tabs_rect),
     }
 }
 
@@ -85,38 +85,38 @@ mod tests {
     }
 
     #[test]
-    fn browser_tabs_rects_stay_inside_tabs_band() {
+    fn content_tabs_rects_stay_inside_tabs_band() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let tabs = Rect::from_min_max(
             crate::gui::types::Point::new(220.0, 244.0),
             crate::gui::types::Point::new(1580.0, 276.0),
         );
-        let rects = compute_browser_tabs_rects(tabs, style.sizing);
+        let rects = compute_content_tabs_rects(tabs, style.sizing);
         assert_inside(tabs, rects.items);
         assert_inside(tabs, rects.map);
         assert!(rects.items.max.x <= rects.map.min.x);
     }
 
     #[test]
-    fn browser_tabs_rects_split_evenly_for_wide_band() {
+    fn content_tabs_rects_split_evenly_for_wide_band() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let tabs = Rect::from_min_max(
             crate::gui::types::Point::new(220.0, 244.0),
             crate::gui::types::Point::new(1220.0, 276.0),
         );
-        let rects = compute_browser_tabs_rects(tabs, style.sizing);
+        let rects = compute_content_tabs_rects(tabs, style.sizing);
         let diff = (rects.items.width() - rects.map.width()).abs();
         assert!(diff <= 1.0);
     }
 
     #[test]
-    fn browser_tabs_rects_collapse_for_empty_band() {
+    fn content_tabs_rects_collapse_for_empty_band() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let tabs = Rect::from_min_max(
             crate::gui::types::Point::new(220.0, 244.0),
             crate::gui::types::Point::new(220.0, 244.0),
         );
-        let rects = compute_browser_tabs_rects(tabs, style.sizing);
+        let rects = compute_content_tabs_rects(tabs, style.sizing);
         assert_eq!(rects.items, tabs);
         assert_eq!(rects.map, tabs);
     }

@@ -271,7 +271,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         point: Point,
     ) -> Option<UiAction> {
-        let tabs: BrowserTabsRects = {
+        let tabs: ContentTabsRects = {
             let style = style_for_layout(layout);
             let tabs = resolve_content_tabs_surface_layout(
                 layout.browser_tabs,
@@ -281,7 +281,7 @@ impl NativeShellState {
                     map_label: String::new(),
                 },
             );
-            BrowserTabsRects {
+            ContentTabsRects {
                 items: tabs.items,
                 map: tabs.map,
             }

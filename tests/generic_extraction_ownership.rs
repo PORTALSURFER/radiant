@@ -1254,7 +1254,7 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     .expect("signal header surface should be readable");
     let layout_adapter_files = [
         "/src/gui/native_shell/layout_adapter/bands.rs",
-        "/src/gui/native_shell/layout_adapter/browser_tabs.rs",
+        "/src/gui/native_shell/layout_adapter/content_tabs.rs",
         "/src/gui/native_shell/layout_adapter/content_row_text.rs",
         "/src/gui/native_shell/layout_adapter/map_canvas.rs",
         "/src/gui/native_shell/layout_adapter/map_header.rs",

@@ -13,7 +13,7 @@ use super::{
     },
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
-        BrowserTabsRects, ContentTabsTextLayout, ContentToolbarTextLayout, SidebarFolderRowLayout,
+        ContentTabsRects, ContentTabsTextLayout, ContentToolbarTextLayout, SidebarFolderRowLayout,
         SidebarRowCounts, compute_action_button_text_rect, compute_content_footer_text_rect,
         compute_browser_map_canvas_rect, compute_content_header_text_layout,
         compute_browser_map_header_text_layout, compute_browser_map_point_center,

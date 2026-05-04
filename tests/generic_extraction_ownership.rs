@@ -364,7 +364,7 @@ fn split_pane_slot_is_owned_by_generic_panel_module() {
 fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
     let toolbar_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/layout_adapter/controls/browser_toolbar.rs"
+        "/src/gui/native_shell/layout_adapter/controls/content_toolbar.rs"
     ))
     .expect("content toolbar layout adapter should be readable");
     let row_helpers_mod = fs::read_to_string(concat!(
@@ -380,7 +380,7 @@ fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
     assert!(toolbar_mod.contains("grouped_fixed_width_row_width"));
     assert!(toolbar_mod.contains("fixed_width_item_extent_for_available_width"));
     assert!(
-        !toolbar_mod.contains("chip_side * RATING_FILTER_CHIP_COUNT"),
+        !toolbar_mod.contains("chip_side * CONTENT_RATING_FILTER_CHIP_COUNT"),
         "legacy content toolbar adapter should delegate grouped chip cluster widths to layout_core"
     );
     assert!(

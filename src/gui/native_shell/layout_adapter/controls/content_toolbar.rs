@@ -11,14 +11,14 @@ use crate::gui::types::{Point, Rect};
 
 const TOOLBAR_FILTER_ID: u64 = 801;
 const TOOLBAR_FILTER_CHIP_BASE_ID: u64 = 820;
-const RATING_FILTER_CHIP_COUNT: usize = 8;
-const PLAYBACK_AGE_FILTER_CHIP_COUNT: usize = 3;
+const CONTENT_RATING_FILTER_CHIP_COUNT: usize = 8;
+const CONTENT_RECENCY_FILTER_CHIP_COUNT: usize = 3;
 const MARKED_FILTER_CHIP_COUNT: usize = 1;
 const DERIVED_LABEL_FILTER_CHIP_COUNT: usize = 1;
 
-/// Slot-resolved browser toolbar sections for search and chip controls.
+/// Slot-resolved content toolbar sections for search and chip controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserToolbarSections {
+pub(crate) struct ContentToolbarSections {
     pub rating_filter_chips: [Rect; 8],
     pub playback_age_filter_chips: [Rect; 3],
     pub marked_filter_chip: Rect,
@@ -30,18 +30,18 @@ pub(crate) struct BrowserToolbarSections {
     pub triage_chips: [Rect; 3],
 }
 
-/// Compute browser toolbar search/activity/sort partitions from slot rows.
-pub(crate) fn compute_browser_toolbar_sections(
+/// Compute content toolbar search/activity/sort partitions from slot rows.
+pub(crate) fn compute_content_toolbar_sections(
     toolbar: Rect,
     sizing: SizingTokens,
-) -> BrowserToolbarSections {
+) -> ContentToolbarSections {
     let empty = empty_rect(toolbar);
     let empty_chips = [empty; 3];
-    let empty_filter_chips = [empty; RATING_FILTER_CHIP_COUNT];
-    let empty_playback_age_filter_chips = [empty; PLAYBACK_AGE_FILTER_CHIP_COUNT];
+    let empty_filter_chips = [empty; CONTENT_RATING_FILTER_CHIP_COUNT];
+    let empty_playback_age_filter_chips = [empty; CONTENT_RECENCY_FILTER_CHIP_COUNT];
     let empty_action_slots = [empty; 3];
     if toolbar.width() <= 0.0 || toolbar.height() <= 0.0 {
-        return BrowserToolbarSections {
+        return ContentToolbarSections {
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
@@ -56,7 +56,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     let gap = sizing.action_button_gap.max(1.0);
     let host = toolbar;
     if host.width() <= 1.0 || host.height() <= 0.0 {
-        return BrowserToolbarSections {
+        return ContentToolbarSections {
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
@@ -72,7 +72,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     let left_max = (host.max.x - sizing.text_inset_x).max(left_min);
     let available = (left_max - left_min).max(0.0);
     if available <= 1.0 {
-        return BrowserToolbarSections {
+        return ContentToolbarSections {
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
@@ -114,7 +114,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         filter_group_gap,
     );
     let mut filter_total_width =
-        browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
+        content_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
     let marked_chip_side = filter_side.max(0.0);
     let marked_chip_width = if marked_chip_side > 0.0 {
         marked_chip_side + filter_group_gap
@@ -137,7 +137,7 @@ pub(crate) fn compute_browser_toolbar_sections(
             filter_group_gap,
         );
         filter_total_width =
-            browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
+            content_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
         remaining_after_filters = (available
             - filter_total_width
             - if filter_side > 0.0 {
@@ -251,7 +251,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         filter_gap,
         filter_group_gap,
     );
-    BrowserToolbarSections {
+    ContentToolbarSections {
         rating_filter_chips,
         playback_age_filter_chips,
         marked_filter_chip,
@@ -273,12 +273,12 @@ fn compute_filter_control_side(
     if available_width <= 0.0 {
         return 0.0;
     }
-    let chip_count = (RATING_FILTER_CHIP_COUNT
-        + PLAYBACK_AGE_FILTER_CHIP_COUNT
+    let chip_count = (CONTENT_RATING_FILTER_CHIP_COUNT
+        + CONTENT_RECENCY_FILTER_CHIP_COUNT
         + MARKED_FILTER_CHIP_COUNT
         + DERIVED_LABEL_FILTER_CHIP_COUNT) as usize;
-    let intra_group_gap_count = (RATING_FILTER_CHIP_COUNT.saturating_sub(1)
-        + PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1)) as f32;
+    let intra_group_gap_count = (CONTENT_RATING_FILTER_CHIP_COUNT.saturating_sub(1)
+        + CONTENT_RECENCY_FILTER_CHIP_COUNT.saturating_sub(1)) as f32;
     fixed_width_item_extent_for_available_width(
         available_width,
         chip_count,
@@ -289,17 +289,17 @@ fn compute_filter_control_side(
 }
 
 fn rating_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
-    fixed_width_group_width(chip_side, RATING_FILTER_CHIP_COUNT, gap)
+    fixed_width_group_width(chip_side, CONTENT_RATING_FILTER_CHIP_COUNT, gap)
 }
 
 fn playback_age_filter_strip_width(chip_side: f32, gap: f32) -> f32 {
-    fixed_width_group_width(chip_side, PLAYBACK_AGE_FILTER_CHIP_COUNT, gap)
+    fixed_width_group_width(chip_side, CONTENT_RECENCY_FILTER_CHIP_COUNT, gap)
 }
 
-fn browser_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
+fn content_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
     grouped_fixed_width_row_width(
         chip_side,
-        &[RATING_FILTER_CHIP_COUNT, PLAYBACK_AGE_FILTER_CHIP_COUNT],
+        &[CONTENT_RATING_FILTER_CHIP_COUNT, CONTENT_RECENCY_FILTER_CHIP_COUNT],
         gap,
         group_gap,
     )
@@ -327,9 +327,9 @@ fn compute_rating_filter_chip_rects(
 ) -> [Rect; 8] {
     let empty = empty_rect(strip);
     if strip.width() <= 1.0 || strip.height() <= 0.0 || chip_side <= 0.0 {
-        return [empty; RATING_FILTER_CHIP_COUNT];
+        return [empty; CONTENT_RATING_FILTER_CHIP_COUNT];
     }
-    let widths = [chip_side; RATING_FILTER_CHIP_COUNT];
+    let widths = [chip_side; CONTENT_RATING_FILTER_CHIP_COUNT];
     let rects = layout_left_aligned_fixed_widths(
         strip,
         gap,
@@ -337,8 +337,12 @@ fn compute_rating_filter_chip_rects(
         TOOLBAR_FILTER_ID + 10,
         first_chip_id,
     );
-    let mut chips = [empty; RATING_FILTER_CHIP_COUNT];
-    for (index, rect) in rects.into_iter().take(RATING_FILTER_CHIP_COUNT).enumerate() {
+    let mut chips = [empty; CONTENT_RATING_FILTER_CHIP_COUNT];
+    for (index, rect) in rects
+        .into_iter()
+        .take(CONTENT_RATING_FILTER_CHIP_COUNT)
+        .enumerate()
+    {
         chips[index] = center_square_rect(rect, chip_side);
     }
     chips
@@ -352,9 +356,9 @@ fn compute_playback_age_filter_chip_rects(
 ) -> [Rect; 3] {
     let empty = empty_rect(strip);
     if strip.width() <= 1.0 || strip.height() <= 0.0 || chip_side <= 0.0 {
-        return [empty; PLAYBACK_AGE_FILTER_CHIP_COUNT];
+        return [empty; CONTENT_RECENCY_FILTER_CHIP_COUNT];
     }
-    let widths = [chip_side; PLAYBACK_AGE_FILTER_CHIP_COUNT];
+    let widths = [chip_side; CONTENT_RECENCY_FILTER_CHIP_COUNT];
     let rating_strip_width = rating_filter_strip_width(chip_side, gap);
     let age_strip = Rect::from_min_max(
         Point::new(
@@ -368,12 +372,12 @@ fn compute_playback_age_filter_chip_rects(
         gap,
         &widths,
         TOOLBAR_FILTER_ID + 20,
-        TOOLBAR_FILTER_CHIP_BASE_ID + RATING_FILTER_CHIP_COUNT as u64,
+        TOOLBAR_FILTER_CHIP_BASE_ID + CONTENT_RATING_FILTER_CHIP_COUNT as u64,
     );
-    let mut chips = [empty; PLAYBACK_AGE_FILTER_CHIP_COUNT];
+    let mut chips = [empty; CONTENT_RECENCY_FILTER_CHIP_COUNT];
     for (index, rect) in rects
         .into_iter()
-        .take(PLAYBACK_AGE_FILTER_CHIP_COUNT)
+        .take(CONTENT_RECENCY_FILTER_CHIP_COUNT)
         .enumerate()
     {
         chips[index] = center_square_rect(rect, chip_side);

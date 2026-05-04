@@ -42,7 +42,7 @@ pub(in crate::gui::native_shell::state) fn content_list_content_rect(
 
 /// Compute visual scrollbar geometry for one overflowing content-list viewport.
 pub(in crate::gui::native_shell::state) fn content_list_scrollbar_layout(
-    browser_rows_rect: Rect,
+    content_rows_rect: Rect,
     rows: &[CachedContentRow],
     visible_count: usize,
     sizing: SizingTokens,
@@ -56,10 +56,10 @@ pub(in crate::gui::native_shell::state) fn content_list_scrollbar_layout(
         .min(visible_count.saturating_sub(1));
     let viewport_len = rows.len().min(visible_count);
     let (track_inset_x, track_inset_y, track_width) = content_list_scrollbar_track_metrics(sizing);
-    let track_max_x = browser_rows_rect.max.x - track_inset_x;
-    let track_min_x = (track_max_x - track_width).max(browser_rows_rect.min.x);
-    let track_min_y = (browser_rows_rect.min.y + track_inset_y).min(browser_rows_rect.max.y);
-    let track_max_y = (browser_rows_rect.max.y - track_inset_y).max(track_min_y + 1.0);
+    let track_max_x = content_rows_rect.max.x - track_inset_x;
+    let track_min_x = (track_max_x - track_width).max(content_rows_rect.min.x);
+    let track_min_y = (content_rows_rect.min.y + track_inset_y).min(content_rows_rect.max.y);
+    let track_max_y = (content_rows_rect.max.y - track_inset_y).max(track_min_y + 1.0);
     let track = Rect::from_min_max(
         Point::new(track_min_x.round(), track_min_y.round()),
         Point::new(track_max_x.round(), track_max_y.round()),

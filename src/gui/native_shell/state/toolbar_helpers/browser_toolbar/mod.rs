@@ -1,4 +1,4 @@
-//! Browser toolbar layout and hover helpers.
+//! Content toolbar layout and hover helpers.
 
 mod buttons;
 mod colors;
@@ -22,5 +22,5 @@ pub(in crate::gui::native_shell::state) use colors::{
 pub(in crate::gui::native_shell::state) use layout::{
     column_chips, recency_filter_chip_at_point,
     recency_filter_chip_index, rating_filter_chip_index,
-    rating_filter_level_at_point, browser_toolbar_layout,
+    rating_filter_level_at_point, content_toolbar_layout,
 };

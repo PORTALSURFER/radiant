@@ -113,7 +113,7 @@ fn build_browser_segment_text_cache(
         sizing,
         &content_tabs_surface_content(model),
     );
-    let toolbar = browser_toolbar_layout(layout, style, model);
+    let toolbar = content_toolbar_layout(layout, style, model);
     let tabs_text_layout = compute_content_tabs_text_layout(tabs.items, tabs.map, sizing);
     let toolbar_text_layout = compute_content_toolbar_text_layout(
         toolbar.search_field,

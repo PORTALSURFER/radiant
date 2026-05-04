@@ -186,7 +186,7 @@ impl SidebarSections {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct BrowserToolbarLayout {
+pub(super) struct ContentToolbarLayout {
     pub(super) rating_filter_chips: [Rect; 8],
     pub(super) playback_age_filter_chips: [Rect; 3],
     pub(super) marked_filter_chip: Rect,

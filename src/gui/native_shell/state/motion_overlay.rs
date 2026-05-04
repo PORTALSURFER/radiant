@@ -134,7 +134,7 @@ impl NativeShellState {
             self.waveform_bpm_editor_visual.is_some(),
         );
         if let Some(search_field_rect) = self
-            .browser_toolbar_layout
+            .content_toolbar_layout
             .as_ref()
             .map(|toolbar| toolbar.search_field)
             .filter(|rect| rect.width() > 1.0)
@@ -150,7 +150,7 @@ impl NativeShellState {
             }
         }
         if let Some((chip_rect, rating_level)) =
-            self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
+            self.content_toolbar_layout.as_ref().and_then(|toolbar| {
                 let hovered_level = self.hovered_browser_rating_filter_level?;
                 let index = rating_filter_chip_index(hovered_level)?;
                 let chip_rect = toolbar.rating_filter_chips[index];
@@ -171,7 +171,7 @@ impl NativeShellState {
                 motion_wave,
             );
         }
-        if let Some((chip_rect, chip)) = self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
+        if let Some((chip_rect, chip)) = self.content_toolbar_layout.as_ref().and_then(|toolbar| {
             let hovered_chip = self.hovered_browser_playback_age_filter_chip?;
             let index = recency_filter_chip_index(hovered_chip)?;
             let chip_rect = toolbar.playback_age_filter_chips[index];
@@ -192,7 +192,7 @@ impl NativeShellState {
             );
         }
         if let Some(chip_rect) = self
-            .browser_toolbar_layout
+            .content_toolbar_layout
             .as_ref()
             .map(|toolbar| toolbar.marked_filter_chip)
             .filter(|rect| rect.width() > 1.0)

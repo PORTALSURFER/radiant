@@ -3,17 +3,17 @@
 use super::super::super::*;
 use crate::gui::list::RecencyFilterChip;
 
-pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
+pub(in crate::gui::native_shell::state) fn content_toolbar_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-) -> BrowserToolbarLayout {
+) -> ContentToolbarLayout {
     let sections = resolve_content_toolbar_surface_layout(
         layout.browser_toolbar,
         style.sizing,
         &content_toolbar_surface_content(model),
     );
-    BrowserToolbarLayout {
+    ContentToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,
         playback_age_filter_chips: sections.playback_age_filter_chips,
         marked_filter_chip: sections.marked_filter_chip,

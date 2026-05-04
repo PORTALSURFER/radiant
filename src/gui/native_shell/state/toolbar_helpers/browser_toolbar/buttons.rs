@@ -6,7 +6,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-    toolbar: &BrowserToolbarLayout,
+    toolbar: &ContentToolbarLayout,
 ) -> Vec<ActionButton> {
     let _ = layout;
     if toolbar.action_slots.iter().all(|rect| rect.width() <= 1.0) {

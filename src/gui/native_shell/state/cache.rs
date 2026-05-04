@@ -10,7 +10,7 @@ pub(super) struct BrowserInteractionGeometry<'a> {
     pub(super) scrollbar_viewport_len: usize,
     pub(super) buttons: &'a [ActionButton],
     pub(super) chips: &'a [ColumnChip],
-    pub(super) toolbar: BrowserToolbarLayout,
+    pub(super) toolbar: ContentToolbarLayout,
 }
 
 impl NativeShellState {
@@ -166,21 +166,21 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> (&[ActionButton], &[ColumnChip], BrowserToolbarLayout) {
+    ) -> (&[ActionButton], &[ColumnChip], ContentToolbarLayout) {
         let cache_key = browser_action_hit_test_cache_key(layout, model);
         if self.browser_action_hit_test_cache_key != Some(cache_key) {
-            let toolbar = browser_toolbar_layout(layout, style, model);
+            let toolbar = content_toolbar_layout(layout, style, model);
             self.browser_action_buttons = browser_action_buttons(layout, style, model, &toolbar);
             self.content_column_chips =
                 column_chips(layout, style, model, &self.browser_action_buttons);
-            self.browser_toolbar_layout = Some(toolbar);
+            self.content_toolbar_layout = Some(toolbar);
             self.browser_action_hit_test_cache_key = Some(cache_key);
-        } else if self.browser_toolbar_layout.is_none() {
-            let toolbar = browser_toolbar_layout(layout, style, model);
-            self.browser_toolbar_layout = Some(toolbar);
+        } else if self.content_toolbar_layout.is_none() {
+            let toolbar = content_toolbar_layout(layout, style, model);
+            self.content_toolbar_layout = Some(toolbar);
         }
         let toolbar = self
-            .browser_toolbar_layout
+            .content_toolbar_layout
             .expect("browser action hit-test cache must retain toolbar layout");
         (
             &self.browser_action_buttons,
@@ -206,7 +206,7 @@ impl NativeShellState {
             buttons: &self.browser_action_buttons,
             chips: &self.content_column_chips,
             toolbar: self
-                .browser_toolbar_layout
+                .content_toolbar_layout
                 .expect("browser interaction geometry must retain toolbar layout"),
         }
     }

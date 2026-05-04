@@ -19,14 +19,14 @@ use self::{
     waveform::push_waveform_toolbar_hover_tooltip,
 };
 
-pub(super) fn push_browser_row_border(
+pub(super) fn push_content_row_border(
     primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: Rgba8,
     stroke: f32,
     sides: BorderSides,
 ) {
-    focus::push_browser_row_border(primitives, rect, color, stroke, sides);
+    focus::push_content_row_border(primitives, rect, color, stroke, sides);
 }
 
 pub(super) fn render_hover_overlay(

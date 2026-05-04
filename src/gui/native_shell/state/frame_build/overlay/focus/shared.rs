@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn push_browser_row_border(
+pub(super) fn push_content_row_border(
     primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: Rgba8,

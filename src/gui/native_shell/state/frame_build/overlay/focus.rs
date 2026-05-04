@@ -6,14 +6,14 @@ mod shared;
 
 use self::shared::render_section_focus_surface;
 
-pub(super) fn push_browser_row_border(
+pub(super) fn push_content_row_border(
     primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: Rgba8,
     stroke: f32,
     sides: BorderSides,
 ) {
-    self::shared::push_browser_row_border(primitives, rect, color, stroke, sides);
+    self::shared::push_content_row_border(primitives, rect, color, stroke, sides);
 }
 
 fn render_sidebar_section_focus_overlay(
@@ -140,7 +140,7 @@ pub(super) fn render_folder_focus_overlay(
                 );
             }
             if row.focused || row.selected {
-                push_browser_row_border(
+                push_content_row_border(
                     primitives,
                     visual_rect,
                     if row.focused {
@@ -285,7 +285,7 @@ pub(super) fn render_browser_focus_overlay(
                 }),
             );
         }
-        push_browser_row_border(
+        push_content_row_border(
             primitives,
             border_rect,
             if row.focused {

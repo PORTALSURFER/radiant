@@ -31,7 +31,7 @@ pub(super) fn render_tree_rows(
                 color: folder_row_fill(ctx, row),
             }),
         );
-        push_browser_row_border(
+        push_content_row_border(
             primitives,
             visual_rect,
             folder_row_border(ctx, row),

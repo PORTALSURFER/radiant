@@ -47,7 +47,7 @@ pub(super) fn render_content_rows_window(
                 color: base_fill,
             }),
         );
-        render_browser_processing_marker(primitives, row, ctx.style, ctx.sizing);
+        render_content_processing_marker(primitives, row, ctx.style, ctx.sizing);
         if similarity_active && row.visible_row == 0 {
             emit_primitive(
                 primitives,
@@ -108,7 +108,7 @@ pub(super) fn render_content_rows_window(
                 }),
             );
         }
-        push_browser_row_border(
+        push_content_row_border(
             primitives,
             border_rect,
             ctx.style.border,
@@ -340,10 +340,10 @@ pub(super) fn render_content_rows_window(
             }),
         );
     }
-    render_browser_pill_editor_overlay(ctx, primitives, text_runs);
+    render_content_pill_editor_overlay(ctx, primitives, text_runs);
 }
 
-fn render_browser_processing_marker(
+fn render_content_processing_marker(
     primitives: &mut impl PrimitiveSink,
     row: &CachedContentRow,
     style: &StyleTokens,
@@ -368,7 +368,7 @@ fn render_browser_processing_marker(
     );
 }
 
-fn render_browser_pill_editor_overlay(
+fn render_content_pill_editor_overlay(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,

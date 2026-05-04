@@ -2,14 +2,14 @@
 
 use super::*;
 
-mod browser;
 mod chrome;
+mod content;
 mod map;
 mod overlay;
 mod status_bar;
 mod waveform;
 
-use self::{browser::*, chrome::*, map::*, overlay::*, status_bar::*, waveform::*};
+use self::{chrome::*, content::*, map::*, overlay::*, status_bar::*, waveform::*};
 
 struct StaticFrameCtx<'a> {
     layout: &'a ShellLayout,

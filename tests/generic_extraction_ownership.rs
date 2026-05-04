@@ -598,7 +598,7 @@ fn centered_toolbar_icon_geometry_reuses_generic_rect_type() {
     .expect("similarity module should be readable");
     let browser_panel_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/frame_build/browser/panel.rs"
+        "/src/gui/native_shell/state/frame_build/content/panel.rs"
     ))
     .expect("browser panel module should be readable");
     let waveform_visuals_mod = fs::read_to_string(concat!(
@@ -852,7 +852,7 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
 fn recency_filter_icon_helper_uses_product_neutral_name() {
     let browser_panel_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/frame_build/browser/panel.rs"
+        "/src/gui/native_shell/state/frame_build/content/panel.rs"
     ))
     .expect("browser panel module should be readable");
 
@@ -868,7 +868,7 @@ fn recency_filter_icon_helper_uses_product_neutral_name() {
 fn pill_editor_geometry_helpers_use_product_neutral_names() {
     let frame_rows_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/frame_build/browser/rows.rs"
+        "/src/gui/native_shell/state/frame_build/content/rows.rs"
     ))
     .expect("browser frame rows module should be readable");
     let hit_testing_mod = fs::read_to_string(concat!(

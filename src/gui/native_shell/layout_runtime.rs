@@ -5,9 +5,9 @@
 //! target specific layout trees on hot interaction paths.
 
 use super::layout_adapter::{
-    BODY_ID, BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID,
+    BODY_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ID,
     BROWSER_ROWS_ID, BROWSER_TABS_ID, BROWSER_TOOLBAR_ID, ContentBandSections, CONTENT_ID,
-    SHELL_ROOT_ID, SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID,
+    CONTENT_BANDS_ROOT_ID, SHELL_ROOT_ID, SIDEBAR_BANDS_ROOT_ID, SIDEBAR_FOOTER_ID, SIDEBAR_HEADER_ID, SIDEBAR_ID,
     SIDEBAR_ROWS_ID, STATUS_ID, ShellSectionRects, SidebarBandSections, TOP_BAR_ID, WAVEFORM_ID,
     build_content_bands_tree, build_shell_sections_tree, build_sidebar_bands_tree,
     compute_content_band_sections_with_layout_engine, compute_shell_sections_with_layout_engine,
@@ -167,7 +167,7 @@ impl ShellLayoutRuntime {
         );
         self.mark_subtree_dirty(
             ShellLayoutTreeKind::ContentBands,
-            super::layout_adapter::BROWSER_BANDS_ROOT_ID,
+            super::layout_adapter::CONTENT_BANDS_ROOT_ID,
             dirty_kind,
         );
         self.mark_subtree_dirty(
@@ -221,7 +221,7 @@ pub(crate) fn dirty_segments_for_layout_subtree(
             BROWSER_TABS_ID | BROWSER_TOOLBAR_ID | BROWSER_HEADER_ID | BROWSER_FOOTER_ID => {
                 DirtySegments::BROWSER_FRAME
             }
-            BROWSER_BANDS_ROOT_ID => {
+            CONTENT_BANDS_ROOT_ID => {
                 DirtySegments::BROWSER_FRAME
                     | DirtySegments::BROWSER_ROWS_WINDOW
                     | DirtySegments::MAP_PANEL
@@ -285,7 +285,7 @@ mod tests {
     fn content_band_subtree_maps_to_content_segments_only() {
         let dirty = dirty_segments_for_layout_subtree(
             ShellLayoutTreeKind::ContentBands,
-            crate::gui::native_shell::layout_adapter::BROWSER_BANDS_ROOT_ID,
+            crate::gui::native_shell::layout_adapter::CONTENT_BANDS_ROOT_ID,
         );
 
         assert_eq!(

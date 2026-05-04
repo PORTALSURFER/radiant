@@ -24,9 +24,9 @@ use crate::gui::layout_core::{
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::compute_top_bar_band_sections;
 pub(crate) use bands::{
-    BROWSER_BANDS_ROOT_ID, BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ROWS_ID, BROWSER_TABS_ID,
+    BROWSER_FOOTER_ID, BROWSER_HEADER_ID, BROWSER_ROWS_ID, BROWSER_TABS_ID,
     BROWSER_TOOLBAR_ID, ContentBandSections, build_content_bands_tree,
-    compute_content_band_sections_with_layout_engine,
+    CONTENT_BANDS_ROOT_ID, compute_content_band_sections_with_layout_engine,
 };
 pub(super) use content_chrome_text::{
     ContentTabsTextLayout, ContentToolbarTextLayout, compute_content_footer_text_rect,

@@ -272,7 +272,7 @@ fn partial_layout_invalidation_marks_only_affected_static_segments() {
     runner.apply_invalidation_scope(RuntimeInvalidationScope::LayoutSubtreeAndAll(
         RuntimeLayoutSubtreeInvalidation::new(
             ShellLayoutTreeKind::ContentBands,
-            crate::gui::native_shell::BROWSER_BANDS_ROOT_ID,
+            crate::gui::native_shell::CONTENT_BANDS_ROOT_ID,
             ShellLayoutDirtyKind::Measure,
         ),
     ));
@@ -318,7 +318,7 @@ fn frame_result_marks_layout_and_static_rebuilds_for_layout_invalidations() {
     runner.apply_invalidation_scope(RuntimeInvalidationScope::LayoutSubtreeAndAll(
         RuntimeLayoutSubtreeInvalidation::new(
             ShellLayoutTreeKind::ContentBands,
-            crate::gui::native_shell::BROWSER_BANDS_ROOT_ID,
+            crate::gui::native_shell::CONTENT_BANDS_ROOT_ID,
             ShellLayoutDirtyKind::Measure,
         ),
     ));

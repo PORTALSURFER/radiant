@@ -1120,11 +1120,11 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
         "/src/gui/native_shell/layout/geometry.rs"
     ))
     .expect("shell geometry adapter should be readable");
-    let browser_bands_mod = fs::read_to_string(concat!(
+    let content_bands_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/layout_adapter/bands.rs"
     ))
-    .expect("browser bands adapter should be readable");
+    .expect("content bands adapter should be readable");
     let sidebar_header_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/layout_adapter/sidebar_header/helpers.rs"
@@ -1142,13 +1142,13 @@ fn horizontal_rect_insets_are_owned_by_generic_rect_type() {
     assert!(control_text_mod.contains(".inset_horizontal("));
     assert!(sidebar_text_mod.contains(".inset_horizontal("));
     assert!(shell_geometry_mod.contains(".inset_horizontal_saturating("));
-    assert!(browser_bands_mod.contains(".inset_horizontal_saturating("));
+    assert!(content_bands_mod.contains(".inset_horizontal_saturating("));
     assert!(sidebar_header_mod.contains(".inset_horizontal_saturating("));
     assert!(overlay_shared_mod.contains(".inset_uniform_saturating("));
     assert!(!control_text_mod.contains("fn inset_horizontal"));
     assert!(!sidebar_text_mod.contains("fn inset_rect_horizontal"));
     assert!(!shell_geometry_mod.contains("fn inset_horizontal"));
-    assert!(!browser_bands_mod.contains("fn inset_horizontal"));
+    assert!(!content_bands_mod.contains("fn inset_horizontal"));
     assert!(!sidebar_header_mod.contains("fn inset_horizontal"));
     assert!(!overlay_shared_mod.contains("rect.width() * 0.5"));
     assert!(!overlay_shared_mod.contains("rect.height() * 0.5"));

@@ -1,6 +1,6 @@
 use super::super::*;
 use crate::gui::native_shell::{
-    BROWSER_BANDS_ROOT_ID, ShellLayoutTreeKind, dirty_segments_for_layout_subtree,
+    CONTENT_BANDS_ROOT_ID, ShellLayoutTreeKind, dirty_segments_for_layout_subtree,
 };
 use crate::gui::native_shell::{FocusOverlayFingerprint, HoverOverlayFingerprint};
 
@@ -415,7 +415,7 @@ fn static_segment_graph_diff_targets_content_band_layout_dirty_segments() {
     }
 
     let dirty =
-        dirty_segments_for_layout_subtree(ShellLayoutTreeKind::ContentBands, BROWSER_BANDS_ROOT_ID);
+        dirty_segments_for_layout_subtree(ShellLayoutTreeKind::ContentBands, CONTENT_BANDS_ROOT_ID);
     let dirty_plan = graph.diff(dirty, false, fingerprints);
 
     assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserFrame));

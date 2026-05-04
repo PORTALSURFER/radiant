@@ -13,8 +13,8 @@ const TOP_TITLE_CLUSTERS_ROW_ID: u64 = 611;
 const TOP_TITLE_CLUSTER_ID: u64 = 612;
 const TOP_ACTION_CLUSTER_ID: u64 = 613;
 
-pub(crate) const BROWSER_BANDS_ROOT_ID: u64 = 620;
-const BROWSER_BANDS_COLUMN_ID: u64 = 621;
+pub(crate) const CONTENT_BANDS_ROOT_ID: u64 = 620;
+const CONTENT_BANDS_COLUMN_ID: u64 = 621;
 pub(crate) const BROWSER_TABS_ID: u64 = 622;
 pub(crate) const BROWSER_TOOLBAR_ID: u64 = 623;
 pub(crate) const BROWSER_HEADER_ID: u64 = 624;
@@ -199,7 +199,7 @@ pub(crate) fn build_content_bands_tree(browser_panel: Rect, sizing: SizingTokens
         )
         .min(panel_height);
     LayoutNode::container(
-        BROWSER_BANDS_ROOT_ID,
+        CONTENT_BANDS_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::PaddingBox,
             padding: Insets::default(),
@@ -209,7 +209,7 @@ pub(crate) fn build_content_bands_tree(browser_panel: Rect, sizing: SizingTokens
         vec![SlotChild {
             slot: SlotParams::fill(),
             child: LayoutNode::container(
-                BROWSER_BANDS_COLUMN_ID,
+                CONTENT_BANDS_COLUMN_ID,
                 ContainerPolicy {
                     kind: ContainerKind::Column,
                     align_main: MainAlign::Start,

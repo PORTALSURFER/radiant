@@ -2,13 +2,13 @@
 
 use super::*;
 
-mod browser;
 mod chrome;
+mod content;
 mod hover;
 mod map;
 mod waveform;
 
-pub(in crate::gui::native_shell::state) use self::browser::content_action_hit_test_cache_key;
+pub(in crate::gui::native_shell::state) use self::content::content_action_hit_test_cache_key;
 pub(in crate::gui::native_shell::state) use self::map::{
     map_point_color, map_point_is_focused, map_point_is_selected, spatial_content_id_at_point,
 };

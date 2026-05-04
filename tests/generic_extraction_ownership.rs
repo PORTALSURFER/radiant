@@ -873,9 +873,9 @@ fn pill_editor_geometry_helpers_use_product_neutral_names() {
     .expect("browser frame rows module should be readable");
     let hit_testing_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/hit_testing/browser.rs"
+        "/src/gui/native_shell/state/hit_testing/content.rs"
     ))
-    .expect("browser hit-testing module should be readable");
+    .expect("content hit-testing module should be readable");
     let sidebar_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/content_rows/sidebar.rs"
@@ -1990,9 +1990,9 @@ fn compat_action_catalog_uses_generic_find_similar_action() {
     .expect("browser pointer tests should be readable");
     let native_hit_testing = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/hit_testing/browser.rs"
+        "/src/gui/native_shell/state/hit_testing/content.rs"
     ))
-    .expect("native-shell browser hit testing should be readable");
+    .expect("native-shell content hit testing should be readable");
 
     for source in [
         &actions_mod,
@@ -2080,9 +2080,9 @@ fn compat_action_catalog_uses_generic_spatial_content_focus_action() {
     .expect("runtime pointer should be readable");
     let native_hit_testing = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/hit_testing/browser.rs"
+        "/src/gui/native_shell/state/hit_testing/content.rs"
     ))
-    .expect("native-shell browser hit testing should be readable");
+    .expect("native-shell content hit testing should be readable");
 
     for source in [
         &actions_mod,

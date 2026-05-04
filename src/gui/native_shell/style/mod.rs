@@ -68,17 +68,17 @@ impl StyleTokens {
     /// Build style tokens for an explicit scale tier.
     pub(crate) fn for_tier(layout_tier: LayoutScaleTier) -> Self {
         let (mut theme, chrome) = palette::tokens_for_tier(layout_tier);
-        let motion = theme::visual_policy_for_tier(layout_tier);
-        theme.state_hover_soft = motion.state_hover_soft;
-        theme.state_hover_strong = motion.state_hover_strong;
-        theme.state_selected_blend = motion.state_selected_blend;
-        theme.state_focus_pulse_blend = motion.state_focus_pulse_blend;
-        theme.scrim_soft_alpha = motion.scrim_soft_alpha;
-        theme.scrim_modal_alpha = motion.scrim_modal_alpha;
-        theme.motion_speed_transport = motion.motion_speed_transport;
-        theme.motion_speed_idle = motion.motion_speed_idle;
-        theme.motion_focus_wave_amp = motion.motion_focus_wave_amp;
-        theme.motion_focus_text_wave_amp = motion.motion_focus_text_wave_amp;
+        let tier_theme = ThemeTokens::dark_for_tier(layout_tier);
+        theme.state_hover_soft = tier_theme.state_hover_soft;
+        theme.state_hover_strong = tier_theme.state_hover_strong;
+        theme.state_selected_blend = tier_theme.state_selected_blend;
+        theme.state_focus_pulse_blend = tier_theme.state_focus_pulse_blend;
+        theme.scrim_soft_alpha = tier_theme.scrim_soft_alpha;
+        theme.scrim_modal_alpha = tier_theme.scrim_modal_alpha;
+        theme.motion_speed_transport = tier_theme.motion_speed_transport;
+        theme.motion_speed_idle = tier_theme.motion_speed_idle;
+        theme.motion_focus_wave_amp = tier_theme.motion_focus_wave_amp;
+        theme.motion_focus_text_wave_amp = tier_theme.motion_focus_text_wave_amp;
         Self {
             layout_tier,
             theme,

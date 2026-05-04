@@ -44,7 +44,6 @@ pub fn effective_ui_scale(ui_scale: f32) -> f32 {
     clamp_ui_scale(clamp_ui_scale(ui_scale) * DEFAULT_UI_SCALE)
 }
 
-#[cfg(feature = "legacy-shell")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct TierVisualPolicy {
     pub state_hover_soft: f32,
@@ -59,7 +58,6 @@ pub(crate) struct TierVisualPolicy {
     pub scrim_modal_alpha: u8,
 }
 
-#[cfg(feature = "legacy-shell")]
 pub(crate) fn visual_policy_for_tier(layout_tier: ViewportScaleTier) -> TierVisualPolicy {
     match layout_tier {
         ViewportScaleTier::Compact => TierVisualPolicy {
@@ -177,6 +175,22 @@ pub struct ThemeTokens {
 impl ThemeTokens {
     /// Return the baseline dark theme used by the generic Radiant surface.
     pub fn dark() -> Self {
+        Self::dark_for_tier(ViewportScaleTier::Standard)
+    }
+
+    /// Return the dark theme adjusted for a viewport width tier.
+    pub fn dark_for_tier(layout_tier: ViewportScaleTier) -> Self {
+        let mut theme = Self::dark_base();
+        theme.apply_visual_policy(visual_policy_for_tier(layout_tier));
+        theme
+    }
+
+    /// Return the dark theme adjusted for a logical viewport width.
+    pub fn dark_for_viewport_width(viewport_width: f32) -> Self {
+        Self::dark_for_tier(ViewportScaleTier::from_viewport_width(viewport_width))
+    }
+
+    fn dark_base() -> Self {
         Self {
             clear_color: rgba(16, 16, 16, 255),
             bg_primary: rgba(10, 10, 10, 255),
@@ -213,6 +227,19 @@ impl ThemeTokens {
             motion_focus_wave_amp: 0.08,
             motion_focus_text_wave_amp: 0.04,
         }
+    }
+
+    fn apply_visual_policy(&mut self, policy: TierVisualPolicy) {
+        self.state_hover_soft = policy.state_hover_soft;
+        self.state_hover_strong = policy.state_hover_strong;
+        self.state_selected_blend = policy.state_selected_blend;
+        self.state_focus_pulse_blend = policy.state_focus_pulse_blend;
+        self.scrim_soft_alpha = policy.scrim_soft_alpha;
+        self.scrim_modal_alpha = policy.scrim_modal_alpha;
+        self.motion_speed_transport = policy.motion_speed_transport;
+        self.motion_speed_idle = policy.motion_speed_idle;
+        self.motion_focus_wave_amp = policy.motion_focus_wave_amp;
+        self.motion_focus_text_wave_amp = policy.motion_focus_text_wave_amp;
     }
 }
 
@@ -267,5 +294,13 @@ mod tests {
         assert!(theme.state_hover_strong >= theme.state_hover_soft);
         assert!(theme.motion_speed_transport > 0.0);
         assert!(theme.motion_focus_wave_amp > 0.0);
+    }
+
+    #[test]
+    fn dark_theme_resolves_viewport_tier_motion_without_compatibility_shell() {
+        let compact = ThemeTokens::dark_for_viewport_width(820.0);
+        let wide = ThemeTokens::dark_for_viewport_width(2300.0);
+        assert!(compact.motion_speed_transport < wide.motion_speed_transport);
+        assert!(compact.scrim_modal_alpha < wide.scrim_modal_alpha);
     }
 }

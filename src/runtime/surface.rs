@@ -677,6 +677,17 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    fn collect_widget_paint_order(&self, order: &mut Vec<WidgetId>) {
+        match self {
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_widget_paint_order(order);
+                }
+            }
+            Self::Widget(widget) => order.push(widget.id()),
+        }
+    }
+
     fn append_paint(
         &self,
         layout: &LayoutOutput,
@@ -788,6 +799,12 @@ impl<Message> UiSurface<Message> {
     pub fn keyboard_focus_order(&self) -> Vec<WidgetId> {
         let mut order = Vec::new();
         self.root.collect_keyboard_focus_order(&mut order);
+        order
+    }
+
+    pub(super) fn widget_paint_order(&self) -> Vec<WidgetId> {
+        let mut order = Vec::new();
+        self.root.collect_widget_paint_order(&mut order);
         order
     }
 }

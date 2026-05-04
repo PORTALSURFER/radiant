@@ -99,6 +99,7 @@ where
     viewport: Rect,
     surface: UiSurface<Message>,
     layout: LayoutOutput,
+    widget_hit_order: Vec<WidgetId>,
     focused_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     repaint_requested: bool,
@@ -113,11 +114,13 @@ where
         let viewport = normalized_viewport(viewport);
         let surface = bridge.pull_surface();
         let layout = layout_tree(&surface.layout_node(), viewport);
+        let widget_hit_order = surface.widget_paint_order();
         Self {
             bridge,
             viewport,
             surface,
             layout,
+            widget_hit_order,
             focused_widget: None,
             pointer_capture: None,
             repaint_requested: false,
@@ -349,15 +352,16 @@ where
 
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.layout
-            .rects
+        self.widget_hit_order
             .iter()
-            .filter(|(node_id, rect)| {
-                rect.contains(point) && self.surface.find_widget(**node_id).is_some()
+            .rev()
+            .copied()
+            .find(|widget_id| {
+                self.layout
+                    .rects
+                    .get(widget_id)
+                    .is_some_and(|rect| rect.contains(point))
             })
-            .map(|(node_id, rect)| (*node_id, rect.width() * rect.height()))
-            .min_by(|left, right| left.1.total_cmp(&right.1))
-            .map(|(node_id, _)| node_id)
     }
 
     /// Route one normalized widget interaction by point hit test.
@@ -373,6 +377,7 @@ where
 
     fn relayout(&mut self) {
         self.layout = layout_tree(&self.surface.layout_node(), self.viewport);
+        self.widget_hit_order = self.surface.widget_paint_order();
     }
 
     fn route_focus_changed(&mut self, widget_id: WidgetId, focused: bool) {

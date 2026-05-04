@@ -286,6 +286,43 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
 }
 
 #[test]
+fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        |_state: &mut DemoState| {
+            Arc::new(UiSurface::new(SurfaceNode::stack(
+                70,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::button(
+                        80,
+                        "Bottom",
+                        WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                        DemoMessage::Increment,
+                    )),
+                    SurfaceChild::fill(SurfaceNode::button(
+                        90,
+                        "Top",
+                        WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                        DemoMessage::Rename(String::from("top")),
+                    )),
+                ],
+            )))
+        },
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
+
+    assert_eq!(runtime.widget_at(Point::new(16.0, 16.0)), Some(90));
+}
+
+#[test]
 fn surface_node_scroll_area_helpers_project_scroll_view_layout() {
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::scroll_area(
         31,

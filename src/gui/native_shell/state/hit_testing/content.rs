@@ -34,7 +34,7 @@ impl NativeShellState {
         {
             return None;
         }
-        let list_rect = browser_rows_list_rect(layout.browser_rows, geometry.style.sizing, model);
+        let list_rect = content_rows_list_rect(layout.browser_rows, geometry.style.sizing, model);
         let rows = geometry.rows;
         content_list_row_index_at_point(rows, point, list_rect).map(|index| rows[index].visible_row)
     }

@@ -318,7 +318,7 @@ pub(super) fn render_content_rows_window(
             );
         }
     }
-    let list_rect = browser_rows_list_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model);
+    let list_rect = content_rows_list_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model);
     if let Some(scrollbar) = content_list_scrollbar_layout(
         list_rect,
         content_rows,

@@ -8,7 +8,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
 ) -> ContentRowsCacheKey {
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
-    let list_rect = browser_rows_list_rect(layout.browser_rows, sizing, model);
+    let list_rect = content_rows_list_rect(layout.browser_rows, sizing, model);
     let row_capacity = super::scrollbars::content_list_row_capacity(list_rect, sizing) as u32;
     let content_rect = super::scrollbars::content_list_content_rect(
         list_rect,
@@ -133,7 +133,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     );
     let window = &model.browser.rows[window_start..window_end];
     let content_rect = super::scrollbars::content_list_content_rect(
-        browser_rows_list_rect(layout.browser_rows, sizing, model),
+        content_rows_list_rect(layout.browser_rows, sizing, model),
         model.browser.visible_count,
         sizing,
     );

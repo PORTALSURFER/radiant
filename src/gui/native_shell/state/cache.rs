@@ -147,7 +147,7 @@ impl NativeShellState {
         if self.content_list_scrollbar_cache_key != Some(cache_key) {
             let rows = &self.browser_rows;
             let viewport_len = rows.len().min(model.browser.visible_count);
-            let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, model);
+            let list_rect = content_rows_list_rect(layout.browser_rows, style.sizing, model);
             self.content_list_scrollbar = content_list_scrollbar_layout(
                 list_rect,
                 rows,

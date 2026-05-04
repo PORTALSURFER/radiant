@@ -14,16 +14,16 @@ pub(in crate::gui::native_shell::state) fn rendered_source_rows(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowsSplitRects {
+pub(in crate::gui::native_shell::state) struct ContentRowsSplitRects {
     pub list: Rect,
     pub sidebar: Option<Rect>,
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
+pub(in crate::gui::native_shell::state) fn content_rows_split_rects(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
-) -> BrowserRowsSplitRects {
+) -> ContentRowsSplitRects {
     let sidebar = pill_editor_panel_rect(rows_rect, sizing, model);
     let list = if let Some(sidebar_rect) = sidebar {
         Rect::from_min_max(
@@ -33,15 +33,15 @@ pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
     } else {
         rows_rect
     };
-    BrowserRowsSplitRects { list, sidebar }
+    ContentRowsSplitRects { list, sidebar }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rows_list_rect(
+pub(in crate::gui::native_shell::state) fn content_rows_list_rect(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
 ) -> Rect {
-    browser_rows_split_rects(rows_rect, sizing, model).list
+    content_rows_split_rects(rows_rect, sizing, model).list
 }
 
 pub(in crate::gui::native_shell::state) fn pill_editor_panel_rect(

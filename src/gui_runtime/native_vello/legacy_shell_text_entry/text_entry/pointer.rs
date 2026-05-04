@@ -101,7 +101,7 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
     match target {
         TextInputTarget::BrowserSearch => {
             if runner.text_input_target != TextInputTarget::BrowserSearch {
-                runner.emit_model_action(UiAction::FocusBrowserSearch);
+                runner.emit_model_action(UiAction::FocusContentSearch);
                 runner.activate_text_input_target(TextInputTarget::BrowserSearch);
             }
         }

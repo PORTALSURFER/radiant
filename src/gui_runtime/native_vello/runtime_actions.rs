@@ -16,8 +16,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ExpandFocusedFolder
             | UiAction::CollapseFocusedFolder
             | UiAction::MoveFolderFocus { .. }
-            | UiAction::SetBrowserSearch { .. }
-            | UiAction::BlurBrowserSearch
+            | UiAction::SetContentSearch { .. }
+            | UiAction::BlurContentSearch
             | UiAction::SetBrowserTab { .. }
             | UiAction::FocusSpatialContentItem { .. }
             | UiAction::SetPromptInput { .. }

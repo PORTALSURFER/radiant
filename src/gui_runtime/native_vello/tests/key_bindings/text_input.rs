@@ -19,7 +19,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
     assert_eq!(runner.text_input_buffer.as_deref(), Some("itx"));
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserSearch {
+        vec![UiAction::SetContentSearch {
             query: String::from("itx"),
         }]
     );
@@ -38,7 +38,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::SetBrowserSearch {
+            UiAction::SetContentSearch {
                 query: String::from("itx"),
             },
             UiAction::SetFolderSearch {
@@ -93,6 +93,6 @@ fn clicking_browser_search_field_focuses_text_input() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusBrowserSearch)
+        Some(UiAction::FocusContentSearch)
     );
 }

@@ -248,7 +248,7 @@ impl NativeShellState {
         if geometry.toolbar.search_field.width() > 1.0
             && geometry.toolbar.search_field.contains(point)
         {
-            return Some(UiAction::FocusBrowserSearch);
+            return Some(UiAction::FocusContentSearch);
         }
         if let Some(action) = geometry
             .chips

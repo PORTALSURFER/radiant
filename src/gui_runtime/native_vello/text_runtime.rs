@@ -63,7 +63,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.sync_browser_pill_editor_state();
         self.sync_folder_create_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
-            self.emit_model_action(UiAction::BlurBrowserSearch);
+            self.emit_model_action(UiAction::BlurContentSearch);
         }
         if was_waveform_bpm {
             self.apply_invalidation_scope(RuntimeInvalidationScope::StaticAndOverlays);
@@ -311,13 +311,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
 
     pub(super) fn update_text_target_after_action(&mut self, action: &UiAction) {
         match action {
-            UiAction::FocusBrowserSearch => {
+            UiAction::FocusContentSearch => {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
             UiAction::FocusContentPillEditorInput => {
                 self.activate_text_input_target(TextInputTarget::BrowserPillEditor)
             }
-            UiAction::BlurBrowserSearch => self.clear_text_input_target_state(),
+            UiAction::BlurContentSearch => self.clear_text_input_target_state(),
             UiAction::FocusFolderSearch { .. } => {
                 self.activate_text_input_target(TextInputTarget::FolderSearch)
             }

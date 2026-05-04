@@ -73,10 +73,10 @@ pub enum UiAction {
     },
     /// Focus the loaded content item in the primary list.
     FocusLoadedContentInList,
-    /// Focus the browser search field.
-    FocusBrowserSearch,
-    /// Clear browser-search focus while preserving the current query text.
-    BlurBrowserSearch,
+    /// Focus the content search field.
+    FocusContentSearch,
+    /// Clear content-search focus while preserving the current query text.
+    BlurContentSearch,
     /// Open the source-add file dialog.
     OpenAddSourceDialog,
     /// Open the native options menu.
@@ -377,9 +377,9 @@ pub enum UiAction {
     ToggleFocusedBrowserRowSelection,
     /// Select every row in the current visible browser list.
     SelectAllBrowserRows,
-    /// Set browser search query.
-    SetBrowserSearch {
-        /// Full browser-search query text.
+    /// Set content search query.
+    SetContentSearch {
+        /// Full content-search query text.
         query: String,
     },
     /// Toggle one browser rating-filter chip for level `-3..=3`, or `4` for locked keeps.

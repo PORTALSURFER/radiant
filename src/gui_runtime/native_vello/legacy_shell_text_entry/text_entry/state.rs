@@ -179,7 +179,7 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         TextInputTarget::None => return false,
         TextInputTarget::BrowserSearch => {
             runner.text_input_buffer = Some(value.clone());
-            UiAction::SetBrowserSearch { query: value }
+            UiAction::SetContentSearch { query: value }
         }
         TextInputTarget::BrowserPillEditor => {
             runner.text_input_buffer = Some(value.clone());

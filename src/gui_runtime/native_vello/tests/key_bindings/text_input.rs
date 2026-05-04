@@ -10,7 +10,7 @@ fn text_input_targets_keep_plain_x_as_text_instead_of_selection_toggle() {
         focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     });
-    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_target = TextInputTarget::ContentSearch;
     runner.text_input_buffer = Some(String::from("it"));
     runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("it"));
 
@@ -58,7 +58,7 @@ fn text_input_targets_consume_command_c_without_emitting_copy_selection_action()
         focus_context: crate::compat_app_contract::FocusContextModel::ContentList,
         ..AppModel::default()
     });
-    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_target = TextInputTarget::ContentSearch;
     runner.text_input_buffer = Some(String::from("query"));
     runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("query"));
     runner.modifiers = ModifiersState::CONTROL;

@@ -67,7 +67,7 @@ pub(super) struct ContentItemDragState {
 pub(super) enum TextInputTarget {
     #[default]
     None,
-    BrowserSearch,
+    ContentSearch,
     ContentPillEditor,
     FolderSearch,
     FolderCreate,

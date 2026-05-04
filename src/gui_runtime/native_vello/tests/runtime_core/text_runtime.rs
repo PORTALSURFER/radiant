@@ -8,7 +8,7 @@ fn active_text_field_visual_cache_tracks_text_and_editor_state() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let text_rect = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 16.0));
 
-    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_target = TextInputTarget::ContentSearch;
     runner.text_input_buffer = Some(String::from("item-a"));
     runner.text_editor_state = Some(SingleLineTextEditorState::collapsed_at_end("item-a"));
 

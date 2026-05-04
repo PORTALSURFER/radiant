@@ -46,7 +46,7 @@ fn key_repeat_allows_alt_arrow_micro_slides_only_in_waveform_focus() {
     assert!(runner.allows_key_repeat(KeyCode::ArrowRight));
     assert!(!runner.allows_key_repeat(KeyCode::ArrowUp));
 
-    runner.text_input_target = TextInputTarget::BrowserSearch;
+    runner.text_input_target = TextInputTarget::ContentSearch;
     assert!(!runner.allows_key_repeat(KeyCode::ArrowLeft));
     assert!(!runner.allows_key_repeat(KeyCode::ArrowRight));
 }

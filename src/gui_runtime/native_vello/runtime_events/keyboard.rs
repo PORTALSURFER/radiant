@@ -256,7 +256,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     fn handle_enter_key(&mut self) -> bool {
         if matches!(
             self.text_input_target,
-            TextInputTarget::BrowserSearch
+            TextInputTarget::ContentSearch
                 | TextInputTarget::ContentPillEditor
                 | TextInputTarget::FolderSearch
                 | TextInputTarget::WaveformBpm

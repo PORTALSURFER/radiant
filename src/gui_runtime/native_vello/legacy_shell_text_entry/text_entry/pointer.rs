@@ -6,7 +6,7 @@ fn text_value_for_input_target<B: NativeAppBridge>(
 ) -> Option<String> {
     match target {
         TextInputTarget::None => None,
-        TextInputTarget::BrowserSearch => Some(
+        TextInputTarget::ContentSearch => Some(
             runner
                 .current_text_value()
                 .unwrap_or_else(|| runner.model.browser.search_query.clone()),
@@ -37,7 +37,7 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
     target: TextInputTarget,
 ) -> Option<UiRect> {
     match target {
-        TextInputTarget::BrowserSearch => runner
+        TextInputTarget::ContentSearch => runner
             .shell_state
             .content_search_text_rect(layout, &runner.model),
         TextInputTarget::ContentPillEditor => runner
@@ -86,7 +86,7 @@ pub(super) fn sync_text_editor_visual_state_for_target<B: NativeAppBridge>(
     target: TextInputTarget,
 ) {
     match target {
-        TextInputTarget::BrowserSearch => runner.sync_content_search_editor_state(),
+        TextInputTarget::ContentSearch => runner.sync_content_search_editor_state(),
         TextInputTarget::ContentPillEditor => runner.sync_content_pill_editor_state(),
         TextInputTarget::FolderCreate => runner.sync_folder_create_editor_state(),
         TextInputTarget::WaveformBpm => runner.sync_waveform_bpm_editor_state(),
@@ -99,10 +99,10 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
     target: TextInputTarget,
 ) {
     match target {
-        TextInputTarget::BrowserSearch => {
-            if runner.text_input_target != TextInputTarget::BrowserSearch {
+        TextInputTarget::ContentSearch => {
+            if runner.text_input_target != TextInputTarget::ContentSearch {
                 runner.emit_model_action(UiAction::FocusContentSearch);
-                runner.activate_text_input_target(TextInputTarget::BrowserSearch);
+                runner.activate_text_input_target(TextInputTarget::ContentSearch);
             }
         }
         TextInputTarget::ContentPillEditor => {
@@ -172,7 +172,7 @@ pub(super) fn handle_browser_search_pointer_press<B: NativeAppBridge>(
         field_rect,
         point,
         extend_selection,
-        TextInputTarget::BrowserSearch,
+        TextInputTarget::ContentSearch,
     )
 }
 

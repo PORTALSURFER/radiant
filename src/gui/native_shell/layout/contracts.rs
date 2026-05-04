@@ -15,8 +15,8 @@ pub(crate) struct LayoutContractSnapshot {
     pub sidebar_width: f32,
     /// Waveform card height in logical pixels.
     pub waveform_height: f32,
-    /// Browser table row capacity using active row-height tokens.
-    pub browser_row_capacity: usize,
+    /// Content table row capacity using active row-height tokens.
+    pub content_row_capacity: usize,
     /// Top-bar height in logical pixels.
     pub top_bar_height: f32,
     /// Status-bar height in logical pixels.
@@ -32,7 +32,7 @@ pub(super) fn snapshot(layout: &ShellLayout, style: &StyleTokens) -> LayoutContr
         viewport_height: layout.root.rect.height(),
         sidebar_width: layout.sidebar.width(),
         waveform_height: layout.waveform_card.height(),
-        browser_row_capacity: (layout.browser_rows.height() / row_stride).floor() as usize,
+        content_row_capacity: (layout.browser_rows.height() / row_stride).floor() as usize,
         top_bar_height: layout.top_bar.height(),
         status_bar_height: layout.status_bar.height(),
     }

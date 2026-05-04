@@ -57,7 +57,7 @@ pub(super) struct PendingContentRowPress {
     pub(super) press_point: Point,
 }
 
-/// Active browser content-item drag session while the primary pointer is held.
+/// Active content-item drag session while the primary pointer is held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct ContentItemDragState {
     pub(super) visible_row: usize,
@@ -452,7 +452,7 @@ where
         #[cfg(target_os = "windows")]
         info!(
             visible_row,
-            "radiant external drag: browser content-item drag session started"
+            "radiant external drag: content-item drag session started"
         );
     }
 

@@ -1,9 +1,9 @@
 use super::*;
 use crate::gui::list::{VirtualListWindowRequest, resolve_virtual_list_window};
 
-/// Resolve browser row-window bounds while preserving a prior visible viewport start.
+/// Resolve content-row window bounds while preserving a prior visible viewport start.
 ///
-/// The host projects a much larger retained browser row slice than the native
+/// The host projects a much larger retained content-row slice than the native
 /// shell can show at once. When autoscroll is active inside that prewindowed
 /// slice, callers can pass the previous visible-row start so edge guards stay
 /// anchored to the rows the user is actually looking at instead of snapping
@@ -33,7 +33,7 @@ pub(in crate::gui::native_shell::state) fn content_rows_window_bounds_with_previ
     (window_start, window_end)
 }
 
-/// Resolve one browser viewport start while preserving a prior visible start.
+/// Resolve one content-row viewport start while preserving a prior visible start.
 pub(in crate::gui::native_shell::state) fn browser_window_start_with_previous(
     rows: &[BrowserRowModel],
     window_len: usize,
@@ -83,7 +83,7 @@ pub(in crate::gui::native_shell::state) fn browser_window_start_with_previous(
     .min(max_start)
 }
 
-/// Resolve the authoritative viewport start inside a host-prewindowed browser slice.
+/// Resolve the authoritative viewport start inside a host-prewindowed content slice.
 fn prewindowed_relative_view_start(
     slice_start: usize,
     view_start_row: usize,

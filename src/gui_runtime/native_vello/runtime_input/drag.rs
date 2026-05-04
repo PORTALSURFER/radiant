@@ -5,7 +5,7 @@ use super::super::*;
 /// Horizontal click slop used to distinguish waveform clicks from drags.
 const WAVEFORM_CLICK_SEEK_SLOP_PX: f32 = 3.0;
 /// Pointer slop used to distinguish content-row clicks from drag/drop.
-const BROWSER_ROW_DRAG_SLOP_PX: f32 = 3.0;
+const CONTENT_ROW_DRAG_SLOP_PX: f32 = 3.0;
 
 impl<Bridge> NativeVelloRunner<Bridge>
 where
@@ -176,7 +176,7 @@ where
         true
     }
 
-    /// Process one browser content-item drag cursor update.
+    /// Process one content-item drag cursor update.
     pub(crate) fn process_content_item_drag_immediately(&mut self, point: Point) -> bool {
         let Some(layout) = self.shell_layout.as_ref() else {
             return false;
@@ -376,8 +376,8 @@ where
 }
 
 fn content_item_drag_exceeds_click_slop(press_point: Point, point: Point) -> bool {
-    (point.x - press_point.x).abs() > BROWSER_ROW_DRAG_SLOP_PX
-        || (point.y - press_point.y).abs() > BROWSER_ROW_DRAG_SLOP_PX
+    (point.x - press_point.x).abs() > CONTENT_ROW_DRAG_SLOP_PX
+        || (point.y - press_point.y).abs() > CONTENT_ROW_DRAG_SLOP_PX
 }
 
 fn browser_primary_row_action_visible_row(action: &UiAction) -> Option<usize> {

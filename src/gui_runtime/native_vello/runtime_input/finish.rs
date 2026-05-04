@@ -77,7 +77,7 @@ where
         if finish_content_item_drag {
             info!(
                 last_cursor_present = self.last_cursor.is_some(),
-                "radiant external drag: releasing browser content-item drag without external handoff"
+                "radiant external drag: releasing content-item drag without external handoff"
             );
             self.emit_model_action(UiAction::FinishContentItemDrag);
         }

@@ -10,10 +10,10 @@ mod waveform;
 
 use self::{
     browser::{
-        render_content_context_menu, render_browser_tab_overlay, render_source_context_menu,
+        render_content_context_menu, render_content_tab_overlay, render_source_context_menu,
     },
     focus::{
-        render_browser_focus_overlay, render_folder_focus_overlay, render_source_focus_overlay,
+        render_content_focus_overlay, render_folder_focus_overlay, render_source_focus_overlay,
         render_waveform_focus_overlay,
     },
     waveform::push_waveform_toolbar_hover_tooltip,
@@ -114,8 +114,8 @@ pub(super) fn render_hover_overlay(
         );
     }
     if let Some(hovered_visible_row) = shell_state.hovered_content_visible_row {
-        let browser_rows = shell_state.cached_content_rows(layout, style, model);
-        if let Some(row) = browser_rows
+        let content_rows = shell_state.cached_content_rows(layout, style, model);
+        if let Some(row) = content_rows
             .iter()
             .find(|row| row.visible_row == hovered_visible_row)
         {
@@ -178,7 +178,7 @@ pub(super) fn render_focus_overlay(
         render_waveform_focus_overlay(layout, style, model, primitives);
         render_source_focus_overlay(shell_state, layout, style, model, primitives);
         render_folder_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
-        render_browser_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
+        render_content_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
     }
 }
 
@@ -190,7 +190,7 @@ pub(super) fn render_modal_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    render_browser_tab_overlay(primitives, text_runs, layout, style, model);
+    render_content_tab_overlay(primitives, text_runs, layout, style, model);
     render_source_context_menu(
         primitives,
         text_runs,

@@ -834,6 +834,42 @@ fn native_shell_content_hit_testing_uses_product_neutral_method_names() {
 }
 
 #[test]
+fn native_shell_content_overlay_renderers_use_product_neutral_names() {
+    let overlay_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/mod.rs"
+    ))
+    .expect("native shell overlay module should be readable");
+    let overlay_browser_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/browser.rs"
+    ))
+    .expect("native shell content overlay module should be readable");
+    let focus_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/overlay/focus.rs"
+    ))
+    .expect("native shell focus overlay module should be readable");
+    let toolbar_layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/content_toolbar/layout.rs"
+    ))
+    .expect("content toolbar layout module should be readable");
+
+    for source in [&overlay_mod, &overlay_browser_mod, &focus_mod, &toolbar_layout_mod] {
+        assert!(!source.contains("render_browser_tab_overlay"));
+        assert!(!source.contains("render_browser_focus_overlay"));
+        assert!(!source.contains("let browser_rows"));
+        assert!(!source.contains("browser_buttons"));
+    }
+    assert!(overlay_mod.contains("render_content_tab_overlay"));
+    assert!(overlay_mod.contains("render_content_focus_overlay"));
+    assert!(overlay_browser_mod.contains("fn render_content_tab_overlay"));
+    assert!(focus_mod.contains("fn render_content_focus_overlay"));
+    assert!(toolbar_layout_mod.contains("content_buttons"));
+}
+
+#[test]
 fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
     let state_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

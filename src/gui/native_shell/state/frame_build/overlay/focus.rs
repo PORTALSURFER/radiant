@@ -195,7 +195,7 @@ pub(super) fn render_folder_focus_overlay(
     }
 }
 
-pub(super) fn render_browser_focus_overlay(
+pub(super) fn render_content_focus_overlay(
     shell_state: &mut NativeShellState,
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -207,9 +207,9 @@ pub(super) fn render_browser_focus_overlay(
     if matches!(model.focus_context, FocusSurface::ContentList) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }
-    let browser_rows = shell_state.cached_content_rows(layout, style, model);
-    let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
-    for row in browser_rows.iter() {
+    let content_rows = shell_state.cached_content_rows(layout, style, model);
+    let last_row_max_y = content_rows.last().map(|row| row.rect.max.y);
+    for row in content_rows.iter() {
         if !(row.selected || row.focused) {
             continue;
         }

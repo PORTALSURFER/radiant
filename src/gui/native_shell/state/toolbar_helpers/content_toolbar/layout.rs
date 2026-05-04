@@ -66,8 +66,8 @@ pub(in crate::gui::native_shell::state) fn column_chips(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-    browser_buttons: &[ActionButton],
+    content_buttons: &[ActionButton],
 ) -> Vec<ColumnChip> {
-    let _ = (layout, style, model, browser_buttons);
+    let _ = (layout, style, model, content_buttons);
     Vec::new()
 }

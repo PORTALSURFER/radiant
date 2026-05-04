@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn render_browser_tab_overlay(
+pub(super) fn render_content_tab_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,

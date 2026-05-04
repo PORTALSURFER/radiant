@@ -139,11 +139,11 @@ fn waveform_hotkeys_resolve_by_focus_mode() {
     );
     assert_eq!(
         resolved_action(KeyCode::E, ModifiersState::default(), &waveform),
-        Some(UiAction::SaveWaveformSelectionToBrowser)
+        Some(UiAction::SaveWaveformSelectionAsContent)
     );
     assert_eq!(
         resolved_action(KeyCode::E, ModifiersState::SHIFT, &waveform),
-        Some(UiAction::SaveWaveformSelectionToBrowserWithKeep2)
+        Some(UiAction::SaveWaveformSelectionAsAlternateContent)
     );
     assert_eq!(
         resolved_action(KeyCode::B, ModifiersState::default(), &waveform),

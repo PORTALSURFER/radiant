@@ -158,10 +158,10 @@ fn waveform_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option
             Some(UiAction::CommitWaveformEditFades)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::E) => {
-            Some(UiAction::SaveWaveformSelectionToBrowser)
+            Some(UiAction::SaveWaveformSelectionAsContent)
         }
         press if press == crate::compat_app_contract::KeyPress::with_shift(KeyCode::E) => {
-            Some(UiAction::SaveWaveformSelectionToBrowserWithKeep2)
+            Some(UiAction::SaveWaveformSelectionAsAlternateContent)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::B) => {
             Some(UiAction::ToggleBpmSnap)

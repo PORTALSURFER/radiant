@@ -43,7 +43,7 @@ fn immediate_e_after_selection_creation_uses_refreshed_waveform_focus() {
                 preserve_view_edge: false,
             },
             UiAction::FinishWaveformSelectionRangeDrag,
-            UiAction::SaveWaveformSelectionToBrowser,
+            UiAction::SaveWaveformSelectionAsContent,
         ]
     );
 }
@@ -92,7 +92,7 @@ fn immediate_shift_e_after_selection_creation_uses_refreshed_waveform_focus() {
                 preserve_view_edge: false,
             },
             UiAction::FinishWaveformSelectionRangeDrag,
-            UiAction::SaveWaveformSelectionToBrowserWithKeep2,
+            UiAction::SaveWaveformSelectionAsAlternateContent,
         ]
     );
 }

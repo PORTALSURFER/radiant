@@ -304,10 +304,10 @@ pub enum UiAction {
     SetCompareAnchorFromFocusedContent,
     /// Commit the currently focused content row as the active loaded content.
     CommitFocusedContentRow,
-    /// Save the current waveform selection or slices into the browser as new content.
-    SaveWaveformSelectionToBrowser,
-    /// Save the current waveform selection or slices and mark exported clips keep-2.
-    SaveWaveformSelectionToBrowserWithKeep2,
+    /// Save the current waveform selection or slices as new content.
+    SaveWaveformSelectionAsContent,
+    /// Save the current waveform selection or slices as alternate-marked content.
+    SaveWaveformSelectionAsAlternateContent,
     /// Commit preview fades for the active waveform edit selection.
     CommitWaveformEditFades,
     /// Detect silence-split waveform slices for the loaded content.

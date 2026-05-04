@@ -18,10 +18,10 @@ pub(super) fn render_browser_rows_window(
         let similarity_button = (!ctx.model.browser.duplicate_cleanup_active)
             .then_some(row)
             .filter(|row| row.focused)
-            .and_then(|row| browser_similarity_button_rect(row.rect, ctx.sizing));
+            .and_then(|row| row_similarity_button_rect(row.rect, ctx.sizing));
         let similarity_button_reserved_width =
-            browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
-        let similarity_strength_reserved_width = browser_similarity_strength_reserved_width(
+            row_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
+        let similarity_strength_reserved_width = row_similarity_strength_reserved_width(
             row.similarity_display_strength.is_some(),
             ctx.sizing,
         );
@@ -273,7 +273,7 @@ pub(super) fn render_browser_rows_window(
         }
         if let Some(strength) = row.similarity_display_strength {
             if let Some(track_rect) =
-                browser_similarity_strength_track_rect(row.text_layout.item_label, ctx.sizing)
+                row_similarity_strength_track_rect(row.text_layout.item_label, ctx.sizing)
             {
                 emit_primitive(
                     primitives,
@@ -286,7 +286,7 @@ pub(super) fn render_browser_rows_window(
                         ),
                     }),
                 );
-                if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength)
+                if let Some(fill_rect) = row_similarity_strength_fill_rect(track_rect, strength)
                 {
                     emit_primitive(
                         primitives,
@@ -304,7 +304,7 @@ pub(super) fn render_browser_rows_window(
         }
         if let Some(button_rect) = similarity_button {
             let button_active = similarity_active && row.visible_row == 0;
-            render_browser_similarity_button(
+            render_row_similarity_button(
                 primitives,
                 button_rect,
                 ctx.style,

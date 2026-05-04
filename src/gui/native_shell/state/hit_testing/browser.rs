@@ -54,7 +54,7 @@ impl NativeShellState {
             .rows
             .iter()
             .find(|row| row.focused)
-            .and_then(|row| browser_similarity_button_rect(row.rect, geometry.style.sizing))
+            .and_then(|row| row_similarity_button_rect(row.rect, geometry.style.sizing))
             .filter(|rect| rect.contains(point))
             .map(|_| focused_similarity_action())
     }
@@ -437,7 +437,7 @@ impl NativeShellState {
             .iter()
             .find(|row| row.focused)
             .and_then(|row| {
-                super::super::browser_similarity_button_rect(row.rect, geometry.style.sizing)
+                super::super::row_similarity_button_rect(row.rect, geometry.style.sizing)
             })
     }
 

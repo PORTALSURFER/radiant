@@ -1,29 +1,29 @@
 use super::*;
 
 /// Return the width reserved for the focused-row similarity trigger.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_width(
+pub(in crate::gui::native_shell::state) fn row_similarity_button_reserved_width(
     visible: bool,
     sizing: SizingTokens,
 ) -> f32 {
     if !visible {
         return 0.0;
     }
-    browser_similarity_button_width(sizing) + browser_similarity_button_gap(sizing)
+    row_similarity_button_width(sizing) + row_similarity_button_gap(sizing)
 }
 
 /// Return the width reserved for the compact right-edge similarity strength bar.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_reserved_width(
+pub(in crate::gui::native_shell::state) fn row_similarity_strength_reserved_width(
     visible: bool,
     sizing: SizingTokens,
 ) -> f32 {
     if !visible {
         return 0.0;
     }
-    browser_similarity_strength_width(sizing) + browser_similarity_strength_gap(sizing)
+    row_similarity_strength_width(sizing) + row_similarity_strength_gap(sizing)
 }
 
 /// Return the leading item-column button rect used to trigger row similarity mode.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
+pub(in crate::gui::native_shell::state) fn row_similarity_button_rect(
     row_rect: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
@@ -38,8 +38,8 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
     }
     let inset = sizing.text_inset_x.min(5.0).max(2.0);
     let width =
-        browser_similarity_button_width(sizing).min((item_column.width() - (inset * 2.0)).max(0.0));
-    let height = browser_similarity_button_height(row_rect, sizing);
+        row_similarity_button_width(sizing).min((item_column.width() - (inset * 2.0)).max(0.0));
+    let height = row_similarity_button_height(row_rect, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
     }
@@ -52,15 +52,15 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
 }
 
 /// Return the compact right-edge track rect used to show row similarity strength.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rect(
+pub(in crate::gui::native_shell::state) fn row_similarity_strength_track_rect(
     item_label: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
     if item_label.width() <= 0.0 || item_label.height() <= 0.0 {
         return None;
     }
-    let width = browser_similarity_strength_width(sizing).min(item_label.width().max(0.0));
-    let height = browser_similarity_strength_height(item_label, sizing);
+    let width = row_similarity_strength_width(sizing).min(item_label.width().max(0.0));
+    let height = row_similarity_strength_height(item_label, sizing);
     if width <= 0.0 || height <= 0.0 {
         return None;
     }
@@ -76,15 +76,15 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rec
 }
 
 /// Return the fill rect used inside the compact similarity strength track.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_fill_rect(
+pub(in crate::gui::native_shell::state) fn row_similarity_strength_fill_rect(
     track_rect: Rect,
     strength: u8,
 ) -> Option<Rect> {
     crate::gui::feedback::horizontal_discrete_meter_fill_rect(track_rect, u32::from(strength), 255)
 }
 
-/// Return the centered icon rect used inside the browser similarity button.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
+/// Return the centered icon rect used inside the row similarity button.
+pub(in crate::gui::native_shell::state) fn row_similarity_button_icon_rect(
     button_rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -97,7 +97,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
 }
 
 /// Render the focused-row similarity button using the shared native icon pipeline.
-pub(in crate::gui::native_shell::state) fn render_browser_similarity_button(
+pub(in crate::gui::native_shell::state) fn render_row_similarity_button(
     primitives: &mut impl PrimitiveSink,
     button_rect: Rect,
     style: &StyleTokens,
@@ -126,36 +126,36 @@ pub(in crate::gui::native_shell::state) fn render_browser_similarity_button(
     let _ = emit_toolbar_svg_icon(
         primitives,
         ShellSvgIcon::Similarity,
-        browser_similarity_button_icon_rect(button_rect, sizing),
+        row_similarity_button_icon_rect(button_rect, sizing),
         icon_color,
     );
 }
 
-fn browser_similarity_button_width(sizing: SizingTokens) -> f32 {
+fn row_similarity_button_width(sizing: SizingTokens) -> f32 {
     (sizing.font_meta * 4.4).round().clamp(28.0, 40.0)
 }
 
-fn browser_similarity_button_height(row_rect: Rect, sizing: SizingTokens) -> f32 {
+fn row_similarity_button_height(row_rect: Rect, sizing: SizingTokens) -> f32 {
     let inset = sizing.row_corner_inset.max(2.0);
     (row_rect.height() - (inset * 2.0))
         .round()
         .clamp(12.0, 20.0)
 }
 
-fn browser_similarity_button_gap(sizing: SizingTokens) -> f32 {
+fn row_similarity_button_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(6.0).max(4.0)
 }
 
-fn browser_similarity_strength_width(sizing: SizingTokens) -> f32 {
+fn row_similarity_strength_width(sizing: SizingTokens) -> f32 {
     (sizing.font_meta * 4.2).round().clamp(36.0, 48.0)
 }
 
-fn browser_similarity_strength_height(item_label: Rect, sizing: SizingTokens) -> f32 {
+fn row_similarity_strength_height(item_label: Rect, sizing: SizingTokens) -> f32 {
     (sizing.font_meta * 0.84)
         .round()
         .clamp(6.0, item_label.height().max(6.0).min(10.0))
 }
 
-fn browser_similarity_strength_gap(sizing: SizingTokens) -> f32 {
+fn row_similarity_strength_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(5.0).max(3.0)
 }

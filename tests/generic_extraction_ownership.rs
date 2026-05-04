@@ -532,6 +532,7 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     assert!(overlay_visuals_mod.contains("horizontal_progress_fill_rect"));
     assert!(status_bar_mod.contains("horizontal_progress_track_rect"));
     assert!(similarity_mod.contains("horizontal_discrete_meter_fill_rect"));
+    assert!(similarity_mod.contains("row_similarity_strength_fill_rect"));
     assert!(top_bar_mod.contains("horizontal_meter_fill_rect"));
     assert!(
         !overlay_visuals_mod.contains("fn compute_progress_fill_rect"),
@@ -607,6 +608,11 @@ fn centered_toolbar_icon_geometry_reuses_generic_rect_type() {
     .expect("waveform visuals module should be readable");
 
     assert!(similarity_mod.contains("button_rect.centered_square(side)"));
+    assert!(similarity_mod.contains("row_similarity_button_icon_rect"));
+    assert!(
+        !similarity_mod.contains("browser_similarity_"),
+        "row similarity helpers should use product-neutral row naming"
+    );
     assert!(browser_panel_mod.contains("button_rect.centered_square(side)"));
     assert!(waveform_visuals_mod.contains("button_rect.centered_square(icon_side)"));
     for source in [&similarity_mod, &browser_panel_mod, &waveform_visuals_mod] {

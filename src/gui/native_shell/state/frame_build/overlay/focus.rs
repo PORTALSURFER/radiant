@@ -270,7 +270,7 @@ pub(super) fn render_browser_focus_overlay(
         }
         let focus_similarity_reserved_width =
             if row.focused && !model.browser.duplicate_cleanup_active {
-                browser_similarity_button_reserved_width(true, sizing)
+                row_similarity_button_reserved_width(true, sizing)
             } else {
                 0.0
             };
@@ -323,7 +323,7 @@ pub(super) fn render_browser_focus_overlay(
             let mut label_position = row.text_layout.item_label.min;
             let show_similarity_button = !model.browser.duplicate_cleanup_active;
             let similarity_button_reserved_width =
-                browser_similarity_button_reserved_width(show_similarity_button, sizing);
+                row_similarity_button_reserved_width(show_similarity_button, sizing);
             let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
                 row.rect,
                 sizing,
@@ -382,9 +382,9 @@ pub(super) fn render_browser_focus_overlay(
                 },
             );
             if show_similarity_button
-                && let Some(button_rect) = browser_similarity_button_rect(row.rect, sizing)
+                && let Some(button_rect) = row_similarity_button_rect(row.rect, sizing)
             {
-                render_browser_similarity_button(
+                render_row_similarity_button(
                     primitives,
                     button_rect,
                     style,

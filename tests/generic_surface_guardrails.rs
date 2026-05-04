@@ -1007,7 +1007,7 @@ fn legacy_shell_facade_is_reexport_only_glue() {
     }
 
     assert!(
-        source.contains("pub use actions::{BrowserTriageTarget, UiAction};")
+        source.contains("pub use actions::{ContentTriageTarget, UiAction};")
             && source.contains("pub use shell::{")
             && source.contains("pub use sources::SourcesPanelModel;")
             && source.contains(

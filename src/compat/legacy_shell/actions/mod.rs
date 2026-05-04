@@ -12,8 +12,8 @@
 use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
 use serde::{Deserialize, Serialize};
 
-/// Triage targets used by native browser action surfaces.
-pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;
+/// Triage targets used by native content action surfaces.
+pub type ContentTriageTarget = crate::gui::selection::TriageTarget;
 
 /// Action emitted by the native runtime input layer.
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
@@ -481,10 +481,10 @@ pub enum UiAction {
         /// Optional visible row that should join the current multi-selection.
         visible_row: Option<usize>,
     },
-    /// Apply a triage mark to focused/selected browser rows.
-    SetBrowserTriageMark {
-        /// Triage bucket applied to focused/selected browser rows.
-        target: BrowserTriageTarget,
+    /// Apply a triage mark to focused/selected content rows.
+    SetContentTriageMark {
+        /// Triage bucket applied to focused/selected content rows.
+        target: ContentTriageTarget,
     },
     /// Delete focused/selected browser rows.
     DeleteBrowserSelection,

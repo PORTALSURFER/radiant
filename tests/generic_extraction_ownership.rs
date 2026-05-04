@@ -1454,7 +1454,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!browser_mod.contains("BrowserTagPillModel"));
     assert!(!browser_mod.contains("BrowserTagSidebarModel"));
     assert!(!actions_mod.contains("BrowserTagTarget"));
-    assert!(!actions_mod.contains("pub enum BrowserTriageTarget"));
+    assert!(!actions_mod.contains("pub enum ContentTriageTarget"));
     assert!(!browser_mod.contains("pub enum MapRenderModeModel"));
     assert!(!browser_mod.contains("pub struct MapPointModel"));
     assert!(!browser_mod.contains("pub struct MapPanelModel"));
@@ -1468,7 +1468,7 @@ fn selection_badge_and_visualization_models_are_owned_by_generic_modules() {
     assert!(!waveform_mod.contains("pub struct WaveformToolStateModel"));
     assert!(aliases_mod.contains("pub use crate::gui::selection::TriState as BrowserPillState;"));
     assert!(
-        actions_mod.contains("pub type BrowserTriageTarget = crate::gui::selection::TriageTarget;")
+        actions_mod.contains("pub type ContentTriageTarget = crate::gui::selection::TriageTarget;")
     );
     assert!(selection_mod.contains("pub enum TriageTarget"));
     assert!(aliases_mod.contains(
@@ -1729,7 +1729,7 @@ fn compat_action_catalog_uses_generic_content_mark_action() {
 }
 
 #[test]
-fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
+fn compat_action_catalog_uses_generic_content_triage_mark_action() {
     let actions_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/compat/legacy_shell/actions/mod.rs"
@@ -1742,7 +1742,7 @@ fn compat_action_catalog_uses_generic_browser_triage_mark_action() {
         assert!(!source.contains("TagBrowserSelection"));
         assert!(!source.contains("tag_browser_selection"));
     }
-    assert!(actions_mod.contains("SetBrowserTriageMark"));
+    assert!(actions_mod.contains("SetContentTriageMark"));
 }
 
 #[test]

@@ -48,7 +48,7 @@ mod shell;
 mod sources;
 mod waveform;
 
-pub use actions::{BrowserTriageTarget, UiAction};
+pub use actions::{ContentTriageTarget, UiAction};
 pub use aliases::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserPillEditorModel,

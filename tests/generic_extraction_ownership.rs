@@ -772,6 +772,43 @@ fn toolbar_filter_chip_visuals_use_product_neutral_helper_names() {
 }
 
 #[test]
+fn native_shell_view_tree_uses_product_neutral_content_node_names() {
+    let layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout/mod.rs"
+    ))
+    .expect("native shell layout module should be readable");
+    let layout_tree_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/layout/tree.rs"
+    ))
+    .expect("native shell layout tree module should be readable");
+    let hover_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/hover.rs"
+    ))
+    .expect("native shell hover hit-testing module should be readable");
+    let pointer_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui_runtime/native_vello/input/pointer.rs"
+    ))
+    .expect("native Vello pointer routing module should be readable");
+
+    for source in [&layout_mod, &layout_tree_mod, &hover_mod, &pointer_mod] {
+        assert!(!source.contains("ShellNodeKind::Browser"));
+        assert!(!source.contains("BrowserPanel"));
+        assert!(!source.contains("BrowserTabs"));
+        assert!(!source.contains("BrowserTable"));
+    }
+    assert!(layout_mod.contains("ContentPanel"));
+    assert!(layout_mod.contains("ContentTabs"));
+    assert!(layout_mod.contains("ContentTable"));
+    assert!(layout_tree_mod.contains("ShellNodeKind::ContentPanel"));
+    assert!(layout_tree_mod.contains("ShellNodeKind::ContentTabs"));
+    assert!(layout_tree_mod.contains("ShellNodeKind::ContentTable"));
+}
+
+#[test]
 fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
     let state_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

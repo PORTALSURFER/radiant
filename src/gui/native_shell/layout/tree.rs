@@ -43,18 +43,18 @@ pub(super) fn build_shell_root(
                     },
                     ShellNode {
                         id: 100,
-                        kind: ShellNodeKind::BrowserPanel,
+                        kind: ShellNodeKind::ContentPanel,
                         rect: browser_panel,
                         children: vec![
                             ShellNode {
                                 id: 101,
-                                kind: ShellNodeKind::BrowserTabs,
+                                kind: ShellNodeKind::ContentTabs,
                                 rect: browser_tabs,
                                 children: Vec::new(),
                             },
                             ShellNode {
                                 id: 102,
-                                kind: ShellNodeKind::BrowserTable,
+                                kind: ShellNodeKind::ContentTable,
                                 rect: browser_rows,
                                 children: Vec::new(),
                             },

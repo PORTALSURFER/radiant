@@ -145,7 +145,7 @@ impl NativeShellState {
         point: Point,
         hover: Option<ShellNodeKind>,
     ) -> Option<usize> {
-        if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
+        if model.map.active || hover != Some(ShellNodeKind::ContentTable) {
             return None;
         }
         let geometry = self.cached_content_interaction_geometry(layout, model);

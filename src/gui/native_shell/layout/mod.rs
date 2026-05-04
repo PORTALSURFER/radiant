@@ -33,9 +33,9 @@ pub(crate) enum ShellNodeKind {
     Sidebar,
     Content,
     WaveformCard,
-    BrowserPanel,
-    BrowserTabs,
-    BrowserTable,
+    ContentPanel,
+    ContentTabs,
+    ContentTable,
     StatusBar,
 }
 

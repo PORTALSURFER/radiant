@@ -1,7 +1,7 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
 use radiant::{
-    gui::types::ImageRgba,
+    gui::{repaint::RepaintSignal, types::ImageRgba},
     layout::{
         Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
         SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
@@ -20,7 +20,10 @@ use radiant::{
         WidgetStyle, resolve_widget_visual_tokens,
     },
 };
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -129,6 +132,19 @@ fn runtime_bridge_is_the_public_app_contract() {
 
     let surface = project_app_once(&mut bridge);
     assert!(surface.find_widget(10).is_some());
+}
+
+#[test]
+fn runtime_bridge_accepts_repaint_signal_for_host_background_work() {
+    let called = Arc::new(AtomicBool::new(false));
+    let mut bridge = RepaintSignalBridge::default();
+
+    bridge.install_repaint_signal(Arc::new(CountingRepaintSignal {
+        called: Arc::clone(&called),
+    }));
+    bridge.request_worker_repaint();
+
+    assert!(called.load(Ordering::Acquire));
 }
 
 #[test]
@@ -1155,6 +1171,39 @@ enum CommandDemoMessage {
 
 struct CommandDemoBridge {
     state: DemoState,
+}
+
+#[derive(Default)]
+struct RepaintSignalBridge {
+    signal: Option<Arc<dyn RepaintSignal>>,
+}
+
+impl RepaintSignalBridge {
+    fn request_worker_repaint(&self) {
+        if let Some(signal) = self.signal.as_ref() {
+            signal.request_repaint();
+        }
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for RepaintSignalBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        project_surface(&mut DemoState::default())
+    }
+
+    fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        self.signal = Some(signal);
+    }
+}
+
+struct CountingRepaintSignal {
+    called: Arc<AtomicBool>,
+}
+
+impl RepaintSignal for CountingRepaintSignal {
+    fn request_repaint(&self) {
+        self.called.store(true, Ordering::Release);
+    }
 }
 
 impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {

@@ -1,6 +1,7 @@
 //! Generic declarative bridge traits for message-driven Radiant hosts.
 
 use super::{Command, surface::UiSurface};
+use crate::gui::repaint::RepaintSignal;
 use std::sync::Arc;
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
@@ -28,6 +29,15 @@ pub trait RuntimeBridge<Message> {
         self.reduce_message(message);
         Command::none()
     }
+
+    /// Install a repaint signal that host-owned background work can use to wake
+    /// the native runtime after asynchronous state changes.
+    ///
+    /// Declarative hosts that do not run background work can rely on the
+    /// default no-op implementation. Hosts that do should store this signal and
+    /// forward it to their worker systems rather than depending on backend
+    /// internals.
+    fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
 }
 
 /// Public application contract for declarative Radiant hosts.

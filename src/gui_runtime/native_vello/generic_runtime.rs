@@ -1,6 +1,7 @@
 //! Generic `RuntimeBridge` native Vello runner.
 
 use super::*;
+use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
 
 struct GenericSharedPixelBytes(Arc<[u8]>);
 
@@ -49,6 +50,16 @@ where
     };
     let viewport = initial_viewport(&options);
     let mut runner = GenericNativeVelloRunner::new(options, bridge, viewport);
+    let proxy = event_loop.create_proxy();
+    let repaint_signal: Arc<dyn RepaintSignal> = Arc::new(CoalescingRepaintSignal::new(
+        Arc::clone(&runner.repaint_event_pending),
+        move || proxy.send_event(RuntimeUserEvent::RepaintRequested).is_ok(),
+    ));
+    runner
+        .core
+        .runtime
+        .bridge_mut()
+        .install_repaint_signal(repaint_signal);
     let run_result = event_loop
         .run_app(&mut runner)
         .map_err(|err| err.to_string());
@@ -208,6 +219,7 @@ where
     text_renderer: NativeTextRenderer,
     scene: Scene,
     last_cursor: Option<Point>,
+    repaint_event_pending: Arc<std::sync::atomic::AtomicBool>,
     redraw_requested: bool,
     startup_timing: StartupTimingProfile,
     first_frame_presented: bool,
@@ -230,6 +242,7 @@ where
             text_renderer: NativeTextRenderer::new(),
             scene: Scene::new(),
             last_cursor: None,
+            repaint_event_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             redraw_requested: false,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
@@ -538,6 +551,8 @@ where
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
             RuntimeUserEvent::RepaintRequested => {
+                self.repaint_event_pending
+                    .store(false, std::sync::atomic::Ordering::Release);
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
             }

@@ -24,7 +24,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .is_some_and(|row| row.select_all_on_focus);
         let current_text = match target {
             TextInputTarget::BrowserSearch => self.model.browser.search_query.clone(),
-            TextInputTarget::BrowserPillEditor => {
+            TextInputTarget::ContentPillEditor => {
                 self.model.browser.pill_editor.input_value.clone()
             }
             TextInputTarget::FolderSearch => self.model.sources.tree_search_query.clone(),
@@ -182,7 +182,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     pub(super) fn sync_content_pill_editor_state(&mut self) {
-        if self.text_input_target != TextInputTarget::BrowserPillEditor {
+        if self.text_input_target != TextInputTarget::ContentPillEditor {
             self.shell_state.set_content_pill_editor_visual_state(None);
             return;
         }
@@ -315,7 +315,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 self.activate_text_input_target(TextInputTarget::BrowserSearch)
             }
             UiAction::FocusContentPillEditorInput => {
-                self.activate_text_input_target(TextInputTarget::BrowserPillEditor)
+                self.activate_text_input_target(TextInputTarget::ContentPillEditor)
             }
             UiAction::BlurContentSearch => self.clear_text_input_target_state(),
             UiAction::FocusFolderSearch { .. } => {

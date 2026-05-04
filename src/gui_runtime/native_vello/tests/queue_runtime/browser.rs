@@ -450,7 +450,7 @@ fn pill_editor_option_click_with_active_input_blurs_and_toggles_once() {
     runner.model = Arc::new(model);
     runner.shell_layout = Some(Arc::new(layout.clone()));
     runner.frame_state.model_dirty = false;
-    runner.text_input_target = TextInputTarget::BrowserPillEditor;
+    runner.text_input_target = TextInputTarget::ContentPillEditor;
     runner.text_input_buffer = Some(String::from("rfx"));
     let point = (layout.browser_rows.min.x as i32..=layout.browser_rows.max.x as i32)
         .find_map(|x| {

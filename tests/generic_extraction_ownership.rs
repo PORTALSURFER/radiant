@@ -1778,7 +1778,8 @@ fn compat_action_catalog_uses_generic_pill_editor_input_actions() {
     }
     for source in [&runtime_state, &text_runtime] {
         assert!(!source.contains("BrowserTagSidebar"));
-        assert!(source.contains("BrowserPillEditor"));
+        assert!(!source.contains("BrowserPillEditor"));
+        assert!(source.contains("ContentPillEditor"));
     }
     assert!(actions_mod.contains("FocusContentPillEditorInput"));
     assert!(actions_mod.contains("SetContentPillEditorInput"));

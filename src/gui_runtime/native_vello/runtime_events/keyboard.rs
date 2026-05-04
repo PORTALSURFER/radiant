@@ -257,11 +257,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         if matches!(
             self.text_input_target,
             TextInputTarget::BrowserSearch
-                | TextInputTarget::BrowserPillEditor
+                | TextInputTarget::ContentPillEditor
                 | TextInputTarget::FolderSearch
                 | TextInputTarget::WaveformBpm
         ) {
-            if self.text_input_target == TextInputTarget::BrowserPillEditor {
+            if self.text_input_target == TextInputTarget::ContentPillEditor {
                 self.emit_keyboard_action(UiAction::CommitContentPillEditorInput);
             }
             self.deactivate_text_input_target();

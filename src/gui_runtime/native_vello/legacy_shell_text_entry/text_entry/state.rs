@@ -51,14 +51,14 @@ pub(super) fn current_text_value<B: NativeAppBridge>(
     match runner.text_input_target {
         TextInputTarget::None => None,
         TextInputTarget::BrowserSearch
-        | TextInputTarget::BrowserPillEditor
+        | TextInputTarget::ContentPillEditor
         | TextInputTarget::FolderSearch
         | TextInputTarget::FolderCreate
         | TextInputTarget::PromptInput => runner.text_input_buffer.clone().or_else(|| match runner
             .text_input_target
         {
             TextInputTarget::BrowserSearch => Some(runner.model.browser.search_query.clone()),
-            TextInputTarget::BrowserPillEditor => {
+            TextInputTarget::ContentPillEditor => {
                 Some(runner.model.browser.pill_editor.input_value.clone())
             }
             TextInputTarget::FolderSearch => Some(runner.model.sources.tree_search_query.clone()),
@@ -97,14 +97,14 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
     if runner.text_input_target != TextInputTarget::None {
         match runner.text_input_target {
             TextInputTarget::BrowserSearch
-            | TextInputTarget::BrowserPillEditor
+            | TextInputTarget::ContentPillEditor
             | TextInputTarget::FolderSearch
             | TextInputTarget::FolderCreate
             | TextInputTarget::PromptInput => {
                 if runner.text_input_buffer.is_none() {
                     runner.text_input_buffer = Some(match runner.text_input_target {
                         TextInputTarget::BrowserSearch => runner.model.browser.search_query.clone(),
-                        TextInputTarget::BrowserPillEditor => {
+                        TextInputTarget::ContentPillEditor => {
                             runner.model.browser.pill_editor.input_value.clone()
                         }
                         TextInputTarget::FolderSearch => {
@@ -181,7 +181,7 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
             runner.text_input_buffer = Some(value.clone());
             UiAction::SetContentSearch { query: value }
         }
-        TextInputTarget::BrowserPillEditor => {
+        TextInputTarget::ContentPillEditor => {
             runner.text_input_buffer = Some(value.clone());
             UiAction::SetContentPillEditorInput { value }
         }

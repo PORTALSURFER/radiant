@@ -11,7 +11,7 @@ fn text_value_for_input_target<B: NativeAppBridge>(
                 .current_text_value()
                 .unwrap_or_else(|| runner.model.browser.search_query.clone()),
         ),
-        TextInputTarget::BrowserPillEditor => Some(
+        TextInputTarget::ContentPillEditor => Some(
             runner
                 .current_text_value()
                 .unwrap_or_else(|| runner.model.browser.pill_editor.input_value.clone()),
@@ -40,7 +40,7 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
         TextInputTarget::BrowserSearch => runner
             .shell_state
             .content_search_text_rect(layout, &runner.model),
-        TextInputTarget::BrowserPillEditor => runner
+        TextInputTarget::ContentPillEditor => runner
             .shell_state
             .content_pill_editor_text_rect(layout, &runner.model),
         TextInputTarget::WaveformBpm => runner
@@ -87,7 +87,7 @@ pub(super) fn sync_text_editor_visual_state_for_target<B: NativeAppBridge>(
 ) {
     match target {
         TextInputTarget::BrowserSearch => runner.sync_content_search_editor_state(),
-        TextInputTarget::BrowserPillEditor => runner.sync_content_pill_editor_state(),
+        TextInputTarget::ContentPillEditor => runner.sync_content_pill_editor_state(),
         TextInputTarget::FolderCreate => runner.sync_folder_create_editor_state(),
         TextInputTarget::WaveformBpm => runner.sync_waveform_bpm_editor_state(),
         TextInputTarget::None | TextInputTarget::FolderSearch | TextInputTarget::PromptInput => {}
@@ -105,10 +105,10 @@ fn activate_pointer_text_input_target<B: NativeAppBridge>(
                 runner.activate_text_input_target(TextInputTarget::BrowserSearch);
             }
         }
-        TextInputTarget::BrowserPillEditor => {
-            if runner.text_input_target != TextInputTarget::BrowserPillEditor {
+        TextInputTarget::ContentPillEditor => {
+            if runner.text_input_target != TextInputTarget::ContentPillEditor {
                 runner.emit_model_action(UiAction::FocusContentPillEditorInput);
-                runner.activate_text_input_target(TextInputTarget::BrowserPillEditor);
+                runner.activate_text_input_target(TextInputTarget::ContentPillEditor);
             }
         }
         TextInputTarget::WaveformBpm => {

@@ -98,13 +98,13 @@ fn route_browser_or_folder_row(
         let shift = modifiers.shift_key();
         let command = modifiers.control_key() || modifiers.super_key();
         return Some(if shift && command {
-            UiAction::AddRangeBrowserSelection { visible_row }
+            UiAction::AddRangeContentSelectionToRow { visible_row }
         } else if shift {
-            UiAction::ExtendBrowserSelectionToRow { visible_row }
+            UiAction::ExtendContentSelectionToRow { visible_row }
         } else if command {
-            UiAction::ToggleBrowserRowSelection { visible_row }
+            UiAction::ToggleContentRowSelection { visible_row }
         } else {
-            UiAction::FocusBrowserRow { visible_row }
+            UiAction::FocusContentRow { visible_row }
         });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {

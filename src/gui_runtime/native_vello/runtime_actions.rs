@@ -62,16 +62,16 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::ClearWaveformSelection
             | UiAction::ClearWaveformEditSelection
             | UiAction::ClearWaveformSelections => RuntimeInvalidationScope::ModelAndOverlays,
-            UiAction::MoveBrowserFocus { .. }
-            | UiAction::FocusBrowserRow { .. }
-            | UiAction::ToggleBrowserRowSelection { .. }
-            | UiAction::ExtendBrowserSelectionToRow { .. }
-            | UiAction::AddRangeBrowserSelection { .. }
-            | UiAction::ExtendBrowserSelectionFromFocus { .. }
-            | UiAction::AddRangeBrowserSelectionFromFocus { .. }
-            | UiAction::ToggleFocusedBrowserRowSelection
-            | UiAction::SelectAllBrowserRows
-            | UiAction::SetBrowserViewStart { .. } => RuntimeInvalidationScope::ModelAndOverlays,
+            UiAction::MoveContentFocus { .. }
+            | UiAction::FocusContentRow { .. }
+            | UiAction::ToggleContentRowSelection { .. }
+            | UiAction::ExtendContentSelectionToRow { .. }
+            | UiAction::AddRangeContentSelectionToRow { .. }
+            | UiAction::ExtendContentSelectionFromFocus { .. }
+            | UiAction::AddRangeContentSelectionFromFocus { .. }
+            | UiAction::ToggleFocusedContentRowSelection
+            | UiAction::SelectAllContentRows
+            | UiAction::SetContentViewStart { .. } => RuntimeInvalidationScope::ModelAndOverlays,
             UiAction::SeekWaveformPrecise { .. }
             | UiAction::SetWaveformCursorPrecise { .. }
             | UiAction::SeekWaveform { .. }

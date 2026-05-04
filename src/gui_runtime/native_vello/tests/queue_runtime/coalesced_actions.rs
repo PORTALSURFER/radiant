@@ -36,7 +36,7 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
+        vec![UiAction::SetContentViewStart { visible_row: 3 }]
     );
     assert_eq!(
         runner

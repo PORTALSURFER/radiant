@@ -62,7 +62,7 @@ where
             return;
         }
         self.last_emitted_content_list_view_start = Some(visible_row);
-        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+        self.emit_model_action(UiAction::SetContentViewStart { visible_row });
     }
 
     pub(crate) fn sync_browser_viewport_for_pointer_row_action(&mut self, action: &UiAction) {
@@ -89,7 +89,7 @@ where
             return;
         }
         self.last_emitted_content_list_view_start = Some(next_view_start);
-        self.emit_model_action(UiAction::SetBrowserViewStart {
+        self.emit_model_action(UiAction::SetContentViewStart {
             visible_row: next_view_start,
         });
     }
@@ -98,7 +98,7 @@ where
     pub(crate) fn process_wheel_rows_immediately(&mut self, visible_row: usize) -> bool {
         self.shell_state.clear_browser_row_hover();
         self.emit_model_action_with_profile(
-            UiAction::SetBrowserViewStart { visible_row },
+            UiAction::SetContentViewStart { visible_row },
             Some(InteractionProfileKind::Wheel),
         );
         true
@@ -125,7 +125,7 @@ where
         }
         self.last_emitted_content_list_view_start = Some(visible_row);
         self.shell_state.clear_browser_row_hover();
-        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+        self.emit_model_action(UiAction::SetContentViewStart { visible_row });
         true
     }
 
@@ -163,7 +163,7 @@ where
             return false;
         };
         self.shell_state.clear_browser_row_hover();
-        self.emit_model_action(UiAction::SetBrowserViewStart { visible_row });
+        self.emit_model_action(UiAction::SetContentViewStart { visible_row });
         true
     }
 
@@ -243,10 +243,10 @@ where
 
 fn content_list_pointer_action_visible_row(action: &UiAction) -> Option<usize> {
     match action {
-        UiAction::FocusBrowserRow { visible_row }
-        | UiAction::ToggleBrowserRowSelection { visible_row }
-        | UiAction::ExtendBrowserSelectionToRow { visible_row }
-        | UiAction::AddRangeBrowserSelection { visible_row } => Some(*visible_row),
+        UiAction::FocusContentRow { visible_row }
+        | UiAction::ToggleContentRowSelection { visible_row }
+        | UiAction::ExtendContentSelectionToRow { visible_row }
+        | UiAction::AddRangeContentSelectionToRow { visible_row } => Some(*visible_row),
         _ => None,
     }
 }

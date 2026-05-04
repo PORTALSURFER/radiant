@@ -86,10 +86,10 @@ fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<
             Some(UiAction::DeleteBrowserSelection)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowUp) => {
-            Some(UiAction::MoveBrowserFocus { delta: -1 })
+            Some(UiAction::MoveContentFocus { delta: -1 })
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowDown) => {
-            Some(UiAction::MoveBrowserFocus { delta: 1 })
+            Some(UiAction::MoveContentFocus { delta: 1 })
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowLeft) => {
             Some(UiAction::FocusPreviousBrowserHistory)
@@ -98,7 +98,7 @@ fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<
             Some(UiAction::FocusNextBrowserHistory)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::X) => {
-            Some(UiAction::ToggleFocusedBrowserRowSelection)
+            Some(UiAction::ToggleFocusedContentRowSelection)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::S) => {
             Some(UiAction::ToggleFindSimilarFocusedContent)

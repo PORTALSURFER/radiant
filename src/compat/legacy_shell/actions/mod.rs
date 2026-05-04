@@ -282,28 +282,28 @@ pub enum UiAction {
     ClearFolderDeleteRecoveryLog,
 
     // Browser navigation, selection, search, and map actions.
-    /// Move browser focus by a row delta in the visible list.
+    /// Move content focus by a row delta in the visible list.
     ///
     /// Hosts should treat this as lightweight preview navigation so held-arrow
-    /// or wheel stepping can stay responsive across large browser lists.
-    MoveBrowserFocus {
-        /// Signed visible-row delta for browser focus movement.
+    /// or wheel stepping can stay responsive across large content lists.
+    MoveContentFocus {
+        /// Signed visible-row delta for content focus movement.
         delta: i8,
     },
-    /// Scroll the browser viewport to a specific visible-row start without changing selection.
-    SetBrowserViewStart {
-        /// Target top visible row index for the browser viewport.
+    /// Scroll the content viewport to a specific visible-row start without changing selection.
+    SetContentViewStart {
+        /// Target top visible row index for the content viewport.
         visible_row: usize,
     },
-    /// Focus a browser row by visible index.
-    FocusBrowserRow {
-        /// Target visible row index in the browser list.
+    /// Focus a content row by visible index.
+    FocusContentRow {
+        /// Target visible row index in the content list.
         visible_row: usize,
     },
     /// Store the focused content item as the compare-anchor reference.
     SetCompareAnchorFromFocusedContent,
-    /// Commit the currently focused browser row as the active loaded content.
-    CommitFocusedBrowserRow,
+    /// Commit the currently focused content row as the active loaded content.
+    CommitFocusedContentRow,
     /// Save the current waveform selection or slices into the browser as new content.
     SaveWaveformSelectionToBrowser,
     /// Save the current waveform selection or slices and mark exported clips keep-2.
@@ -316,9 +316,9 @@ pub enum UiAction {
     DetectWaveformExactDuplicateSlices,
     /// Clean near-duplicate windows while keeping the first occurrence.
     CleanWaveformExactDuplicateSlices,
-    /// Toggle browser-row selection by visible index.
-    ToggleBrowserRowSelection {
-        /// Target visible row index in the browser list.
+    /// Toggle content-row selection by visible index.
+    ToggleContentRowSelection {
+        /// Target visible row index in the content list.
         visible_row: usize,
     },
     /// Start dragging one browser content item or the active browser multi-selection.
@@ -354,29 +354,29 @@ pub enum UiAction {
     /// Finish the active browser content-item drag gesture.
     FinishContentItemDrag,
     /// Extend selection from the anchor to the target visible row.
-    ExtendBrowserSelectionToRow {
+    ExtendContentSelectionToRow {
         /// Target visible row index used as selection endpoint.
         visible_row: usize,
     },
     /// Extend selection additively from the anchor to the target visible row.
-    AddRangeBrowserSelection {
+    AddRangeContentSelectionToRow {
         /// Target visible row index used as additive selection endpoint.
         visible_row: usize,
     },
-    /// Move browser focus and extend selection by a visible-row delta.
-    ExtendBrowserSelectionFromFocus {
+    /// Move content focus and extend selection by a visible-row delta.
+    ExtendContentSelectionFromFocus {
         /// Signed visible-row delta from current focus.
         delta: i8,
     },
-    /// Move browser focus and extend selection additively by a visible-row delta.
-    AddRangeBrowserSelectionFromFocus {
+    /// Move content focus and extend selection additively by a visible-row delta.
+    AddRangeContentSelectionFromFocus {
         /// Signed visible-row delta from current focus.
         delta: i8,
     },
-    /// Toggle selection state for the currently focused browser row.
-    ToggleFocusedBrowserRowSelection,
-    /// Select every row in the current visible browser list.
-    SelectAllBrowserRows,
+    /// Toggle selection state for the currently focused content row.
+    ToggleFocusedContentRowSelection,
+    /// Select every row in the current visible content list.
+    SelectAllContentRows,
     /// Set content search query.
     SetContentSearch {
         /// Full content-search query text.

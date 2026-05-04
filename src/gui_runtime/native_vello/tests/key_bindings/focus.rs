@@ -56,15 +56,15 @@ fn explicit_focus_is_required_for_scope_specific_hotkeys() {
     );
     assert_eq!(
         resolved_action(KeyCode::ArrowUp, ModifiersState::default(), &browser),
-        Some(UiAction::MoveBrowserFocus { delta: -1 })
+        Some(UiAction::MoveContentFocus { delta: -1 })
     );
     assert_eq!(
         resolved_action(KeyCode::ArrowDown, ModifiersState::default(), &browser),
-        Some(UiAction::MoveBrowserFocus { delta: 1 })
+        Some(UiAction::MoveContentFocus { delta: 1 })
     );
     assert_eq!(
         resolved_action(KeyCode::X, ModifiersState::default(), &browser),
-        Some(UiAction::ToggleFocusedBrowserRowSelection)
+        Some(UiAction::ToggleFocusedContentRowSelection)
     );
 
     let folders = AppModel {

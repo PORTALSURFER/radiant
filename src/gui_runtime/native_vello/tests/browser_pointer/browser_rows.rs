@@ -33,7 +33,7 @@ fn browser_row_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusBrowserRow { visible_row: 17 })
+        Some(UiAction::FocusContentRow { visible_row: 17 })
     );
     assert_eq!(
         action_from_pointer(
@@ -43,7 +43,7 @@ fn browser_row_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::SHIFT
         ),
-        Some(UiAction::ExtendBrowserSelectionToRow { visible_row: 17 })
+        Some(UiAction::ExtendContentSelectionToRow { visible_row: 17 })
     );
     assert_eq!(
         action_from_pointer(
@@ -53,7 +53,7 @@ fn browser_row_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::CONTROL,
         ),
-        Some(UiAction::ToggleBrowserRowSelection { visible_row: 17 })
+        Some(UiAction::ToggleContentRowSelection { visible_row: 17 })
     );
     assert_eq!(
         action_from_pointer(
@@ -63,7 +63,7 @@ fn browser_row_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::SUPER,
         ),
-        Some(UiAction::ToggleBrowserRowSelection { visible_row: 17 })
+        Some(UiAction::ToggleContentRowSelection { visible_row: 17 })
     );
     assert_eq!(
         action_from_pointer(
@@ -73,7 +73,7 @@ fn browser_row_click_modifiers_route_expected_actions() {
             point,
             ModifiersState::SHIFT | ModifiersState::SUPER,
         ),
-        Some(UiAction::AddRangeBrowserSelection { visible_row: 17 })
+        Some(UiAction::AddRangeContentSelectionToRow { visible_row: 17 })
     );
 }
 
@@ -149,7 +149,7 @@ fn browser_row_click_targets_interior_row_after_downward_autoscroll() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::FocusBrowserRow { visible_row: 12 })
+        Some(UiAction::FocusContentRow { visible_row: 12 })
     );
 }
 

@@ -118,19 +118,19 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
-        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::MoveBrowserFocus {
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::MoveContentFocus {
             delta: 1
         }),
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
-        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::FocusBrowserRow {
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::FocusContentRow {
             visible_row: 12
         }),
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
-        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetBrowserViewStart {
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SetContentViewStart {
             visible_row: 4
         }),
         RuntimeInvalidationScope::ModelAndOverlays
@@ -179,18 +179,18 @@ fn action_scope_classification_defaults_to_static_and_overlays_for_non_waveform_
 fn browser_navigation_selection_actions_use_model_overlay_scope() {
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
-            &UiAction::ToggleBrowserRowSelection { visible_row: 7 }
+            &UiAction::ToggleContentRowSelection { visible_row: 7 }
         ),
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
         NativeVelloRunner::<PreviewBridge>::classify_action_scope(
-            &UiAction::ExtendBrowserSelectionToRow { visible_row: 9 }
+            &UiAction::ExtendContentSelectionToRow { visible_row: 9 }
         ),
         RuntimeInvalidationScope::ModelAndOverlays
     );
     assert_eq!(
-        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SelectAllBrowserRows),
+        NativeVelloRunner::<PreviewBridge>::classify_action_scope(&UiAction::SelectAllContentRows),
         RuntimeInvalidationScope::ModelAndOverlays
     );
 }

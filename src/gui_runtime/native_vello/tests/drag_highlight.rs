@@ -124,7 +124,7 @@ fn browser_row_drag_can_render_folder_drag_highlight() {
     runner.last_cursor = Some(press_point);
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 0 }, false)
     );
     runner.handle_cursor_moved_for_tests(drag_point);
 
@@ -202,7 +202,7 @@ fn browser_row_drag_over_folder_panel_background_does_not_highlight_row() {
     runner.last_cursor = Some(press_point);
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 0 }, false)
     );
     runner.handle_cursor_moved_for_tests(drag_point);
 

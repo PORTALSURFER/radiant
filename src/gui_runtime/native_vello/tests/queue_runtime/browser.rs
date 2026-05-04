@@ -54,7 +54,7 @@ fn browser_wheel_uses_rendered_viewport_start_when_model_start_is_stale() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserViewStart {
+        vec![UiAction::SetContentViewStart {
             visible_row: scrolled_start + 1
         }]
     );
@@ -104,7 +104,7 @@ fn content_list_scrollbar_drag_emit_updates_action_queue() {
     assert!(runner.process_content_list_scrollbar_drag_immediately(drag_point));
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserViewStart {
+        vec![UiAction::SetContentViewStart {
             visible_row: expected_visible_row
         }]
     );
@@ -137,7 +137,7 @@ fn content_list_scrollbar_track_click_emit_updates_action_queue() {
     assert!(runner.process_content_list_scrollbar_track_click_immediately(track_point));
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserViewStart {
+        vec![UiAction::SetContentViewStart {
             visible_row: expected_visible_row
         }]
     );
@@ -151,7 +151,7 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
     runner.last_cursor = Some(Point::new(24.0, 24.0));
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 12 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 12 }, false)
     );
     assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
@@ -160,7 +160,7 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::FocusBrowserRow { visible_row: 12 }]
+        vec![UiAction::FocusContentRow { visible_row: 12 }]
     );
     assert_eq!(
         runner
@@ -181,7 +181,7 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     runner.last_cursor = Some(browser_row_point(runner.shell_layout.as_ref().unwrap()));
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 18 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 18 }, false)
     );
     assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
@@ -191,8 +191,8 @@ fn browser_row_pointer_action_syncs_viewport_before_bottom_edge_autoscroll() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::SetBrowserViewStart { visible_row: 1 },
-            UiAction::FocusBrowserRow { visible_row: 18 }
+            UiAction::SetContentViewStart { visible_row: 1 },
+            UiAction::FocusContentRow { visible_row: 18 }
         ]
     );
 }
@@ -209,7 +209,7 @@ fn browser_row_drag_starts_updates_and_finishes_without_click_action() {
     runner.last_cursor = Some(press_point);
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 0 }, false)
     );
     assert!(runner.bridge.actions.is_empty());
 
@@ -277,7 +277,7 @@ fn cursor_left_polls_external_drag_for_active_browser_drag_session() {
     runner.last_cursor = Some(press_point);
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 0 }, false)
     );
     runner.handle_cursor_moved_for_tests(drag_point);
     assert!(runner.content_item_drag.is_some());
@@ -300,7 +300,7 @@ fn browser_row_drag_reports_folder_panel_background_without_row() {
     runner.last_cursor = Some(press_point);
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 0 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 0 }, false)
     );
     runner.handle_cursor_moved_for_tests(drag_point);
 
@@ -342,7 +342,7 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     runner.bridge.actions.clear();
 
     assert!(
-        runner.handle_pointer_press_action(UiAction::FocusBrowserRow { visible_row: 15 }, false)
+        runner.handle_pointer_press_action(UiAction::FocusContentRow { visible_row: 15 }, false)
     );
     assert!(runner.pending_content_row_press.is_some());
     assert!(runner.bridge.actions.is_empty());
@@ -352,8 +352,8 @@ fn browser_row_pointer_action_preserves_shell_viewport_for_interior_refocus() {
     assert_eq!(
         runner.bridge.actions,
         vec![
-            UiAction::SetBrowserViewStart { visible_row: 3 },
-            UiAction::FocusBrowserRow { visible_row: 15 }
+            UiAction::SetContentViewStart { visible_row: 3 },
+            UiAction::FocusContentRow { visible_row: 15 }
         ]
     );
 }
@@ -506,6 +506,6 @@ fn render_sync_emits_browser_view_start_when_shell_viewport_outruns_model() {
 
     assert_eq!(
         runner.bridge.actions,
-        vec![UiAction::SetBrowserViewStart { visible_row: 3 }]
+        vec![UiAction::SetContentViewStart { visible_row: 3 }]
     );
 }

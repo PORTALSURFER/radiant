@@ -309,11 +309,11 @@ where
     ) -> bool {
         if matches!(
             action,
-            UiAction::FocusBrowserRow { .. }
-                | UiAction::CommitFocusedBrowserRow
-                | UiAction::ToggleBrowserRowSelection { .. }
-                | UiAction::ExtendBrowserSelectionToRow { .. }
-                | UiAction::AddRangeBrowserSelection { .. }
+            UiAction::FocusContentRow { .. }
+                | UiAction::CommitFocusedContentRow
+                | UiAction::ToggleContentRowSelection { .. }
+                | UiAction::ExtendContentSelectionToRow { .. }
+                | UiAction::AddRangeContentSelectionToRow { .. }
         ) {
             self.shell_state.clear_browser_row_hover();
         }
@@ -382,10 +382,10 @@ fn content_item_drag_exceeds_click_slop(press_point: Point, point: Point) -> boo
 
 fn browser_primary_row_action_visible_row(action: &UiAction) -> Option<usize> {
     match action {
-        UiAction::FocusBrowserRow { visible_row }
-        | UiAction::ToggleBrowserRowSelection { visible_row }
-        | UiAction::ExtendBrowserSelectionToRow { visible_row }
-        | UiAction::AddRangeBrowserSelection { visible_row } => Some(*visible_row),
+        UiAction::FocusContentRow { visible_row }
+        | UiAction::ToggleContentRowSelection { visible_row }
+        | UiAction::ExtendContentSelectionToRow { visible_row }
+        | UiAction::AddRangeContentSelectionToRow { visible_row } => Some(*visible_row),
         _ => None,
     }
 }

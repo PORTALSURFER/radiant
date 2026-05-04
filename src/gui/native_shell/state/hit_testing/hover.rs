@@ -201,7 +201,7 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        browser_rating_filter_level_at_point(toolbar.rating_filter_chips, point)
+        rating_filter_level_at_point(toolbar.rating_filter_chips, point)
     }
 
     fn resolve_hovered_browser_playback_age_filter_chip(
@@ -213,7 +213,7 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        browser_playback_age_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
+        recency_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
     }
 
     fn resolve_hovered_source_add_button(

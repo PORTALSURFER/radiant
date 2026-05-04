@@ -20,7 +20,7 @@ pub(in crate::gui::native_shell::state) use colors::{
 };
 #[allow(unused_imports)]
 pub(in crate::gui::native_shell::state) use layout::{
-    browser_column_chips, browser_playback_age_filter_chip_at_point,
-    browser_playback_age_filter_chip_index, browser_rating_filter_chip_index,
-    browser_rating_filter_level_at_point, browser_toolbar_layout,
+    browser_column_chips, recency_filter_chip_at_point,
+    recency_filter_chip_index, rating_filter_chip_index,
+    rating_filter_level_at_point, browser_toolbar_layout,
 };

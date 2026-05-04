@@ -127,10 +127,10 @@ const WAVEFORM_SELECTION_FLASH_TICKS: u8 = 6;
 const WAVEFORM_EDIT_SELECTION_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for the sidebar source-add button click flash.
 const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
-/// Rating-filter chip levels shown left-to-right in the browser toolbar.
-const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
-/// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [RecencyFilterChip; 3] = [
+/// Rating-filter chip levels shown left-to-right in a toolbar cluster.
+const RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
+/// Recency-filter chips shown left-to-right in a toolbar cluster.
+const RECENCY_FILTER_CHIPS: [RecencyFilterChip; 3] = [
     RecencyFilterChip::NeverPlayed,
     RecencyFilterChip::OlderThanMonth,
     RecencyFilterChip::OlderThanWeek,

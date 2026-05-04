@@ -152,12 +152,12 @@ impl NativeShellState {
         if let Some((chip_rect, rating_level)) =
             self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
                 let hovered_level = self.hovered_browser_rating_filter_level?;
-                let index = browser_rating_filter_chip_index(hovered_level)?;
+                let index = rating_filter_chip_index(hovered_level)?;
                 let chip_rect = toolbar.rating_filter_chips[index];
                 (chip_rect.width() > 1.0).then_some((chip_rect, hovered_level))
             })
         {
-            let active = browser_rating_filter_chip_index(rating_level)
+            let active = rating_filter_chip_index(rating_level)
                 .and_then(|index| model.active_rating_filters.get(index))
                 .copied()
                 .unwrap_or(false);
@@ -173,11 +173,11 @@ impl NativeShellState {
         }
         if let Some((chip_rect, chip)) = self.browser_toolbar_layout.as_ref().and_then(|toolbar| {
             let hovered_chip = self.hovered_browser_playback_age_filter_chip?;
-            let index = browser_playback_age_filter_chip_index(hovered_chip)?;
+            let index = recency_filter_chip_index(hovered_chip)?;
             let chip_rect = toolbar.playback_age_filter_chips[index];
             (chip_rect.width() > 1.0).then_some((chip_rect, hovered_chip))
         }) {
-            let active = browser_playback_age_filter_chip_index(chip)
+            let active = recency_filter_chip_index(chip)
                 .and_then(|index| model.active_playback_age_filters.get(index))
                 .copied()
                 .unwrap_or(false);

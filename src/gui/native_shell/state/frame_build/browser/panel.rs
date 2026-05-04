@@ -122,7 +122,7 @@ pub(super) fn render_browser_frame(
         if rect.width() <= 1.0 {
             continue;
         }
-        let level = BROWSER_RATING_FILTER_LEVELS[index];
+        let level = RATING_FILTER_LEVELS[index];
         let active = ctx.model.browser.active_rating_filters[index];
         emit_primitive(
             primitives,
@@ -147,7 +147,7 @@ pub(super) fn render_browser_frame(
         if rect.width() <= 1.0 {
             continue;
         }
-        let chip = BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
+        let chip = RECENCY_FILTER_CHIPS[index];
         let active = ctx.model.browser.active_recency_filters[index];
         emit_primitive(
             primitives,

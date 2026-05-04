@@ -220,14 +220,14 @@ impl NativeShellState {
             return Some(action);
         }
         if let Some(level) =
-            browser_rating_filter_level_at_point(geometry.toolbar.rating_filter_chips, point)
+            rating_filter_level_at_point(geometry.toolbar.rating_filter_chips, point)
         {
             return Some(UiAction::ToggleBrowserRatingFilter {
                 level,
                 invert: alt_down,
             });
         }
-        if let Some(bucket) = browser_playback_age_filter_chip_at_point(
+        if let Some(bucket) = recency_filter_chip_at_point(
             geometry.toolbar.playback_age_filter_chips,
             point,
         ) {
@@ -316,7 +316,7 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        let index = browser_rating_filter_chip_index(level)?;
+        let index = rating_filter_chip_index(level)?;
         let rect = toolbar.rating_filter_chips[index];
         (rect.width() > 1.0).then_some(rect)
     }
@@ -359,7 +359,7 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        let index = browser_playback_age_filter_chip_index(chip)?;
+        let index = recency_filter_chip_index(chip)?;
         let rect = toolbar.playback_age_filter_chips[index];
         (rect.width() > 1.0).then_some(rect)
     }

@@ -772,6 +772,48 @@ fn toolbar_filter_chip_visuals_use_product_neutral_helper_names() {
 }
 
 #[test]
+fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
+    let state_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state.rs"
+    ))
+    .expect("native shell state module should be readable");
+    let toolbar_layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/layout.rs"
+    ))
+    .expect("toolbar layout module should be readable");
+
+    for required in [
+        "RATING_FILTER_LEVELS",
+        "RECENCY_FILTER_CHIPS",
+        "rating_filter_chip_index",
+        "rating_filter_level_at_point",
+        "recency_filter_chip_index",
+        "recency_filter_chip_at_point",
+    ] {
+        assert!(
+            state_mod.contains(required) || toolbar_layout_mod.contains(required),
+            "toolbar filter hit-testing should expose product-neutral helper `{required}`"
+        );
+    }
+
+    for forbidden in [
+        "BROWSER_RATING_FILTER_LEVELS",
+        "BROWSER_PLAYBACK_AGE_FILTER_CHIPS",
+        "browser_rating_filter_chip_index",
+        "browser_rating_filter_level_at_point",
+        "browser_playback_age_filter_chip_index",
+        "browser_playback_age_filter_chip_at_point",
+    ] {
+        assert!(
+            !state_mod.contains(forbidden) && !toolbar_layout_mod.contains(forbidden),
+            "toolbar filter hit-testing should not use browser-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn active_text_field_visual_helpers_use_product_neutral_names() {
     let text_fields_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

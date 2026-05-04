@@ -1,17 +1,19 @@
 use super::*;
+use crate::gui::list::{
+    VirtualListScrollbar, VirtualListScrollbarRequest, VirtualListStackMetrics,
+    resolve_virtual_list_scrollbar, virtual_list_scrollbar_view_start_for_pointer,
+    virtual_list_viewport_len_for_extent,
+};
 
 pub(in crate::gui::native_shell::state) fn content_list_row_capacity(
     list_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
-    let row_height = sizing.browser_row_height.max(1.0);
-    let row_gap = sizing.browser_row_gap.max(0.0);
-    let geometric_capacity = ((list_rect.height() + row_gap) / (row_height + row_gap))
-        .floor()
-        .max(1.0) as usize;
-    geometric_capacity
-        .max(1)
-        .min(sizing.browser_rows_max_per_column.max(1))
+    virtual_list_viewport_len_for_extent(
+        list_rect.height(),
+        VirtualListStackMetrics::new(sizing.browser_row_height, sizing.browser_row_gap)
+            .with_max_viewport_len(sizing.browser_rows_max_per_column),
+    )
 }
 
 /// Resolve the track metrics used by the content-list scrollbar lane.
@@ -68,25 +70,17 @@ pub(in crate::gui::native_shell::state) fn content_list_scrollbar_layout(
         return None;
     }
 
-    let min_thumb_height = (sizing.browser_row_height * 0.85).round().clamp(18.0, 32.0);
-    let thumb_height = (track.height() * (viewport_len as f32 / visible_count as f32))
-        .round()
-        .clamp(min_thumb_height, track.height());
-    let travel = (track.height() - thumb_height).max(0.0);
-    let max_viewport_start = visible_count.saturating_sub(viewport_len);
-    let start_ratio = if max_viewport_start == 0 {
-        0.0
-    } else {
-        viewport_start.min(max_viewport_start) as f32 / max_viewport_start as f32
-    };
-    let thumb_min_y = (track.min.y + (travel * start_ratio)).round();
-    let thumb_max_y = (thumb_min_y + thumb_height).min(track.max.y);
-    let thumb = Rect::from_min_max(
-        Point::new(track.min.x, thumb_min_y),
-        Point::new(track.max.x, thumb_max_y.max(thumb_min_y + 1.0)),
-    );
-
-    Some(ContentListScrollbarLayout { track, thumb })
+    resolve_virtual_list_scrollbar(VirtualListScrollbarRequest {
+        track,
+        total_items: visible_count,
+        viewport_len,
+        viewport_start,
+        min_thumb_extent: (sizing.browser_row_height * 0.85).round().clamp(18.0, 32.0),
+    })
+    .map(|scrollbar| ContentListScrollbarLayout {
+        track: scrollbar.track,
+        thumb: scrollbar.thumb,
+    })
 }
 
 /// Resolve the content-list viewport start row for a dragged scrollbar thumb position.
@@ -97,17 +91,14 @@ pub(in crate::gui::native_shell::state) fn content_list_scrollbar_view_start_for
     pointer_y: f32,
     thumb_pointer_offset_y: f32,
 ) -> Option<usize> {
-    if viewport_len == 0 || visible_count <= viewport_len {
-        return None;
-    }
-    let max_viewport_start = visible_count.saturating_sub(viewport_len);
-    let thumb_height = scrollbar.thumb.height().max(1.0);
-    let travel = (scrollbar.track.height() - thumb_height).max(0.0);
-    if travel <= f32::EPSILON || max_viewport_start == 0 {
-        return Some(0);
-    }
-    let thumb_min_y = (pointer_y - thumb_pointer_offset_y)
-        .clamp(scrollbar.track.min.y, scrollbar.track.max.y - thumb_height);
-    let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
-    Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
+    virtual_list_scrollbar_view_start_for_pointer(
+        VirtualListScrollbar {
+            track: scrollbar.track,
+            thumb: scrollbar.thumb,
+        },
+        viewport_len,
+        visible_count,
+        pointer_y,
+        thumb_pointer_offset_y,
+    )
 }

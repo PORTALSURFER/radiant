@@ -1,4 +1,4 @@
-//! Browser-row caches plus focused geometry, truncation, and visual helper modules.
+//! Content-row caches plus focused geometry, truncation, and visual helper modules.
 
 use super::svg_icons::ShellSvgIcon;
 use super::*;
@@ -6,13 +6,13 @@ use crate::gui::list::{RecencyBucket, RowProcessingState};
 use crate::gui::native_shell::layout_adapter::ContentRowTextLayout;
 use crate::gui::panel::SplitPaneSlot;
 
-#[path = "browser_rows/sidebar.rs"]
+#[path = "content_rows/sidebar.rs"]
 mod sidebar;
-#[path = "browser_rows/truncation.rs"]
+#[path = "content_rows/truncation.rs"]
 mod truncation;
-#[path = "browser_rows/visuals.rs"]
+#[path = "content_rows/visuals.rs"]
 mod visuals;
-#[path = "browser_rows/windowing.rs"]
+#[path = "content_rows/windowing.rs"]
 mod windowing;
 
 pub(in crate::gui::native_shell::state) use self::{

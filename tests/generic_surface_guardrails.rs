@@ -258,7 +258,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
         .expect("native shell state facade");
     for module in [
         "automation",
-        "browser_rows",
+        "content_rows",
         "motion_overlay",
         "options_panel",
         "overlays",

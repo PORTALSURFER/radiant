@@ -67,7 +67,7 @@ use std::{
     sync::Arc,
 };
 
-mod browser_rows;
+mod content_rows;
 mod cache;
 mod cache_types;
 mod frame_build;
@@ -84,7 +84,7 @@ mod toolbar_helpers;
 mod waveform_segments;
 
 use self::{
-    browser_rows::*, cache_types::*, hit_testing::*, options_panel::*, overlays::*, svg_icons::*,
+    content_rows::*, cache_types::*, hit_testing::*, options_panel::*, overlays::*, svg_icons::*,
     text_fields::*, toolbar_helpers::*, waveform_segments::*,
 };
 pub(crate) use self::{

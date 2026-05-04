@@ -1,4 +1,4 @@
-//! Browser-row viewport, scrollbar, and rendered-window helpers.
+//! Content-row viewport, scrollbar, and rendered-window helpers.
 
 use super::*;
 

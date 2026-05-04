@@ -669,7 +669,7 @@ fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
 fn content_row_visual_fills_use_product_neutral_row_naming() {
     let visuals_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/browser_rows/visuals.rs"
+        "/src/gui/native_shell/state/content_rows/visuals.rs"
     ))
     .expect("row visuals module should be readable");
 
@@ -820,9 +820,9 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
         "/src/gui/native_shell/state.rs"
     ))
     .expect("native shell state module should be readable");
-    let browser_rows_mod = fs::read_to_string(concat!(
+    let content_rows_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/browser_rows.rs"
+        "/src/gui/native_shell/state/content_rows.rs"
     ))
     .expect("content rows module should be readable");
     let toolbar_layout_mod = fs::read_to_string(concat!(
@@ -831,7 +831,7 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
     ))
     .expect("toolbar layout module should be readable");
 
-    assert!(browser_rows_mod.contains("pub(super) struct ColumnChip"));
+    assert!(content_rows_mod.contains("pub(super) struct ColumnChip"));
     assert!(state_mod.contains("content_column_chips: Vec<ColumnChip>"));
     assert!(toolbar_layout_mod.contains("fn column_chips("));
     for forbidden in [
@@ -841,7 +841,7 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
     ] {
         assert!(
             !state_mod.contains(forbidden)
-                && !browser_rows_mod.contains(forbidden)
+                && !content_rows_mod.contains(forbidden)
                 && !toolbar_layout_mod.contains(forbidden),
             "toolbar column chip cache should not use browser-specific helper `{forbidden}`"
         );
@@ -878,7 +878,7 @@ fn pill_editor_geometry_helpers_use_product_neutral_names() {
     .expect("browser hit-testing module should be readable");
     let sidebar_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/browser_rows/sidebar.rs"
+        "/src/gui/native_shell/state/content_rows/sidebar.rs"
     ))
     .expect("sidebar rows module should be readable");
 

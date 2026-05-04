@@ -21,7 +21,7 @@ fn browser_toolbar_alt_click_maps_to_inverted_rating_filter_action() {
             point,
             ModifiersState::ALT,
         ),
-        Some(UiAction::ToggleBrowserRatingFilter {
+        Some(UiAction::ToggleContentRatingFilter {
             level: 4,
             invert: true,
         })
@@ -127,7 +127,7 @@ fn browser_tab_clicks_route_to_tab_actions() {
             map_tab_point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetBrowserTab { map: true })
+        Some(UiAction::SetContentTab { map: true })
     );
 
     let list_tab_point = Point::new(
@@ -142,6 +142,6 @@ fn browser_tab_clicks_route_to_tab_actions() {
             list_tab_point,
             ModifiersState::default(),
         ),
-        Some(UiAction::SetBrowserTab { map: false })
+        Some(UiAction::SetContentTab { map: false })
     );
 }

@@ -222,7 +222,7 @@ impl NativeShellState {
         if let Some(level) =
             rating_filter_level_at_point(geometry.toolbar.rating_filter_chips, point)
         {
-            return Some(UiAction::ToggleBrowserRatingFilter {
+            return Some(UiAction::ToggleContentRatingFilter {
                 level,
                 invert: alt_down,
             });
@@ -287,10 +287,10 @@ impl NativeShellState {
             }
         };
         if tabs.items.contains(point) {
-            return Some(UiAction::SetBrowserTab { map: false });
+            return Some(UiAction::SetContentTab { map: false });
         }
         if tabs.map.contains(point) {
-            return Some(UiAction::SetBrowserTab { map: true });
+            return Some(UiAction::SetContentTab { map: true });
         }
         None
     }

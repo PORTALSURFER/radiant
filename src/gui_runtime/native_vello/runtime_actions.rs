@@ -18,7 +18,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             | UiAction::MoveFolderFocus { .. }
             | UiAction::SetContentSearch { .. }
             | UiAction::BlurContentSearch
-            | UiAction::SetBrowserTab { .. }
+            | UiAction::SetContentTab { .. }
             | UiAction::FocusSpatialContentItem { .. }
             | UiAction::SetPromptInput { .. }
             | UiAction::SetWaveformBpmValue { .. }
@@ -91,7 +91,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     /// Classify bridge actions into tracked interaction profile groups.
     pub(super) fn classify_action_interaction(action: &UiAction) -> Option<InteractionProfileKind> {
         match action {
-            UiAction::SetBrowserTab { map: true } | UiAction::FocusSpatialContentItem { .. } => {
+            UiAction::SetContentTab { map: true } | UiAction::FocusSpatialContentItem { .. } => {
                 Some(InteractionProfileKind::SpatialPanProxy)
             }
             UiAction::StartContentItemDrag { .. }

@@ -92,10 +92,10 @@ fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<
             Some(UiAction::MoveContentFocus { delta: 1 })
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowLeft) => {
-            Some(UiAction::FocusPreviousBrowserHistory)
+            Some(UiAction::FocusPreviousContentHistory)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowRight) => {
-            Some(UiAction::FocusNextBrowserHistory)
+            Some(UiAction::FocusNextContentHistory)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::X) => {
             Some(UiAction::ToggleFocusedContentRowSelection)

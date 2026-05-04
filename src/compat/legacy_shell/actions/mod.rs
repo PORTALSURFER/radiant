@@ -382,8 +382,8 @@ pub enum UiAction {
         /// Full content-search query text.
         query: String,
     },
-    /// Toggle one browser rating-filter chip for level `-3..=3`, or `4` for locked keeps.
-    ToggleBrowserRatingFilter {
+    /// Toggle one content rating-filter chip for level `-3..=3`, or `4` for locked keeps.
+    ToggleContentRatingFilter {
         /// Signed rating level associated with the clicked filter chip.
         level: i8,
         /// Whether the click should activate every filter chip except the clicked one.
@@ -405,7 +405,7 @@ pub enum UiAction {
         /// Whether the click should invert the derived-label filter.
         invert: bool,
     },
-    /// Toggle sticky random navigation mode for browser next/previous stepping.
+    /// Toggle sticky random navigation mode for content next/previous stepping.
     ToggleRandomNavigationMode,
     /// Toggle the content-local metadata pill editor.
     ToggleContentPillEditor,
@@ -413,10 +413,10 @@ pub enum UiAction {
     ToggleContentPillEditorPrimaryAction,
     /// Toggle content duplicate-cleanup mode for the focused content item.
     ToggleContentDuplicateCleanupMode,
-    /// Focus the previous browser item from focus history.
-    FocusPreviousBrowserHistory,
-    /// Focus the next browser item from focus history.
-    FocusNextBrowserHistory,
+    /// Focus the previous content item from focus history.
+    FocusPreviousContentHistory,
+    /// Focus the next content item from focus history.
+    FocusNextContentHistory,
     /// Toggle find-similar mode for the focused content item.
     ToggleFindSimilarFocusedContent,
     /// Toggle whether one duplicate-cleanup content row should be kept.
@@ -430,13 +430,13 @@ pub enum UiAction {
     PlayRandomContentItem,
     /// Replay the previous random-visible content item.
     PlayPreviousRandomContentItem,
-    /// Adjust the rating for selected browser rows by a signed delta.
-    AdjustSelectedBrowserRating {
+    /// Adjust the rating for selected content rows by a signed delta.
+    AdjustSelectedContentRating {
         /// Signed rating delta applied to selected rows.
         delta: i8,
     },
-    /// Set active browser tab (`map = true` selects map; otherwise list).
-    SetBrowserTab {
+    /// Set active content tab (`map = true` selects map; otherwise list).
+    SetContentTab {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
     },

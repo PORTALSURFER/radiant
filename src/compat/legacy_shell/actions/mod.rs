@@ -321,9 +321,9 @@ pub enum UiAction {
         /// Target visible row index in the content list.
         visible_row: usize,
     },
-    /// Start dragging one browser content item or the active browser multi-selection.
+    /// Start dragging one content item or the active content multi-selection.
     ///
-    /// The runtime emits this only after a browser-row press exceeds drag slop,
+    /// The runtime emits this only after a content-row press exceeds drag slop,
     /// so plain clicks can still resolve into the existing focus/selection
     /// actions on release without changing preview behavior.
     StartContentItemDrag {
@@ -334,7 +334,7 @@ pub enum UiAction {
         /// Pointer y-position in logical UI coordinates.
         pointer_y: u16,
     },
-    /// Update the active browser content-item drag with the latest pointer position.
+    /// Update the active content-item drag with the latest pointer position.
     UpdateContentItemDrag {
         /// Pointer x-position in logical UI coordinates.
         pointer_x: u16,
@@ -351,7 +351,7 @@ pub enum UiAction {
         /// Whether Alt is currently held.
         alt_down: bool,
     },
-    /// Finish the active browser content-item drag gesture.
+    /// Finish the active content-item drag gesture.
     FinishContentItemDrag,
     /// Extend selection from the anchor to the target visible row.
     ExtendContentSelectionToRow {
@@ -814,7 +814,7 @@ pub enum UiAction {
         /// Folder pane currently hovered by the pointer background, when any.
         over_folder_panel: Option<FolderPaneIdModel>,
         /// Whether the pointer currently hovers the content list.
-        over_browser_list: bool,
+        over_content_list: bool,
         /// Whether Shift is currently held.
         shift_down: bool,
         /// Whether Alt is currently held.

@@ -167,7 +167,7 @@ where
                 hovered_folder_pane: hovered_folder_row.map(|(pane, _)| pane),
                 hovered_folder_row: hovered_folder_row.map(|(_, row)| row),
                 over_folder_panel,
-                over_browser_list: !self.model.map.active && layout.browser_rows.contains(point),
+                over_content_list: !self.model.map.active && layout.browser_rows.contains(point),
                 shift_down: self.modifiers.shift_key(),
                 alt_down: self.modifiers.alt_key(),
             },

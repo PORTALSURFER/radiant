@@ -72,7 +72,6 @@ mod scene_cache;
 #[cfg(feature = "legacy-shell")]
 mod scene_rebuild;
 mod startup;
-#[cfg(feature = "legacy-shell")]
 mod text_edit;
 mod text_renderer;
 #[cfg(feature = "legacy-shell")]

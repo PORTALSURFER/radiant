@@ -160,7 +160,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
         hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
         hovered_folder_row_index: Some(0),
         hovered_waveform_toolbar_hint: None,
-        browser_search_editor_signature: 0,
+        content_search_editor_signature: 0,
         folder_create_editor_signature: 0,
     };
     let baseline_signature = hover_overlay_model_signature(&baseline, &shell);
@@ -210,7 +210,7 @@ fn hover_overlay_signature_ignores_waveform_text_without_hover_tooltip() {
         hovered_folder_pane: None,
         hovered_folder_row_index: None,
         hovered_waveform_toolbar_hint: None,
-        browser_search_editor_signature: 0,
+        content_search_editor_signature: 0,
         folder_create_editor_signature: 0,
     };
     let baseline_signature = hover_overlay_model_signature(&baseline, &shell);

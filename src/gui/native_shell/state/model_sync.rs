@@ -172,10 +172,10 @@ impl NativeShellState {
             hovered_folder_pane: self.hovered_folder_pane,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
-            browser_search_editor_signature: text_field_visual_signature(
+            content_search_editor_signature: text_field_visual_signature(
                 self.browser_search_editor_visual.as_ref(),
             ),
-            browser_search_sidebar_signature: text_field_visual_signature(
+            content_pill_editor_signature: text_field_visual_signature(
                 self.browser_pill_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
@@ -214,13 +214,13 @@ impl NativeShellState {
         ChromeMotionOverlayFingerprint {
             transport_running: self.transport_running,
             startup_frame_ticks: self.startup_frame_ticks,
-            hovered_browser_rating_filter_level: self.hovered_browser_rating_filter_level,
-            hovered_browser_playback_age_filter_chip: self.hovered_browser_playback_age_filter_chip,
-            hovered_browser_marked_filter: self.hovered_browser_marked_filter,
+            hovered_content_rating_filter_level: self.hovered_browser_rating_filter_level,
+            hovered_content_recency_filter_chip: self.hovered_browser_playback_age_filter_chip,
+            hovered_content_marked_filter: self.hovered_browser_marked_filter,
             hovered_source_add_button: self.hovered_source_add_button,
             hovered_status_options_button: self.hovered_status_options_button,
             status_options_button_error: self.status_options_button_error,
-            hovered_browser_search_field: self.hovered_browser_search_field,
+            hovered_content_search_field: self.hovered_browser_search_field,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             flashed_source_add_button: self.source_add_button_flash_ticks > 0,
             source_add_button_flash_ticks: self.source_add_button_flash_ticks,
@@ -276,7 +276,7 @@ impl NativeShellState {
             hovered_folder_pane: self.hovered_folder_pane,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
-            browser_search_editor_signature: text_field_visual_signature(
+            content_search_editor_signature: text_field_visual_signature(
                 self.browser_search_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
@@ -303,11 +303,11 @@ impl NativeShellState {
             source_context_menu_anchor_y_bits: self
                 .source_context_menu
                 .map(|menu| menu.anchor.y.to_bits()),
-            browser_context_menu_row_index: self.browser_context_menu.map(|menu| menu.visible_row),
-            browser_context_menu_anchor_x_bits: self
+            content_context_menu_row_index: self.browser_context_menu.map(|menu| menu.visible_row),
+            content_context_menu_anchor_x_bits: self
                 .browser_context_menu
                 .map(|menu| menu.anchor.x.to_bits()),
-            browser_context_menu_anchor_y_bits: self
+            content_context_menu_anchor_y_bits: self
                 .browser_context_menu
                 .map(|menu| menu.anchor.y.to_bits()),
         }

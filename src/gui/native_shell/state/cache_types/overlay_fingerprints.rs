@@ -78,9 +78,9 @@ pub(crate) struct StateOverlayFingerprint {
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Active content-search editor visual signature.
-    pub browser_search_editor_signature: u64,
+    pub content_search_editor_signature: u64,
     /// Active content pill-editor visual signature.
-    pub browser_search_sidebar_signature: u64,
+    pub content_pill_editor_signature: u64,
     /// Active inline folder-create editor visual signature.
     pub folder_create_editor_signature: u64,
     /// Whether focused selection emphasis is active.
@@ -101,7 +101,7 @@ pub(crate) struct HoverOverlayFingerprint {
     /// Hovered waveform-toolbar hint target.
     pub hovered_waveform_toolbar_hint: Option<WaveformToolbarHoverHint>,
     /// Active content-search editor visual signature.
-    pub browser_search_editor_signature: u64,
+    pub content_search_editor_signature: u64,
     /// Active inline folder-create editor visual signature.
     pub folder_create_editor_signature: u64,
 }
@@ -125,11 +125,11 @@ pub(crate) struct ModalOverlayFingerprint {
     /// Source-context-menu anchor y-position bits, if any.
     pub source_context_menu_anchor_y_bits: Option<u32>,
     /// Active content-row context-menu row, if any.
-    pub browser_context_menu_row_index: Option<usize>,
+    pub content_context_menu_row_index: Option<usize>,
     /// Content-row context-menu anchor x-position bits, if any.
-    pub browser_context_menu_anchor_x_bits: Option<u32>,
+    pub content_context_menu_anchor_x_bits: Option<u32>,
     /// Content-row context-menu anchor y-position bits, if any.
-    pub browser_context_menu_anchor_y_bits: Option<u32>,
+    pub content_context_menu_anchor_y_bits: Option<u32>,
 }
 
 /// Compact motion-overlay fingerprint for runtime overlay skip checks.
@@ -173,13 +173,13 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     /// Remaining startup animation ticks.
     pub startup_frame_ticks: u8,
     /// Hovered content rating-filter chip level, if any.
-    pub hovered_browser_rating_filter_level: Option<i8>,
+    pub hovered_content_rating_filter_level: Option<i8>,
     /// Hovered content recency-filter chip, if any.
-    pub hovered_browser_playback_age_filter_chip: Option<crate::gui::list::RecencyFilterChip>,
+    pub hovered_content_recency_filter_chip: Option<crate::gui::list::RecencyFilterChip>,
     /// Whether the content marked-filter chip is hovered.
-    pub hovered_browser_marked_filter: bool,
+    pub hovered_content_marked_filter: bool,
     /// Whether the content search field is hovered.
-    pub hovered_browser_search_field: bool,
+    pub hovered_content_search_field: bool,
     /// Whether the source-add button is hovered.
     pub hovered_source_add_button: bool,
     /// Whether the status-bar options button is hovered.

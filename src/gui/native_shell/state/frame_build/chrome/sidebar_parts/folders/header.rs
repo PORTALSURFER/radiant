@@ -26,7 +26,7 @@ pub(super) fn render_folder_header(
             .visibility_toggle_button
             .as_ref()
             .map(|button| (button.rect, button.active, button.enabled)),
-        WaveformToolbarIcon::Filter,
+        ShellSvgIcon::Filter,
     );
     render_folder_header_toggle_button(
         ctx,
@@ -35,7 +35,7 @@ pub(super) fn render_folder_header(
             .flatten_toggle_button
             .as_ref()
             .map(|button| (button.rect, button.active, button.enabled)),
-        WaveformToolbarIcon::Flatten,
+        ShellSvgIcon::Flatten,
     );
     if let Some(badge) = header_layout.badge.as_ref() {
         emit_primitive(
@@ -134,7 +134,7 @@ fn render_folder_header_toggle_button(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     toggle_button: Option<(Rect, bool, bool)>,
-    icon: WaveformToolbarIcon,
+    icon: ShellSvgIcon,
 ) {
     let Some((toggle_rect, active, enabled)) = toggle_button else {
         return;

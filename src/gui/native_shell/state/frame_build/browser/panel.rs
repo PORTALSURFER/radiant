@@ -192,7 +192,7 @@ pub(super) fn render_browser_frame(
         );
         let _ = emit_toolbar_svg_icon(
             primitives,
-            WaveformToolbarIcon::BrowserMarked,
+            ShellSvgIcon::Marked,
             centered_button_icon_rect(toolbar.marked_filter_chip, ctx.sizing),
             if ctx.model.browser.marked_filter_active {
                 ctx.style.text_primary
@@ -217,9 +217,9 @@ pub(super) fn render_browser_frame(
             ctx.sizing.border_width,
         );
         let icon = if ctx.model.browser.derived_label_filter_negated() {
-            WaveformToolbarIcon::Filter
+            ShellSvgIcon::Filter
         } else {
-            WaveformToolbarIcon::BrowserMarked
+            ShellSvgIcon::Marked
         };
         let _ = emit_toolbar_svg_icon(
             primitives,
@@ -350,10 +350,10 @@ fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
     button_rect.centered_square(side)
 }
 
-fn browser_playback_age_filter_icon(chip: RecencyFilterChip) -> WaveformToolbarIcon {
+fn browser_playback_age_filter_icon(chip: RecencyFilterChip) -> ShellSvgIcon {
     match chip {
-        RecencyFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
-        RecencyFilterChip::OlderThanMonth => WaveformToolbarIcon::BrowserOlderThanMonth,
-        RecencyFilterChip::OlderThanWeek => WaveformToolbarIcon::BrowserOlderThanWeek,
+        RecencyFilterChip::NeverPlayed => ShellSvgIcon::RecencyNever,
+        RecencyFilterChip::OlderThanMonth => ShellSvgIcon::RecencyOlderThanMonth,
+        RecencyFilterChip::OlderThanWeek => ShellSvgIcon::RecencyOlderThanWeek,
     }
 }

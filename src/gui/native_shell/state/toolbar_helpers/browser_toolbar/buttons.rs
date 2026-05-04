@@ -17,7 +17,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
         buttons.push(ActionButton {
             rect: toolbar.action_slots[0],
             label: String::from("Random"),
-            icon: Some(WaveformToolbarIcon::Dice),
+            icon: Some(ShellSvgIcon::Dice),
             enabled: true,
             active: model.browser_actions.random_navigation_enabled,
             action: UiAction::ToggleRandomNavigationMode,
@@ -32,7 +32,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
         buttons.push(ActionButton {
             rect: toolbar.action_slots[1],
             label: String::from("Cleanup"),
-            icon: Some(WaveformToolbarIcon::Filter),
+            icon: Some(ShellSvgIcon::Filter),
             enabled: true,
             active: model.browser_actions.duplicate_cleanup_active,
             action: UiAction::ToggleBrowserDuplicateCleanupMode,

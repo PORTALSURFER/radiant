@@ -125,7 +125,7 @@ pub(in crate::gui::native_shell::state) fn render_browser_similarity_button(
     push_border(primitives, button_rect, button_border, sizing.border_width);
     let _ = emit_toolbar_svg_icon(
         primitives,
-        WaveformToolbarIcon::Similarity,
+        ShellSvgIcon::Similarity,
         browser_similarity_button_icon_rect(button_rect, sizing),
         icon_color,
     );

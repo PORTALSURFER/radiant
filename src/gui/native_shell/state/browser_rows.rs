@@ -1,6 +1,6 @@
 //! Browser-row caches plus focused geometry, truncation, and visual helper modules.
 
-use super::svg_icons::WaveformToolbarIcon;
+use super::svg_icons::ShellSvgIcon;
 use super::*;
 use crate::gui::list::{RecencyBucket, RowProcessingState};
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
@@ -119,7 +119,7 @@ pub(super) struct BrowserRowsCacheKey {
 pub(super) struct ActionButton {
     pub(super) rect: Rect,
     pub(super) label: String,
-    pub(super) icon: Option<WaveformToolbarIcon>,
+    pub(super) icon: Option<ShellSvgIcon>,
     pub(super) enabled: bool,
     pub(super) active: bool,
     pub(super) action: UiAction,
@@ -139,8 +139,8 @@ pub(super) struct BrowserColumnChip {
 pub(super) struct WaveformToolbarButton {
     pub(super) rect: Rect,
     pub(super) label: &'static str,
-    pub(super) icon: Option<WaveformToolbarIcon>,
-    pub(super) overlay_icon: Option<WaveformToolbarIcon>,
+    pub(super) icon: Option<ShellSvgIcon>,
+    pub(super) overlay_icon: Option<ShellSvgIcon>,
     pub(super) display_text: Option<String>,
     pub(super) enabled: bool,
     pub(super) active: bool,

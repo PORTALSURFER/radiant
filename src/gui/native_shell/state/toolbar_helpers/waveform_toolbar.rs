@@ -23,14 +23,14 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         if model.transport_running {
             (
                 "Stop",
-                Some(WaveformToolbarIcon::Stop),
+                Some(ShellSvgIcon::Stop),
                 Some(UiAction::HandleEscape),
                 style.highlight_orange_soft,
             )
         } else {
             (
                 "Play",
-                Some(WaveformToolbarIcon::Play),
+                Some(ShellSvgIcon::Play),
                 Some(UiAction::ToggleTransport),
                 style.accent_warning,
             )
@@ -40,9 +40,9 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             "Channel",
             Some(
                 if chrome.channel_view == crate::gui::visualization::ChannelViewMode::Stereo {
-                    WaveformToolbarIcon::Stereo
+                    ShellSvgIcon::Stereo
                 } else {
-                    WaveformToolbarIcon::Mono
+                    ShellSvgIcon::Mono
                 },
             ),
             None,
@@ -56,7 +56,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Norm",
-            Some(WaveformToolbarIcon::Normalize),
+            Some(ShellSvgIcon::Normalize),
             None,
             None,
             true,
@@ -82,7 +82,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "BPM Snap",
-            Some(WaveformToolbarIcon::BpmSnap),
+            Some(ShellSvgIcon::BpmSnap),
             None,
             None,
             true,
@@ -98,7 +98,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Rel Grid",
-            Some(WaveformToolbarIcon::RelativeBpmGrid),
+            Some(ShellSvgIcon::RelativeBpmGrid),
             None,
             None,
             true,
@@ -114,7 +114,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Tr Snap",
-            Some(WaveformToolbarIcon::TransientSnap),
+            Some(ShellSvgIcon::TransientSnap),
             None,
             None,
             true,
@@ -130,7 +130,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Show Tr",
-            Some(WaveformToolbarIcon::ShowTransients),
+            Some(ShellSvgIcon::ShowTransients),
             None,
             None,
             true,
@@ -146,7 +146,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Slice",
-            Some(WaveformToolbarIcon::Slice),
+            Some(ShellSvgIcon::Slice),
             None,
             None,
             true,
@@ -162,7 +162,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Silence Split",
-            Some(WaveformToolbarIcon::Slice),
+            Some(ShellSvgIcon::Slice),
             None,
             None,
             loaded_available,
@@ -172,7 +172,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Exact Dedupe",
-            Some(WaveformToolbarIcon::Slice),
+            Some(ShellSvgIcon::Slice),
             None,
             None,
             loaded_available,
@@ -182,7 +182,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Clean Dups",
-            Some(WaveformToolbarIcon::Slice),
+            Some(ShellSvgIcon::Slice),
             None,
             None,
             loaded_available && tools.cleanup_available,
@@ -192,9 +192,9 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Loop",
-            Some(WaveformToolbarIcon::Loop),
+            Some(ShellSvgIcon::Loop),
             if tools.lock_enabled {
-                Some(WaveformToolbarIcon::Lock)
+                Some(ShellSvgIcon::Lock)
             } else {
                 None
             },
@@ -212,7 +212,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Compare",
-            Some(WaveformToolbarIcon::Play),
+            Some(ShellSvgIcon::Play),
             None,
             None,
             chrome.reference_anchor_available,
@@ -236,7 +236,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         ),
         (
             "Rec",
-            Some(WaveformToolbarIcon::Record),
+            Some(ShellSvgIcon::Record),
             None,
             None,
             false,
@@ -366,7 +366,7 @@ pub(in crate::gui::native_shell::state) fn render_waveform_toolbar_buttons(
         );
         let main_icon_rect =
             waveform_toolbar_icon_rect(button.rect, sizing, button.active, is_hovered, is_flashed);
-        let rendered_main_icon = if let Some(icon) = toolbar_icon_for_button(button) {
+        let rendered_main_icon = if let Some(icon) = shell_svg_icon_for_button(button) {
             emit_toolbar_svg_icon(primitives, icon, main_icon_rect, icon_color)
         } else {
             false

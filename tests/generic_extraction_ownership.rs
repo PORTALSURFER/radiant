@@ -2036,3 +2036,47 @@ fn native_shell_motion_helpers_do_not_use_sample_manager_terms_for_points() {
         );
     }
 }
+
+#[test]
+fn native_shell_svg_icons_are_named_for_generic_shell_controls() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let svg_icons = fs::read_to_string(format!(
+        "{manifest_dir}/src/gui/native_shell/state/svg_icons.rs"
+    ))
+    .expect("svg icon helper should be readable");
+
+    for forbidden in [
+        "WaveformToolbarIcon",
+        "BrowserNeverPlayed",
+        "BrowserOlderThanMonth",
+        "BrowserOlderThanWeek",
+        "BrowserMarked",
+        "browser_never_played.svg",
+        "browser_older_than_month.svg",
+        "browser_older_than_week.svg",
+        "browser_marked.svg",
+        "crate::app as native_model",
+    ] {
+        assert!(
+            !svg_icons.contains(forbidden),
+            "native shell SVG icon inventory should use generic shell-control names, found `{forbidden}`"
+        );
+    }
+
+    for required in [
+        "enum ShellSvgIcon",
+        "RecencyNever",
+        "RecencyOlderThanMonth",
+        "RecencyOlderThanWeek",
+        "Marked",
+        "recency_never.svg",
+        "recency_older_than_month.svg",
+        "recency_older_than_week.svg",
+        "marked.svg",
+    ] {
+        assert!(
+            svg_icons.contains(required),
+            "native shell SVG icon inventory should expose generic shell-control name `{required}`"
+        );
+    }
+}

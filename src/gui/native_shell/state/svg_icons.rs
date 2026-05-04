@@ -8,15 +8,13 @@
 
 use super::*;
 #[cfg(test)]
-use crate::app as native_model;
-#[cfg(test)]
 use std::sync::Arc;
 
 use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};
 
 /// Icon identifiers used by native shell controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum WaveformToolbarIcon {
+pub(super) enum ShellSvgIcon {
     /// Mono channel-view icon.
     Mono,
     /// Stereo channel-view icon.
@@ -43,35 +41,33 @@ pub(super) enum WaveformToolbarIcon {
     Play,
     /// Record icon placeholder.
     Record,
-    /// Browser random-navigation toggle icon.
+    /// Random-navigation toggle icon.
     Dice,
-    /// Browser focused-row similarity-search icon.
+    /// Focused-row similarity-search icon.
     Similarity,
-    /// Sidebar folder-visibility toggle icon.
+    /// Panel filter toggle icon.
     Filter,
-    /// Sidebar flattened-view toggle icon.
+    /// Panel flattened-view toggle icon.
     Flatten,
-    /// Browser playback-age filter icon for content with no playback history.
-    BrowserNeverPlayed,
-    /// Browser playback-age filter icon for content older than one month.
-    BrowserOlderThanMonth,
-    /// Browser playback-age filter icon for content older than one week.
-    BrowserOlderThanWeek,
-    /// Browser marked-only filter icon.
-    BrowserMarked,
+    /// Recency filter icon for content with no activation history.
+    RecencyNever,
+    /// Recency filter icon for content older than one month.
+    RecencyOlderThanMonth,
+    /// Recency filter icon for content older than one week.
+    RecencyOlderThanWeek,
+    /// Marked-only filter icon.
+    Marked,
 }
 
 /// Return a toolbar icon for one waveform toolbar button.
-pub(super) fn toolbar_icon_for_button(
-    button: &WaveformToolbarButton,
-) -> Option<WaveformToolbarIcon> {
+pub(super) fn shell_svg_icon_for_button(button: &WaveformToolbarButton) -> Option<ShellSvgIcon> {
     button.icon
 }
 
 /// Emit one SVG-backed toolbar icon into the primitive list.
 pub(super) fn emit_toolbar_svg_icon(
     primitives: &mut impl PrimitiveSink,
-    icon: WaveformToolbarIcon,
+    icon: ShellSvgIcon,
     rect: Rect,
     color: Rgba8,
 ) -> bool {
@@ -89,7 +85,7 @@ pub(super) fn emit_toolbar_svg_icon(
     true
 }
 
-fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> Option<ImageRgba> {
+fn rasterize_svg_icon(icon: ShellSvgIcon, side: usize, color: Rgba8) -> Option<ImageRgba> {
     let svg = icon_svg_asset(icon);
     let document = parse_svg_document(svg)?;
     let mut pixels = vec![0_u8; side.saturating_mul(side).saturating_mul(4)];
@@ -127,71 +123,67 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
 
     ImageRgba::new(side, side, pixels)
 }
-fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
+fn icon_svg_asset(icon: ShellSvgIcon) -> &'static str {
     match icon {
-        WaveformToolbarIcon::Mono => {
+        ShellSvgIcon::Mono => {
             include_str!("../assets/icons/waveform_toolbar/mono.svg")
         }
-        WaveformToolbarIcon::Stereo => {
+        ShellSvgIcon::Stereo => {
             include_str!("../assets/icons/waveform_toolbar/stereo.svg")
         }
-        WaveformToolbarIcon::Normalize => {
+        ShellSvgIcon::Normalize => {
             include_str!("../assets/icons/waveform_toolbar/normalize.svg")
         }
-        WaveformToolbarIcon::BpmSnap => {
+        ShellSvgIcon::BpmSnap => {
             include_str!("../assets/icons/waveform_toolbar/bpm_snap.svg")
         }
-        WaveformToolbarIcon::RelativeBpmGrid => {
+        ShellSvgIcon::RelativeBpmGrid => {
             include_str!("../assets/icons/waveform_toolbar/relative_bpm_grid.svg")
         }
-        WaveformToolbarIcon::TransientSnap => {
+        ShellSvgIcon::TransientSnap => {
             include_str!("../assets/icons/waveform_toolbar/transient_snap.svg")
         }
-        WaveformToolbarIcon::ShowTransients => {
+        ShellSvgIcon::ShowTransients => {
             include_str!("../assets/icons/waveform_toolbar/show_transients.svg")
         }
-        WaveformToolbarIcon::Slice => {
+        ShellSvgIcon::Slice => {
             include_str!("../assets/icons/waveform_toolbar/slice.svg")
         }
-        WaveformToolbarIcon::Play => {
+        ShellSvgIcon::Play => {
             include_str!("../assets/icons/waveform_toolbar/play.svg")
         }
-        WaveformToolbarIcon::Stop => {
+        ShellSvgIcon::Stop => {
             include_str!("../assets/icons/waveform_toolbar/stop.svg")
         }
-        WaveformToolbarIcon::Record => {
+        ShellSvgIcon::Record => {
             include_str!("../assets/icons/waveform_toolbar/record.svg")
         }
-        WaveformToolbarIcon::Loop => {
+        ShellSvgIcon::Loop => {
             include_str!("../assets/icons/waveform_toolbar/loop.svg")
         }
-        WaveformToolbarIcon::Lock => {
+        ShellSvgIcon::Lock => {
             include_str!("../assets/icons/ui/lock.svg")
         }
-        WaveformToolbarIcon::Dice => {
+        ShellSvgIcon::Dice => {
             include_str!("../assets/icons/ui/dice.svg")
         }
-        WaveformToolbarIcon::Similarity => {
+        ShellSvgIcon::Similarity => {
             include_str!("../assets/icons/ui/similarity.svg")
         }
-        WaveformToolbarIcon::Filter => {
+        ShellSvgIcon::Filter => {
             include_str!("../assets/icons/ui/filter.svg")
         }
-        WaveformToolbarIcon::Flatten => {
+        ShellSvgIcon::Flatten => {
             include_str!("../assets/icons/ui/flatten.svg")
         }
-        WaveformToolbarIcon::BrowserNeverPlayed => {
-            include_str!("../assets/icons/ui/browser_never_played.svg")
+        ShellSvgIcon::RecencyNever => include_str!("../assets/icons/ui/recency_never.svg"),
+        ShellSvgIcon::RecencyOlderThanMonth => {
+            include_str!("../assets/icons/ui/recency_older_than_month.svg")
         }
-        WaveformToolbarIcon::BrowserOlderThanMonth => {
-            include_str!("../assets/icons/ui/browser_older_than_month.svg")
+        ShellSvgIcon::RecencyOlderThanWeek => {
+            include_str!("../assets/icons/ui/recency_older_than_week.svg")
         }
-        WaveformToolbarIcon::BrowserOlderThanWeek => {
-            include_str!("../assets/icons/ui/browser_older_than_week.svg")
-        }
-        WaveformToolbarIcon::BrowserMarked => {
-            include_str!("../assets/icons/ui/browser_marked.svg")
-        }
+        ShellSvgIcon::Marked => include_str!("../assets/icons/ui/marked.svg"),
     }
 }
 
@@ -199,7 +191,6 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
 mod tests {
     use super::*;
     use crate::gui::types::{Point, Rect, Rgba8};
-    use native_model::UiAction;
 
     fn waveform_toolbar_button(label: &'static str, active: bool) -> WaveformToolbarButton {
         WaveformToolbarButton {
@@ -210,7 +201,7 @@ mod tests {
             display_text: None,
             enabled: true,
             active,
-            action: Some(UiAction::ToggleTransport),
+            action: None,
             text_color: Rgba8 {
                 r: 255,
                 g: 255,
@@ -220,12 +211,12 @@ mod tests {
         }
     }
 
-    fn toolbar_icon_for_label(label: &'static str) -> Option<WaveformToolbarIcon> {
+    fn toolbar_icon_for_label(label: &'static str) -> Option<ShellSvgIcon> {
         match label {
-            "Channel Mono" => Some(WaveformToolbarIcon::Mono),
-            "Channel Stereo" => Some(WaveformToolbarIcon::Stereo),
-            "Play" => Some(WaveformToolbarIcon::Play),
-            "Stop" => Some(WaveformToolbarIcon::Stop),
+            "Channel Mono" => Some(ShellSvgIcon::Mono),
+            "Channel Stereo" => Some(ShellSvgIcon::Stereo),
+            "Play" => Some(ShellSvgIcon::Play),
+            "Stop" => Some(ShellSvgIcon::Stop),
             _ => None,
         }
     }
@@ -236,12 +227,12 @@ mod tests {
         let running_button = waveform_toolbar_button("Stop", true);
 
         assert_eq!(
-            toolbar_icon_for_button(&idle_button),
-            Some(WaveformToolbarIcon::Play)
+            shell_svg_icon_for_button(&idle_button),
+            Some(ShellSvgIcon::Play)
         );
         assert_eq!(
-            toolbar_icon_for_button(&running_button),
-            Some(WaveformToolbarIcon::Stop)
+            shell_svg_icon_for_button(&running_button),
+            Some(ShellSvgIcon::Stop)
         );
     }
 
@@ -251,39 +242,39 @@ mod tests {
         let stereo_button = waveform_toolbar_button("Channel Stereo", false);
 
         assert_eq!(
-            toolbar_icon_for_button(&mono_button),
-            Some(WaveformToolbarIcon::Mono)
+            shell_svg_icon_for_button(&mono_button),
+            Some(ShellSvgIcon::Mono)
         );
         assert_eq!(
-            toolbar_icon_for_button(&stereo_button),
-            Some(WaveformToolbarIcon::Stereo)
+            shell_svg_icon_for_button(&stereo_button),
+            Some(ShellSvgIcon::Stereo)
         );
     }
 
     #[test]
     fn asset_backed_svg_icons_parse_successfully() {
         for icon in [
-            WaveformToolbarIcon::Mono,
-            WaveformToolbarIcon::Stereo,
-            WaveformToolbarIcon::Normalize,
-            WaveformToolbarIcon::BpmSnap,
-            WaveformToolbarIcon::RelativeBpmGrid,
-            WaveformToolbarIcon::TransientSnap,
-            WaveformToolbarIcon::ShowTransients,
-            WaveformToolbarIcon::Slice,
-            WaveformToolbarIcon::Loop,
-            WaveformToolbarIcon::Lock,
-            WaveformToolbarIcon::Stop,
-            WaveformToolbarIcon::Play,
-            WaveformToolbarIcon::Record,
-            WaveformToolbarIcon::Dice,
-            WaveformToolbarIcon::Similarity,
-            WaveformToolbarIcon::Filter,
-            WaveformToolbarIcon::Flatten,
-            WaveformToolbarIcon::BrowserNeverPlayed,
-            WaveformToolbarIcon::BrowserOlderThanMonth,
-            WaveformToolbarIcon::BrowserOlderThanWeek,
-            WaveformToolbarIcon::BrowserMarked,
+            ShellSvgIcon::Mono,
+            ShellSvgIcon::Stereo,
+            ShellSvgIcon::Normalize,
+            ShellSvgIcon::BpmSnap,
+            ShellSvgIcon::RelativeBpmGrid,
+            ShellSvgIcon::TransientSnap,
+            ShellSvgIcon::ShowTransients,
+            ShellSvgIcon::Slice,
+            ShellSvgIcon::Loop,
+            ShellSvgIcon::Lock,
+            ShellSvgIcon::Stop,
+            ShellSvgIcon::Play,
+            ShellSvgIcon::Record,
+            ShellSvgIcon::Dice,
+            ShellSvgIcon::Similarity,
+            ShellSvgIcon::Filter,
+            ShellSvgIcon::Flatten,
+            ShellSvgIcon::RecencyNever,
+            ShellSvgIcon::RecencyOlderThanMonth,
+            ShellSvgIcon::RecencyOlderThanWeek,
+            ShellSvgIcon::Marked,
         ] {
             let document = parse_svg_document(icon_svg_asset(icon));
             assert!(document.is_some(), "svg asset for {icon:?} should parse");

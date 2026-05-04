@@ -150,11 +150,11 @@ pub(crate) struct SizingTokens {
     pub content_browser_min_height: f32,
     /// Minimum waveform card height when content is constrained.
     pub waveform_card_floor_height: f32,
-    /// Browser action button width.
+    /// Content action button width.
     pub action_button_width: f32,
-    /// Browser action button height.
+    /// Content action button height.
     pub action_button_height: f32,
-    /// Gap between browser action buttons.
+    /// Gap between content action buttons.
     pub action_button_gap: f32,
     /// Gap between top-bar title and action clusters.
     pub top_bar_cluster_gap: f32,

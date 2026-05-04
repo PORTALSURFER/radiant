@@ -202,7 +202,7 @@ impl NativeShellState {
         )
     }
 
-    /// Resolve a browser action-strip click into a native UI action.
+    /// Resolve a content action-strip click into a native UI action.
     pub(crate) fn browser_action_at_point(
         &mut self,
         layout: &ShellLayout,
@@ -616,11 +616,11 @@ pub(in crate::gui::native_shell::state) fn content_action_hit_test_cache_key(
         content_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),
         content_toolbar_max_y: f32_to_bits(layout.browser_toolbar.max.y),
         ui_scale: f32_to_bits(layout.ui_scale),
-        model_signature: browser_action_model_signature(model),
+        model_signature: content_action_model_signature(model),
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model: &AppModel) -> u64 {
+pub(in crate::gui::native_shell::state) fn content_action_model_signature(model: &AppModel) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     model.browser_actions.can_rename.hash(&mut hasher);
     model.browser_actions.can_edit_pills().hash(&mut hasher);

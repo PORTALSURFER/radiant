@@ -1,7 +1,10 @@
 //! Options-panel action definitions and paired-picker helpers.
 
-use crate::app as native_model;
 use super::*;
+use crate::gui::form::{OptionItem, PairedPickerTarget, PairedPickerValue, PairedStatusPanel};
+
+type PairedPickerValueItem = PairedPickerValue<String, u32>;
+type PairedPickerOptionItem = OptionItem<PairedPickerValueItem>;
 
 pub(super) fn paired_device_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
     let paired_device = model.paired_device_panel();
@@ -115,63 +118,43 @@ pub(super) fn options_panel_title(model: &AppModel) -> String {
 
 pub(super) fn picker_options(
     model: &AppModel,
-    target: native_model::PairedPickerTargetModel,
-) -> &[native_model::PairedPickerOptionModel] {
+    target: PairedPickerTarget,
+) -> &[PairedPickerOptionItem] {
     model.paired_device_panel().options_for(target)
 }
 
 /// Map one projected paired-picker option into the native action it emits.
-pub(super) fn picker_action(value: &native_model::PairedPickerValueModel) -> UiAction {
+pub(super) fn picker_action(value: &PairedPickerValueItem) -> UiAction {
     match value {
-        native_model::PairedPickerValueModel::PrimaryGroup(group_id) => UiAction::SetPrimaryGroup {
+        PairedPickerValue::PrimaryGroup(group_id) => UiAction::SetPrimaryGroup {
             group_id: group_id.clone(),
         },
-        native_model::PairedPickerValueModel::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
+        PairedPickerValue::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
             item_name: item_name.clone(),
         },
-        native_model::PairedPickerValueModel::PrimaryNumber(value) => {
-            UiAction::SetPrimaryNumber { value: *value }
-        }
-        native_model::PairedPickerValueModel::SecondaryGroup(group_id) => {
-            UiAction::SetSecondaryGroup {
-                group_id: group_id.clone(),
-            }
-        }
-        native_model::PairedPickerValueModel::SecondaryItem(item_name) => {
-            UiAction::SetSecondaryItem {
-                item_name: item_name.clone(),
-            }
-        }
-        native_model::PairedPickerValueModel::SecondaryNumber(value) => {
-            UiAction::SetSecondaryNumber { value: *value }
-        }
+        PairedPickerValue::PrimaryNumber(value) => UiAction::SetPrimaryNumber { value: *value },
+        PairedPickerValue::SecondaryGroup(group_id) => UiAction::SetSecondaryGroup {
+            group_id: group_id.clone(),
+        },
+        PairedPickerValue::SecondaryItem(item_name) => UiAction::SetSecondaryItem {
+            item_name: item_name.clone(),
+        },
+        PairedPickerValue::SecondaryNumber(value) => UiAction::SetSecondaryNumber { value: *value },
     }
 }
 
 /// Return the title text for the active paired-picker target.
 fn paired_picker_title(
-    paired_device: &native_model::PairedDevicePanelModel,
-    target: native_model::PairedPickerTargetModel,
+    paired_device: &PairedStatusPanel<PairedPickerValueItem>,
+    target: PairedPickerTarget,
 ) -> String {
     match target {
-        native_model::PairedPickerTargetModel::PrimaryGroup => {
-            paired_device.primary_group().label.clone()
-        }
-        native_model::PairedPickerTargetModel::PrimaryItem => {
-            paired_device.primary_item().label.clone()
-        }
-        native_model::PairedPickerTargetModel::PrimaryNumber => {
-            paired_device.primary_number().label.clone()
-        }
-        native_model::PairedPickerTargetModel::SecondaryGroup => {
-            paired_device.secondary_group().label.clone()
-        }
-        native_model::PairedPickerTargetModel::SecondaryItem => {
-            paired_device.secondary_item().label.clone()
-        }
-        native_model::PairedPickerTargetModel::SecondaryNumber => {
-            paired_device.secondary_number().label.clone()
-        }
+        PairedPickerTarget::PrimaryGroup => paired_device.primary_group().label.clone(),
+        PairedPickerTarget::PrimaryItem => paired_device.primary_item().label.clone(),
+        PairedPickerTarget::PrimaryNumber => paired_device.primary_number().label.clone(),
+        PairedPickerTarget::SecondaryGroup => paired_device.secondary_group().label.clone(),
+        PairedPickerTarget::SecondaryItem => paired_device.secondary_item().label.clone(),
+        PairedPickerTarget::SecondaryNumber => paired_device.secondary_number().label.clone(),
     }
 }
 

@@ -1,5 +1,6 @@
 use super::*;
-use crate::app as native_model;
+use crate::gui::badge::SelectablePill;
+use crate::gui::selection::TriState;
 
 pub(super) fn render_browser_rows_window(
     ctx: &StaticFrameCtx<'_>,
@@ -509,20 +510,20 @@ fn render_sidebar_pill(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     rect: Rect,
-    pill: &native_model::BrowserPillModel,
+    pill: &SelectablePill<TriState>,
 ) {
     let (fill, border, text) = match pill.state {
-        native_model::BrowserPillState::Off => (
+        TriState::Off => (
             ctx.style.surface_base,
             ctx.style.border,
             ctx.style.text_muted,
         ),
-        native_model::BrowserPillState::On => (
+        TriState::On => (
             blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.24),
             blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32),
             ctx.style.text_primary,
         ),
-        native_model::BrowserPillState::Mixed => (
+        TriState::Mixed => (
             blend_color(
                 ctx.style.highlight_orange_soft,
                 ctx.style.surface_overlay,

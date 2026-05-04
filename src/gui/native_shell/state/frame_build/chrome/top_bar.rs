@@ -1,6 +1,5 @@
 use super::*;
-use crate::app as native_model;
-use native_model::StatusChipStateModel;
+use crate::gui::feedback::HealthState;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,
@@ -96,7 +95,7 @@ fn render_options_button(
         return;
     };
     let paired_device = ctx.model.paired_device_panel();
-    let chip_error = paired_device.status_state() == StatusChipStateModel::Error;
+    let chip_error = paired_device.status_state() == HealthState::Error;
     let chip_label = paired_device.status_label();
     render_status_options_button(
         primitives,

@@ -53,7 +53,7 @@ pub(super) fn render_content_footer(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
 ) {
-    let cached_text = state.cached_browser_segment_text(ctx.layout, ctx.style, ctx.model);
+    let cached_text = state.cached_content_segment_text(ctx.layout, ctx.style, ctx.model);
     emit_text(
         text_runs,
         TextRun {
@@ -72,7 +72,7 @@ pub(super) fn render_content_tabs(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     animated: bool,
-    cached_text: &BrowserSegmentTextCacheValue,
+    cached_text: &ContentSegmentTextCacheValue,
 ) {
     let tabs = resolve_content_tabs_surface_layout(
         ctx.layout.browser_tabs,

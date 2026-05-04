@@ -45,7 +45,7 @@ pub(super) fn render_content_tabs(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     animated: bool,
-    cached_text: &BrowserSegmentTextCacheValue,
+    cached_text: &ContentSegmentTextCacheValue,
 ) {
     tabs::render_content_tabs(primitives, text_runs, ctx, animated, cached_text);
 }

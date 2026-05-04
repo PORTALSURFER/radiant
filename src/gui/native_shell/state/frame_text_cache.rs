@@ -6,36 +6,36 @@ use std::sync::Arc;
 
 impl NativeShellState {
     /// Resolve cached browser-segment text/layout payloads for the current frame.
-    pub(super) fn cached_browser_segment_text(
+    pub(super) fn cached_content_segment_text(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> Arc<BrowserSegmentTextCacheValue> {
-        self.browser_segment_text_frame_counts.lookup_count = self
-            .browser_segment_text_frame_counts
+    ) -> Arc<ContentSegmentTextCacheValue> {
+        self.content_segment_text_frame_counts.lookup_count = self
+            .content_segment_text_frame_counts
             .lookup_count
             .saturating_add(1);
-        let key = browser_segment_text_cache_key(layout, style, model);
-        if self.browser_segment_text_cache_key != Some(key) {
-            self.browser_segment_text_cache = Some(Arc::new(build_browser_segment_text_cache(
+        let key = content_segment_text_cache_key(layout, style, model);
+        if self.content_segment_text_cache_key != Some(key) {
+            self.content_segment_text_cache = Some(Arc::new(build_content_segment_text_cache(
                 layout, style, model,
             )));
-            self.browser_segment_text_cache_key = Some(key);
-            self.browser_segment_text_frame_counts.cache_miss_count = self
-                .browser_segment_text_frame_counts
+            self.content_segment_text_cache_key = Some(key);
+            self.content_segment_text_frame_counts.cache_miss_count = self
+                .content_segment_text_frame_counts
                 .cache_miss_count
                 .saturating_add(1);
         } else {
-            self.browser_segment_text_frame_counts.cache_hit_count = self
-                .browser_segment_text_frame_counts
+            self.content_segment_text_frame_counts.cache_hit_count = self
+                .content_segment_text_frame_counts
                 .cache_hit_count
                 .saturating_add(1);
         }
-        self.browser_segment_text_cache
+        self.content_segment_text_cache
             .as_ref()
             .map(Arc::clone)
-            .unwrap_or_else(|| Arc::new(build_browser_segment_text_cache(layout, style, model)))
+            .unwrap_or_else(|| Arc::new(build_content_segment_text_cache(layout, style, model)))
     }
 
     /// Resolve cached status-bar text/layout payloads for the current frame.
@@ -91,8 +91,8 @@ impl NativeShellState {
 
     /// Return the latest browser-segment text-cache lookup counts in tests.
     #[cfg(test)]
-    pub(crate) fn browser_segment_text_frame_counts(&self) -> SegmentTextCacheFrameCounts {
-        self.browser_segment_text_frame_counts
+    pub(crate) fn content_segment_text_frame_counts(&self) -> SegmentTextCacheFrameCounts {
+        self.content_segment_text_frame_counts
     }
 
     /// Return the latest status-bar text-cache lookup counts in tests.
@@ -102,11 +102,11 @@ impl NativeShellState {
     }
 }
 
-fn build_browser_segment_text_cache(
+fn build_content_segment_text_cache(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-) -> BrowserSegmentTextCacheValue {
+) -> ContentSegmentTextCacheValue {
     let sizing = style.sizing;
     let tabs = resolve_content_tabs_surface_layout(
         layout.browser_tabs,
@@ -122,7 +122,7 @@ fn build_browser_segment_text_cache(
         sizing,
     );
     let footer_text_rect = compute_content_footer_text_rect(layout.browser_footer, sizing);
-    BrowserSegmentTextCacheValue {
+    ContentSegmentTextCacheValue {
         tabs_text_layout,
         toolbar_text_layout,
         footer_text_rect,
@@ -205,12 +205,12 @@ fn build_status_bar_text_cache(
     }
 }
 
-fn browser_segment_text_cache_key(
+fn content_segment_text_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-) -> BrowserSegmentTextCacheKey {
-    BrowserSegmentTextCacheKey {
+) -> ContentSegmentTextCacheKey {
+    ContentSegmentTextCacheKey {
         content_tabs_min_x: f32_to_bits(layout.browser_tabs.min.x),
         content_tabs_min_y: f32_to_bits(layout.browser_tabs.min.y),
         content_tabs_max_x: f32_to_bits(layout.browser_tabs.max.x),
@@ -226,7 +226,7 @@ fn browser_segment_text_cache_key(
         font_meta_bits: f32_to_bits(style.sizing.font_meta),
         font_header_bits: f32_to_bits(style.sizing.font_header),
         ui_scale: f32_to_bits(layout.ui_scale),
-        model_signature: browser_segment_text_model_signature(model),
+        model_signature: content_segment_text_model_signature(model),
     }
 }
 
@@ -266,7 +266,7 @@ fn status_bar_text_cache_key(
     }
 }
 
-fn browser_segment_text_model_signature(model: &AppModel) -> u64 {
+fn content_segment_text_model_signature(model: &AppModel) -> u64 {
     let mut hasher = DefaultHasher::new();
     model.map.active.hash(&mut hasher);
     model.browser.search_query.hash(&mut hasher);

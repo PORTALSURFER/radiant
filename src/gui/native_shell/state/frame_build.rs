@@ -55,7 +55,7 @@ impl NativeShellState {
             static_segment_matches(static_segment_filter, StaticFrameSegment::StatusBar);
         let build_browser_rows_or_map = build_browser_rows_window || build_map_panel;
         if build_browser_frame {
-            self.browser_segment_text_frame_counts = SegmentTextCacheFrameCounts::default();
+            self.content_segment_text_frame_counts = SegmentTextCacheFrameCounts::default();
         }
         if build_status_bar {
             self.status_bar_text_frame_counts = SegmentTextCacheFrameCounts::default();

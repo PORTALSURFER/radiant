@@ -13,7 +13,7 @@ pub(crate) struct SegmentTextCacheFrameCounts {
 
 /// Invalidation key for retained browser-frame/tab/footer text payloads.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
+pub(in crate::gui::native_shell::state) struct ContentSegmentTextCacheKey {
     /// Content tabs region minimum x-coordinate.
     pub content_tabs_min_x: u32,
     /// Content tabs region minimum y-coordinate.
@@ -50,7 +50,7 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
 
 /// Retained text/layout payload for browser tabs, toolbar labels, and footer copy.
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
+pub(in crate::gui::native_shell::state) struct ContentSegmentTextCacheValue {
     /// Precomputed browser-tab label rects.
     pub tabs_text_layout: ContentTabsTextLayout,
     /// Precomputed toolbar label rects.

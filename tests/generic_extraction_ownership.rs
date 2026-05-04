@@ -2192,16 +2192,11 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         "/src/gui/invalidation.rs"
     ))
     .expect("invalidation module should be readable");
-    let compat_runtime_artifacts_mod = fs::read_to_string(concat!(
+    let legacy_native_vello_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/runtime_artifacts.rs"
+        "/src/compat/legacy_native_vello.rs"
     ))
-    .expect("compat runtime artifacts module should be readable");
-    let host_runtime_artifacts_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/runtime_artifacts.rs"
-    ))
-    .expect("host runtime artifacts module should be readable");
+    .expect("legacy native vello module should be readable");
     let dirty_segments_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/compat/legacy_shell/dirty_segments.rs"
@@ -2218,12 +2213,10 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
     assert!(!app_mod.contains("runtime/runtime_artifacts.rs"));
     let compat_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/compat.rs"))
         .expect("compat facade should be readable");
-    assert!(compat_mod.contains("pub mod runtime_artifacts;"));
+    assert!(!compat_mod.contains("pub mod runtime_artifacts;"));
     assert!(!compat_mod.contains("pub use super::runtime_artifacts"));
-    assert!(compat_runtime_artifacts_mod.contains("pub struct NativeRuntimeArtifacts"));
-    assert!(compat_runtime_artifacts_mod.contains("pub type NativeRunReport"));
-    assert!(host_runtime_artifacts_mod.contains("pub struct NativeRuntimeArtifacts"));
-    assert!(host_runtime_artifacts_mod.contains("pub type NativeRunReport"));
+    assert!(legacy_native_vello_mod.contains("pub struct NativeRuntimeArtifacts"));
+    assert!(legacy_native_vello_mod.contains("pub type NativeRunReport"));
     assert!(!app_mod.contains("pub struct DirtySegments"));
     assert!(!app_mod.contains("pub struct SegmentRevisions"));
     assert!(app_mod.contains("pub use dirty_segments::{DirtySegments, SegmentRevisions};"));

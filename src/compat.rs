@@ -10,9 +10,6 @@
 //! shell can keep running without pretending to be the preferred core API
 //! interface.
 
-#[cfg(feature = "legacy-shell")]
-pub mod runtime_artifacts;
-
 /// Native Vello entrypoint for the transitional legacy-shell bridge.
 ///
 /// This remains separate from [`legacy_shell`] so the shell namespace can keep

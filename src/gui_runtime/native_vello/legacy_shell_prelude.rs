@@ -1,7 +1,7 @@
 pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_shell::{
     AppModel, DirtySegments, NativeAppBridge, NativeMotionModel, SegmentRevisions, UiAction,
 };
-pub(in crate::gui_runtime::native_vello) use crate::compat::runtime_artifacts::{
+pub(in crate::gui_runtime::native_vello) use crate::compat::legacy_native_vello::{
     NativeRunReport, NativeRuntimeArtifacts,
 };
 pub(in crate::gui_runtime::native_vello) use crate::gui::{

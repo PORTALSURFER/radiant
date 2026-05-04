@@ -580,6 +580,30 @@ fn legacy_shell_namespace_does_not_reexport_generic_runtime_types() {
 }
 
 #[test]
+fn legacy_native_runtime_uses_private_contract_internally() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for path in [
+        "src/gui_runtime/mod.rs",
+        "src/gui_runtime/native_vello/legacy_shell_prelude.rs",
+    ] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|error| panic!("{path} should be readable: {error}"));
+        assert!(
+            !source.contains("crate::compat::legacy_shell"),
+            "{path} must use the crate-private legacy contract internally instead of the public compatibility facade"
+        );
+    }
+    let prelude = fs::read_to_string(
+        manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_prelude.rs"),
+    )
+    .expect("legacy shell prelude should be readable");
+    assert!(
+        prelude.contains("use crate::compat_app_contract::{"),
+        "legacy native runtime should import host-shaped DTOs through the crate-private transition contract"
+    );
+}
+
+#[test]
 fn legacy_shell_sources_are_feature_gated() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     assert!(

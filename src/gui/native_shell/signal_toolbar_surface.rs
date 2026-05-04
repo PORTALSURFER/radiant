@@ -1,8 +1,8 @@
-//! Generic waveform-toolbar surface projection for the native-shell compat path.
+//! Generic signal-toolbar surface projection for the native-shell compat path.
 //!
-//! This keeps the compact waveform control strip on the same public
+//! This keeps the compact signal control strip on the same public
 //! `radiant::layout`, `radiant::runtime`, and `radiant::widgets` hosting
-//! pattern used by the earlier chrome migrations while waveform plot rendering,
+//! pattern used by the earlier chrome migrations while timeline plot rendering,
 //! overlays, and edit geometry stay on the compatibility renderer.
 
 use super::style::SizingTokens;
@@ -17,11 +17,11 @@ use crate::{
     widgets::{ButtonWidget, TextInputWidget, ToggleWidget, WidgetSizing, WidgetSpec},
 };
 
-const WAVEFORM_TOOLBAR_BASE_ID: u64 = 1320;
+const SIGNAL_TOOLBAR_BASE_ID: u64 = 1320;
 
-/// Public widget primitive used for one waveform-toolbar control slot.
+/// Public widget primitive used for one signal-toolbar control slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum WaveformToolbarSurfaceItemKind {
+pub(crate) enum SignalToolbarSurfaceItemKind {
     /// Momentary action such as transport, compare, or cleanup.
     Button,
     /// Stateful toggle such as loop, grid, or normalize.
@@ -30,13 +30,13 @@ pub(crate) enum WaveformToolbarSurfaceItemKind {
     TextInput,
 }
 
-/// User-facing control metadata projected into the generic waveform toolbar.
+/// User-facing control metadata projected into the generic signal toolbar.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct WaveformToolbarSurfaceItem {
+pub(crate) struct SignalToolbarSurfaceItem {
     /// Stable control label used by tests and host-side mapping.
     pub label: String,
     /// Control family that chooses the public widget primitive.
-    pub kind: WaveformToolbarSurfaceItemKind,
+    pub kind: SignalToolbarSurfaceItemKind,
     /// Displayed field value for text-input content.
     pub value: Option<String>,
     /// Whether the control is currently interactable.
@@ -45,56 +45,56 @@ pub(crate) struct WaveformToolbarSurfaceItem {
     pub active: bool,
 }
 
-/// Ordered waveform-toolbar content projected into the generic surface.
+/// Ordered signal-toolbar content projected into the generic surface.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct WaveformToolbarSurfaceContent {
+pub(crate) struct SignalToolbarSurfaceContent {
     /// Toolbar items in left-to-right logical order.
-    pub items: Vec<WaveformToolbarSurfaceItem>,
+    pub items: Vec<SignalToolbarSurfaceItem>,
 }
 
-/// Resolved widget bounds for the generic waveform-toolbar surface.
+/// Resolved widget bounds for the generic signal-toolbar surface.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct WaveformToolbarSurfaceLayout {
-    /// Control bounds in the same order as [`WaveformToolbarSurfaceContent::items`].
+pub(crate) struct SignalToolbarSurfaceLayout {
+    /// Control bounds in the same order as [`SignalToolbarSurfaceContent::items`].
     ///
     /// Leading items that do not fit in compact widths resolve to empty rects.
     pub item_rects: Vec<Rect>,
 }
 
-/// Resolve the generic waveform-toolbar surface layout inside the waveform header band.
-pub(crate) fn resolve_waveform_toolbar_surface_layout(
+/// Resolve the generic signal-toolbar surface layout inside one shell header band.
+pub(crate) fn resolve_signal_toolbar_surface_layout(
     header_rect: Rect,
     sizing: SizingTokens,
-    content: &WaveformToolbarSurfaceContent,
-) -> WaveformToolbarSurfaceLayout {
+    content: &SignalToolbarSurfaceContent,
+) -> SignalToolbarSurfaceLayout {
     if content.items.is_empty() || header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
-        return WaveformToolbarSurfaceLayout::default();
+        return SignalToolbarSurfaceLayout::default();
     }
     let empty = header_rect.empty_at_min();
     let legacy_rects = legacy_toolbar_rects(header_rect, sizing, content);
     let mut item_rects = vec![empty; content.items.len()];
     let visible_start = content.items.len().saturating_sub(legacy_rects.len());
     if legacy_rects.is_empty() {
-        return WaveformToolbarSurfaceLayout { item_rects };
+        return SignalToolbarSurfaceLayout { item_rects };
     }
-    let surface = build_waveform_toolbar_surface(header_rect, content, &legacy_rects);
+    let surface = build_signal_toolbar_surface(header_rect, content, &legacy_rects);
     let output = layout_tree(&surface.layout_node(), header_rect);
     for item_index in visible_start..content.items.len() {
-        let id = waveform_toolbar_widget_id(item_index);
+        let id = signal_toolbar_widget_id(item_index);
         item_rects[item_index] = output.rect_for_clamped(id, empty, header_rect);
     }
-    WaveformToolbarSurfaceLayout { item_rects }
+    SignalToolbarSurfaceLayout { item_rects }
 }
 
-fn build_waveform_toolbar_surface(
+fn build_signal_toolbar_surface(
     header_rect: Rect,
-    content: &WaveformToolbarSurfaceContent,
+    content: &SignalToolbarSurfaceContent,
     legacy_rects: &[Rect],
 ) -> UiSurface<()> {
     let visible_start = content.items.len().saturating_sub(legacy_rects.len());
     let visible_items = &content.items[visible_start..];
     UiSurface::new(SurfaceNode::container(
-        WAVEFORM_TOOLBAR_BASE_ID,
+        SIGNAL_TOOLBAR_BASE_ID,
         ContainerPolicy {
             kind: ContainerKind::Row,
             spacing: 0.0,
@@ -161,26 +161,26 @@ fn slot_for_rect(
 
 fn widget_for_item(
     item_index: usize,
-    item: &WaveformToolbarSurfaceItem,
+    item: &SignalToolbarSurfaceItem,
     rect: Rect,
 ) -> SurfaceNode<()> {
-    let id = waveform_toolbar_widget_id(item_index);
+    let id = signal_toolbar_widget_id(item_index);
     let size = WidgetSizing::fixed(Vector2::new(rect.width().max(1.0), rect.height().max(1.0)));
     let widget = match item.kind {
-        WaveformToolbarSurfaceItemKind::Button => {
+        SignalToolbarSurfaceItemKind::Button => {
             let mut widget = ButtonWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
             WidgetSpec::Button(widget)
         }
-        WaveformToolbarSurfaceItemKind::Toggle => {
+        SignalToolbarSurfaceItemKind::Toggle => {
             let mut widget = ToggleWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
             widget.state.checked = item.active;
             WidgetSpec::Toggle(widget)
         }
-        WaveformToolbarSurfaceItemKind::TextInput => {
+        SignalToolbarSurfaceItemKind::TextInput => {
             let mut widget = TextInputWidget::new(id, item.value.clone().unwrap_or_default(), size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
@@ -195,15 +195,15 @@ fn widget_for_item(
 fn legacy_toolbar_rects(
     header_rect: Rect,
     sizing: SizingTokens,
-    content: &WaveformToolbarSurfaceContent,
+    content: &SignalToolbarSurfaceContent,
 ) -> Vec<Rect> {
     let labels: Vec<String> = content
         .items
         .iter()
-        .map(waveform_toolbar_layout_label)
+        .map(signal_toolbar_layout_label)
         .collect();
     let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
-    let cluster = waveform_toolbar_cluster_rect(header_rect);
+    let cluster = signal_toolbar_cluster_rect(header_rect);
     super::layout_adapter::compute_update_action_button_rects(
         header_rect,
         cluster,
@@ -212,7 +212,7 @@ fn legacy_toolbar_rects(
     )
 }
 
-fn waveform_toolbar_cluster_rect(header_rect: Rect) -> Rect {
+fn signal_toolbar_cluster_rect(header_rect: Rect) -> Rect {
     Rect::from_min_max(
         Point::new(
             header_rect.min.x + (header_rect.width() * 0.32),
@@ -222,15 +222,15 @@ fn waveform_toolbar_cluster_rect(header_rect: Rect) -> Rect {
     )
 }
 
-fn waveform_toolbar_layout_label(item: &WaveformToolbarSurfaceItem) -> String {
-    if item.kind == WaveformToolbarSurfaceItemKind::TextInput {
+fn signal_toolbar_layout_label(item: &SignalToolbarSurfaceItem) -> String {
+    if item.kind == SignalToolbarSurfaceItemKind::TextInput {
         return item.value.clone().unwrap_or_else(|| String::from("120.0"));
     }
     String::from("Mono")
 }
 
-fn waveform_toolbar_widget_id(index: usize) -> NodeId {
-    WAVEFORM_TOOLBAR_BASE_ID + index as u64 + 1
+fn signal_toolbar_widget_id(index: usize) -> NodeId {
+    SIGNAL_TOOLBAR_BASE_ID + index as u64 + 1
 }
 
 #[cfg(test)]
@@ -238,47 +238,47 @@ mod tests {
     use super::*;
     use crate::{gui::native_shell::style::StyleTokens, widgets::WidgetKind};
 
-    fn demo_content() -> WaveformToolbarSurfaceContent {
-        WaveformToolbarSurfaceContent {
+    fn demo_content() -> SignalToolbarSurfaceContent {
+        SignalToolbarSurfaceContent {
             items: vec![
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("Channel"),
-                    kind: WaveformToolbarSurfaceItemKind::Toggle,
+                    kind: SignalToolbarSurfaceItemKind::Toggle,
                     value: None,
                     enabled: true,
                     active: false,
                 },
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("Norm"),
-                    kind: WaveformToolbarSurfaceItemKind::Toggle,
+                    kind: SignalToolbarSurfaceItemKind::Toggle,
                     value: None,
                     enabled: true,
                     active: true,
                 },
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("BPM Value"),
-                    kind: WaveformToolbarSurfaceItemKind::TextInput,
+                    kind: SignalToolbarSurfaceItemKind::TextInput,
                     value: Some(String::from("128.0")),
                     enabled: true,
                     active: false,
                 },
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("Loop"),
-                    kind: WaveformToolbarSurfaceItemKind::Toggle,
+                    kind: SignalToolbarSurfaceItemKind::Toggle,
                     value: None,
                     enabled: true,
                     active: true,
                 },
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("Compare"),
-                    kind: WaveformToolbarSurfaceItemKind::Button,
+                    kind: SignalToolbarSurfaceItemKind::Button,
                     value: None,
                     enabled: true,
                     active: false,
                 },
-                WaveformToolbarSurfaceItem {
+                SignalToolbarSurfaceItem {
                     label: String::from("Play"),
-                    kind: WaveformToolbarSurfaceItemKind::Button,
+                    kind: SignalToolbarSurfaceItemKind::Button,
                     value: None,
                     enabled: true,
                     active: false,
@@ -295,10 +295,10 @@ mod tests {
     }
 
     #[test]
-    fn waveform_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
+    fn signal_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
         let content = demo_content();
-        let surface = build_waveform_toolbar_surface(
+        let surface = build_signal_toolbar_surface(
             header_rect,
             &content,
             &legacy_toolbar_rects(
@@ -309,7 +309,7 @@ mod tests {
         );
         assert_eq!(
             surface
-                .find_widget(waveform_toolbar_widget_id(0))
+                .find_widget(signal_toolbar_widget_id(0))
                 .expect("channel toggle")
                 .widget()
                 .kind(),
@@ -317,7 +317,7 @@ mod tests {
         );
         assert_eq!(
             surface
-                .find_widget(waveform_toolbar_widget_id(2))
+                .find_widget(signal_toolbar_widget_id(2))
                 .expect("bpm value input")
                 .widget()
                 .kind(),
@@ -325,7 +325,7 @@ mod tests {
         );
         assert_eq!(
             surface
-                .find_widget(waveform_toolbar_widget_id(4))
+                .find_widget(signal_toolbar_widget_id(4))
                 .expect("compare button")
                 .widget()
                 .kind(),
@@ -334,11 +334,11 @@ mod tests {
     }
 
     #[test]
-    fn waveform_toolbar_surface_layout_preserves_control_order_inside_header() {
+    fn signal_toolbar_surface_layout_preserves_control_order_inside_header() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
         let layout =
-            resolve_waveform_toolbar_surface_layout(header_rect, style.sizing, &demo_content());
+            resolve_signal_toolbar_surface_layout(header_rect, style.sizing, &demo_content());
         for rect in layout
             .item_rects
             .iter()

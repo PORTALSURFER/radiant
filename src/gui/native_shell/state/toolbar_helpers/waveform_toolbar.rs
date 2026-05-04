@@ -245,13 +245,13 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             style.highlight_blue_soft,
         ),
     ];
-    let content = WaveformToolbarSurfaceContent {
+    let content = SignalToolbarSurfaceContent {
         items: specs
             .iter()
             .map(
-                |(label, _, _, display_text, enabled, active, _, _)| WaveformToolbarSurfaceItem {
+                |(label, _, _, display_text, enabled, active, _, _)| SignalToolbarSurfaceItem {
                     label: (*label).to_string(),
-                    kind: waveform_toolbar_surface_item_kind(label),
+                    kind: signal_toolbar_surface_item_kind(label),
                     value: display_text.clone(),
                     enabled: *enabled,
                     active: *active,
@@ -260,7 +260,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             .collect(),
     };
     let surface_layout =
-        resolve_waveform_toolbar_surface_layout(layout.waveform_header, style.sizing, &content);
+        resolve_signal_toolbar_surface_layout(layout.waveform_header, style.sizing, &content);
     surface_layout
         .item_rects
         .iter()
@@ -288,13 +288,13 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         .collect()
 }
 
-fn waveform_toolbar_surface_item_kind(label: &str) -> WaveformToolbarSurfaceItemKind {
+fn signal_toolbar_surface_item_kind(label: &str) -> SignalToolbarSurfaceItemKind {
     match label {
-        "BPM Value" => WaveformToolbarSurfaceItemKind::TextInput,
+        "BPM Value" => SignalToolbarSurfaceItemKind::TextInput,
         "Channel" | "Norm" | "BPM Snap" | "Rel Grid" | "Tr Snap" | "Show Tr" | "Slice" | "Loop" => {
-            WaveformToolbarSurfaceItemKind::Toggle
+            SignalToolbarSurfaceItemKind::Toggle
         }
-        _ => WaveformToolbarSurfaceItemKind::Button,
+        _ => SignalToolbarSurfaceItemKind::Button,
     }
 }
 

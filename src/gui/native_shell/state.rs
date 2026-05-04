@@ -36,15 +36,15 @@ use super::{
         sidebar_header_surface_content,
     },
     signal_header_surface::{resolve_signal_header_surface_layout, signal_header_surface_content},
+    signal_toolbar_surface::{
+        SignalToolbarSurfaceContent, SignalToolbarSurfaceItem, SignalToolbarSurfaceItemKind,
+        resolve_signal_toolbar_surface_layout,
+    },
     status_surface::{StatusSurfaceContent, resolve_status_surface_layout},
     style::{SizingTokens, StyleTokens},
     top_bar_surface::{
         TopBarSurfaceLayout, resolve_top_bar_surface_layout, top_bar_options_button_rect,
         top_bar_surface_content,
-    },
-    waveform_toolbar_surface::{
-        WaveformToolbarSurfaceContent, WaveformToolbarSurfaceItem, WaveformToolbarSurfaceItemKind,
-        resolve_waveform_toolbar_surface_layout,
     },
 };
 use crate::compat_app_contract::{
@@ -117,7 +117,7 @@ const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
 const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
 /// Minimum synthetic time delta used when motion redraws arrive in the same tick.
 const PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS: f32 = 1.0 / 240.0;
-/// Number of animation ticks used for one waveform-toolbar click flash.
+/// Number of animation ticks used for one signal-toolbar click flash.
 const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
 /// Number of animation ticks used for one waveform-selection export success flash.
 const WAVEFORM_SELECTION_FLASH_TICKS: u8 = 6;

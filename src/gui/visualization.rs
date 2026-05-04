@@ -124,7 +124,7 @@ impl CanvasLayer {
 }
 
 /// Return the topmost interactive canvas layer containing `point`.
-pub fn canvas_layer_at_point<'a>(layers: &'a [CanvasLayer], point: Point) -> Option<&'a str> {
+pub fn canvas_layer_at_point(layers: &[CanvasLayer], point: Point) -> Option<&str> {
     layers
         .iter()
         .enumerate()

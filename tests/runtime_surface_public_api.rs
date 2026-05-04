@@ -75,7 +75,7 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -130,7 +130,7 @@ fn runtime_bridge_is_the_public_app_contract() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -347,7 +347,7 @@ fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -742,7 +742,7 @@ fn runtime_context_and_renderer_cover_paint_plan_boundary() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -771,7 +771,7 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -842,7 +842,7 @@ fn surface_runtime_routes_backend_neutral_events() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -909,7 +909,7 @@ fn surface_runtime_clears_hover_when_pointer_leaves_widget() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -1010,7 +1010,7 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -1104,7 +1104,7 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
             DemoMessage::Increment => state.count += 1,
             DemoMessage::Rename(name) => state.name = name,
             DemoMessage::SetActive(active) => {
-                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         },
@@ -1219,7 +1219,7 @@ impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
             DemoMessage::Increment => self.state.count += 1,
             DemoMessage::Rename(name) => self.state.name = name,
             DemoMessage::SetActive(active) => {
-                self.state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+                self.state.name = if active { "active" } else { "inactive" }.to_owned()
             }
             DemoMessage::CanvasInput(_) => {}
         }

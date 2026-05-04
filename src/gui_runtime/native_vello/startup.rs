@@ -188,7 +188,7 @@ deferred_model_refresh_total_ms={:.3}",
             window_revealed_ms: Some(
                 self.window_revealed_at
                     .map(|at| ms_between(init_started_at, at))
-                    .unwrap_or(first_present_ms.unwrap_or_default()),
+                    .unwrap_or_else(|| ms_between(init_started_at, first_presented_at)),
             ),
             wgpu_surface_create_ms: Some(
                 self.wgpu_surface_created_at

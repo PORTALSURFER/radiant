@@ -225,9 +225,9 @@ pub fn inline_indicator_layout(
     let min_y = content_rect.min.y + ((content_rect.height() - unit_height) * 0.5).floor();
     let max_y = (min_y + unit_height).min(content_rect.max.y);
     let mut rects = [Rect::from_min_max(content_rect.min, content_rect.min); 8];
-    for index in 0..count {
+    for (index, rect) in rects.iter_mut().enumerate().take(count) {
         let min_x = start_x + index as f32 * (unit_width + unit_gap);
-        rects[index] = Rect::from_min_max(
+        *rect = Rect::from_min_max(
             Point::new(min_x, min_y),
             Point::new((min_x + unit_width).min(content_rect.max.x), max_y),
         );

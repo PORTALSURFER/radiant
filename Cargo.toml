@@ -22,7 +22,6 @@ serde_json = "1.0.145"
 [features]
 default = []
 gui-performance = []
-legacy-shell = []
 
 [[example]]
 name = "generic_native"

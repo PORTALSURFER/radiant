@@ -25,12 +25,12 @@ pub mod badge;
 pub mod chrome;
 /// Generic user-feedback surface primitives.
 pub mod feedback;
+/// Stable fingerprint helpers for retained cache invalidation.
+pub mod fingerprint;
 /// Generic focus routing primitives.
 pub mod focus;
 /// Generic form and picker primitives.
 pub mod form;
-/// Stable fingerprint helpers for retained cache invalidation.
-pub mod fingerprint;
 /// Frame feedback primitives shared by runtimes and render backends.
 pub mod frame;
 /// Input event primitives shared by UI code.
@@ -41,9 +41,6 @@ pub mod invalidation;
 pub mod layout_core;
 /// Generic list and row state primitives.
 pub mod list;
-/// Transitional native-shell layout and scene model kept behind crate-private APIs.
-#[cfg(feature = "legacy-shell")]
-pub(crate) mod native_shell;
 /// Backend-neutral paint primitives and frame payloads for renderer adapters.
 pub mod paint;
 /// Generic panel and split-pane primitives.

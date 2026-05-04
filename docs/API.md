@@ -8,15 +8,11 @@ focus, style resolution, invalidation, and renderer-facing paint plans.
 
 The dependency direction is host application to Radiant. Radiant default builds
 must not depend on host crates, host modules, product assets, or product-domain
-model names. In short: host -> Radiant, never Radiant -> host. Transitional
-compatibility code is isolated behind the `legacy-shell` feature and is not part
-of the default standalone API. The `compat::legacy_shell` contract is temporary
-host-shaped model/action/bridge migration glue, and
-`gui_runtime::run_legacy_native_vello_app_with_artifacts` is the matching
-temporary native runtime entrypoint for that bridge. Both have final host-owned
-dispositions recorded in `domain_extraction_inventory.tsv`; generic Radiant code
-must not grow new dependencies on the compatibility namespace or the legacy
-runtime entrypoint.
+model names. In short: host -> Radiant, never Radiant -> host. Radiant now
+exposes only generic GUI and native runtime APIs; host-shaped compatibility
+facades and native-shell composition trees belong in the consuming application.
+`domain_extraction_inventory.tsv` is retained as a boundary-closeout artifact,
+not an active migration backlog.
 
 New host applications should use:
 

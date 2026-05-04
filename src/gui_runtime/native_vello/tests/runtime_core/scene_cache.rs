@@ -418,8 +418,8 @@ fn static_segment_graph_diff_targets_content_band_layout_dirty_segments() {
         dirty_segments_for_layout_subtree(ShellLayoutTreeKind::ContentBands, CONTENT_BANDS_ROOT_ID);
     let dirty_plan = graph.diff(dirty, false, fingerprints);
 
-    assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserFrame));
-    assert!(dirty_plan.should_rebuild(StaticFrameSegment::BrowserRowsWindow));
+    assert!(dirty_plan.should_rebuild(StaticFrameSegment::ContentFrame));
+    assert!(dirty_plan.should_rebuild(StaticFrameSegment::ContentRowsWindow));
     assert!(dirty_plan.should_rebuild(StaticFrameSegment::MapPanel));
     assert!(!dirty_plan.should_rebuild(StaticFrameSegment::GlobalStatic));
     assert!(!dirty_plan.should_rebuild(StaticFrameSegment::WaveformOverlay));

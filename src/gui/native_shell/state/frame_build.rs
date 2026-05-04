@@ -45,16 +45,16 @@ impl NativeShellState {
             static_segment_matches(static_segment_filter, StaticFrameSegment::GlobalStatic);
         let build_waveform_overlay =
             static_segment_matches(static_segment_filter, StaticFrameSegment::WaveformOverlay);
-        let build_browser_rows_window =
-            static_segment_matches(static_segment_filter, StaticFrameSegment::BrowserRowsWindow);
+        let build_content_rows_window =
+            static_segment_matches(static_segment_filter, StaticFrameSegment::ContentRowsWindow);
         let build_map_panel =
             static_segment_matches(static_segment_filter, StaticFrameSegment::MapPanel);
-        let build_browser_frame =
-            static_segment_matches(static_segment_filter, StaticFrameSegment::BrowserFrame);
+        let build_content_frame =
+            static_segment_matches(static_segment_filter, StaticFrameSegment::ContentFrame);
         let build_status_bar =
             static_segment_matches(static_segment_filter, StaticFrameSegment::StatusBar);
-        let build_browser_rows_or_map = build_browser_rows_window || build_map_panel;
-        if build_browser_frame {
+        let build_content_rows_or_map = build_content_rows_window || build_map_panel;
+        if build_content_frame {
             self.content_segment_text_frame_counts = SegmentTextCacheFrameCounts::default();
         }
         if build_status_bar {
@@ -67,10 +67,10 @@ impl NativeShellState {
             render_waveform_static(self, &ctx, primitives, text_runs, motion_model);
         }
 
-        if build_browser_rows_or_map {
+        if build_content_rows_or_map {
             if model.map.active && build_map_panel {
                 render_map_panel(&ctx, primitives);
-            } else if !model.map.active && build_browser_rows_window {
+            } else if !model.map.active && build_content_rows_window {
                 render_content_rows_window(self, &ctx, primitives, text_runs);
             }
         }
@@ -80,7 +80,7 @@ impl NativeShellState {
         if build_global_static {
             render_top_bar_controls(self, &ctx, primitives, text_runs);
         }
-        if build_browser_frame {
+        if build_content_frame {
             render_content_frame(self, &ctx, primitives, text_runs);
         }
         if build_global_static {
@@ -90,10 +90,10 @@ impl NativeShellState {
         // update while transport advances without invalidating the static scene.
         if model.map.active && build_map_panel {
             render_map_header(&ctx, text_runs);
-        } else if build_browser_frame {
+        } else if build_content_frame {
             render_content_table_header(&ctx, primitives, text_runs);
         }
-        if build_browser_frame {
+        if build_content_frame {
             render_content_footer(self, &ctx, text_runs);
         }
 

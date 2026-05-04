@@ -46,8 +46,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     ) -> u64 {
         match segment {
             StaticFrameSegment::StatusBar => segment_revisions.status_bar,
-            StaticFrameSegment::BrowserFrame => segment_revisions.browser_frame,
-            StaticFrameSegment::BrowserRowsWindow => segment_revisions.browser_rows_window,
+            StaticFrameSegment::ContentFrame => segment_revisions.browser_frame,
+            StaticFrameSegment::ContentRowsWindow => segment_revisions.browser_rows_window,
             StaticFrameSegment::MapPanel => segment_revisions.map_panel,
             StaticFrameSegment::WaveformOverlay => segment_revisions.waveform_overlay,
             StaticFrameSegment::GlobalStatic => segment_revisions.global_static,
@@ -59,8 +59,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         match index {
             0 => StaticFrameSegment::GlobalStatic,
             1 => StaticFrameSegment::WaveformOverlay,
-            2 => StaticFrameSegment::BrowserFrame,
-            3 => StaticFrameSegment::BrowserRowsWindow,
+            2 => StaticFrameSegment::ContentFrame,
+            3 => StaticFrameSegment::ContentRowsWindow,
             4 => StaticFrameSegment::MapPanel,
             5 => StaticFrameSegment::StatusBar,
             _ => unreachable!("invalid static segment index {index}"),

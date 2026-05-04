@@ -142,7 +142,7 @@ mod tests {
             context
                 .borrow()
                 .segments
-                .frame(StaticFrameSegment::BrowserFrame)
+                .frame(StaticFrameSegment::ContentFrame)
                 .primitives
                 .is_empty()
         );

@@ -44,7 +44,7 @@ fn static_segment_for_point(
         return StaticFrameSegment::MapPanel;
     }
     if layout.browser_rows.contains(point) {
-        return StaticFrameSegment::BrowserRowsWindow;
+        return StaticFrameSegment::ContentRowsWindow;
     }
     if layout.browser_panel.contains(point)
         || layout.browser_tabs.contains(point)
@@ -52,7 +52,7 @@ fn static_segment_for_point(
         || layout.browser_table_header.contains(point)
         || layout.browser_footer.contains(point)
     {
-        return StaticFrameSegment::BrowserFrame;
+        return StaticFrameSegment::ContentFrame;
     }
     StaticFrameSegment::GlobalStatic
 }

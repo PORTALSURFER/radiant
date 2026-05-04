@@ -7,9 +7,9 @@ pub(crate) enum StaticFrameSegment {
     /// Status-bar text and chrome.
     StatusBar,
     /// Content metadata/chrome outside row-window and map canvas.
-    BrowserFrame,
+    ContentFrame,
     /// Content row-window list content.
-    BrowserRowsWindow,
+    ContentRowsWindow,
     /// Spatial map panel content and map-header details.
     MapPanel,
     /// Waveform panel/chrome static content.
@@ -26,9 +26,9 @@ impl StaticFrameSegment {
     pub(crate) const ALL: [Self; Self::COUNT] = [
         Self::GlobalStatic,
         Self::WaveformOverlay,
-        Self::BrowserRowsWindow,
+        Self::ContentRowsWindow,
         Self::MapPanel,
-        Self::BrowserFrame,
+        Self::ContentFrame,
         Self::StatusBar,
     ];
 
@@ -37,8 +37,8 @@ impl StaticFrameSegment {
         match self {
             Self::GlobalStatic => 0,
             Self::WaveformOverlay => 1,
-            Self::BrowserFrame => 2,
-            Self::BrowserRowsWindow => 3,
+            Self::ContentFrame => 2,
+            Self::ContentRowsWindow => 3,
             Self::MapPanel => 4,
             Self::StatusBar => 5,
         }
@@ -48,8 +48,8 @@ impl StaticFrameSegment {
     pub(crate) const fn dirty_mask(self) -> u16 {
         match self {
             Self::StatusBar => DirtySegments::STATUS_BAR,
-            Self::BrowserFrame => DirtySegments::BROWSER_FRAME,
-            Self::BrowserRowsWindow => DirtySegments::BROWSER_ROWS_WINDOW,
+            Self::ContentFrame => DirtySegments::BROWSER_FRAME,
+            Self::ContentRowsWindow => DirtySegments::BROWSER_ROWS_WINDOW,
             Self::MapPanel => DirtySegments::MAP_PANEL,
             Self::WaveformOverlay => DirtySegments::WAVEFORM_OVERLAY,
             Self::GlobalStatic => DirtySegments::GLOBAL_STATIC,

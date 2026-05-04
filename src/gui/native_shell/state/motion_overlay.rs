@@ -254,10 +254,10 @@ impl NativeShellState {
             }
         }
 
-        let tabs = resolve_browser_tabs_surface_layout(
+        let tabs = resolve_content_tabs_surface_layout(
             layout.browser_tabs,
             sizing,
-            &BrowserTabsSurfaceContent {
+            &ContentTabsSurfaceContent {
                 items_label: String::new(),
                 map_label: String::new(),
             },

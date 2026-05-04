@@ -7,9 +7,9 @@
 //! submodules.
 
 use super::{
-    browser_chrome_surface::{
-        BrowserTabsSurfaceContent, browser_tabs_surface_content, browser_toolbar_surface_content,
-        resolve_browser_tabs_surface_layout, resolve_browser_toolbar_surface_layout,
+    content_chrome_surface::{
+        ContentTabsSurfaceContent, content_tabs_surface_content, content_toolbar_surface_content,
+        resolve_content_tabs_surface_layout, resolve_content_toolbar_surface_layout,
     },
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{

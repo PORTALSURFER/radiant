@@ -1,11 +1,11 @@
-//! Generic browser-chrome surface projection for the native-shell compat path.
+//! Generic content-chrome surface projection for the native-shell compat path.
 //!
-//! This module keeps the browser tabs and toolbar strip on the same public
+//! This module keeps the content tabs and toolbar strip on the same public
 //! `radiant::layout`, `radiant::runtime`, and `radiant::widgets` hosting
-//! pattern used by the other post-pilot chrome slices while browser rows,
+//! pattern used by the other post-pilot chrome slices while content rows,
 //! virtualization, and row-level hit testing remain on the compatibility path.
 
-#[path = "browser_chrome_surface_helpers.rs"]
+#[path = "content_chrome_surface_helpers.rs"]
 mod helpers;
 
 use super::style::SizingTokens;
@@ -20,7 +20,7 @@ use crate::{
     widgets::{ButtonWidget, WidgetSizing, WidgetSpec},
 };
 use helpers::{
-    BrowserToolbarSurfaceWidths, browser_sort_label, browser_toolbar_surface_widths,
+    ContentToolbarSurfaceWidths, content_sort_label, content_toolbar_surface_widths,
     build_toolbar_children,
 };
 
@@ -46,27 +46,27 @@ const BROWSER_RATING_FILTER_COUNT: usize = 8;
 const BROWSER_PLAYBACK_AGE_FILTER_COUNT: usize = 3;
 const BROWSER_TRIAGE_CHIP_COUNT: usize = 3;
 
-/// User-facing tab labels projected into the generic browser tabs surface.
+/// User-facing tab labels projected into the generic content tabs surface.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BrowserTabsSurfaceContent {
+pub(crate) struct ContentTabsSurfaceContent {
     /// Items-tab label shown on the left tab.
     pub items_label: String,
     /// Map-tab label shown on the right tab.
     pub map_label: String,
 }
 
-/// Resolved widget bounds for the generic browser tabs surface.
+/// Resolved widget bounds for the generic content tabs surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserTabsSurfaceLayout {
+pub(crate) struct ContentTabsSurfaceLayout {
     /// Items-tab button bounds.
     pub items: Rect,
     /// Map-tab button bounds.
     pub map: Rect,
 }
 
-/// User-facing toolbar labels projected into the generic browser toolbar.
+/// User-facing toolbar labels projected into the generic content toolbar.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BrowserToolbarSurfaceContent {
+pub(crate) struct ContentToolbarSurfaceContent {
     /// Search-field value.
     pub search_value: String,
     /// Search-field placeholder text.
@@ -79,9 +79,9 @@ pub(crate) struct BrowserToolbarSurfaceContent {
     pub sort_label: String,
 }
 
-/// Resolved widget bounds for the generic browser toolbar surface.
+/// Resolved widget bounds for the generic content toolbar surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserToolbarSurfaceLayout {
+pub(crate) struct ContentToolbarSurfaceLayout {
     /// Rating-filter chip bounds from left to right.
     pub rating_filter_chips: [Rect; BROWSER_RATING_FILTER_COUNT],
     /// Playback-age chip bounds from left to right.
@@ -102,9 +102,9 @@ pub(crate) struct BrowserToolbarSurfaceLayout {
     pub triage_chips: [Rect; BROWSER_TRIAGE_CHIP_COUNT],
 }
 
-/// Build user-facing browser-tab content from the projected app model.
-pub(crate) fn browser_tabs_surface_content(model: &AppModel) -> BrowserTabsSurfaceContent {
-    BrowserTabsSurfaceContent {
+/// Build user-facing content-tab content from the projected app model.
+pub(crate) fn content_tabs_surface_content(model: &AppModel) -> ContentTabsSurfaceContent {
+    ContentTabsSurfaceContent {
         items_label: format!(
             "{} ({})",
             model.browser_chrome.items_tab_label,
@@ -118,9 +118,9 @@ pub(crate) fn browser_tabs_surface_content(model: &AppModel) -> BrowserTabsSurfa
     }
 }
 
-/// Build user-facing browser-toolbar content from the projected app model.
-pub(crate) fn browser_toolbar_surface_content(model: &AppModel) -> BrowserToolbarSurfaceContent {
-    BrowserToolbarSurfaceContent {
+/// Build user-facing content-toolbar content from the projected app model.
+pub(crate) fn content_toolbar_surface_content(model: &AppModel) -> ContentToolbarSurfaceContent {
+    ContentToolbarSurfaceContent {
         search_value: model.browser.search_query.clone(),
         search_placeholder: model.browser_chrome.search_placeholder.clone(),
         pill_editor_label: model.browser_chrome.pill_editor_label.clone(),
@@ -129,36 +129,36 @@ pub(crate) fn browser_toolbar_surface_content(model: &AppModel) -> BrowserToolba
         } else {
             model.browser_chrome.activity_ready_label.clone()
         },
-        sort_label: browser_sort_label(model),
+        sort_label: content_sort_label(model),
     }
 }
 
-/// Resolve the generic browser tabs surface layout inside one shell band.
-pub(crate) fn resolve_browser_tabs_surface_layout(
+/// Resolve the generic content tabs surface layout inside one shell band.
+pub(crate) fn resolve_content_tabs_surface_layout(
     tabs_rect: Rect,
     sizing: SizingTokens,
-    content: &BrowserTabsSurfaceContent,
-) -> BrowserTabsSurfaceLayout {
-    let surface = build_browser_tabs_surface(content, sizing, tabs_rect.width());
+    content: &ContentTabsSurfaceContent,
+) -> ContentTabsSurfaceLayout {
+    let surface = build_content_tabs_surface(content, sizing, tabs_rect.width());
     let output = layout_tree(&surface.layout_node(), tabs_rect);
     let empty = tabs_rect.empty_at_min();
-    BrowserTabsSurfaceLayout {
+    ContentTabsSurfaceLayout {
         items: output.rect_for_clamped(TABS_ITEMS_ID, empty, tabs_rect),
         map: output.rect_for_clamped(TABS_MAP_ID, empty, tabs_rect),
     }
 }
 
-/// Resolve the generic browser-toolbar surface layout inside one shell band.
-pub(crate) fn resolve_browser_toolbar_surface_layout(
+/// Resolve the generic content-toolbar surface layout inside one shell band.
+pub(crate) fn resolve_content_toolbar_surface_layout(
     toolbar_rect: Rect,
     sizing: SizingTokens,
-    content: &BrowserToolbarSurfaceContent,
-) -> BrowserToolbarSurfaceLayout {
-    let widths = browser_toolbar_surface_widths(toolbar_rect, sizing);
-    let surface = build_browser_toolbar_surface(content, toolbar_rect.height(), widths);
+    content: &ContentToolbarSurfaceContent,
+) -> ContentToolbarSurfaceLayout {
+    let widths = content_toolbar_surface_widths(toolbar_rect, sizing);
+    let surface = build_content_toolbar_surface(content, toolbar_rect.height(), widths);
     let output = layout_tree(&surface.layout_node(), toolbar_rect);
     let empty = toolbar_rect.empty_at_min();
-    BrowserToolbarSurfaceLayout {
+    ContentToolbarSurfaceLayout {
         rating_filter_chips: std::array::from_fn(|index| {
             output.rect_for_clamped(TOOLBAR_RATING_BASE_ID + index as u64, empty, toolbar_rect)
         }),
@@ -185,8 +185,8 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
     }
 }
 
-fn build_browser_tabs_surface(
-    content: &BrowserTabsSurfaceContent,
+fn build_content_tabs_surface(
+    content: &ContentTabsSurfaceContent,
     sizing: SizingTokens,
     band_width: f32,
 ) -> UiSurface<()> {
@@ -214,10 +214,10 @@ fn build_browser_tabs_surface(
     ))
 }
 
-fn build_browser_toolbar_surface(
-    content: &BrowserToolbarSurfaceContent,
+fn build_content_toolbar_surface(
+    content: &ContentToolbarSurfaceContent,
     band_height: f32,
-    widths: BrowserToolbarSurfaceWidths,
+    widths: ContentToolbarSurfaceWidths,
 ) -> UiSurface<()> {
     let search_height = band_height.max(1.0);
     let chip_label_height = widths.filter_side.max(1.0);

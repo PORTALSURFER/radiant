@@ -366,7 +366,7 @@ fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/layout_adapter/controls/browser_toolbar.rs"
     ))
-    .expect("browser toolbar layout adapter should be readable");
+    .expect("content toolbar layout adapter should be readable");
     let row_helpers_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/layout_core/row_helpers.rs"
@@ -381,11 +381,11 @@ fn grouped_toolbar_cluster_width_is_owned_by_generic_layout_module() {
     assert!(toolbar_mod.contains("fixed_width_item_extent_for_available_width"));
     assert!(
         !toolbar_mod.contains("chip_side * RATING_FILTER_CHIP_COUNT"),
-        "legacy browser toolbar adapter should delegate grouped chip cluster widths to layout_core"
+        "legacy content toolbar adapter should delegate grouped chip cluster widths to layout_core"
     );
     assert!(
         !toolbar_mod.contains("let raw_side ="),
-        "legacy browser toolbar adapter should delegate fixed item sizing to layout_core"
+        "legacy content toolbar adapter should delegate fixed item sizing to layout_core"
     );
 }
 
@@ -824,7 +824,7 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/browser_rows.rs"
     ))
-    .expect("browser rows module should be readable");
+    .expect("content rows module should be readable");
     let toolbar_layout_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/layout.rs"
@@ -1047,7 +1047,7 @@ fn text_layout_clamping_reuses_generic_rect_methods() {
 #[test]
 fn native_empty_rect_construction_reuses_generic_rect_method() {
     let source_paths = [
-        "/src/gui/native_shell/browser_chrome_surface.rs",
+        "/src/gui/native_shell/content_chrome_surface.rs",
         "/src/gui/native_shell/sidebar_surface.rs",
         "/src/gui/native_shell/sidebar_surface_helpers.rs",
         "/src/gui/native_shell/signal_header_surface.rs",
@@ -1242,9 +1242,9 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
         "/src/gui/native_shell/layout_adapter.rs"
     ))
     .expect("layout adapter should be readable");
-    let browser_chrome_surface = fs::read_to_string(concat!(
+    let content_chrome_surface = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/browser_chrome_surface.rs"
+        "/src/gui/native_shell/content_chrome_surface.rs"
     ))
     .expect("browser chrome surface should be readable");
     let signal_header_surface = fs::read_to_string(concat!(
@@ -1268,7 +1268,7 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     assert!(layout_types.contains("pub fn rect_for(&self, node_id: NodeId, fallback: Rect)"));
     assert!(layout_types.contains("pub fn rect_for_clamped"));
     assert!(layout_adapter.contains("output.rect_for("));
-    assert!(browser_chrome_surface.contains("output.rect_for_clamped("));
+    assert!(content_chrome_surface.contains("output.rect_for_clamped("));
     assert!(signal_header_surface.contains("output.rect_for_clamped("));
     assert!(
         layout_adapter_files
@@ -1276,8 +1276,8 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
             .all(|source| source.contains("output.rect_for_clamped("))
     );
     assert!(!layout_adapter.contains("fn rect_for"));
-    assert!(!browser_chrome_surface.contains("fn rect_for"));
-    assert!(!browser_chrome_surface.contains("fn clamp_rect_to_bounds"));
+    assert!(!content_chrome_surface.contains("fn rect_for"));
+    assert!(!content_chrome_surface.contains("fn clamp_rect_to_bounds"));
     assert!(!signal_header_surface.contains("fn rect_for"));
     assert!(!signal_header_surface.contains("fn clamp_rect_to_bounds"));
     for source in layout_adapter_files {

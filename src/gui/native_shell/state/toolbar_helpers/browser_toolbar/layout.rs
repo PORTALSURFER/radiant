@@ -8,10 +8,10 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     style: &StyleTokens,
     model: &AppModel,
 ) -> BrowserToolbarLayout {
-    let sections = resolve_browser_toolbar_surface_layout(
+    let sections = resolve_content_toolbar_surface_layout(
         layout.browser_toolbar,
         style.sizing,
-        &browser_toolbar_surface_content(model),
+        &content_toolbar_surface_content(model),
     );
     BrowserToolbarLayout {
         rating_filter_chips: sections.rating_filter_chips,

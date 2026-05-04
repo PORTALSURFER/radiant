@@ -4,7 +4,7 @@
 //! deterministic layout tree, run hit testing against that tree, then derive
 //! backend-neutral paint primitives (shapes + text runs).
 
-mod browser_chrome_surface;
+mod content_chrome_surface;
 mod layout;
 mod layout_adapter;
 mod layout_runtime;

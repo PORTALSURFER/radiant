@@ -265,7 +265,7 @@ impl NativeShellState {
             .map(|button| button.action.clone())
     }
 
-    /// Resolve a browser tab click into a list/map tab selection action.
+    /// Resolve a content tab click into a list/map tab selection action.
     pub(crate) fn browser_tab_action_at_point(
         &self,
         layout: &ShellLayout,
@@ -273,10 +273,10 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let tabs: BrowserTabsRects = {
             let style = style_for_layout(layout);
-            let tabs = resolve_browser_tabs_surface_layout(
+            let tabs = resolve_content_tabs_surface_layout(
                 layout.browser_tabs,
                 style.sizing,
-                &BrowserTabsSurfaceContent {
+                &ContentTabsSurfaceContent {
                     items_label: String::new(),
                     map_label: String::new(),
                 },

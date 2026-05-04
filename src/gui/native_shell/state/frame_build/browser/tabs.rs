@@ -74,10 +74,10 @@ pub(super) fn render_browser_tabs(
     animated: bool,
     cached_text: &BrowserSegmentTextCacheValue,
 ) {
-    let tabs = resolve_browser_tabs_surface_layout(
+    let tabs = resolve_content_tabs_surface_layout(
         ctx.layout.browser_tabs,
         ctx.sizing,
-        &browser_tabs_surface_content(ctx.model),
+        &content_tabs_surface_content(ctx.model),
     );
     let wave = if animated { ctx.motion_wave * 0.1 } else { 0.0 };
     let map_active = ctx.model.map.active;

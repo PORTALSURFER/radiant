@@ -108,10 +108,10 @@ fn build_browser_segment_text_cache(
     model: &AppModel,
 ) -> BrowserSegmentTextCacheValue {
     let sizing = style.sizing;
-    let tabs = resolve_browser_tabs_surface_layout(
+    let tabs = resolve_content_tabs_surface_layout(
         layout.browser_tabs,
         sizing,
-        &browser_tabs_surface_content(model),
+        &content_tabs_surface_content(model),
     );
     let toolbar = browser_toolbar_layout(layout, style, model);
     let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);

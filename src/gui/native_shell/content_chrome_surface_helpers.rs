@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct BrowserToolbarSurfaceWidths {
+pub(super) struct ContentToolbarSurfaceWidths {
     pub(super) horizontal_padding: f32,
     pub(super) filter_side: f32,
     pub(super) action_side: f32,
@@ -21,10 +21,10 @@ pub(super) struct BrowserToolbarSurfaceWidths {
 }
 
 pub(super) fn build_toolbar_children(
-    content: &BrowserToolbarSurfaceContent,
+    content: &ContentToolbarSurfaceContent,
     search_height: f32,
     chip_label_height: f32,
-    widths: BrowserToolbarSurfaceWidths,
+    widths: ContentToolbarSurfaceWidths,
 ) -> Vec<SurfaceChild<()>> {
     let mut spacer_id = TOOLBAR_SORT_ID + 1;
     let mut children = Vec::new();
@@ -171,17 +171,17 @@ pub(super) fn build_toolbar_children(
     children
 }
 
-pub(super) fn browser_toolbar_surface_widths(
+pub(super) fn content_toolbar_surface_widths(
     toolbar: Rect,
     sizing: SizingTokens,
-) -> BrowserToolbarSurfaceWidths {
+) -> ContentToolbarSurfaceWidths {
     let gap = sizing.action_button_gap.max(1.0);
     let filter_gap = sizing.border_width.max(1.0) + 1.0;
     let filter_group_gap = filter_gap + sizing.border_width.max(1.0) + 2.0;
     let horizontal_padding = sizing.text_inset_x.max(0.0);
     let available = (toolbar.width() - (horizontal_padding * 2.0)).max(0.0);
     if available <= 1.0 || toolbar.height() <= 0.0 {
-        return BrowserToolbarSurfaceWidths {
+        return ContentToolbarSurfaceWidths {
             horizontal_padding,
             filter_side: 0.0,
             action_side: 0.0,
@@ -244,7 +244,7 @@ pub(super) fn browser_toolbar_surface_widths(
             - (gap * 2.0))
             .max(0.0);
     }
-    BrowserToolbarSurfaceWidths {
+    ContentToolbarSurfaceWidths {
         horizontal_padding,
         filter_side,
         action_side,
@@ -264,7 +264,7 @@ pub(super) fn browser_toolbar_surface_widths(
     }
 }
 
-pub(super) fn browser_sort_label(model: &AppModel) -> String {
+pub(super) fn content_sort_label(model: &AppModel) -> String {
     let sort_label = if model.browser_chrome.sort_order_label.is_empty() {
         model.browser.sort_label.as_deref().unwrap_or("List order")
     } else {

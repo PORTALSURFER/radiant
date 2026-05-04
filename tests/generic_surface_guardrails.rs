@@ -171,7 +171,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
         .expect("native shell module");
 
     for module in [
-        "browser_chrome_surface",
+        "content_chrome_surface",
         "status_surface",
         "style/chrome",
         "style/palette",
@@ -192,7 +192,7 @@ fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
     }
 
     for path in [
-        "src/gui/native_shell/browser_chrome_surface_helpers.rs",
+        "src/gui/native_shell/content_chrome_surface_helpers.rs",
         "src/gui/native_shell/sidebar_surface_helpers.rs",
     ] {
         assert!(
@@ -657,7 +657,7 @@ fn legacy_shell_sources_are_feature_gated() {
     }
     assert!(
         !manifest_dir
-            .join("src/gui/native_shell/browser_chrome_surface_tests.rs")
+            .join("src/gui/native_shell/content_chrome_surface_tests.rs")
             .exists(),
         "host browser chrome fixtures belong with host composition tests, not Radiant native_shell"
     );
@@ -739,7 +739,7 @@ fn legacy_shell_sources_are_feature_gated() {
             && !manifest_dir
                 .join("src/gui/native_shell/state/tests/browser_toolbar")
                 .exists(),
-        "host browser-toolbar state fixtures belong with host composition tests, not Radiant native_shell"
+        "host content-toolbar state fixtures belong with host composition tests, not Radiant native_shell"
     );
     assert!(
         !manifest_dir

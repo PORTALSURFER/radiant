@@ -74,7 +74,7 @@ fn tone_color(theme: &ThemeTokens, tone: WidgetTone) -> Rgba8 {
         WidgetTone::Accent => theme.accent_mint,
         WidgetTone::Success => theme.highlight_cyan,
         WidgetTone::Warning => theme.accent_warning,
-        WidgetTone::Danger => theme.accent_trash,
+        WidgetTone::Danger => theme.accent_danger,
     }
 }
 

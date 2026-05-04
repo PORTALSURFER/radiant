@@ -131,7 +131,7 @@ pub struct ThemeTokens {
     /// Secondary accent color for alternate active emphasis.
     pub accent_copper: Rgba8,
     /// Danger accent for destructive actions and warnings.
-    pub accent_trash: Rgba8,
+    pub accent_danger: Rgba8,
     /// Warning accent for cautionary actions and hover emphasis.
     pub accent_warning: Rgba8,
     /// Strong warm highlight used for emphasized focus or transport hints.
@@ -191,7 +191,7 @@ impl ThemeTokens {
             grid_soft: rgba(43, 43, 43, 255),
             accent_mint: rgba(196, 122, 63, 255),
             accent_copper: rgba(212, 170, 96, 255),
-            accent_trash: rgba(171, 78, 57, 255),
+            accent_danger: rgba(171, 78, 57, 255),
             accent_warning: rgba(224, 153, 84, 255),
             highlight_orange: rgba(182, 104, 52, 255),
             highlight_orange_soft: rgba(198, 150, 103, 255),

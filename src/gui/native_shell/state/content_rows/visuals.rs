@@ -126,7 +126,7 @@ pub(in crate::gui::native_shell::state) fn row_processing_fill(
         RowProcessingState::Active => translucent_overlay_color(base, style.highlight_orange, 0.28),
         RowProcessingState::Completed => translucent_overlay_color(base, style.accent_mint, 0.18),
         RowProcessingState::Skipped => translucent_overlay_color(base, style.text_muted, 0.14),
-        RowProcessingState::Failed => translucent_overlay_color(base, style.accent_trash, 0.24),
+        RowProcessingState::Failed => translucent_overlay_color(base, style.accent_danger, 0.24),
     }
 }
 
@@ -141,7 +141,7 @@ pub(in crate::gui::native_shell::state) fn row_processing_marker_color(
         RowProcessingState::Active => Some(style.highlight_orange),
         RowProcessingState::Completed => Some(style.accent_mint),
         RowProcessingState::Skipped => Some(style.text_muted),
-        RowProcessingState::Failed => Some(style.accent_trash),
+        RowProcessingState::Failed => Some(style.accent_danger),
     }
 }
 

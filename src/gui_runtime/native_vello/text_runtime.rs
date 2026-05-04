@@ -172,7 +172,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         let Some(visual) = self.with_shell_layout(|this, layout| {
             this.shell_state
-                .browser_search_text_rect(layout, &this.model)
+                .content_search_text_rect(layout, &this.model)
                 .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
         }) else {
             self.shell_state.set_content_search_editor_state(None);
@@ -188,7 +188,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         }
         let Some(visual) = self.with_shell_layout(|this, layout| {
             this.shell_state
-                .browser_pill_editor_text_rect(layout, &this.model)
+                .content_pill_editor_text_rect(layout, &this.model)
                 .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
         }) else {
             self.shell_state.set_content_pill_editor_visual_state(None);

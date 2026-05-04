@@ -78,7 +78,7 @@ fn clicking_browser_search_field_focuses_text_input() {
         ..AppModel::default()
     };
     let search_field = shell_state
-        .browser_search_field_rect(&layout, &model)
+        .content_search_field_rect(&layout, &model)
         .expect("content search field should be present");
     let point = Point::new(
         (search_field.min.x + search_field.max.x) * 0.5,

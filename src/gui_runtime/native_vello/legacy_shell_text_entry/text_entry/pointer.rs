@@ -39,10 +39,10 @@ fn text_input_rect_for_target<B: NativeAppBridge>(
     match target {
         TextInputTarget::BrowserSearch => runner
             .shell_state
-            .browser_search_text_rect(layout, &runner.model),
+            .content_search_text_rect(layout, &runner.model),
         TextInputTarget::BrowserPillEditor => runner
             .shell_state
-            .browser_pill_editor_text_rect(layout, &runner.model),
+            .content_pill_editor_text_rect(layout, &runner.model),
         TextInputTarget::WaveformBpm => runner
             .shell_state
             .waveform_bpm_text_rect(layout, &runner.model),
@@ -162,7 +162,7 @@ pub(super) fn handle_browser_search_pointer_press<B: NativeAppBridge>(
 ) -> bool {
     let Some(field_rect) = runner
         .shell_state
-        .browser_search_field_rect(layout, &runner.model)
+        .content_search_field_rect(layout, &runner.model)
     else {
         return false;
     };

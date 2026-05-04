@@ -39,8 +39,8 @@ pub(super) fn render_hover_overlay(
 ) {
     let sizing = style.sizing;
     push_waveform_toolbar_hover_tooltip(primitives, text_runs, layout, style, model, shell_state);
-    let search_field_rect = shell_state.browser_search_field_rect(layout, model);
-    let search_text_rect = shell_state.browser_search_text_rect(layout, model);
+    let search_field_rect = shell_state.content_search_field_rect(layout, model);
+    let search_text_rect = shell_state.content_search_text_rect(layout, model);
     if let (Some(search_field_rect), Some(search_text_rect), Some(visual)) = (
         search_field_rect,
         search_text_rect,
@@ -56,8 +56,8 @@ pub(super) fn render_hover_overlay(
             visual,
         );
     }
-    let sidebar_input_rect = shell_state.browser_pill_editor_input_rect(layout, model);
-    let sidebar_text_rect = shell_state.browser_pill_editor_text_rect(layout, model);
+    let sidebar_input_rect = shell_state.content_pill_editor_input_rect(layout, model);
+    let sidebar_text_rect = shell_state.content_pill_editor_text_rect(layout, model);
     if let (Some(input_rect), Some(text_rect), Some(visual)) = (
         sidebar_input_rect,
         sidebar_text_rect,

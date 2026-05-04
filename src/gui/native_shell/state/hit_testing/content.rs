@@ -295,8 +295,8 @@ impl NativeShellState {
         None
     }
 
-    /// Return the browser-search field rect when the toolbar is available.
-    pub(crate) fn browser_search_field_rect(
+    /// Return the content-search field rect when the toolbar is available.
+    pub(crate) fn content_search_field_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -379,8 +379,8 @@ impl NativeShellState {
             .map(|button| button.rect)
     }
 
-    /// Return the browser-search text rect used for rendering inside the field.
-    pub(crate) fn browser_search_text_rect(
+    /// Return the content-search text rect used for rendering inside the field.
+    pub(crate) fn content_search_text_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -398,8 +398,8 @@ impl NativeShellState {
         Some(toolbar_text_layout.search_label)
     }
 
-    /// Return the browser pill-editor input rect when the editor is visible.
-    pub(crate) fn browser_pill_editor_input_rect(
+    /// Return the content pill-editor input rect when the editor is visible.
+    pub(crate) fn content_pill_editor_input_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -411,8 +411,8 @@ impl NativeShellState {
             .map(|layout| layout.input_rect)
     }
 
-    /// Return the browser pill-editor input text rect when the editor is visible.
-    pub(crate) fn browser_pill_editor_text_rect(
+    /// Return the content pill-editor input text rect when the editor is visible.
+    pub(crate) fn content_pill_editor_text_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,

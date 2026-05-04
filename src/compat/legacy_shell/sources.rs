@@ -10,7 +10,7 @@ pub struct SourcesPanelModel {
     pub header: String,
     /// Active source-search query.
     pub search_query: String,
-    /// Pane that currently drives browser and waveform state.
+    /// Pane that currently drives primary content and waveform state.
     pub active_folder_pane: FolderPaneIdModel,
     /// Upper fixed folder pane.
     pub upper_folder_pane: FolderPaneModel,
@@ -18,7 +18,7 @@ pub struct SourcesPanelModel {
     pub lower_folder_pane: FolderPaneModel,
     /// Active folder-search query.
     pub tree_search_query: String,
-    /// Whether the folder browser currently includes empty on-disk folders.
+    /// Whether the folder tree currently includes empty on-disk folders.
     pub show_all_items: bool,
     /// Whether the folder-visibility toggle is currently actionable.
     pub can_toggle_show_all_items: bool,
@@ -36,7 +36,7 @@ pub struct SourcesPanelModel {
     pub focused_tree_row: Option<usize>,
     /// Rows to render in the source panel.
     pub rows: RetainedVec<SourceRowModel>,
-    /// Folder rows to render in the folder browser section.
+    /// Folder rows to render in the folder tree section.
     pub tree_rows: RetainedVec<FolderRowModel>,
     /// Folder action availability for native sidebar controls.
     pub tree_actions: FolderActionsModel,
@@ -50,7 +50,7 @@ impl SourcesPanelModel {
         pane.select(&self.upper_folder_pane, &self.lower_folder_pane)
     }
 
-    /// Borrow the pane that currently drives browser and waveform state.
+    /// Borrow the pane that currently drives primary content and waveform state.
     pub fn active_folder_pane_model(&self) -> &FolderPaneModel {
         self.folder_pane(self.active_folder_pane)
     }

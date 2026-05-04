@@ -32,7 +32,7 @@ pub struct OptionsPanelModel {
     pub default_identifier: String,
     /// Whether input monitoring is enabled.
     pub input_monitoring_enabled: bool,
-    /// Whether rating advances browser focus.
+    /// Whether rating advances content-list focus.
     pub advance_after_rating_enabled: bool,
     /// Whether destructive edits skip confirmation.
     pub destructive_yolo_mode_enabled: bool,
@@ -77,7 +77,7 @@ pub struct AppModel {
     pub status: StatusBarModel,
     /// Paired device/status state rendered in the top-right chrome and options panel.
     pub paired_device: PairedDevicePanelModel,
-    /// Browser action availability for native action surfaces.
+    /// Content-list action availability for native action surfaces.
     pub browser_actions: BrowserActionsModel,
     /// Options-panel overlay projection.
     pub options_panel: OptionsPanelModel,
@@ -87,7 +87,7 @@ pub struct AppModel {
     pub confirm_prompt: ConfirmPromptModel,
     /// Drag/drop overlay projection.
     pub drag_overlay: DragOverlayModel,
-    /// Logical triage/browser columns.
+    /// Logical triage/content columns.
     pub columns: [ColumnModel; 3],
     /// Selected column index (0..=2).
     pub selected_column: usize,
@@ -97,9 +97,9 @@ pub struct AppModel {
     pub transport_running: bool,
     /// Source panel model consumed by the native renderer.
     pub sources: SourcesPanelModel,
-    /// Browser panel summary consumed by the native renderer.
+    /// Content-list panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
-    /// Browser chrome labels consumed by native tabs/toolbar/footer text.
+    /// Content-list chrome labels consumed by native tabs/toolbar/footer text.
     pub browser_chrome: BrowserChromeModel,
     /// Map panel summary consumed by the native renderer.
     pub map: MapPanelModel,

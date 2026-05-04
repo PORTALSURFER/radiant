@@ -30,12 +30,12 @@ use super::UiAction;
 /// Compatibility alias for the generic shortcut resolution DTO.
 pub type HotkeyResolution = ShortcutResolution<UiAction>;
 
-/// One clickable pill projected into the browser metadata sidebar.
+/// One clickable pill projected into the content metadata sidebar.
 pub type BrowserPillModel = crate::gui::badge::SelectablePill<BrowserPillState>;
-/// Browser-local metadata sidebar shown beside the content list.
+/// Content-local metadata sidebar shown beside the content list.
 pub type BrowserPillEditorModel = crate::gui::badge::PillEditorPanel<BrowserPillState>;
 
-/// Summary of browser/list state consumed by the native shell.
+/// Summary of content-list state consumed by the native shell.
 pub type BrowserPanelModel =
     crate::gui::list::ContentListPanel<BrowserRowModel, BrowserPillEditorModel>;
 /// Projected data for one fixed folder pane shown in the sidebar.

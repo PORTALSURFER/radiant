@@ -9,11 +9,11 @@ pub struct NativeMotionModel {
     pub transport_running: bool,
     /// Whether map mode is active for tab overlay tinting.
     pub map_active: bool,
-    /// Active browser rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
+    /// Active content rating-filter chip states for levels `-3..=3`, plus `4` for locked items.
     pub active_rating_filters: [bool; 8],
-    /// Active browser playback-age filter chip states ordered as `Never`, `Month`, `Week`.
+    /// Active content recency-filter chip states ordered as `Never`, `Month`, `Week`.
     pub active_playback_age_filters: [bool; 3],
-    /// Whether the browser is currently filtering down to session-marked rows.
+    /// Whether the content list is currently filtering down to session-marked rows.
     pub marked_filter_active: bool,
     /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,

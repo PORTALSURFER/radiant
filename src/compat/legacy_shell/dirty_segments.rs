@@ -9,9 +9,9 @@ pub struct DirtySegments {
 impl DirtySegments {
     /// Status-bar content segment.
     pub const STATUS_BAR: u16 = 1 << 0;
-    /// Browser metadata/chrome segment.
+    /// Content-list metadata/chrome segment.
     pub const BROWSER_FRAME: u16 = 1 << 1;
-    /// Browser row-window segment.
+    /// Content-list row-window segment.
     pub const BROWSER_ROWS_WINDOW: u16 = 1 << 2;
     /// Map-panel segment.
     pub const MAP_PANEL: u16 = 1 << 3;
@@ -80,9 +80,9 @@ impl DirtySegments {
 pub struct SegmentRevisions {
     /// Status-bar projection revision.
     pub status_bar: u64,
-    /// Browser metadata/chrome projection revision.
+    /// Content-list metadata/chrome projection revision.
     pub browser_frame: u64,
-    /// Browser visible-row window projection revision.
+    /// Content-list visible-row window projection revision.
     pub browser_rows_window: u64,
     /// Map-panel projection revision.
     pub map_panel: u64,

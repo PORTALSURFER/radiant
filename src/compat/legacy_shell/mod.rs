@@ -33,7 +33,7 @@
 //!
 //! ## Boundary layout
 //! The public contract is grouped by responsibility:
-//! - shell/source/browser/map/waveform models describe immutable render state.
+//! - shell/source/content/map/timeline models describe immutable render state.
 //! - [`UiAction`](crate::compat::legacy_shell::UiAction) describes user intent emitted by the runtime.
 //! - [`NativeMotionModel`](crate::compat::legacy_shell::NativeMotionModel) exposes motion-only projection for retained overlays.
 //! - [`DirtySegments`](crate::compat::legacy_shell::DirtySegments) and [`SegmentRevisions`](crate::compat::legacy_shell::SegmentRevisions) describe incremental rebuild hints.

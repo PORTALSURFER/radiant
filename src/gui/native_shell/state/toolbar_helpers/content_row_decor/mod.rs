@@ -1,4 +1,4 @@
-//! Browser-row indicator, label, and border layout helpers.
+//! Content-row indicator, label, and border layout helpers.
 
 use super::super::*;
 

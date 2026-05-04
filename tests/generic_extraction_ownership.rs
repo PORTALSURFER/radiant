@@ -88,7 +88,7 @@ fn inline_badge_cluster_layout_is_owned_by_generic_badge_module() {
         .expect("badge module should be readable");
     let inline_metadata_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/inline_metadata.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/inline_metadata.rs"
     ))
     .expect("inline metadata module should be readable");
 
@@ -515,7 +515,7 @@ fn progress_fill_geometry_is_owned_by_generic_feedback_module() {
     .expect("status bar module should be readable");
     let similarity_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/similarity.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/similarity.rs"
     ))
     .expect("similarity module should be readable");
     let top_bar_mod = fs::read_to_string(concat!(
@@ -593,7 +593,7 @@ fn pixel_centered_icon_geometry_is_owned_by_generic_rect_type() {
 fn centered_toolbar_icon_geometry_reuses_generic_rect_type() {
     let similarity_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/similarity.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/similarity.rs"
     ))
     .expect("similarity module should be readable");
     let browser_panel_mod = fs::read_to_string(concat!(
@@ -629,7 +629,7 @@ fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
         .expect("types module should be readable");
     let markers_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/markers.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/markers.rs"
     ))
     .expect("browser row marker module should be readable");
 
@@ -1061,7 +1061,7 @@ fn native_empty_rect_construction_reuses_generic_rect_method() {
         "/src/gui/native_shell/layout_adapter/sidebar_text.rs",
         "/src/gui/native_shell/layout_adapter/status_bar.rs",
         "/src/gui/native_shell/state/overlays/prompt.rs",
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/rating_indicators.rs",
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/rating_indicators.rs",
     ];
 
     for path in source_paths {
@@ -2307,7 +2307,7 @@ fn virtual_list_scroll_clamping_is_owned_by_generic_list_module() {
 fn inline_indicator_layout_is_owned_by_generic_feedback_module() {
     let row_indicators_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/state/toolbar_helpers/browser_row_decor/rating_indicators.rs"
+        "/src/gui/native_shell/state/toolbar_helpers/content_row_decor/rating_indicators.rs"
     ))
     .expect("row rating indicator module should be readable");
     let feedback_mod =

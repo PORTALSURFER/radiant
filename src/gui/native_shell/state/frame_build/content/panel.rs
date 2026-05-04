@@ -1,7 +1,7 @@
 use super::*;
 use crate::gui::list::RecencyFilterChip;
 
-pub(super) fn render_browser_frame(
+pub(super) fn render_content_frame(
     state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -282,7 +282,7 @@ pub(super) fn render_browser_frame(
         );
     }
     let cached_text = state.cached_browser_segment_text(ctx.layout, ctx.style, ctx.model);
-    render_browser_tabs(primitives, text_runs, ctx, true, cached_text.as_ref());
+    render_content_tabs(primitives, text_runs, ctx, true, cached_text.as_ref());
 
     if toolbar.search_field.width() > 1.0 && !search_editor_active {
         emit_text(

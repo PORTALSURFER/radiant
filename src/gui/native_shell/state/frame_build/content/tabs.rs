@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn render_browser_table_header(
+pub(super) fn render_content_table_header(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
@@ -48,7 +48,7 @@ pub(super) fn render_browser_table_header(
     );
 }
 
-pub(super) fn render_browser_footer(
+pub(super) fn render_content_footer(
     state: &mut NativeShellState,
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
@@ -67,7 +67,7 @@ pub(super) fn render_browser_footer(
     );
 }
 
-pub(super) fn render_browser_tabs(
+pub(super) fn render_content_tabs(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,

@@ -71,7 +71,7 @@ impl NativeShellState {
             if model.map.active && build_map_panel {
                 render_map_panel(&ctx, primitives);
             } else if !model.map.active && build_browser_rows_window {
-                render_browser_rows_window(self, &ctx, primitives, text_runs);
+                render_content_rows_window(self, &ctx, primitives, text_runs);
             }
         }
 
@@ -81,7 +81,7 @@ impl NativeShellState {
             render_top_bar_controls(self, &ctx, primitives, text_runs);
         }
         if build_browser_frame {
-            render_browser_frame(self, &ctx, primitives, text_runs);
+            render_content_frame(self, &ctx, primitives, text_runs);
         }
         if build_global_static {
             render_sidebar(self, &ctx, primitives, text_runs);
@@ -91,10 +91,10 @@ impl NativeShellState {
         if model.map.active && build_map_panel {
             render_map_header(&ctx, text_runs);
         } else if build_browser_frame {
-            render_browser_table_header(&ctx, primitives, text_runs);
+            render_content_table_header(&ctx, primitives, text_runs);
         }
         if build_browser_frame {
-            render_browser_footer(self, &ctx, text_runs);
+            render_content_footer(self, &ctx, text_runs);
         }
 
         if build_status_bar {

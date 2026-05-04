@@ -2,14 +2,14 @@ use super::*;
 use crate::gui::badge::SelectablePill;
 use crate::gui::selection::TriState;
 
-pub(super) fn render_browser_rows_window(
+pub(super) fn render_content_rows_window(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    browser_rows: &[CachedBrowserRow],
+    content_rows: &[CachedBrowserRow],
 ) {
-    let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
-    for row in browser_rows {
+    let last_row_max_y = content_rows.last().map(|row| row.rect.max.y);
+    for row in content_rows {
         let border_stroke = row_border_stroke(ctx.layout);
         let border_rect = row_border_rect(row.rect, border_stroke);
         let row_columns = row.text_layout.columns;
@@ -321,7 +321,7 @@ pub(super) fn render_browser_rows_window(
     let list_rect = browser_rows_list_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model);
     if let Some(scrollbar) = content_list_scrollbar_layout(
         list_rect,
-        browser_rows,
+        content_rows,
         ctx.model.browser.visible_count,
         ctx.sizing,
     ) {

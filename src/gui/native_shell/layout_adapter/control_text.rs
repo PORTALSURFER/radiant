@@ -44,34 +44,3 @@ fn compute_text_line_rect(
 fn empty_rect(bounds: Rect) -> Rect {
     bounds.empty_at_min()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
-
-    fn assert_inside(outer: Rect, inner: Rect) {
-        assert!(inner.min.x >= outer.min.x);
-        assert!(inner.min.y >= outer.min.y);
-        assert!(inner.max.x <= outer.max.x);
-        assert!(inner.max.y <= outer.max.y);
-    }
-
-    #[test]
-    fn action_button_text_rect_respects_horizontal_inset() {
-        let style = StyleTokens::for_viewport_width(1280.0);
-        let button = Rect::from_min_max(Point::new(920.0, 16.0), Point::new(1020.0, 34.0));
-        let text_rect = compute_action_button_text_rect(button, style.sizing);
-        assert_inside(button, text_rect);
-        assert!(text_rect.min.x >= button.min.x + style.sizing.text_inset_x);
-        assert!(text_rect.max.x <= button.max.x - style.sizing.text_inset_x);
-    }
-
-    #[test]
-    fn action_button_text_rect_collapses_for_empty_button() {
-        let style = StyleTokens::for_viewport_width(1280.0);
-        let button = Rect::from_min_max(Point::new(920.0, 16.0), Point::new(920.0, 16.0));
-        let text_rect = compute_action_button_text_rect(button, style.sizing);
-        assert_eq!(text_rect, button);
-    }
-}

@@ -1,6 +1,6 @@
 //! Native `winit + vello` runtime preview used for backend selection rollout.
 
-#![cfg_attr(not(feature = "legacy-shell"), allow(dead_code))]
+#![cfg_attr(any(test, not(feature = "legacy-shell")), allow(dead_code))]
 
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::gui::{

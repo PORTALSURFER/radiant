@@ -66,8 +66,6 @@ pub(super) use sidebar_text::{
     compute_sidebar_source_row_text_rect,
 };
 pub(super) use status_bar::{compute_status_bar_segments, compute_status_text_line_rect};
-#[cfg(test)]
-pub(crate) use waveform_annotations::compute_waveform_annotation_rects;
 pub(crate) use waveform_annotations::{
     compute_waveform_annotation_rects_with_nanos, compute_waveform_slice_preview_rects,
     waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,

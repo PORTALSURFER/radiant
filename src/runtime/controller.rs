@@ -101,6 +101,7 @@ where
     layout: LayoutOutput,
     widget_hit_order: Vec<WidgetId>,
     focused_widget: Option<WidgetId>,
+    hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     repaint_requested: bool,
 }
@@ -122,6 +123,7 @@ where
             layout,
             widget_hit_order,
             focused_widget: None,
+            hovered_widget: None,
             pointer_capture: None,
             repaint_requested: false,
         }
@@ -164,6 +166,11 @@ where
     /// Return the widget that currently owns pointer capture.
     pub fn pointer_capture(&self) -> Option<WidgetId> {
         self.pointer_capture
+    }
+
+    /// Return the widget currently receiving hover state.
+    pub fn hovered_widget(&self) -> Option<WidgetId> {
+        self.hovered_widget
     }
 
     /// Return whether the host update flow requested another repaint.
@@ -214,6 +221,12 @@ where
             .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
         {
             self.pointer_capture = None;
+        }
+        if self
+            .hovered_widget
+            .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
+        {
+            self.hovered_widget = None;
         }
         if let Some(widget_id) = self.focused_widget {
             self.route_focus_changed(widget_id, true);
@@ -279,9 +292,7 @@ where
                 self.set_viewport(viewport);
                 None
             }
-            Event::PointerMove { position } => {
-                self.dispatch_input_at(position, WidgetInput::PointerMove { position })
-            }
+            Event::PointerMove { position } => self.dispatch_pointer_move(position),
             Event::PointerPress { position, button } => {
                 let Some(widget_id) = self.widget_at(position) else {
                     self.pointer_capture = None;
@@ -373,6 +384,34 @@ where
             let _ = self.focus_widget(widget_id);
         }
         self.dispatch_input(widget_id, input).then_some(widget_id)
+    }
+
+    fn dispatch_pointer_move(&mut self, position: Point) -> Option<WidgetId> {
+        let pointer_widget = self.widget_at(position);
+        let hover_widget = self
+            .pointer_capture
+            .filter(|widget_id| {
+                self.layout
+                    .rects
+                    .get(widget_id)
+                    .is_some_and(|rect| rect.contains(position))
+            })
+            .or_else(|| {
+                self.pointer_capture
+                    .is_none()
+                    .then_some(pointer_widget)
+                    .flatten()
+            });
+        if self.hovered_widget != hover_widget {
+            if let Some(previous) = self.hovered_widget {
+                let _ = self.dispatch_input(previous, WidgetInput::PointerMove { position });
+            }
+            self.hovered_widget = hover_widget;
+        }
+
+        let target = self.pointer_capture.or(pointer_widget)?;
+        self.dispatch_input(target, WidgetInput::PointerMove { position })
+            .then_some(target)
     }
 
     fn relayout(&mut self) {

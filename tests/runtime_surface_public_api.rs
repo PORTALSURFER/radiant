@@ -854,6 +854,41 @@ fn surface_runtime_routes_backend_neutral_events() {
 }
 
 #[test]
+fn surface_runtime_clears_hover_when_pointer_leaves_widget() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::SetActive(active) => {
+                state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(150.0, 10.0),
+        }),
+        Some(11)
+    );
+    assert_eq!(runtime.hovered_widget(), Some(11));
+    assert!(button_hovered(runtime.surface(), 11));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(410.0, 80.0),
+        }),
+        None
+    );
+    assert_eq!(runtime.hovered_widget(), None);
+    assert!(!button_hovered(runtime.surface(), 11));
+}
+
+#[test]
 fn surface_runtime_executes_command_messages_and_repaint_requests() {
     let bridge = CommandDemoBridge {
         state: DemoState::default(),
@@ -1098,6 +1133,17 @@ fn display_name(state: &DemoState) -> &str {
         "Untitled"
     } else {
         &state.name
+    }
+}
+
+fn button_hovered(surface: &UiSurface<DemoMessage>, widget_id: u64) -> bool {
+    match surface
+        .find_widget(widget_id)
+        .expect("button widget should exist")
+        .widget()
+    {
+        WidgetSpec::Button(button) => button.common.state.hovered,
+        other => panic!("expected button widget, got {other:?}"),
     }
 }
 

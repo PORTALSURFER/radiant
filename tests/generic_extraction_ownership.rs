@@ -1906,7 +1906,7 @@ fn compat_action_catalog_uses_generic_pill_option_action() {
         assert!(!source.contains("ToggleBrowserSidebarNormalTag"));
         assert!(!source.contains("toggle_browser_sidebar_normal_tag"));
     }
-    assert!(actions_mod.contains("ToggleBrowserPillOption"));
+    assert!(actions_mod.contains("ToggleContentPillOption"));
 }
 
 #[test]

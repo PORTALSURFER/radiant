@@ -578,7 +578,7 @@ fn pill_editor_action_at_point(
     }
     for (index, rect) in layout.playback_rects.iter().enumerate() {
         if rect.contains(point) {
-            return Some(UiAction::SetBrowserSidebarLooped { looped: index == 0 });
+            return Some(UiAction::SetContentPlaybackLooped { looped: index == 0 });
         }
     }
     for (pill, rect) in model
@@ -589,7 +589,7 @@ fn pill_editor_action_at_point(
         .zip(layout.option_pill_rects.iter())
     {
         if rect.contains(point) {
-            return Some(UiAction::ToggleBrowserPillOption {
+            return Some(UiAction::ToggleContentPillOption {
                 label: pill.label.clone(),
             });
         }
@@ -599,7 +599,7 @@ fn pill_editor_action_at_point(
         layout.create_pill_rect,
     ) && rect.contains(point)
     {
-        return Some(UiAction::ToggleBrowserPillOption {
+        return Some(UiAction::ToggleContentPillOption {
             label: pill.id.clone(),
         });
     }

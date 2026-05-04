@@ -449,13 +449,13 @@ pub enum UiAction {
     },
     /// Commit the content metadata pill-editor input value.
     CommitContentPillEditorInput,
-    /// Apply one playback-type value to the browser selection.
-    SetBrowserSidebarLooped {
+    /// Apply one playback-type value to the content selection.
+    SetContentPlaybackLooped {
         /// Playback type to apply.
         looped: bool,
     },
-    /// Toggle one pill option for the browser selection.
-    ToggleBrowserPillOption {
+    /// Toggle one pill option for the content selection.
+    ToggleContentPillOption {
         /// Pill option label to assign or remove.
         label: String,
     },

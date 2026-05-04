@@ -202,7 +202,7 @@ pub(in crate::gui::native_shell::state) fn rendered_content_rows_cached_with_win
         rendered.push(CachedContentRow {
             visible_row: row.visible_row,
             visible_row_label: row.visible_row.to_string(),
-            label_rendered_width: browser_approx_text_width(&label, sizing.font_body),
+            label_rendered_width: content_approx_text_width(&label, sizing.font_body),
             label,
             bucket_label,
             inline_metadata_labels,

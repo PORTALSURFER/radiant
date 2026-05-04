@@ -8,7 +8,7 @@ pub(in crate::gui::native_shell::state) fn truncate_to_width(
     font_size: f32,
 ) -> String {
     let max_width = max_width.max(0.0);
-    let approx_char_width = browser_approx_text_width("W", font_size).max(1.0);
+    let approx_char_width = content_approx_text_width("W", font_size).max(1.0);
     let max_chars = (max_width / approx_char_width).floor() as usize;
     if max_chars == 0 {
         return String::new();
@@ -37,8 +37,8 @@ pub(in crate::gui::native_shell::state) fn truncate_to_width(
     output
 }
 
-/// Approximate one-line browser text width using the shell's truncation heuristic.
-pub(in crate::gui::native_shell::state) fn browser_approx_text_width(
+/// Approximate one-line content text width using the shell's truncation heuristic.
+pub(in crate::gui::native_shell::state) fn content_approx_text_width(
     text: &str,
     font_size: f32,
 ) -> f32 {

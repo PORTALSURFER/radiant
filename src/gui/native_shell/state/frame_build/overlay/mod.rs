@@ -123,7 +123,7 @@ pub(super) fn render_hover_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.rect,
-                    color: browser_row_hover_fill(style),
+                    color: content_row_hover_fill(style),
                 }),
             );
         }

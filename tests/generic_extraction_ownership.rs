@@ -666,6 +666,51 @@ fn stroke_aligned_border_geometry_is_owned_by_generic_rect_type() {
 }
 
 #[test]
+fn content_row_visual_fills_use_product_neutral_row_naming() {
+    let visuals_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/browser_rows/visuals.rs"
+    ))
+    .expect("row visuals module should be readable");
+
+    for required in [
+        "content_row_hover_fill",
+        "row_stripe_fill",
+        "similarity_row_fill",
+        "marked_row_fill",
+        "marked_similarity_row_fill",
+        "row_processing_fill",
+        "row_processing_marker_color",
+        "selected_content_row_fill",
+        "selected_row_index_fill",
+        "similarity_anchor_row_index_fill",
+    ] {
+        assert!(
+            visuals_mod.contains(required),
+            "row visuals module should expose product-neutral helper `{required}`"
+        );
+    }
+
+    for forbidden in [
+        "browser_row_hover_fill",
+        "browser_row_stripe_fill",
+        "browser_similarity_row_fill",
+        "browser_marked_row_fill",
+        "browser_marked_similarity_row_fill",
+        "browser_processing_row_fill",
+        "browser_processing_marker_color",
+        "selected_browser_row_fill",
+        "selected_browser_index_fill",
+        "similarity_anchor_browser_index_fill",
+    ] {
+        assert!(
+            !visuals_mod.contains(forbidden),
+            "row visuals should not use browser-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn top_right_overlay_icon_geometry_is_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("types module should be readable");

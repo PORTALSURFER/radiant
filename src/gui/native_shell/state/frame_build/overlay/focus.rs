@@ -235,7 +235,7 @@ pub(super) fn render_browser_focus_overlay(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.rect,
-                    color: selected_browser_row_fill(style),
+                    color: selected_content_row_fill(style),
                 }),
             );
         }
@@ -245,14 +245,14 @@ pub(super) fn render_browser_focus_overlay(
                 Primitive::Rect(FillRect {
                     rect: row.text_layout.columns.index,
                     color: if similarity_anchor_active {
-                        similarity_anchor_browser_index_fill(style)
+                        similarity_anchor_row_index_fill(style)
                     } else {
-                        selected_browser_index_fill(style)
+                        selected_row_index_fill(style)
                     },
                 }),
             );
         }
-        if let Some(color) = browser_processing_marker_color(style, row.processing_state) {
+        if let Some(color) = row_processing_marker_color(style, row.processing_state) {
             let marker_width = (sizing.border_width * 3.0).clamp(2.0, 5.0);
             emit_primitive(
                 primitives,

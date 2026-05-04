@@ -56,11 +56,11 @@ pub(crate) fn folder_drag_hover_fill(style: &StyleTokens, valid_target: bool) ->
     )
 }
 
-/// Return the stronger hover fill used for browser content rows.
+/// Return the stronger hover fill used for prominent content rows.
 ///
-/// The browser hover needs to read clearly against alternating row fills, so it
+/// The content-row hover needs to read clearly against alternating row fills, so it
 /// intentionally uses roughly double the shared item-list hover intensity.
-pub(in crate::gui::native_shell::state) fn browser_row_hover_fill(style: &StyleTokens) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn content_row_hover_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -69,7 +69,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_hover_fill(style: &StyleT
 }
 
 /// Return the alternating neutral fill used for non-selected rows.
-pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
+pub(in crate::gui::native_shell::state) fn row_stripe_fill(
     style: &StyleTokens,
     visible_row: usize,
 ) -> Rgba8 {
@@ -81,32 +81,32 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
 }
 
 /// Return the highlighted fill used while a similarity filter is active.
-pub(in crate::gui::native_shell::state) fn browser_similarity_row_fill(
+pub(in crate::gui::native_shell::state) fn similarity_row_fill(
     style: &StyleTokens,
     visible_row: usize,
     anchor: bool,
 ) -> Rgba8 {
-    let base = browser_row_stripe_fill(style, visible_row);
+    let base = row_stripe_fill(style, visible_row);
     let tint_amount = if anchor { 0.34 } else { 0.18 };
     translucent_overlay_color(base, style.highlight_cyan_soft, tint_amount)
 }
 
 /// Return the high-contrast fill used for rows carrying the temporary session mark.
-pub(in crate::gui::native_shell::state) fn browser_marked_row_fill(
+pub(in crate::gui::native_shell::state) fn marked_row_fill(
     style: &StyleTokens,
     visible_row: usize,
 ) -> Rgba8 {
-    let base = browser_row_stripe_fill(style, visible_row);
+    let base = row_stripe_fill(style, visible_row);
     translucent_overlay_color(base, style.highlight_cyan, 0.34)
 }
 
 /// Return the combined fill used when a marked row also participates in similarity mode.
-pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
+pub(in crate::gui::native_shell::state) fn marked_similarity_row_fill(
     style: &StyleTokens,
     visible_row: usize,
     anchor: bool,
 ) -> Rgba8 {
-    let base = browser_marked_row_fill(style, visible_row);
+    let base = marked_row_fill(style, visible_row);
     translucent_overlay_color(
         base,
         style.highlight_cyan_soft,
@@ -115,7 +115,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
 }
 
 /// Return a row fill blended with transient auto-rename processing state.
-pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
+pub(in crate::gui::native_shell::state) fn row_processing_fill(
     style: &StyleTokens,
     base: Rgba8,
     state: RowProcessingState,
@@ -131,7 +131,7 @@ pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
 }
 
 /// Return the left-edge marker color for transient auto-rename processing state.
-pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
+pub(in crate::gui::native_shell::state) fn row_processing_marker_color(
     style: &StyleTokens,
     state: RowProcessingState,
 ) -> Option<Rgba8> {
@@ -146,7 +146,9 @@ pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
 }
 
 /// Return the stronger neutral fill used for selected rows.
-pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn selected_content_row_fill(
+    style: &StyleTokens,
+) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -155,14 +157,12 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
 }
 
 /// Return the accent fill used for the selected row index cell.
-pub(in crate::gui::native_shell::state) fn selected_browser_index_fill(
-    style: &StyleTokens,
-) -> Rgba8 {
+pub(in crate::gui::native_shell::state) fn selected_row_index_fill(style: &StyleTokens) -> Rgba8 {
     style.highlight_orange
 }
 
 /// Return the accent fill used for the similarity-anchor row index cell.
-pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
+pub(in crate::gui::native_shell::state) fn similarity_anchor_row_index_fill(
     style: &StyleTokens,
 ) -> Rgba8 {
     style.highlight_blue

@@ -26,15 +26,15 @@ pub(super) fn render_browser_rows_window(
             ctx.sizing,
         );
         let base_fill = if row.marked && similarity_active {
-            browser_marked_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
+            marked_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
         } else if row.marked {
-            browser_marked_row_fill(ctx.style, row.visible_row)
+            marked_row_fill(ctx.style, row.visible_row)
         } else if similarity_active {
-            browser_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
+            similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
         } else {
-            browser_row_stripe_fill(ctx.style, row.visible_row)
+            row_stripe_fill(ctx.style, row.visible_row)
         };
-        let base_fill = browser_processing_row_fill(ctx.style, base_fill, row.processing_state);
+        let base_fill = row_processing_fill(ctx.style, base_fill, row.processing_state);
         let recency_marker_reserved_width = row_recency_marker_reserved_width(
             row.rect,
             ctx.sizing,
@@ -53,7 +53,7 @@ pub(super) fn render_browser_rows_window(
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: row.text_layout.columns.index,
-                    color: similarity_anchor_browser_index_fill(ctx.style),
+                    color: similarity_anchor_row_index_fill(ctx.style),
                 }),
             );
         }
@@ -349,7 +349,7 @@ fn render_browser_processing_marker(
     style: &StyleTokens,
     sizing: SizingTokens,
 ) {
-    let Some(color) = browser_processing_marker_color(style, row.processing_state) else {
+    let Some(color) = row_processing_marker_color(style, row.processing_state) else {
         return;
     };
     let marker_width = (sizing.border_width * 3.0).clamp(2.0, 5.0);

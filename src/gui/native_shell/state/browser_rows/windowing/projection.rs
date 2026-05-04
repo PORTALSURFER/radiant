@@ -157,7 +157,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             row.focused && !model.browser.duplicate_cleanup_active,
             sizing,
         );
-        let bucket_label_width = browser_inline_metadata_max_width(
+        let bucket_label_width = row_inline_metadata_max_width(
             row_text_layout.item_label.width()
                 - similarity_button_reserved_width
                 - similarity_strength_reserved_width,
@@ -177,8 +177,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         } else {
             String::new()
         };
-        let inline_metadata_labels = browser_inline_metadata_labels_owned(&bucket_label);
-        let inline_metadata_rects = browser_inline_metadata_chip_rects_for_labels(
+        let inline_metadata_labels = row_inline_metadata_labels_owned(&bucket_label);
+        let inline_metadata_rects = row_inline_metadata_chip_rects_for_labels(
             row_text_layout.item_label,
             &inline_metadata_labels,
             similarity_strength_reserved_width,
@@ -188,7 +188,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             - rating_reserved_width
             - similarity_button_reserved_width
             - similarity_strength_reserved_width
-            - browser_inline_metadata_reserved_width_for_labels(&inline_metadata_labels, sizing))
+            - row_inline_metadata_reserved_width_for_labels(&inline_metadata_labels, sizing))
         .max(20.0);
         let label = truncate_browser_row_text_cached(
             truncation_cache,
@@ -224,8 +224,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     (rendered, window_start)
 }
 
-/// Cap inline browser metadata width so the primary item label keeps most of the row.
-fn browser_inline_metadata_max_width(item_width: f32, rating_reserved_width: f32) -> f32 {
+/// Cap inline row metadata width so the primary item label keeps most of the row.
+fn row_inline_metadata_max_width(item_width: f32, rating_reserved_width: f32) -> f32 {
     let item_width = item_width.max(0.0);
     let available = (item_width - rating_reserved_width - 24.0).max(0.0);
     available.min((item_width * 0.38).clamp(44.0, 120.0))

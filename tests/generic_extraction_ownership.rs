@@ -100,11 +100,19 @@ fn inline_badge_cluster_layout_is_owned_by_generic_badge_module() {
     assert!(inline_metadata_mod.contains("inline_badge_text_origin"));
     assert!(
         !inline_metadata_mod.contains("text.split(\" · \")"),
-        "legacy browser metadata wrappers should delegate label splitting to gui::badge"
+        "legacy row metadata wrappers should delegate label splitting to gui::badge"
     );
     assert!(
         !inline_metadata_mod.contains("let mut x = start_x"),
-        "legacy browser metadata wrappers should delegate rect placement to gui::badge"
+        "legacy row metadata wrappers should delegate rect placement to gui::badge"
+    );
+    assert!(
+        !inline_metadata_mod.contains("browser_inline_metadata"),
+        "inline metadata helpers should use product-neutral row naming"
+    );
+    assert!(
+        inline_metadata_mod.contains("row_inline_metadata_reserved_width_for_labels"),
+        "inline metadata helpers should expose row-oriented generic wrapper names"
     );
 }
 

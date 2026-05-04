@@ -329,7 +329,7 @@ pub(super) fn render_browser_focus_overlay(
                 sizing,
                 similarity_button_reserved_width,
             );
-            let inline_metadata_reserved_width = browser_inline_metadata_reserved_width_for_labels(
+            let inline_metadata_reserved_width = row_inline_metadata_reserved_width_for_labels(
                 &row.inline_metadata_labels,
                 sizing,
             );

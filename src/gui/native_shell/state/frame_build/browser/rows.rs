@@ -180,7 +180,7 @@ pub(super) fn render_browser_rows_window(
                 (label_position.x + marker_advance).min(row.text_layout.item_label.max.x);
             label_max_width = (row.text_layout.item_label.max.x - label_position.x).max(4.0);
         }
-        let inline_metadata_reserved_width = browser_inline_metadata_reserved_width_for_labels(
+        let inline_metadata_reserved_width = row_inline_metadata_reserved_width_for_labels(
             &row.inline_metadata_labels,
             ctx.sizing,
         );
@@ -244,7 +244,7 @@ pub(super) fn render_browser_rows_window(
                 .copied()
                 .zip(row.inline_metadata_labels.iter())
             {
-                let text_origin = browser_inline_metadata_text_origin(chip_rect, ctx.sizing);
+                let text_origin = row_inline_metadata_text_origin(chip_rect, ctx.sizing);
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {

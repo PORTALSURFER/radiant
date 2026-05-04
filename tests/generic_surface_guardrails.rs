@@ -176,8 +176,8 @@ fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
         "style/chrome",
         "style/palette",
         "sidebar_surface",
+        "signal_header_surface",
         "top_bar_surface",
-        "waveform_header_surface",
         "waveform_toolbar_surface",
     ] {
         let module_file = manifest_dir.join(format!("src/gui/native_shell/{module}.rs"));

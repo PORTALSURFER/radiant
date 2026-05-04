@@ -1,9 +1,9 @@
-//! Generic waveform-header surface projection for the native-shell compat path.
+//! Generic signal-header surface projection for the native-shell compat path.
 //!
-//! This keeps the waveform title/metadata band on the same public
+//! This keeps the active signal title/metadata band on the same public
 //! `radiant::layout`, `radiant::runtime`, and `radiant::widgets` hosting
 //! pattern used by the top bar, status bar, and sidebar chrome bands while the
-//! waveform plot, overlays, and edit geometry remain on the compatibility path.
+//! timeline plot, overlays, and edit geometry remain on the compatibility path.
 
 use super::style::SizingTokens;
 use crate::{
@@ -17,34 +17,34 @@ use crate::{
     widgets::{CanvasWidget, TextWidget, WidgetSizing, WidgetSpec},
 };
 
-const WAVEFORM_HEADER_ROOT_ID: u64 = 1120;
-const WAVEFORM_HEADER_COLUMN_ID: u64 = 1121;
-const WAVEFORM_HEADER_TITLE_ID: u64 = 1122;
-const WAVEFORM_HEADER_METADATA_ID: u64 = 1123;
-const WAVEFORM_HEADER_FILL_ID: u64 = 1124;
+const SIGNAL_HEADER_ROOT_ID: u64 = 1120;
+const SIGNAL_HEADER_COLUMN_ID: u64 = 1121;
+const SIGNAL_HEADER_TITLE_ID: u64 = 1122;
+const SIGNAL_HEADER_METADATA_ID: u64 = 1123;
+const SIGNAL_HEADER_FILL_ID: u64 = 1124;
 
-/// User-facing content projected into the generic waveform-header surface.
+/// User-facing content projected into the generic signal-header surface.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct WaveformHeaderSurfaceContent {
+pub(crate) struct SignalHeaderSurfaceContent {
     /// Primary loaded content title shown on the first row.
     pub title: String,
-    /// Compact waveform metadata shown on the second row.
+    /// Compact signal metadata shown on the second row.
     pub metadata: String,
 }
 
-/// Resolved text layout for the generic waveform-header surface.
+/// Resolved text layout for the generic signal-header surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct WaveformHeaderSurfaceLayout {
+pub(crate) struct SignalHeaderSurfaceLayout {
     /// Title text widget bounds.
     pub title_text_rect: Rect,
     /// Metadata text widget bounds.
     pub metadata_text_rect: Rect,
 }
 
-/// Build waveform-header copy from the projected motion model.
-pub(crate) fn waveform_header_surface_content(
+/// Build signal-header copy from the projected motion model.
+pub(crate) fn signal_header_surface_content(
     model: &NativeMotionModel,
-) -> WaveformHeaderSurfaceContent {
+) -> SignalHeaderSurfaceContent {
     let transport = model.waveform_transport();
     let viewport = model.waveform_viewport();
     let presentation = model.waveform_presentation();
@@ -53,23 +53,23 @@ pub(crate) fn waveform_header_surface_content(
     let playhead_text = transport
         .playhead_milli
         .map(format_milli_value)
-        .unwrap_or_else(|| String::from("—"));
+        .unwrap_or_else(|| String::from("--"));
     let cursor_text = transport
         .cursor_milli
         .map(format_milli_value)
-        .unwrap_or_else(|| String::from("—"));
+        .unwrap_or_else(|| String::from("--"));
     let view_text = format!(
         "{}..{}",
         format_milli_value(viewport.start_milli),
         format_milli_value(viewport.end_milli)
     );
-    let tempo_text = presentation.primary_label.as_deref().unwrap_or("— BPM");
+    let tempo_text = presentation.primary_label.as_deref().unwrap_or("-- BPM");
     let zoom_text = presentation.viewport_label.as_deref().unwrap_or("100%");
-    WaveformHeaderSurfaceContent {
+    SignalHeaderSurfaceContent {
         title: raster_preview
             .loaded_label
             .clone()
-            .unwrap_or_else(|| String::from("Waveform")),
+            .unwrap_or_else(|| String::from("Signal")),
         metadata: format!(
             "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
             chrome.status_hint, tempo_text, zoom_text, playhead_text, cursor_text, view_text,
@@ -77,31 +77,27 @@ pub(crate) fn waveform_header_surface_content(
     }
 }
 
-/// Resolve the generic waveform-header surface layout inside one shell band.
-pub(crate) fn resolve_waveform_header_surface_layout(
+/// Resolve the generic signal-header surface layout inside one shell band.
+pub(crate) fn resolve_signal_header_surface_layout(
     header_rect: Rect,
     sizing: SizingTokens,
-    content: &WaveformHeaderSurfaceContent,
-) -> WaveformHeaderSurfaceLayout {
-    let surface = build_waveform_header_surface(content, sizing);
+    content: &SignalHeaderSurfaceContent,
+) -> SignalHeaderSurfaceLayout {
+    let surface = build_signal_header_surface(content, sizing);
     let output = layout_tree(&surface.layout_node(), header_rect);
     let empty = header_rect.empty_at_min();
-    WaveformHeaderSurfaceLayout {
-        title_text_rect: output.rect_for_clamped(WAVEFORM_HEADER_TITLE_ID, empty, header_rect),
-        metadata_text_rect: output.rect_for_clamped(
-            WAVEFORM_HEADER_METADATA_ID,
-            empty,
-            header_rect,
-        ),
+    SignalHeaderSurfaceLayout {
+        title_text_rect: output.rect_for_clamped(SIGNAL_HEADER_TITLE_ID, empty, header_rect),
+        metadata_text_rect: output.rect_for_clamped(SIGNAL_HEADER_METADATA_ID, empty, header_rect),
     }
 }
 
-fn build_waveform_header_surface(
-    content: &WaveformHeaderSurfaceContent,
+fn build_signal_header_surface(
+    content: &SignalHeaderSurfaceContent,
     sizing: SizingTokens,
 ) -> UiSurface<()> {
     UiSurface::new(SurfaceNode::container(
-        WAVEFORM_HEADER_ROOT_ID,
+        SIGNAL_HEADER_ROOT_ID,
         ContainerPolicy {
             kind: ContainerKind::PaddingBox,
             padding: Insets {
@@ -117,7 +113,7 @@ fn build_waveform_header_surface(
         vec![SurfaceChild::new(
             SlotParams::fill(),
             SurfaceNode::container(
-                WAVEFORM_HEADER_COLUMN_ID,
+                SIGNAL_HEADER_COLUMN_ID,
                 ContainerPolicy {
                     kind: ContainerKind::Column,
                     spacing: sizing.text_row_gap.max(0.0),
@@ -130,7 +126,7 @@ fn build_waveform_header_surface(
                     SurfaceChild::new(
                         text_slot(sizing.font_header),
                         text_widget(
-                            WAVEFORM_HEADER_TITLE_ID,
+                            SIGNAL_HEADER_TITLE_ID,
                             &content.title,
                             sizing.font_header.max(1.0),
                         ),
@@ -138,7 +134,7 @@ fn build_waveform_header_surface(
                     SurfaceChild::new(
                         text_slot(sizing.font_meta),
                         text_widget(
-                            WAVEFORM_HEADER_METADATA_ID,
+                            SIGNAL_HEADER_METADATA_ID,
                             &content.metadata,
                             sizing.font_meta.max(1.0),
                         ),
@@ -147,7 +143,7 @@ fn build_waveform_header_surface(
                         SlotParams::fill(),
                         SurfaceNode::widget(
                             WidgetSpec::Canvas(CanvasWidget::new(
-                                WAVEFORM_HEADER_FILL_ID,
+                                SIGNAL_HEADER_FILL_ID,
                                 WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
                             )),
                             WidgetMessageMapper::None,
@@ -190,7 +186,10 @@ fn format_milli_value(value: u16) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{app::AppModel, gui::native_shell::style::StyleTokens, widgets::WidgetKind};
+    use crate::{
+        app::AppModel, gui::native_shell::style::StyleTokens, gui::types::Point,
+        widgets::WidgetKind,
+    };
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -199,17 +198,17 @@ mod tests {
         assert!(inner.max.y <= outer.max.y);
     }
 
-    fn content() -> WaveformHeaderSurfaceContent {
-        waveform_header_surface_content(&NativeMotionModel::from_app_model(&AppModel::default()))
+    fn content() -> SignalHeaderSurfaceContent {
+        signal_header_surface_content(&NativeMotionModel::from_app_model(&AppModel::default()))
     }
 
     #[test]
-    fn waveform_header_surface_uses_public_text_and_canvas_widgets() {
+    fn signal_header_surface_uses_public_text_and_canvas_widgets() {
         let style = StyleTokens::for_viewport_width(1280.0);
-        let surface = build_waveform_header_surface(&content(), style.sizing);
+        let surface = build_signal_header_surface(&content(), style.sizing);
         assert_eq!(
             surface
-                .find_widget(WAVEFORM_HEADER_TITLE_ID)
+                .find_widget(SIGNAL_HEADER_TITLE_ID)
                 .expect("title")
                 .widget()
                 .kind(),
@@ -217,7 +216,7 @@ mod tests {
         );
         assert_eq!(
             surface
-                .find_widget(WAVEFORM_HEADER_METADATA_ID)
+                .find_widget(SIGNAL_HEADER_METADATA_ID)
                 .expect("metadata")
                 .widget()
                 .kind(),
@@ -225,7 +224,7 @@ mod tests {
         );
         assert_eq!(
             surface
-                .find_widget(WAVEFORM_HEADER_FILL_ID)
+                .find_widget(SIGNAL_HEADER_FILL_ID)
                 .expect("fill")
                 .widget()
                 .kind(),
@@ -234,17 +233,17 @@ mod tests {
     }
 
     #[test]
-    fn waveform_header_surface_layout_keeps_rows_inside_header() {
+    fn signal_header_surface_layout_keeps_rows_inside_header() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
-        let layout = resolve_waveform_header_surface_layout(header, style.sizing, &content());
+        let layout = resolve_signal_header_surface_layout(header, style.sizing, &content());
         assert_inside(header, layout.title_text_rect);
         assert_inside(header, layout.metadata_text_rect);
         assert!(layout.title_text_rect.max.y <= layout.metadata_text_rect.max.y);
     }
 
     #[test]
-    fn waveform_header_surface_layout_covers_loading_loaded_and_compact_states() {
+    fn signal_header_surface_layout_covers_loading_loaded_and_compact_states() {
         let states = [
             (820.0, AppModel::default()),
             (1440.0, {
@@ -270,9 +269,8 @@ mod tests {
                 Point::new(0.0, 0.0),
                 Point::new(viewport_width, style.sizing.waveform_header_block_height),
             );
-            let content =
-                waveform_header_surface_content(&NativeMotionModel::from_app_model(&model));
-            let layout = resolve_waveform_header_surface_layout(header, style.sizing, &content);
+            let content = signal_header_surface_content(&NativeMotionModel::from_app_model(&model));
+            let layout = resolve_signal_header_surface_layout(header, style.sizing, &content);
             assert_inside(header, layout.title_text_rect);
             assert_inside(header, layout.metadata_text_rect);
             assert!(layout.title_text_rect.height() > 0.0);

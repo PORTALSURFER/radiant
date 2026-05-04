@@ -1050,7 +1050,7 @@ fn native_empty_rect_construction_reuses_generic_rect_method() {
         "/src/gui/native_shell/browser_chrome_surface.rs",
         "/src/gui/native_shell/sidebar_surface.rs",
         "/src/gui/native_shell/sidebar_surface_helpers.rs",
-        "/src/gui/native_shell/waveform_header_surface.rs",
+        "/src/gui/native_shell/signal_header_surface.rs",
         "/src/gui/native_shell/layout_adapter/bands.rs",
         "/src/gui/native_shell/layout_adapter/browser_chrome_text.rs",
         "/src/gui/native_shell/layout_adapter/control_text.rs",
@@ -1247,11 +1247,11 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
         "/src/gui/native_shell/browser_chrome_surface.rs"
     ))
     .expect("browser chrome surface should be readable");
-    let waveform_header_surface = fs::read_to_string(concat!(
+    let signal_header_surface = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/src/gui/native_shell/waveform_header_surface.rs"
+        "/src/gui/native_shell/signal_header_surface.rs"
     ))
-    .expect("waveform header surface should be readable");
+    .expect("signal header surface should be readable");
     let layout_adapter_files = [
         "/src/gui/native_shell/layout_adapter/bands.rs",
         "/src/gui/native_shell/layout_adapter/browser_tabs.rs",
@@ -1269,7 +1269,7 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     assert!(layout_types.contains("pub fn rect_for_clamped"));
     assert!(layout_adapter.contains("output.rect_for("));
     assert!(browser_chrome_surface.contains("output.rect_for_clamped("));
-    assert!(waveform_header_surface.contains("output.rect_for_clamped("));
+    assert!(signal_header_surface.contains("output.rect_for_clamped("));
     assert!(
         layout_adapter_files
             .iter()
@@ -1278,8 +1278,8 @@ fn measured_rect_lookup_is_owned_by_generic_layout_output() {
     assert!(!layout_adapter.contains("fn rect_for"));
     assert!(!browser_chrome_surface.contains("fn rect_for"));
     assert!(!browser_chrome_surface.contains("fn clamp_rect_to_bounds"));
-    assert!(!waveform_header_surface.contains("fn rect_for"));
-    assert!(!waveform_header_surface.contains("fn clamp_rect_to_bounds"));
+    assert!(!signal_header_surface.contains("fn rect_for"));
+    assert!(!signal_header_surface.contains("fn clamp_rect_to_bounds"));
     for source in layout_adapter_files {
         assert!(!source.contains("fn rect_for"));
         assert!(!source.contains("fn clamp_rect_to_bounds"));

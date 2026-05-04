@@ -9,11 +9,11 @@ mod layout;
 mod layout_adapter;
 mod layout_runtime;
 mod sidebar_surface;
+mod signal_header_surface;
 mod state;
 mod status_surface;
 mod style;
 mod top_bar_surface;
-mod waveform_header_surface;
 mod waveform_toolbar_surface;
 
 pub(crate) use layout::ShellLayout;

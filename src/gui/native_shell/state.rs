@@ -35,14 +35,12 @@ use super::{
         resolve_sidebar_header_surface_layout, sidebar_footer_surface_content,
         sidebar_header_surface_content,
     },
+    signal_header_surface::{resolve_signal_header_surface_layout, signal_header_surface_content},
     status_surface::{StatusSurfaceContent, resolve_status_surface_layout},
     style::{SizingTokens, StyleTokens},
     top_bar_surface::{
         TopBarSurfaceLayout, resolve_top_bar_surface_layout, top_bar_options_button_rect,
         top_bar_surface_content,
-    },
-    waveform_header_surface::{
-        resolve_waveform_header_surface_layout, waveform_header_surface_content,
     },
     waveform_toolbar_surface::{
         WaveformToolbarSurfaceContent, WaveformToolbarSurfaceItem, WaveformToolbarSurfaceItemKind,

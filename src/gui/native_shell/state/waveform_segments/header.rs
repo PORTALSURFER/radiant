@@ -11,8 +11,8 @@ pub(in crate::gui::native_shell::state) fn push_waveform_header_overlay(
     toolbar_left: Option<f32>,
 ) {
     let sizing = style.sizing;
-    let content = waveform_header_surface_content(model);
-    let surface = resolve_waveform_header_surface_layout(layout.waveform_header, sizing, &content);
+    let content = signal_header_surface_content(model);
+    let surface = resolve_signal_header_surface_layout(layout.waveform_header, sizing, &content);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {

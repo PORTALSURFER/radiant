@@ -231,8 +231,8 @@ impl NativeShellState {
             geometry.toolbar.playback_age_filter_chips,
             point,
         ) {
-            return Some(UiAction::ToggleBrowserPlaybackAgeFilter {
-                bucket,
+            return Some(UiAction::ToggleContentRecencyFilter {
+                chip: bucket,
                 invert: alt_down,
             });
         }

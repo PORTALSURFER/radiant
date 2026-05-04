@@ -29,7 +29,7 @@ fn browser_toolbar_alt_click_maps_to_inverted_rating_filter_action() {
 }
 
 #[test]
-fn browser_toolbar_click_maps_to_playback_age_filter_action() {
+fn browser_toolbar_click_maps_to_content_recency_filter_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let model = AppModel::default();
     let mut shell_state = NativeShellState::new();
@@ -53,8 +53,8 @@ fn browser_toolbar_click_maps_to_playback_age_filter_action() {
             point,
             ModifiersState::default(),
         ),
-        Some(UiAction::ToggleBrowserPlaybackAgeFilter {
-            bucket: crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
+        Some(UiAction::ToggleContentRecencyFilter {
+            chip: crate::gui::list::RecencyFilterChip::OlderThanMonth,
             invert: false,
         })
     );

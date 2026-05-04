@@ -9,7 +9,8 @@
 //! action surface, so the preferred maintenance approach is to keep the enum
 //! centralized while improving internal organization around it.
 
-use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
+use super::FolderPaneIdModel;
+use crate::gui::list::RecencyFilterChip;
 use serde::{Deserialize, Serialize};
 
 /// Triage targets used by native content action surfaces.
@@ -388,11 +389,11 @@ pub enum UiAction {
         /// Whether the click should activate every filter chip except the clicked one.
         invert: bool,
     },
-    /// Toggle one browser playback-age filter chip.
-    ToggleBrowserPlaybackAgeFilter {
-        /// Playback-age chip associated with the clicked filter chip.
-        bucket: PlaybackAgeFilterChip,
-        /// Whether the click should activate every playback-age chip except the clicked one.
+    /// Toggle one content recency filter chip.
+    ToggleContentRecencyFilter {
+        /// Recency chip associated with the clicked filter chip.
+        chip: RecencyFilterChip,
+        /// Whether the click should activate every recency chip except the clicked one.
         invert: bool,
     },
     /// Toggle the session mark for the focused content row or current multi-selection.

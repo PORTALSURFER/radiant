@@ -139,7 +139,7 @@ impl NativeShellState {
             .map(|toolbar| toolbar.search_field)
             .filter(|rect| rect.width() > 1.0)
         {
-            if self.hovered_content_search_field && self.browser_search_editor_visual.is_none() {
+            if self.hovered_content_search_field && self.content_search_editor_visual.is_none() {
                 render_search_field_hover_overlay(
                     primitives,
                     style,

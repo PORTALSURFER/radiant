@@ -166,8 +166,8 @@ pub(super) fn sync_text_input_target<B: NativeAppBridge>(runner: &mut NativeVell
         runner.waveform_bpm_input_buffer = None;
     }
     runner.sync_waveform_bpm_editor_state();
-    runner.sync_browser_search_editor_state();
-    runner.sync_browser_pill_editor_state();
+    runner.sync_content_search_editor_state();
+    runner.sync_content_pill_editor_state();
     runner.sync_folder_create_editor_state();
 }
 
@@ -214,8 +214,8 @@ pub(super) fn set_text_value<B: NativeAppBridge>(
         }
     };
     runner.emit_model_action(action);
-    runner.sync_browser_search_editor_state();
-    runner.sync_browser_pill_editor_state();
+    runner.sync_content_search_editor_state();
+    runner.sync_content_pill_editor_state();
     runner.sync_folder_create_editor_state();
     true
 }

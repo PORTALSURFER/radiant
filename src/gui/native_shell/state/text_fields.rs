@@ -78,8 +78,8 @@ pub(crate) fn render_active_text_field(
     );
 }
 
-/// Render the active browser-search editor fill, selection, text, and caret.
-pub(crate) fn render_active_browser_search_editor(
+/// Render the active content-search editor fill, selection, text, and caret.
+pub(crate) fn render_active_content_search_editor(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     style: &StyleTokens,

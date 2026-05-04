@@ -7,7 +7,7 @@ pub(super) fn render_content_frame(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    let search_editor_active = state.browser_search_editor_visual.is_some();
+    let search_editor_active = state.content_search_editor_visual.is_some();
     let toolbar = {
         let (buttons, column_chips, toolbar) =
             state.cached_content_action_hit_test(ctx.layout, ctx.style, ctx.model);

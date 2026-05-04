@@ -1826,9 +1826,9 @@ fn compat_shell_uses_generic_pill_editor_layout_identifiers() {
         assert!(!source.contains("set_browser_tag_sidebar_editor_state"));
         assert!(!source.contains("sync_browser_tag_sidebar_editor_state"));
     }
-    assert!(text_runtime.contains("sync_browser_pill_editor_state"));
-    assert!(model_sync.contains("set_browser_pill_editor_visual_state"));
-    assert!(state_mod.contains("browser_pill_editor_visual"));
+    assert!(text_runtime.contains("sync_content_pill_editor_state"));
+    assert!(model_sync.contains("set_content_pill_editor_visual_state"));
+    assert!(state_mod.contains("content_pill_editor_visual"));
 }
 
 #[test]

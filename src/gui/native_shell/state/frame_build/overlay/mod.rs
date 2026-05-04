@@ -44,9 +44,9 @@ pub(super) fn render_hover_overlay(
     if let (Some(search_field_rect), Some(search_text_rect), Some(visual)) = (
         search_field_rect,
         search_text_rect,
-        shell_state.browser_search_editor_visual.as_ref(),
+        shell_state.content_search_editor_visual.as_ref(),
     ) {
-        render_active_browser_search_editor(
+        render_active_content_search_editor(
             primitives,
             text_runs,
             style,
@@ -61,7 +61,7 @@ pub(super) fn render_hover_overlay(
     if let (Some(input_rect), Some(text_rect), Some(visual)) = (
         sidebar_input_rect,
         sidebar_text_rect,
-        shell_state.browser_pill_editor_visual.as_ref(),
+        shell_state.content_pill_editor_visual.as_ref(),
     ) {
         render_active_text_field(
             primitives,

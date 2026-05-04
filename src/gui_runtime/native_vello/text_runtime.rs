@@ -49,8 +49,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.text_editor_state = Some(editor);
         self.waveform_bpm_input_buffer = None;
         self.sync_waveform_bpm_editor_state();
-        self.sync_browser_search_editor_state();
-        self.sync_browser_pill_editor_state();
+        self.sync_content_search_editor_state();
+        self.sync_content_pill_editor_state();
         self.sync_folder_create_editor_state();
     }
 
@@ -59,8 +59,8 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         let was_waveform_bpm = self.text_input_target == TextInputTarget::WaveformBpm;
         self.clear_text_input_target_state();
         self.sync_waveform_bpm_editor_state();
-        self.sync_browser_search_editor_state();
-        self.sync_browser_pill_editor_state();
+        self.sync_content_search_editor_state();
+        self.sync_content_pill_editor_state();
         self.sync_folder_create_editor_state();
         if previous_target == TextInputTarget::BrowserSearch {
             self.emit_model_action(UiAction::BlurContentSearch);
@@ -165,9 +165,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .set_waveform_bpm_editor_state(active, display, visual);
     }
 
-    pub(super) fn sync_browser_search_editor_state(&mut self) {
+    pub(super) fn sync_content_search_editor_state(&mut self) {
         if self.text_input_target != TextInputTarget::BrowserSearch {
-            self.shell_state.set_browser_search_editor_state(None);
+            self.shell_state.set_content_search_editor_state(None);
             return;
         }
         let Some(visual) = self.with_shell_layout(|this, layout| {
@@ -175,15 +175,15 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .browser_search_text_rect(layout, &this.model)
                 .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
         }) else {
-            self.shell_state.set_browser_search_editor_state(None);
+            self.shell_state.set_content_search_editor_state(None);
             return;
         };
-        self.shell_state.set_browser_search_editor_state(visual);
+        self.shell_state.set_content_search_editor_state(visual);
     }
 
-    pub(super) fn sync_browser_pill_editor_state(&mut self) {
+    pub(super) fn sync_content_pill_editor_state(&mut self) {
         if self.text_input_target != TextInputTarget::BrowserPillEditor {
-            self.shell_state.set_browser_pill_editor_visual_state(None);
+            self.shell_state.set_content_pill_editor_visual_state(None);
             return;
         }
         let Some(visual) = self.with_shell_layout(|this, layout| {
@@ -191,11 +191,11 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 .browser_pill_editor_text_rect(layout, &this.model)
                 .and_then(|text_rect| this.build_active_text_field_visual_state(layout, text_rect))
         }) else {
-            self.shell_state.set_browser_pill_editor_visual_state(None);
+            self.shell_state.set_content_pill_editor_visual_state(None);
             return;
         };
         self.shell_state
-            .set_browser_pill_editor_visual_state(visual);
+            .set_content_pill_editor_visual_state(visual);
     }
 
     pub(super) fn sync_folder_create_editor_state(&mut self) {
@@ -342,13 +342,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.text_input_buffer = None;
             self.text_editor_state = None;
             self.text_input_drag_active = false;
-            self.shell_state.set_browser_search_editor_state(None);
-            self.shell_state.set_browser_pill_editor_visual_state(None);
+            self.shell_state.set_content_search_editor_state(None);
+            self.shell_state.set_content_pill_editor_visual_state(None);
             self.shell_state.set_folder_create_editor_state(None);
         }
         self.sync_waveform_bpm_editor_state();
-        self.sync_browser_search_editor_state();
-        self.sync_browser_pill_editor_state();
+        self.sync_content_search_editor_state();
+        self.sync_content_pill_editor_state();
         self.sync_folder_create_editor_state();
     }
 

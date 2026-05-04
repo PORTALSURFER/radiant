@@ -86,8 +86,8 @@ pub(super) fn sync_text_editor_visual_state_for_target<B: NativeAppBridge>(
     target: TextInputTarget,
 ) {
     match target {
-        TextInputTarget::BrowserSearch => runner.sync_browser_search_editor_state(),
-        TextInputTarget::BrowserPillEditor => runner.sync_browser_pill_editor_state(),
+        TextInputTarget::BrowserSearch => runner.sync_content_search_editor_state(),
+        TextInputTarget::BrowserPillEditor => runner.sync_content_pill_editor_state(),
         TextInputTarget::FolderCreate => runner.sync_folder_create_editor_state(),
         TextInputTarget::WaveformBpm => runner.sync_waveform_bpm_editor_state(),
         TextInputTarget::None | TextInputTarget::FolderSearch | TextInputTarget::PromptInput => {}

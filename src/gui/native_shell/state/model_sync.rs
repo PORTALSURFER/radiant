@@ -110,17 +110,17 @@ impl NativeShellState {
         self.waveform_toolbar_hit_test_cache_key = None;
     }
 
-    /// Update the active browser-search editor visuals shown in state overlays.
-    pub(crate) fn set_browser_search_editor_state(&mut self, visual: Option<TextFieldVisualState>) {
-        self.browser_search_editor_visual = visual;
+    /// Update the active content-search editor visuals shown in state overlays.
+    pub(crate) fn set_content_search_editor_state(&mut self, visual: Option<TextFieldVisualState>) {
+        self.content_search_editor_visual = visual;
     }
 
-    /// Update the active browser pill-editor visuals shown in state overlays.
-    pub(crate) fn set_browser_pill_editor_visual_state(
+    /// Update the active content pill-editor visuals shown in state overlays.
+    pub(crate) fn set_content_pill_editor_visual_state(
         &mut self,
         visual: Option<TextFieldVisualState>,
     ) {
-        self.browser_pill_editor_visual = visual;
+        self.content_pill_editor_visual = visual;
     }
 
     /// Update the active inline folder-create editor visuals shown in sidebar overlays.
@@ -173,10 +173,10 @@ impl NativeShellState {
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             content_search_editor_signature: text_field_visual_signature(
-                self.browser_search_editor_visual.as_ref(),
+                self.content_search_editor_visual.as_ref(),
             ),
             content_pill_editor_signature: text_field_visual_signature(
-                self.browser_pill_editor_visual.as_ref(),
+                self.content_pill_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
                 self.folder_create_editor_visual.as_ref(),
@@ -277,7 +277,7 @@ impl NativeShellState {
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
             content_search_editor_signature: text_field_visual_signature(
-                self.browser_search_editor_visual.as_ref(),
+                self.content_search_editor_visual.as_ref(),
             ),
             folder_create_editor_signature: text_field_visual_signature(
                 self.folder_create_editor_visual.as_ref(),

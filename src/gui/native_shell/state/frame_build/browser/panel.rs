@@ -164,7 +164,7 @@ pub(super) fn render_browser_frame(
         );
         let _ = emit_toolbar_svg_icon(
             primitives,
-            browser_playback_age_filter_icon(chip),
+            recency_filter_chip_icon(chip),
             centered_button_icon_rect(rect, ctx.sizing),
             if active {
                 ctx.style.text_primary
@@ -350,7 +350,7 @@ fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
     button_rect.centered_square(side)
 }
 
-fn browser_playback_age_filter_icon(chip: RecencyFilterChip) -> ShellSvgIcon {
+fn recency_filter_chip_icon(chip: RecencyFilterChip) -> ShellSvgIcon {
     match chip {
         RecencyFilterChip::NeverPlayed => ShellSvgIcon::RecencyNever,
         RecencyFilterChip::OlderThanMonth => ShellSvgIcon::RecencyOlderThanMonth,

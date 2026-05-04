@@ -849,6 +849,22 @@ fn toolbar_column_chip_cache_uses_product_neutral_names() {
 }
 
 #[test]
+fn recency_filter_icon_helper_uses_product_neutral_name() {
+    let browser_panel_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/browser/panel.rs"
+    ))
+    .expect("browser panel module should be readable");
+
+    assert!(browser_panel_mod.contains("fn recency_filter_chip_icon"));
+    assert!(browser_panel_mod.contains("ShellSvgIcon::RecencyNever"));
+    assert!(
+        !browser_panel_mod.contains("browser_playback_age_filter_icon"),
+        "recency filter icon helper should not use browser playback-age naming"
+    );
+}
+
+#[test]
 fn active_text_field_visual_helpers_use_product_neutral_names() {
     let text_fields_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

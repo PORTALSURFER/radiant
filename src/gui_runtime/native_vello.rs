@@ -101,6 +101,3 @@ pub use self::{
     },
     startup::NativeStartupTimingArtifact,
 };
-
-#[cfg(all(test, feature = "legacy-shell"))]
-mod tests;

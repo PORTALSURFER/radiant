@@ -380,11 +380,19 @@ fn radiant_manifest_does_not_depend_on_host_product_or_parent_workspace() {
 fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let tests_dir = manifest_dir.join("tests");
+    let legacy_native_tests = manifest_dir.join("src/gui_runtime/native_vello/tests");
     let mut violations = Vec::new();
 
     assert!(
         !tests_dir.join("shots").exists(),
         "host visual snapshot fixtures belong in the host app test tree, not Radiant tests/shots"
+    );
+    assert!(
+        !legacy_native_tests.exists()
+            && !manifest_dir
+                .join("src/gui_runtime/native_vello/tests.rs")
+                .exists(),
+        "legacy native-shell behavior fixtures belong in the host app, not Radiant"
     );
 
     let entries = fs::read_dir(&tests_dir)
@@ -946,7 +954,6 @@ fn legacy_shell_sources_are_feature_gated() {
                 "mod runtime_config",
                 "mod runtime_event",
                 "#[cfg(feature = \"legacy-shell\")]\nmod runtime_events",
-                "#[cfg(all(test, feature = \"legacy-shell\"))]\nmod tests",
             ],
         ),
     ];

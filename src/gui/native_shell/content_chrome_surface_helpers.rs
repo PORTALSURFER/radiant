@@ -28,7 +28,7 @@ pub(super) fn build_toolbar_children(
 ) -> Vec<SurfaceChild<()>> {
     let mut spacer_id = TOOLBAR_SORT_ID + 1;
     let mut children = Vec::new();
-    for index in 0..BROWSER_RATING_FILTER_COUNT {
+    for index in 0..CONTENT_RATING_FILTER_COUNT {
         if index > 0 {
             children.push(spacer_child(spacer_id, widths.filter_gap));
             spacer_id += 1;
@@ -44,7 +44,7 @@ pub(super) fn build_toolbar_children(
     }
     children.push(spacer_child(spacer_id, widths.filter_group_gap));
     spacer_id += 1;
-    for index in 0..BROWSER_PLAYBACK_AGE_FILTER_COUNT {
+    for index in 0..CONTENT_RECENCY_FILTER_COUNT {
         if index > 0 {
             children.push(spacer_child(spacer_id, widths.filter_gap));
             spacer_id += 1;
@@ -146,7 +146,7 @@ pub(super) fn build_toolbar_children(
             chip_label_height,
         ),
     ));
-    for index in 0..BROWSER_TRIAGE_CHIP_COUNT {
+    for index in 0..CONTENT_TRIAGE_CHIP_COUNT {
         children.push(SurfaceChild::new(
             fixed_slot(0.0, chip_label_height),
             text_widget(
@@ -162,7 +162,7 @@ pub(super) fn build_toolbar_children(
         SlotParams::fill(),
         SurfaceNode::widget(
             WidgetSpec::Canvas(CanvasWidget::new(
-                TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
+                TOOLBAR_TRIAGE_BASE_ID + CONTENT_TRIAGE_CHIP_COUNT as u64,
                 WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
             )),
             WidgetMessageMapper::None,
@@ -219,7 +219,7 @@ pub(super) fn content_toolbar_surface_widths(
         filter_group_gap,
     );
     let mut filter_total_width =
-        browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
+        content_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
     let derived_label_width = if filter_side > 0.0 {
         (filter_side * 2.0) + filter_group_gap + filter_gap
     } else {
@@ -236,7 +236,7 @@ pub(super) fn content_toolbar_surface_widths(
             filter_group_gap,
         );
         filter_total_width =
-            browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
+            content_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
         remaining_after_filters = (available
             - filter_total_width
             - derived_label_width
@@ -286,9 +286,9 @@ fn compute_filter_control_side(
     if available_width <= 0.0 {
         return 0.0;
     }
-    let chip_count = (BROWSER_RATING_FILTER_COUNT + BROWSER_PLAYBACK_AGE_FILTER_COUNT + 2) as f32;
-    let intra_group_gap_count = (BROWSER_RATING_FILTER_COUNT.saturating_sub(1)
-        + BROWSER_PLAYBACK_AGE_FILTER_COUNT.saturating_sub(1))
+    let chip_count = (CONTENT_RATING_FILTER_COUNT + CONTENT_RECENCY_FILTER_COUNT + 2) as f32;
+    let intra_group_gap_count = (CONTENT_RATING_FILTER_COUNT.saturating_sub(1)
+        + CONTENT_RECENCY_FILTER_COUNT.saturating_sub(1))
         as f32;
     let raw_side =
         (available_width - (filter_gap * (intra_group_gap_count + 1.0)) - (filter_group_gap * 2.0))
@@ -300,15 +300,15 @@ fn compute_filter_control_side(
     }
 }
 
-fn browser_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
+fn content_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
     if chip_side <= 0.0 {
         return 0.0;
     }
-    (chip_side * BROWSER_RATING_FILTER_COUNT as f32)
-        + (gap * (BROWSER_RATING_FILTER_COUNT.saturating_sub(1) as f32))
+    (chip_side * CONTENT_RATING_FILTER_COUNT as f32)
+        + (gap * (CONTENT_RATING_FILTER_COUNT.saturating_sub(1) as f32))
         + group_gap
-        + (chip_side * BROWSER_PLAYBACK_AGE_FILTER_COUNT as f32)
-        + (gap * (BROWSER_PLAYBACK_AGE_FILTER_COUNT.saturating_sub(1) as f32))
+        + (chip_side * CONTENT_RECENCY_FILTER_COUNT as f32)
+        + (gap * (CONTENT_RECENCY_FILTER_COUNT.saturating_sub(1) as f32))
 }
 
 fn chip_label(index: usize) -> &'static str {

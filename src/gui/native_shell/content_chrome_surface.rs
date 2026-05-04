@@ -42,9 +42,9 @@ const TOOLBAR_ACTIVITY_ID: u64 = 1276;
 const TOOLBAR_SORT_ID: u64 = 1277;
 const TOOLBAR_TRIAGE_BASE_ID: u64 = 1280;
 
-const BROWSER_RATING_FILTER_COUNT: usize = 8;
-const BROWSER_PLAYBACK_AGE_FILTER_COUNT: usize = 3;
-const BROWSER_TRIAGE_CHIP_COUNT: usize = 3;
+const CONTENT_RATING_FILTER_COUNT: usize = 8;
+const CONTENT_RECENCY_FILTER_COUNT: usize = 3;
+const CONTENT_TRIAGE_CHIP_COUNT: usize = 3;
 
 /// User-facing tab labels projected into the generic content tabs surface.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,9 +83,9 @@ pub(crate) struct ContentToolbarSurfaceContent {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ContentToolbarSurfaceLayout {
     /// Rating-filter chip bounds from left to right.
-    pub rating_filter_chips: [Rect; BROWSER_RATING_FILTER_COUNT],
+    pub rating_filter_chips: [Rect; CONTENT_RATING_FILTER_COUNT],
     /// Playback-age chip bounds from left to right.
-    pub playback_age_filter_chips: [Rect; BROWSER_PLAYBACK_AGE_FILTER_COUNT],
+    pub playback_age_filter_chips: [Rect; CONTENT_RECENCY_FILTER_COUNT],
     /// Marked-filter chip bounds.
     pub marked_filter_chip: Rect,
     /// Derived-label-filter chip bounds.
@@ -99,7 +99,7 @@ pub(crate) struct ContentToolbarSurfaceLayout {
     /// Sort-chip bounds.
     pub sort_chip: Rect,
     /// Reserved triage-chip bounds.
-    pub triage_chips: [Rect; BROWSER_TRIAGE_CHIP_COUNT],
+    pub triage_chips: [Rect; CONTENT_TRIAGE_CHIP_COUNT],
 }
 
 /// Build user-facing content-tab content from the projected app model.

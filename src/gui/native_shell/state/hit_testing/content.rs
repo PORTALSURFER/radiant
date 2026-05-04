@@ -10,7 +10,7 @@ impl NativeShellState {
         model: &AppModel,
         column: usize,
     ) -> Option<Rect> {
-        self.cached_browser_interaction_geometry(layout, model)
+        self.cached_content_interaction_geometry(layout, model)
             .chips
             .iter()
             .find(|chip| chip.column == column)
@@ -27,7 +27,7 @@ impl NativeShellState {
         if model.map.active {
             return None;
         }
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         if let Some(sidebar_rect) =
             pill_editor_panel_rect(layout.browser_rows, geometry.style.sizing, model)
             && sidebar_rect.contains(point)
@@ -49,7 +49,7 @@ impl NativeShellState {
         if model.map.active || model.browser.duplicate_cleanup_active {
             return None;
         }
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         geometry
             .rows
             .iter()
@@ -111,7 +111,7 @@ impl NativeShellState {
 
     /// Return the current rendered browser viewport length.
     pub(crate) fn browser_viewport_len(&mut self, layout: &ShellLayout, model: &AppModel) -> usize {
-        self.cached_browser_interaction_geometry(layout, model)
+        self.cached_content_interaction_geometry(layout, model)
             .rows
             .len()
             .min(model.browser.visible_count)
@@ -128,7 +128,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<usize> {
-        self.cached_browser_interaction_geometry(layout, model)
+        self.cached_content_interaction_geometry(layout, model)
             .rows
             .first()
             .map(|row| row.visible_row)
@@ -141,7 +141,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<f32> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
         let hit_rect = Rect::from_min_max(
             Point::new(
@@ -166,7 +166,7 @@ impl NativeShellState {
         pointer_y: f32,
         thumb_pointer_offset_y: f32,
     ) -> Option<usize> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
         content_list_scrollbar_view_start_for_pointer(
             scrollbar,
@@ -188,7 +188,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<usize> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
         if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
             return None;
@@ -210,7 +210,7 @@ impl NativeShellState {
         point: Point,
         alt_down: bool,
     ) -> Option<UiAction> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         if let Some(action) = pill_editor_action_at_point(
             layout.browser_rows,
             geometry.style.sizing,
@@ -301,7 +301,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         (geometry.toolbar.search_field.width() > 1.0).then_some(geometry.toolbar.search_field)
     }
 
@@ -314,7 +314,7 @@ impl NativeShellState {
         level: i8,
     ) -> Option<Rect> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         let index = rating_filter_chip_index(level)?;
         let rect = toolbar.rating_filter_chips[index];
@@ -329,7 +329,7 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         (toolbar.marked_filter_chip.width() > 1.0).then_some(toolbar.marked_filter_chip)
     }
@@ -342,7 +342,7 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         (toolbar.derived_label_filter_chip.width() > 1.0)
             .then_some(toolbar.derived_label_filter_chip)
@@ -357,7 +357,7 @@ impl NativeShellState {
         chip: RecencyFilterChip,
     ) -> Option<Rect> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         let index = recency_filter_chip_index(chip)?;
         let rect = toolbar.playback_age_filter_chips[index];
@@ -372,7 +372,7 @@ impl NativeShellState {
         model: &AppModel,
         label: &str,
     ) -> Option<Rect> {
-        self.cached_browser_interaction_geometry(layout, model)
+        self.cached_content_interaction_geometry(layout, model)
             .buttons
             .iter()
             .find(|button| button.label == label)
@@ -385,7 +385,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         if geometry.toolbar.search_field.width() <= 1.0 {
             return None;
         }
@@ -405,7 +405,7 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .style;
         pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_rect)
@@ -418,7 +418,7 @@ impl NativeShellState {
         model: &AppModel,
     ) -> Option<Rect> {
         let style = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .style;
         pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_text_rect)
@@ -431,7 +431,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<Rect> {
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         geometry
             .rows
             .iter()

@@ -20,7 +20,7 @@ pub(super) fn render_content_rows_window(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    let content_rows = state.cached_browser_rows(ctx.layout, ctx.style, ctx.model);
+    let content_rows = state.cached_content_rows(ctx.layout, ctx.style, ctx.model);
     rows::render_content_rows_window(ctx, primitives, text_runs, content_rows);
 }
 

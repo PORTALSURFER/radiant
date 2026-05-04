@@ -114,7 +114,7 @@ pub(super) fn render_hover_overlay(
         );
     }
     if let Some(hovered_visible_row) = shell_state.hovered_browser_visible_row {
-        let browser_rows = shell_state.cached_browser_rows(layout, style, model);
+        let browser_rows = shell_state.cached_content_rows(layout, style, model);
         if let Some(row) = browser_rows
             .iter()
             .find(|row| row.visible_row == hovered_visible_row)

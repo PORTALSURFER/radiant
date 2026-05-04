@@ -149,7 +149,7 @@ impl NativeShellState {
         if model.map.active || hover != Some(ShellNodeKind::BrowserTable) {
             return None;
         }
-        let geometry = self.cached_browser_interaction_geometry(layout, model);
+        let geometry = self.cached_content_interaction_geometry(layout, model);
         let rows = geometry.rows;
         content_list_row_index_at_point(rows, point, layout.browser_rows)
             .map(|index| rows[index].visible_row)
@@ -175,7 +175,7 @@ impl NativeShellState {
         point: Point,
     ) -> bool {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
     }
@@ -187,7 +187,7 @@ impl NativeShellState {
         point: Point,
     ) -> bool {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
     }
@@ -199,7 +199,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<i8> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         rating_filter_level_at_point(toolbar.rating_filter_chips, point)
     }
@@ -211,7 +211,7 @@ impl NativeShellState {
         point: Point,
     ) -> Option<RecencyFilterChip> {
         let toolbar = self
-            .cached_browser_interaction_geometry(layout, model)
+            .cached_content_interaction_geometry(layout, model)
             .toolbar;
         recency_filter_chip_at_point(toolbar.playback_age_filter_chips, point)
     }

@@ -8,7 +8,7 @@ use crate::gui::list::{VirtualListWindowRequest, resolve_virtual_list_window};
 /// slice, callers can pass the previous visible-row start so edge guards stay
 /// anchored to the rows the user is actually looking at instead of snapping
 /// back to the host slice start on every focus change.
-pub(in crate::gui::native_shell::state) fn browser_rows_window_bounds_with_previous(
+pub(in crate::gui::native_shell::state) fn content_rows_window_bounds_with_previous(
     layout: &ShellLayout,
     model: &AppModel,
     sizing: SizingTokens,

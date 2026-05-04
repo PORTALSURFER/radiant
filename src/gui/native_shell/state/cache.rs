@@ -3,7 +3,7 @@
 use super::*;
 use crate::gui::panel::SplitPaneSlot;
 
-pub(super) struct BrowserInteractionGeometry<'a> {
+pub(super) struct ContentInteractionGeometry<'a> {
     pub(super) style: StyleTokens,
     pub(super) rows: &'a [CachedContentRow],
     pub(super) scrollbar: Option<ContentListScrollbarLayout>,
@@ -87,29 +87,29 @@ impl NativeShellState {
         Some((scrollbar, viewport_len))
     }
 
-    pub(super) fn cached_browser_rows(
+    pub(super) fn cached_content_rows(
         &mut self,
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
     ) -> &[CachedContentRow] {
-        let previous_visible_start = self.browser_rows.first().map(|row| row.visible_row);
-        let (window_start, _) = browser_rows_window_bounds_with_previous(
+        let previous_visible_start = self.content_rows.first().map(|row| row.visible_row);
+        let (window_start, _) = content_rows_window_bounds_with_previous(
             layout,
             model,
             style.sizing,
             previous_visible_start,
         );
-        let cache_key = browser_rows_cache_key(layout, style, model, window_start);
+        let cache_key = content_rows_cache_key(layout, style, model, window_start);
         let truncation_cache_key = content_row_truncation_cache_key(layout, style, cache_key);
         if self.content_row_truncation_cache_key != Some(truncation_cache_key) {
             self.content_row_truncation_cache.clear();
             self.content_row_truncation_cache_key = Some(truncation_cache_key);
         }
         self.content_row_truncation_frame_counts = ContentRowTruncationFrameCounts::default();
-        if self.browser_rows_cache_key != Some(cache_key) {
+        if self.content_rows_cache_key != Some(cache_key) {
             let (rows, resolved_window_start) =
-                rendered_browser_rows_cached_with_window_start_and_previous(
+                rendered_content_rows_cached_with_window_start_and_previous(
                     layout,
                     model,
                     style,
@@ -118,16 +118,16 @@ impl NativeShellState {
                     previous_visible_start,
                 );
             let resolved_cache_key =
-                browser_rows_cache_key(layout, style, model, resolved_window_start);
-            self.browser_rows = rows;
-            sync_cached_browser_row_selection(&mut self.browser_rows, model, resolved_window_start);
-            self.browser_rows_window_start = resolved_window_start;
-            self.browser_rows_cache_key = Some(resolved_cache_key);
+                content_rows_cache_key(layout, style, model, resolved_window_start);
+            self.content_rows = rows;
+            sync_cached_content_row_selection(&mut self.content_rows, model, resolved_window_start);
+            self.content_rows_window_start = resolved_window_start;
+            self.content_rows_cache_key = Some(resolved_cache_key);
         } else {
-            sync_cached_browser_row_selection(&mut self.browser_rows, model, window_start);
-            self.browser_rows_window_start = window_start;
+            sync_cached_content_row_selection(&mut self.content_rows, model, window_start);
+            self.content_rows_window_start = window_start;
         }
-        &self.browser_rows
+        &self.content_rows
     }
 
     pub(super) fn cached_content_list_scrollbar_for_style(
@@ -136,8 +136,8 @@ impl NativeShellState {
         style: &StyleTokens,
         model: &AppModel,
     ) -> Option<(ContentListScrollbarLayout, usize)> {
-        self.cached_browser_rows(layout, style, model);
-        let Some(rows_key) = self.browser_rows_cache_key else {
+        self.cached_content_rows(layout, style, model);
+        let Some(rows_key) = self.content_rows_cache_key else {
             self.content_list_scrollbar = None;
             self.content_list_scrollbar_viewport_len = 0;
             self.content_list_scrollbar_cache_key = None;
@@ -145,7 +145,7 @@ impl NativeShellState {
         };
         let cache_key = ContentListScrollbarCacheKey { rows_key };
         if self.content_list_scrollbar_cache_key != Some(cache_key) {
-            let rows = &self.browser_rows;
+            let rows = &self.content_rows;
             let viewport_len = rows.len().min(model.browser.visible_count);
             let list_rect = content_rows_list_rect(layout.browser_rows, style.sizing, model);
             self.content_list_scrollbar = content_list_scrollbar_layout(
@@ -189,18 +189,18 @@ impl NativeShellState {
         )
     }
 
-    pub(super) fn cached_browser_interaction_geometry(
+    pub(super) fn cached_content_interaction_geometry(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-    ) -> BrowserInteractionGeometry<'_> {
+    ) -> ContentInteractionGeometry<'_> {
         let style = style_for_layout(layout);
-        self.cached_browser_rows(layout, &style, model);
+        self.cached_content_rows(layout, &style, model);
         self.cached_content_list_scrollbar_for_style(layout, &style, model);
         self.cached_content_action_hit_test(layout, &style, model);
-        BrowserInteractionGeometry {
+        ContentInteractionGeometry {
             style,
-            rows: &self.browser_rows,
+            rows: &self.content_rows,
             scrollbar: self.content_list_scrollbar,
             scrollbar_viewport_len: self.content_list_scrollbar_viewport_len,
             buttons: &self.content_action_buttons,
@@ -254,7 +254,7 @@ impl NativeShellState {
     }
 }
 
-fn sync_cached_browser_row_selection(
+fn sync_cached_content_row_selection(
     rows: &mut [CachedContentRow],
     model: &AppModel,
     window_start: usize,

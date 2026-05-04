@@ -207,7 +207,7 @@ pub(super) fn render_browser_focus_overlay(
     if matches!(model.focus_context, FocusSurface::ContentList) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }
-    let browser_rows = shell_state.cached_browser_rows(layout, style, model);
+    let browser_rows = shell_state.cached_content_rows(layout, style, model);
     let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
     for row in browser_rows.iter() {
         if !(row.selected || row.focused) {

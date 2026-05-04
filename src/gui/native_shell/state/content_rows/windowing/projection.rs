@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
+pub(in crate::gui::native_shell::state) fn content_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -57,14 +57,14 @@ pub(in crate::gui::native_shell::state) fn f32_to_bits(value: f32) -> u32 {
 }
 
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
+pub(in crate::gui::native_shell::state) fn rendered_content_rows(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
 ) -> Vec<CachedContentRow> {
     let mut truncation_cache = ContentRowTruncationCache::default();
     let mut frame_counts = ContentRowTruncationFrameCounts::default();
-    rendered_browser_rows_cached(
+    rendered_content_rows_cached(
         layout,
         model,
         style,
@@ -75,14 +75,14 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
 
 /// Build rendered content rows while reusing a retained truncation cache.
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
+pub(in crate::gui::native_shell::state) fn rendered_content_rows_cached(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
     truncation_cache: &mut ContentRowTruncationCache,
     frame_counts: &mut ContentRowTruncationFrameCounts,
 ) -> Vec<CachedContentRow> {
-    rendered_browser_rows_cached_with_window_start(
+    rendered_content_rows_cached_with_window_start(
         layout,
         model,
         style,
@@ -94,14 +94,14 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
 
 /// Build rendered content rows and return the resolved viewport start used.
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start(
+pub(in crate::gui::native_shell::state) fn rendered_content_rows_cached_with_window_start(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
     truncation_cache: &mut ContentRowTruncationCache,
     frame_counts: &mut ContentRowTruncationFrameCounts,
 ) -> (Vec<CachedContentRow>, usize) {
-    rendered_browser_rows_cached_with_window_start_and_previous(
+    rendered_content_rows_cached_with_window_start_and_previous(
         layout,
         model,
         style,
@@ -112,7 +112,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
 }
 
 /// Build rendered content rows while preserving a prior visible viewport start.
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start_and_previous(
+pub(in crate::gui::native_shell::state) fn rendered_content_rows_cached_with_window_start_and_previous(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -125,7 +125,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         return (Vec::new(), 0);
     }
 
-    let (window_start, window_end) = super::viewport::browser_rows_window_bounds_with_previous(
+    let (window_start, window_end) = super::viewport::content_rows_window_bounds_with_previous(
         layout,
         model,
         sizing,

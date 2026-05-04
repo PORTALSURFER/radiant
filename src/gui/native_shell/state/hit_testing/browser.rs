@@ -29,7 +29,7 @@ impl NativeShellState {
         }
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         if let Some(sidebar_rect) =
-            browser_pill_editor_panel_rect(layout.browser_rows, geometry.style.sizing, model)
+            pill_editor_panel_rect(layout.browser_rows, geometry.style.sizing, model)
             && sidebar_rect.contains(point)
         {
             return None;
@@ -211,7 +211,7 @@ impl NativeShellState {
         alt_down: bool,
     ) -> Option<UiAction> {
         let geometry = self.cached_browser_interaction_geometry(layout, model);
-        if let Some(action) = browser_pill_editor_action_at_point(
+        if let Some(action) = pill_editor_action_at_point(
             layout.browser_rows,
             geometry.style.sizing,
             model,
@@ -407,7 +407,7 @@ impl NativeShellState {
         let style = self
             .cached_browser_interaction_geometry(layout, model)
             .style;
-        browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
+        pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_rect)
     }
 
@@ -420,7 +420,7 @@ impl NativeShellState {
         let style = self
             .cached_browser_interaction_geometry(layout, model)
             .style;
-        browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
+        pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_text_rect)
     }
 
@@ -464,7 +464,7 @@ fn focused_similarity_action() -> UiAction {
 }
 
 #[derive(Clone, Debug)]
-struct BrowserPillEditorLayout {
+struct PillEditorLayout {
     auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
@@ -473,20 +473,20 @@ struct BrowserPillEditorLayout {
     create_pill_rect: Option<Rect>,
 }
 
-fn browser_pill_editor_rect(
+fn pill_editor_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    browser_pill_editor_panel_rect(rows_rect, _sizing, model)
+    pill_editor_panel_rect(rows_rect, _sizing, model)
 }
 
-fn browser_pill_editor_layout(
+fn pill_editor_layout(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
-) -> Option<BrowserPillEditorLayout> {
-    let rect = browser_pill_editor_rect(rows_rect, sizing, model)?;
+) -> Option<PillEditorLayout> {
+    let rect = pill_editor_rect(rows_rect, sizing, model)?;
     let pad = sizing.panel_inset.max(8.0);
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
@@ -553,7 +553,7 @@ fn browser_pill_editor_layout(
             Point::new(content_max_x, y + field_height),
         )
     });
-    Some(BrowserPillEditorLayout {
+    Some(PillEditorLayout {
         auto_rename_rect,
         input_rect,
         input_text_rect,
@@ -563,13 +563,13 @@ fn browser_pill_editor_layout(
     })
 }
 
-fn browser_pill_editor_action_at_point(
+fn pill_editor_action_at_point(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
     point: Point,
 ) -> Option<UiAction> {
-    let layout = browser_pill_editor_layout(rows_rect, sizing, model)?;
+    let layout = pill_editor_layout(rows_rect, sizing, model)?;
     if layout.auto_rename_rect.contains(point) {
         return Some(UiAction::ToggleBrowserPillEditorPrimaryAction);
     }

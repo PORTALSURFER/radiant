@@ -24,7 +24,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
     sizing: SizingTokens,
     model: &AppModel,
 ) -> BrowserRowsSplitRects {
-    let sidebar = browser_pill_editor_panel_rect(rows_rect, sizing, model);
+    let sidebar = pill_editor_panel_rect(rows_rect, sizing, model);
     let list = if let Some(sidebar_rect) = sidebar {
         Rect::from_min_max(
             rows_rect.min,
@@ -44,7 +44,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_list_rect(
     browser_rows_split_rects(rows_rect, sizing, model).list
 }
 
-pub(in crate::gui::native_shell::state) fn browser_pill_editor_panel_rect(
+pub(in crate::gui::native_shell::state) fn pill_editor_panel_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,

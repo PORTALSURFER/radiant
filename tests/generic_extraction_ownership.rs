@@ -865,6 +865,53 @@ fn recency_filter_icon_helper_uses_product_neutral_name() {
 }
 
 #[test]
+fn pill_editor_geometry_helpers_use_product_neutral_names() {
+    let frame_rows_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/frame_build/browser/rows.rs"
+    ))
+    .expect("browser frame rows module should be readable");
+    let hit_testing_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/hit_testing/browser.rs"
+    ))
+    .expect("browser hit-testing module should be readable");
+    let sidebar_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/browser_rows/sidebar.rs"
+    ))
+    .expect("sidebar rows module should be readable");
+
+    for required in [
+        "struct PillEditorLayout",
+        "fn pill_editor_rect",
+        "fn pill_editor_layout",
+    ] {
+        assert!(
+            frame_rows_mod.contains(required) && hit_testing_mod.contains(required),
+            "pill editor geometry should expose product-neutral helper `{required}`"
+        );
+    }
+    assert!(hit_testing_mod.contains("fn pill_editor_action_at_point"));
+    assert!(sidebar_mod.contains("fn pill_editor_panel_rect"));
+
+    for forbidden in [
+        "BrowserPillEditorLayout",
+        "browser_pill_editor_rect",
+        "browser_pill_editor_layout",
+        "browser_pill_editor_action_at_point",
+        "browser_pill_editor_panel_rect",
+    ] {
+        assert!(
+            !frame_rows_mod.contains(forbidden)
+                && !hit_testing_mod.contains(forbidden)
+                && !sidebar_mod.contains(forbidden),
+            "pill editor geometry should not use browser-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn active_text_field_visual_helpers_use_product_neutral_names() {
     let text_fields_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

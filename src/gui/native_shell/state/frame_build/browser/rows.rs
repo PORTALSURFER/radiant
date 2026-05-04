@@ -373,12 +373,12 @@ fn render_browser_pill_editor_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    let Some(layout) = browser_pill_editor_layout(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+    let Some(layout) = pill_editor_layout(ctx.layout.browser_rows, ctx.sizing, ctx.model)
     else {
         return;
     };
     let sidebar = ctx.model.browser.pill_editor();
-    let panel_rect = browser_pill_editor_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+    let panel_rect = pill_editor_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
         .unwrap_or(ctx.layout.browser_rows);
     emit_primitive(
         primitives,
@@ -551,7 +551,7 @@ fn render_sidebar_pill(
     );
 }
 
-struct BrowserPillEditorLayout {
+struct PillEditorLayout {
     auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
@@ -560,20 +560,20 @@ struct BrowserPillEditorLayout {
     create_pill_rect: Option<Rect>,
 }
 
-fn browser_pill_editor_rect(
+fn pill_editor_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    browser_pill_editor_panel_rect(rows_rect, _sizing, model)
+    pill_editor_panel_rect(rows_rect, _sizing, model)
 }
 
-fn browser_pill_editor_layout(
+fn pill_editor_layout(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
-) -> Option<BrowserPillEditorLayout> {
-    let rect = browser_pill_editor_rect(rows_rect, sizing, model)?;
+) -> Option<PillEditorLayout> {
+    let rect = pill_editor_rect(rows_rect, sizing, model)?;
     let pad = sizing.panel_inset.max(8.0);
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
@@ -640,7 +640,7 @@ fn browser_pill_editor_layout(
             Point::new(content_max_x, y + field_height),
         )
     });
-    Some(BrowserPillEditorLayout {
+    Some(PillEditorLayout {
         auto_rename_rect,
         input_rect,
         input_text_rect,

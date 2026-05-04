@@ -14,19 +14,20 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, ButtonMessage, ButtonWidget, ListItemMessage, PointerButton, ScrollbarAxis,
-        ScrollbarMessage, SelectableMessage, TextInputMessage, TextInputWidget, TextWidget,
-        ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
-        resolve_widget_visual_tokens,
+        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
+        ScrollbarAxis, ScrollbarMessage, SelectableMessage, TextInputMessage, TextInputWidget,
+        TextWidget, ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState,
+        WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
     Rename(String),
     SetActive(bool),
+    CanvasInput(WidgetInput),
 }
 
 #[derive(Default)]
@@ -67,6 +68,7 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
 
@@ -121,6 +123,7 @@ fn runtime_bridge_is_the_public_app_contract() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
 
@@ -520,7 +523,7 @@ fn text_input_and_toggle_helpers_map_value_messages() {
 
 #[test]
 fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
-    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::column(
+    let mut surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::column(
         6,
         4.0,
         vec![
@@ -562,6 +565,13 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
                 63,
                 WidgetSizing::fixed(Vector2::new(120.0, 80.0)),
             )),
+            SurfaceChild::fill(SurfaceNode::canvas_mapped(
+                66,
+                WidgetSizing::fixed(Vector2::new(160.0, 90.0)),
+                |message| match message {
+                    CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+                },
+            )),
         ],
     ));
 
@@ -583,6 +593,10 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     ));
     assert!(matches!(
         surface.find_widget(63).map(|widget| widget.widget()),
+        Some(WidgetSpec::Canvas(_))
+    ));
+    assert!(matches!(
+        surface.find_widget(66).map(|widget| widget.widget()),
         Some(WidgetSpec::Canvas(_))
     ));
     assert_eq!(
@@ -619,6 +633,28 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         ),
         Some(DemoMessage::SetActive(true))
     );
+
+    let canvas_input = WidgetInput::PointerPress {
+        position: Point::new(12.0, 8.0),
+        button: PointerButton::Primary,
+    };
+    let canvas_output = surface
+        .dispatch_widget_input(
+            66,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 90.0)),
+            canvas_input,
+        )
+        .expect("canvas should forward routed input");
+    assert_eq!(
+        canvas_output,
+        radiant::widgets::WidgetOutput::Canvas(CanvasMessage::Input {
+            input: canvas_input
+        })
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(66, canvas_output),
+        Some(DemoMessage::CanvasInput(canvas_input))
+    );
 }
 
 #[test]
@@ -636,6 +672,7 @@ fn runtime_context_and_renderer_cover_paint_plan_boundary() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -664,6 +701,7 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -722,6 +760,7 @@ fn surface_runtime_routes_backend_neutral_events() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -854,6 +893,7 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
@@ -947,6 +987,7 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
             DemoMessage::SetActive(active) => {
                 state.name = active.then_some("active").unwrap_or("inactive").to_owned()
             }
+            DemoMessage::CanvasInput(_) => {}
         },
     );
     let runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));

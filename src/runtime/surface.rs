@@ -9,8 +9,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasWidget, CardWidget,
-        FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget, ScrollbarAxis,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget,
+        CardWidget, FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget, ScrollbarAxis,
         ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
         TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
         WidgetOutput, WidgetSizing, WidgetSpec,
@@ -41,6 +41,8 @@ pub enum WidgetMessageMapper<Message> {
     ListItem(MessageMapper<ListItemMessage, Message>),
     /// Map a selectable state-change payload into a host-defined message.
     Selectable(MessageMapper<SelectableMessage, Message>),
+    /// Map a canvas/custom-surface input payload into a host-defined message.
+    Canvas(MessageMapper<CanvasMessage, Message>),
 }
 
 impl<Message> Clone for WidgetMessageMapper<Message> {
@@ -54,6 +56,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
             Self::Scrollbar(map) => Self::Scrollbar(Arc::clone(map)),
             Self::ListItem(map) => Self::ListItem(Arc::clone(map)),
             Self::Selectable(map) => Self::Selectable(Arc::clone(map)),
+            Self::Canvas(map) => Self::Canvas(Arc::clone(map)),
         }
     }
 }
@@ -94,6 +97,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Self::Selectable(Arc::new(map))
     }
 
+    /// Build a canvas-message mapper.
+    pub fn canvas(map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::Canvas(Arc::new(map))
+    }
+
     fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match (self, output) {
             (Self::Button(map), WidgetOutput::Button(message)) => Some(map(message)),
@@ -103,6 +111,7 @@ impl<Message> WidgetMessageMapper<Message> {
             (Self::Scrollbar(map), WidgetOutput::Scrollbar(message)) => Some(map(message)),
             (Self::ListItem(map), WidgetOutput::ListItem(message)) => Some(map(message)),
             (Self::Selectable(map), WidgetOutput::Selectable(message)) => Some(map(message)),
+            (Self::Canvas(map), WidgetOutput::Canvas(message)) => Some(map(message)),
             _ => None,
         }
     }
@@ -571,6 +580,18 @@ impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.
     pub fn canvas(id: WidgetId, sizing: WidgetSizing) -> Self {
         Self::static_widget(WidgetSpec::Canvas(CanvasWidget::new(id, sizing)))
+    }
+
+    /// Build a canvas leaf node with a custom widget-to-host message mapper.
+    pub fn canvas_mapped(
+        id: WidgetId,
+        sizing: WidgetSizing,
+        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Canvas(CanvasWidget::new(id, sizing)),
+            WidgetMessageMapper::canvas(map),
+        )
     }
 
     /// Return the stable node id.

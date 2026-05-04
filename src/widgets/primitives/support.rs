@@ -10,7 +10,8 @@ use crate::widgets::contract::{
     WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{
-    ListItemMessage, PointerButton, SelectableMessage, WidgetInput, WidgetKey, WidgetOutput,
+    CanvasMessage, ListItemMessage, PointerButton, SelectableMessage, WidgetInput, WidgetKey,
+    WidgetOutput,
 };
 
 /// Shared contract carried by every public widget descriptor.
@@ -310,6 +311,11 @@ impl CanvasWidget {
             .push(crate::widgets::contract::WidgetMessageKind::CanvasInput);
         Self { common }
     }
+
+    /// Route one backend-neutral interaction into the custom surface.
+    pub fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<CanvasMessage> {
+        (!self.common.state.disabled).then_some(CanvasMessage::Input { input })
+    }
 }
 
 /// Union over the first-class public widget primitives.
@@ -392,7 +398,8 @@ impl WidgetSpec {
             Self::Selectable(widget) => widget
                 .handle_input(bounds, input)
                 .map(WidgetOutput::Selectable),
-            Self::Text(_) | Self::Card(_) | Self::Image(_) | Self::Canvas(_) => None,
+            Self::Canvas(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Canvas),
+            Self::Text(_) | Self::Card(_) | Self::Image(_) => None,
         }
     }
 }

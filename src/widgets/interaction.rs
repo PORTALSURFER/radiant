@@ -155,6 +155,16 @@ pub enum ScrollbarMessage {
     },
 }
 
+/// Message emitted by a reusable canvas/custom-paint primitive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CanvasMessage {
+    /// Backend-neutral interaction routed into the custom surface.
+    Input {
+        /// Routed widget input payload.
+        input: WidgetInput,
+    },
+}
+
 /// Union over emitted messages from the first reusable widget primitives.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WidgetOutput {
@@ -172,4 +182,6 @@ pub enum WidgetOutput {
     TextInput(TextInputMessage),
     /// Scrollbar viewport-request output.
     Scrollbar(ScrollbarMessage),
+    /// Canvas/custom-surface input output.
+    Canvas(CanvasMessage),
 }

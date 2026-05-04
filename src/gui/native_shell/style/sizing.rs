@@ -50,7 +50,7 @@ pub(crate) struct SizingTokens {
     pub waveform_max_height: f32,
     /// Gap between triage columns.
     pub column_gap: f32,
-    /// Maximum rendered browser rows per triage column.
+    /// Maximum rendered content rows per column.
     pub browser_rows_max_per_column: usize,
     /// Minimum width allowed for each triage column.
     pub column_min_width: f32,
@@ -84,9 +84,9 @@ pub(crate) struct SizingTokens {
     pub panel_inset: f32,
     /// Small horizontal gutter applied to header/status text anchors.
     pub header_label_gutter: f32,
-    /// Gap between browser rows.
+    /// Gap between content rows.
     pub browser_row_gap: f32,
-    /// Browser row card height.
+    /// Content row card height.
     pub browser_row_height: f32,
     /// Gap between source rows.
     pub source_row_gap: f32,

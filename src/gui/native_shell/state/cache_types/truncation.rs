@@ -1,9 +1,9 @@
 use super::*;
 
-/// Per-build browser-row truncation cache lookup counts.
+/// Per-build content-row truncation cache lookup counts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct BrowserRowTruncationFrameCounts {
-    /// Number of truncation lookups requested while building browser rows.
+    /// Number of truncation lookups requested while building content rows.
     pub lookup_count: u32,
     /// Number of lookups that reused cached truncated strings.
     pub cache_hit_count: u32,
@@ -11,16 +11,16 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
     pub cache_miss_count: u32,
 }
 
-/// Browser row text variants tracked in truncation cache keys.
+/// Content row text variants tracked in truncation cache keys.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
-    /// Primary item label text in browser rows.
+    /// Primary item label text in content rows.
     Item,
-    /// Secondary inline metadata text in browser rows.
+    /// Secondary inline metadata text in content rows.
     Bucket,
 }
 
-/// Lookup key for one browser-row truncation output.
+/// Lookup key for one content-row truncation output.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
     /// Stable visible-row identity used to scope cached text.
@@ -33,16 +33,16 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
     pub text_kind: BrowserRowTextKind,
 }
 
-/// Invalidation key for browser-row truncation cache content.
+/// Invalidation key for content-row truncation cache content.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
-    /// Browser rows region minimum x-coordinate.
+    /// Content rows region minimum x-coordinate.
     pub browser_rows_min_x: u32,
-    /// Browser rows region minimum y-coordinate.
+    /// Content rows region minimum y-coordinate.
     pub browser_rows_min_y: u32,
-    /// Browser rows region maximum x-coordinate.
+    /// Content rows region maximum x-coordinate.
     pub browser_rows_max_x: u32,
-    /// Browser rows region maximum y-coordinate.
+    /// Content rows region maximum y-coordinate.
     pub browser_rows_max_y: u32,
     /// Item-label font size token bits.
     pub font_body_bits: u32,
@@ -100,7 +100,7 @@ pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
     pub waveform_slice_count: u32,
 }
 
-/// Small retained LRU cache for browser-row text truncation outputs.
+/// Small retained LRU cache for content-row text truncation outputs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCache {
     pub values: HashMap<BrowserRowTruncationEntryKey, BrowserRowTruncationCacheValue>,

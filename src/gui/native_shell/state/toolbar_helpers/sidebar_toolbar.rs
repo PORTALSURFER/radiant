@@ -305,7 +305,7 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
     Some((panel_rect, buttons))
 }
 
-/// Build browser context-menu panel geometry and action buttons.
+/// Build content-row context-menu panel geometry and action buttons.
 pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
     layout: &ShellLayout,
     style: &StyleTokens,

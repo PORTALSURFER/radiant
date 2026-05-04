@@ -59,7 +59,7 @@ impl NativeShellState {
             .map(|_| focused_similarity_action())
     }
 
-    /// Resolve one browser context-menu action at a pointer location.
+    /// Resolve one content-row context-menu action at a pointer location.
     pub(crate) fn browser_context_menu_action_at_point(
         &self,
         layout: &ShellLayout,
@@ -75,7 +75,7 @@ impl NativeShellState {
             .map(|button| button.action)
     }
 
-    /// Return `true` when a point lands inside the visible browser context menu panel.
+    /// Return `true` when a point lands inside the visible content-row context-menu panel.
     #[cfg(test)]
     pub(crate) fn browser_context_menu_contains_point(
         &self,

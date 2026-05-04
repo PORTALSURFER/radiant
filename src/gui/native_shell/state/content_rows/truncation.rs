@@ -1,4 +1,4 @@
-//! Text truncation and text-revision helpers for browser rows.
+//! Text truncation and text-revision helpers for content rows.
 
 use super::*;
 
@@ -69,7 +69,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
     }
 }
 
-/// Resolve one truncated browser-row text string from cache or compute it on miss.
+/// Resolve one truncated content-row text string from cache or compute it on miss.
 pub(in crate::gui::native_shell::state) fn truncate_browser_row_text_cached(
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
@@ -100,7 +100,7 @@ pub(in crate::gui::native_shell::state) fn truncation_font_size_bucket(font_size
         .clamp(0.0, u16::MAX as f32)) as u16
 }
 
-/// Hash visible browser-row labels into one revision fingerprint.
+/// Hash visible content-row labels into one revision fingerprint.
 pub(in crate::gui::native_shell::state) fn browser_row_text_revision(
     rows: &[BrowserRowModel],
 ) -> u64 {

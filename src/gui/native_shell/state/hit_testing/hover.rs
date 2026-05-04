@@ -6,7 +6,7 @@ impl NativeShellState {
         self.hovered_browser_visible_row = visible_row;
     }
 
-    /// Clear the transient browser-row hover target.
+    /// Clear the transient content-row hover target.
     ///
     /// Row clicks and viewport shifts can move list content underneath a
     /// stationary cursor. Clearing the row hover in those cases avoids showing
@@ -18,7 +18,7 @@ impl NativeShellState {
 
     /// Synchronize the hovered folder-row overlay target during active drag/drop.
     ///
-    /// Browser-row drags bypass the normal cursor-hover pipeline, so the
+    /// Content-row drags bypass the normal cursor-hover pipeline, so the
     /// runtime updates the folder-row hover target explicitly to keep drag
     /// feedback aligned with the pointer.
     pub(crate) fn sync_folder_drag_hover_target(

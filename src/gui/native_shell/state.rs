@@ -96,7 +96,7 @@ pub(crate) use self::{
     text_fields::TextFieldVisualState,
 };
 
-/// Maximum retained entries for browser-row text truncation outputs.
+/// Maximum retained entries for content-row text truncation outputs.
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 /// Text glyph shown before browser item labels whose backing content is missing.
 const BROWSER_MISSING_CONTENT_MARKER: &str = "!";
@@ -437,7 +437,7 @@ impl NativeShellState {
         false
     }
 
-    /// Open the transient browser context menu for one browser row.
+    /// Open the transient content-row context menu for one row.
     pub(crate) fn open_browser_context_menu_for_row(&mut self, visible_row: usize, anchor: Point) {
         self.browser_context_menu = Some(BrowserContextMenuState {
             visible_row,
@@ -445,7 +445,7 @@ impl NativeShellState {
         });
     }
 
-    /// Close the transient browser context menu.
+    /// Close the transient content-row context menu.
     pub(crate) fn close_browser_context_menu(&mut self) -> bool {
         if self.browser_context_menu.is_some() {
             self.browser_context_menu = None;

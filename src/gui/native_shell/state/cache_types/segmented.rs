@@ -8,7 +8,7 @@ pub(crate) enum StaticFrameSegment {
     StatusBar,
     /// Browser metadata/chrome outside row-window and map canvas.
     BrowserFrame,
-    /// Browser row-window list content.
+    /// Content row-window list content.
     BrowserRowsWindow,
     /// Browser map panel content and map-header details.
     MapPanel,

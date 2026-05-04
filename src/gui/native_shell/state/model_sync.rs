@@ -237,7 +237,7 @@ impl NativeShellState {
         }
     }
 
-    /// Return browser-row truncation lookup counts from the latest row-cache refresh.
+    /// Return content-row truncation lookup counts from the latest row-cache refresh.
     #[cfg(test)]
     pub(crate) fn browser_row_truncation_frame_counts(&self) -> BrowserRowTruncationFrameCounts {
         self.browser_row_truncation_frame_counts

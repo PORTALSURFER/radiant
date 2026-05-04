@@ -73,7 +73,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
     )
 }
 
-/// Build rendered browser rows while reusing a retained truncation cache.
+/// Build rendered content rows while reusing a retained truncation cache.
 #[cfg(test)]
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
     layout: &ShellLayout,
@@ -92,7 +92,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
     .0
 }
 
-/// Build rendered browser rows and return the resolved viewport start used.
+/// Build rendered content rows and return the resolved viewport start used.
 #[cfg(test)]
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start(
     layout: &ShellLayout,
@@ -111,7 +111,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     )
 }
 
-/// Build rendered browser rows while preserving a prior visible viewport start.
+/// Build rendered content rows while preserving a prior visible viewport start.
 pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start_and_previous(
     layout: &ShellLayout,
     model: &AppModel,

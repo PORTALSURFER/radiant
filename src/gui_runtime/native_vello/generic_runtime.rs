@@ -2,6 +2,10 @@
 
 use super::*;
 use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
+use crate::gui::{
+    focus::FocusSurface,
+    input::{KeyCode, KeyPress},
+};
 
 struct GenericSharedPixelBytes(Arc<[u8]>);
 
@@ -188,6 +192,17 @@ where
 
     pub(in crate::gui_runtime::native_vello) fn route_key_press(
         &mut self,
+        press: KeyPress,
+        widget_key: Option<WidgetKey>,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .dispatch_key_press(press, widget_key, FocusSurface::None);
+        self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_widget_key(
+        &mut self,
         key: WidgetKey,
     ) -> GenericRouteOutcome {
         let routed = self
@@ -224,6 +239,7 @@ where
     scene: Scene,
     last_cursor: Option<Point>,
     repaint_event_pending: Arc<std::sync::atomic::AtomicBool>,
+    modifiers: winit::keyboard::ModifiersState,
     redraw_requested: bool,
     startup_timing: StartupTimingProfile,
     first_frame_presented: bool,
@@ -247,6 +263,7 @@ where
             scene: Scene::new(),
             last_cursor: None,
             repaint_event_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            modifiers: winit::keyboard::ModifiersState::default(),
             redraw_requested: false,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
@@ -384,27 +401,33 @@ where
             return;
         }
         let mut route_outcome = GenericRouteOutcome::default();
+        if let PhysicalKey::Code(code) = event.physical_key
+            && let Some(key) = key_code_from_winit(code)
+        {
+            let outcome = self.core.route_key_press(
+                keypress_from_input(key, self.modifiers),
+                WidgetKey::from_key_code(key),
+            );
+            route_outcome.routed |= outcome.routed;
+            route_outcome.repaint_requested |= outcome.repaint_requested;
+        }
         if let Some(text) = event.text.as_ref() {
             for character in text.chars().filter(|character| !character.is_control()) {
+                if route_outcome.routed {
+                    break;
+                }
                 let outcome = self.core.route_character(character);
                 route_outcome.routed |= outcome.routed;
                 route_outcome.repaint_requested |= outcome.repaint_requested;
             }
         }
-        if matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
-            let outcome = self.core.route_key_press(WidgetKey::Backspace);
+        if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
+            let outcome = self.core.route_widget_key(WidgetKey::Backspace);
             route_outcome.routed |= outcome.routed;
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
-        if matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
-            let outcome = self.core.route_key_press(WidgetKey::Delete);
-            route_outcome.routed |= outcome.routed;
-            route_outcome.repaint_requested |= outcome.repaint_requested;
-        }
-        if let PhysicalKey::Code(code) = event.physical_key
-            && let Some(key) = key_code_from_winit(code).and_then(WidgetKey::from_key_code)
-        {
-            let outcome = self.core.route_key_press(key);
+        if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
+            let outcome = self.core.route_widget_key(WidgetKey::Delete);
             route_outcome.routed |= outcome.routed;
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
@@ -547,6 +570,7 @@ where
                 self.handle_route_outcome(routed);
             }
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_event(event),
+            WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
         }
@@ -575,6 +599,15 @@ fn pointer_button_from_winit(button: MouseButton) -> Option<PointerButton> {
         MouseButton::Middle => PointerButton::Auxiliary,
         _ => return None,
     })
+}
+
+fn keypress_from_input(key: KeyCode, modifiers: winit::keyboard::ModifiersState) -> KeyPress {
+    KeyPress {
+        key,
+        command: modifiers.control_key() || modifiers.super_key(),
+        shift: modifiers.shift_key(),
+        alt: modifiers.alt_key(),
+    }
 }
 
 fn generic_window_attributes(options: &NativeRunOptions) -> WindowAttributes {
@@ -749,7 +782,7 @@ mod tests {
                 .routed
         );
         assert!(core.route_character('R').routed);
-        assert!(core.route_key_press(WidgetKey::Enter).routed);
+        assert!(core.route_widget_key(WidgetKey::Enter).routed);
         assert_eq!(core.runtime.bridge().state.name, "R");
     }
 

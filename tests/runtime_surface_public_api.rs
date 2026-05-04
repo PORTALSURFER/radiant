@@ -1,7 +1,13 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
 use radiant::{
-    gui::{repaint::RepaintSignal, types::ImageRgba},
+    gui::{
+        focus::FocusSurface,
+        input::{KeyCode, KeyPress},
+        repaint::RepaintSignal,
+        shortcuts::ShortcutResolution,
+        types::ImageRgba,
+    },
     layout::{
         Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
         SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
@@ -816,6 +822,18 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
 }
 
 #[test]
+fn surface_runtime_resolves_host_shortcuts_before_widget_key_routing() {
+    let mut runtime = SurfaceRuntime::new(ShortcutDemoBridge::default(), Vector2::new(420.0, 32.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::I),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(runtime.bridge().state.count, 1);
+}
+
+#[test]
 fn surface_runtime_routes_backend_neutral_events() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -1184,6 +1202,45 @@ enum CommandDemoMessage {
 
 struct CommandDemoBridge {
     state: DemoState,
+}
+
+#[derive(Default)]
+struct ShortcutDemoBridge {
+    state: DemoState,
+}
+
+impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        project_surface(&mut self.state)
+    }
+
+    fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+        match message {
+            DemoMessage::Increment => self.state.count += 1,
+            DemoMessage::Rename(name) => self.state.name = name,
+            DemoMessage::SetActive(active) => {
+                self.state.name = active.then_some("active").unwrap_or("inactive").to_owned()
+            }
+            DemoMessage::CanvasInput(_) => {}
+        }
+        Command::none()
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<DemoMessage> {
+        if press == KeyPress::with_command(KeyCode::I) {
+            return ShortcutResolution {
+                action: Some(DemoMessage::Increment),
+                handled: true,
+                pending_chord: None,
+            };
+        }
+        ShortcutResolution::unhandled()
+    }
 }
 
 #[derive(Default)]

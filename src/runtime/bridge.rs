@@ -1,7 +1,9 @@
 //! Generic declarative bridge traits for message-driven Radiant hosts.
 
 use super::{Command, surface::UiSurface};
-use crate::gui::repaint::RepaintSignal;
+use crate::gui::{
+    focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
+};
 use std::sync::Arc;
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
@@ -28,6 +30,20 @@ pub trait RuntimeBridge<Message> {
     fn update(&mut self, message: Message) -> Command<Message> {
         self.reduce_message(message);
         Command::none()
+    }
+
+    /// Resolve one keyboard press against a host-owned shortcut catalog.
+    ///
+    /// The runtime supplies the pending chord, normalized keypress, and current
+    /// logical focus bucket. Hosts can return a message to reduce immediately,
+    /// mark the press handled, or carry a pending chord into the next keypress.
+    fn resolve_key_press(
+        &mut self,
+        _pending_chord: Option<KeyPress>,
+        _press: KeyPress,
+        _focus: FocusSurface,
+    ) -> ShortcutResolution<Message> {
+        ShortcutResolution::unhandled()
     }
 
     /// Install a repaint signal that host-owned background work can use to wake

@@ -6,7 +6,11 @@
 
 use super::{Command, RuntimeBridge, SurfacePaintPlan, UiSurface};
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::{
+        focus::FocusSurface,
+        input::KeyPress,
+        types::{Point, Rect, Vector2},
+    },
     layout::{LayoutOutput, layout_tree},
     theme::ThemeTokens,
     widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey},
@@ -101,6 +105,7 @@ where
     layout: LayoutOutput,
     widget_hit_order: Vec<WidgetId>,
     focused_widget: Option<WidgetId>,
+    pending_key_chord: Option<KeyPress>,
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     repaint_requested: bool,
@@ -123,6 +128,7 @@ where
             layout,
             widget_hit_order,
             focused_widget: None,
+            pending_key_chord: None,
             hovered_widget: None,
             pointer_capture: None,
             repaint_requested: false,
@@ -279,6 +285,33 @@ where
     pub fn dispatch_focused_input(&mut self, input: WidgetInput) -> Option<WidgetId> {
         let widget_id = self.focused_widget?;
         self.dispatch_input(widget_id, input).then_some(widget_id)
+    }
+
+    /// Resolve one keypress through host-owned shortcuts before falling back to
+    /// focused-widget key routing.
+    ///
+    /// Returns `true` when the shortcut catalog handled the press or a focused
+    /// widget received it.
+    pub fn dispatch_key_press(
+        &mut self,
+        press: KeyPress,
+        widget_key: Option<WidgetKey>,
+        focus: FocusSurface,
+    ) -> bool {
+        let resolution = self
+            .bridge
+            .resolve_key_press(self.pending_key_chord, press, focus);
+        self.pending_key_chord = resolution.pending_chord;
+        if let Some(message) = resolution.action {
+            self.dispatch_message(message);
+            return true;
+        }
+        if resolution.handled {
+            return true;
+        }
+        widget_key
+            .and_then(|key| self.dispatch_focused_input(WidgetInput::KeyPress(key)))
+            .is_some()
     }
 
     /// Route one backend-neutral runtime event.

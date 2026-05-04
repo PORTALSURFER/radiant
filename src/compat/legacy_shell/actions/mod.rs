@@ -61,7 +61,7 @@ pub enum UiAction {
 
     // Focus and shell-surface actions.
     /// Focus the browser/list panel.
-    FocusBrowserPanel,
+    FocusContentPanel,
     /// Focus the sources panel.
     FocusSourcesPanel,
     /// Focus the waveform panel.

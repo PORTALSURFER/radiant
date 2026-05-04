@@ -138,7 +138,7 @@ fn route_shell_background(
         ShellNodeKind::Content
         | ShellNodeKind::BrowserPanel
         | ShellNodeKind::BrowserTabs
-        | ShellNodeKind::BrowserTable => Some(UiAction::FocusBrowserPanel),
+        | ShellNodeKind::BrowserTable => Some(UiAction::FocusContentPanel),
         ShellNodeKind::StatusBar => Some(UiAction::FocusLoadedContentInList),
         _ => None,
     }

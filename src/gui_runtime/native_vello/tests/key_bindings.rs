@@ -13,7 +13,7 @@ pub(super) fn default_hotkey_resolver(
         if first == crate::compat_app_contract::KeyPress::new(KeyCode::G) {
             let action = match press.key {
                 KeyCode::W => Some(UiAction::FocusWaveformPanel),
-                KeyCode::B => Some(UiAction::FocusBrowserPanel),
+                KeyCode::B => Some(UiAction::FocusContentPanel),
                 KeyCode::T => Some(UiAction::FocusFolderPanel { pane: None }),
                 KeyCode::S => Some(UiAction::FocusSourcesPanel),
                 _ => None,

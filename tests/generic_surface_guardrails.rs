@@ -82,7 +82,6 @@ const DOMAIN_SCAN_ROOTS: &[&str] = &["src", "tests", "examples"];
 
 const DOMAIN_SCAN_EXEMPT_FILES: &[&str] = &[
     "tests/generic_surface_guardrails.rs",
-    "tests/generic_extraction_ownership.rs",
 ];
 
 const HOST_PRODUCT_NAME_SCAN_ROOTS: &[&str] = &["src", "docs", "examples"];

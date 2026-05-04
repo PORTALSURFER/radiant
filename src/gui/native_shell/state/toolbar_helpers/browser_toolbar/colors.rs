@@ -1,16 +1,16 @@
-//! Browser toolbar color and hover rendering helpers.
+//! Toolbar color and hover rendering helpers.
 
 use super::super::super::*;
 use crate::gui::list::RecencyFilterChip;
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_point(
+pub(in crate::gui::native_shell::state) fn marked_filter_chip_contains_point(
     chip: Rect,
     point: Point,
 ) -> bool {
     chip.width() > 1.0 && chip.contains(point)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill(
+pub(in crate::gui::native_shell::state) fn recency_filter_chip_fill(
     style: &StyleTokens,
     chip: RecencyFilterChip,
     active: bool,
@@ -32,7 +32,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_border(
+pub(in crate::gui::native_shell::state) fn recency_filter_chip_border(
     style: &StyleTokens,
     chip: RecencyFilterChip,
     active: bool,
@@ -54,33 +54,33 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_bord
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_fill(
+pub(in crate::gui::native_shell::state) fn recency_filter_chip_hover_fill(
     style: &StyleTokens,
     chip: RecencyFilterChip,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     translucent_overlay_color(
-        browser_playback_age_filter_chip_fill(style, chip, active),
+        recency_filter_chip_fill(style, chip, active),
         style.text_primary,
         if active { 0.26 } else { 0.16 } + (motion_wave * 0.04),
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_border(
+pub(in crate::gui::native_shell::state) fn recency_filter_chip_hover_border(
     style: &StyleTokens,
     chip: RecencyFilterChip,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     blend_color(
-        browser_playback_age_filter_chip_border(style, chip, active),
+        recency_filter_chip_border(style, chip, active),
         style.text_primary,
         0.46 + (motion_wave * 0.08),
     )
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_chip_hover_overlay(
+pub(in crate::gui::native_shell::state) fn render_recency_filter_chip_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -93,18 +93,18 @@ pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_ch
         primitives,
         Primitive::Rect(FillRect {
             rect: chip_rect,
-            color: browser_playback_age_filter_chip_hover_fill(style, chip, active, motion_wave),
+            color: recency_filter_chip_hover_fill(style, chip, active, motion_wave),
         }),
     );
     push_border(
         primitives,
         chip_rect,
-        browser_playback_age_filter_chip_hover_border(style, chip, active, motion_wave),
+        recency_filter_chip_hover_border(style, chip, active, motion_wave),
         sizing.border_width,
     );
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(
+pub(in crate::gui::native_shell::state) fn marked_filter_chip_fill(
     style: &StyleTokens,
     active: bool,
 ) -> Rgba8 {
@@ -116,7 +116,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(
     blend_color(base, style.highlight_cyan, if active { 0.34 } else { 0.16 })
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_border(
+pub(in crate::gui::native_shell::state) fn marked_filter_chip_border(
     style: &StyleTokens,
     active: bool,
 ) -> Rgba8 {
@@ -127,31 +127,31 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_border(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_fill(
+pub(in crate::gui::native_shell::state) fn marked_filter_chip_hover_fill(
     style: &StyleTokens,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     translucent_overlay_color(
-        browser_marked_filter_chip_fill(style, active),
+        marked_filter_chip_fill(style, active),
         style.highlight_cyan,
         if active { 0.34 } else { 0.22 } + (motion_wave * 0.04),
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_border(
+pub(in crate::gui::native_shell::state) fn marked_filter_chip_hover_border(
     style: &StyleTokens,
     active: bool,
     motion_wave: f32,
 ) -> Rgba8 {
     blend_color(
-        browser_marked_filter_chip_border(style, active),
+        marked_filter_chip_border(style, active),
         style.highlight_cyan,
         0.56 + (motion_wave * 0.08),
     )
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_search_field_hover_overlay(
+pub(in crate::gui::native_shell::state) fn render_search_field_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -162,18 +162,18 @@ pub(in crate::gui::native_shell::state) fn render_browser_search_field_hover_ove
         primitives,
         Primitive::Rect(FillRect {
             rect: search_field_rect,
-            color: browser_search_field_hover_fill(style, motion_wave),
+            color: search_field_hover_fill(style, motion_wave),
         }),
     );
     push_border(
         primitives,
         search_field_rect,
-        browser_search_field_hover_border(style, motion_wave),
+        search_field_hover_border(style, motion_wave),
         sizing.border_width,
     );
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_rating_filter_chip_hover_overlay(
+pub(in crate::gui::native_shell::state) fn render_rating_filter_chip_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -186,18 +186,18 @@ pub(in crate::gui::native_shell::state) fn render_browser_rating_filter_chip_hov
         primitives,
         Primitive::Rect(FillRect {
             rect: chip_rect,
-            color: browser_rating_filter_chip_hover_fill(style, rating_level, active, motion_wave),
+            color: rating_filter_chip_hover_fill(style, rating_level, active, motion_wave),
         }),
     );
     push_border(
         primitives,
         chip_rect,
-        browser_rating_filter_chip_hover_border(style, rating_level, active, motion_wave),
+        rating_filter_chip_hover_border(style, rating_level, active, motion_wave),
         sizing.border_width,
     );
 }
 
-pub(in crate::gui::native_shell::state) fn browser_search_field_hover_fill(
+pub(in crate::gui::native_shell::state) fn search_field_hover_fill(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -208,7 +208,7 @@ pub(in crate::gui::native_shell::state) fn browser_search_field_hover_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_fill(
+pub(in crate::gui::native_shell::state) fn rating_filter_chip_hover_fill(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -223,13 +223,13 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_fill
     };
     let amount = if active { 0.34 } else { 0.2 } + (motion_wave * 0.04);
     translucent_overlay_color(
-        browser_rating_filter_chip_fill(style, rating_level, active),
+        rating_filter_chip_fill(style, rating_level, active),
         tint,
         amount,
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_search_field_hover_border(
+pub(in crate::gui::native_shell::state) fn search_field_hover_border(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -240,7 +240,7 @@ pub(in crate::gui::native_shell::state) fn browser_search_field_hover_border(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_border(
+pub(in crate::gui::native_shell::state) fn rating_filter_chip_hover_border(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -254,13 +254,13 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_bord
         style.highlight_orange
     };
     blend_color(
-        browser_rating_filter_chip_border(style, rating_level, active),
+        rating_filter_chip_border(style, rating_level, active),
         tint,
         0.52 + (motion_wave * 0.08),
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_fill(
+pub(in crate::gui::native_shell::state) fn rating_filter_chip_fill(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -294,7 +294,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_border(
+pub(in crate::gui::native_shell::state) fn rating_filter_chip_border(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,

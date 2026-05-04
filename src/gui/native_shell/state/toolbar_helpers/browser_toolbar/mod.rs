@@ -8,15 +8,15 @@ mod layout;
 pub(in crate::gui::native_shell::state) use buttons::browser_action_buttons;
 #[allow(unused_imports)]
 pub(in crate::gui::native_shell::state) use colors::{
-    browser_marked_filter_chip_border, browser_marked_filter_chip_contains_point,
-    browser_marked_filter_chip_fill, browser_marked_filter_chip_hover_border,
-    browser_marked_filter_chip_hover_fill, browser_playback_age_filter_chip_border,
-    browser_playback_age_filter_chip_fill, browser_playback_age_filter_chip_hover_border,
-    browser_playback_age_filter_chip_hover_fill, browser_rating_filter_chip_border,
-    browser_rating_filter_chip_fill, browser_rating_filter_chip_hover_border,
-    browser_rating_filter_chip_hover_fill, browser_search_field_hover_border,
-    browser_search_field_hover_fill, render_browser_playback_age_filter_chip_hover_overlay,
-    render_browser_rating_filter_chip_hover_overlay, render_browser_search_field_hover_overlay,
+    marked_filter_chip_border, marked_filter_chip_contains_point,
+    marked_filter_chip_fill, marked_filter_chip_hover_border,
+    marked_filter_chip_hover_fill, recency_filter_chip_border,
+    recency_filter_chip_fill, recency_filter_chip_hover_border,
+    recency_filter_chip_hover_fill, rating_filter_chip_border,
+    rating_filter_chip_fill, rating_filter_chip_hover_border,
+    rating_filter_chip_hover_fill, search_field_hover_border,
+    search_field_hover_fill, render_recency_filter_chip_hover_overlay,
+    render_rating_filter_chip_hover_overlay, render_search_field_hover_overlay,
 };
 #[allow(unused_imports)]
 pub(in crate::gui::native_shell::state) use layout::{

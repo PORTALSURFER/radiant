@@ -140,7 +140,7 @@ impl NativeShellState {
             .filter(|rect| rect.width() > 1.0)
         {
             if self.hovered_browser_search_field && self.browser_search_editor_visual.is_none() {
-                render_browser_search_field_hover_overlay(
+                render_search_field_hover_overlay(
                     primitives,
                     style,
                     sizing,
@@ -161,7 +161,7 @@ impl NativeShellState {
                 .and_then(|index| model.active_rating_filters.get(index))
                 .copied()
                 .unwrap_or(false);
-            render_browser_rating_filter_chip_hover_overlay(
+            render_rating_filter_chip_hover_overlay(
                 primitives,
                 style,
                 sizing,
@@ -181,7 +181,7 @@ impl NativeShellState {
                 .and_then(|index| model.active_playback_age_filters.get(index))
                 .copied()
                 .unwrap_or(false);
-            render_browser_playback_age_filter_chip_hover_overlay(
+            render_recency_filter_chip_hover_overlay(
                 primitives,
                 style,
                 sizing,
@@ -202,7 +202,7 @@ impl NativeShellState {
                 primitives,
                 Primitive::Rect(FillRect {
                     rect: chip_rect,
-                    color: browser_marked_filter_chip_hover_fill(
+                    color: marked_filter_chip_hover_fill(
                         style,
                         model.marked_filter_active,
                         motion_wave,
@@ -212,7 +212,7 @@ impl NativeShellState {
             push_border(
                 primitives,
                 chip_rect,
-                browser_marked_filter_chip_hover_border(
+                marked_filter_chip_hover_border(
                     style,
                     model.marked_filter_active,
                     motion_wave,

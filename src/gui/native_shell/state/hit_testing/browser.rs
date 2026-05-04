@@ -236,10 +236,10 @@ impl NativeShellState {
                 invert: alt_down,
             });
         }
-        if browser_marked_filter_chip_contains_point(geometry.toolbar.marked_filter_chip, point) {
+        if marked_filter_chip_contains_point(geometry.toolbar.marked_filter_chip, point) {
             return Some(UiAction::ToggleBrowserMarkedFilter);
         }
-        if browser_marked_filter_chip_contains_point(
+        if marked_filter_chip_contains_point(
             geometry.toolbar.derived_label_filter_chip,
             point,
         ) {

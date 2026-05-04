@@ -128,13 +128,13 @@ pub(super) fn render_browser_frame(
             primitives,
             Primitive::Rect(FillRect {
                 rect,
-                color: browser_rating_filter_chip_fill(ctx.style, level, active),
+                color: rating_filter_chip_fill(ctx.style, level, active),
             }),
         );
         push_border(
             primitives,
             rect,
-            browser_rating_filter_chip_border(ctx.style, level, active),
+            rating_filter_chip_border(ctx.style, level, active),
             ctx.sizing.border_width,
         );
     }
@@ -153,13 +153,13 @@ pub(super) fn render_browser_frame(
             primitives,
             Primitive::Rect(FillRect {
                 rect,
-                color: browser_playback_age_filter_chip_fill(ctx.style, chip, active),
+                color: recency_filter_chip_fill(ctx.style, chip, active),
             }),
         );
         push_border(
             primitives,
             rect,
-            browser_playback_age_filter_chip_border(ctx.style, chip, active),
+            recency_filter_chip_border(ctx.style, chip, active),
             ctx.sizing.border_width,
         );
         let _ = emit_toolbar_svg_icon(
@@ -178,7 +178,7 @@ pub(super) fn render_browser_frame(
             primitives,
             Primitive::Rect(FillRect {
                 rect: toolbar.marked_filter_chip,
-                color: browser_marked_filter_chip_fill(
+                color: marked_filter_chip_fill(
                     ctx.style,
                     ctx.model.browser.marked_filter_active,
                 ),
@@ -187,7 +187,7 @@ pub(super) fn render_browser_frame(
         push_border(
             primitives,
             toolbar.marked_filter_chip,
-            browser_marked_filter_chip_border(ctx.style, ctx.model.browser.marked_filter_active),
+            marked_filter_chip_border(ctx.style, ctx.model.browser.marked_filter_active),
             ctx.sizing.border_width,
         );
         let _ = emit_toolbar_svg_icon(
@@ -207,13 +207,13 @@ pub(super) fn render_browser_frame(
             primitives,
             Primitive::Rect(FillRect {
                 rect: toolbar.derived_label_filter_chip,
-                color: browser_marked_filter_chip_fill(ctx.style, active),
+                color: marked_filter_chip_fill(ctx.style, active),
             }),
         );
         push_border(
             primitives,
             toolbar.derived_label_filter_chip,
-            browser_marked_filter_chip_border(ctx.style, active),
+            marked_filter_chip_border(ctx.style, active),
             ctx.sizing.border_width,
         );
         let icon = if ctx.model.browser.derived_label_filter_negated() {

@@ -711,6 +711,67 @@ fn content_row_visual_fills_use_product_neutral_row_naming() {
 }
 
 #[test]
+fn toolbar_filter_chip_visuals_use_product_neutral_helper_names() {
+    let toolbar_colors_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/colors.rs"
+    ))
+    .expect("toolbar colors module should be readable");
+
+    for required in [
+        "marked_filter_chip_contains_point",
+        "recency_filter_chip_fill",
+        "recency_filter_chip_border",
+        "recency_filter_chip_hover_fill",
+        "recency_filter_chip_hover_border",
+        "render_recency_filter_chip_hover_overlay",
+        "marked_filter_chip_fill",
+        "marked_filter_chip_border",
+        "marked_filter_chip_hover_fill",
+        "marked_filter_chip_hover_border",
+        "rating_filter_chip_fill",
+        "rating_filter_chip_border",
+        "rating_filter_chip_hover_fill",
+        "rating_filter_chip_hover_border",
+        "render_rating_filter_chip_hover_overlay",
+        "search_field_hover_fill",
+        "search_field_hover_border",
+        "render_search_field_hover_overlay",
+    ] {
+        assert!(
+            toolbar_colors_mod.contains(required),
+            "toolbar colors module should expose product-neutral helper `{required}`"
+        );
+    }
+
+    for forbidden in [
+        "browser_playback_age_filter_chip_fill",
+        "browser_playback_age_filter_chip_border",
+        "browser_playback_age_filter_chip_hover_fill",
+        "browser_playback_age_filter_chip_hover_border",
+        "render_browser_playback_age_filter_chip_hover_overlay",
+        "browser_marked_filter_chip_contains_point",
+        "browser_marked_filter_chip_fill",
+        "browser_marked_filter_chip_border",
+        "browser_marked_filter_chip_hover_fill",
+        "browser_marked_filter_chip_hover_border",
+        "browser_rating_filter_chip_fill",
+        "browser_rating_filter_chip_border",
+        "browser_rating_filter_chip_hover_fill",
+        "browser_rating_filter_chip_hover_border",
+        "render_browser_rating_filter_chip_hover_overlay",
+        "browser_search_field_hover_fill",
+        "browser_search_field_hover_border",
+        "render_browser_search_field_hover_overlay",
+    ] {
+        assert!(
+            !toolbar_colors_mod.contains(forbidden),
+            "toolbar colors should not use browser-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn top_right_overlay_icon_geometry_is_owned_by_generic_rect_type() {
     let types_mod = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui/types.rs"))
         .expect("types module should be readable");

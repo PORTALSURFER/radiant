@@ -189,7 +189,7 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        browser_marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
+        marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
     }
 
     fn resolve_hovered_browser_rating_filter_level(

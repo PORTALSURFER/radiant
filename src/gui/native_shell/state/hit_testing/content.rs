@@ -60,7 +60,7 @@ impl NativeShellState {
     }
 
     /// Resolve one content-row context-menu action at a pointer location.
-    pub(crate) fn browser_context_menu_action_at_point(
+    pub(crate) fn content_context_menu_action_at_point(
         &self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -68,7 +68,7 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let (_, buttons) =
-            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)?;
+            content_context_menu_spec(layout, &style, model, self.content_context_menu)?;
         buttons
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
@@ -77,7 +77,7 @@ impl NativeShellState {
 
     /// Return `true` when a point lands inside the visible content-row context-menu panel.
     #[cfg(test)]
-    pub(crate) fn browser_context_menu_contains_point(
+    pub(crate) fn content_context_menu_contains_point(
         &self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -85,7 +85,7 @@ impl NativeShellState {
     ) -> bool {
         let style = style_for_layout(layout);
         let Some((panel_rect, _)) =
-            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)
+            content_context_menu_spec(layout, &style, model, self.content_context_menu)
         else {
             return false;
         };
@@ -94,7 +94,7 @@ impl NativeShellState {
 
     /// Return a content-row context-menu button rect for one action in tests.
     #[cfg(test)]
-    pub(crate) fn browser_context_menu_button_rect(
+    pub(crate) fn content_context_menu_button_rect(
         &self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -102,7 +102,7 @@ impl NativeShellState {
     ) -> Option<Rect> {
         let style = style_for_layout(layout);
         let (_, buttons) =
-            browser_context_menu_spec(layout, &style, model, self.browser_context_menu)?;
+            content_context_menu_spec(layout, &style, model, self.content_context_menu)?;
         buttons
             .into_iter()
             .find(|button| button.action == action)

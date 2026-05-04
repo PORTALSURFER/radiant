@@ -218,7 +218,7 @@ pub(crate) struct NativeShellState {
     startup_frame_ticks: u8,
     pulse_phase: f32,
     source_context_menu: Option<SourceContextMenuState>,
-    browser_context_menu: Option<BrowserContextMenuState>,
+    content_context_menu: Option<ContentContextMenuState>,
     source_row_rects: Vec<CachedSourceRow>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     upper_folder_pane: FolderPaneRuntimeState,
@@ -291,7 +291,7 @@ impl NativeShellState {
             startup_frame_ticks: 2,
             pulse_phase: 0.0,
             source_context_menu: None,
-            browser_context_menu: None,
+            content_context_menu: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
             upper_folder_pane: FolderPaneRuntimeState::default(),
@@ -438,17 +438,17 @@ impl NativeShellState {
     }
 
     /// Open the transient content-row context menu for one row.
-    pub(crate) fn open_browser_context_menu_for_row(&mut self, visible_row: usize, anchor: Point) {
-        self.browser_context_menu = Some(BrowserContextMenuState {
+    pub(crate) fn open_content_context_menu_for_row(&mut self, visible_row: usize, anchor: Point) {
+        self.content_context_menu = Some(ContentContextMenuState {
             visible_row,
             anchor,
         });
     }
 
     /// Close the transient content-row context menu.
-    pub(crate) fn close_browser_context_menu(&mut self) -> bool {
-        if self.browser_context_menu.is_some() {
-            self.browser_context_menu = None;
+    pub(crate) fn close_content_context_menu(&mut self) -> bool {
+        if self.content_context_menu.is_some() {
+            self.content_context_menu = None;
             return true;
         }
         false

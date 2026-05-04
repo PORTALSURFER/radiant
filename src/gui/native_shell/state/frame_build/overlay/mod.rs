@@ -10,7 +10,7 @@ mod waveform;
 
 use self::{
     browser::{
-        render_browser_context_menu, render_browser_tab_overlay, render_source_context_menu,
+        render_content_context_menu, render_browser_tab_overlay, render_source_context_menu,
     },
     focus::{
         render_browser_focus_overlay, render_folder_focus_overlay, render_source_focus_overlay,
@@ -199,13 +199,13 @@ pub(super) fn render_modal_overlay(
         model,
         shell_state.source_context_menu,
     );
-    render_browser_context_menu(
+    render_content_context_menu(
         primitives,
         text_runs,
         layout,
         style,
         model,
-        shell_state.browser_context_menu,
+        shell_state.content_context_menu,
     );
     render_progress_overlay(primitives, text_runs, layout, style, model);
     render_confirm_prompt(primitives, text_runs, layout, style, model);

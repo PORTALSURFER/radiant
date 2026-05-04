@@ -13,7 +13,7 @@ pub(in crate::gui::native_shell::state) struct SourceContextMenuState {
 
 /// Ephemeral content-row context-menu state tracked by the runtime.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
+pub(in crate::gui::native_shell::state) struct ContentContextMenuState {
     /// Content visible-row index the menu actions target.
     pub visible_row: usize,
     /// Pointer anchor used to place the floating menu panel.

@@ -171,16 +171,16 @@ pub(super) fn render_source_context_menu(
     }
 }
 
-pub(super) fn render_browser_context_menu(
+pub(super) fn render_content_context_menu(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-    browser_context_menu: Option<BrowserContextMenuState>,
+    content_context_menu: Option<ContentContextMenuState>,
 ) {
     let Some((menu_panel, menu_buttons)) =
-        browser_context_menu_spec(layout, style, model, browser_context_menu)
+        content_context_menu_spec(layout, style, model, content_context_menu)
     else {
         return;
     };

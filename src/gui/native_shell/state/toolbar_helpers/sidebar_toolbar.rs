@@ -306,11 +306,11 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
 }
 
 /// Build content-row context-menu panel geometry and action buttons.
-pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
+pub(in crate::gui::native_shell::state) fn content_context_menu_spec(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
-    menu: Option<BrowserContextMenuState>,
+    menu: Option<ContentContextMenuState>,
 ) -> Option<(Rect, Vec<ActionButton>)> {
     let menu = menu?;
     if model.map.active || menu.visible_row >= model.browser.rows.len() {

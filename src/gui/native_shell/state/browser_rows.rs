@@ -127,7 +127,7 @@ pub(super) struct ActionButton {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct BrowserColumnChip {
+pub(super) struct ColumnChip {
     pub(super) rect: Rect,
     pub(super) column: usize,
     pub(super) label: String,

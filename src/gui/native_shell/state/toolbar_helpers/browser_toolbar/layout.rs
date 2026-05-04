@@ -62,12 +62,12 @@ pub(in crate::gui::native_shell::state) fn recency_filter_chip_at_point(
         .map(|index| RECENCY_FILTER_CHIPS[index])
 }
 
-pub(in crate::gui::native_shell::state) fn browser_column_chips(
+pub(in crate::gui::native_shell::state) fn column_chips(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
     browser_buttons: &[ActionButton],
-) -> Vec<BrowserColumnChip> {
+) -> Vec<ColumnChip> {
     let _ = (layout, style, model, browser_buttons);
     Vec::new()
 }

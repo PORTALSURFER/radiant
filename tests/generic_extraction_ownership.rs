@@ -814,6 +814,41 @@ fn toolbar_filter_chip_hit_testing_uses_product_neutral_helper_names() {
 }
 
 #[test]
+fn toolbar_column_chip_cache_uses_product_neutral_names() {
+    let state_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state.rs"
+    ))
+    .expect("native shell state module should be readable");
+    let browser_rows_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/browser_rows.rs"
+    ))
+    .expect("browser rows module should be readable");
+    let toolbar_layout_mod = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/gui/native_shell/state/toolbar_helpers/browser_toolbar/layout.rs"
+    ))
+    .expect("toolbar layout module should be readable");
+
+    assert!(browser_rows_mod.contains("pub(super) struct ColumnChip"));
+    assert!(state_mod.contains("content_column_chips: Vec<ColumnChip>"));
+    assert!(toolbar_layout_mod.contains("fn column_chips("));
+    for forbidden in [
+        "BrowserColumnChip",
+        "browser_column_chips",
+        "fn content_column_chips(",
+    ] {
+        assert!(
+            !state_mod.contains(forbidden)
+                && !browser_rows_mod.contains(forbidden)
+                && !toolbar_layout_mod.contains(forbidden),
+            "toolbar column chip cache should not use browser-specific helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn active_text_field_visual_helpers_use_product_neutral_names() {
     let text_fields_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

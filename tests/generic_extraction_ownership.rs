@@ -2192,11 +2192,9 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         "/src/gui/invalidation.rs"
     ))
     .expect("invalidation module should be readable");
-    let legacy_native_vello_mod = fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/compat/legacy_native_vello.rs"
-    ))
-    .expect("legacy native vello module should be readable");
+    let gui_runtime_mod =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/gui_runtime/mod.rs"))
+            .expect("gui runtime module should be readable");
     let dirty_segments_mod = fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/compat/legacy_shell/dirty_segments.rs"
@@ -2215,8 +2213,8 @@ fn frame_and_invalidation_models_are_owned_by_generic_modules() {
         .expect("compat facade should be readable");
     assert!(!compat_mod.contains("pub mod runtime_artifacts;"));
     assert!(!compat_mod.contains("pub use super::runtime_artifacts"));
-    assert!(legacy_native_vello_mod.contains("pub struct NativeRuntimeArtifacts"));
-    assert!(legacy_native_vello_mod.contains("pub type NativeRunReport"));
+    assert!(gui_runtime_mod.contains("pub struct LegacyNativeRuntimeArtifacts"));
+    assert!(gui_runtime_mod.contains("pub type LegacyNativeRunReport"));
     assert!(!app_mod.contains("pub struct DirtySegments"));
     assert!(!app_mod.contains("pub struct SegmentRevisions"));
     assert!(app_mod.contains("pub use dirty_segments::{DirtySegments, SegmentRevisions};"));

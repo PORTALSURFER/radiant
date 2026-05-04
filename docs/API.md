@@ -12,10 +12,11 @@ model names. In short: host -> Radiant, never Radiant -> host. Transitional
 compatibility code is isolated behind the `legacy-shell` feature and is not part
 of the default standalone API. The `compat::legacy_shell` contract is temporary
 host-shaped model/action/bridge migration glue, and
-`compat::legacy_native_vello` is the matching temporary native runtime
-entrypoint for that bridge. Both have final host-owned dispositions recorded in
-`domain_extraction_inventory.tsv`; generic Radiant code must not grow new
-dependencies on either compatibility namespace.
+`gui_runtime::run_legacy_native_vello_app_with_artifacts` is the matching
+temporary native runtime entrypoint for that bridge. Both have final host-owned
+dispositions recorded in `domain_extraction_inventory.tsv`; generic Radiant code
+must not grow new dependencies on the compatibility namespace or the legacy
+runtime entrypoint.
 
 New host applications should use:
 

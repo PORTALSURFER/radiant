@@ -508,7 +508,7 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
     ] {
         assert!(
             !public_exports.contains(forbidden),
-            "radiant::gui_runtime must stay generic-only; expose `{forbidden}` through compat::legacy_native_vello until the compatibility runtime is removed"
+            "radiant::gui_runtime must not re-export host facade API `{forbidden}`"
         );
     }
     for required in [
@@ -635,7 +635,11 @@ fn legacy_shell_sources_are_feature_gated() {
         !manifest_dir
             .join("src/compat/legacy_shell/native_vello.rs")
             .exists(),
-        "legacy native Vello runtime entrypoints should live under compat::legacy_native_vello, not the model/action shell facade"
+        "legacy native Vello runtime entrypoints should not live under the model/action shell facade"
+    );
+    assert!(
+        !manifest_dir.join("src/compat/legacy_native_vello.rs").exists(),
+        "legacy native Vello compatibility wrapper should not remain under compat"
     );
     for path in [
         "src/compat/legacy_shell/actions/mod.rs",
@@ -643,7 +647,6 @@ fn legacy_shell_sources_are_feature_gated() {
         "src/compat/legacy_shell/bridge.rs",
         "src/compat/legacy_shell/dirty_segments.rs",
         "src/compat/legacy_shell/motion.rs",
-        "src/compat/legacy_native_vello.rs",
         "src/compat/legacy_shell/shell.rs",
         "src/compat/legacy_shell/sources.rs",
         "src/compat/legacy_shell/waveform.rs",
@@ -844,7 +847,7 @@ fn legacy_shell_sources_are_feature_gated() {
     ] {
         assert!(
             !native_vello.contains(forbidden),
-            "legacy shell native Vello API `{forbidden}` belongs under src/compat/legacy_native_vello"
+            "legacy shell native Vello API `{forbidden}` must stay out of native_vello.rs"
         );
     }
     let legacy_shell_runner = fs::read_to_string(
@@ -902,10 +905,7 @@ fn legacy_shell_sources_are_feature_gated() {
         ),
         (
             "src/compat.rs",
-            &[
-                "#[cfg(feature = \"legacy-shell\")]\npub mod legacy_native_vello",
-                "#[cfg(feature = \"legacy-shell\")]\npub mod legacy_shell",
-            ],
+            &["#[cfg(feature = \"legacy-shell\")]\npub mod legacy_shell"],
         ),
         (
             "src/gui/mod.rs",
@@ -947,9 +947,9 @@ fn legacy_shell_contract_keeps_runtime_helpers_out_of_model_facade() {
     let module_path = manifest_dir.join("src/compat/legacy_shell/mod.rs");
     let source = fs::read_to_string(&module_path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
-    let native_vello_path = manifest_dir.join("src/compat/legacy_native_vello.rs");
-    let native_vello = fs::read_to_string(&native_vello_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", native_vello_path.display()));
+    let gui_runtime_path = manifest_dir.join("src/gui_runtime/mod.rs");
+    let gui_runtime = fs::read_to_string(&gui_runtime_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", gui_runtime_path.display()));
 
     assert!(
         !source.contains("DEFAULT_APP_TITLE"),
@@ -957,12 +957,12 @@ fn legacy_shell_contract_keeps_runtime_helpers_out_of_model_facade() {
          use gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE for the generic runtime default"
     );
     assert!(
-        !native_vello.contains("run_native_vello_app_declarative"),
+        !gui_runtime.contains("run_native_vello_app_declarative"),
         "Radiant legacy native Vello compatibility should expose one runner entrypoint; host apps may keep declarative aliases in their own runtime facade"
     );
     assert!(
-        !native_vello.contains("run_native_vello_app,")
-            && !native_vello.contains("pub fn run_native_vello_app<"),
+        !gui_runtime.contains("run_native_vello_app,")
+            && !gui_runtime.contains("pub fn run_native_vello_app<"),
         "Radiant legacy native Vello compatibility should expose only the artifact-returning runner; host apps can derive result-only wrappers locally"
     );
     assert!(
@@ -971,17 +971,16 @@ fn legacy_shell_contract_keeps_runtime_helpers_out_of_model_facade() {
         "host shell snapshot capture helpers belong in the consuming application once the local shell scaffold owns them"
     );
     assert!(
-        !native_vello.contains("run_native_vello_preview")
-            && !native_vello.contains("PreviewBridge"),
+        !gui_runtime.contains("run_native_vello_preview") && !gui_runtime.contains("PreviewBridge"),
         "backend preview helpers should not remain in the legacy native Vello compatibility entrypoint"
     );
     assert!(
         !source.contains("run_native_vello_app_with_artifacts"),
-        "legacy_shell should expose model/action/bridge contracts only; native runtime entrypoints belong under compat::legacy_native_vello"
+        "legacy_shell should expose model/action/bridge contracts only; native runtime entrypoints belong under gui_runtime while the compatibility loop exists"
     );
     assert!(
-        native_vello.contains("pub fn run_native_vello_app_with_artifacts"),
-        "compat::legacy_native_vello should expose the current artifact-returning compatibility runner"
+        gui_runtime.contains("pub fn run_legacy_native_vello_app_with_artifacts"),
+        "gui_runtime should expose the current artifact-returning compatibility runner until the loop moves to the host"
     );
 }
 
@@ -1139,12 +1138,12 @@ fn core_api_documentation_covers_public_boundary_concepts() {
     let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
         normalized_docs.contains("compat::legacy_shell")
-            && normalized_docs.contains("compat::legacy_native_vello")
+            && normalized_docs.contains("gui_runtime::run_legacy_native_vello_app_with_artifacts")
             && normalized_docs.contains("temporary")
             && normalized_docs.contains("host-shaped model/action/bridge migration glue")
             && normalized_docs.contains("temporary native runtime entrypoint")
             && normalized_docs.contains(
-                "generic Radiant code must not grow new dependencies on either compatibility namespace"
+                "generic Radiant code must not grow new dependencies on the compatibility namespace or the legacy runtime entrypoint"
             ),
         "docs/API.md should identify legacy compatibility namespaces as temporary host-owned migration glue"
     );

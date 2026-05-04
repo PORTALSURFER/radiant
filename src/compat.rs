@@ -10,13 +10,6 @@
 //! shell can keep running without pretending to be the preferred core API
 //! interface.
 
-/// Native Vello entrypoint for the transitional legacy-shell bridge.
-///
-/// This remains separate from [`legacy_shell`] so the shell namespace can keep
-/// narrowing toward host-shaped model/action/bridge contracts only.
-#[cfg(feature = "legacy-shell")]
-pub mod legacy_native_vello;
-
 /// Compatibility namespace for the current legacy shell contract.
 ///
 /// This namespace groups the legacy model/action bridge contracts that still

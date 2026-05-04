@@ -12,6 +12,5 @@
 # - notes: short rationale without tabs
 pattern	disposition	owner	notes
 src/compat/legacy_shell/**	move_to_host	host_app	Host model action hotkey automation and DTO contracts must move to the consuming application.
-src/compat/legacy_native_vello.rs	move_to_host	host_app	Native Vello compatibility entrypoint still depends on the host-shaped legacy bridge and should move with the host adapter once Sempal consumes the generic runtime.
 src/gui/native_shell/**	split_generic_from_compat	radiant_boundary	Native-shell compatibility tree must split generic primitives from host shell composition and move/delete the rest.
 src/gui_runtime/native_vello/**	split_generic_from_compat	radiant_boundary	Native Vello tree mixes generic runtime support with host shell input render startup and test glue.

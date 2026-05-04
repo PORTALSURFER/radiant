@@ -16,7 +16,7 @@
 //!
 //! This module remains as the legacy model/action path for existing callers.
 //! Native runtime entrypoints that still consume this bridge live under
-//! [`crate::compat::legacy_native_vello`].
+//! [`crate::gui_runtime`].
 //!
 //! ## Diff/update model
 //! The update model is explicit and incremental:

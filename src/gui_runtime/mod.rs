@@ -75,6 +75,35 @@ pub struct RuntimeRunReport<Artifacts> {
     pub result: Result<(), String>,
 }
 
+/// Structured runtime artifacts exported by the transitional legacy-shell
+/// native Vello runtime.
+#[cfg(feature = "legacy-shell")]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LegacyNativeRuntimeArtifacts {
+    /// Native startup timing artifact captured for this run, when startup began.
+    pub startup_timing: Option<NativeStartupTimingArtifact>,
+    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<serde_json::Value>,
+}
+
+/// Result plus structured artifacts returned by one legacy-shell native runtime
+/// execution.
+#[cfg(feature = "legacy-shell")]
+pub type LegacyNativeRunReport = RuntimeRunReport<LegacyNativeRuntimeArtifacts>;
+
+/// Run the transitional legacy-shell native Vello backend.
+///
+/// This exists only while the host-shaped shell runtime is being moved into the
+/// consuming application. New hosts should use [`run_native_vello_runtime`] with
+/// a generic [`crate::runtime::RuntimeBridge`].
+#[cfg(feature = "legacy-shell")]
+pub fn run_legacy_native_vello_app_with_artifacts<B: crate::compat::legacy_shell::NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> LegacyNativeRunReport {
+    native_vello::run_legacy_shell_vello_app_with_artifacts(options, bridge)
+}
+
 pub use native_vello::{
     NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeStartupTimingArtifact,
     run_native_vello_runtime, run_native_vello_runtime_with_artifacts,

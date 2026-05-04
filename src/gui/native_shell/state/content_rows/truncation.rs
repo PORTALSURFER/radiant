@@ -50,7 +50,7 @@ pub(in crate::gui::native_shell::state) fn browser_approx_text_width(
 pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
-    rows_key: BrowserRowsCacheKey,
+    rows_key: ContentRowsCacheKey,
 ) -> BrowserRowTruncationCacheKey {
     let content_rect = content_list_content_rect(
         layout.browser_rows,

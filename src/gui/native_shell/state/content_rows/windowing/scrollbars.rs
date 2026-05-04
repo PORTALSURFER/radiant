@@ -43,7 +43,7 @@ pub(in crate::gui::native_shell::state) fn content_list_content_rect(
 /// Compute visual scrollbar geometry for one overflowing content-list viewport.
 pub(in crate::gui::native_shell::state) fn content_list_scrollbar_layout(
     browser_rows_rect: Rect,
-    rows: &[CachedBrowserRow],
+    rows: &[CachedContentRow],
     visible_count: usize,
     sizing: SizingTokens,
 ) -> Option<ContentListScrollbarLayout> {

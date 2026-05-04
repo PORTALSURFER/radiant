@@ -24,7 +24,7 @@ pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct ContentListScrollbarCacheKey {
     /// The resolved content-row cache key the scrollbar is derived from.
-    pub rows_key: BrowserRowsCacheKey,
+    pub rows_key: ContentRowsCacheKey,
 }
 
 /// One retained playhead x-position point used to build ghost-line trails.

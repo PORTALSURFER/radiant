@@ -6,7 +6,7 @@ pub(super) fn render_content_rows_window(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    content_rows: &[CachedBrowserRow],
+    content_rows: &[CachedContentRow],
 ) {
     let last_row_max_y = content_rows.last().map(|row| row.rect.max.y);
     for row in content_rows {
@@ -345,7 +345,7 @@ pub(super) fn render_content_rows_window(
 
 fn render_browser_processing_marker(
     primitives: &mut impl PrimitiveSink,
-    row: &CachedBrowserRow,
+    row: &CachedContentRow,
     style: &StyleTokens,
     sizing: SizingTokens,
 ) {

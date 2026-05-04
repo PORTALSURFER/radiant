@@ -5,7 +5,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
     style: &StyleTokens,
     model: &AppModel,
     window_start: usize,
-) -> BrowserRowsCacheKey {
+) -> ContentRowsCacheKey {
     let sizing = style.sizing;
     let rows = model.browser.rows.as_slice();
     let list_rect = browser_rows_list_rect(layout.browser_rows, sizing, model);
@@ -24,7 +24,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
         + super::scrollbars::content_list_row_capacity(list_rect, sizing))
     .min(model.browser.rows.len());
     let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
-    BrowserRowsCacheKey {
+    ContentRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),
         root_min_y: f32_to_bits(layout.root.rect.min.y),
         root_max_x: f32_to_bits(layout.root.rect.max.x),
@@ -61,7 +61,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-) -> Vec<CachedBrowserRow> {
+) -> Vec<CachedContentRow> {
     let mut truncation_cache = BrowserRowTruncationCache::default();
     let mut frame_counts = BrowserRowTruncationFrameCounts::default();
     rendered_browser_rows_cached(
@@ -81,7 +81,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
     style: &StyleTokens,
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
-) -> Vec<CachedBrowserRow> {
+) -> Vec<CachedContentRow> {
     rendered_browser_rows_cached_with_window_start(
         layout,
         model,
@@ -100,7 +100,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     style: &StyleTokens,
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
-) -> (Vec<CachedBrowserRow>, usize) {
+) -> (Vec<CachedContentRow>, usize) {
     rendered_browser_rows_cached_with_window_start_and_previous(
         layout,
         model,
@@ -119,7 +119,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
     previous_visible_start: Option<usize>,
-) -> (Vec<CachedBrowserRow>, usize) {
+) -> (Vec<CachedContentRow>, usize) {
     let sizing = style.sizing;
     if model.map.active || model.browser.rows.is_empty() {
         return (Vec::new(), 0);
@@ -199,7 +199,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             label_width,
             sizing.font_body,
         );
-        rendered.push(CachedBrowserRow {
+        rendered.push(CachedContentRow {
             visible_row: row.visible_row,
             visible_row_label: row.visible_row.to_string(),
             label_rendered_width: browser_approx_text_width(&label, sizing.font_body),

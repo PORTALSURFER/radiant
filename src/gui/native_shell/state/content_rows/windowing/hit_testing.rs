@@ -1,7 +1,7 @@
 use super::*;
 
 pub(in crate::gui::native_shell::state) fn content_list_row_index_at_point(
-    rows: &[CachedBrowserRow],
+    rows: &[CachedContentRow],
     point: Point,
     list_rect: Rect,
 ) -> Option<usize> {
@@ -13,7 +13,7 @@ pub(in crate::gui::native_shell::state) fn content_list_row_index_at_point(
 
 /// Resolve one content-list row index from stacked row geometry in constant time.
 pub(in crate::gui::native_shell::state) fn stacked_row_index_at_point(
-    rows: &[CachedBrowserRow],
+    rows: &[CachedContentRow],
     point: Point,
 ) -> Option<usize> {
     let first = rows.first()?;

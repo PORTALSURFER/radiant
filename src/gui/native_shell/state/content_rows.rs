@@ -20,7 +20,7 @@ pub(in crate::gui::native_shell::state) use self::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct CachedBrowserRow {
+pub(super) struct CachedContentRow {
     pub(super) visible_row: usize,
     pub(super) visible_row_label: String,
     pub(super) label: String,
@@ -92,7 +92,7 @@ pub(super) struct FolderRowsCacheKey {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(super) struct BrowserRowsCacheKey {
+pub(super) struct ContentRowsCacheKey {
     pub(super) root_min_x: u32,
     pub(super) root_min_y: u32,
     pub(super) root_max_x: u32,

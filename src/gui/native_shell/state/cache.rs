@@ -5,7 +5,7 @@ use crate::gui::panel::SplitPaneSlot;
 
 pub(super) struct BrowserInteractionGeometry<'a> {
     pub(super) style: StyleTokens,
-    pub(super) rows: &'a [CachedBrowserRow],
+    pub(super) rows: &'a [CachedContentRow],
     pub(super) scrollbar: Option<ContentListScrollbarLayout>,
     pub(super) scrollbar_viewport_len: usize,
     pub(super) buttons: &'a [ActionButton],
@@ -92,7 +92,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         style: &StyleTokens,
         model: &AppModel,
-    ) -> &[CachedBrowserRow] {
+    ) -> &[CachedContentRow] {
         let previous_visible_start = self.browser_rows.first().map(|row| row.visible_row);
         let (window_start, _) = browser_rows_window_bounds_with_previous(
             layout,
@@ -255,7 +255,7 @@ impl NativeShellState {
 }
 
 fn sync_cached_browser_row_selection(
-    rows: &mut [CachedBrowserRow],
+    rows: &mut [CachedContentRow],
     model: &AppModel,
     window_start: usize,
 ) {

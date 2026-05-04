@@ -139,7 +139,7 @@ impl NativeShellState {
             .map(|toolbar| toolbar.search_field)
             .filter(|rect| rect.width() > 1.0)
         {
-            if self.hovered_browser_search_field && self.browser_search_editor_visual.is_none() {
+            if self.hovered_content_search_field && self.browser_search_editor_visual.is_none() {
                 render_search_field_hover_overlay(
                     primitives,
                     style,
@@ -151,7 +151,7 @@ impl NativeShellState {
         }
         if let Some((chip_rect, rating_level)) =
             self.content_toolbar_layout.as_ref().and_then(|toolbar| {
-                let hovered_level = self.hovered_browser_rating_filter_level?;
+                let hovered_level = self.hovered_content_rating_filter_level?;
                 let index = rating_filter_chip_index(hovered_level)?;
                 let chip_rect = toolbar.rating_filter_chips[index];
                 (chip_rect.width() > 1.0).then_some((chip_rect, hovered_level))
@@ -172,7 +172,7 @@ impl NativeShellState {
             );
         }
         if let Some((chip_rect, chip)) = self.content_toolbar_layout.as_ref().and_then(|toolbar| {
-            let hovered_chip = self.hovered_browser_playback_age_filter_chip?;
+            let hovered_chip = self.hovered_content_recency_filter_chip?;
             let index = recency_filter_chip_index(hovered_chip)?;
             let chip_rect = toolbar.playback_age_filter_chips[index];
             (chip_rect.width() > 1.0).then_some((chip_rect, hovered_chip))
@@ -196,7 +196,7 @@ impl NativeShellState {
             .as_ref()
             .map(|toolbar| toolbar.marked_filter_chip)
             .filter(|rect| rect.width() > 1.0)
-            .filter(|_| self.hovered_browser_marked_filter)
+            .filter(|_| self.hovered_content_marked_filter)
         {
             emit_primitive(
                 primitives,

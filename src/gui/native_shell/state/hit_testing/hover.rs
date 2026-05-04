@@ -48,14 +48,14 @@ impl NativeShellState {
         let next_hover = layout.hit_test(point);
         let next_hovered_browser_row =
             self.resolve_hovered_browser_row(layout, model, point, next_hover);
-        let next_hovered_browser_rating_filter_level =
-            self.resolve_hovered_browser_rating_filter_level(layout, model, point);
-        let next_hovered_browser_playback_age_filter_chip =
-            self.resolve_hovered_browser_playback_age_filter_chip(layout, model, point);
-        let next_hovered_browser_marked_filter =
-            self.resolve_hovered_browser_marked_filter(layout, model, point);
-        let next_hovered_browser_search_field =
-            self.resolve_hovered_browser_search_field(layout, model, point);
+        let next_hovered_content_rating_filter_level =
+            self.resolve_hovered_content_rating_filter_level(layout, model, point);
+        let next_hovered_content_recency_filter_chip =
+            self.resolve_hovered_content_recency_filter_chip(layout, model, point);
+        let next_hovered_content_marked_filter =
+            self.resolve_hovered_content_marked_filter(layout, model, point);
+        let next_hovered_content_search_field =
+            self.resolve_hovered_content_search_field(layout, model, point);
         let next_hovered_folder_row =
             self.resolve_hovered_folder_row(layout, model, point, next_hover);
         let next_hovered_folder_pane = next_hovered_folder_row.map(|(pane, _)| pane);
@@ -70,14 +70,14 @@ impl NativeShellState {
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
         let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
-        let browser_rating_filter_changed =
-            next_hovered_browser_rating_filter_level != self.hovered_browser_rating_filter_level;
-        let browser_playback_age_filter_changed = next_hovered_browser_playback_age_filter_chip
-            != self.hovered_browser_playback_age_filter_chip;
-        let browser_marked_filter_changed =
-            next_hovered_browser_marked_filter != self.hovered_browser_marked_filter;
-        let browser_search_field_changed =
-            next_hovered_browser_search_field != self.hovered_browser_search_field;
+        let content_rating_filter_changed =
+            next_hovered_content_rating_filter_level != self.hovered_content_rating_filter_level;
+        let content_recency_filter_changed =
+            next_hovered_content_recency_filter_chip != self.hovered_content_recency_filter_chip;
+        let content_marked_filter_changed =
+            next_hovered_content_marked_filter != self.hovered_content_marked_filter;
+        let content_search_field_changed =
+            next_hovered_content_search_field != self.hovered_content_search_field;
         let folder_row_changed = next_hovered_folder_row.map(|(_, row)| row)
             != self.hovered_folder_row_index
             || next_hovered_folder_pane != self.hovered_folder_pane;
@@ -93,10 +93,10 @@ impl NativeShellState {
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
             && !browser_row_changed
-            && !browser_rating_filter_changed
-            && !browser_playback_age_filter_changed
-            && !browser_marked_filter_changed
-            && !browser_search_field_changed
+            && !content_rating_filter_changed
+            && !content_recency_filter_changed
+            && !content_marked_filter_changed
+            && !content_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
             && !status_options_button_changed
@@ -108,11 +108,10 @@ impl NativeShellState {
         }
         self.hovered = next_hover;
         self.hovered_browser_visible_row = next_hovered_browser_row;
-        self.hovered_browser_rating_filter_level = next_hovered_browser_rating_filter_level;
-        self.hovered_browser_playback_age_filter_chip =
-            next_hovered_browser_playback_age_filter_chip;
-        self.hovered_browser_marked_filter = next_hovered_browser_marked_filter;
-        self.hovered_browser_search_field = next_hovered_browser_search_field;
+        self.hovered_content_rating_filter_level = next_hovered_content_rating_filter_level;
+        self.hovered_content_recency_filter_chip = next_hovered_content_recency_filter_chip;
+        self.hovered_content_marked_filter = next_hovered_content_marked_filter;
+        self.hovered_content_search_field = next_hovered_content_search_field;
         self.hovered_folder_pane = next_hovered_folder_pane;
         self.hovered_folder_row_index = next_hovered_folder_row.map(|(_, row)| row);
         self.hovered_source_add_button = next_hovered_source_add_button;
@@ -123,10 +122,10 @@ impl NativeShellState {
         if waveform_hover_changed
             && !hover_changed
             && !browser_row_changed
-            && !browser_rating_filter_changed
-            && !browser_playback_age_filter_changed
-            && !browser_marked_filter_changed
-            && !browser_search_field_changed
+            && !content_rating_filter_changed
+            && !content_recency_filter_changed
+            && !content_marked_filter_changed
+            && !content_search_field_changed
             && !folder_row_changed
             && !source_add_button_changed
             && !status_options_button_changed
@@ -168,7 +167,7 @@ impl NativeShellState {
         self.folder_row_at_point(layout, model, point)
     }
 
-    fn resolve_hovered_browser_search_field(
+    fn resolve_hovered_content_search_field(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -180,7 +179,7 @@ impl NativeShellState {
         toolbar.search_field.width() > 1.0 && toolbar.search_field.contains(point)
     }
 
-    fn resolve_hovered_browser_marked_filter(
+    fn resolve_hovered_content_marked_filter(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -192,7 +191,7 @@ impl NativeShellState {
         marked_filter_chip_contains_point(toolbar.marked_filter_chip, point)
     }
 
-    fn resolve_hovered_browser_rating_filter_level(
+    fn resolve_hovered_content_rating_filter_level(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -204,7 +203,7 @@ impl NativeShellState {
         rating_filter_level_at_point(toolbar.rating_filter_chips, point)
     }
 
-    fn resolve_hovered_browser_playback_age_filter_chip(
+    fn resolve_hovered_content_recency_filter_chip(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,

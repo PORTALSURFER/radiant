@@ -147,7 +147,7 @@ fn content_list_scrollbar_track_click_emit_updates_action_queue() {
 fn browser_row_pointer_action_clears_row_hover_before_emitting() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
-    runner.shell_state.set_browser_row_hover_for_tests(Some(18));
+    runner.shell_state.set_content_row_hover_for_tests(Some(18));
     runner.last_cursor = Some(Point::new(24.0, 24.0));
 
     assert!(
@@ -166,7 +166,7 @@ fn browser_row_pointer_action_clears_row_hover_before_emitting() {
         runner
             .shell_state
             .state_overlay_fingerprint()
-            .hovered_browser_visible_row,
+            .hovered_content_visible_row,
         None
     );
 }

@@ -96,7 +96,7 @@ where
 
     /// Emit one wheel-derived content-list viewport-scroll action immediately.
     pub(crate) fn process_wheel_rows_immediately(&mut self, visible_row: usize) -> bool {
-        self.shell_state.clear_browser_row_hover();
+        self.shell_state.clear_content_row_hover();
         self.emit_model_action_with_profile(
             UiAction::SetContentViewStart { visible_row },
             Some(InteractionProfileKind::Wheel),
@@ -124,7 +124,7 @@ where
             return true;
         }
         self.last_emitted_content_list_view_start = Some(visible_row);
-        self.shell_state.clear_browser_row_hover();
+        self.shell_state.clear_content_row_hover();
         self.emit_model_action(UiAction::SetContentViewStart { visible_row });
         true
     }
@@ -162,7 +162,7 @@ where
         else {
             return false;
         };
-        self.shell_state.clear_browser_row_hover();
+        self.shell_state.clear_content_row_hover();
         self.emit_model_action(UiAction::SetContentViewStart { visible_row });
         true
     }

@@ -156,7 +156,7 @@ fn hover_overlay_signature_ignores_drag_chip_pointer_motion() {
     };
     let shell = HoverOverlayFingerprint {
         hovered: Some(ShellNodeKind::Sidebar),
-        hovered_browser_visible_row: None,
+        hovered_content_visible_row: None,
         hovered_folder_pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
         hovered_folder_row_index: Some(0),
         hovered_waveform_toolbar_hint: None,
@@ -206,7 +206,7 @@ fn hover_overlay_signature_ignores_waveform_text_without_hover_tooltip() {
     let baseline = AppModel::default();
     let shell = HoverOverlayFingerprint {
         hovered: None,
-        hovered_browser_visible_row: None,
+        hovered_content_visible_row: None,
         hovered_folder_pane: None,
         hovered_folder_row_index: None,
         hovered_waveform_toolbar_hint: None,

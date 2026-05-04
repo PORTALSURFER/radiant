@@ -70,7 +70,7 @@ pub(crate) struct StateOverlayFingerprint {
     /// Current hovered shell node kind.
     pub hovered: Option<ShellNodeKind>,
     /// Hovered content row in visible-row space.
-    pub hovered_browser_visible_row: Option<usize>,
+    pub hovered_content_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
     pub hovered_folder_pane: Option<crate::gui::panel::SplitPaneSlot>,
     /// Hovered folder row by rendered sidebar row index.
@@ -93,7 +93,7 @@ pub(crate) struct HoverOverlayFingerprint {
     /// Current hovered shell node kind.
     pub hovered: Option<ShellNodeKind>,
     /// Hovered content row in visible-row space.
-    pub hovered_browser_visible_row: Option<usize>,
+    pub hovered_content_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
     pub hovered_folder_pane: Option<crate::gui::panel::SplitPaneSlot>,
     /// Hovered folder row by rendered sidebar row index.

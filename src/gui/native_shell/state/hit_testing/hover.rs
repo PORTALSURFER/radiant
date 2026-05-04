@@ -2,8 +2,8 @@ use super::*;
 
 impl NativeShellState {
     #[cfg(test)]
-    pub(crate) fn set_browser_row_hover_for_tests(&mut self, visible_row: Option<usize>) {
-        self.hovered_browser_visible_row = visible_row;
+    pub(crate) fn set_content_row_hover_for_tests(&mut self, visible_row: Option<usize>) {
+        self.hovered_content_visible_row = visible_row;
     }
 
     /// Clear the transient content-row hover target.
@@ -12,8 +12,8 @@ impl NativeShellState {
     /// stationary cursor. Clearing the row hover in those cases avoids showing
     /// an unrelated hover fill on a different row than the current selection
     /// and focus state.
-    pub(crate) fn clear_browser_row_hover(&mut self) {
-        self.hovered_browser_visible_row = None;
+    pub(crate) fn clear_content_row_hover(&mut self) {
+        self.hovered_content_visible_row = None;
     }
 
     /// Synchronize the hovered folder-row overlay target during active drag/drop.
@@ -46,8 +46,8 @@ impl NativeShellState {
         point: Point,
     ) -> CursorMoveEffect {
         let next_hover = layout.hit_test(point);
-        let next_hovered_browser_row =
-            self.resolve_hovered_browser_row(layout, model, point, next_hover);
+        let next_hovered_content_row =
+            self.resolve_hovered_content_row(layout, model, point, next_hover);
         let next_hovered_content_rating_filter_level =
             self.resolve_hovered_content_rating_filter_level(layout, model, point);
         let next_hovered_content_recency_filter_chip =
@@ -69,7 +69,7 @@ impl NativeShellState {
             hovered_waveform_resize_edge_for_point(layout, model, point, next_hover);
         let next_waveform_hover_x = waveform_hover_x_for_point(layout, next_hover, point);
         let hover_changed = next_hover != self.hovered;
-        let browser_row_changed = next_hovered_browser_row != self.hovered_browser_visible_row;
+        let content_row_changed = next_hovered_content_row != self.hovered_content_visible_row;
         let content_rating_filter_changed =
             next_hovered_content_rating_filter_level != self.hovered_content_rating_filter_level;
         let content_recency_filter_changed =
@@ -92,7 +92,7 @@ impl NativeShellState {
         let waveform_hover_changed =
             next_waveform_hover_x.map(f32::to_bits) != self.waveform_hover_x.map(f32::to_bits);
         if !hover_changed
-            && !browser_row_changed
+            && !content_row_changed
             && !content_rating_filter_changed
             && !content_recency_filter_changed
             && !content_marked_filter_changed
@@ -107,7 +107,7 @@ impl NativeShellState {
             return CursorMoveEffect::None;
         }
         self.hovered = next_hover;
-        self.hovered_browser_visible_row = next_hovered_browser_row;
+        self.hovered_content_visible_row = next_hovered_content_row;
         self.hovered_content_rating_filter_level = next_hovered_content_rating_filter_level;
         self.hovered_content_recency_filter_chip = next_hovered_content_recency_filter_chip;
         self.hovered_content_marked_filter = next_hovered_content_marked_filter;
@@ -121,7 +121,7 @@ impl NativeShellState {
         self.waveform_hover_x = next_waveform_hover_x;
         if waveform_hover_changed
             && !hover_changed
-            && !browser_row_changed
+            && !content_row_changed
             && !content_rating_filter_changed
             && !content_recency_filter_changed
             && !content_marked_filter_changed
@@ -138,7 +138,7 @@ impl NativeShellState {
         }
     }
 
-    fn resolve_hovered_browser_row(
+    fn resolve_hovered_content_row(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,

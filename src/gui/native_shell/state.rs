@@ -179,7 +179,7 @@ impl Default for FolderPaneRuntimeState {
 pub(crate) struct NativeShellState {
     selected_column: usize,
     hovered: Option<ShellNodeKind>,
-    hovered_browser_visible_row: Option<usize>,
+    hovered_content_visible_row: Option<usize>,
     hovered_content_rating_filter_level: Option<i8>,
     hovered_content_recency_filter_chip: Option<RecencyFilterChip>,
     hovered_content_marked_filter: bool,
@@ -252,7 +252,7 @@ impl NativeShellState {
         Self {
             selected_column: 1,
             hovered: None,
-            hovered_browser_visible_row: None,
+            hovered_content_visible_row: None,
             hovered_content_rating_filter_level: None,
             hovered_content_recency_filter_chip: None,
             hovered_content_marked_filter: false,

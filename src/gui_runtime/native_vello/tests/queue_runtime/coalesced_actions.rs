@@ -31,7 +31,7 @@ fn immediate_volume_emit_updates_action_queue_without_pending_buffer() {
 fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
     let mut runner =
         NativeVelloRunner::new(NativeRunOptions::default(), RecordingBridge::default());
-    runner.shell_state.set_browser_row_hover_for_tests(Some(12));
+    runner.shell_state.set_content_row_hover_for_tests(Some(12));
     assert!(runner.process_wheel_rows_immediately(3));
 
     assert_eq!(
@@ -42,7 +42,7 @@ fn immediate_wheel_emit_updates_action_queue_without_pending_buffer() {
         runner
             .shell_state
             .state_overlay_fingerprint()
-            .hovered_browser_visible_row,
+            .hovered_content_visible_row,
         None
     );
 }

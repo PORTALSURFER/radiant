@@ -295,7 +295,7 @@ where
                 visible_row,
                 press_point: self.last_cursor.unwrap_or(Point::new(0.0, 0.0)),
             });
-            self.shell_state.clear_browser_row_hover();
+            self.shell_state.clear_content_row_hover();
             return true;
         }
         self.emit_pointer_press_action_now(action, spatial_drag_start, click_seek_press)
@@ -315,7 +315,7 @@ where
                 | UiAction::ExtendContentSelectionToRow { .. }
                 | UiAction::AddRangeContentSelectionToRow { .. }
         ) {
-            self.shell_state.clear_browser_row_hover();
+            self.shell_state.clear_content_row_hover();
         }
         let spatial_drag_content_id = match &action {
             UiAction::FocusSpatialContentItem { content_id } => Some(content_id.clone()),

@@ -17,7 +17,7 @@ impl NativeShellState {
             model.paired_device_panel().status_state() == StatusChipStateModel::Error;
         self.startup_frame_ticks = self.startup_frame_ticks.saturating_sub(1);
         if model.map.active {
-            self.hovered_browser_visible_row = None;
+            self.hovered_content_visible_row = None;
         }
         if self
             .hovered_folder_row_index
@@ -168,7 +168,7 @@ impl NativeShellState {
         StateOverlayFingerprint {
             selected_column: self.selected_column,
             hovered: self.hovered,
-            hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_content_visible_row: self.hovered_content_visible_row,
             hovered_folder_pane: self.hovered_folder_pane,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,
@@ -272,7 +272,7 @@ impl NativeShellState {
     pub(crate) fn hover_overlay_fingerprint(&self) -> HoverOverlayFingerprint {
         HoverOverlayFingerprint {
             hovered: self.hovered,
-            hovered_browser_visible_row: self.hovered_browser_visible_row,
+            hovered_content_visible_row: self.hovered_content_visible_row,
             hovered_folder_pane: self.hovered_folder_pane,
             hovered_folder_row_index: self.hovered_folder_row_index,
             hovered_waveform_toolbar_hint: self.hovered_waveform_toolbar_hint,

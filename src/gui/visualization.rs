@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::gui::{
-    range::NormalizedRange,
+    range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
     types::{ImageRgba, Point, Rect},
 };
 
@@ -76,6 +76,190 @@ pub fn normalized_milli_point_in_rect(rect: Rect, x_milli: u16, y_milli: u16) ->
         rect.min.x + (rect.width().max(0.0) * x_ratio),
         rect.min.y + (rect.height().max(0.0) * y_ratio),
     )
+}
+
+/// Paint and input order for a generic layered canvas.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CanvasLayerOrder {
+    /// Background or guide layer.
+    Background,
+    /// Primary content layer.
+    Content,
+    /// Selection, hover, or edit affordance layer.
+    Interaction,
+    /// Transient feedback layer.
+    Feedback,
+    /// Topmost focus or capture layer.
+    Focus,
+}
+
+/// One retained canvas layer with optional input participation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasLayer {
+    /// Stable layer identifier.
+    pub id: Arc<str>,
+    /// Paint and hit-test order.
+    pub order: CanvasLayerOrder,
+    /// Layer bounds in canvas coordinates.
+    pub bounds: Rect,
+    /// Whether this layer participates in pointer hit testing.
+    pub interactive: bool,
+}
+
+impl CanvasLayer {
+    /// Build one retained canvas layer.
+    pub fn new(
+        id: impl Into<String>,
+        order: CanvasLayerOrder,
+        bounds: Rect,
+        interactive: bool,
+    ) -> Self {
+        Self {
+            id: Arc::<str>::from(id.into()),
+            order,
+            bounds,
+            interactive,
+        }
+    }
+}
+
+/// Return the topmost interactive canvas layer containing `point`.
+pub fn canvas_layer_at_point<'a>(layers: &'a [CanvasLayer], point: Point) -> Option<&'a str> {
+    layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| layer.interactive && layer.bounds.contains(point))
+        .max_by_key(|(index, layer)| (layer.order, *index))
+        .map(|(_, layer)| layer.id.as_ref())
+}
+
+/// Domain-neutral drag handle role for generic timeline and canvas editing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DragHandleRole {
+    /// Leading edge of a selected range or shape.
+    Start,
+    /// Trailing edge of a selected range or shape.
+    End,
+    /// Interior move handle for an existing selection or shape.
+    Body,
+    /// Leading auxiliary control.
+    LeadingControl,
+    /// Trailing auxiliary control.
+    TrailingControl,
+}
+
+/// One hit-testable drag handle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DragHandle {
+    /// Semantic role emitted to the host.
+    pub role: DragHandleRole,
+    /// Handle bounds in canvas coordinates.
+    pub rect: Rect,
+    /// Stable capture token for backends that keep drag ownership after press.
+    pub capture_token: u64,
+    /// Whether this handle currently accepts input.
+    pub enabled: bool,
+}
+
+impl DragHandle {
+    /// Build one enabled drag handle.
+    pub fn new(role: DragHandleRole, rect: Rect, capture_token: u64) -> Self {
+        Self {
+            role,
+            rect,
+            capture_token,
+            enabled: true,
+        }
+    }
+
+    /// Set whether this handle accepts input.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
+/// Return the topmost enabled drag handle containing `point`.
+pub fn drag_handle_at_point(handles: &[DragHandle], point: Point) -> Option<DragHandle> {
+    handles
+        .iter()
+        .rev()
+        .copied()
+        .find(|handle| handle.enabled && handle.rect.contains(point))
+}
+
+/// Mapper between normalized timeline coordinates and local canvas pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TimelineCoordinateMapper {
+    /// Normalized timeline viewport.
+    pub viewport: TimelineViewport,
+    /// Local canvas rect used for projection.
+    pub rect: Rect,
+    /// Pixel snapping policy.
+    pub snap: NormalizedPixelSnap,
+}
+
+impl TimelineCoordinateMapper {
+    /// Build a mapper for one timeline viewport and canvas rect.
+    pub fn new(viewport: TimelineViewport, rect: Rect, snap: NormalizedPixelSnap) -> Self {
+        Self {
+            viewport,
+            rect,
+            snap,
+        }
+    }
+
+    /// Project one normalized micro position into local x coordinates.
+    pub fn x_for_micros(self, micros: u32) -> f32 {
+        self.viewport
+            .normalized_viewport()
+            .x_for_micros(self.rect, micros, self.snap)
+    }
+
+    /// Project one normalized range into local x bounds.
+    pub fn x_range_for(self, range: NormalizedRange) -> (f32, f32) {
+        (
+            self.x_for_micros(range.start_micros),
+            self.x_for_micros(range.end_micros),
+        )
+    }
+
+    /// Convert a local x coordinate back into normalized micro units.
+    pub fn micros_for_x(self, x: f32) -> u32 {
+        if self.rect.width() <= f32::EPSILON {
+            return self.viewport.start_micros.min(1_000_000);
+        }
+        let local_ratio = ((x - self.rect.min.x) / self.rect.width()).clamp(0.0, 1.0) as f64;
+        let viewport = self.viewport.normalized_viewport();
+        ((viewport.start_ratio + (local_ratio * viewport.width_ratio)).clamp(0.0, 1.0)
+            * 1_000_000.0)
+            .round() as u32
+    }
+}
+
+/// Retained canvas/timeline invalidation summary.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CanvasInvalidation {
+    /// Primary retained content changed.
+    pub content_changed: bool,
+    /// Layer order, bounds, or hit-test participation changed.
+    pub layers_changed: bool,
+    /// Pointer capture or focused handle changed.
+    pub interaction_changed: bool,
+    /// Timeline projection or viewport changed.
+    pub projection_changed: bool,
+}
+
+impl CanvasInvalidation {
+    /// Return whether retained scene content must be rebuilt.
+    pub fn requires_scene_rebuild(self) -> bool {
+        self.content_changed || self.layers_changed || self.projection_changed
+    }
+
+    /// Return whether interaction overlays must be rebuilt.
+    pub fn requires_interaction_overlay_rebuild(self) -> bool {
+        self.requires_scene_rebuild() || self.interaction_changed
+    }
 }
 
 /// Retained raster preview for a timeline, signal, or visualization surface.
@@ -516,6 +700,16 @@ impl TimelineViewport {
             end_nanos,
         }
     }
+
+    /// Return this viewport as a generic normalized viewport projector.
+    pub fn normalized_viewport(self) -> NormalizedViewport {
+        NormalizedViewport::from_bounds(
+            self.start_micros,
+            self.end_micros,
+            Some(self.start_nanos),
+            Some(self.end_nanos),
+        )
+    }
 }
 
 impl Default for TimelineViewport {
@@ -555,14 +749,15 @@ pub struct TimelineMarkerPreview {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChannelViewMode, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
-        SpatialPanel, SpatialPoint, TimelineEditPreview, TimelineFeedbackEvents,
-        TimelineMarkerPreview, TimelineMotionState, TimelinePresentationState,
-        TimelineSurfaceState, TimelineTransportState, TimelineViewport,
-        normalized_milli_point_in_rect,
+        CanvasInvalidation, CanvasLayer, CanvasLayerOrder, ChannelViewMode, DragHandle,
+        DragHandleRole, PointRenderMode, SignalChromeState, SignalRasterPreview, SignalToolState,
+        SpatialPanel, SpatialPoint, TimelineCoordinateMapper, TimelineEditPreview,
+        TimelineFeedbackEvents, TimelineMarkerPreview, TimelineMotionState,
+        TimelinePresentationState, TimelineSurfaceState, TimelineTransportState, TimelineViewport,
+        canvas_layer_at_point, drag_handle_at_point, normalized_milli_point_in_rect,
     };
     use crate::gui::{
-        range::NormalizedRange,
+        range::{NormalizedPixelSnap, NormalizedRange, NormalizedViewport},
         types::{ImageRgba, Point, Rect},
     };
     use std::sync::Arc;
@@ -612,6 +807,108 @@ mod tests {
             Point::new(150.0, 350.0)
         );
         assert_eq!(normalized_milli_point_in_rect(rect, 1400, 1300), rect.max);
+    }
+
+    #[test]
+    fn canvas_layer_hit_testing_prefers_topmost_interactive_layer() {
+        let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(100.0, 100.0));
+        let layers = [
+            CanvasLayer::new("base", CanvasLayerOrder::Background, bounds, true),
+            CanvasLayer::new("paint", CanvasLayerOrder::Content, bounds, false),
+            CanvasLayer::new(
+                "handle",
+                CanvasLayerOrder::Interaction,
+                Rect::from_min_max(Point::new(40.0, 40.0), Point::new(60.0, 60.0)),
+                true,
+            ),
+            CanvasLayer::new(
+                "focus",
+                CanvasLayerOrder::Focus,
+                Rect::from_min_max(Point::new(45.0, 45.0), Point::new(55.0, 55.0)),
+                true,
+            ),
+        ];
+
+        assert_eq!(
+            canvas_layer_at_point(&layers, Point::new(50.0, 50.0)),
+            Some("focus")
+        );
+        assert_eq!(
+            canvas_layer_at_point(&layers, Point::new(20.0, 20.0)),
+            Some("base")
+        );
+        assert_eq!(
+            canvas_layer_at_point(&layers, Point::new(120.0, 20.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn drag_handle_hit_testing_uses_reverse_paint_order_and_enabled_state() {
+        let handles = [
+            DragHandle::new(
+                DragHandleRole::Body,
+                Rect::from_min_max(Point::new(10.0, 10.0), Point::new(50.0, 30.0)),
+                1,
+            ),
+            DragHandle::new(
+                DragHandleRole::Start,
+                Rect::from_min_max(Point::new(10.0, 10.0), Point::new(20.0, 30.0)),
+                2,
+            )
+            .with_enabled(false),
+            DragHandle::new(
+                DragHandleRole::End,
+                Rect::from_min_max(Point::new(40.0, 10.0), Point::new(50.0, 30.0)),
+                3,
+            ),
+        ];
+
+        assert_eq!(
+            drag_handle_at_point(&handles, Point::new(45.0, 20.0)).map(|handle| handle.role),
+            Some(DragHandleRole::End)
+        );
+        assert_eq!(
+            drag_handle_at_point(&handles, Point::new(15.0, 20.0)).map(|handle| handle.role),
+            Some(DragHandleRole::Body)
+        );
+        assert_eq!(drag_handle_at_point(&handles, Point::new(5.0, 20.0)), None);
+    }
+
+    #[test]
+    fn timeline_coordinate_mapper_projects_and_back_projects_micros() {
+        let viewport = TimelineViewport::new(250, 750, 250_000, 750_000, 250_000_000, 750_000_000);
+        let rect = Rect::from_min_max(Point::new(10.0, 0.0), Point::new(210.0, 40.0));
+        let mapper = TimelineCoordinateMapper::new(viewport, rect, NormalizedPixelSnap::Nearest);
+
+        assert_eq!(
+            viewport.normalized_viewport(),
+            NormalizedViewport::from_micros(250_000, 750_000)
+        );
+        assert_eq!(mapper.x_for_micros(250_000), 10.0);
+        assert_eq!(mapper.x_for_micros(500_000), 110.0);
+        assert_eq!(
+            mapper.x_range_for(NormalizedRange::from_micros(300_000, 700_000)),
+            (30.0, 190.0)
+        );
+        assert_eq!(mapper.micros_for_x(110.0), 500_000);
+    }
+
+    #[test]
+    fn canvas_invalidation_splits_scene_and_interaction_rebuilds() {
+        let interaction = CanvasInvalidation {
+            interaction_changed: true,
+            ..CanvasInvalidation::default()
+        };
+        let projection = CanvasInvalidation {
+            projection_changed: true,
+            ..CanvasInvalidation::default()
+        };
+
+        assert!(!interaction.requires_scene_rebuild());
+        assert!(interaction.requires_interaction_overlay_rebuild());
+        assert!(projection.requires_scene_rebuild());
+        assert!(projection.requires_interaction_overlay_rebuild());
     }
 
     #[test]

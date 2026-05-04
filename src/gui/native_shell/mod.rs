@@ -21,8 +21,7 @@ mod top_bar_surface;
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;
 pub(crate) use layout_adapter::{
-    compute_waveform_slice_preview_rects, waveform_plot_x_for_micros,
-    waveform_view_window_from_bounds,
+    compute_waveform_slice_preview_rects, waveform_view_window_from_bounds,
 };
 pub(crate) use layout_runtime::{
     ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,

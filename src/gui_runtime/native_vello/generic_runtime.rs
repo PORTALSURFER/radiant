@@ -75,9 +75,11 @@ where
             err
         ),
     }
+    let shutdown_timing = runner.core.runtime.bridge_mut().on_runtime_exit();
     NativeGenericRunReport {
         artifacts: NativeGenericRuntimeArtifacts {
             startup_timing: runner.startup_timing.export_artifact(),
+            shutdown_timing,
         },
         result: run_result,
     }
@@ -88,6 +90,8 @@ where
 pub struct NativeGenericRuntimeArtifacts {
     /// Native startup timing artifact captured for this run, when startup began.
     pub startup_timing: Option<NativeStartupTimingArtifact>,
+    /// Host-defined shutdown artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<serde_json::Value>,
 }
 
 /// Result plus structured artifacts returned by one generic native runtime execution.

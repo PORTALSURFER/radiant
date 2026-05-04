@@ -38,6 +38,15 @@ pub trait RuntimeBridge<Message> {
     /// forward it to their worker systems rather than depending on backend
     /// internals.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
+
+    /// Lifecycle hook fired when the native runtime exits.
+    ///
+    /// Hosts can return a structured artifact for diagnostics, telemetry, or
+    /// shutdown validation. The generic runtime treats the payload as opaque so
+    /// application-specific shutdown phases remain host-owned.
+    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        None
+    }
 }
 
 /// Public application contract for declarative Radiant hosts.

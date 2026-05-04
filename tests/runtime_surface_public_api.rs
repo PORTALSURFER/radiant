@@ -148,6 +148,19 @@ fn runtime_bridge_accepts_repaint_signal_for_host_background_work() {
 }
 
 #[test]
+fn runtime_bridge_exposes_host_owned_runtime_exit_artifact() {
+    let mut bridge = RuntimeExitBridge;
+
+    assert_eq!(
+        bridge.on_runtime_exit(),
+        Some(serde_json::json!({
+            "status": "clean",
+            "phase": "host-owned"
+        }))
+    );
+}
+
+#[test]
 fn view_and_element_aliases_match_runtime_surface_types() {
     let surface: Arc<View<DemoMessage>> = project_surface(&mut DemoState::default());
     let root: &Element<DemoMessage> = surface.root();
@@ -1203,6 +1216,21 @@ struct CountingRepaintSignal {
 impl RepaintSignal for CountingRepaintSignal {
     fn request_repaint(&self) {
         self.called.store(true, Ordering::Release);
+    }
+}
+
+struct RuntimeExitBridge;
+
+impl RuntimeBridge<DemoMessage> for RuntimeExitBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        project_surface(&mut DemoState::default())
+    }
+
+    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        Some(serde_json::json!({
+            "status": "clean",
+            "phase": "host-owned"
+        }))
     }
 }
 

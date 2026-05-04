@@ -47,17 +47,17 @@ pub(in crate::gui::native_shell::state) fn browser_approx_text_width(
 }
 
 /// Build a truncation-cache invalidation key from the current layout/style/row-revision state.
-pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
+pub(in crate::gui::native_shell::state) fn content_row_truncation_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     rows_key: ContentRowsCacheKey,
-) -> BrowserRowTruncationCacheKey {
+) -> ContentRowTruncationCacheKey {
     let content_rect = content_list_content_rect(
         layout.browser_rows,
         rows_key.visible_count as usize,
         style.sizing,
     );
-    BrowserRowTruncationCacheKey {
+    ContentRowTruncationCacheKey {
         browser_rows_min_x: f32_to_bits(content_rect.min.x),
         browser_rows_min_y: f32_to_bits(content_rect.min.y),
         browser_rows_max_x: f32_to_bits(content_rect.max.x),
@@ -70,16 +70,16 @@ pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
 }
 
 /// Resolve one truncated content-row text string from cache or compute it on miss.
-pub(in crate::gui::native_shell::state) fn truncate_browser_row_text_cached(
-    truncation_cache: &mut BrowserRowTruncationCache,
-    frame_counts: &mut BrowserRowTruncationFrameCounts,
+pub(in crate::gui::native_shell::state) fn truncate_content_row_text_cached(
+    truncation_cache: &mut ContentRowTruncationCache,
+    frame_counts: &mut ContentRowTruncationFrameCounts,
     row_id: usize,
-    text_kind: BrowserRowTextKind,
+    text_kind: ContentRowTextKind,
     text: &str,
     max_width: f32,
     font_size: f32,
 ) -> String {
-    let key = BrowserRowTruncationEntryKey {
+    let key = ContentRowTruncationEntryKey {
         row_id: usize_to_u32(row_id),
         width_bucket: truncation_width_bucket(max_width),
         font_size_bucket: truncation_font_size_bucket(font_size),
@@ -101,7 +101,7 @@ pub(in crate::gui::native_shell::state) fn truncation_font_size_bucket(font_size
 }
 
 /// Hash visible content-row labels into one revision fingerprint.
-pub(in crate::gui::native_shell::state) fn browser_row_text_revision(
+pub(in crate::gui::native_shell::state) fn content_row_text_revision(
     rows: &[BrowserRowModel],
 ) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

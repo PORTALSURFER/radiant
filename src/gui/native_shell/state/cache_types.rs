@@ -35,15 +35,15 @@ mod tests {
 
     #[test]
     fn truncation_cache_evicts_oldest_entry_after_capacity() {
-        let mut cache = BrowserRowTruncationCache::default();
-        let mut counts = BrowserRowTruncationFrameCounts::default();
+        let mut cache = ContentRowTruncationCache::default();
+        let mut counts = ContentRowTruncationFrameCounts::default();
 
         for row_id in 0..=BROWSER_ROW_TRUNCATION_CACHE_CAPACITY as u32 {
-            let key = BrowserRowTruncationEntryKey {
+            let key = ContentRowTruncationEntryKey {
                 row_id,
                 width_bucket: 10,
                 font_size_bucket: 12,
-                text_kind: BrowserRowTextKind::Item,
+                text_kind: ContentRowTextKind::Item,
             };
             let _ = cache.resolve(key, "abcdefgh", 12.0, 10.0, &mut counts);
         }
@@ -53,17 +53,17 @@ mod tests {
             counts.cache_miss_count,
             BROWSER_ROW_TRUNCATION_CACHE_CAPACITY as u32 + 1
         );
-        assert!(!cache.values.contains_key(&BrowserRowTruncationEntryKey {
+        assert!(!cache.values.contains_key(&ContentRowTruncationEntryKey {
             row_id: 0,
             width_bucket: 10,
             font_size_bucket: 12,
-            text_kind: BrowserRowTextKind::Item,
+            text_kind: ContentRowTextKind::Item,
         }));
-        assert!(cache.values.contains_key(&BrowserRowTruncationEntryKey {
+        assert!(cache.values.contains_key(&ContentRowTruncationEntryKey {
             row_id: BROWSER_ROW_TRUNCATION_CACHE_CAPACITY as u32,
             width_bucket: 10,
             font_size_bucket: 12,
-            text_kind: BrowserRowTextKind::Item,
+            text_kind: ContentRowTextKind::Item,
         }));
     }
 

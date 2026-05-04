@@ -2,7 +2,7 @@ use super::*;
 
 /// Per-build content-row truncation cache lookup counts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct BrowserRowTruncationFrameCounts {
+pub(crate) struct ContentRowTruncationFrameCounts {
     /// Number of truncation lookups requested while building content rows.
     pub lookup_count: u32,
     /// Number of lookups that reused cached truncated strings.
@@ -13,7 +13,7 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
 
 /// Content row text variants tracked in truncation cache keys.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
+pub(in crate::gui::native_shell::state) enum ContentRowTextKind {
     /// Primary item label text in content rows.
     Item,
     /// Secondary inline metadata text in content rows.
@@ -22,7 +22,7 @@ pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
 
 /// Lookup key for one content-row truncation output.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
+pub(in crate::gui::native_shell::state) struct ContentRowTruncationEntryKey {
     /// Stable visible-row identity used to scope cached text.
     pub row_id: u32,
     /// Quantized width bucket used by truncation heuristics.
@@ -30,12 +30,12 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
     /// Quantized font-size bucket used by truncation heuristics.
     pub font_size_bucket: u16,
     /// Distinguishes item-label vs bucket-label truncation outputs.
-    pub text_kind: BrowserRowTextKind,
+    pub text_kind: ContentRowTextKind,
 }
 
 /// Invalidation key for content-row truncation cache content.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
+pub(in crate::gui::native_shell::state) struct ContentRowTruncationCacheKey {
     /// Content rows region minimum x-coordinate.
     pub browser_rows_min_x: u32,
     /// Content rows region minimum y-coordinate.
@@ -102,19 +102,19 @@ pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
 
 /// Small retained LRU cache for content-row text truncation outputs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCache {
-    pub values: HashMap<BrowserRowTruncationEntryKey, BrowserRowTruncationCacheValue>,
+pub(in crate::gui::native_shell::state) struct ContentRowTruncationCache {
+    pub values: HashMap<ContentRowTruncationEntryKey, ContentRowTruncationCacheValue>,
     pub touch_epoch: u64,
 }
 
 /// One cached truncation result with the latest logical access epoch.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheValue {
+pub(in crate::gui::native_shell::state) struct ContentRowTruncationCacheValue {
     pub truncated: String,
     pub last_touch_epoch: u64,
 }
 
-impl BrowserRowTruncationCache {
+impl ContentRowTruncationCache {
     /// Clear all retained truncation entries.
     pub(in crate::gui::native_shell::state) fn clear(&mut self) {
         self.values.clear();
@@ -124,11 +124,11 @@ impl BrowserRowTruncationCache {
     /// Resolve one truncation output from cache or compute and insert on miss.
     pub(in crate::gui::native_shell::state) fn resolve(
         &mut self,
-        key: BrowserRowTruncationEntryKey,
+        key: ContentRowTruncationEntryKey,
         text: &str,
         max_width: f32,
         font_size: f32,
-        frame_counts: &mut BrowserRowTruncationFrameCounts,
+        frame_counts: &mut ContentRowTruncationFrameCounts,
     ) -> String {
         let touch_epoch = self.next_touch_epoch();
         frame_counts.lookup_count = frame_counts.lookup_count.saturating_add(1);
@@ -153,10 +153,10 @@ impl BrowserRowTruncationCache {
     }
 
     /// Insert one key/value pair and enforce the fixed cache capacity via LRU epoch eviction.
-    fn insert(&mut self, key: BrowserRowTruncationEntryKey, value: String, touch_epoch: u64) {
+    fn insert(&mut self, key: ContentRowTruncationEntryKey, value: String, touch_epoch: u64) {
         self.values.insert(
             key,
-            BrowserRowTruncationCacheValue {
+            ContentRowTruncationCacheValue {
                 truncated: value,
                 last_touch_epoch: touch_epoch,
             },

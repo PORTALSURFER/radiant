@@ -101,20 +101,20 @@ impl NativeShellState {
             previous_visible_start,
         );
         let cache_key = browser_rows_cache_key(layout, style, model, window_start);
-        let truncation_cache_key = browser_row_truncation_cache_key(layout, style, cache_key);
-        if self.browser_row_truncation_cache_key != Some(truncation_cache_key) {
-            self.browser_row_truncation_cache.clear();
-            self.browser_row_truncation_cache_key = Some(truncation_cache_key);
+        let truncation_cache_key = content_row_truncation_cache_key(layout, style, cache_key);
+        if self.content_row_truncation_cache_key != Some(truncation_cache_key) {
+            self.content_row_truncation_cache.clear();
+            self.content_row_truncation_cache_key = Some(truncation_cache_key);
         }
-        self.browser_row_truncation_frame_counts = BrowserRowTruncationFrameCounts::default();
+        self.content_row_truncation_frame_counts = ContentRowTruncationFrameCounts::default();
         if self.browser_rows_cache_key != Some(cache_key) {
             let (rows, resolved_window_start) =
                 rendered_browser_rows_cached_with_window_start_and_previous(
                     layout,
                     model,
                     style,
-                    &mut self.browser_row_truncation_cache,
-                    &mut self.browser_row_truncation_frame_counts,
+                    &mut self.content_row_truncation_cache,
+                    &mut self.content_row_truncation_frame_counts,
                     previous_visible_start,
                 );
             let resolved_cache_key =

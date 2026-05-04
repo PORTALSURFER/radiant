@@ -239,8 +239,8 @@ impl NativeShellState {
 
     /// Return content-row truncation lookup counts from the latest row-cache refresh.
     #[cfg(test)]
-    pub(crate) fn browser_row_truncation_frame_counts(&self) -> BrowserRowTruncationFrameCounts {
-        self.browser_row_truncation_frame_counts
+    pub(crate) fn content_row_truncation_frame_counts(&self) -> ContentRowTruncationFrameCounts {
+        self.content_row_truncation_frame_counts
     }
 
     /// Update animation clocks by a frame delta using explicit style motion tokens.

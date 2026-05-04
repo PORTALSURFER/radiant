@@ -23,7 +23,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
     let window_end = (window_start
         + super::scrollbars::content_list_row_capacity(list_rect, sizing))
     .min(model.browser.rows.len());
-    let row_text_revision = browser_row_text_revision(&rows[window_start..window_end]);
+    let row_text_revision = content_row_text_revision(&rows[window_start..window_end]);
     ContentRowsCacheKey {
         root_min_x: f32_to_bits(layout.root.rect.min.x),
         root_min_y: f32_to_bits(layout.root.rect.min.y),
@@ -62,8 +62,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
     model: &AppModel,
     style: &StyleTokens,
 ) -> Vec<CachedContentRow> {
-    let mut truncation_cache = BrowserRowTruncationCache::default();
-    let mut frame_counts = BrowserRowTruncationFrameCounts::default();
+    let mut truncation_cache = ContentRowTruncationCache::default();
+    let mut frame_counts = ContentRowTruncationFrameCounts::default();
     rendered_browser_rows_cached(
         layout,
         model,
@@ -79,8 +79,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-    truncation_cache: &mut BrowserRowTruncationCache,
-    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    truncation_cache: &mut ContentRowTruncationCache,
+    frame_counts: &mut ContentRowTruncationFrameCounts,
 ) -> Vec<CachedContentRow> {
     rendered_browser_rows_cached_with_window_start(
         layout,
@@ -98,8 +98,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-    truncation_cache: &mut BrowserRowTruncationCache,
-    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    truncation_cache: &mut ContentRowTruncationCache,
+    frame_counts: &mut ContentRowTruncationFrameCounts,
 ) -> (Vec<CachedContentRow>, usize) {
     rendered_browser_rows_cached_with_window_start_and_previous(
         layout,
@@ -116,8 +116,8 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
-    truncation_cache: &mut BrowserRowTruncationCache,
-    frame_counts: &mut BrowserRowTruncationFrameCounts,
+    truncation_cache: &mut ContentRowTruncationCache,
+    frame_counts: &mut ContentRowTruncationFrameCounts,
     previous_visible_start: Option<usize>,
 ) -> (Vec<CachedContentRow>, usize) {
     let sizing = style.sizing;
@@ -165,11 +165,11 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
         );
         let bucket_label_source = row.bucket_label.clone().unwrap_or_default();
         let bucket_label = if bucket_label_width > 0.0 {
-            truncate_browser_row_text_cached(
+            truncate_content_row_text_cached(
                 truncation_cache,
                 frame_counts,
                 row.visible_row,
-                BrowserRowTextKind::Bucket,
+                ContentRowTextKind::Bucket,
                 &bucket_label_source,
                 bucket_label_width,
                 sizing.font_meta,
@@ -190,11 +190,11 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             - similarity_strength_reserved_width
             - row_inline_metadata_reserved_width_for_labels(&inline_metadata_labels, sizing))
         .max(20.0);
-        let label = truncate_browser_row_text_cached(
+        let label = truncate_content_row_text_cached(
             truncation_cache,
             frame_counts,
             row.visible_row,
-            BrowserRowTextKind::Item,
+            ContentRowTextKind::Item,
             &row.label,
             label_width,
             sizing.font_body,

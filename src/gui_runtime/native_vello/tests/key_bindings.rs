@@ -83,7 +83,7 @@ fn browser_hotkey_action(press: crate::compat_app_contract::KeyPress) -> Option<
             Some(UiAction::NormalizeFocusedContentItem)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::D) => {
-            Some(UiAction::DeleteBrowserSelection)
+            Some(UiAction::DeleteContentSelection)
         }
         press if press == crate::compat_app_contract::KeyPress::new(KeyCode::ArrowUp) => {
             Some(UiAction::MoveContentFocus { delta: -1 })

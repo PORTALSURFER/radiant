@@ -471,14 +471,14 @@ pub enum UiAction {
         /// Prompt input text after edit.
         value: String,
     },
-    /// Start inline rename flow for the focused browser row.
-    StartBrowserRename,
-    /// Confirm the currently pending browser rename prompt.
-    ConfirmBrowserRename,
-    /// Cancel the currently pending browser rename prompt.
-    CancelBrowserRename,
-    /// Run deterministic auto rename for the active browser selection snapshot.
-    AutoRenameBrowserSelection {
+    /// Start inline rename flow for the focused content row.
+    StartContentRename,
+    /// Confirm the currently pending content rename prompt.
+    ConfirmContentRename,
+    /// Cancel the currently pending content rename prompt.
+    CancelContentRename,
+    /// Run deterministic auto rename for the active content selection snapshot.
+    AutoRenameContentSelection {
         /// Optional visible row that should join the current multi-selection.
         visible_row: Option<usize>,
     },
@@ -487,8 +487,8 @@ pub enum UiAction {
         /// Triage bucket applied to focused/selected content rows.
         target: ContentTriageTarget,
     },
-    /// Delete focused/selected browser rows.
-    DeleteBrowserSelection,
+    /// Delete focused/selected content rows.
+    DeleteContentSelection,
     /// Normalize the focused list content item in-place.
     NormalizeFocusedContentItem,
     /// Normalize the waveform selection, or the loaded content when no selection is active.

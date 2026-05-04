@@ -319,7 +319,7 @@ pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
     let definitions = [(
         "Auto Rename",
         true,
-        UiAction::AutoRenameBrowserSelection {
+        UiAction::AutoRenameContentSelection {
             visible_row: Some(menu.visible_row),
         },
         style.accent_mint,

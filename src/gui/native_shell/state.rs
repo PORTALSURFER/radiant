@@ -15,8 +15,8 @@ use super::{
     layout_adapter::{
         ContentTabsRects, ContentTabsTextLayout, ContentToolbarTextLayout, SidebarFolderRowLayout,
         SidebarRowCounts, compute_action_button_text_rect, compute_content_footer_text_rect,
-        compute_browser_map_canvas_rect, compute_content_header_text_layout,
-        compute_browser_map_header_text_layout, compute_browser_map_point_center,
+        compute_content_header_text_layout, compute_spatial_map_canvas_rect,
+        compute_spatial_map_header_text_layout, compute_spatial_map_point_center,
         compute_content_row_text_layout, compute_content_tabs_text_layout,
         compute_content_toolbar_text_layout, compute_drag_overlay_text_layout,
         compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,

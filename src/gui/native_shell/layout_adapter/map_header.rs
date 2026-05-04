@@ -1,4 +1,4 @@
-//! Slotized browser map-header text layout helpers.
+//! Slotized spatial-map header text layout helpers.
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
@@ -16,21 +16,21 @@ const MAP_HEADER_TEXT_LINE_ID: u64 = 1312;
 const RIGHT_LABEL_RATIO: f32 = 0.42;
 const RIGHT_LABEL_MIN_WIDTH: f32 = 36.0;
 
-/// Slot-resolved map-header left and right label bounds.
+/// Slot-resolved spatial-map header left and right label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct BrowserMapHeaderTextLayout {
+pub(crate) struct SpatialMapHeaderTextLayout {
     pub left_label: Rect,
     pub right_label: Rect,
 }
 
-/// Compute browser map-header label bounds through strict slot layout.
-pub(crate) fn compute_browser_map_header_text_layout(
+/// Compute spatial-map header label bounds through strict slot layout.
+pub(crate) fn compute_spatial_map_header_text_layout(
     header_rect: Rect,
     sizing: SizingTokens,
-) -> BrowserMapHeaderTextLayout {
+) -> SpatialMapHeaderTextLayout {
     let empty = header_rect.empty_at_min();
     if header_rect.width() <= 0.0 || header_rect.height() <= 0.0 {
-        return BrowserMapHeaderTextLayout {
+        return SpatialMapHeaderTextLayout {
             left_label: empty,
             right_label: empty,
         };
@@ -76,7 +76,7 @@ pub(crate) fn compute_browser_map_header_text_layout(
     let output = layout_tree(&tree, header_rect);
     let left_bounds = output.rect_for_clamped(MAP_HEADER_LEFT_ID, empty, header_rect);
     let right_bounds = output.rect_for_clamped(MAP_HEADER_RIGHT_ID, empty, header_rect);
-    BrowserMapHeaderTextLayout {
+    SpatialMapHeaderTextLayout {
         left_label: compute_map_header_text_line(left_bounds, sizing, sizing.font_meta),
         right_label: compute_map_header_text_line(right_bounds, sizing, sizing.font_meta),
     }
@@ -132,7 +132,7 @@ mod tests {
     fn map_header_labels_stay_inside_header() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header = Rect::from_min_max(Point::new(220.0, 278.0), Point::new(1260.0, 296.0));
-        let layout = compute_browser_map_header_text_layout(header, style.sizing);
+        let layout = compute_spatial_map_header_text_layout(header, style.sizing);
         assert_inside(header, layout.left_label);
         assert_inside(header, layout.right_label);
     }
@@ -141,7 +141,7 @@ mod tests {
     fn map_header_right_label_stays_in_right_partition() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(960.0, 26.0));
-        let layout = compute_browser_map_header_text_layout(header, style.sizing);
+        let layout = compute_spatial_map_header_text_layout(header, style.sizing);
         assert!(layout.right_label.min.x >= header.min.x + (header.width() * 0.5));
     }
 
@@ -149,7 +149,7 @@ mod tests {
     fn map_header_labels_collapse_for_empty_header() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let header = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(0.0, 0.0));
-        let layout = compute_browser_map_header_text_layout(header, style.sizing);
+        let layout = compute_spatial_map_header_text_layout(header, style.sizing);
         let empty = Rect::from_min_max(header.min, header.min);
         assert_eq!(layout.left_label, empty);
         assert_eq!(layout.right_label, empty);

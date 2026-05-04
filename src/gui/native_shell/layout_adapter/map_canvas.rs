@@ -1,4 +1,4 @@
-//! Slotized helpers for browser-map canvas and point anchor geometry.
+//! Slotized helpers for spatial-map canvas and point anchor geometry.
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
@@ -11,10 +11,10 @@ use crate::gui::visualization::normalized_milli_point_in_rect;
 const MAP_CANVAS_ROOT_ID: u64 = 1760;
 const MAP_CANVAS_FILL_ID: u64 = 1761;
 
-/// Compute the browser-map canvas rect inside browser-row bounds.
-pub(crate) fn compute_browser_map_canvas_rect(browser_rows: Rect, sizing: SizingTokens) -> Rect {
-    let empty = empty_rect(browser_rows);
-    if browser_rows.width() <= 0.0 || browser_rows.height() <= 0.0 {
+/// Compute the spatial-map canvas rect inside content-row bounds.
+pub(crate) fn compute_spatial_map_canvas_rect(content_rows: Rect, sizing: SizingTokens) -> Rect {
+    let empty = empty_rect(content_rows);
+    if content_rows.width() <= 0.0 || content_rows.height() <= 0.0 {
         return empty;
     }
     let inset = (sizing.text_inset_x * 0.5).max(2.0);
@@ -37,12 +37,12 @@ pub(crate) fn compute_browser_map_canvas_rect(browser_rows: Rect, sizing: Sizing
             child: LayoutNode::widget(MAP_CANVAS_FILL_ID, Vector2::new(1.0, 1.0)),
         }],
     );
-    let output = layout_tree(&tree, browser_rows);
-    output.rect_for_clamped(MAP_CANVAS_FILL_ID, empty, browser_rows)
+    let output = layout_tree(&tree, content_rows);
+    output.rect_for_clamped(MAP_CANVAS_FILL_ID, empty, content_rows)
 }
 
 /// Compute a point center within the map canvas from normalized milli coords.
-pub(crate) fn compute_browser_map_point_center(canvas: Rect, x_milli: u16, y_milli: u16) -> Point {
+pub(crate) fn compute_spatial_map_point_center(canvas: Rect, x_milli: u16, y_milli: u16) -> Point {
     normalized_milli_point_in_rect(canvas, x_milli, y_milli)
 }
 
@@ -63,10 +63,10 @@ mod tests {
     }
 
     #[test]
-    fn map_canvas_rect_stays_inside_browser_rows() {
+    fn map_canvas_rect_stays_inside_content_rows() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let rows = Rect::from_min_max(Point::new(200.0, 320.0), Point::new(1280.0, 860.0));
-        let canvas = compute_browser_map_canvas_rect(rows, style.sizing);
+        let canvas = compute_spatial_map_canvas_rect(rows, style.sizing);
         assert_inside(rows, canvas);
         assert!(canvas.min.x > rows.min.x);
         assert!(canvas.min.y > rows.min.y);
@@ -76,14 +76,14 @@ mod tests {
     fn map_canvas_rect_collapses_for_empty_rows() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let rows = Rect::from_min_max(Point::new(200.0, 320.0), Point::new(200.0, 320.0));
-        let canvas = compute_browser_map_canvas_rect(rows, style.sizing);
+        let canvas = compute_spatial_map_canvas_rect(rows, style.sizing);
         assert_eq!(canvas, rows);
     }
 
     #[test]
     fn map_point_center_clamps_normalized_milli() {
         let canvas = Rect::from_min_max(Point::new(100.0, 200.0), Point::new(300.0, 500.0));
-        let center = compute_browser_map_point_center(canvas, 1400, 1300);
+        let center = compute_spatial_map_point_center(canvas, 1400, 1300);
         assert_eq!(center, canvas.max);
     }
 }

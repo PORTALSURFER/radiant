@@ -3,7 +3,7 @@ use super::*;
 use crate::gui::visualization::PointRenderMode;
 
 pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl PrimitiveSink) {
-    let canvas = compute_browser_map_canvas_rect(ctx.layout.browser_rows, ctx.sizing);
+    let canvas = compute_spatial_map_canvas_rect(ctx.layout.browser_rows, ctx.sizing);
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
@@ -18,7 +18,7 @@ pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl P
         ctx.sizing.border_width,
     );
     for point in ctx.model.map.points.iter() {
-        let center = compute_browser_map_point_center(canvas, point.x_milli, point.y_milli);
+        let center = compute_spatial_map_point_center(canvas, point.x_milli, point.y_milli);
         let color = map_point_color(ctx.style, ctx.model, point);
         let radius = if map_point_is_focused(ctx.model, point) {
             4.5
@@ -65,7 +65,7 @@ pub(super) fn render_map_header(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl T
         (String::from("Selection: —"), ctx.style.text_muted)
     };
     let layout =
-        compute_browser_map_header_text_layout(ctx.layout.browser_table_header, ctx.sizing);
+        compute_spatial_map_header_text_layout(ctx.layout.browser_table_header, ctx.sizing);
     let left_max_width = layout.left_label.width().max(24.0);
     let right_max_width = layout.right_label.width().max(36.0);
     emit_text(

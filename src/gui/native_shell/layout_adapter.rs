@@ -41,8 +41,8 @@ pub(super) use content_row_text::{
 pub(super) use control_text::compute_action_button_text_rect;
 #[allow(unused_imports)]
 pub(super) use controls::{compute_browser_toolbar_sections, compute_update_action_button_rects};
-pub(super) use map_canvas::{compute_browser_map_canvas_rect, compute_browser_map_point_center};
-pub(super) use map_header::compute_browser_map_header_text_layout;
+pub(super) use map_canvas::{compute_spatial_map_canvas_rect, compute_spatial_map_point_center};
+pub(super) use map_header::compute_spatial_map_header_text_layout;
 pub(super) use overlay_visuals::{
     compute_drag_overlay_visual_layout, compute_progress_overlay_visual_layout,
     compute_prompt_overlay_visual_layout,

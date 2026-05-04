@@ -45,14 +45,14 @@ pub(in crate::gui::native_shell::state) fn spatial_content_id_at_point(
         return None;
     }
     let canvas =
-        compute_browser_map_canvas_rect(layout.browser_rows, style_for_layout(layout).sizing);
+        compute_spatial_map_canvas_rect(layout.browser_rows, style_for_layout(layout).sizing);
     if !canvas.contains(point) {
         return None;
     }
 
     let mut best: Option<(f32, &str)> = None;
     for map_point in model.map.points.iter() {
-        let center = compute_browser_map_point_center(canvas, map_point.x_milli, map_point.y_milli);
+        let center = compute_spatial_map_point_center(canvas, map_point.x_milli, map_point.y_milli);
         let radius = if map_point_is_focused(model, map_point) {
             7.0
         } else if map_point_is_selected(model, map_point) {

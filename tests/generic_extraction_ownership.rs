@@ -1925,7 +1925,7 @@ fn compat_action_catalog_uses_generic_derived_label_filter_action() {
         assert!(!source.contains("ToggleBrowserTagNamedFilter"));
         assert!(!source.contains("toggle_browser_tag_named_filter"));
     }
-    assert!(actions_mod.contains("ToggleBrowserDerivedLabelFilter"));
+    assert!(actions_mod.contains("ToggleContentDerivedLabelFilter"));
 }
 
 #[test]

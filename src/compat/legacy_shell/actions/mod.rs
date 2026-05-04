@@ -397,10 +397,10 @@ pub enum UiAction {
     },
     /// Toggle the session mark for the focused content row or current multi-selection.
     ToggleContentMark,
-    /// Toggle whether the browser shows only session-marked items.
-    ToggleBrowserMarkedFilter,
-    /// Toggle whether the browser matches the host-defined derived-label state.
-    ToggleBrowserDerivedLabelFilter {
+    /// Toggle whether the content list shows only session-marked items.
+    ToggleContentMarkedFilter,
+    /// Toggle whether the content list matches the host-defined derived-label state.
+    ToggleContentDerivedLabelFilter {
         /// Whether the click should invert the derived-label filter.
         invert: bool,
     },

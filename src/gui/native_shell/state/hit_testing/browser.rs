@@ -237,13 +237,13 @@ impl NativeShellState {
             });
         }
         if marked_filter_chip_contains_point(geometry.toolbar.marked_filter_chip, point) {
-            return Some(UiAction::ToggleBrowserMarkedFilter);
+            return Some(UiAction::ToggleContentMarkedFilter);
         }
         if marked_filter_chip_contains_point(
             geometry.toolbar.derived_label_filter_chip,
             point,
         ) {
-            return Some(UiAction::ToggleBrowserDerivedLabelFilter { invert: alt_down });
+            return Some(UiAction::ToggleContentDerivedLabelFilter { invert: alt_down });
         }
         if geometry.toolbar.search_field.width() > 1.0
             && geometry.toolbar.search_field.contains(point)

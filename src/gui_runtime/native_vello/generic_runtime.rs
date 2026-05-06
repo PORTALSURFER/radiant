@@ -533,6 +533,7 @@ where
         );
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
+        self.last_redraw = Instant::now();
         if !self.first_frame_presented {
             self.first_frame_presented = true;
             self.startup_timing.mark_first_presented();
@@ -607,8 +608,29 @@ where
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        event_loop.set_control_flow(ControlFlow::Wait);
+        if self.window.is_none() {
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        }
+        let now = Instant::now();
+        let interval = animation_frame_interval(self.options.target_fps);
+        let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
+        if now >= next_frame {
+            if !self.redraw_requested {
+                self.core.refresh_surface();
+                self.rebuild_scene();
+                self.request_redraw_if_needed();
+            }
+            event_loop.set_control_flow(ControlFlow::WaitUntil(now + interval));
+        } else {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next_frame));
+        }
     }
+}
+
+fn animation_frame_interval(target_fps: u32) -> Duration {
+    let fps = target_fps.clamp(1, 240);
+    Duration::from_secs_f64(1.0 / f64::from(fps))
 }
 
 fn pointer_button_from_winit(button: MouseButton) -> Option<PointerButton> {
@@ -970,6 +992,19 @@ mod tests {
         let attrs = generic_window_attributes(&NativeRunOptions::default());
 
         assert!(!attrs.visible);
+    }
+
+    #[test]
+    fn generic_runtime_clamps_animation_frame_interval() {
+        assert_eq!(animation_frame_interval(0), Duration::from_secs(1));
+        assert_eq!(
+            animation_frame_interval(120),
+            Duration::from_secs_f64(1.0 / 120.0)
+        );
+        assert_eq!(
+            animation_frame_interval(1_000),
+            Duration::from_secs_f64(1.0 / 240.0)
+        );
     }
 
     #[derive(Default)]

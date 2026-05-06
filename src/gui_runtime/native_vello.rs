@@ -17,7 +17,7 @@ use std::{
     collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};

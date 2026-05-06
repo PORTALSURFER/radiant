@@ -54,8 +54,8 @@ where
         self.runtime.refresh();
     }
 
-    pub(super) fn needs_animation(&self) -> bool {
-        self.runtime.bridge().needs_animation()
+    pub(super) fn needs_animation(&mut self) -> bool {
+        self.runtime.bridge_mut().needs_animation()
     }
 
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {

@@ -64,6 +64,7 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
         key: 42,
         revision: 7,
         dirty_mask: 0b101,
+        volatile: false,
     };
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::retained_canvas_mapped(
         90,

@@ -31,10 +31,14 @@ impl RetainedSurfaceFrameCache {
         rect: UiRect,
         viewport: Vector2,
     ) -> Option<&PaintFrame> {
+        if descriptor.volatile || descriptor.dirty_mask != 0 {
+            return None;
+        }
         let entry = self.entry.as_ref()?;
         (entry.descriptor.key == descriptor.key
             && entry.descriptor.revision == descriptor.revision
             && entry.descriptor.dirty_mask == 0
+            && !entry.descriptor.volatile
             && entry.rect == rect
             && entry.viewport == viewport)
             .then_some(&entry.frame)
@@ -47,6 +51,9 @@ impl RetainedSurfaceFrameCache {
         viewport: Vector2,
         frame: PaintFrame,
     ) {
+        if descriptor.volatile || descriptor.dirty_mask != 0 {
+            return;
+        }
         self.entry = Some(RetainedSurfaceFrameCacheEntry {
             descriptor,
             rect,

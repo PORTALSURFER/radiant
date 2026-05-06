@@ -312,6 +312,9 @@ pub struct RetainedSurfaceDescriptor {
     pub revision: u64,
     /// Host-defined dirty segment bitmask for the latest projection.
     pub dirty_mask: u64,
+    /// Whether the host-retained surface has dynamic paint that must be
+    /// re-rendered whenever the runtime is asked to repaint it.
+    pub volatile: bool,
 }
 
 impl CanvasWidget {

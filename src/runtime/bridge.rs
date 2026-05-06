@@ -67,7 +67,7 @@ pub trait RuntimeBridge<Message> {
     /// `false`. Hosts with active playback, motion, or transient animation can
     /// opt into frame-interval redraws without making the native runtime poll
     /// while the UI is idle.
-    fn needs_animation(&self) -> bool {
+    fn needs_animation(&mut self) -> bool {
         false
     }
 

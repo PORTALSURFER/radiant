@@ -693,8 +693,6 @@ fn core_api_documentation_covers_public_boundary_concepts() {
         "LayoutOutput::rect_for_clamped",
         "grouped_fixed_width_row_width",
         "fixed_width_item_extent_for_available_width",
-        "ContentListPanel<Row, Editor>",
-        "ContentListActions",
         "SignalChromeState",
         "horizontal_progress_fill_rect",
         "horizontal_progress_activity_rect",

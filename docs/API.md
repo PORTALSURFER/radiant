@@ -129,11 +129,6 @@ Dense card or tile grids can use `VirtualGridWindowRequest` and
 `VirtualGridWindow` from the same module to resolve an allocation-free
 row-major item window before projecting visible grid cells into
 `SurfaceNode::grid` or a virtual scroll area.
-`ContentListPanel<Row, Editor>` provides retained, product-neutral state for
-searchable and filterable large-list panels while hosts own row and editor
-payload semantics.
-`ContentListActions` provides product-neutral action availability for
-content-list toolbars and context menus.
 Timeline and signal visualizations can use `SignalChromeState` for reusable
 status/reference/channel chrome, `SignalToolState` for generic enabled/visible
 tool flags, `SignalRasterPreview` for retained raster image payloads and

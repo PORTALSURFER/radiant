@@ -741,9 +741,9 @@ pub struct TimelineMarkerPreview {
     /// Whether this marker is marked for a host-defined output operation.
     pub marked_for_export: bool,
     /// Whether this marker belongs to a cleanup/review candidate batch.
-    pub duplicate_cleanup_candidate: bool,
+    pub review_candidate: bool,
     /// Whether this marker is currently exempted from cleanup/review.
-    pub duplicate_cleanup_exempted: bool,
+    pub review_exempted: bool,
 }
 
 #[cfg(test)]
@@ -1057,16 +1057,16 @@ mod tests {
             selected: true,
             focused: false,
             marked_for_export: true,
-            duplicate_cleanup_candidate: true,
-            duplicate_cleanup_exempted: false,
+            review_candidate: true,
+            review_exempted: false,
         };
 
         assert_eq!(marker.range.start_micros, 100_000);
         assert!(marker.selected);
         assert!(!marker.focused);
         assert!(marker.marked_for_export);
-        assert!(marker.duplicate_cleanup_candidate);
-        assert!(!marker.duplicate_cleanup_exempted);
+        assert!(marker.review_candidate);
+        assert!(!marker.review_exempted);
     }
 
     #[test]
@@ -1076,8 +1076,8 @@ mod tests {
             selected: true,
             focused: false,
             marked_for_export: false,
-            duplicate_cleanup_candidate: false,
-            duplicate_cleanup_exempted: false,
+            review_candidate: false,
+            review_exempted: false,
         };
         let surface = TimelineSurfaceState::new(
             TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),

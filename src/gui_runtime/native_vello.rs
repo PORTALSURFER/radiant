@@ -6,9 +6,8 @@ use crate::gui::{
     paint::{PaintFrame, Primitive, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
-use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
-use crate::theme::ThemeTokens;
-use crate::widgets::{PointerButton, WidgetKey};
+use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge};
+use crate::widgets::WidgetKey;
 use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},
@@ -30,7 +29,7 @@ use vello::{
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
-    event::{ElementState, MouseButton, WindowEvent},
+    event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},

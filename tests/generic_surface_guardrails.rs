@@ -96,7 +96,10 @@ fn radiant_manifest_is_independent_of_parent_workspace_crates() {
     let mut violations = Vec::new();
 
     for (line_index, line) in uncommented.lines().enumerate() {
-        let compact = line.chars().filter(|ch| !ch.is_whitespace()).collect::<String>();
+        let compact = line
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect::<String>();
         if compact.contains("path=\"..") || compact.contains("workspace=true") {
             violations.push(format!(
                 "Cargo.toml:{} must not depend on parent workspace crates",
@@ -163,7 +166,9 @@ fn behavior_test_suite_is_explicit_and_local_to_generic_surfaces() {
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_dir.display()))
         .map(|entry| {
             entry
-                .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", tests_dir.display()))
+                .unwrap_or_else(|err| {
+                    panic!("failed to read entry in {}: {err}", tests_dir.display())
+                })
                 .path()
         })
         .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("rs"))
@@ -177,14 +182,17 @@ fn behavior_test_suite_is_explicit_and_local_to_generic_surfaces() {
     test_files.sort();
 
     assert_eq!(
-        test_files,
-        REQUIRED_BEHAVIOR_TESTS,
+        test_files, REQUIRED_BEHAVIOR_TESTS,
         "Radiant integration tests should stay focused on generic layout, runtime, widget, and boundary behavior"
     );
     assert!(
         !tests_dir.join("shots").exists()
-            && !manifest_dir.join("src/gui_runtime/native_vello/tests").exists()
-            && !manifest_dir.join("src/gui_runtime/native_vello/tests.rs").exists(),
+            && !manifest_dir
+                .join("src/gui_runtime/native_vello/tests")
+                .exists()
+            && !manifest_dir
+                .join("src/gui_runtime/native_vello/tests.rs")
+                .exists(),
         "renderer snapshots and backend fixture trees should live with their owning host or backend suite"
     );
 }

@@ -294,6 +294,24 @@ impl ImageWidget {
 pub struct CanvasWidget {
     /// Shared widget contract.
     pub common: WidgetCommon,
+    /// Optional retained-surface metadata supplied by the host.
+    pub retained: Option<RetainedSurfaceDescriptor>,
+}
+
+/// Product-neutral metadata for a host-retained custom surface.
+///
+/// The descriptor lets a host attach stable cache identity, revision, and dirty
+/// mask information to a canvas without moving product model state into
+/// Radiant. Native backends can use this to avoid unnecessary full-surface
+/// recomputation while still treating the actual retained paint as host-owned.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RetainedSurfaceDescriptor {
+    /// Stable host-defined retained surface key.
+    pub key: u64,
+    /// Monotonic host-defined revision for this retained surface.
+    pub revision: u64,
+    /// Host-defined dirty segment bitmask for the latest projection.
+    pub dirty_mask: u64,
 }
 
 impl CanvasWidget {
@@ -309,7 +327,16 @@ impl CanvasWidget {
         common
             .emitted_messages
             .push(crate::widgets::contract::WidgetMessageKind::CanvasInput);
-        Self { common }
+        Self {
+            common,
+            retained: None,
+        }
+    }
+
+    /// Attach retained-surface metadata to this custom canvas.
+    pub fn with_retained_surface(mut self, descriptor: RetainedSurfaceDescriptor) -> Self {
+        self.retained = Some(descriptor);
+        self
     }
 
     /// Route one backend-neutral interaction into the custom surface.

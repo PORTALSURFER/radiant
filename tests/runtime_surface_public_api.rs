@@ -21,9 +21,9 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
-        ScrollbarAxis, ScrollbarMessage, SelectableMessage, TextInputMessage, TextInputWidget,
-        TextWidget, ToggleMessage, WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState,
-        WidgetStyle, resolve_widget_visual_tokens,
+        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, SelectableMessage,
+        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
+        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
@@ -56,6 +56,35 @@ fn generic_runtime_surface_projects_layout_without_legacy_app_contracts() {
     assert!(output.rects.contains_key(&10));
     assert!(output.rects.contains_key(&11));
     assert!(output.rects.contains_key(&12));
+}
+
+#[test]
+fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
+    let retained = RetainedSurfaceDescriptor {
+        key: 42,
+        revision: 7,
+        dirty_mask: 0b101,
+    };
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::retained_canvas_mapped(
+        90,
+        WidgetSizing::fixed(Vector2::new(240.0, 120.0)),
+        retained,
+        |message| match message {
+            CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+        },
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 120.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+
+    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
+        panic!("retained canvas should emit one custom surface primitive");
+    };
+    assert_eq!(custom.widget_id, 90);
+    assert_eq!(custom.retained, Some(retained));
 }
 
 #[test]

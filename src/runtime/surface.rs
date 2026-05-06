@@ -10,10 +10,10 @@ use crate::{
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget,
-        CardWidget, FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget, ScrollbarAxis,
-        ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
-        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
-        WidgetOutput, WidgetSizing, WidgetSpec,
+        CardWidget, FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget,
+        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
+        SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget, TextWidget,
+        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -590,6 +590,19 @@ impl<Message> SurfaceNode<Message> {
     ) -> Self {
         Self::widget(
             WidgetSpec::Canvas(CanvasWidget::new(id, sizing)),
+            WidgetMessageMapper::canvas(map),
+        )
+    }
+
+    /// Build a custom canvas with retained-surface metadata and a host-message mapper.
+    pub fn retained_canvas_mapped(
+        id: WidgetId,
+        sizing: WidgetSizing,
+        retained: RetainedSurfaceDescriptor,
+        map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::Canvas(CanvasWidget::new(id, sizing).with_retained_surface(retained)),
             WidgetMessageMapper::canvas(map),
         )
     }

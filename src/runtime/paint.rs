@@ -5,7 +5,8 @@ use crate::{
     layout::LayoutOutput,
     theme::ThemeTokens,
     widgets::{
-        PaintBounds, ScrollbarAxis, TextWrap, WidgetId, WidgetSpec, resolve_widget_visual_tokens,
+        PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, TextWrap, WidgetId, WidgetSpec,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -75,6 +76,8 @@ pub struct PaintCustomSurface {
     pub rect: Rect,
     /// Whether the custom paint is clipped to the assigned rectangle.
     pub bounds: PaintBounds,
+    /// Optional retained-surface metadata supplied by the host.
+    pub retained: Option<RetainedSurfaceDescriptor>,
 }
 
 /// Textured RGBA image primitive in logical surface coordinates.
@@ -293,6 +296,7 @@ pub(super) fn push_widget_paint(
                 widget_id: widget.id(),
                 rect: bounds,
                 bounds: canvas.common.paint.bounds,
+                retained: canvas.retained,
             }));
         }
     }

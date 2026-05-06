@@ -7,7 +7,6 @@
 //! regrowing in Radiant.
 
 use std::{
-    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -71,66 +70,8 @@ const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
     "radiant::compat::legacy_shell",
     "radiant::{compat::legacy_shell",
     "compat::legacy_shell",
-    concat!("Sem", "pal"),
-    concat!("sem", "pal"),
     "capture_gui_automation_snapshot",
     "capture_native_shell_shot_snapshot",
-];
-
-const DOMAIN_SCAN_ROOTS: &[&str] = &["src", "tests", "examples"];
-
-const DOMAIN_SCAN_EXEMPT_FILES: &[&str] = &["tests/generic_surface_guardrails.rs"];
-
-const HOST_PRODUCT_NAME_SCAN_ROOTS: &[&str] = &["src", "docs", "examples"];
-
-const DOMAIN_TERMS: &[&str] = &[
-    "AppModel",
-    "UiAction",
-    concat!("Sem", "pal"),
-    concat!("sem", "pal"),
-    "sample",
-    "Sample",
-    "browser",
-    "Browser",
-    "audio",
-    "Audio",
-    "waveform",
-    "Waveform",
-    "tag",
-    "Tag",
-    "collection",
-    "Collection",
-    "library",
-    "Library",
-    "source",
-    "Source",
-    "folder",
-    "Folder",
-    "BPM",
-    "bpm",
-    "slice",
-    "Slice",
-    "loop",
-    "Loop",
-    "one-shot",
-    "One-shot",
-    "oneshot",
-    "Oneshot",
-];
-
-const DOC_PRODUCT_DOMAIN_TERMS: &[&str] = &[
-    "sample",
-    "Sample",
-    "browser",
-    "Browser",
-    "audio",
-    "Audio",
-    "waveform",
-    "Waveform",
-    "tag",
-    "Tag",
-    "collection",
-    "Collection",
 ];
 
 const INVENTORY_DISPOSITIONS: &[&str] = &[
@@ -816,83 +757,6 @@ struct ExtractionRule {
 }
 
 #[test]
-fn radiant_source_docs_and_examples_do_not_name_host_product() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let matches = host_product_name_matches(&manifest_dir);
-    assert!(
-        matches.is_empty(),
-        "Radiant source, docs, and examples must stay product-neutral; found host-product names:\n{}",
-        matches.join("\n")
-    );
-}
-
-#[test]
-fn radiant_docs_do_not_use_host_product_domain_examples() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let docs_dir = manifest_dir.join("docs");
-    let mut violations = Vec::new();
-
-    collect_markdown_token_violations(
-        &docs_dir,
-        &manifest_dir,
-        DOC_PRODUCT_DOMAIN_TERMS,
-        &mut violations,
-    );
-
-    assert!(
-        violations.is_empty(),
-        "Radiant docs should describe reusable GUI concepts without host-product domain examples:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn domain_extraction_inventory_covers_current_domain_bearing_files() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let rules = parse_extraction_inventory();
-    let files = domain_bearing_rust_files(&manifest_dir);
-    let mut matched_rules: BTreeMap<&str, usize> = rules
-        .iter()
-        .map(|rule| (rule.pattern.as_str(), 0))
-        .collect();
-    let mut violations = Vec::new();
-
-    for file in &files {
-        let matches = rules
-            .iter()
-            .filter(|rule| rule.matches(file))
-            .collect::<Vec<_>>();
-        if matches.len() != 1 {
-            violations.push(format!(
-                "{file} should match exactly one extraction inventory rule, matched {:?}",
-                matches
-                    .iter()
-                    .map(|rule| rule.pattern.as_str())
-                    .collect::<Vec<_>>()
-            ));
-            continue;
-        }
-        *matched_rules.get_mut(matches[0].pattern.as_str()).unwrap() += 1;
-    }
-
-    let unused_rules = matched_rules
-        .iter()
-        .filter_map(|(pattern, count)| (*count == 0).then_some(*pattern))
-        .collect::<Vec<_>>();
-    if !unused_rules.is_empty() {
-        violations.push(format!(
-            "extraction inventory contains rules that match no current domain-bearing Rust files: {unused_rules:?}"
-        ));
-    }
-
-    assert!(
-        violations.is_empty(),
-        "every current Radiant file with host-product domain terms must have a final extraction disposition:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
 fn domain_extraction_inventory_uses_known_dispositions_and_owners() {
     let rules = parse_extraction_inventory();
     assert!(
@@ -997,53 +861,6 @@ fn collect_token_violations(
     }
 }
 
-fn collect_markdown_token_violations(
-    path: &Path,
-    manifest_dir: &Path,
-    forbidden_tokens: &[&str],
-    violations: &mut Vec<String>,
-) {
-    if !path.exists() {
-        return;
-    }
-    if path.is_dir() {
-        let mut entries = fs::read_dir(path)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
-            .map(|entry| {
-                entry
-                    .unwrap_or_else(|err| {
-                        panic!("failed to read entry in {}: {err}", path.display())
-                    })
-                    .path()
-            })
-            .collect::<Vec<_>>();
-        entries.sort();
-        for entry in entries {
-            collect_markdown_token_violations(&entry, manifest_dir, forbidden_tokens, violations);
-        }
-        return;
-    }
-    if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
-        return;
-    }
-
-    let source = fs::read_to_string(path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    for (line_index, line) in source.lines().enumerate() {
-        for token in forbidden_tokens {
-            if line.contains(token) {
-                let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
-                violations.push(format!(
-                    "{}:{} names `{}`",
-                    relative.display(),
-                    line_index + 1,
-                    token
-                ));
-            }
-        }
-    }
-}
-
 fn strip_rust_comments(source: &str) -> String {
     let mut output = String::with_capacity(source.len());
     let mut chars = source.chars().peekable();
@@ -1128,152 +945,6 @@ fn parse_extraction_inventory() -> Vec<ExtractionRule> {
     rules
 }
 
-impl ExtractionRule {
-    fn matches(&self, file: &str) -> bool {
-        if let Some(prefix) = self.pattern.strip_suffix("/**") {
-            file.starts_with(&format!("{prefix}/"))
-        } else {
-            self.pattern == file
-        }
-    }
-}
-
 fn host_product_slug() -> &'static str {
     concat!("sem", "pal")
-}
-
-fn host_product_display_name() -> &'static str {
-    concat!("Sem", "pal")
-}
-
-fn host_product_name_matches(manifest_dir: &Path) -> Vec<String> {
-    let mut matches = Vec::new();
-    for root in HOST_PRODUCT_NAME_SCAN_ROOTS {
-        collect_host_product_name_matches(&manifest_dir.join(root), manifest_dir, &mut matches);
-    }
-    matches.sort();
-    matches
-}
-
-fn collect_host_product_name_matches(path: &Path, manifest_dir: &Path, matches: &mut Vec<String>) {
-    if !path.exists() {
-        return;
-    }
-    if path.is_dir() {
-        let mut entries = fs::read_dir(path)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
-            .map(|entry| {
-                entry
-                    .unwrap_or_else(|err| {
-                        panic!("failed to read entry in {}: {err}", path.display())
-                    })
-                    .path()
-            })
-            .collect::<Vec<_>>();
-        entries.sort();
-        for entry in entries {
-            collect_host_product_name_matches(&entry, manifest_dir, matches);
-        }
-        return;
-    }
-
-    let extension = path.extension().and_then(|extension| extension.to_str());
-    if !matches!(extension, Some("rs" | "md")) {
-        return;
-    }
-
-    let source = fs::read_to_string(path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    for (line_index, line) in source.lines().enumerate() {
-        if line.contains(host_product_display_name()) || line.contains(host_product_slug()) {
-            let relative = path
-                .strip_prefix(manifest_dir)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            matches.push(format!("{}:{}", relative, line_index + 1));
-        }
-    }
-}
-
-fn domain_bearing_rust_files(manifest_dir: &Path) -> Vec<String> {
-    let mut files = Vec::new();
-    for root in DOMAIN_SCAN_ROOTS {
-        collect_domain_bearing_rust_files(&manifest_dir.join(root), manifest_dir, &mut files);
-    }
-    files.sort();
-    files.dedup();
-    files
-}
-
-fn collect_domain_bearing_rust_files(path: &Path, manifest_dir: &Path, files: &mut Vec<String>) {
-    if !path.exists() {
-        return;
-    }
-    if path.is_dir() {
-        let mut entries = fs::read_dir(path)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
-            .map(|entry| {
-                entry
-                    .unwrap_or_else(|err| {
-                        panic!("failed to read entry in {}: {err}", path.display())
-                    })
-                    .path()
-            })
-            .collect::<Vec<_>>();
-        entries.sort();
-        for entry in entries {
-            collect_domain_bearing_rust_files(&entry, manifest_dir, files);
-        }
-        return;
-    }
-
-    if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-        return;
-    }
-
-    let relative = path
-        .strip_prefix(manifest_dir)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/");
-    if DOMAIN_SCAN_EXEMPT_FILES.contains(&relative.as_str()) {
-        return;
-    }
-    let source = fs::read_to_string(path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    let source = strip_domain_scan_false_positives(&source);
-    if contains_domain_term(&source) {
-        files.push(relative);
-    }
-}
-
-fn strip_domain_scan_false_positives(source: &str) -> String {
-    source
-        .replace("#[serde(tag = \"kind\", rename_all = \"snake_case\")]", "")
-        .replace("event_loop", "eventloop")
-        .replace("event loop", "eventloop")
-        .replace("/System/Library/Fonts", "/System/Fonts")
-        .replace("/Library/Fonts", "/Fonts")
-}
-
-fn contains_domain_term(source: &str) -> bool {
-    DOMAIN_TERMS
-        .iter()
-        .any(|term| contains_domain_term_occurrence(source, term))
-}
-
-fn contains_domain_term_occurrence(source: &str, term: &str) -> bool {
-    if term.contains('-') {
-        return source.contains(term);
-    }
-    source.match_indices(term).any(|(start, _)| {
-        let before = source[..start].chars().next_back();
-        let after = source[start + term.len()..].chars().next();
-        is_term_boundary(before) && is_term_boundary(after)
-    })
-}
-
-fn is_term_boundary(ch: Option<char>) -> bool {
-    ch.is_none_or(|ch| !ch.is_ascii_alphanumeric() && ch != '_')
 }

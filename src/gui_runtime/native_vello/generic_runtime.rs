@@ -148,6 +148,10 @@ where
         self.runtime.paint_plan(&self.theme)
     }
 
+    fn refresh_surface(&mut self) {
+        self.runtime.refresh();
+    }
+
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         GenericRouteOutcome {
             routed,
@@ -371,7 +375,14 @@ where
 
     fn rebuild_scene(&mut self) {
         let plan = self.core.paint_plan();
-        encode_surface_paint_plan_to_scene(&plan, &mut self.scene, &mut self.text_renderer);
+        let viewport = self.core.runtime.viewport();
+        encode_surface_paint_plan_to_scene(
+            &plan,
+            &mut self.scene,
+            &mut self.text_renderer,
+            self.core.runtime.bridge_mut(),
+            viewport,
+        );
     }
 
     fn resize_surface(&mut self, size: winit::dpi::PhysicalSize<u32>) {
@@ -581,6 +592,7 @@ where
             RuntimeUserEvent::RepaintRequested => {
                 self.repaint_event_pending
                     .store(false, std::sync::atomic::Ordering::Release);
+                self.core.refresh_surface();
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
             }
@@ -632,11 +644,15 @@ fn generic_window_attributes(options: &NativeRunOptions) -> WindowAttributes {
     attrs
 }
 
-pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene(
+pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
-) {
+    bridge: &mut Bridge,
+    viewport: Vector2,
+) where
+    Bridge: RuntimeBridge<Message>,
+{
     scene.reset();
     let mut text_runs = Vec::new();
     for primitive in &plan.primitives {
@@ -709,6 +725,13 @@ pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene(
                 scene.draw_image(&image_data, transform);
             }
             PaintPrimitive::CustomSurface(custom) => {
+                if let Some(retained) = custom.retained
+                    && let Some(frame) =
+                        bridge.render_retained_surface(retained, custom.rect, viewport)
+                {
+                    encode_paint_frame_to_scene(&frame, scene, text_renderer);
+                    continue;
+                }
                 scene.stroke(
                     &vello::kurbo::Stroke::new(1.0),
                     Affine::IDENTITY,
@@ -725,6 +748,88 @@ pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene(
         }
     }
     text_renderer.draw_text_runs(scene, &text_runs);
+}
+
+fn encode_paint_frame_to_scene(
+    frame: &PaintFrame,
+    scene: &mut Scene,
+    text_renderer: &mut NativeTextRenderer,
+) {
+    for primitive in frame.primitives.iter() {
+        match primitive {
+            Primitive::Rect(fill) => {
+                scene.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    color_from_rgba(fill.color),
+                    None,
+                    &to_kurbo_rect(fill.rect),
+                );
+            }
+            Primitive::Circle(fill) => {
+                scene.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    color_from_rgba(fill.color),
+                    None,
+                    &Circle::new(
+                        (fill.center.x as f64, fill.center.y as f64),
+                        fill.radius as f64,
+                    ),
+                );
+            }
+            Primitive::LinearGradient(fill) => {
+                let mut gradient = Gradient::new_linear(
+                    KurboPoint::new(fill.start.x as f64, fill.start.y as f64),
+                    KurboPoint::new(fill.end.x as f64, fill.end.y as f64),
+                );
+                gradient
+                    .stops
+                    .push((0.0, color_from_rgba(fill.start_color)).into());
+                gradient
+                    .stops
+                    .push((1.0, color_from_rgba(fill.end_color)).into());
+                scene.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    &gradient,
+                    None,
+                    &to_kurbo_rect(fill.rect),
+                );
+            }
+            Primitive::Image(draw) => {
+                let (Ok(width), Ok(height)) = (
+                    u32::try_from(draw.image.width),
+                    u32::try_from(draw.image.height),
+                ) else {
+                    continue;
+                };
+                if width == 0
+                    || height == 0
+                    || draw.rect.width() <= 0.0
+                    || draw.rect.height() <= 0.0
+                {
+                    continue;
+                }
+                let image_data = ImageData {
+                    data: Blob::new(Arc::new(GenericSharedPixelBytes(Arc::clone(
+                        &draw.image.pixels,
+                    )))),
+                    format: ImageFormat::Rgba8,
+                    alpha_type: ImageAlphaType::Alpha,
+                    width,
+                    height,
+                };
+                let transform = Affine::translate((draw.rect.min.x as f64, draw.rect.min.y as f64))
+                    * Affine::scale_non_uniform(
+                        draw.rect.width() as f64 / f64::from(width),
+                        draw.rect.height() as f64 / f64::from(height),
+                    );
+                scene.draw_image(&image_data, transform);
+            }
+        }
+    }
+    text_renderer.draw_text_runs(scene, &frame.text_runs);
 }
 
 #[cfg(test)]
@@ -813,11 +918,18 @@ mod tests {
     #[test]
     fn generic_paint_plan_encodes_to_vello_scene() {
         let bridge = demo_bridge();
-        let core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+        let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
         let mut scene = Scene::new();
         let mut text_renderer = NativeTextRenderer::new();
+        let viewport = core.runtime.viewport();
 
-        encode_surface_paint_plan_to_scene(&core.paint_plan(), &mut scene, &mut text_renderer);
+        encode_surface_paint_plan_to_scene(
+            &core.paint_plan(),
+            &mut scene,
+            &mut text_renderer,
+            core.runtime.bridge_mut(),
+            viewport,
+        );
     }
 
     #[derive(Default)]

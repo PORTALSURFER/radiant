@@ -2,8 +2,14 @@
 
 use super::{Command, surface::UiSurface};
 use crate::gui::{
-    focus::FocusSurface, input::KeyPress, repaint::RepaintSignal, shortcuts::ShortcutResolution,
+    focus::FocusSurface,
+    input::KeyPress,
+    paint::PaintFrame,
+    repaint::RepaintSignal,
+    shortcuts::ShortcutResolution,
+    types::{Rect, Vector2},
 };
+use crate::widgets::RetainedSurfaceDescriptor;
 use std::sync::Arc;
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
@@ -54,6 +60,22 @@ pub trait RuntimeBridge<Message> {
     /// forward it to their worker systems rather than depending on backend
     /// internals.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
+
+    /// Render a host-retained custom surface into backend-neutral paint data.
+    ///
+    /// Generic widgets can reserve custom paint through a retained canvas while
+    /// keeping the actual application-specific rendering state host-owned. The
+    /// runtime supplies the retained descriptor, assigned canvas rectangle, and
+    /// current viewport. Hosts that do not use retained custom surfaces can rely
+    /// on the default `None` implementation.
+    fn render_retained_surface(
+        &mut self,
+        _descriptor: RetainedSurfaceDescriptor,
+        _rect: Rect,
+        _viewport: Vector2,
+    ) -> Option<PaintFrame> {
+        None
+    }
 
     /// Lifecycle hook fired when the native runtime exits.
     ///

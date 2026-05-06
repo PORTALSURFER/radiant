@@ -3,7 +3,7 @@
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::gui::{
     input::key_code_from_winit,
-    paint::{TextAlign, TextRun},
+    paint::{PaintFrame, Primitive, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge, SurfaceRuntime};
@@ -23,8 +23,8 @@ use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData, ImageAlphaType, ImageData, ImageFormat},
+    kurbo::{Affine, Circle, Point as KurboPoint, Rect as KurboRect},
+    peniko::{Blob, Color, Fill, FontData, Gradient, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{

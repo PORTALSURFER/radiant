@@ -357,6 +357,8 @@ where
         self.renderer = Some(renderer);
         self.rebuild_scene();
         self.startup_timing.mark_first_scene_ready();
+        window.set_visible(true);
+        self.startup_timing.mark_window_revealed();
         self.last_redraw = Instant::now();
         self.request_redraw_if_needed();
     }
@@ -527,8 +529,6 @@ where
         if !self.first_frame_presented {
             self.first_frame_presented = true;
             self.startup_timing.mark_first_presented();
-            window.set_visible(true);
-            self.startup_timing.mark_window_revealed();
             self.startup_timing.maybe_emit_summary();
         }
     }
@@ -934,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_native_window_starts_hidden_until_first_present() {
+    fn generic_native_window_starts_hidden_during_surface_setup() {
         let attrs = generic_window_attributes(&NativeRunOptions::default());
 
         assert!(!attrs.visible);

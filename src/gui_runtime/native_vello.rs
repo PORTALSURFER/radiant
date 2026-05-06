@@ -7,7 +7,7 @@ use crate::gui::{
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, RuntimeBridge};
-use crate::widgets::WidgetKey;
+use crate::widgets::{RetainedSurfaceDescriptor, WidgetKey};
 use skrifa::{
     MetadataProvider,
     instance::{LocationRef, Size as FontSize},

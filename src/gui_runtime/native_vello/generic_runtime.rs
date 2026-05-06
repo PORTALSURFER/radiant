@@ -12,7 +12,9 @@ pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, GenericRouteOutcome,
 };
 use input::{keypress_from_input, pointer_button_from_winit};
-pub(in crate::gui_runtime::native_vello) use scene::encode_surface_paint_plan_to_scene;
+pub(in crate::gui_runtime::native_vello) use scene::{
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, encode_surface_paint_plan_to_scene,
+};
 use window::generic_window_attributes;
 
 struct GenericSharedPixelBytes(Arc<[u8]>);
@@ -128,6 +130,7 @@ where
     renderer: Option<Renderer>,
     text_renderer: NativeTextRenderer,
     scene: Scene,
+    retained_surface_cache: RetainedSurfaceFrameCache,
     last_cursor: Option<Point>,
     repaint_event_pending: Arc<std::sync::atomic::AtomicBool>,
     modifiers: winit::keyboard::ModifiersState,
@@ -135,6 +138,7 @@ where
     startup_timing: StartupTimingProfile,
     first_frame_presented: bool,
     last_redraw: Instant,
+    last_scene_stats: RetainedSurfaceEncodeStats,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -152,6 +156,7 @@ where
             renderer: None,
             text_renderer: NativeTextRenderer::new(),
             scene: Scene::new(),
+            retained_surface_cache: RetainedSurfaceFrameCache::default(),
             last_cursor: None,
             repaint_event_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             modifiers: winit::keyboard::ModifiersState::default(),
@@ -159,6 +164,7 @@ where
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
             last_redraw: Instant::now(),
+            last_scene_stats: RetainedSurfaceEncodeStats::default(),
         }
     }
 
@@ -263,12 +269,13 @@ where
     fn rebuild_scene(&mut self) {
         let plan = self.core.paint_plan();
         let viewport = self.core.runtime.viewport();
-        encode_surface_paint_plan_to_scene(
+        self.last_scene_stats = encode_surface_paint_plan_to_scene(
             &plan,
             &mut self.scene,
             &mut self.text_renderer,
             self.core.runtime.bridge_mut(),
             viewport,
+            &mut self.retained_surface_cache,
         );
     }
 
@@ -386,6 +393,7 @@ where
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let plan = self.core.paint_plan();
+        let render_started = Instant::now();
         let render_result = renderer.render_to_texture(
             &dev_handle.device,
             &dev_handle.queue,
@@ -398,6 +406,7 @@ where
                 antialiasing_method: AaConfig::Area,
             },
         );
+        let render_to_texture_elapsed = render_started.elapsed();
         if let Err(err) = render_result {
             error!(
                 "radiant generic native vello: render_to_texture failed: {:?}",
@@ -420,6 +429,12 @@ where
         );
         dev_handle.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
+        maybe_log_render_profile(
+            "present",
+            self.last_scene_stats,
+            render_to_texture_elapsed,
+            self.last_redraw.elapsed(),
+        );
         self.last_redraw = Instant::now();
         if !self.first_frame_presented {
             self.first_frame_presented = true;
@@ -499,6 +514,10 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
+        if !self.core.needs_animation() {
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
+        }
         let now = Instant::now();
         let interval = animation_frame_interval(self.options.target_fps);
         let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
@@ -518,6 +537,33 @@ where
 fn animation_frame_interval(target_fps: u32) -> Duration {
     let fps = target_fps.clamp(1, 240);
     Duration::from_secs_f64(1.0 / f64::from(fps))
+}
+
+fn maybe_log_render_profile(
+    reason: &'static str,
+    stats: RetainedSurfaceEncodeStats,
+    render_to_texture_elapsed: Duration,
+    since_last_present: Duration,
+) {
+    if !render_profile_enabled() {
+        return;
+    }
+    info!(
+        reason,
+        retained_bridge_calls = stats.bridge_calls,
+        retained_cache_hits = stats.cache_hits,
+        retained_primitives = stats.primitive_count,
+        retained_text_runs = stats.text_run_count,
+        render_to_texture_us = render_to_texture_elapsed.as_micros(),
+        since_last_present_us = since_last_present.as_micros(),
+        "radiant native render profile"
+    );
+}
+
+fn render_profile_enabled() -> bool {
+    std::env::var("RADIANT_NATIVE_RENDER_PROFILE")
+        .ok()
+        .is_some_and(|value| crate::env_flags::is_truthy(&value))
 }
 
 #[cfg(test)]

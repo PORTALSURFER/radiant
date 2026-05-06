@@ -61,6 +61,16 @@ pub trait RuntimeBridge<Message> {
     /// internals.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
 
+    /// Return whether the host currently needs animation-driven redraws.
+    ///
+    /// Generic declarative hosts can stay repaint-driven by using the default
+    /// `false`. Hosts with active playback, motion, or transient animation can
+    /// opt into frame-interval redraws without making the native runtime poll
+    /// while the UI is idle.
+    fn needs_animation(&self) -> bool {
+        false
+    }
+
     /// Render a host-retained custom surface into backend-neutral paint data.
     ///
     /// Generic widgets can reserve custom paint through a retained canvas while

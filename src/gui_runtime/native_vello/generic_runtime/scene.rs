@@ -3,16 +3,72 @@
 use super::GenericSharedPixelBytes;
 use crate::gui_runtime::native_vello::*;
 
+#[derive(Clone, Debug, Default)]
+pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
+    entry: Option<RetainedSurfaceFrameCacheEntry>,
+}
+
+#[derive(Clone, Debug)]
+struct RetainedSurfaceFrameCacheEntry {
+    descriptor: RetainedSurfaceDescriptor,
+    rect: UiRect,
+    viewport: Vector2,
+    frame: PaintFrame,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
+    pub bridge_calls: u32,
+    pub cache_hits: u32,
+    pub primitive_count: usize,
+    pub text_run_count: usize,
+}
+
+impl RetainedSurfaceFrameCache {
+    fn cached_frame(
+        &self,
+        descriptor: RetainedSurfaceDescriptor,
+        rect: UiRect,
+        viewport: Vector2,
+    ) -> Option<&PaintFrame> {
+        let entry = self.entry.as_ref()?;
+        (entry.descriptor.key == descriptor.key
+            && entry.descriptor.revision == descriptor.revision
+            && entry.descriptor.dirty_mask == 0
+            && entry.rect == rect
+            && entry.viewport == viewport)
+            .then_some(&entry.frame)
+    }
+
+    fn store(
+        &mut self,
+        descriptor: RetainedSurfaceDescriptor,
+        rect: UiRect,
+        viewport: Vector2,
+        frame: PaintFrame,
+    ) {
+        self.entry = Some(RetainedSurfaceFrameCacheEntry {
+            descriptor,
+            rect,
+            viewport,
+            frame,
+        });
+    }
+}
+
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
     bridge: &mut Bridge,
     viewport: Vector2,
-) where
+    retained_cache: &mut RetainedSurfaceFrameCache,
+) -> RetainedSurfaceEncodeStats
+where
     Bridge: RuntimeBridge<Message>,
 {
     scene.reset();
+    let mut stats = RetainedSurfaceEncodeStats::default();
     let mut text_runs = Vec::new();
     for primitive in &plan.primitives {
         match primitive {
@@ -55,12 +111,30 @@ pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<B
                 );
             }
             PaintPrimitive::CustomSurface(custom) => {
-                if let Some(retained) = custom.retained
-                    && let Some(frame) =
+                if let Some(retained) = custom.retained {
+                    if let Some(frame) =
+                        retained_cache.cached_frame(retained, custom.rect, viewport)
+                    {
+                        stats.cache_hits = stats.cache_hits.saturating_add(1);
+                        stats.primitive_count =
+                            stats.primitive_count.saturating_add(frame.primitives.len());
+                        stats.text_run_count =
+                            stats.text_run_count.saturating_add(frame.text_runs.len());
+                        encode_paint_frame_to_scene(frame, scene, text_renderer);
+                        continue;
+                    }
+                    stats.bridge_calls = stats.bridge_calls.saturating_add(1);
+                    if let Some(frame) =
                         bridge.render_retained_surface(retained, custom.rect, viewport)
-                {
-                    encode_paint_frame_to_scene(&frame, scene, text_renderer);
-                    continue;
+                    {
+                        stats.primitive_count =
+                            stats.primitive_count.saturating_add(frame.primitives.len());
+                        stats.text_run_count =
+                            stats.text_run_count.saturating_add(frame.text_runs.len());
+                        encode_paint_frame_to_scene(&frame, scene, text_renderer);
+                        retained_cache.store(retained, custom.rect, viewport, frame);
+                        continue;
+                    }
                 }
                 scene.stroke(
                     &vello::kurbo::Stroke::new(1.0),
@@ -78,6 +152,7 @@ pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<B
         }
     }
     text_renderer.draw_text_runs(scene, &text_runs);
+    stats
 }
 
 fn encode_paint_frame_to_scene(

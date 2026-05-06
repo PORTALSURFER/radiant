@@ -105,11 +105,26 @@ fn generic_core_drains_command_repaint_requests_after_routing() {
 }
 
 #[test]
+fn generic_core_is_repaint_driven_when_host_reports_no_animation() {
+    let core = GenericNativeRuntimeCore::new(demo_bridge(), Vector2::new(320.0, 40.0));
+
+    assert!(!core.needs_animation());
+}
+
+#[test]
+fn generic_core_preserves_animation_when_host_requests_it() {
+    let core = GenericNativeRuntimeCore::new(AnimatingBridge, Vector2::new(320.0, 40.0));
+
+    assert!(core.needs_animation());
+}
+
+#[test]
 fn generic_paint_plan_encodes_to_vello_scene() {
     let bridge = demo_bridge();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
     let mut scene = Scene::new();
     let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
     let viewport = core.runtime.viewport();
 
     encode_surface_paint_plan_to_scene(
@@ -118,7 +133,42 @@ fn generic_paint_plan_encodes_to_vello_scene() {
         &mut text_renderer,
         core.runtime.bridge_mut(),
         viewport,
+        &mut retained_cache,
     );
+}
+
+#[test]
+fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
+    let mut core =
+        GenericNativeRuntimeCore::new(RetainedBridge::default(), Vector2::new(320.0, 40.0));
+    let mut scene = Scene::new();
+    let mut text_renderer = NativeTextRenderer::new();
+    let mut retained_cache = RetainedSurfaceFrameCache::default();
+    let viewport = core.runtime.viewport();
+    let plan = core.paint_plan();
+
+    let first = encode_surface_paint_plan_to_scene(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        core.runtime.bridge_mut(),
+        viewport,
+        &mut retained_cache,
+    );
+    let second = encode_surface_paint_plan_to_scene(
+        &plan,
+        &mut scene,
+        &mut text_renderer,
+        core.runtime.bridge_mut(),
+        viewport,
+        &mut retained_cache,
+    );
+
+    assert_eq!(first.bridge_calls, 1);
+    assert_eq!(first.cache_hits, 0);
+    assert_eq!(second.bridge_calls, 0);
+    assert_eq!(second.cache_hits, 1);
+    assert_eq!(core.runtime.bridge().render_count, 1);
 }
 
 #[test]
@@ -230,6 +280,65 @@ fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMessage>> {
 #[derive(Default)]
 struct CanvasBridge {
     text: String,
+}
+
+#[derive(Default)]
+struct RetainedBridge {
+    render_count: usize,
+}
+
+struct AnimatingBridge;
+
+impl RuntimeBridge<DemoMessage> for AnimatingBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        demo_surface(&DemoState::default())
+    }
+
+    fn needs_animation(&self) -> bool {
+        true
+    }
+}
+
+impl RuntimeBridge<()> for RetainedBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
+            31,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            crate::widgets::RetainedSurfaceDescriptor {
+                key: 7,
+                revision: 1,
+                dirty_mask: 0,
+            },
+            |_| (),
+        )))
+    }
+
+    fn render_retained_surface(
+        &mut self,
+        _descriptor: crate::widgets::RetainedSurfaceDescriptor,
+        rect: UiRect,
+        _viewport: Vector2,
+    ) -> Option<PaintFrame> {
+        self.render_count += 1;
+        Some(PaintFrame {
+            clear_color: Rgba8 {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            primitives: vec![Primitive::Rect(crate::gui::paint::FillRect {
+                rect,
+                color: Rgba8 {
+                    r: 1,
+                    g: 2,
+                    b: 3,
+                    a: 255,
+                },
+            })],
+            text_runs: Vec::new(),
+        })
+    }
 }
 
 impl RuntimeBridge<String> for CanvasBridge {

@@ -357,8 +357,6 @@ where
         self.renderer = Some(renderer);
         self.rebuild_scene();
         self.startup_timing.mark_first_scene_ready();
-        window.set_visible(true);
-        self.startup_timing.mark_window_revealed();
         self.last_redraw = Instant::now();
         self.request_redraw_if_needed();
     }
@@ -529,6 +527,8 @@ where
         if !self.first_frame_presented {
             self.first_frame_presented = true;
             self.startup_timing.mark_first_presented();
+            window.set_visible(true);
+            self.startup_timing.mark_window_revealed();
             self.startup_timing.maybe_emit_summary();
         }
     }
@@ -626,7 +626,8 @@ fn generic_window_attributes(options: &NativeRunOptions) -> WindowAttributes {
     let mut attrs = Window::default_attributes()
         .with_title(options.title.clone())
         .with_maximized(options.maximized)
-        .with_decorations(options.decorations);
+        .with_decorations(options.decorations)
+        .with_visible(false);
     if let Some([w, h]) = options.inner_size {
         attrs = attrs.with_inner_size(Size::Logical(LogicalSize::new(w as f64, h as f64)));
     }
@@ -930,6 +931,13 @@ mod tests {
             core.runtime.bridge_mut(),
             viewport,
         );
+    }
+
+    #[test]
+    fn generic_native_window_starts_hidden_until_first_present() {
+        let attrs = generic_window_attributes(&NativeRunOptions::default());
+
+        assert!(!attrs.visible);
     }
 
     #[derive(Default)]

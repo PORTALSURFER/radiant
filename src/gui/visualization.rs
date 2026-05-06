@@ -307,8 +307,8 @@ pub struct SignalChromeState {
 pub struct SignalToolState {
     /// Whether the visualization's current mode is locked against host updates.
     pub lock_enabled: bool,
-    /// Whether alternate/audition behavior is enabled.
-    pub audition_enabled: bool,
+    /// Whether alternate preview behavior is enabled.
+    pub alternate_preview_enabled: bool,
     /// Whether the primary snap behavior is enabled.
     pub primary_snap_enabled: bool,
     /// Whether grid/guide alignment uses a relative anchor.
@@ -317,10 +317,10 @@ pub struct SignalToolState {
     pub secondary_snap_enabled: bool,
     /// Whether marker overlays are visible.
     pub markers_visible: bool,
-    /// Whether marker/review mode is active.
-    pub review_mode_enabled: bool,
-    /// Whether a host-defined cleanup action is available.
-    pub cleanup_available: bool,
+    /// Whether marker editing mode is active.
+    pub marker_mode_enabled: bool,
+    /// Whether a host-defined batch action is available.
+    pub batch_action_available: bool,
 }
 
 /// Cursor, playhead, and selected range for a normalized timeline.
@@ -400,7 +400,7 @@ pub struct TimelineSurfaceState<Marker = TimelineMarkerPreview> {
 /// This groups the retained timeline surface with reusable chrome and tool
 /// state for render passes that update overlays between full host projections.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct TimelineMotionState<Marker = TimelineMarkerPreview> {
+pub struct TimelineMotionState<Marker = TimelineMarkerPreview, Tools = SignalToolState> {
     /// Whether the host transport or animation input is currently running.
     pub transport_running: bool,
     /// Renderer-facing timeline surface state.
@@ -408,7 +408,7 @@ pub struct TimelineMotionState<Marker = TimelineMarkerPreview> {
     /// Reusable signal chrome/status state.
     pub chrome: SignalChromeState,
     /// Reusable signal tool state.
-    pub tools: SignalToolState,
+    pub tools: Tools,
 }
 
 impl TimelineTransportState {
@@ -492,13 +492,13 @@ impl<Marker> TimelineSurfaceState<Marker> {
     }
 }
 
-impl<Marker> TimelineMotionState<Marker> {
+impl<Marker, Tools> TimelineMotionState<Marker, Tools> {
     /// Build timeline motion state from explicit generic parts.
     pub fn new(
         transport_running: bool,
         surface: TimelineSurfaceState<Marker>,
         chrome: SignalChromeState,
-        tools: SignalToolState,
+        tools: Tools,
     ) -> Self {
         Self {
             transport_running,
@@ -513,13 +513,13 @@ impl Default for SignalToolState {
     fn default() -> Self {
         Self {
             lock_enabled: false,
-            audition_enabled: false,
+            alternate_preview_enabled: false,
             primary_snap_enabled: false,
             relative_grid_enabled: false,
             secondary_snap_enabled: false,
             markers_visible: true,
-            review_mode_enabled: false,
-            cleanup_available: false,
+            marker_mode_enabled: false,
+            batch_action_available: false,
         }
     }
 }
@@ -529,23 +529,23 @@ impl SignalToolState {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         lock_enabled: bool,
-        audition_enabled: bool,
+        alternate_preview_enabled: bool,
         primary_snap_enabled: bool,
         relative_grid_enabled: bool,
         secondary_snap_enabled: bool,
         markers_visible: bool,
-        review_mode_enabled: bool,
-        cleanup_available: bool,
+        marker_mode_enabled: bool,
+        batch_action_available: bool,
     ) -> Self {
         Self {
             lock_enabled,
-            audition_enabled,
+            alternate_preview_enabled,
             primary_snap_enabled,
             relative_grid_enabled,
             secondary_snap_enabled,
             markers_visible,
-            review_mode_enabled,
-            cleanup_available,
+            marker_mode_enabled,
+            batch_action_available,
         }
     }
 }
@@ -738,12 +738,6 @@ pub struct TimelineMarkerPreview {
     pub selected: bool,
     /// Whether this marker is focused for keyboard review.
     pub focused: bool,
-    /// Whether this marker is marked for a host-defined output operation.
-    pub marked_for_export: bool,
-    /// Whether this marker belongs to a cleanup/review candidate batch.
-    pub review_candidate: bool,
-    /// Whether this marker is currently exempted from cleanup/review.
-    pub review_exempted: bool,
 }
 
 #[cfg(test)]
@@ -949,13 +943,13 @@ mod tests {
         let tools = SignalToolState::new(true, true, false, true, false, true, true, false);
 
         assert!(tools.lock_enabled);
-        assert!(tools.audition_enabled);
+        assert!(tools.alternate_preview_enabled);
         assert!(!tools.primary_snap_enabled);
         assert!(tools.relative_grid_enabled);
         assert!(!tools.secondary_snap_enabled);
         assert!(tools.markers_visible);
-        assert!(tools.review_mode_enabled);
-        assert!(!tools.cleanup_available);
+        assert!(tools.marker_mode_enabled);
+        assert!(!tools.batch_action_available);
     }
 
     #[test]
@@ -1044,7 +1038,7 @@ mod tests {
     }
 
     #[test]
-    fn timeline_marker_preview_preserves_review_and_cleanup_state() {
+    fn timeline_marker_preview_preserves_range_and_focus_state() {
         let marker = TimelineMarkerPreview {
             range: NormalizedRange {
                 start_milli: 100,
@@ -1056,17 +1050,11 @@ mod tests {
             },
             selected: true,
             focused: false,
-            marked_for_export: true,
-            review_candidate: true,
-            review_exempted: false,
         };
 
         assert_eq!(marker.range.start_micros, 100_000);
         assert!(marker.selected);
         assert!(!marker.focused);
-        assert!(marker.marked_for_export);
-        assert!(marker.review_candidate);
-        assert!(!marker.review_exempted);
     }
 
     #[test]
@@ -1075,9 +1063,6 @@ mod tests {
             range: NormalizedRange::new(100, 200),
             selected: true,
             focused: false,
-            marked_for_export: false,
-            review_candidate: false,
-            review_exempted: false,
         };
         let surface = TimelineSurfaceState::new(
             TimelineViewport::new(10, 900, 10_000, 900_000, 10_000_000, 900_000_000),
@@ -1126,7 +1111,7 @@ mod tests {
         );
         assert_eq!(motion.chrome.status_hint, "moving");
         assert!(motion.chrome.reference_anchor_available);
-        assert!(motion.tools.audition_enabled);
-        assert!(motion.tools.cleanup_available);
+        assert!(motion.tools.alternate_preview_enabled);
+        assert!(motion.tools.batch_action_available);
     }
 }

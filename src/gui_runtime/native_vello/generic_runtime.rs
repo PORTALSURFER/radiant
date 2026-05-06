@@ -423,14 +423,9 @@ where
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         if let Some(text) = event.text.as_ref() {
-            for character in text.chars().filter(|character| !character.is_control()) {
-                if route_outcome.routed {
-                    break;
-                }
-                let outcome = self.core.route_character(character);
-                route_outcome.routed |= outcome.routed;
-                route_outcome.repaint_requested |= outcome.repaint_requested;
-            }
+            self.route_text_input(text, &mut route_outcome);
+        } else if let Key::Character(text) = &event.logical_key {
+            self.route_text_input(text.as_str(), &mut route_outcome);
         }
         if !route_outcome.routed && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
             let outcome = self.core.route_widget_key(WidgetKey::Backspace);
@@ -443,6 +438,18 @@ where
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         self.handle_route_outcome(route_outcome);
+    }
+
+    /// Route printable text from a keyboard event into the focused widget.
+    fn route_text_input(&mut self, text: &str, route_outcome: &mut GenericRouteOutcome) {
+        for character in text.chars().filter(|character| !character.is_control()) {
+            if route_outcome.routed {
+                break;
+            }
+            let outcome = self.core.route_character(character);
+            route_outcome.routed |= outcome.routed;
+            route_outcome.repaint_requested |= outcome.repaint_requested;
+        }
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
@@ -839,7 +846,10 @@ mod tests {
     use crate::{
         layout::{ContainerKind, ContainerPolicy, SlotParams},
         runtime::{Command, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-        widgets::{ButtonWidget, TextInputMessage, TextInputWidget, WidgetSizing, WidgetSpec},
+        widgets::{
+            ButtonWidget, CanvasMessage, TextInputMessage, TextInputWidget, WidgetInput,
+            WidgetSizing, WidgetSpec,
+        },
     };
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -890,6 +900,28 @@ mod tests {
         assert!(core.route_character('R').routed);
         assert!(core.route_widget_key(WidgetKey::Enter).routed);
         assert_eq!(core.runtime.bridge().state.name, "R");
+    }
+
+    #[test]
+    fn generic_canvas_can_receive_keyboard_focus_and_text_input() {
+        let bridge = CanvasBridge::default();
+        let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+        let canvas_point = core
+            .runtime
+            .layout()
+            .rects
+            .get(&21)
+            .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+            .expect("canvas should be laid out");
+
+        assert!(core.runtime.surface().keyboard_focus_order().contains(&21));
+        assert!(
+            core.route_pointer_press(canvas_point, PointerButton::Primary)
+                .routed
+        );
+        assert!(core.route_character('K').routed);
+
+        assert_eq!(core.runtime.bridge().text, "K");
     }
 
     #[test]
@@ -1024,5 +1056,30 @@ mod tests {
                 ),
             ],
         )))
+    }
+
+    #[derive(Default)]
+    struct CanvasBridge {
+        text: String,
+    }
+
+    impl RuntimeBridge<String> for CanvasBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+            Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+                21,
+                WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+                |message| match message {
+                    CanvasMessage::Input {
+                        input: WidgetInput::Character(character),
+                    } => character.to_string(),
+                    _ => String::new(),
+                },
+            )))
+        }
+
+        fn update(&mut self, message: String) -> Command<String> {
+            self.text.push_str(&message);
+            Command::none()
+        }
     }
 }

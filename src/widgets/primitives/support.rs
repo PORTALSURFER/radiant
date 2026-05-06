@@ -318,7 +318,7 @@ impl CanvasWidget {
     /// Build a canvas descriptor for custom paint and routed pointer/keyboard input.
     pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, WidgetKind::Canvas, sizing);
-        common.focus = FocusBehavior::Pointer;
+        common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::AllowOverflow;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,

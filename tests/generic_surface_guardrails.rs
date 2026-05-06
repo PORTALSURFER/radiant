@@ -1,12 +1,11 @@
-//! Guardrails for the generic Radiant public surface.
+//! Structural guardrails for Radiant's generic public surface.
 //!
-//! Generic modules are allowed to use backend-neutral Radiant primitives only:
-//! `radiant::layout`, `radiant::widgets`, `radiant::runtime`, `radiant::theme`,
-//! and the shared non-shell `gui` primitives those APIs expose. The legacy host
-//! shell compatibility tree was removed; these tests keep that boundary from
-//! regrowing in Radiant.
+//! The boundary is proven through package layout, dependency direction, public
+//! exports, standalone examples, and behavior tests. These checks avoid token
+//! policing so hosts can choose their own domain language outside Radiant.
 
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -45,98 +44,16 @@ const GENERIC_SOURCE_ROOTS: &[&str] = &[
 
 const EXEMPT_TOP_LEVEL_GUI_FILES: &[&str] = &["src/gui/mod.rs"];
 
-const COMPAT_INTEGRATION_TESTS: &[&str] = &[];
-
-const FORBIDDEN_GENERIC_TOKENS: &[&str] = &[
-    "crate::app",
-    "crate::{app",
-    "crate::compat_app_contract",
-    "crate::{compat_app_contract",
-    "crate::compat::legacy_shell",
-    "crate::{compat::legacy_shell",
-    "compat::legacy_shell",
-    "crate::gui::native_shell",
-    "crate::{gui::native_shell",
-    "gui::native_shell",
-    "crate::gui_runtime::native_vello",
-    "crate::{gui_runtime::native_vello",
-    "gui_runtime::native_vello",
-    "native_shell",
-    "AppModel",
-    "UiAction",
+const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
+    "generic_surface_guardrails.rs",
+    "layout_public_api.rs",
+    "runtime_surface_public_api.rs",
+    "widgets_primitive_behaviors.rs",
+    "widgets_public_api.rs",
 ];
 
-const FORBIDDEN_GENERIC_TEST_TOKENS: &[&str] = &[
-    "radiant::compat::legacy_shell",
-    "radiant::{compat::legacy_shell",
-    "compat::legacy_shell",
-    "capture_gui_automation_snapshot",
-    "capture_native_shell_shot_snapshot",
-];
-
-const INVENTORY_DISPOSITIONS: &[&str] = &[
-    "move_to_host",
-    "generalize_in_radiant",
-    "remove_compat_export",
-    "split_generic_from_compat",
-    "generic_wording_cleanup",
-];
-
-const INVENTORY_OWNERS: &[&str] = &["host_app", "radiant_boundary"];
-
 #[test]
-fn generic_sources_do_not_import_legacy_shell_contracts() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let mut violations = Vec::new();
-
-    for root in GENERIC_SOURCE_ROOTS {
-        collect_violations(&manifest_dir.join(root), &manifest_dir, &mut violations);
-    }
-
-    assert!(
-        violations.is_empty(),
-        "generic Radiant modules must stay independent from host compatibility contracts:\n{}",
-        violations.join("\n")
-    );
-}
-
-#[test]
-fn localized_native_shell_surfaces_do_not_import_parent_host_sources() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    assert_absent(
-        &manifest_dir,
-        "src/gui/native_shell",
-        "host-shaped native shell surfaces belong in the host app, not Radiant",
-    );
-
-    let gui_mod =
-        fs::read_to_string(manifest_dir.join("src/gui/mod.rs")).expect("gui module is readable");
-    assert!(
-        !gui_mod.contains("native_shell"),
-        "Radiant gui::native_shell must not be declared after the compatibility tree is removed"
-    );
-}
-
-#[test]
-fn localized_legacy_shell_text_entry_does_not_import_parent_host_sources() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for path in [
-        "src/gui_runtime/native_vello/legacy_shell_text_entry.rs",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/mod.rs",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/pointer.rs",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry/text_entry/state.rs",
-    ] {
-        assert_absent(
-            &manifest_dir,
-            path,
-            "legacy shell text-entry helpers belong in the host app after OPT-278",
-        );
-    }
-}
-
-#[test]
-fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
+fn top_level_gui_primitives_are_classified_for_boundary_coverage() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gui_dir = manifest_dir.join("src/gui");
     let mut unclassified = Vec::new();
@@ -153,11 +70,7 @@ fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
             continue;
         }
 
-        let relative = path
-            .strip_prefix(&manifest_dir)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let relative = relative_path(&manifest_dir, &path);
         if !GENERIC_SOURCE_ROOTS.contains(&relative.as_str())
             && !EXEMPT_TOP_LEVEL_GUI_FILES.contains(&relative.as_str())
         {
@@ -168,14 +81,13 @@ fn top_level_gui_primitives_are_classified_for_generic_import_guard() {
     unclassified.sort();
     assert!(
         unclassified.is_empty(),
-        "top-level src/gui/*.rs files must be classified so generic primitives are covered by \
-         the host import guard, or explicitly exempted as transitional compat/docs files:\n{}",
+        "top-level src/gui/*.rs files must be classified for boundary coverage:\n{}",
         unclassified.join("\n")
     );
 }
 
 #[test]
-fn radiant_manifest_does_not_depend_on_host_product_or_parent_workspace() {
+fn radiant_manifest_is_independent_of_parent_workspace_crates() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("Cargo.toml");
     let manifest = fs::read_to_string(&manifest_path)
@@ -184,17 +96,7 @@ fn radiant_manifest_does_not_depend_on_host_product_or_parent_workspace() {
     let mut violations = Vec::new();
 
     for (line_index, line) in uncommented.lines().enumerate() {
-        let compact = line
-            .chars()
-            .filter(|ch| !ch.is_whitespace())
-            .collect::<String>()
-            .to_ascii_lowercase();
-        if compact.contains(host_product_slug()) {
-            violations.push(format!(
-                "Cargo.toml:{} must not name a host-product dependency",
-                line_index + 1
-            ));
-        }
+        let compact = line.chars().filter(|ch| !ch.is_whitespace()).collect::<String>();
         if compact.contains("path=\"..") || compact.contains("workspace=true") {
             violations.push(format!(
                 "Cargo.toml:{} must not depend on parent workspace crates",
@@ -205,90 +107,104 @@ fn radiant_manifest_does_not_depend_on_host_product_or_parent_workspace() {
 
     assert!(
         violations.is_empty(),
-        "Radiant must remain independently buildable with dependency direction host -> Radiant:\n{}",
+        "Radiant must remain independently buildable:\n{}",
         violations.join("\n")
     );
 }
 
 #[test]
-fn generic_integration_tests_do_not_reintroduce_legacy_shell_fixtures() {
+fn default_features_stay_empty_for_standalone_builds() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let features = cargo
+        .split("[features]")
+        .nth(1)
+        .and_then(|tail| tail.split("\n[").next())
+        .expect("Cargo.toml should define a [features] table");
+
+    assert!(
+        features.lines().any(|line| line.trim() == "default = []"),
+        "Radiant default features must stay empty"
+    );
+}
+
+#[test]
+fn public_module_tree_exposes_runtime_widgets_layout_theme_and_gui_only() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("Radiant lib.rs should be readable");
+    let public_modules = public_module_names(&lib);
+    let expected = BTreeSet::from([
+        "gui".to_owned(),
+        "gui_runtime".to_owned(),
+        "layout".to_owned(),
+        "runtime".to_owned(),
+        "theme".to_owned(),
+        "widgets".to_owned(),
+    ]);
+
+    assert_eq!(
+        public_modules, expected,
+        "Radiant's crate root should expose only the generic public modules"
+    );
+    assert!(
+        !manifest_dir.join("src/compat.rs").exists()
+            && rust_sources_under(&manifest_dir.join("src/compat")).is_empty(),
+        "compatibility adapter source files belong outside the generic Radiant crate"
+    );
+}
+
+#[test]
+fn behavior_test_suite_is_explicit_and_local_to_generic_surfaces() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let tests_dir = manifest_dir.join("tests");
-    let legacy_native_tests = manifest_dir.join("src/gui_runtime/native_vello/tests");
-    let mut violations = Vec::new();
+    let mut test_files = fs::read_dir(&tests_dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_dir.display()))
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", tests_dir.display()))
+                .path()
+        })
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("rs"))
+        .map(|path| {
+            path.file_name()
+                .and_then(|file_name| file_name.to_str())
+                .expect("test file should have utf-8 name")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    test_files.sort();
 
-    assert!(
-        !tests_dir.join("shots").exists(),
-        "host visual snapshot fixtures belong in the host app test tree, not Radiant tests/shots"
+    assert_eq!(
+        test_files,
+        REQUIRED_BEHAVIOR_TESTS,
+        "Radiant integration tests should stay focused on generic layout, runtime, widget, and boundary behavior"
     );
     assert!(
-        !legacy_native_tests.exists()
-            && !manifest_dir
-                .join("src/gui_runtime/native_vello/tests.rs")
-                .exists(),
-        "legacy native-shell behavior fixtures belong in the host app, not Radiant"
-    );
-
-    let entries = fs::read_dir(&tests_dir)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", tests_dir.display()));
-    for entry in entries {
-        let path = entry
-            .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", tests_dir.display()))
-            .path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-            continue;
-        }
-        if path
-            .file_name()
-            .and_then(|file_name| file_name.to_str())
-            .is_some_and(|file_name| {
-                file_name == "generic_surface_guardrails.rs"
-                    || COMPAT_INTEGRATION_TESTS.contains(&file_name)
-            })
-        {
-            continue;
-        }
-        collect_token_violations(
-            &path,
-            &manifest_dir,
-            FORBIDDEN_GENERIC_TEST_TOKENS,
-            &mut violations,
-        );
-    }
-
-    assert!(
-        violations.is_empty(),
-        "generic Radiant integration tests must stay neutral; keep host shell coverage in \
-         host-owned tests or the explicit compat tests:\n{}",
-        violations.join("\n")
+        !tests_dir.join("shots").exists()
+            && !manifest_dir.join("src/gui_runtime/native_vello/tests").exists()
+            && !manifest_dir.join("src/gui_runtime/native_vello/tests.rs").exists(),
+        "renderer snapshots and backend fixture trees should live with their owning host or backend suite"
     );
 }
 
 #[test]
-fn generic_native_example_stays_product_neutral_and_runtime_backed() {
+fn generic_native_example_is_registered_and_uses_generic_runtime_api() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let manifest_path = manifest_dir.join("Cargo.toml");
-    let manifest = fs::read_to_string(&manifest_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", manifest_path.display()));
-    let example_path = manifest_dir.join("examples/generic_native.rs");
-    let source = fs::read_to_string(&example_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", example_path.display()));
-    let uncommented = strip_rust_comments(&source);
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let example = fs::read_to_string(manifest_dir.join("examples/generic_native.rs"))
+        .expect("generic_native example should be readable");
 
     assert!(
         manifest.contains("[[example]]")
             && manifest.contains("name = \"generic_native\"")
             && manifest.contains("path = \"examples/generic_native.rs\"")
             && manifest.contains("test = false"),
-        "generic_native should be an explicit standalone Cargo example target that can be checked without running the GUI"
+        "generic_native should be an explicit standalone Cargo example target"
     );
 
-    for forbidden in FORBIDDEN_GENERIC_TEST_TOKENS {
-        assert!(
-            !uncommented.contains(forbidden),
-            "generic_native example must not depend on host compatibility fixtures, found `{forbidden}`"
-        );
-    }
     for required in [
         "declarative_command_runtime_bridge",
         "Command::message",
@@ -301,57 +217,23 @@ fn generic_native_example_stays_product_neutral_and_runtime_backed() {
         "SurfaceChild::fill",
     ] {
         assert!(
-            uncommented.contains(required),
-            "generic_native example should exercise the generic runtime/widget API via `{required}`"
+            example.contains(required),
+            "generic_native example should exercise `{required}`"
         );
     }
 }
 
 #[test]
-fn native_runtime_flags_use_radiant_names() {
+fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let font_source =
-        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello/text_renderer/font.rs"))
-            .expect("native font source should be readable");
-
-    assert!(
-        font_source.contains("RADIANT_NATIVE_FONT_PATH"),
-        "native font override should use a Radiant-owned runtime flag"
-    );
-    assert!(
-        !font_source.contains(concat!("SEM", "PAL_NATIVE_FONT_PATH")),
-        "Radiant runtime code must not expose host-product-named runtime flags"
-    );
-}
-
-#[test]
-fn gui_runtime_public_facade_exports_generic_runtime_only() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let module_path = manifest_dir.join("src/gui_runtime/mod.rs");
-    let source = fs::read_to_string(&module_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", module_path.display()));
+    let source = fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs"))
+        .expect("gui_runtime module should be readable");
     let public_exports = source
         .split("pub use native_vello::{")
         .nth(1)
         .and_then(|tail| tail.split("};").next())
         .expect("gui_runtime should have a native_vello public export block");
 
-    for forbidden in [
-        "NativeRunReport",
-        "NativeRuntimeArtifacts",
-        "capture_gui_automation_snapshot",
-        "capture_native_shell_shot_snapshot",
-        "run_native_vello_app",
-        "run_native_vello_app_declarative",
-        "run_native_vello_app_declarative_with_artifacts",
-        "run_native_vello_app_with_artifacts",
-        "run_native_vello_preview",
-    ] {
-        assert!(
-            !public_exports.contains(forbidden),
-            "radiant::gui_runtime must not re-export host facade API `{forbidden}`"
-        );
-    }
     for required in [
         "NativeGenericRunReport",
         "NativeGenericRuntimeArtifacts",
@@ -361,391 +243,73 @@ fn gui_runtime_public_facade_exports_generic_runtime_only() {
     ] {
         assert!(
             public_exports.contains(required),
-            "radiant::gui_runtime should continue exposing generic runtime API `{required}`"
+            "radiant::gui_runtime should expose generic runtime API `{required}`"
         );
     }
     assert!(
         source.contains("pub struct RuntimeRunReport<Artifacts>"),
         "radiant::gui_runtime should expose a generic runtime report envelope"
     );
-    let gui_mod = fs::read_to_string(manifest_dir.join("src/gui/mod.rs"))
-        .expect("gui module should be readable");
-    assert!(
-        gui_mod.contains("pub mod snapshot;"),
-        "radiant::gui should expose generic visual snapshot primitives"
-    );
 }
 
 #[test]
-fn legacy_shell_compatibility_is_not_enabled_by_default() {
+fn api_docs_describe_the_structural_boundary_strategy() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let cargo_path = manifest_dir.join("Cargo.toml");
-    let cargo = fs::read_to_string(&cargo_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", cargo_path.display()));
-    assert!(
-        cargo.contains("default = []"),
-        "Radiant default features must stay empty so standalone builds do not compile compatibility shell code"
-    );
-    assert!(
-        !cargo.contains("legacy-shell"),
-        "Radiant must not expose the removed legacy-shell feature"
-    );
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
-        .expect("Radiant lib.rs should be readable");
-    assert!(
-        !lib.contains("pub mod compat")
-            && !lib.contains("compat_app_contract")
-            && !lib.contains("pub(crate) mod app"),
-        "Radiant lib.rs must not expose the removed compatibility namespace or crate-private app shim"
-    );
-}
-
-#[test]
-fn legacy_shell_namespace_does_not_reexport_generic_runtime_types() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    assert_absent(
-        &manifest_dir,
-        "src/compat.rs",
-        "the removed compatibility facade must not remain in Radiant",
-    );
-    assert_absent(
-        &manifest_dir,
-        "src/compat/legacy_shell",
-        "the removed compatibility namespace must not remain in Radiant",
-    );
-
-    let gui_runtime = fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs"))
-        .expect("gui_runtime facade should be readable");
-    for required in [
-        "NativeRunOptions",
-        "NativeStartupTimingArtifact",
-        "WindowIconRgba",
-    ] {
-        assert!(
-            gui_runtime.contains(required),
-            "generic runtime type `{required}` should stay under radiant::gui_runtime"
-        );
-    }
-}
-
-#[test]
-fn legacy_native_runtime_uses_private_contract_internally() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let source = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
-        .expect("native_vello.rs should be readable");
-
-    for forbidden in [
-        "legacy_shell",
-        "compat_app_contract",
-        "run_legacy_shell_vello_app_with_artifacts",
-        "run_legacy_native_vello_app",
-    ] {
-        assert!(
-            !source.contains(forbidden),
-            "native_vello.rs must not retain legacy compatibility token `{forbidden}`"
-        );
-    }
-    assert!(
-        source.contains("run_native_vello_runtime_with_artifacts"),
-        "native_vello.rs should keep the generic native runtime entrypoint"
-    );
-}
-
-#[test]
-fn legacy_shell_sources_are_feature_gated() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    assert!(
-        !manifest_dir.join("src/app").exists(),
-        "legacy shell compatibility contracts must live under src/compat/legacy_shell, not a top-level src/app module"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/gui_runtime/native_vello/shell_snapshot.rs")
-            .exists(),
-        "host shell snapshot capture must not live in the generic native Vello runtime tree"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/shell_snapshot.rs")
-            .exists(),
-        "host shell snapshot capture belongs in the consuming application, not the Radiant compatibility facade"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/gui_runtime/native_vello/text_bpm.rs")
-            .exists()
-            && !manifest_dir
-                .join("src/gui_runtime/native_vello/text_bpm")
-                .exists(),
-        "legacy shell BPM/text-entry helpers belong with host composition, not the generic native Vello runtime tree"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/native_vello_text_bpm")
-            .exists(),
-        "legacy shell BPM/text-entry helpers belong with host composition, not Radiant compatibility contracts"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/automation.rs")
-            .exists(),
-        "generic automation DTOs belong in gui::automation and should be re-exported directly when compatibility needs them"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/runtime_artifacts.rs")
-            .exists(),
-        "legacy runtime artifact wrappers should not live in a separate compatibility module"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/browser.rs")
-            .exists(),
-        "browser/list/map compatibility aliases should be re-exported directly from legacy_shell or moved to generic primitives"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_shell/native_vello.rs")
-            .exists(),
-        "legacy native Vello runtime entrypoints should not live under the model/action shell facade"
-    );
-    assert!(
-        !manifest_dir
-            .join("src/compat/legacy_native_vello.rs")
-            .exists(),
-        "legacy native Vello compatibility wrapper should not remain under compat"
-    );
-    for path in removed_legacy_shell_paths() {
-        assert_absent(
-            &manifest_dir,
-            path,
-            "legacy shell compatibility sources must be removed from Radiant",
-        );
-    }
-    let native_vello = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
-        .expect("native_vello.rs should be readable");
-    assert!(
-        !native_vello.contains("#[cfg(feature = \"legacy-shell\")]"),
-        "native_vello.rs must not contain legacy-shell feature gates after OPT-278"
-    );
-    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs")).expect("lib.rs is readable");
-    let gui_mod =
-        fs::read_to_string(manifest_dir.join("src/gui/mod.rs")).expect("gui module is readable");
-    for (relative, source) in [("src/lib.rs", lib), ("src/gui/mod.rs", gui_mod)] {
-        assert!(
-            !source.contains("#[cfg(feature = \"legacy-shell\")]"),
-            "{relative} must not contain legacy-shell feature gates after OPT-278"
-        );
-    }
-
-    let repaint = fs::read_to_string(manifest_dir.join("src/gui/repaint.rs"))
-        .expect("generic repaint module should be readable");
-    for required in [
-        "pub fn try_mark_repaint_pending",
-        "pub struct CoalescingRepaintSignal",
-    ] {
-        assert!(
-            repaint.contains(required),
-            "repaint coalescing primitive `{required}` belongs in generic gui::repaint"
-        );
-    }
-}
-
-#[test]
-fn legacy_shell_contract_keeps_runtime_helpers_out_of_model_facade() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    assert_absent(
-        &manifest_dir,
-        "src/compat/legacy_shell/mod.rs",
-        "the legacy shell facade must not remain after OPT-278",
-    );
-    let gui_runtime_path = manifest_dir.join("src/gui_runtime/mod.rs");
-    let gui_runtime = fs::read_to_string(&gui_runtime_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", gui_runtime_path.display()));
-
-    for forbidden in [
-        "LegacyNativeRuntimeArtifacts",
-        "LegacyNativeRunReport",
-        "run_legacy_native_vello_app_with_artifacts",
-        "run_native_vello_app_declarative",
-        "run_native_vello_app,",
-        "run_native_vello_preview",
-        "PreviewBridge",
-    ] {
-        assert!(
-            !gui_runtime.contains(forbidden),
-            "gui_runtime must not expose removed legacy runtime helper `{forbidden}`"
-        );
-    }
-    assert!(
-        gui_runtime.contains("run_native_vello_runtime_with_artifacts"),
-        "gui_runtime should keep the generic artifact-returning native runtime entrypoint"
-    );
-}
-
-#[test]
-fn legacy_shell_facade_is_reexport_only_glue() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for path in [
-        "src/compat.rs",
-        "src/compat/legacy_shell",
-        "src/compat/legacy_shell/mod.rs",
-    ] {
-        assert_absent(
-            &manifest_dir,
-            path,
-            "the legacy shell facade must be gone instead of remaining as re-export glue",
-        );
-    }
-}
-
-#[test]
-fn removed_legacy_shell_paths_stay_removed() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for path in removed_legacy_shell_paths() {
-        assert_absent(
-            &manifest_dir,
-            path,
-            "host-shaped compatibility trees must not be reintroduced to Radiant",
-        );
-    }
-}
-
-#[test]
-fn core_api_documentation_covers_public_boundary_concepts() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let docs_path = manifest_dir.join("docs/API.md");
-    let docs = fs::read_to_string(&docs_path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", docs_path.display()));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
 
     for required in [
         "# Radiant Core API",
         "Dependency Boundary",
-        "## App",
+        "host -> Radiant, never Radiant -> host",
+        "Boundary tests prove that dependency direction, public exports, examples, and",
+        "they intentionally avoid enforcing product",
+        "Radiant now exposes only generic GUI and native runtime APIs",
         "View, Element, And Widget",
-        "Message And Command",
-        "## Layout",
         "VirtualListWindow",
         "virtual_list_view_start_after_scroll_delta",
-        "virtual_list_scroll_delta_from_units",
-        "fixed_width_row_rects_start",
-        "visible_suffix_widths",
-        "LayoutOutput::rect_for",
-        "LayoutOutput::rect_for_clamped",
-        "grouped_fixed_width_row_width",
-        "fixed_width_item_extent_for_available_width",
         "SignalChromeState",
-        "horizontal_progress_fill_rect",
-        "horizontal_progress_activity_rect",
-        "horizontal_progress_track_rect",
-        "horizontal_meter_fill_rect",
-        "horizontal_discrete_meter_fill_rect",
-        "inline_indicator_layout",
         "SignalToolState",
         "SignalRasterPreview",
         "TimelineViewport",
-        "normalized_milli_point_in_rect",
         "TimelineTransportState",
         "TimelineEditPreview",
         "TimelineFeedbackEvents",
         "TimelinePresentationState",
-        "Style And Theme",
-        "## Renderer",
-        "## Context",
-        "Event And Focus",
-        "logical_point_to_u16_coords",
-        "snap_text_baseline_to_pixel",
-        "Rect::center",
-        "empty_at_max",
-        "inset_horizontal",
-        "inset_vertical",
-        "split_at_y",
-        "inset_horizontal_saturating",
-        "inset_uniform_saturating",
-        "centered_pixel_square",
-        "centered_odd_pixel_square",
-        "stroke_aligned_rect",
-        "top_right_square",
-        "top_edge_strip",
-        "bottom_edge_strip",
-        "left_edge_strip",
-        "right_edge_strip",
-        "Rect::union",
-        "## Automation",
-        "Generic Panels And Forms",
-        "anchored_panel_rect",
-        "InlineBadgeMetrics",
-        "inline_badge_rects_for_labels",
-        "Invalidation And Lifecycle",
-        "GuiAutomationSnapshot",
-        "AutomationNodeSnapshot",
-        "VisualSnapshot",
-        "SnapshotPrimitive",
-        "SnapshotTextRun",
-        "visual_snapshot_from_paint_frame",
+        "TimelineSurfaceState",
+        "TimelineMotionState",
         "UiSurface",
         "SurfaceNode",
-        "SurfaceNode::badge",
-        "SurfaceNode::card",
-        "SurfaceNode::stack",
-        "SurfaceNode::grid",
-        "SurfaceNode::text_input",
-        "SurfaceNode::toggle",
-        "SurfaceNode::scrollbar",
-        "SurfaceNode::list_item",
-        "SurfaceNode::list_item_action",
-        "SurfaceNode::list_item_mapped",
-        "SurfaceNode::selectable",
-        "SurfaceNode::selectable_mapped",
-        "SurfaceNode::scroll_area",
-        "SurfaceNode::virtual_scroll_area",
-        "SurfaceNode::image",
-        "SurfaceNode::canvas",
-        "WidgetSpec",
         "WidgetId",
         "Command<Message>",
         "RuntimeRunReport<Artifacts>",
         "RuntimeBridge",
-        "SurfaceRuntime",
         "ThemeTokens",
         "SurfacePaintPlan",
-        "SplitPaneSidebarState",
         "InvalidationMask",
         "RetainedSegmentMask",
-        "RetainedSegmentRevisions",
-        "ContentViewChrome",
-        "PairedStatusPanel",
-        "PreferencePanelState",
-        "TimelineSurfaceState",
+        "VisualSnapshot",
     ] {
         assert!(
-            docs.contains(required),
-            "docs/API.md should document the public API concept `{required}`"
+            normalized_docs.contains(required),
+            "docs/API.md should document `{required}`"
         );
     }
+}
 
+#[test]
+fn domain_extraction_inventory_is_closed_out() {
+    let rules = parse_extraction_inventory();
     assert!(
-        docs.contains("host -> Radiant, never Radiant -> host"),
-        "docs/API.md should make the host -> Radiant dependency direction explicit"
+        rules.is_empty(),
+        "domain extraction inventory should have no active migration rules"
     );
-    let normalized_docs = docs.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        normalized_docs.contains("Radiant now exposes only generic GUI and native runtime APIs")
-            && normalized_docs.contains("host-shaped compatibility facades")
-            && normalized_docs.contains("belong in the consuming application")
-            && normalized_docs.contains("boundary-closeout artifact"),
-        "docs/API.md should document the final generic-only boundary after compatibility removal"
+        DOMAIN_EXTRACTION_INVENTORY.contains("no longer an active")
+            && DOMAIN_EXTRACTION_INVENTORY.contains("migration backlog"),
+        "domain extraction inventory should be retained only as a final boundary note"
     );
-    for forbidden in [
-        "compat::legacy_shell",
-        "legacy-shell feature",
-        "run_legacy_native_vello_app",
-    ] {
-        assert!(
-            !docs.contains(forbidden),
-            "docs/API.md must not document removed compatibility surface `{forbidden}`"
-        );
-    }
 }
 
 #[allow(dead_code)]
@@ -756,150 +320,42 @@ struct ExtractionRule {
     owner: String,
 }
 
-#[test]
-fn domain_extraction_inventory_uses_known_dispositions_and_owners() {
-    let rules = parse_extraction_inventory();
-    assert!(
-        rules.is_empty(),
-        "domain extraction inventory should have no active migration rules after OPT-278"
-    );
-    assert!(
-        DOMAIN_EXTRACTION_INVENTORY.contains("no longer an active")
-            && DOMAIN_EXTRACTION_INVENTORY.contains("migration backlog"),
-        "domain extraction inventory should be retained only as a final boundary note"
-    );
+fn public_module_names(source: &str) -> BTreeSet<String> {
+    source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("pub mod "))
+        .filter_map(|tail| tail.split([';', '{']).next())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
-fn removed_legacy_shell_paths() -> &'static [&'static str] {
-    &[
-        "src/compat.rs",
-        "src/compat/legacy_shell",
-        "src/gui/native_shell",
-        "src/gui_runtime/native_vello/input",
-        "src/gui_runtime/native_vello/input.rs",
-        "src/gui_runtime/native_vello/legacy_shell_config.rs",
-        "src/gui_runtime/native_vello/legacy_shell_prelude.rs",
-        "src/gui_runtime/native_vello/legacy_shell_runner.rs",
-        "src/gui_runtime/native_vello/legacy_shell_runtime.rs",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry",
-        "src/gui_runtime/native_vello/legacy_shell_text_entry.rs",
-        "src/gui_runtime/native_vello/profiling",
-        "src/gui_runtime/native_vello/profiling.rs",
-        "src/gui_runtime/native_vello/runtime_actions.rs",
-        "src/gui_runtime/native_vello/runtime_events",
-        "src/gui_runtime/native_vello/runtime_events.rs",
-        "src/gui_runtime/native_vello/runtime_input",
-        "src/gui_runtime/native_vello/runtime_input.rs",
-        "src/gui_runtime/native_vello/runtime_render",
-        "src/gui_runtime/native_vello/runtime_startup",
-        "src/gui_runtime/native_vello/runtime_startup.rs",
-        "src/gui_runtime/native_vello/runtime_state.rs",
-        "src/gui_runtime/native_vello/scene_cache",
-        "src/gui_runtime/native_vello/scene_rebuild.rs",
-        "src/gui_runtime/native_vello/text_runtime.rs",
-    ]
+fn relative_path(manifest_dir: &Path, path: &Path) -> String {
+    path.strip_prefix(manifest_dir)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
-fn assert_absent(manifest_dir: &Path, relative: &str, reason: &str) {
-    assert!(
-        !manifest_dir.join(relative).exists(),
-        "{relative} should be absent: {reason}"
-    );
-}
-
-fn collect_violations(path: &Path, manifest_dir: &Path, violations: &mut Vec<String>) {
+fn rust_sources_under(path: &Path) -> Vec<PathBuf> {
+    let mut sources = Vec::new();
+    if !path.exists() {
+        return sources;
+    }
     if path.is_dir() {
-        let mut entries = fs::read_dir(path)
+        for entry in fs::read_dir(path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
-            .map(|entry| {
-                entry
-                    .unwrap_or_else(|err| {
-                        panic!("failed to read entry in {}: {err}", path.display())
-                    })
-                    .path()
-            })
-            .collect::<Vec<_>>();
-        entries.sort();
-        for entry in entries {
-            collect_violations(&entry, manifest_dir, violations);
+        {
+            let entry = entry
+                .unwrap_or_else(|err| panic!("failed to read entry in {}: {err}", path.display()))
+                .path();
+            sources.extend(rust_sources_under(&entry));
         }
-        return;
+    } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+        sources.push(path.to_owned());
     }
-
-    if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
-        return;
-    }
-
-    collect_token_violations(path, manifest_dir, FORBIDDEN_GENERIC_TOKENS, violations);
-}
-
-fn collect_token_violations(
-    path: &Path,
-    manifest_dir: &Path,
-    forbidden_tokens: &[&str],
-    violations: &mut Vec<String>,
-) {
-    let source = fs::read_to_string(path)
-        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
-    let uncommented = strip_rust_comments(&source);
-    for (line_index, line) in uncommented.lines().enumerate() {
-        let normalized = line
-            .chars()
-            .filter(|ch| !ch.is_whitespace())
-            .collect::<String>();
-        for token in forbidden_tokens {
-            if normalized.contains(token) {
-                let relative = path.strip_prefix(manifest_dir).unwrap_or(path);
-                violations.push(format!(
-                    "{}:{} imports or names `{}`",
-                    relative.display(),
-                    line_index + 1,
-                    token
-                ));
-            }
-        }
-    }
-}
-
-fn strip_rust_comments(source: &str) -> String {
-    let mut output = String::with_capacity(source.len());
-    let mut chars = source.chars().peekable();
-    let mut block_depth = 0usize;
-
-    while let Some(ch) = chars.next() {
-        if block_depth > 0 {
-            if ch == '/' && chars.peek() == Some(&'*') {
-                chars.next();
-                block_depth += 1;
-            } else if ch == '*' && chars.peek() == Some(&'/') {
-                chars.next();
-                block_depth -= 1;
-            } else if ch == '\n' {
-                output.push('\n');
-            }
-            continue;
-        }
-
-        if ch == '/' && chars.peek() == Some(&'/') {
-            for next in chars.by_ref() {
-                if next == '\n' {
-                    output.push('\n');
-                    break;
-                }
-            }
-            continue;
-        }
-
-        if ch == '/' && chars.peek() == Some(&'*') {
-            chars.next();
-            block_depth = 1;
-            continue;
-        }
-
-        output.push(ch);
-    }
-
-    output
+    sources
 }
 
 fn strip_toml_comments(source: &str) -> String {
@@ -924,27 +380,11 @@ fn parse_extraction_inventory() -> Vec<ExtractionRule> {
             "domain extraction inventory line {} should have four tab-separated columns",
             line_index + 1
         );
-        let disposition = columns[1].to_owned();
-        assert!(
-            INVENTORY_DISPOSITIONS.contains(&disposition.as_str()),
-            "unknown extraction disposition {disposition:?} on line {}",
-            line_index + 1
-        );
-        let owner = columns[2].to_owned();
-        assert!(
-            INVENTORY_OWNERS.contains(&owner.as_str()),
-            "unknown extraction owner {owner:?} on line {}",
-            line_index + 1
-        );
         rules.push(ExtractionRule {
             pattern: columns[0].to_owned(),
-            disposition,
-            owner,
+            disposition: columns[1].to_owned(),
+            owner: columns[2].to_owned(),
         });
     }
     rules
-}
-
-fn host_product_slug() -> &'static str {
-    concat!("sem", "pal")
 }

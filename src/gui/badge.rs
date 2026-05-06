@@ -28,8 +28,16 @@ pub struct PillEditorPanel<State> {
     pub input_value: String,
     /// Placeholder shown for the input when empty.
     pub input_placeholder: String,
+    /// Whether the input currently owns text-editing focus.
+    pub input_focused: bool,
+    /// Caret position measured in Unicode scalar values from the start.
+    pub input_caret: usize,
+    /// Selected text range measured in Unicode scalar values, when any.
+    pub input_selection: Option<(usize, usize)>,
     /// Exclusive or high-priority pill choices.
     pub exclusive_pills: [SelectablePill<State>; 2],
+    /// Accepted pills that are already applied to the represented target set.
+    pub accepted_pills: Vec<SelectablePill<State>>,
     /// Normal pill candidates from common usage or search.
     pub option_pills: Vec<SelectablePill<State>>,
     /// Create-new candidate when the input does not exactly match an existing option.

@@ -343,6 +343,7 @@ pub struct ViewNode<Message> {
     slot: SlotBehavior,
     padding: Insets,
     style: Option<WidgetStyle>,
+    hoverable: bool,
     text_wrap: Option<TextWrap>,
 }
 
@@ -529,6 +530,12 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Allow this styled container to show hover chrome.
+    pub fn hoverable(mut self) -> Self {
+        self.hoverable = true;
+        self
+    }
+
     /// Use the accent tone and strong prominence.
     pub fn primary(self) -> Self {
         self.style(primary_style())
@@ -617,6 +624,7 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
             slot: SlotBehavior::default(),
             padding: Insets::default(),
             style: None,
+            hoverable: false,
             text_wrap: None,
         }
     }
@@ -726,6 +734,7 @@ where
                     .collect();
                 if let Some(style) = self.style {
                     SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
                 } else {
                     SurfaceNode::container(id, policy, children)
                 }
@@ -743,12 +752,25 @@ where
                     .collect();
                 if let Some(style) = self.style {
                     SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
                 } else {
                     SurfaceNode::container(id, policy, children)
                 }
             }
             ViewNodeKind::Scroll { child } => {
-                SurfaceNode::scroll_area(id, child.lower(ids, child_scope))
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: crate::layout::OverflowPolicy::Scroll,
+                    padding: self.padding,
+                    ..ContainerPolicy::default()
+                };
+                let children = vec![SurfaceChild::fill(child.lower(ids, child_scope))];
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
             }
         }
     }
@@ -774,6 +796,7 @@ pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
         slot: SlotBehavior::default(),
         padding: Insets::default(),
         style: None,
+        hoverable: false,
         text_wrap: None,
     }
 }
@@ -833,6 +856,7 @@ impl ButtonBuilder {
             slot: SlotBehavior::default(),
             padding: Insets::default(),
             style: self.style,
+            hoverable: false,
             text_wrap: None,
         }
     }
@@ -921,6 +945,7 @@ impl ToggleBuilder {
             slot: SlotBehavior::default(),
             padding: Insets::default(),
             style: self.style,
+            hoverable: false,
             text_wrap: None,
         }
     }
@@ -1012,6 +1037,7 @@ impl TextInputBuilder {
             slot: SlotBehavior::default(),
             padding: Insets::default(),
             style: self.style,
+            hoverable: false,
             text_wrap: None,
         }
     }
@@ -1067,6 +1093,7 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
         slot: SlotBehavior::default(),
         padding: Insets::default(),
         style: None,
+        hoverable: false,
         text_wrap: None,
     }
 }
@@ -1092,6 +1119,7 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
         slot: SlotBehavior::default(),
         padding: Insets::default(),
         style: None,
+        hoverable: false,
         text_wrap: None,
     }
 }
@@ -1146,6 +1174,7 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
         slot: SlotBehavior::default(),
         padding: Insets::default(),
         style: None,
+        hoverable: false,
         text_wrap: None,
     }
 }
@@ -1168,7 +1197,9 @@ pub fn list<Message, Item>(
     items: impl IntoIterator<Item = Item>,
     project: impl FnMut(Item) -> ViewNode<Message>,
 ) -> ViewNode<Message> {
-    scroll_column(items, project).fill_height()
+    scroll_column(items, project)
+        .style(WidgetStyle::default())
+        .fill_height()
 }
 
 /// Build a keyed list row with full-width, fixed-height defaults.
@@ -1177,7 +1208,8 @@ pub fn list_row<Message>(
     children: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
     row_key(key, children)
-        .subtle()
+        .style(WidgetStyle::default())
+        .hoverable()
         .fill_width()
         .height(52.0)
         .padding_x(18.0)
@@ -1211,20 +1243,20 @@ fn default_text_sizing() -> WidgetSizing {
 }
 
 fn default_button_sizing(label: &str) -> WidgetSizing {
-    let width = (label.chars().count() as f32 * 8.0 + 32.0).clamp(80.0, 240.0);
-    WidgetSizing::fixed(Vector2::new(width, 32.0))
+    let width = (label.chars().count() as f32 * 9.0 + 36.0).clamp(88.0, 260.0);
+    WidgetSizing::fixed(Vector2::new(width, 36.0)).with_baseline(23.0)
 }
 
 fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
     if compact {
-        return WidgetSizing::fixed(Vector2::new(24.0, 24.0)).with_baseline(17.0);
+        return WidgetSizing::fixed(Vector2::new(22.0, 22.0)).with_baseline(16.0);
     }
     let width = (label.chars().count() as f32 * 8.0 + 52.0).clamp(96.0, 280.0);
     WidgetSizing::fixed(Vector2::new(width, 30.0))
 }
 
 fn default_text_input_sizing() -> WidgetSizing {
-    WidgetSizing::new(Vector2::new(160.0, 32.0), Vector2::new(240.0, 32.0))
+    WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(280.0, 42.0)).with_baseline(26.0)
 }
 
 fn primary_style() -> WidgetStyle {

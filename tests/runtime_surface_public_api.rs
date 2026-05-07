@@ -6,7 +6,7 @@ use radiant::{
         input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
         shortcuts::ShortcutResolution,
-        types::ImageRgba,
+        types::{ImageRgba, Rgba8},
     },
     layout::{
         Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
@@ -373,7 +373,7 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
         WidgetSpec::Toggle(toggle) => {
             assert_eq!(toggle.props.label, "");
             assert!(toggle.state.checked);
-            assert_eq!(toggle.common.sizing.preferred, Vector2::new(24.0, 24.0));
+            assert_eq!(toggle.common.sizing.preferred, Vector2::new(22.0, 22.0));
         }
         other => panic!("expected toggle-backed checkbox widget, got {other:?}"),
     }
@@ -386,6 +386,127 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
         }
         other => panic!("expected text input widget, got {other:?}"),
     }
+}
+
+#[test]
+fn checkbox_hover_changes_paint_chrome() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::checkbox(false)
+        .message(|_| DemoMessage::SetActive(false))
+        .id(10)
+        .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(64.0, 64.0));
+    let theme = ThemeTokens::default();
+    let before = widget_fill_color(&runtime.paint_plan(&theme), 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(12.0, 12.0),
+    });
+    let after = widget_fill_color(&runtime.paint_plan(&theme), 10);
+
+    assert_ne!(before, after);
+}
+
+#[test]
+fn styled_list_row_hover_changes_container_chrome() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> =
+        ui::list_row("row", [ui::text("Hover row").id(20).fill_width()])
+            .id(10)
+            .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
+    let theme = ThemeTokens::default();
+    let before_plan = runtime.paint_plan(&theme);
+    let before = widget_fill_color(&before_plan, 10);
+    let border_before = widget_stroke_color(&before_plan, 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(12.0, 12.0),
+    });
+    let after_plan = runtime.paint_plan(&theme);
+    let after = widget_fill_color(&after_plan, 10);
+    let border_after = widget_stroke_color(&after_plan, 10);
+    let hover_markers: Vec<_> = after_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == 10
+                    && fill.color == theme.accent_danger
+                    && fill.rect.width() <= 3.0 =>
+            {
+                Some(fill)
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(runtime.hovered_container(), Some(10));
+    assert_ne!(before, after);
+    assert_eq!(border_before, border_after);
+    assert_eq!(hover_markers.len(), 1);
+}
+
+#[test]
+fn static_styled_container_does_not_hover_without_opt_in() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::row([ui::text("Header").id(20)])
+        .id(10)
+        .style(WidgetStyle::default())
+        .padding(8.0)
+        .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
+    let theme = ThemeTokens::default();
+    let before = widget_fill_color(&runtime.paint_plan(&theme), 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(12.0, 12.0),
+    });
+    let after = widget_fill_color(&runtime.paint_plan(&theme), 10);
+
+    assert_eq!(runtime.hovered_container(), None);
+    assert_eq!(before, after);
+}
+
+#[test]
+fn control_hover_suppresses_surrounding_container_hover_chrome() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::column([ui::text_input("")
+        .placeholder("Type")
+        .message(DemoMessage::Rename)
+        .id(20)
+        .size(180.0, 32.0)])
+    .id(10)
+    .style(WidgetStyle::default())
+    .padding(8.0)
+    .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 64.0));
+    let theme = ThemeTokens::default();
+    let before = runtime.paint_plan(&theme);
+    let body_before = widget_fill_color(&before, 10);
+    let input_before = widget_fill_color(&before, 20);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(12.0, 12.0),
+    });
+    let after = runtime.paint_plan(&theme);
+
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(runtime.hovered_container(), None);
+    assert_eq!(body_before, widget_fill_color(&after, 10));
+    assert_ne!(input_before, widget_fill_color(&after, 20));
 }
 
 #[test]
@@ -823,13 +944,21 @@ fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {
             |primitive| matches!(primitive, PaintPrimitive::ClipEnd(clip) if clip.node_id == 31),
         )
         .expect("scroll paint should end the clip");
-    let scrollbar_after_clip = plan.primitives.iter().skip(clip_end + 1).any(
-        |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31),
-    );
+    let scrollbar_fills: Vec<_> = plan
+        .primitives
+        .iter()
+        .skip(clip_end + 1)
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == 31 => Some(fill),
+            _ => None,
+        })
+        .collect();
 
     assert!(clip_start < clip_end);
-    assert!(clip.rect.max.x < layout.rects[&31].max.x);
-    assert!(scrollbar_after_clip);
+    assert_eq!(clip.rect, layout.rects[&31]);
+    assert_eq!(scrollbar_fills.len(), 1);
+    assert!(scrollbar_fills[0].rect.width() <= 3.0);
+    assert_eq!(scrollbar_fills[0].rect.max.x, layout.rects[&31].max.x);
 }
 
 #[test]
@@ -1700,7 +1829,7 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
             _ => None,
         })
         .collect();
-    assert_eq!(fills, vec![(12, theme.surface_raised)]);
+    assert_eq!(fills, vec![(12, theme.bg_primary)]);
 
     let button_polygons: Vec<_> = runtime_plan
         .primitives
@@ -1760,6 +1889,30 @@ fn button_hovered(surface: &UiSurface<DemoMessage>, widget_id: u64) -> bool {
         WidgetSpec::Button(button) => button.common.state.hovered,
         other => panic!("expected button widget, got {other:?}"),
     }
+}
+
+fn widget_fill_color(plan: &radiant::runtime::SurfacePaintPlan, widget_id: u64) -> Option<Rgba8> {
+    plan.primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::FillRect(fill) if fill.widget_id == widget_id => Some(fill.color),
+            PaintPrimitive::FillPolygon(fill) if fill.widget_id == widget_id => Some(fill.color),
+            _ => None,
+        })
+}
+
+fn widget_stroke_color(plan: &radiant::runtime::SurfacePaintPlan, widget_id: u64) -> Option<Rgba8> {
+    plan.primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::StrokeRect(stroke) if stroke.widget_id == widget_id => {
+                Some(stroke.color)
+            }
+            PaintPrimitive::StrokePolygon(stroke) if stroke.widget_id == widget_id => {
+                Some(stroke.color)
+            }
+            _ => None,
+        })
 }
 
 enum CommandDemoMessage {

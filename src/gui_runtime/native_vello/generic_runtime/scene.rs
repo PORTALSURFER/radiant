@@ -103,6 +103,9 @@ where
             PaintPrimitive::StrokePolygon(stroke) => {
                 encode_polygon_stroke(scene, stroke.color, stroke.width, &stroke.points);
             }
+            PaintPrimitive::StrokePolyline(stroke) => {
+                encode_polyline_stroke(scene, stroke.color, stroke.width, &stroke.points);
+            }
             PaintPrimitive::Text(text) => {
                 let align = match text.align {
                     PaintTextAlign::Left => TextAlign::Left,
@@ -277,6 +280,18 @@ fn encode_polygon_stroke(scene: &mut Scene, color: Rgba8, width: f32, points: &[
     }
 }
 
+fn encode_polyline_stroke(scene: &mut Scene, color: Rgba8, width: f32, points: &[Point]) {
+    if let Some(path) = polyline_path(points) {
+        scene.stroke(
+            &vello::kurbo::Stroke::new(width as f64),
+            Affine::IDENTITY,
+            color_from_rgba(color),
+            None,
+            &path,
+        );
+    }
+}
+
 fn polygon_path(points: &[Point]) -> Option<BezPath> {
     let first = points.first()?;
     let mut path = BezPath::new();
@@ -285,6 +300,16 @@ fn polygon_path(points: &[Point]) -> Option<BezPath> {
         path.line_to(KurboPoint::new(point.x as f64, point.y as f64));
     }
     path.close_path();
+    Some(path)
+}
+
+fn polyline_path(points: &[Point]) -> Option<BezPath> {
+    let first = points.first()?;
+    let mut path = BezPath::new();
+    path.move_to(KurboPoint::new(first.x as f64, first.y as f64));
+    for point in &points[1..] {
+        path.line_to(KurboPoint::new(point.x as f64, point.y as f64));
+    }
     Some(path)
 }
 

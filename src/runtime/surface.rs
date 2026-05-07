@@ -17,7 +17,7 @@ use crate::{
         RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
         SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget, TextWidget,
         ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
-        WidgetStyle,
+        WidgetState, WidgetStyle,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -218,6 +218,7 @@ pub struct SurfaceContainer<Message> {
     id: NodeId,
     policy: ContainerPolicy,
     style: Option<WidgetStyle>,
+    hoverable: bool,
     children: Vec<SurfaceChild<Message>>,
 }
 
@@ -227,6 +228,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
             id: self.id,
             policy: self.policy.clone(),
             style: self.style,
+            hoverable: self.hoverable,
             children: self.children.clone(),
         }
     }
@@ -239,6 +241,7 @@ impl<Message> SurfaceContainer<Message> {
             id,
             policy,
             style: None,
+            hoverable: false,
             children,
         }
     }
@@ -246,6 +249,12 @@ impl<Message> SurfaceContainer<Message> {
     /// Return this container with explicit chrome styling.
     pub fn with_style(mut self, style: WidgetStyle) -> Self {
         self.style = Some(style);
+        self
+    }
+
+    /// Return this container with hover chrome enabled.
+    pub fn with_hoverable(mut self, hoverable: bool) -> Self {
+        self.hoverable = hoverable;
         self
     }
 }
@@ -285,6 +294,14 @@ impl<Message> SurfaceNode<Message> {
         children: Vec<SurfaceChild<Message>>,
     ) -> Self {
         Self::Container(SurfaceContainer::new(id, policy, children).with_style(style))
+    }
+
+    /// Return this node with container hover chrome enabled when it is a container.
+    pub fn with_container_hoverable(mut self, hoverable: bool) -> Self {
+        if let Self::Container(container) = &mut self {
+            container.hoverable = hoverable;
+        }
+        self
     }
 
     /// Build a row container with default policy and the requested spacing.
@@ -788,6 +805,47 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    fn collect_styled_container_order(&self, order: &mut Vec<NodeId>) {
+        match self {
+            Self::Container(container) => {
+                if container.style.is_some() && container.hoverable {
+                    order.push(container.id);
+                }
+                for child in &container.children {
+                    child.child.collect_styled_container_order(order);
+                }
+            }
+            Self::Widget(_) => {}
+        }
+    }
+
+    fn collect_container_clip_ancestors(
+        &self,
+        scroll_stack: &mut Vec<NodeId>,
+        clips: &mut BTreeMap<NodeId, Vec<NodeId>>,
+    ) {
+        match self {
+            Self::Container(container) => {
+                let is_scroll = container.policy.kind == ContainerKind::ScrollView;
+                if is_scroll {
+                    scroll_stack.push(container.id);
+                }
+                if container.style.is_some() && container.hoverable && !scroll_stack.is_empty() {
+                    clips.insert(container.id, scroll_stack.clone());
+                }
+                for child in &container.children {
+                    child
+                        .child
+                        .collect_container_clip_ancestors(scroll_stack, clips);
+                }
+                if is_scroll {
+                    scroll_stack.pop();
+                }
+            }
+            Self::Widget(_) => {}
+        }
+    }
+
     fn scroll_content_id(&self, scroll_id: NodeId) -> Option<NodeId> {
         match self {
             Self::Container(container) => {
@@ -808,11 +866,22 @@ impl<Message> SurfaceNode<Message> {
         layout: &LayoutOutput,
         theme: &ThemeTokens,
         plan: &mut SurfacePaintPlan,
+        hovered_container: Option<NodeId>,
     ) {
         match self {
             Self::Container(container) => {
                 if let Some(style) = container.style {
-                    push_container_chrome(&mut plan.primitives, container.id, layout, theme, style);
+                    push_container_chrome(
+                        &mut plan.primitives,
+                        container.id,
+                        layout,
+                        theme,
+                        style,
+                        WidgetState {
+                            hovered: hovered_container == Some(container.id),
+                            ..WidgetState::default()
+                        },
+                    );
                 }
                 if container.policy.kind == ContainerKind::ScrollView {
                     if let Some(bounds) = layout.rects.get(&container.id).copied() {
@@ -822,7 +891,9 @@ impl<Message> SurfaceNode<Message> {
                             scroll_content_clip_rect(container.id, layout, bounds),
                         );
                         for child in &container.children {
-                            child.child.append_paint(layout, theme, plan);
+                            child
+                                .child
+                                .append_paint(layout, theme, plan, hovered_container);
                         }
                         push_clip_end(&mut plan.primitives, container.id);
                         if let Some(content_id) =
@@ -839,7 +910,9 @@ impl<Message> SurfaceNode<Message> {
                     }
                 } else {
                     for child in &container.children {
-                        child.child.append_paint(layout, theme, plan);
+                        child
+                            .child
+                            .append_paint(layout, theme, plan, hovered_container);
                     }
                 }
             }
@@ -903,8 +976,18 @@ impl<Message> UiSurface<Message> {
     /// Primitives are emitted in declarative tree order so backends and tests can
     /// compare output deterministically without depending on the native shell.
     pub fn paint_plan(&self, layout: &LayoutOutput, theme: &ThemeTokens) -> SurfacePaintPlan {
+        self.paint_plan_with_hover(layout, theme, None)
+    }
+
+    pub(super) fn paint_plan_with_hover(
+        &self,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+        hovered_container: Option<NodeId>,
+    ) -> SurfacePaintPlan {
         let mut plan = SurfacePaintPlan::empty(theme);
-        self.root.append_paint(layout, theme, &mut plan);
+        self.root
+            .append_paint(layout, theme, &mut plan, hovered_container);
         plan
     }
 
@@ -962,6 +1045,12 @@ impl<Message> UiSurface<Message> {
         order
     }
 
+    pub(super) fn styled_container_order(&self) -> Vec<NodeId> {
+        let mut order = Vec::new();
+        self.root.collect_styled_container_order(&mut order);
+        order
+    }
+
     pub(super) fn scroll_content_id(&self, scroll_id: NodeId) -> Option<NodeId> {
         self.root.scroll_content_id(scroll_id)
     }
@@ -970,6 +1059,13 @@ impl<Message> UiSurface<Message> {
         let mut clips = BTreeMap::new();
         self.root
             .collect_widget_clip_ancestors(&mut Vec::new(), &mut clips);
+        clips
+    }
+
+    pub(super) fn container_clip_ancestors(&self) -> BTreeMap<NodeId, Vec<NodeId>> {
+        let mut clips = BTreeMap::new();
+        self.root
+            .collect_container_clip_ancestors(&mut Vec::new(), &mut clips);
         clips
     }
 }

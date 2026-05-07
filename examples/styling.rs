@@ -20,6 +20,14 @@ fn main() -> radiant::Result {
                     toggle("Toggle", false).message(|_| ()),
                 ])
                 .spacing(8.0),
+                row([
+                    text("Hoverable row").fill_width(),
+                    button("Open").message(()),
+                ])
+                .style(WidgetStyle::default())
+                .hoverable()
+                .padding(8.0)
+                .spacing(8.0),
             ])
             .padding(16.0)
             .spacing(12.0),

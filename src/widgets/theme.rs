@@ -39,6 +39,10 @@ pub fn resolve_widget_visual_tokens(
         emphasis
     } else if state.pressed || state.active || state.selected {
         accent_fill(theme, emphasis)
+    } else if matches!(style.prominence, WidgetProminence::Subtle)
+        && !matches!(style.tone, WidgetTone::Neutral)
+    {
+        blend(theme.surface_raised, theme.surface_overlay, 0.45)
     } else {
         prominence_fill(theme, style.prominence)
     };
@@ -205,5 +209,30 @@ mod tests {
         assert_ne!(hovered.border, base.border);
         assert_ne!(pressed.fill, hovered.fill);
         assert_ne!(pressed.border, base.border);
+    }
+
+    #[test]
+    fn subtle_toned_controls_use_lifted_fill() {
+        let theme = ThemeTokens::default();
+        let neutral = resolve_widget_visual_tokens(
+            &theme,
+            WidgetStyle {
+                tone: WidgetTone::Neutral,
+                prominence: WidgetProminence::Subtle,
+            },
+            WidgetState::default(),
+        );
+        let danger = resolve_widget_visual_tokens(
+            &theme,
+            WidgetStyle {
+                tone: WidgetTone::Danger,
+                prominence: WidgetProminence::Subtle,
+            },
+            WidgetState::default(),
+        );
+
+        assert_eq!(neutral.fill, theme.surface_base);
+        assert_ne!(danger.fill, theme.surface_base);
+        assert_eq!(danger.foreground, theme.accent_danger);
     }
 }

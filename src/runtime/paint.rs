@@ -70,6 +70,19 @@ pub struct PaintStrokePolygon {
     pub width: f32,
 }
 
+/// Stroked open polyline primitive in logical surface coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintStrokePolyline {
+    /// Widget or node that produced this primitive.
+    pub widget_id: WidgetId,
+    /// Connected line points in paint order.
+    pub points: Vec<Point>,
+    /// Stroke color.
+    pub color: Rgba8,
+    /// Stroke width in logical pixels.
+    pub width: f32,
+}
+
 /// Single-line text primitive in logical surface coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaintTextRun {
@@ -146,6 +159,8 @@ pub enum PaintPrimitive {
     FillPolygon(PaintFillPolygon),
     /// Stroke a polygon.
     StrokePolygon(PaintStrokePolygon),
+    /// Stroke an open polyline.
+    StrokePolyline(PaintStrokePolyline),
     /// Paint one text run.
     Text(PaintTextRun),
     /// Paint an RGBA image stretched into one destination rectangle.
@@ -188,32 +203,12 @@ pub(super) fn push_scroll_affordance(
         return;
     }
 
-    let gutter = scroll_gutter_width();
-    let gutter_rect = Rect::from_min_max(
-        Point::new(viewport.max.x - gutter, viewport.min.y),
-        Point::new(viewport.max.x, viewport.max.y),
-    );
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: node_id,
-        rect: gutter_rect,
-        color: theme.bg_secondary,
-    }));
-    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-        widget_id: node_id,
-        rect: Rect::from_min_max(
-            gutter_rect.min,
-            Point::new(gutter_rect.min.x, gutter_rect.max.y),
-        ),
-        color: theme.grid_soft,
-        width: 1.0,
-    }));
-
-    let track_w = 4.0;
-    let inset = 4.0;
-    let track_x = gutter_rect.min.x + (gutter - track_w) * 0.5;
+    let track_w = 3.0;
+    let y_inset = 6.0;
+    let track_x = viewport.max.x - track_w;
     let track = Rect::from_min_max(
-        Point::new(track_x, viewport.min.y + inset),
-        Point::new(track_x + track_w, viewport.max.y - inset),
+        Point::new(track_x, viewport.min.y + y_inset),
+        Point::new(track_x + track_w, viewport.max.y - y_inset),
     );
     let max_scroll = (content_h - viewport_h).max(1.0);
     let scroll_y = (viewport.min.y - content.min.y).clamp(0.0, max_scroll);
@@ -226,13 +221,8 @@ pub(super) fn push_scroll_affordance(
 
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: node_id,
-        rect: track,
-        color: theme.grid_soft,
-    }));
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: node_id,
         rect: thumb,
-        color: theme.border_emphasis,
+        color: theme.grid_strong,
     }));
 }
 
@@ -247,17 +237,7 @@ pub(super) fn scroll_content_clip_rect(
     if overflow.policy != OverflowPolicy::Scroll || !overflow.y {
         return viewport;
     }
-    Rect::from_min_max(
-        viewport.min,
-        Point::new(
-            (viewport.max.x - scroll_gutter_width()).max(viewport.min.x),
-            viewport.max.y,
-        ),
-    )
-}
-
-fn scroll_gutter_width() -> f32 {
-    14.0
+    viewport
 }
 
 pub(super) fn push_container_chrome(
@@ -266,16 +246,45 @@ pub(super) fn push_container_chrome(
     layout: &LayoutOutput,
     theme: &ThemeTokens,
     style: WidgetStyle,
+    state: WidgetState,
 ) {
     let Some(bounds) = layout.rects.get(&node_id).copied() else {
         return;
     };
-    let tokens = resolve_widget_visual_tokens(theme, style, WidgetState::default());
+    let base_tokens = resolve_widget_visual_tokens(theme, style, WidgetState::default());
+    let tokens = if state.hovered {
+        base_tokens
+    } else {
+        resolve_widget_visual_tokens(theme, style, state)
+    };
+    let fill = if state.hovered {
+        blend_color(
+            base_tokens.fill,
+            theme.surface_overlay,
+            theme.state_hover_strong,
+        )
+    } else {
+        tokens.fill
+    };
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: node_id,
         rect: bounds,
-        color: tokens.fill,
+        color: fill,
     }));
+    if state.hovered {
+        let marker_height = (bounds.height() - 16.0).max(8.0).min(bounds.height());
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: node_id,
+            rect: Rect::from_min_size(
+                Point::new(
+                    bounds.min.x + 1.0,
+                    bounds.min.y + (bounds.height() - marker_height) * 0.5,
+                ),
+                crate::gui::types::Vector2::new(3.0, marker_height),
+            ),
+            color: theme.accent_danger,
+        }));
+    }
     primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
         widget_id: node_id,
         rect: bounds,
@@ -334,10 +343,11 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 text.text.clone(),
                 bounds,
-                text.common.sizing.baseline,
+                optical_centered_baseline(bounds, text_font_size(bounds)),
                 theme.text_primary,
                 PaintTextAlign::Left,
                 text.wrap,
+                text_font_size(bounds),
             );
         }
         WidgetSpec::Button(button) => {
@@ -347,18 +357,26 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 button.props.label.clone(),
                 inset_rect(bounds, 8.0, 4.0),
-                button.common.sizing.baseline,
+                optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), button_font_size(bounds)),
                 resolve_widget_visual_tokens(theme, button.common.style, button.common.state)
                     .foreground,
                 PaintTextAlign::Center,
                 TextWrap::None,
+                button_font_size(bounds),
             );
         }
         WidgetSpec::Toggle(toggle) => {
             let tokens =
                 resolve_widget_visual_tokens(theme, toggle.common.style, toggle.common.state);
             if toggle.props.label.is_empty() {
-                push_checkbox_chrome(primitives, widget.id(), bounds, theme, toggle.state.checked);
+                push_checkbox_chrome(
+                    primitives,
+                    widget.id(),
+                    bounds,
+                    theme,
+                    toggle.common.state,
+                    toggle.state.checked,
+                );
             } else {
                 push_control_chrome(primitives, widget, bounds, theme);
                 push_text_run(
@@ -366,15 +384,16 @@ pub(super) fn push_widget_paint(
                     widget.id(),
                     toggle.props.label.clone(),
                     inset_rect(bounds, 8.0, 4.0),
-                    toggle.common.sizing.baseline,
+                    optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), text_font_size(bounds)),
                     tokens.foreground,
                     PaintTextAlign::Left,
                     TextWrap::None,
+                    text_font_size(bounds),
                 );
             }
         }
         WidgetSpec::TextInput(input) => {
-            push_control_chrome(primitives, widget, bounds, theme);
+            push_text_input_chrome(primitives, widget, bounds, theme);
             let (value, color) = if input.state.value.is_empty() {
                 (
                     input.props.placeholder.clone().unwrap_or_default(),
@@ -392,10 +411,11 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 value,
                 inset_rect(bounds, 16.0, 4.0),
-                input.common.sizing.baseline,
+                optical_centered_baseline(inset_rect(bounds, 16.0, 4.0), input_font_size(bounds)),
                 color,
                 PaintTextAlign::Left,
                 TextWrap::None,
+                input_font_size(bounds),
             );
         }
         WidgetSpec::Scrollbar(scrollbar) => {
@@ -424,11 +444,12 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 item.label.clone(),
                 inset_rect(bounds, 8.0, 3.0),
-                item.common.sizing.baseline,
+                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
                 resolve_widget_visual_tokens(theme, item.common.style, item.common.state)
                     .foreground,
                 PaintTextAlign::Left,
                 TextWrap::None,
+                text_font_size(bounds),
             );
             if let Some(detail) = &item.detail {
                 push_text_run(
@@ -436,10 +457,14 @@ pub(super) fn push_widget_paint(
                     widget.id(),
                     detail.clone(),
                     inset_rect(bounds, bounds.width() * 0.5, 3.0),
-                    item.common.sizing.baseline,
+                    optical_centered_baseline(
+                        inset_rect(bounds, bounds.width() * 0.5, 3.0),
+                        text_font_size(bounds),
+                    ),
                     theme.text_muted,
                     PaintTextAlign::Right,
                     TextWrap::None,
+                    text_font_size(bounds),
                 );
             }
         }
@@ -450,7 +475,7 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 selectable.props.label.clone(),
                 inset_rect(bounds, 8.0, 3.0),
-                selectable.common.sizing.baseline,
+                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
                 resolve_widget_visual_tokens(
                     theme,
                     selectable.common.style,
@@ -459,6 +484,7 @@ pub(super) fn push_widget_paint(
                 .foreground,
                 PaintTextAlign::Left,
                 TextWrap::None,
+                text_font_size(bounds),
             );
         }
         WidgetSpec::Badge(badge) => {
@@ -468,11 +494,12 @@ pub(super) fn push_widget_paint(
                 widget.id(),
                 badge.props.label.clone(),
                 inset_rect(bounds, 8.0, 3.0),
-                badge.common.sizing.baseline,
+                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), button_font_size(bounds)),
                 resolve_widget_visual_tokens(theme, badge.common.style, badge.common.state)
                     .foreground,
                 PaintTextAlign::Center,
                 TextWrap::None,
+                button_font_size(bounds),
             );
         }
         WidgetSpec::Card(_) => {
@@ -501,6 +528,7 @@ fn push_checkbox_chrome(
     widget_id: WidgetId,
     bounds: Rect,
     theme: &ThemeTokens,
+    state: WidgetState,
     checked: bool,
 ) {
     let side = bounds.width().min(bounds.height()).max(0.0);
@@ -514,12 +542,18 @@ fn push_checkbox_chrome(
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id,
         rect: bounds,
-        color: theme.surface_base,
+        color: if state.pressed {
+            theme.bg_tertiary
+        } else if state.hovered {
+            theme.surface_raised
+        } else {
+            theme.surface_base
+        },
     }));
     primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
         widget_id,
         rect: bounds,
-        color: if checked {
+        color: if checked || state.pressed || state.hovered {
             theme.accent_danger
         } else {
             theme.border_emphasis
@@ -527,10 +561,15 @@ fn push_checkbox_chrome(
         width: 1.0,
     }));
     if checked {
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
             widget_id,
-            rect: inset_rect(bounds, side * 0.32, side * 0.32),
+            points: vec![
+                Point::new(bounds.min.x + side * 0.25, bounds.min.y + side * 0.55),
+                Point::new(bounds.min.x + side * 0.43, bounds.min.y + side * 0.72),
+                Point::new(bounds.min.x + side * 0.76, bounds.min.y + side * 0.30),
+            ],
             color: theme.accent_danger,
+            width: 2.0,
         }));
     }
 }
@@ -594,6 +633,60 @@ fn push_control_chrome(
     }
 }
 
+fn push_text_input_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget: &WidgetSpec,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    let common = widget.common();
+    let tokens = resolve_widget_visual_tokens(theme, common.style, common.state);
+    let fill = if common.state.disabled {
+        tokens.fill
+    } else if common.state.hovered {
+        blend_color(
+            theme.bg_primary,
+            theme.surface_raised,
+            theme.state_hover_strong,
+        )
+    } else {
+        theme.bg_primary
+    };
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: common.id,
+        rect: bounds,
+        color: fill,
+    }));
+    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id: common.id,
+        rect: bounds,
+        color: tokens.border,
+        width: 1.0,
+    }));
+    if common.state.focused && common.paint.paints_focus {
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: common.id,
+            rect: inset_rect(bounds, -1.0, -1.0),
+            color: tokens.emphasis,
+            width: 1.0,
+        }));
+    }
+}
+
+fn blend_color(from: Rgba8, to: Rgba8, amount: f32) -> Rgba8 {
+    let amount = amount.clamp(0.0, 1.0);
+    Rgba8 {
+        r: blend_channel(from.r, to.r, amount),
+        g: blend_channel(from.g, to.g, amount),
+        b: blend_channel(from.b, to.b, amount),
+        a: blend_channel(from.a, to.a, amount),
+    }
+}
+
+fn blend_channel(from: u8, to: u8, amount: f32) -> u8 {
+    ((from as f32) + (((to as f32) - (from as f32)) * amount)).round() as u8
+}
+
 fn diagonal_cut_rect_points(rect: Rect) -> Vec<Point> {
     let cut = (rect.height().min(rect.width()) * 0.18).clamp(4.0, 8.0);
     vec![
@@ -614,17 +707,46 @@ fn push_text_run(
     color: Rgba8,
     align: PaintTextAlign,
     wrap: TextWrap,
+    font_size: f32,
 ) {
     primitives.push(PaintPrimitive::Text(PaintTextRun {
         widget_id,
         text,
         rect,
-        font_size: 13.0,
+        font_size,
         baseline,
         color,
         align,
         wrap,
     }));
+}
+
+fn text_font_size(rect: Rect) -> f32 {
+    if rect.height() >= 38.0 {
+        18.0
+    } else if rect.height() >= 28.0 {
+        14.0
+    } else {
+        13.0
+    }
+}
+
+fn button_font_size(rect: Rect) -> f32 {
+    if rect.height() >= 48.0 {
+        16.0
+    } else if rect.height() >= 36.0 {
+        14.0
+    } else {
+        13.0
+    }
+}
+
+fn input_font_size(rect: Rect) -> f32 {
+    if rect.height() >= 42.0 { 15.0 } else { 13.0 }
+}
+
+fn optical_centered_baseline(rect: Rect, font_size: f32) -> Option<f32> {
+    Some((rect.height() * 0.5 + font_size * 0.35).max(0.0))
 }
 
 fn push_axis_stroke(

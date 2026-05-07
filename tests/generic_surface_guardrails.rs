@@ -262,7 +262,13 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         ("list", vec!["list(", "list_row(", ".fill_height()"]),
         (
             "styling",
-            vec![".primary()", ".danger()", ".subtle()", "toggle("],
+            vec![
+                ".primary()",
+                ".danger()",
+                ".subtle()",
+                ".hoverable()",
+                "toggle(",
+            ],
         ),
         ("scroll", vec!["scroll_column(", ".fill_height()"]),
         (

@@ -16,7 +16,7 @@ use crate::{
         layout_tree_with_state,
     },
     theme::ThemeTokens,
-    widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey},
+    widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey, WidgetSpec},
 };
 use std::collections::BTreeMap;
 
@@ -116,10 +116,13 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
+    styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
     widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
+    container_clip_ancestors: BTreeMap<NodeId, Vec<NodeId>>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
+    hovered_container: Option<NodeId>,
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     repaint_requested: bool,
@@ -141,8 +144,10 @@ where
             LayoutDebugOptions::default(),
         );
         let widget_hit_order = surface.widget_paint_order();
+        let styled_container_hit_order = surface.styled_container_order();
         let scroll_hit_order = surface.scroll_container_order();
         let widget_clip_ancestors = surface.widget_clip_ancestors();
+        let container_clip_ancestors = surface.container_clip_ancestors();
         Self {
             bridge,
             viewport,
@@ -150,10 +155,13 @@ where
             layout,
             layout_state,
             widget_hit_order,
+            styled_container_hit_order,
             scroll_hit_order,
             widget_clip_ancestors,
+            container_clip_ancestors,
             focused_widget: None,
             pending_key_chord: None,
+            hovered_container: None,
             hovered_widget: None,
             pointer_capture: None,
             repaint_requested: false,
@@ -181,7 +189,8 @@ where
 
     /// Project the current surface and layout into backend-neutral paint data.
     pub fn paint_plan(&self, theme: &ThemeTokens) -> SurfacePaintPlan {
-        self.surface.paint_plan(&self.layout, theme)
+        self.surface
+            .paint_plan_with_hover(&self.layout, theme, self.hovered_container)
     }
 
     /// Return the current logical viewport size.
@@ -202,6 +211,11 @@ where
     /// Return the widget currently receiving hover state.
     pub fn hovered_widget(&self) -> Option<WidgetId> {
         self.hovered_widget
+    }
+
+    /// Return the styled container currently receiving hover chrome.
+    pub fn hovered_container(&self) -> Option<NodeId> {
+        self.hovered_container
     }
 
     /// Return whether the host update flow requested another repaint.
@@ -258,6 +272,12 @@ where
             .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
         {
             self.hovered_widget = None;
+        }
+        if self
+            .hovered_container
+            .is_some_and(|node_id| !self.styled_container_hit_order.contains(&node_id))
+        {
+            self.hovered_container = None;
         }
         if let Some(widget_id) = self.focused_widget {
             self.route_focus_changed(widget_id, true);
@@ -438,6 +458,20 @@ where
             })
     }
 
+    fn styled_container_at(&self, point: Point) -> Option<NodeId> {
+        self.styled_container_hit_order
+            .iter()
+            .rev()
+            .copied()
+            .find(|node_id| {
+                self.layout
+                    .rects
+                    .get(node_id)
+                    .is_some_and(|rect| rect.contains(point))
+                    && self.container_clip_contains_point(*node_id, point)
+            })
+    }
+
     fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
         self.widget_clip_ancestors
             .get(&widget_id)
@@ -446,6 +480,19 @@ where
                     self.layout
                         .rects
                         .get(node_id)
+                        .is_some_and(|rect| rect.contains(point))
+                })
+            })
+    }
+
+    fn container_clip_contains_point(&self, node_id: NodeId, point: Point) -> bool {
+        self.container_clip_ancestors
+            .get(&node_id)
+            .is_none_or(|clip_nodes| {
+                clip_nodes.iter().all(|clip_node| {
+                    self.layout
+                        .rects
+                        .get(clip_node)
                         .is_some_and(|rect| rect.contains(point))
                 })
             })
@@ -499,6 +546,15 @@ where
 
     fn dispatch_pointer_move(&mut self, position: Point) -> Option<WidgetId> {
         let pointer_widget = self.widget_at(position);
+        let hover_container = if self.widget_suppresses_container_hover(pointer_widget) {
+            None
+        } else {
+            self.styled_container_at(position)
+        };
+        if self.hovered_container != hover_container {
+            self.hovered_container = hover_container;
+            self.repaint_requested = true;
+        }
         let hover_widget = self
             .pointer_capture
             .filter(|widget_id| {
@@ -525,6 +581,25 @@ where
             .then_some(target)
     }
 
+    fn widget_suppresses_container_hover(&self, widget_id: Option<WidgetId>) -> bool {
+        let Some(widget_id) = widget_id else {
+            return false;
+        };
+        self.surface
+            .find_widget(widget_id)
+            .is_some_and(|widget| match widget.widget() {
+                WidgetSpec::Text(_) | WidgetSpec::Image(_) | WidgetSpec::Canvas(_) => false,
+                WidgetSpec::Button(_)
+                | WidgetSpec::Toggle(_)
+                | WidgetSpec::TextInput(_)
+                | WidgetSpec::Scrollbar(_)
+                | WidgetSpec::ListItem(_)
+                | WidgetSpec::Selectable(_)
+                | WidgetSpec::Badge(_)
+                | WidgetSpec::Card(_) => true,
+            })
+    }
+
     fn relayout(&mut self) {
         self.layout = layout_tree_with_state(
             &self.surface.layout_node(),
@@ -533,8 +608,10 @@ where
             LayoutDebugOptions::default(),
         );
         self.widget_hit_order = self.surface.widget_paint_order();
+        self.styled_container_hit_order = self.surface.styled_container_order();
         self.scroll_hit_order = self.surface.scroll_container_order();
         self.widget_clip_ancestors = self.surface.widget_clip_ancestors();
+        self.container_clip_ancestors = self.surface.container_clip_ancestors();
         self.sync_scroll_offsets();
     }
 

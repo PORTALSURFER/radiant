@@ -59,6 +59,7 @@ pub mod prelude {
         window,
     };
     pub use crate::runtime::Command;
+    pub use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
 }
 
 pub use application::{Result, app, window};

@@ -348,21 +348,150 @@ pub struct ViewNode<Message> {
     text_wrap: Option<TextWrap>,
 }
 
-struct WidgetLoweringOptions {
+/// App-builder context supplied when a widget view becomes a runtime surface node.
+///
+/// Implementors usually call [`WidgetViewContext::apply_to`] before returning a
+/// [`SurfaceNode`]. That keeps generated IDs, explicit sizing, styling, and
+/// input-only chrome behavior consistent across built-in and custom widgets.
+pub struct WidgetViewContext {
+    /// Stable runtime id assigned by the view tree.
+    pub id: NodeId,
     sizing: Option<WidgetSizing>,
     style: Option<WidgetStyle>,
     input_only: bool,
     text_wrap: Option<TextWrap>,
 }
 
-trait ViewWidget<Message> {
+impl WidgetViewContext {
+    /// Explicit sizing set on the enclosing [`ViewNode`], if any.
+    pub fn sizing(&self) -> Option<WidgetSizing> {
+        self.sizing
+    }
+
+    /// Explicit style set on the enclosing [`ViewNode`], if any.
+    pub fn style(&self) -> Option<WidgetStyle> {
+        self.style
+    }
+
+    /// Whether the view requested hit testing without widget chrome.
+    pub fn input_only(&self) -> bool {
+        self.input_only
+    }
+
+    /// Apply common view-node options to a widget before lowering.
+    pub fn apply_to(&self, widget: &mut dyn Widget) {
+        let common = widget.common_mut();
+        common.id = self.id;
+        if let Some(sizing) = self.sizing {
+            common.sizing = sizing;
+        }
+        if let Some(style) = self.style {
+            common.style = style;
+        }
+        if self.input_only {
+            common.paint.paints_state_layers = false;
+        }
+        if let Some(wrap) = self.text_wrap {
+            if let Some(text) = widget.as_any_mut().downcast_mut::<TextWidget>() {
+                text.wrap = wrap;
+            }
+        }
+    }
+}
+
+/// A widget-shaped application view.
+///
+/// This is the application-layer companion to [`Widget`]: `Widget` owns runtime
+/// input and paint behavior, while `WidgetView` owns how an application widget
+/// becomes a message-mapped [`SurfaceNode`]. Any `Widget + Clone + 'static`
+/// automatically implements `WidgetView<()>` as a non-emitting leaf. Interactive
+/// widgets can use [`MappedWidget`] to bind widget output to host messages.
+pub trait WidgetView<Message>: Send + Sync {
+    /// Default sizing used before callers override the enclosing [`ViewNode`].
     fn default_sizing(&self) -> WidgetSizing;
 
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message>;
+    /// Lower this widget view into the runtime surface tree.
+    fn into_surface_node(self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<Message>;
+}
+
+impl<W, Message> WidgetView<Message> for W
+where
+    W: Widget + Clone + 'static,
+    Message: 'static,
+{
+    fn default_sizing(&self) -> WidgetSizing {
+        self.common().sizing
+    }
+
+    fn into_surface_node(mut self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<Message> {
+        context.apply_to(self.as_mut());
+        SurfaceNode::static_widget(*self)
+    }
+}
+
+/// A widget plus message mapper for application views.
+pub struct MappedWidget<W, Message> {
+    widget: W,
+    messages: WidgetMessageMapper<Message>,
+}
+
+impl<W, Message> MappedWidget<W, Message> {
+    /// Build a mapped widget view.
+    pub fn new(widget: W, messages: WidgetMessageMapper<Message>) -> Self {
+        Self { widget, messages }
+    }
+}
+
+impl<W, Message> WidgetView<Message> for MappedWidget<W, Message>
+where
+    W: Widget + Clone + 'static,
+    Message: 'static,
+{
+    fn default_sizing(&self) -> WidgetSizing {
+        self.widget.common().sizing
+    }
+
+    fn into_surface_node(mut self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<Message> {
+        context.apply_to(&mut self.widget);
+        SurfaceNode::widget(self.widget, self.messages)
+    }
+}
+
+/// A boxed widget plus dynamic output mapper for application views.
+pub struct DynamicWidget<Message> {
+    widget: Box<dyn Widget>,
+    map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+}
+
+impl<Message> DynamicWidget<Message> {
+    /// Build a dynamic widget view from a boxed widget object.
+    pub fn new(
+        widget: impl Widget + Clone + 'static,
+        map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            widget: Box::new(widget),
+            map: Arc::new(map),
+        }
+    }
+}
+
+impl<Message> WidgetView<Message> for DynamicWidget<Message>
+where
+    Message: 'static,
+{
+    fn default_sizing(&self) -> WidgetSizing {
+        self.widget.common().sizing
+    }
+
+    fn into_surface_node(mut self: Box<Self>, context: WidgetViewContext) -> SurfaceNode<Message> {
+        context.apply_to(self.widget.as_mut());
+        let map = self.map;
+        SurfaceNode::custom_widget_box(
+            self.widget,
+            WidgetMessageMapper::dynamic(move |output| map(output)),
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -382,7 +511,7 @@ enum AxisSlotBehavior {
 
 enum ViewNodeKind<Message> {
     Runtime(SurfaceNode<Message>),
-    Widget(Box<dyn ViewWidget<Message>>),
+    Widget(Box<dyn WidgetView<Message>>),
     Row {
         spacing: f32,
         children: Vec<ViewNode<Message>>,
@@ -670,15 +799,13 @@ where
         let child_scope = id;
         match self.kind {
             ViewNodeKind::Runtime(node) => node,
-            ViewNodeKind::Widget(widget) => widget.lower_widget(
+            ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
                 id,
-                WidgetLoweringOptions {
-                    sizing: self.sizing,
-                    style: self.style,
-                    input_only: self.input_only,
-                    text_wrap: self.text_wrap,
-                },
-            ),
+                sizing: self.sizing,
+                style: self.style,
+                input_only: self.input_only,
+                text_wrap: self.text_wrap,
+            }),
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Row,
@@ -768,239 +895,9 @@ where
     }
 }
 
-struct TextElement {
-    value: String,
-}
-
-impl<Message> ViewWidget<Message> for TextElement {
-    fn default_sizing(&self) -> WidgetSizing {
-        default_text_sizing()
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut text = TextWidget::new(
-            id,
-            self.value,
-            options.sizing.unwrap_or_else(default_text_sizing),
-        );
-        if let Some(wrap) = options.text_wrap {
-            text.wrap = wrap;
-        }
-        if let Some(style) = options.style {
-            text.common.style = style;
-        }
-        SurfaceNode::static_widget(text)
-    }
-}
-
-struct ButtonElement<Message> {
-    label: String,
-    map: Arc<dyn Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync>,
-}
-
-impl<Message> ViewWidget<Message> for ButtonElement<Message>
-where
-    Message: 'static,
-{
-    fn default_sizing(&self) -> WidgetSizing {
-        default_button_sizing(&self.label)
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut button = ButtonWidget::new(
-            id,
-            self.label.clone(),
-            options
-                .sizing
-                .unwrap_or_else(|| default_button_sizing(&self.label)),
-        );
-        if let Some(style) = options.style {
-            button.common.style = style;
-        }
-        if options.input_only {
-            button.common.paint.paints_state_layers = false;
-        }
-        let map = self.map;
-        SurfaceNode::widget(
-            button,
-            WidgetMessageMapper::button(move |message| map(message)),
-        )
-    }
-}
-
-struct DragHandleElement<Message> {
-    map: Arc<dyn Fn(crate::widgets::DragHandleMessage) -> Message + Send + Sync>,
-}
-
-impl<Message> ViewWidget<Message> for DragHandleElement<Message>
-where
-    Message: 'static,
-{
-    fn default_sizing(&self) -> WidgetSizing {
-        default_drag_handle_sizing()
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut handle = DragHandleWidget::new(
-            id,
-            options.sizing.unwrap_or_else(default_drag_handle_sizing),
-        );
-        if let Some(style) = options.style {
-            handle.common.style = style;
-        }
-        if options.input_only {
-            handle.common.paint.paints_state_layers = false;
-        }
-        let map = self.map;
-        SurfaceNode::widget(
-            handle,
-            WidgetMessageMapper::drag_handle(move |message| map(message)),
-        )
-    }
-}
-
-struct ToggleElement<Message> {
-    label: String,
-    checked: bool,
-    compact: bool,
-    map: Arc<dyn Fn(bool) -> Message + Send + Sync>,
-}
-
-impl<Message> ViewWidget<Message> for ToggleElement<Message>
-where
-    Message: 'static,
-{
-    fn default_sizing(&self) -> WidgetSizing {
-        default_toggle_sizing(&self.label, self.compact)
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut toggle = ToggleWidget::new(
-            id,
-            self.label.clone(),
-            options
-                .sizing
-                .unwrap_or_else(|| default_toggle_sizing(&self.label, self.compact)),
-        )
-        .with_checked(self.checked);
-        if let Some(style) = options.style {
-            toggle.common.style = style;
-        }
-        if options.input_only {
-            toggle.common.paint.paints_state_layers = false;
-        }
-        let map = self.map;
-        SurfaceNode::widget(
-            toggle,
-            WidgetMessageMapper::toggle(move |message| match message {
-                crate::widgets::ToggleMessage::ValueChanged { checked } => map(checked),
-            }),
-        )
-    }
-}
-
-struct TextInputElement<Message> {
-    value: String,
-    placeholder: Option<String>,
-    map: Arc<dyn Fn(String) -> Message + Send + Sync>,
-}
-
-impl<Message> ViewWidget<Message> for TextInputElement<Message>
-where
-    Message: 'static,
-{
-    fn default_sizing(&self) -> WidgetSizing {
-        default_text_input_sizing()
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut input = TextInputWidget::new(
-            id,
-            self.value,
-            options.sizing.unwrap_or(default_text_input_sizing()),
-        );
-        input.props.placeholder = self.placeholder;
-        if let Some(style) = options.style {
-            input.common.style = style;
-        }
-        if options.input_only {
-            input.common.paint.paints_state_layers = false;
-        }
-        let map = self.map;
-        SurfaceNode::widget(
-            input,
-            WidgetMessageMapper::text_input(move |message| match message {
-                crate::widgets::TextInputMessage::Changed { value }
-                | crate::widgets::TextInputMessage::Submitted { value } => map(value),
-            }),
-        )
-    }
-}
-
-struct CustomWidgetElement<Message> {
-    widget: Box<dyn Widget>,
-    map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
-}
-
-impl<Message> ViewWidget<Message> for CustomWidgetElement<Message>
-where
-    Message: 'static,
-{
-    fn default_sizing(&self) -> WidgetSizing {
-        self.widget.common().sizing
-    }
-
-    fn lower_widget(
-        self: Box<Self>,
-        id: NodeId,
-        options: WidgetLoweringOptions,
-    ) -> SurfaceNode<Message> {
-        let mut widget = self.widget;
-        let common = widget.common_mut();
-        common.id = id;
-        if let Some(sizing) = options.sizing {
-            common.sizing = sizing;
-        }
-        if let Some(style) = options.style {
-            common.style = style;
-        }
-        if options.input_only {
-            common.paint.paints_state_layers = false;
-        }
-        let map = self.map;
-        SurfaceNode::custom_widget_box(
-            widget,
-            WidgetMessageMapper::dynamic(move |output| map(output)),
-        )
-    }
-}
-
-/// Build a non-interactive text view with generated identity and default sizing.
-pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
+fn view_node_from_widget<Message>(widget: impl WidgetView<Message> + 'static) -> ViewNode<Message> {
     ViewNode {
-        kind: ViewNodeKind::Widget(Box::new(TextElement {
-            value: value.into(),
-        })),
+        kind: ViewNodeKind::Widget(Box::new(widget)),
         id: None,
         key: None,
         sizing: None,
@@ -1011,6 +908,16 @@ pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
         input_only: false,
         text_wrap: None,
     }
+}
+
+/// Build a view node from any application widget view.
+pub fn widget<Message>(widget: impl WidgetView<Message> + 'static) -> ViewNode<Message> {
+    view_node_from_widget(widget)
+}
+
+/// Build a non-interactive text view with generated identity and default sizing.
+pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
+    view_node_from_widget(TextWidget::new(0, value, default_text_sizing()))
 }
 
 /// Build a custom widget view with generated identity and an output mapper.
@@ -1018,21 +925,7 @@ pub fn custom_widget<Message: 'static>(
     widget: impl Widget + Clone + 'static,
     map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Widget(Box::new(CustomWidgetElement {
-            widget: Box::new(widget),
-            map: Arc::new(map),
-        })),
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-    }
+    view_node_from_widget(DynamicWidget::new(widget, map))
 }
 
 /// Builder for buttons that can emit messages or mutate state directly.
@@ -1079,21 +972,12 @@ impl ButtonBuilder {
         self,
         map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        ViewNode {
-            kind: ViewNodeKind::Widget(Box::new(ButtonElement {
-                label: self.label,
-                map: Arc::new(map),
-            })),
-            id: None,
-            key: None,
-            sizing: None,
-            slot: SlotBehavior::default(),
-            padding: Insets::default(),
-            style: self.style,
-            hoverable: false,
-            input_only: false,
-            text_wrap: None,
-        }
+        let mut node = view_node_from_widget(MappedWidget::new(
+            ButtonWidget::new(0, &self.label, default_button_sizing(&self.label)),
+            WidgetMessageMapper::button(map),
+        ));
+        node.style = self.style;
+        node
     }
 
     /// Mutate application state directly when activated.
@@ -1138,18 +1022,10 @@ impl DragHandleBuilder {
         self,
         map: impl Fn(crate::widgets::DragHandleMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        ViewNode {
-            kind: ViewNodeKind::Widget(Box::new(DragHandleElement { map: Arc::new(map) })),
-            id: None,
-            key: None,
-            sizing: None,
-            slot: SlotBehavior::default(),
-            padding: Insets::default(),
-            style: None,
-            hoverable: false,
-            input_only: false,
-            text_wrap: None,
-        }
+        view_node_from_widget(MappedWidget::new(
+            DragHandleWidget::new(0, default_drag_handle_sizing()),
+            WidgetMessageMapper::drag_handle(map),
+        ))
     }
 
     /// Mutate application state directly when the handle is dragged.
@@ -1215,23 +1091,19 @@ impl ToggleBuilder {
         self,
         map: impl Fn(bool) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        ViewNode {
-            kind: ViewNodeKind::Widget(Box::new(ToggleElement {
-                label: self.label,
-                checked: self.checked,
-                compact: self.compact,
-                map: Arc::new(map),
-            })),
-            id: None,
-            key: None,
-            sizing: None,
-            slot: SlotBehavior::default(),
-            padding: Insets::default(),
-            style: self.style,
-            hoverable: false,
-            input_only: false,
-            text_wrap: None,
-        }
+        let mut node = view_node_from_widget(MappedWidget::new(
+            ToggleWidget::new(
+                0,
+                &self.label,
+                default_toggle_sizing(&self.label, self.compact),
+            )
+            .with_checked(self.checked),
+            WidgetMessageMapper::toggle(move |message| match message {
+                crate::widgets::ToggleMessage::ValueChanged { checked } => map(checked),
+            }),
+        ));
+        node.style = self.style;
+        node
     }
 
     /// Mutate application state directly when checked state changes.
@@ -1309,22 +1181,17 @@ impl TextInputBuilder {
         self,
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        ViewNode {
-            kind: ViewNodeKind::Widget(Box::new(TextInputElement {
-                value: self.value,
-                placeholder: self.placeholder,
-                map: Arc::new(map),
-            })),
-            id: None,
-            key: None,
-            sizing: None,
-            slot: SlotBehavior::default(),
-            padding: Insets::default(),
-            style: self.style,
-            hoverable: false,
-            input_only: false,
-            text_wrap: None,
-        }
+        let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
+        input.props.placeholder = self.placeholder;
+        let mut node = view_node_from_widget(MappedWidget::new(
+            input,
+            WidgetMessageMapper::text_input(move |message| match message {
+                crate::widgets::TextInputMessage::Changed { value }
+                | crate::widgets::TextInputMessage::Submitted { value } => map(value),
+            }),
+        ));
+        node.style = self.style;
+        node
     }
 
     /// Mutate application state directly when the input value changes.

@@ -452,14 +452,16 @@ fn application_view_nodes_do_not_carry_hardcoded_widget_variants() {
     ] {
         assert!(
             !application.contains(forbidden),
-            "application builder should lower widgets through the ViewWidget API, not hardcoded variant `{forbidden}`"
+            "application builder should lower widgets through the WidgetView API, not hardcoded variant `{forbidden}`"
         );
     }
 
     for required in [
-        "trait ViewWidget<Message>",
+        "pub trait WidgetView<Message>",
         "ViewNodeKind::Widget",
-        "fn lower_widget(",
+        "fn into_surface_node(",
+        "pub struct MappedWidget",
+        "pub fn widget<Message>",
     ] {
         assert!(
             application.contains(required),

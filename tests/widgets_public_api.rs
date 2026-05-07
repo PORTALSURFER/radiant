@@ -9,74 +9,53 @@ use radiant::{
     widgets::{
         BadgeWidget, ButtonWidget, CardWidget, DragHandleWidget, ImageWidget, ListItemWidget,
         ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget,
-        ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing,
-        WidgetSpec,
+        ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::Arc;
 
 #[test]
 fn public_widgets_compose_with_public_layout_containers() {
-    let header = WidgetSpec::Text(TextWidget::new(
+    let header = TextWidget::new(
         2,
         "Projects",
         WidgetSizing::fixed(Vector2::new(72.0, 20.0)).with_baseline(14.0),
-    ));
-    let rename = WidgetSpec::Button(ButtonWidget::new(
-        3,
-        "Rename",
-        WidgetSizing::fixed(Vector2::new(88.0, 28.0)),
-    ));
-    let filter = WidgetSpec::TextInput(TextInputWidget::new(
+    );
+    let rename = ButtonWidget::new(3, "Rename", WidgetSizing::fixed(Vector2::new(88.0, 28.0)));
+    let filter = TextInputWidget::new(
         4,
         "",
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(200.0, 28.0)),
-    ));
-    let snap = WidgetSpec::Toggle(
-        ToggleWidget::new(5, "Snap", WidgetSizing::fixed(Vector2::new(84.0, 28.0)))
-            .with_checked(true),
     );
-    let muted_snap = WidgetSpec::Toggle(ToggleWidget::new(
-        17,
-        "Muted",
-        WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
-    ));
-    let scroll = WidgetSpec::Scrollbar(ScrollbarWidget::new(
+    let snap = ToggleWidget::new(5, "Snap", WidgetSizing::fixed(Vector2::new(84.0, 28.0)))
+        .with_checked(true);
+    let muted_snap = ToggleWidget::new(17, "Muted", WidgetSizing::fixed(Vector2::new(84.0, 28.0)));
+    let scroll = ScrollbarWidget::new(
         6,
         ScrollbarAxis::Vertical,
         WidgetSizing::fixed(Vector2::new(12.0, 28.0)),
-    ));
-    let drag = WidgetSpec::DragHandle(DragHandleWidget::new(
-        18,
-        WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
-    ));
-    let badge = WidgetSpec::Badge(BadgeWidget::new(
-        7,
-        "Ready",
-        WidgetSizing::fixed(Vector2::new(72.0, 24.0)),
-    ));
-    let card = WidgetSpec::Card(CardWidget::new(
-        8,
-        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let item = WidgetSpec::ListItem(ListItemWidget::new(
+    );
+    let drag = DragHandleWidget::new(18, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
+    let badge = BadgeWidget::new(7, "Ready", WidgetSizing::fixed(Vector2::new(72.0, 24.0)));
+    let card = CardWidget::new(8, WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let item = ListItemWidget::new(
         9,
         "Document",
         WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
-    ));
-    let selectable = WidgetSpec::Selectable(SelectableWidget::new(
+    );
+    let selectable = SelectableWidget::new(
         16,
         "Selected",
         true,
         WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
-    ));
+    );
     let image_payload =
         Arc::new(ImageRgba::new(1, 1, vec![255, 255, 255, 255]).expect("valid image"));
-    let image = WidgetSpec::Image(ImageWidget::new(
+    let image = ImageWidget::new(
         15,
         image_payload,
         WidgetSizing::fixed(Vector2::new(32.0, 28.0)),
-    ));
+    );
 
     let root = LayoutNode::container(
         1,
@@ -86,18 +65,18 @@ fn public_widgets_compose_with_public_layout_containers() {
             ..ContainerPolicy::default()
         },
         vec![
-            SlotChild::new(SlotParams::fill(), header.layout_node()),
-            SlotChild::new(SlotParams::fill(), rename.layout_node()),
-            SlotChild::new(SlotParams::fill(), filter.layout_node()),
-            SlotChild::new(SlotParams::fill(), snap.layout_node()),
-            SlotChild::new(SlotParams::fill(), muted_snap.layout_node()),
-            SlotChild::new(SlotParams::fill(), scroll.layout_node()),
-            SlotChild::new(SlotParams::fill(), drag.layout_node()),
-            SlotChild::new(SlotParams::fill(), badge.layout_node()),
-            SlotChild::new(SlotParams::fill(), card.layout_node()),
-            SlotChild::new(SlotParams::fill(), item.layout_node()),
-            SlotChild::new(SlotParams::fill(), selectable.layout_node()),
-            SlotChild::new(SlotParams::fill(), image.layout_node()),
+            SlotChild::new(SlotParams::fill(), header.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), rename.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), filter.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), snap.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), muted_snap.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), scroll.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), drag.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), badge.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), card.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), item.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), selectable.common().layout_node()),
+            SlotChild::new(SlotParams::fill(), image.common().layout_node()),
         ],
     );
 
@@ -106,123 +85,87 @@ fn public_widgets_compose_with_public_layout_containers() {
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(920.0, 32.0)),
     );
 
-    assert!(output.rects.contains_key(&header.id()));
-    assert!(output.rects.contains_key(&rename.id()));
-    assert!(output.rects.contains_key(&filter.id()));
-    assert!(output.rects.contains_key(&snap.id()));
-    assert!(output.rects.contains_key(&muted_snap.id()));
-    assert!(output.rects.contains_key(&scroll.id()));
-    assert!(output.rects.contains_key(&drag.id()));
-    assert!(output.rects.contains_key(&badge.id()));
-    assert!(output.rects.contains_key(&card.id()));
-    assert!(output.rects.contains_key(&item.id()));
-    assert!(output.rects.contains_key(&selectable.id()));
-    assert!(output.rects.contains_key(&image.id()));
-    assert_eq!(
-        rename.common().emitted_messages,
-        vec![WidgetMessageKind::Activate]
-    );
-    assert_eq!(
-        filter.common().emitted_messages,
-        vec![WidgetMessageKind::TextEdited]
-    );
-    assert_eq!(
-        snap.common().emitted_messages,
-        vec![WidgetMessageKind::ValueChanged]
-    );
+    assert!(output.rects.contains_key(&header.common().id));
+    assert!(output.rects.contains_key(&rename.common().id));
+    assert!(output.rects.contains_key(&filter.common().id));
+    assert!(output.rects.contains_key(&snap.common().id));
+    assert!(output.rects.contains_key(&muted_snap.common().id));
+    assert!(output.rects.contains_key(&scroll.common().id));
+    assert!(output.rects.contains_key(&drag.common().id));
+    assert!(output.rects.contains_key(&badge.common().id));
+    assert!(output.rects.contains_key(&card.common().id));
+    assert!(output.rects.contains_key(&item.common().id));
+    assert!(output.rects.contains_key(&selectable.common().id));
+    assert!(output.rects.contains_key(&image.common().id));
     assert!(snap.common().state.active);
     assert!(!muted_snap.common().state.active);
+    assert!(!rename.common().state.disabled);
+    assert!(!filter.common().state.disabled);
+    assert!(!scroll.common().state.disabled);
+    assert!(!drag.common().state.disabled);
+    assert!(!item.common().state.disabled);
+    assert!(selectable.common().state.selected);
+    assert!(!image.common().paint.paints_focus);
+    assert!(!card.common().paint.paints_focus);
     assert_eq!(
-        scroll.common().emitted_messages,
-        vec![WidgetMessageKind::ScrollRequested]
+        badge.common().style.prominence,
+        radiant::widgets::WidgetProminence::Subtle
     );
-    assert_eq!(
-        drag.common().emitted_messages,
-        vec![WidgetMessageKind::Dragged]
-    );
-    assert_eq!(
-        item.common().emitted_messages,
-        vec![WidgetMessageKind::ItemInvoked]
-    );
-    assert_eq!(
-        selectable.common().emitted_messages,
-        vec![WidgetMessageKind::ValueChanged]
-    );
-    assert!(image.common().emitted_messages.is_empty());
-    assert_eq!(
-        badge.common().emitted_messages,
-        vec![WidgetMessageKind::Activate]
-    );
-    assert!(card.common().emitted_messages.is_empty());
 }
 
 #[test]
-fn widget_spec_dispatches_public_messages_for_reusable_controls() {
+fn public_widgets_dispatch_messages_for_reusable_controls() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(96.0, 28.0));
-    let mut button = WidgetSpec::Button(ButtonWidget::new(
-        10,
-        "Import",
-        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let mut toggle = WidgetSpec::Toggle(ToggleWidget::new(
-        11,
-        "Enabled",
-        WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
-    ));
-    let mut input = WidgetSpec::TextInput(TextInputWidget::new(
+    let mut button = ButtonWidget::new(10, "Import", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let mut toggle =
+        ToggleWidget::new(11, "Enabled", WidgetSizing::fixed(Vector2::new(84.0, 28.0)));
+    let mut input = TextInputWidget::new(
         12,
         "ab",
         WidgetSizing::new(Vector2::new(96.0, 28.0), Vector2::new(160.0, 28.0)),
-    ));
-    let mut badge = WidgetSpec::Badge(BadgeWidget::new(
-        13,
-        "Ready",
-        WidgetSizing::fixed(Vector2::new(64.0, 24.0)),
-    ));
-    let mut drag = WidgetSpec::DragHandle(DragHandleWidget::new(
-        17,
-        WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
-    ));
-    let mut item = WidgetSpec::ListItem(ListItemWidget::new(
+    );
+    let mut badge = BadgeWidget::new(13, "Ready", WidgetSizing::fixed(Vector2::new(64.0, 24.0)));
+    let mut drag = DragHandleWidget::new(17, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
+    let mut item = ListItemWidget::new(
         14,
         "Document",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let mut selectable = WidgetSpec::Selectable(SelectableWidget::new(
+    );
+    let mut selectable = SelectableWidget::new(
         16,
         "Selected",
         false,
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
+    );
 
     assert_eq!(
-        button.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut button, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        button.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(&mut button, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::Button(
             radiant::widgets::ButtonMessage::Activate
         ))
     );
 
     assert_eq!(
-        toggle.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut toggle, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        toggle.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Widget::handle_input(&mut toggle, bounds, WidgetInput::KeyPress(WidgetKey::Space)),
         Some(WidgetOutput::Toggle(
             radiant::widgets::ToggleMessage::ValueChanged { checked: true }
         ))
     );
 
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut input, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        input.handle_input(bounds, WidgetInput::Character('z')),
+        Widget::handle_input(&mut input, bounds, WidgetInput::Character('z')),
         Some(WidgetOutput::TextInput(
             radiant::widgets::TextInputMessage::Changed {
                 value: String::from("abz"),
@@ -231,18 +174,19 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
     );
 
     assert_eq!(
-        badge.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut badge, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        badge.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(&mut badge, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::Badge(
             radiant::widgets::BadgeMessage::Activate
         ))
     );
 
     assert_eq!(
-        drag.handle_input(
+        Widget::handle_input(
+            &mut drag,
             bounds,
             WidgetInput::PointerPress {
                 position: Point::new(10.0, 10.0),
@@ -256,7 +200,8 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         ))
     );
     assert_eq!(
-        drag.handle_input(
+        Widget::handle_input(
+            &mut drag,
             bounds,
             WidgetInput::PointerMove {
                 position: Point::new(10.0, 38.0),
@@ -270,22 +215,26 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
     );
 
     assert_eq!(
-        item.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut item, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        item.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
+        Widget::handle_input(&mut item, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::ListItem(
             radiant::widgets::ListItemMessage::Invoked
         ))
     );
 
     assert_eq!(
-        selectable.handle_input(bounds, WidgetInput::FocusChanged(true)),
+        Widget::handle_input(&mut selectable, bounds, WidgetInput::FocusChanged(true)),
         None
     );
     assert_eq!(
-        selectable.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Space)),
+        Widget::handle_input(
+            &mut selectable,
+            bounds,
+            WidgetInput::KeyPress(WidgetKey::Space)
+        ),
         Some(WidgetOutput::Selectable(
             radiant::widgets::SelectableMessage::SelectionChanged { selected: true }
         ))

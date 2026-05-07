@@ -20,35 +20,6 @@ use std::any::Any;
 /// `LayoutNode::Widget` leaves using the same stable id space.
 pub type WidgetId = NodeId;
 
-/// Public widget taxonomy for reusable Radiant primitives.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum WidgetKind {
-    /// Non-interactive text or label content.
-    Text,
-    /// Momentary action surface activated by click, tap, or keyboard.
-    Button,
-    /// Boolean or multi-state toggle surface.
-    Toggle,
-    /// Editable single-line or multi-line text field.
-    TextInput,
-    /// Scroll affordance that exposes viewport position and drag/page actions.
-    Scrollbar,
-    /// Compact pointer handle for drag/reorder gestures.
-    DragHandle,
-    /// Focusable row or item primitive for lists, tables, and menus.
-    ListItem,
-    /// Selectable content surface for cards, rows, tiles, and options.
-    Selectable,
-    /// Compact label, badge, or pill surface for status and selectable filters.
-    Badge,
-    /// Non-interactive panel, card, or grouped content surface.
-    Card,
-    /// Non-interactive raster image surface.
-    Image,
-    /// Custom paint surface that owns its own rendering and input interpretation.
-    Canvas,
-}
-
 /// Shared intrinsic sizing contract for a widget.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WidgetSizing {
@@ -150,28 +121,6 @@ impl Default for PaintContract {
     }
 }
 
-/// Shared semantic message families that widgets may emit.
-///
-/// Runtime adapters bind these event families to host-defined message payloads
-/// without forcing app-specific action enums into the widget surface.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum WidgetMessageKind {
-    /// Activation such as button press or list-item invoke.
-    Activate,
-    /// Boolean or enum-like value change.
-    ValueChanged,
-    /// Text-edit delta, commit, or submit intent.
-    TextEdited,
-    /// Scroll thumb drag, track click, or viewport request.
-    ScrollRequested,
-    /// Pointer drag gesture lifecycle.
-    Dragged,
-    /// Row/item invocation distinct from selection.
-    ItemInvoked,
-    /// Custom pointer/keyboard gesture routed into a canvas surface.
-    CanvasInput,
-}
-
 /// Shared style vocabulary that avoids app-specific shell naming.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WidgetTone {
@@ -230,10 +179,9 @@ impl Clone for Box<dyn Widget> {
 
 /// Public object-safe contract for user-defined Radiant widgets.
 ///
-/// Built-in primitives remain available through [`crate::widgets::WidgetSpec`],
-/// but custom widgets can implement this trait and travel through the runtime,
-/// input, message, paint, and application-builder paths without adding a new
-/// Radiant enum variant.
+/// Built-in primitives and custom widgets implement this same trait and travel
+/// through the runtime, input, message, paint, and application-builder paths
+/// without adding a new Radiant enum variant.
 pub trait Widget: WidgetClone + Send + Sync + Any {
     /// Return the shared identity, sizing, focus, state, and style contract.
     fn common(&self) -> &WidgetCommon;

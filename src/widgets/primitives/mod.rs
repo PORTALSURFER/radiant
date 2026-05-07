@@ -13,7 +13,7 @@ pub use scrollbar::{ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidg
 pub use support::{
     CanvasWidget, CardWidget, DragHandleWidget, ImageProps, ImageWidget, ListItemWidget,
     RetainedSurfaceDescriptor, SelectableProps, SelectableWidget, TextWidget, TextWrap,
-    WidgetCommon, WidgetSpec,
+    WidgetCommon,
 };
 pub use text_input::{TextInputProps, TextInputState, TextInputWidget};
 pub use toggle::{ToggleProps, ToggleState, ToggleWidget};

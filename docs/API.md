@@ -131,9 +131,9 @@ returns `Command<Message>` while keeping side effects and domain state host-owne
 `View<Message>` is the root declarative view snapshot and is a public alias for
 `UiSurface<Message>`. `Element<Message>` is the generic element tree and is a
 public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
-entries and widget nodes hold runtime widget leaves. Built-in compatibility
-leaves are still represented by `WidgetSpec`; user-authored leaves implement the
-object-safe `Widget` trait. Widget primitives such as `ButtonWidget`,
+entries and widget nodes hold object-safe `Widget` leaves. Built-in primitives
+and user-authored leaves implement the same `Widget` trait, so the runtime does
+not maintain a closed widget catalog. Widget primitives such as `ButtonWidget`,
 `BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
 `ScrollbarWidget`, `SelectableWidget`, `CardWidget`, `ImageWidget`,
 `CanvasWidget`, and `ListItemWidget` describe reusable UI behavior without
@@ -143,9 +143,9 @@ Implement `Widget` directly when a downstream application needs a new focusable
 leaf with its own input handling, host-routable output payload, or
 backend-neutral paint contribution. Compose existing primitives when the desired
 control is only a row, column, stack, styling change, message mapper, or
-combination of built-in widgets. `WidgetSpec` remains a source-compatible
-built-in catalog and migration wrapper; it is not the extension mechanism for
-new downstream widget types.
+combination of built-in widgets. `SurfaceNode::widget` and
+`SurfaceNode::static_widget` accept any owned widget implementation, including
+Radiant's built-in primitives, without requiring an enum wrapper.
 
 Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceNode::grid`, `SurfaceChild::fill`, and
@@ -160,7 +160,7 @@ structure, fill slots, and display widgets that do not emit messages.
 `SurfaceNode::list_item_action`, `SurfaceNode::list_item_mapped`,
 `SurfaceNode::selectable`, `SurfaceNode::selectable_mapped`,
 `SurfaceNode::card`, `SurfaceNode::image`, and `SurfaceNode::canvas` cover
-common leaf widgets without requiring hosts to manually wrap `WidgetSpec`.
+common leaf widgets while still lowering to the same open widget object path.
 `SurfaceNode::custom_widget` and the prelude `custom_widget(...)` builder accept
 owned `Widget` implementations. The application builder assigns generated,
 keyed, or explicit IDs by updating the widget's `WidgetCommon` before lowering,

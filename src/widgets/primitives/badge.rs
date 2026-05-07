@@ -4,8 +4,7 @@ use crate::gui::types::Rect;
 
 use super::support::{WidgetCommon, activate_on_keyboard};
 use crate::widgets::contract::{
-    FocusBehavior, WidgetId, WidgetKind, WidgetMessageKind, WidgetProminence, WidgetSizing,
-    WidgetStyle, WidgetTone,
+    FocusBehavior, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{BadgeMessage, PointerButton, WidgetInput};
 
@@ -37,13 +36,12 @@ pub struct BadgeWidget {
 impl BadgeWidget {
     /// Build a badge descriptor with optional activation semantics.
     pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Badge, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
             prominence: WidgetProminence::Subtle,
         };
-        common.emitted_messages.push(WidgetMessageKind::Activate);
         Self {
             common,
             props: BadgeProps {

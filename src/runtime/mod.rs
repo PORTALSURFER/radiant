@@ -34,10 +34,15 @@ pub use bridge::{
 };
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
-pub(crate) use paint::push_builtin_widget_paint;
 pub use paint::{
     PaintCustomSurface, PaintFillRect, PaintImage, PaintOverlayPanel, PaintPrimitive,
     PaintStrokeRect, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
+};
+pub(crate) use paint::{
+    push_badge_widget_paint, push_button_widget_paint, push_canvas_widget_paint,
+    push_card_widget_paint, push_drag_handle_widget_paint, push_image_widget_paint,
+    push_list_item_widget_paint, push_scrollbar_widget_paint, push_selectable_widget_paint,
+    push_text_input_widget_paint, push_text_widget_paint, push_toggle_widget_paint,
 };
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,

@@ -4,7 +4,7 @@ use crate::{
     runtime::{Command, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     widgets::{
         ButtonWidget, CanvasMessage, PointerButton, TextInputMessage, TextInputWidget, WidgetInput,
-        WidgetSizing, WidgetSpec,
+        WidgetSizing,
     },
 };
 
@@ -321,16 +321,16 @@ impl RuntimeBridge<DemoMessage> for RepaintBridge {
 }
 
 fn demo_surface(state: &DemoState) -> Arc<UiSurface<DemoMessage>> {
-    let button = WidgetSpec::Button(ButtonWidget::new(
+    let button = ButtonWidget::new(
         11,
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let input = WidgetSpec::TextInput(TextInputWidget::new(
+    );
+    let input = TextInputWidget::new(
         12,
         state.name.clone(),
         WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
-    ));
+    );
     Arc::new(UiSurface::new(SurfaceNode::container(
         1,
         ContainerPolicy {

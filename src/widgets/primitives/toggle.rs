@@ -3,9 +3,7 @@
 use crate::gui::types::Rect;
 
 use super::support::{WidgetCommon, activate_on_keyboard};
-use crate::widgets::contract::{
-    FocusBehavior, WidgetId, WidgetKind, WidgetMessageKind, WidgetSizing,
-};
+use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{PointerButton, ToggleMessage, WidgetInput};
 
 /// Immutable public properties for a reusable toggle widget.
@@ -38,11 +36,8 @@ pub struct ToggleWidget {
 impl ToggleWidget {
     /// Build a toggle descriptor with value-change semantics.
     pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Toggle, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
-        common
-            .emitted_messages
-            .push(WidgetMessageKind::ValueChanged);
         Self {
             common,
             props: ToggleProps {

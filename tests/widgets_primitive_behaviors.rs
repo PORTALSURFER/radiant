@@ -89,7 +89,7 @@ fn card_intrinsic_sizing_is_public_and_non_interactive() {
     let card = CardWidget::new(8, sizing);
 
     assert_eq!(card.common.sizing, sizing);
-    assert!(card.common.emitted_messages.is_empty());
+    assert!(!card.common.paint.paints_focus);
     match card.common.layout_node() {
         radiant::layout::LayoutNode::Widget(node) => {
             assert_eq!(node.intrinsic, Vector2::new(240.0, 120.0));

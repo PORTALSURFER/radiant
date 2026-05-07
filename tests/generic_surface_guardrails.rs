@@ -368,6 +368,70 @@ fn runtime_widgets_are_open_trait_objects_not_closed_builtin_enums() {
 }
 
 #[test]
+fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let widgets_dir = manifest_dir.join("src/widgets");
+    let mut violations = Vec::new();
+
+    for source_path in rust_sources_under(&widgets_dir) {
+        let source = fs::read_to_string(&source_path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+        let relative = relative_path(&manifest_dir, &source_path);
+        for forbidden in [
+            "enum WidgetKind",
+            "WidgetKind::",
+            "enum WidgetMessageKind",
+            "WidgetMessageKind::",
+            "enum WidgetSpec",
+            "WidgetSpec::",
+            "emitted_messages",
+        ] {
+            if source.contains(forbidden) {
+                violations.push(format!("{relative} contains `{forbidden}`"));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "widget core should not carry hardcoded widget taxonomies:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn application_view_nodes_do_not_carry_hardcoded_widget_variants() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+        .expect("application builder source should be readable");
+
+    for forbidden in [
+        "ViewNodeKind::Text",
+        "ViewNodeKind::ButtonMapped",
+        "ViewNodeKind::DragHandle",
+        "ViewNodeKind::Toggle",
+        "ViewNodeKind::TextInput",
+        "ViewNodeKind::CustomWidget",
+    ] {
+        assert!(
+            !application.contains(forbidden),
+            "application builder should lower widgets through the ViewWidget API, not hardcoded variant `{forbidden}`"
+        );
+    }
+
+    for required in [
+        "trait ViewWidget<Message>",
+        "ViewNodeKind::Widget",
+        "fn lower_widget(",
+    ] {
+        assert!(
+            application.contains(required),
+            "application builder should preserve generic widget lowering `{required}`"
+        );
+    }
+}
+
+#[test]
 fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs"))

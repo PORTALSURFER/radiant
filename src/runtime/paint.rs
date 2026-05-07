@@ -5,8 +5,10 @@ use crate::{
     layout::{LayoutOutput, NodeId, OverflowPolicy},
     theme::ThemeTokens,
     widgets::{
-        PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, TextInputState, TextWrap, WidgetId,
-        WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
+        BadgeWidget, ButtonWidget, CanvasWidget, CardWidget, DragHandleWidget, ImageWidget,
+        ListItemWidget, PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarWidget,
+        SelectableWidget, TextInputState, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
+        WidgetCommon, WidgetId, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -434,236 +436,291 @@ impl SurfacePaintPlan {
     }
 }
 
-/// Emit paint for source-compatible built-in [`WidgetSpec`] leaves.
-///
-/// User-authored widgets contribute paint through [`crate::widgets::Widget`]
-/// and do not need a new branch in this compatibility catalog.
-pub(crate) fn push_builtin_widget_paint(
+pub(crate) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
-    widget: &WidgetSpec,
-    layout: &LayoutOutput,
+    text: &TextWidget,
+    bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    let Some(bounds) = layout.rects.get(&widget.id()).copied() else {
-        return;
-    };
+    push_text_run(
+        primitives,
+        text.common.id,
+        text.text.clone(),
+        bounds,
+        optical_centered_baseline(bounds, text_font_size(bounds)),
+        theme.text_primary,
+        PaintTextAlign::Left,
+        text.wrap,
+        text_font_size(bounds),
+    );
+}
 
-    match widget {
-        WidgetSpec::Text(text) => {
-            push_text_run(
-                primitives,
-                widget.id(),
-                text.text.clone(),
-                bounds,
-                optical_centered_baseline(bounds, text_font_size(bounds)),
-                theme.text_primary,
-                PaintTextAlign::Left,
-                text.wrap,
-                text_font_size(bounds),
-            );
-        }
-        WidgetSpec::Button(button) => {
-            push_button_chrome(primitives, widget, bounds, theme);
-            push_text_run(
-                primitives,
-                widget.id(),
-                button.props.label.clone(),
-                inset_rect(bounds, 8.0, 4.0),
-                optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), button_font_size(bounds)),
-                resolve_widget_visual_tokens(theme, button.common.style, button.common.state)
-                    .foreground,
-                PaintTextAlign::Center,
-                TextWrap::None,
-                button_font_size(bounds),
-            );
-        }
-        WidgetSpec::Toggle(toggle) => {
-            let tokens =
-                resolve_widget_visual_tokens(theme, toggle.common.style, toggle.common.state);
-            if toggle.props.label.is_empty() {
-                push_checkbox_chrome(
-                    primitives,
-                    widget.id(),
-                    bounds,
-                    theme,
-                    toggle.common.state,
-                    toggle.state.checked,
-                );
-            } else {
-                push_control_chrome(primitives, widget, bounds, theme);
-                push_text_run(
-                    primitives,
-                    widget.id(),
-                    toggle.props.label.clone(),
-                    inset_rect(bounds, 8.0, 4.0),
-                    optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), text_font_size(bounds)),
-                    tokens.foreground,
-                    PaintTextAlign::Left,
-                    TextWrap::None,
-                    text_font_size(bounds),
-                );
-            }
-        }
-        WidgetSpec::TextInput(input) => {
-            push_text_input_chrome(primitives, widget, bounds, theme);
-            let rect = inset_rect(bounds, 16.0, 4.0);
-            let font_size = input_font_size(bounds);
-            primitives.push(PaintPrimitive::TextInput(PaintTextInput {
-                widget_id: widget.id(),
-                rect,
-                placeholder: input.props.placeholder.clone(),
-                state: input.state.clone(),
-                font_size,
-                baseline: optical_centered_baseline(rect, font_size),
-                color: resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
-                    .foreground,
-                placeholder_color: theme.text_muted,
-                selection_color: theme.grid_strong,
-                caret_color: theme.accent_danger,
-                focused: input.common.state.focused,
-            }));
-        }
-        WidgetSpec::Scrollbar(scrollbar) => {
-            let tokens =
-                resolve_widget_visual_tokens(theme, scrollbar.common.style, scrollbar.common.state);
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: widget.id(),
-                rect: bounds,
-                color: theme.surface_base,
-            }));
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: widget.id(),
-                rect: scrollbar.thumb_rect(bounds),
-                color: tokens.emphasis,
-            }));
-            if scrollbar.props.axis == ScrollbarAxis::Horizontal {
-                push_axis_stroke(primitives, widget.id(), bounds, theme.grid_soft, true);
-            } else {
-                push_axis_stroke(primitives, widget.id(), bounds, theme.grid_soft, false);
-            }
-        }
-        WidgetSpec::DragHandle(handle) => {
-            if !handle.common.paint.paints_state_layers {
-                return;
-            }
-            let tokens =
-                resolve_widget_visual_tokens(theme, handle.common.style, handle.common.state);
-            let color = if handle.common.state.pressed {
-                theme.accent_danger
-            } else if handle.common.state.hovered {
-                tokens.emphasis
-            } else {
-                theme.text_muted
-            };
-            let center_y = bounds.min.y + bounds.height() * 0.5;
-            for y in [center_y - 5.0, center_y, center_y + 5.0] {
-                primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-                    widget_id: widget.id(),
-                    points: vec![
-                        Point::new(bounds.min.x + bounds.width() * 0.25, y),
-                        Point::new(bounds.max.x - bounds.width() * 0.25, y),
-                    ],
-                    color,
-                    width: if handle.common.state.pressed {
-                        2.0
-                    } else {
-                        1.25
-                    },
-                }));
-            }
-            if handle.common.state.hovered || handle.common.state.pressed {
-                primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-                    widget_id: widget.id(),
-                    rect: inset_rect(bounds, 2.0, 2.0),
-                    color,
-                    width: 1.0,
-                }));
-            }
-        }
-        WidgetSpec::ListItem(item) => {
-            push_control_chrome(primitives, widget, bounds, theme);
-            push_text_run(
-                primitives,
-                widget.id(),
-                item.label.clone(),
-                inset_rect(bounds, 8.0, 3.0),
-                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
-                resolve_widget_visual_tokens(theme, item.common.style, item.common.state)
-                    .foreground,
-                PaintTextAlign::Left,
-                TextWrap::None,
-                text_font_size(bounds),
-            );
-            if let Some(detail) = &item.detail {
-                push_text_run(
-                    primitives,
-                    widget.id(),
-                    detail.clone(),
-                    inset_rect(bounds, bounds.width() * 0.5, 3.0),
-                    optical_centered_baseline(
-                        inset_rect(bounds, bounds.width() * 0.5, 3.0),
-                        text_font_size(bounds),
-                    ),
-                    theme.text_muted,
-                    PaintTextAlign::Right,
-                    TextWrap::None,
-                    text_font_size(bounds),
-                );
-            }
-        }
-        WidgetSpec::Selectable(selectable) => {
-            push_control_chrome(primitives, widget, bounds, theme);
-            push_text_run(
-                primitives,
-                widget.id(),
-                selectable.props.label.clone(),
-                inset_rect(bounds, 8.0, 3.0),
-                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
-                resolve_widget_visual_tokens(
-                    theme,
-                    selectable.common.style,
-                    selectable.common.state,
-                )
-                .foreground,
-                PaintTextAlign::Left,
-                TextWrap::None,
-                text_font_size(bounds),
-            );
-        }
-        WidgetSpec::Badge(badge) => {
-            push_control_chrome(primitives, widget, bounds, theme);
-            push_text_run(
-                primitives,
-                widget.id(),
-                badge.props.label.clone(),
-                inset_rect(bounds, 8.0, 3.0),
-                optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), button_font_size(bounds)),
-                resolve_widget_visual_tokens(theme, badge.common.style, badge.common.state)
-                    .foreground,
-                PaintTextAlign::Center,
-                TextWrap::None,
-                button_font_size(bounds),
-            );
-        }
-        WidgetSpec::Card(_) => {
-            push_control_chrome(primitives, widget, bounds, theme);
-        }
-        WidgetSpec::Image(image) => {
-            primitives.push(PaintPrimitive::Image(PaintImage {
-                widget_id: widget.id(),
-                rect: bounds,
-                image: Arc::clone(&image.props.image),
-            }));
-        }
-        WidgetSpec::Canvas(canvas) => {
-            primitives.push(PaintPrimitive::CustomSurface(PaintCustomSurface {
-                widget_id: widget.id(),
-                rect: bounds,
-                bounds: canvas.common.paint.bounds,
-                retained: canvas.retained,
-            }));
-        }
+pub(crate) fn push_button_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    button: &ButtonWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_button_chrome(primitives, &button.common, bounds, theme);
+    push_text_run(
+        primitives,
+        button.common.id,
+        button.props.label.clone(),
+        inset_rect(bounds, 8.0, 4.0),
+        optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), button_font_size(bounds)),
+        resolve_widget_visual_tokens(theme, button.common.style, button.common.state).foreground,
+        PaintTextAlign::Center,
+        TextWrap::None,
+        button_font_size(bounds),
+    );
+}
+
+pub(crate) fn push_toggle_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    toggle: &ToggleWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    let tokens = resolve_widget_visual_tokens(theme, toggle.common.style, toggle.common.state);
+    if toggle.props.label.is_empty() {
+        push_checkbox_chrome(
+            primitives,
+            toggle.common.id,
+            bounds,
+            theme,
+            toggle.common.state,
+            toggle.state.checked,
+        );
+    } else {
+        push_control_chrome(primitives, &toggle.common, bounds, theme);
+        push_text_run(
+            primitives,
+            toggle.common.id,
+            toggle.props.label.clone(),
+            inset_rect(bounds, 8.0, 4.0),
+            optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), text_font_size(bounds)),
+            tokens.foreground,
+            PaintTextAlign::Left,
+            TextWrap::None,
+            text_font_size(bounds),
+        );
     }
+}
+
+pub(crate) fn push_text_input_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    input: &TextInputWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_text_input_chrome(primitives, &input.common, bounds, theme);
+    let rect = inset_rect(bounds, 16.0, 4.0);
+    let font_size = input_font_size(bounds);
+    primitives.push(PaintPrimitive::TextInput(PaintTextInput {
+        widget_id: input.common.id,
+        rect,
+        placeholder: input.props.placeholder.clone(),
+        state: input.state.clone(),
+        font_size,
+        baseline: optical_centered_baseline(rect, font_size),
+        color: resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
+            .foreground,
+        placeholder_color: theme.text_muted,
+        selection_color: theme.grid_strong,
+        caret_color: theme.accent_danger,
+        focused: input.common.state.focused,
+    }));
+}
+
+pub(crate) fn push_scrollbar_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    scrollbar: &ScrollbarWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    let tokens =
+        resolve_widget_visual_tokens(theme, scrollbar.common.style, scrollbar.common.state);
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: scrollbar.common.id,
+        rect: bounds,
+        color: theme.surface_base,
+    }));
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: scrollbar.common.id,
+        rect: scrollbar.thumb_rect(bounds),
+        color: tokens.emphasis,
+    }));
+    if scrollbar.props.axis == ScrollbarAxis::Horizontal {
+        push_axis_stroke(
+            primitives,
+            scrollbar.common.id,
+            bounds,
+            theme.grid_soft,
+            true,
+        );
+    } else {
+        push_axis_stroke(
+            primitives,
+            scrollbar.common.id,
+            bounds,
+            theme.grid_soft,
+            false,
+        );
+    }
+}
+
+pub(crate) fn push_drag_handle_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    handle: &DragHandleWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    if !handle.common.paint.paints_state_layers {
+        return;
+    }
+    let tokens = resolve_widget_visual_tokens(theme, handle.common.style, handle.common.state);
+    let color = if handle.common.state.pressed {
+        theme.accent_danger
+    } else if handle.common.state.hovered {
+        tokens.emphasis
+    } else {
+        theme.text_muted
+    };
+    let center_y = bounds.min.y + bounds.height() * 0.5;
+    for y in [center_y - 5.0, center_y, center_y + 5.0] {
+        primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+            widget_id: handle.common.id,
+            points: vec![
+                Point::new(bounds.min.x + bounds.width() * 0.25, y),
+                Point::new(bounds.max.x - bounds.width() * 0.25, y),
+            ],
+            color,
+            width: if handle.common.state.pressed {
+                2.0
+            } else {
+                1.25
+            },
+        }));
+    }
+    if handle.common.state.hovered || handle.common.state.pressed {
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: handle.common.id,
+            rect: inset_rect(bounds, 2.0, 2.0),
+            color,
+            width: 1.0,
+        }));
+    }
+}
+
+pub(crate) fn push_list_item_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    item: &ListItemWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_control_chrome(primitives, &item.common, bounds, theme);
+    push_text_run(
+        primitives,
+        item.common.id,
+        item.label.clone(),
+        inset_rect(bounds, 8.0, 3.0),
+        optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
+        resolve_widget_visual_tokens(theme, item.common.style, item.common.state).foreground,
+        PaintTextAlign::Left,
+        TextWrap::None,
+        text_font_size(bounds),
+    );
+    if let Some(detail) = &item.detail {
+        push_text_run(
+            primitives,
+            item.common.id,
+            detail.clone(),
+            inset_rect(bounds, bounds.width() * 0.5, 3.0),
+            optical_centered_baseline(
+                inset_rect(bounds, bounds.width() * 0.5, 3.0),
+                text_font_size(bounds),
+            ),
+            theme.text_muted,
+            PaintTextAlign::Right,
+            TextWrap::None,
+            text_font_size(bounds),
+        );
+    }
+}
+
+pub(crate) fn push_selectable_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    selectable: &SelectableWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_control_chrome(primitives, &selectable.common, bounds, theme);
+    push_text_run(
+        primitives,
+        selectable.common.id,
+        selectable.props.label.clone(),
+        inset_rect(bounds, 8.0, 3.0),
+        optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
+        resolve_widget_visual_tokens(theme, selectable.common.style, selectable.common.state)
+            .foreground,
+        PaintTextAlign::Left,
+        TextWrap::None,
+        text_font_size(bounds),
+    );
+}
+
+pub(crate) fn push_badge_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    badge: &BadgeWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_control_chrome(primitives, &badge.common, bounds, theme);
+    push_text_run(
+        primitives,
+        badge.common.id,
+        badge.props.label.clone(),
+        inset_rect(bounds, 8.0, 3.0),
+        optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), button_font_size(bounds)),
+        resolve_widget_visual_tokens(theme, badge.common.style, badge.common.state).foreground,
+        PaintTextAlign::Center,
+        TextWrap::None,
+        button_font_size(bounds),
+    );
+}
+
+pub(crate) fn push_card_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    card: &CardWidget,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    push_control_chrome(primitives, &card.common, bounds, theme);
+}
+
+pub(crate) fn push_image_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    image: &ImageWidget,
+    bounds: Rect,
+) {
+    primitives.push(PaintPrimitive::Image(PaintImage {
+        widget_id: image.common.id,
+        rect: bounds,
+        image: Arc::clone(&image.props.image),
+    }));
+}
+
+pub(crate) fn push_canvas_widget_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    canvas: &CanvasWidget,
+    bounds: Rect,
+) {
+    primitives.push(PaintPrimitive::CustomSurface(PaintCustomSurface {
+        widget_id: canvas.common.id,
+        rect: bounds,
+        bounds: canvas.common.paint.bounds,
+        retained: canvas.retained,
+    }));
 }
 
 fn push_checkbox_chrome(
@@ -719,11 +776,10 @@ fn push_checkbox_chrome(
 
 fn push_button_chrome(
     primitives: &mut Vec<PaintPrimitive>,
-    widget: &WidgetSpec,
+    common: &WidgetCommon,
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    let common = widget.common();
     let tokens = resolve_widget_visual_tokens(theme, common.style, common.state);
     let points = diagonal_cut_rect_points(bounds);
     primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
@@ -749,11 +805,10 @@ fn push_button_chrome(
 
 fn push_control_chrome(
     primitives: &mut Vec<PaintPrimitive>,
-    widget: &WidgetSpec,
+    common: &WidgetCommon,
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    let common = widget.common();
     let tokens = resolve_widget_visual_tokens(theme, common.style, common.state);
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: common.id,
@@ -778,11 +833,10 @@ fn push_control_chrome(
 
 fn push_text_input_chrome(
     primitives: &mut Vec<PaintPrimitive>,
-    widget: &WidgetSpec,
+    common: &WidgetCommon,
     bounds: Rect,
     theme: &ThemeTokens,
 ) {
-    let common = widget.common();
     let tokens = resolve_widget_visual_tokens(theme, common.style, common.state);
     let fill = if common.state.disabled {
         tokens.fill

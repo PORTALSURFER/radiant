@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, activate_on_keyboard, push_badge_widget_paint};
@@ -129,6 +129,41 @@ impl Widget for BadgeWidget {
         theme: &ThemeTokens,
     ) {
         push_badge_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> WidgetMessageMapper<Message> {
+    /// Build a badge-message mapper.
+    pub fn badge(map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::typed(map)
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a badge or pill leaf node that emits one cloned host message when activated.
+    pub fn badge(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::badge_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build a badge or pill leaf node with a custom widget-to-host message mapper.
+    pub fn badge_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            BadgeWidget::new(id, label, sizing),
+            WidgetMessageMapper::badge(map),
+        )
     }
 }
 

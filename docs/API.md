@@ -157,20 +157,14 @@ outputs should become host messages. For fully dynamic custom output,
 implementations and their mapper adapters instead of a central application enum
 or built-in widget list.
 
-Common declarative composition should use `SurfaceNode::row`,
-`SurfaceNode::column`, `SurfaceNode::grid`, `SurfaceChild::fill`, and
-`SurfaceNode::static_widget` when a host only needs ordered row/column/grid
-structure, fill slots, and display widgets that do not emit messages.
-`SurfaceNode::text`, `SurfaceNode::button`,
-`SurfaceNode::button_mapped`, `SurfaceNode::badge`, `SurfaceNode::badge_mapped`,
-`SurfaceNode::text_input`,
-`SurfaceNode::text_input_mapped`, `SurfaceNode::toggle`, and
-`SurfaceNode::toggle_mapped`, `SurfaceNode::scrollbar`,
-`SurfaceNode::scrollbar_mapped`, `SurfaceNode::list_item`, and
-`SurfaceNode::list_item_action`, `SurfaceNode::list_item_mapped`,
-`SurfaceNode::selectable`, `SurfaceNode::selectable_mapped`,
-`SurfaceNode::card`, `SurfaceNode::image`, and `SurfaceNode::canvas` cover
-common leaf widgets while still lowering to the same open widget object path.
+Common declarative composition should use the generic `SurfaceNode::widget`,
+`SurfaceNode::static_widget`, `SurfaceNode::row`, `SurfaceNode::column`,
+`SurfaceNode::grid`, and `SurfaceChild::fill` path when a host only needs
+ordered structure, fill slots, and widget leaves. Built-in primitive modules may
+provide convenience constructors on `SurfaceNode`, but those helpers are owned by
+the primitive modules rather than the runtime surface core. Adding a widget
+should mean adding that widget module and optional helpers, not editing a central
+runtime widget catalog.
 `SurfaceNode::custom_widget` and the prelude `custom_widget(...)` builder accept
 owned `Widget` implementations. The application builder assigns generated,
 keyed, or explicit IDs by updating the widget's `WidgetCommon` before lowering,
@@ -203,10 +197,11 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 reducers that need to queue messages, batch runtime-visible work, or request
 repaint.
 
-Built-in widgets can keep using the typed helpers such as
-`WidgetMessageMapper::button`, `WidgetMessageMapper::text_input`, and
-`WidgetMessageMapper::canvas`. Any widget can emit its own output type with
-`WidgetOutput::typed(...)` and route it with `WidgetMessageMapper::typed(...)`.
+Any widget can emit its own output type with `WidgetOutput::typed(...)` and
+route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
+provide typed convenience mappers such as `WidgetMessageMapper::button`, but
+those mappers are also owned by the primitive module rather than the runtime
+surface core.
 `WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
 and `WidgetMessageMapper::dynamic(...)` is available when a host needs manual
 downcast or filtering behavior. Adding a widget should not require adding a

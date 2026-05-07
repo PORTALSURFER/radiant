@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, push_text_widget_paint};
@@ -63,5 +63,12 @@ impl Widget for TextWidget {
         theme: &ThemeTokens,
     ) {
         push_text_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a non-emitting text leaf node.
+    pub fn text(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
+        Self::static_widget(TextWidget::new(id, text, sizing))
     }
 }

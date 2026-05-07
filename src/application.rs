@@ -5,6 +5,7 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
+    gui::types::ImageRgba,
     gui_runtime::NativeRunOptions,
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, NodeId, SizeModeCross,
@@ -15,8 +16,8 @@ use crate::{
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, CanvasWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap,
-        ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
+        ButtonWidget, CanvasWidget, DragHandleWidget, ImageWidget, TextInputWidget, TextWidget,
+        TextWrap, ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
         WidgetTone,
     },
 };

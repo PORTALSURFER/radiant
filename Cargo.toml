@@ -74,6 +74,11 @@ path = "examples/passive_widgets.rs"
 test = false
 
 [[example]]
+name = "waveform_view"
+path = "examples/waveform_view.rs"
+test = true
+
+[[example]]
 name = "list"
 path = "examples/list.rs"
 test = false
@@ -117,4 +122,5 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [dev-dependencies]
+hound = "3.5.1"
 image = "0.25.9"

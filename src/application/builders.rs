@@ -62,6 +62,12 @@ pub fn canvas<Message: 'static>() -> ViewNode<Message> {
     view_node_from_widget(CanvasWidget::new(0, default_canvas_sizing()))
 }
 
+/// Build a non-interactive raster image view.
+pub fn image<Message: 'static>(image: Arc<ImageRgba>) -> ViewNode<Message> {
+    let size = Vector2::new(image.width.max(1) as f32, image.height.max(1) as f32);
+    view_node_from_widget(ImageWidget::new(0, image, WidgetSizing::fixed(size)))
+}
+
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
     canvas().size(1.0, 1.0)

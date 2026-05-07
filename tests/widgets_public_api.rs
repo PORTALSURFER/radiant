@@ -3,8 +3,8 @@
 use radiant::{
     gui::types::ImageRgba,
     layout::{
-        layout_tree, ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild,
-        SlotParams, Vector2,
+        ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
+        layout_tree,
     },
     widgets::{
         BadgeWidget, ButtonWidget, CardWidget, ImageWidget, ListItemWidget, ScrollbarAxis,

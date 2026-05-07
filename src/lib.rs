@@ -1,11 +1,12 @@
 //! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
-//! New host applications should start with [`runtime`](crate::runtime),
+//! New host applications should start with [`prelude`](crate::prelude) for
+//! simple windows and stateful apps, then graduate to [`runtime`](crate::runtime),
 //! [`widgets`](crate::widgets), [`layout`](crate::layout), and
-//! [`theme`](crate::theme). That path lets hosts project generic declarative UI
-//! trees, reduce host-defined messages, and run through the native Vello backend
-//! without depending on host-shaped shell DTOs. See the checked `generic_native`
-//! example for a small standalone native app.
+//! [`theme`](crate::theme) when they need explicit runtime control. Both paths
+//! lower into the same generic declarative UI tree and native Vello backend
+//! without depending on host-shaped shell DTOs. See the checked `hello_world`
+//! example for the beginner path and `generic_native` for explicit runtime use.
 //! See `docs/API.md` for the checked public API boundary and lifecycle model.
 //!
 //! Generic host-facing modules:
@@ -29,6 +30,8 @@
 
 /// Shared environment-flag parsing helpers used by runtime internals.
 mod env_flags;
+/// Beginner-facing application and view builders.
+pub mod ergonomic;
 /// Backend-agnostic GUI primitives.
 pub mod gui;
 /// Stable public slot-based layout API.
@@ -43,3 +46,15 @@ pub mod runtime;
 pub mod theme;
 /// Stable public widget taxonomy and contracts.
 pub mod widgets;
+
+/// Beginner-facing imports for simple Radiant apps.
+pub mod prelude {
+    pub use crate::Result;
+    pub use crate::ergonomic::{
+        IntoView, RunnableStatefulApp, StatefulAppBuilder, StatefulAppWithView, ViewNode,
+        WindowBuilder, app, button, button_mapped, column, row, text, text_input, toggle, window,
+    };
+    pub use crate::runtime::Command;
+}
+
+pub use ergonomic::{Result, app, window};

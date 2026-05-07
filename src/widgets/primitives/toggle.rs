@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 
-use super::support::{activate_on_keyboard, WidgetCommon};
+use super::support::{WidgetCommon, activate_on_keyboard};
 use crate::widgets::contract::{
     FocusBehavior, WidgetId, WidgetKind, WidgetMessageKind, WidgetSizing,
 };

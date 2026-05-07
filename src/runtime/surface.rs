@@ -1,6 +1,6 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
-use super::paint::{push_widget_paint, SurfacePaintPlan};
+use super::paint::{SurfacePaintPlan, push_widget_paint};
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
@@ -778,6 +778,11 @@ impl<Message> UiSurface<Message> {
     /// Return the root declarative node.
     pub fn root(&self) -> &SurfaceNode<Message> {
         &self.root
+    }
+
+    /// Consume the surface and return its root declarative node.
+    pub fn into_root(self) -> SurfaceNode<Message> {
+        self.root
     }
 
     /// Project the surface into the public layout tree consumed by layout engines.

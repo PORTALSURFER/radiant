@@ -9,26 +9,26 @@ use radiant::{
         types::ImageRgba,
     },
     layout::{
-        layout_tree, layout_tree_with_state, Constraints, LayoutDebugOptions, LayoutState, Point,
-        Rect, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis,
+        Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
+        SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        declarative_command_runtime_bridge, declarative_runtime_bridge, App, Command, Element,
-        Event, FocusTraversal, NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge,
-        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View, WidgetMessageMapper,
-        DEFAULT_NATIVE_WINDOW_TITLE,
+        App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
+        NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
+        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
+        declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
-        resolve_widget_visual_tokens, BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage,
-        ListItemMessage, PointerButton, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage,
-        SelectableMessage, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
-        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
+        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, SelectableMessage,
+        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
+        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,6 +94,105 @@ fn native_run_options_default_uses_generic_radiant_title() {
 
     assert_eq!(options.title, DEFAULT_NATIVE_WINDOW_TITLE);
     assert_eq!(options.title, "Radiant");
+}
+
+#[test]
+fn ergonomic_view_builders_lower_into_runtime_surface_nodes() {
+    use radiant::prelude::{self as beginner, IntoView};
+
+    let surface = beginner::row([
+        beginner::text("Title"),
+        beginner::button("Increment", DemoMessage::Increment).id(42),
+    ])
+    .id(1)
+    .into_surface();
+
+    assert_eq!(surface.root().id(), 1);
+    assert!(surface.find_widget(2).is_some());
+    assert!(surface.find_widget(42).is_some());
+
+    let message = surface
+        .dispatch_widget_output(
+            42,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+        )
+        .expect("button should emit the configured host message");
+    assert_eq!(message, DemoMessage::Increment);
+}
+
+#[test]
+fn prelude_supports_beginner_hello_world_imports() {
+    use radiant::prelude::*;
+
+    fn hello_body() -> impl IntoView<()> {
+        text("Hello, world!")
+    }
+
+    let surface = hello_body().into_surface();
+
+    assert!(surface.find_widget(1).is_some());
+}
+
+#[test]
+fn hello_world_example_stays_on_beginner_api() {
+    let source = include_str!("../examples/hello_world.rs");
+
+    assert!(source.contains("use radiant::prelude::*;"));
+    assert!(source.contains("radiant::window(\"Radiant Hello World\")"));
+    assert!(source.contains(".run(text(\"Hello, world!\"))"));
+    assert!(!source.contains("NativeRunOptions"));
+    assert!(!source.contains("RuntimeBridge"));
+    assert!(!source.contains("SurfaceChild"));
+    assert!(!source.contains("WidgetSizing"));
+    assert!(!source.contains("declarative_command_runtime_bridge"));
+}
+
+#[test]
+fn stateful_app_builder_projects_updates_and_preserves_commands() {
+    use radiant::prelude as beginner;
+
+    let mut bridge = beginner::app(DemoState::default())
+        .title("Counter")
+        .size(320, 120)
+        .view(|state| {
+            beginner::column([
+                beginner::text(format!("Count: {}", state.count)),
+                beginner::button("Increment", DemoMessage::Increment),
+            ])
+        })
+        .update_command(|state, message| match message {
+            DemoMessage::Increment => {
+                state.count += 1;
+                Command::request_repaint()
+            }
+            DemoMessage::Rename(name) => {
+                state.name = name;
+                Command::none()
+            }
+            DemoMessage::SetActive(_) | DemoMessage::CanvasInput(_) => Command::none(),
+        })
+        .into_bridge();
+
+    let before = bridge.project_surface();
+    let increment = before
+        .dispatch_widget_output(
+            3,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+        )
+        .expect("generated button should route through the same surface mapper");
+
+    let command = bridge.update(increment);
+
+    assert!(command.requests_repaint());
+    let after = bridge.project_surface();
+    let title = after
+        .find_widget(2)
+        .expect("generated title widget should still be present")
+        .widget();
+    match title {
+        WidgetSpec::Text(text) => assert_eq!(text.text, "Count: 1"),
+        other => panic!("expected text widget, got {other:?}"),
+    }
 }
 
 #[test]

@@ -1,14 +1,11 @@
-//! Standalone todo-list app built on the generic Radiant runtime.
+//! Standalone todo-list app built on the beginner-facing Radiant API.
 
 use radiant::{
     layout::Vector2,
-    runtime::{
-        declarative_command_runtime_bridge, run_native_vello_runtime, Command, NativeRunOptions,
-        SurfaceChild, SurfaceNode, UiSurface,
-    },
+    prelude::{self as beginner, IntoView},
+    runtime::SurfaceNode,
     widgets::WidgetSizing,
 };
-use std::sync::Arc;
 
 const INPUT_ID: u64 = 100;
 const ADD_BUTTON_ID: u64 = 101;
@@ -70,139 +67,111 @@ impl Default for TodoState {
     }
 }
 
-fn main() -> Result<(), String> {
-    let bridge = declarative_command_runtime_bridge(
-        TodoState::default(),
-        project_surface,
-        |state: &mut TodoState, message| {
-            match message {
-                TodoMessage::DraftChanged(value) => state.draft = value,
-                TodoMessage::AddDraft => {
-                    let title = state.draft.trim();
-                    if !title.is_empty() {
-                        state.items.push(TodoItem {
-                            id: state.next_id,
-                            title: title.to_owned(),
-                            done: false,
-                        });
-                        state.next_id += 1;
-                        state.draft.clear();
-                    }
+fn main() -> radiant::Result {
+    radiant::app(TodoState::default())
+        .title("Radiant Todo List")
+        .size(560, 360)
+        .min_size(420, 260)
+        .view(project_surface)
+        .update(|state: &mut TodoState, message| match message {
+            TodoMessage::DraftChanged(value) => state.draft = value,
+            TodoMessage::AddDraft => {
+                let title = state.draft.trim();
+                if !title.is_empty() {
+                    state.items.push(TodoItem {
+                        id: state.next_id,
+                        title: title.to_owned(),
+                        done: false,
+                    });
+                    state.next_id += 1;
+                    state.draft.clear();
                 }
-                TodoMessage::SetDone { id, done } => {
-                    if let Some(item) = state.items.iter_mut().find(|item| item.id == id) {
-                        item.done = done;
-                    }
-                }
-                TodoMessage::Delete { id } => state.items.retain(|item| item.id != id),
             }
-            Command::request_repaint()
-        },
-    );
-
-    run_native_vello_runtime(
-        NativeRunOptions {
-            title: String::from("Radiant Todo List"),
-            inner_size: Some([560.0, 360.0]),
-            min_inner_size: Some([420.0, 260.0]),
-            ..NativeRunOptions::default()
-        },
-        bridge,
-    )
+            TodoMessage::SetDone { id, done } => {
+                if let Some(item) = state.items.iter_mut().find(|item| item.id == id) {
+                    item.done = done;
+                }
+            }
+            TodoMessage::Delete { id } => state.items.retain(|item| item.id != id),
+        })
+        .run()
 }
 
-fn project_surface(state: &mut TodoState) -> Arc<UiSurface<TodoMessage>> {
-    Arc::new(UiSurface::new(SurfaceNode::column(
-        ROOT_ID,
-        10.0,
-        vec![
-            SurfaceChild::fill(header_row(state)),
-            SurfaceChild::fill(input_row(state)),
-            SurfaceChild::fill(todo_list(state)),
-        ],
-    )))
+fn project_surface(state: &mut TodoState) -> beginner::ViewNode<TodoMessage> {
+    beginner::column([header_row(state), input_row(state), todo_list(state)])
+        .id(ROOT_ID)
+        .spacing(10.0)
 }
 
-fn header_row(state: &TodoState) -> SurfaceNode<TodoMessage> {
+fn header_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
     let complete = state.items.iter().filter(|item| item.done).count();
     let total = state.items.len();
-    SurfaceNode::row(
-        HEADER_ROW_ID,
-        12.0,
-        vec![
-            SurfaceChild::fill(SurfaceNode::text(
-                TITLE_ID,
-                "Todos",
-                WidgetSizing::fixed(Vector2::new(140.0, 28.0)).with_baseline(20.0),
-            )),
-            SurfaceChild::fill(SurfaceNode::text(
-                SUMMARY_ID,
-                format!("{complete}/{total} done"),
-                WidgetSizing::fixed(Vector2::new(120.0, 28.0)).with_baseline(20.0),
-            )),
-        ],
-    )
+    beginner::row([
+        beginner::text("Todos")
+            .id(TITLE_ID)
+            .sizing(WidgetSizing::fixed(Vector2::new(140.0, 28.0)).with_baseline(20.0)),
+        beginner::text(format!("{complete}/{total} done"))
+            .id(SUMMARY_ID)
+            .sizing(WidgetSizing::fixed(Vector2::new(120.0, 28.0)).with_baseline(20.0)),
+    ])
+    .id(HEADER_ROW_ID)
+    .spacing(12.0)
 }
 
-fn input_row(state: &TodoState) -> SurfaceNode<TodoMessage> {
-    SurfaceNode::row(
-        INPUT_ROW_ID,
-        8.0,
-        vec![
-            SurfaceChild::fill(SurfaceNode::text_input(
-                INPUT_ID,
-                state.draft.clone(),
-                WidgetSizing::new(Vector2::new(260.0, 32.0), Vector2::new(420.0, 32.0)),
-                TodoMessage::DraftChanged,
+fn input_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
+    beginner::row([
+        beginner::text_input(state.draft.clone(), TodoMessage::DraftChanged)
+            .id(INPUT_ID)
+            .sizing(WidgetSizing::new(
+                Vector2::new(260.0, 32.0),
+                Vector2::new(420.0, 32.0),
             )),
-            SurfaceChild::fill(SurfaceNode::button(
-                ADD_BUTTON_ID,
-                "Add",
-                WidgetSizing::fixed(Vector2::new(80.0, 32.0)),
-                TodoMessage::AddDraft,
-            )),
-        ],
-    )
+        beginner::button("Add", TodoMessage::AddDraft)
+            .id(ADD_BUTTON_ID)
+            .sizing(WidgetSizing::fixed(Vector2::new(80.0, 32.0))),
+    ])
+    .id(INPUT_ROW_ID)
+    .spacing(8.0)
 }
 
-fn todo_list(state: &TodoState) -> SurfaceNode<TodoMessage> {
+fn todo_list(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
     let rows = state
         .items
         .iter()
         .enumerate()
-        .map(|(index, item)| SurfaceChild::fill(todo_row(index as u64, item)))
+        .map(|(index, item)| todo_row(index as u64, item))
         .collect::<Vec<_>>();
 
-    SurfaceNode::scroll_area(
+    beginner::ViewNode::from(SurfaceNode::scroll_area(
         LIST_COLUMN_ID,
-        SurfaceNode::column(LIST_CONTENT_COLUMN_ID, 6.0, rows),
-    )
+        beginner::column(rows)
+            .id(LIST_CONTENT_COLUMN_ID)
+            .spacing(6.0)
+            .into_node(),
+    ))
 }
 
-fn todo_row(index: u64, item: &TodoItem) -> SurfaceNode<TodoMessage> {
+fn todo_row(index: u64, item: &TodoItem) -> beginner::ViewNode<TodoMessage> {
     let id = item.id;
     let label = if item.done {
         format!("Done: {}", item.title)
     } else {
         item.title.clone()
     };
-    SurfaceNode::row(
-        FIRST_ITEM_ROW_ID + index,
-        8.0,
-        vec![
-            SurfaceChild::fill(SurfaceNode::toggle_with_checked(
-                FIRST_ITEM_TOGGLE_ID + index,
-                label,
-                item.done,
-                WidgetSizing::new(Vector2::new(260.0, 30.0), Vector2::new(420.0, 30.0)),
-                move |done| TodoMessage::SetDone { id, done },
-            )),
-            SurfaceChild::fill(SurfaceNode::button(
-                FIRST_ITEM_DELETE_ID + index,
-                "Delete",
-                WidgetSizing::fixed(Vector2::new(84.0, 30.0)),
-                TodoMessage::Delete { id },
-            )),
-        ],
-    )
+    beginner::row([
+        beginner::toggle(label, item.done, move |done| TodoMessage::SetDone {
+            id,
+            done,
+        })
+        .id(FIRST_ITEM_TOGGLE_ID + index)
+        .sizing(WidgetSizing::new(
+            Vector2::new(260.0, 30.0),
+            Vector2::new(420.0, 30.0),
+        )),
+        beginner::button("Delete", TodoMessage::Delete { id })
+            .id(FIRST_ITEM_DELETE_ID + index)
+            .sizing(WidgetSizing::fixed(Vector2::new(84.0, 30.0))),
+    ])
+    .id(FIRST_ITEM_ROW_ID + index)
+    .spacing(8.0)
 }

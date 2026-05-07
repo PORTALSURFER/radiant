@@ -133,15 +133,17 @@ fn default_features_stay_empty_for_standalone_builds() {
 }
 
 #[test]
-fn public_module_tree_exposes_runtime_widgets_layout_theme_and_gui_only() {
+fn public_module_tree_exposes_generic_runtime_and_beginner_api_modules() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
         .expect("Radiant lib.rs should be readable");
     let public_modules = public_module_names(&lib);
     let expected = BTreeSet::from([
+        "ergonomic".to_owned(),
         "gui".to_owned(),
         "gui_runtime".to_owned(),
         "layout".to_owned(),
+        "prelude".to_owned(),
         "runtime".to_owned(),
         "theme".to_owned(),
         "widgets".to_owned(),
@@ -149,7 +151,7 @@ fn public_module_tree_exposes_runtime_widgets_layout_theme_and_gui_only() {
 
     assert_eq!(
         public_modules, expected,
-        "Radiant's crate root should expose only the generic public modules"
+        "Radiant's crate root should expose only generic public modules"
     );
     assert!(
         !manifest_dir.join("src/compat.rs").exists()

@@ -20,11 +20,11 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
-        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, SelectableMessage,
-        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
-        WidgetProminence, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, WidgetTone,
-        resolve_widget_visual_tokens,
+        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, DragHandleMessage,
+        DragHandleWidget, ListItemMessage, PointerButton, RetainedSurfaceDescriptor, ScrollbarAxis,
+        ScrollbarMessage, SelectableMessage, TextEditCommand, TextInputMessage, TextInputWidget,
+        TextWidget, ToggleMessage, WidgetInput, WidgetKey, WidgetProminence, WidgetSizing,
+        WidgetSpec, WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
@@ -839,6 +839,41 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
 }
 
 #[test]
+fn overlay_panel_nodes_paint_without_joining_widget_hit_testing() {
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::stack(
+        1,
+        vec![
+            SurfaceChild::fill(SurfaceNode::text(
+                2,
+                "Content",
+                WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+            )),
+            SurfaceChild::fill(SurfaceNode::overlay_panel(
+                3,
+                Rect::from_min_size(Point::new(12.0, 18.0), Vector2::new(180.0, 44.0)),
+                "Dragging",
+                WidgetStyle {
+                    tone: WidgetTone::Accent,
+                    prominence: WidgetProminence::Subtle,
+                },
+            )),
+        ],
+    ));
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 96.0)),
+    );
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    assert!(surface.find_widget(3).is_none());
+    assert!(
+        plan.primitives.iter().any(
+            |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.widget_id == 3 && text.text == "Dragging")
+        )
+    );
+}
+
+#[test]
 fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -1404,13 +1439,13 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         .dispatch_widget_input(
             66,
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 90.0)),
-            canvas_input,
+            canvas_input.clone(),
         )
         .expect("canvas should forward routed input");
     assert_eq!(
         canvas_output,
         radiant::widgets::WidgetOutput::Canvas(CanvasMessage::Input {
-            input: canvas_input
+            input: canvas_input.clone()
         })
     );
     assert_eq!(
@@ -1507,6 +1542,57 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         .widget();
     match field {
         WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Q"),
+        other => panic!("expected text input widget, got {other:?}"),
+    }
+}
+
+#[test]
+fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes() {
+    let bridge = declarative_runtime_bridge(
+        DemoState {
+            name: String::from("abcd"),
+            ..DemoState::default()
+        },
+        project_surface,
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::Increment | DemoMessage::SetActive(_) | DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
+
+    assert!(runtime.focus_widget(12));
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::MoveHome {
+            extend_selection: false,
+        })),
+        Some(12)
+    );
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::MoveRight {
+            extend_selection: true,
+        })),
+        Some(12)
+    );
+    assert_eq!(runtime.focused_text_selection().as_deref(), Some("a"));
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::InsertText(
+            String::from("z")
+        ))),
+        Some(12)
+    );
+
+    let field = runtime
+        .surface()
+        .find_widget(12)
+        .expect("text input widget should still be present")
+        .widget();
+    match field {
+        WidgetSpec::TextInput(input) => {
+            assert_eq!(input.state.value, "zbcd");
+            assert_eq!(input.state.caret, 1);
+            assert_eq!(input.state.selection_anchor, 1);
+        }
         other => panic!("expected text input widget, got {other:?}"),
     }
 }
@@ -1623,6 +1709,53 @@ fn surface_runtime_clears_hover_when_pointer_leaves_widget() {
     );
     assert_eq!(runtime.hovered_widget(), None);
     assert!(!button_hovered(runtime.surface(), 11));
+}
+
+#[test]
+fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
+    let bridge = declarative_command_runtime_bridge(
+        Vec::<DragHandleMessage>::new(),
+        |_| {
+            Arc::new(UiSurface::new(SurfaceNode::widget(
+                WidgetSpec::DragHandle(DragHandleWidget::new(
+                    10,
+                    WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
+                )),
+                WidgetMessageMapper::drag_handle(|message| message),
+            )))
+        },
+        |messages: &mut Vec<DragHandleMessage>, message| {
+            messages.push(message);
+            Command::request_repaint()
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(120.0, 120.0));
+
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerPress {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+        }),
+        Some(10)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(12.0, 72.0),
+        }),
+        Some(10)
+    );
+
+    assert_eq!(
+        runtime.bridge().state().as_slice(),
+        &[
+            DragHandleMessage::Started {
+                position: Point::new(12.0, 12.0),
+            },
+            DragHandleMessage::Moved {
+                position: Point::new(12.0, 72.0),
+            },
+        ]
+    );
 }
 
 #[test]
@@ -1816,10 +1949,16 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
             _ => None,
         })
         .collect();
-    assert_eq!(
-        texts,
-        vec![(10, "Crates (2)"), (11, "Increment"), (12, "Crates")]
-    );
+    assert_eq!(texts, vec![(10, "Crates (2)"), (11, "Increment")]);
+    let text_inputs: Vec<_> = runtime_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some((input.widget_id, input.state.value.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(text_inputs, vec![(12, "Crates")]);
 
     let fills: Vec<_> = runtime_plan
         .primitives

@@ -7,7 +7,7 @@ use crate::gui::{
 };
 use crate::runtime::{RuntimeBridge, SurfaceRuntime};
 use crate::theme::ThemeTokens;
-use crate::widgets::{PointerButton, WidgetKey};
+use crate::widgets::{PointerButton, TextEditCommand, WidgetInput, WidgetKey};
 
 pub(in crate::gui_runtime::native_vello) struct GenericNativeRuntimeCore<Bridge, Message>
 where
@@ -129,6 +129,25 @@ where
             .dispatch_event(crate::runtime::Event::KeyPress(key))
             .is_some();
         self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn route_text_edit(
+        &mut self,
+        command: TextEditCommand,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .dispatch_focused_input(WidgetInput::TextEdit(command))
+            .is_some();
+        self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn focused_text_selection(&self) -> Option<String> {
+        self.runtime.focused_text_selection()
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn has_focused_text_input(&self) -> bool {
+        self.runtime.focused_text_input_id().is_some()
     }
 
     pub(in crate::gui_runtime::native_vello) fn route_character(

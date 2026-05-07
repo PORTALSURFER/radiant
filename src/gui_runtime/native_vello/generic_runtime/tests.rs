@@ -134,6 +134,7 @@ fn generic_paint_plan_encodes_to_vello_scene() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
 }
 
@@ -154,6 +155,7 @@ fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
     let second = encode_surface_paint_plan_to_scene(
         &plan,
@@ -162,6 +164,7 @@ fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
 
     assert_eq!(first.bridge_calls, 1);
@@ -188,6 +191,7 @@ fn retained_custom_surface_cache_rejects_current_dirty_descriptor() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
     core.runtime.bridge_mut().dirty_mask = 1;
     core.refresh_surface();
@@ -199,6 +203,7 @@ fn retained_custom_surface_cache_rejects_current_dirty_descriptor() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
 
     assert_eq!(first.bridge_calls, 1);
@@ -230,6 +235,7 @@ fn retained_custom_surface_cache_rejects_volatile_descriptor() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
     let second = encode_surface_paint_plan_to_scene(
         &plan,
@@ -238,6 +244,7 @@ fn retained_custom_surface_cache_rejects_volatile_descriptor() {
         core.runtime.bridge_mut(),
         viewport,
         &mut retained_cache,
+        Duration::ZERO,
     );
 
     assert_eq!(first.bridge_calls, 1);

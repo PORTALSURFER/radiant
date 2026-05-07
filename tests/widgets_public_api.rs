@@ -7,9 +7,10 @@ use radiant::{
         layout_tree,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, CardWidget, ImageWidget, ListItemWidget, ScrollbarAxis,
-        ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetInput,
-        WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing, WidgetSpec,
+        BadgeWidget, ButtonWidget, CardWidget, DragHandleWidget, ImageWidget, ListItemWidget,
+        ScrollbarAxis, ScrollbarWidget, SelectableWidget, TextInputWidget, TextWidget,
+        ToggleWidget, WidgetInput, WidgetKey, WidgetMessageKind, WidgetOutput, WidgetSizing,
+        WidgetSpec,
     },
 };
 use std::sync::Arc;
@@ -44,6 +45,10 @@ fn public_widgets_compose_with_public_layout_containers() {
         6,
         ScrollbarAxis::Vertical,
         WidgetSizing::fixed(Vector2::new(12.0, 28.0)),
+    ));
+    let drag = WidgetSpec::DragHandle(DragHandleWidget::new(
+        18,
+        WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
     ));
     let badge = WidgetSpec::Badge(BadgeWidget::new(
         7,
@@ -87,6 +92,7 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), snap.layout_node()),
             SlotChild::new(SlotParams::fill(), muted_snap.layout_node()),
             SlotChild::new(SlotParams::fill(), scroll.layout_node()),
+            SlotChild::new(SlotParams::fill(), drag.layout_node()),
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
             SlotChild::new(SlotParams::fill(), card.layout_node()),
             SlotChild::new(SlotParams::fill(), item.layout_node()),
@@ -106,6 +112,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&snap.id()));
     assert!(output.rects.contains_key(&muted_snap.id()));
     assert!(output.rects.contains_key(&scroll.id()));
+    assert!(output.rects.contains_key(&drag.id()));
     assert!(output.rects.contains_key(&badge.id()));
     assert!(output.rects.contains_key(&card.id()));
     assert!(output.rects.contains_key(&item.id()));
@@ -128,6 +135,10 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert_eq!(
         scroll.common().emitted_messages,
         vec![WidgetMessageKind::ScrollRequested]
+    );
+    assert_eq!(
+        drag.common().emitted_messages,
+        vec![WidgetMessageKind::Dragged]
     );
     assert_eq!(
         item.common().emitted_messages,
@@ -167,6 +178,10 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         13,
         "Ready",
         WidgetSizing::fixed(Vector2::new(64.0, 24.0)),
+    ));
+    let mut drag = WidgetSpec::DragHandle(DragHandleWidget::new(
+        17,
+        WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
     ));
     let mut item = WidgetSpec::ListItem(ListItemWidget::new(
         14,
@@ -223,6 +238,34 @@ fn widget_spec_dispatches_public_messages_for_reusable_controls() {
         badge.handle_input(bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
         Some(WidgetOutput::Badge(
             radiant::widgets::BadgeMessage::Activate
+        ))
+    );
+
+    assert_eq!(
+        drag.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(10.0, 10.0),
+                button: radiant::widgets::PointerButton::Primary,
+            },
+        ),
+        Some(WidgetOutput::DragHandle(
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(10.0, 10.0),
+            }
+        ))
+    );
+    assert_eq!(
+        drag.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(10.0, 38.0),
+            },
+        ),
+        Some(WidgetOutput::DragHandle(
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(10.0, 38.0),
+            }
         ))
     );
 

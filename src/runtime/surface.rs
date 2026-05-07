@@ -1,23 +1,23 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
 use super::paint::{
-    SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome,
+    SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome, push_overlay_panel,
     push_scroll_affordance, push_widget_paint, scroll_content_clip_rect,
 };
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
         ContainerKind, ContainerPolicy, GridPolicy, LayoutNode, LayoutOutput, NodeId,
-        OverflowPolicy, SlotChild, SlotParams, VirtualizationAxis, VirtualizationPolicy,
+        OverflowPolicy, SlotChild, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
     },
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget,
-        CardWidget, FocusBehavior, ImageWidget, ListItemMessage, ListItemWidget,
-        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
-        SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget, TextWidget,
-        ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
-        WidgetState, WidgetStyle,
+        CardWidget, DragHandleMessage, DragHandleWidget, FocusBehavior, ImageWidget,
+        ListItemMessage, ListItemWidget, RetainedSurfaceDescriptor, ScrollbarAxis,
+        ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
+        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
+        WidgetOutput, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -41,6 +41,8 @@ pub enum WidgetMessageMapper<Message> {
     TextInput(MessageMapper<TextInputMessage, Message>),
     /// Map a scrollbar request payload into a host-defined message.
     Scrollbar(MessageMapper<ScrollbarMessage, Message>),
+    /// Map a drag lifecycle payload into a host-defined message.
+    DragHandle(MessageMapper<DragHandleMessage, Message>),
     /// Map a list-item invocation payload into a host-defined message.
     ListItem(MessageMapper<ListItemMessage, Message>),
     /// Map a selectable state-change payload into a host-defined message.
@@ -58,6 +60,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
             Self::Toggle(map) => Self::Toggle(Arc::clone(map)),
             Self::TextInput(map) => Self::TextInput(Arc::clone(map)),
             Self::Scrollbar(map) => Self::Scrollbar(Arc::clone(map)),
+            Self::DragHandle(map) => Self::DragHandle(Arc::clone(map)),
             Self::ListItem(map) => Self::ListItem(Arc::clone(map)),
             Self::Selectable(map) => Self::Selectable(Arc::clone(map)),
             Self::Canvas(map) => Self::Canvas(Arc::clone(map)),
@@ -91,6 +94,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Self::Scrollbar(Arc::new(map))
     }
 
+    /// Build a drag-handle-message mapper.
+    pub fn drag_handle(map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::DragHandle(Arc::new(map))
+    }
+
     /// Build a list-item-message mapper.
     pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
         Self::ListItem(Arc::new(map))
@@ -113,6 +121,7 @@ impl<Message> WidgetMessageMapper<Message> {
             (Self::Toggle(map), WidgetOutput::Toggle(message)) => Some(map(message)),
             (Self::TextInput(map), WidgetOutput::TextInput(message)) => Some(map(message)),
             (Self::Scrollbar(map), WidgetOutput::Scrollbar(message)) => Some(map(message)),
+            (Self::DragHandle(map), WidgetOutput::DragHandle(message)) => Some(map(message)),
             (Self::ListItem(map), WidgetOutput::ListItem(message)) => Some(map(message)),
             (Self::Selectable(map), WidgetOutput::Selectable(message)) => Some(map(message)),
             (Self::Canvas(map), WidgetOutput::Canvas(message)) => Some(map(message)),
@@ -150,6 +159,11 @@ impl<Message> SurfaceWidget<Message> {
     /// Return the projected widget descriptor.
     pub fn widget(&self) -> &WidgetSpec {
         &self.widget
+    }
+
+    /// Return the projected widget descriptor for runtime-owned state updates.
+    pub fn widget_mut(&mut self) -> &mut WidgetSpec {
+        &mut self.widget
     }
 
     /// Return whether this widget participates in runtime focus management.
@@ -265,6 +279,17 @@ pub enum SurfaceNode<Message> {
     Container(SurfaceContainer<Message>),
     /// A widget leaf plus host-defined message mapping.
     Widget(SurfaceWidget<Message>),
+    /// A non-interactive floating overlay painted above normal layout content.
+    Overlay(SurfaceOverlay),
+}
+
+/// Non-interactive floating overlay descriptor.
+#[derive(Clone)]
+pub struct SurfaceOverlay {
+    id: NodeId,
+    rect: Rect,
+    label: Option<String>,
+    style: WidgetStyle,
 }
 
 impl<Message> Clone for SurfaceNode<Message> {
@@ -272,6 +297,7 @@ impl<Message> Clone for SurfaceNode<Message> {
         match self {
             Self::Container(container) => Self::Container(container.clone()),
             Self::Widget(widget) => Self::Widget(widget.clone()),
+            Self::Overlay(overlay) => Self::Overlay(overlay.clone()),
         }
     }
 }
@@ -413,6 +439,31 @@ impl<Message> SurfaceNode<Message> {
     /// Build a widget leaf node that does not emit host-defined messages.
     pub fn static_widget(widget: WidgetSpec) -> Self {
         Self::widget(widget, WidgetMessageMapper::None)
+    }
+
+    /// Build a non-interactive floating overlay panel in surface coordinates.
+    pub fn overlay_panel(
+        id: NodeId,
+        rect: Rect,
+        label: impl Into<String>,
+        style: WidgetStyle,
+    ) -> Self {
+        Self::Overlay(SurfaceOverlay {
+            id,
+            rect,
+            label: Some(label.into()),
+            style,
+        })
+    }
+
+    /// Build a non-interactive floating overlay marker in surface coordinates.
+    pub fn overlay_marker(id: NodeId, rect: Rect, style: WidgetStyle) -> Self {
+        Self::Overlay(SurfaceOverlay {
+            id,
+            rect,
+            label: None,
+            style,
+        })
     }
 
     /// Build a non-emitting text leaf node.
@@ -571,6 +622,18 @@ impl<Message> SurfaceNode<Message> {
         )
     }
 
+    /// Build a drag handle with a custom widget-to-host message mapper.
+    pub fn drag_handle_mapped(
+        id: WidgetId,
+        sizing: WidgetSizing,
+        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            WidgetSpec::DragHandle(DragHandleWidget::new(id, sizing)),
+            WidgetMessageMapper::drag_handle(map),
+        )
+    }
+
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
         Self::static_widget(WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)))
@@ -674,6 +737,7 @@ impl<Message> SurfaceNode<Message> {
         match self {
             Self::Container(container) => container.id,
             Self::Widget(widget) => widget.id(),
+            Self::Overlay(overlay) => overlay.id,
         }
     }
 
@@ -689,6 +753,7 @@ impl<Message> SurfaceNode<Message> {
                     .collect(),
             ),
             Self::Widget(widget) => widget.layout_node(),
+            Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
         }
     }
 
@@ -702,8 +767,9 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(container) => container
                 .children
                 .iter_mut()
-                .find_map(|child| child.child.handle_input(widget_id, bounds, input)),
+                .find_map(|child| child.child.handle_input(widget_id, bounds, input.clone())),
             Self::Widget(widget) => widget.handle_input(widget_id, bounds, input),
+            Self::Overlay(_) => None,
         }
     }
 
@@ -714,6 +780,7 @@ impl<Message> SurfaceNode<Message> {
                 .iter()
                 .find_map(|child| child.child.dispatch_output(widget_id, output)),
             Self::Widget(widget) => widget.dispatch_output(widget_id, output.clone()),
+            Self::Overlay(_) => None,
         }
     }
 
@@ -724,6 +791,7 @@ impl<Message> SurfaceNode<Message> {
                 .iter()
                 .find_map(|child| child.child.find_widget(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
+            Self::Overlay(_) => None,
         }
     }
 
@@ -734,6 +802,7 @@ impl<Message> SurfaceNode<Message> {
                 .iter_mut()
                 .find_map(|child| child.child.find_widget_mut(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
+            Self::Overlay(_) => None,
         }
     }
 
@@ -749,6 +818,7 @@ impl<Message> SurfaceNode<Message> {
                     order.push(widget.id());
                 }
             }
+            Self::Overlay(_) => {}
         }
     }
 
@@ -760,6 +830,7 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Widget(widget) => order.push(widget.id()),
+            Self::Overlay(_) => {}
         }
     }
 
@@ -788,6 +859,7 @@ impl<Message> SurfaceNode<Message> {
                     clips.insert(widget.id(), scroll_stack.clone());
                 }
             }
+            Self::Overlay(_) => {}
         }
     }
 
@@ -802,6 +874,7 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Widget(_) => {}
+            Self::Overlay(_) => {}
         }
     }
 
@@ -816,6 +889,7 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Widget(_) => {}
+            Self::Overlay(_) => {}
         }
     }
 
@@ -843,6 +917,7 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Widget(_) => {}
+            Self::Overlay(_) => {}
         }
     }
 
@@ -858,6 +933,7 @@ impl<Message> SurfaceNode<Message> {
                     .find_map(|child| child.child.scroll_content_id(scroll_id))
             }
             Self::Widget(_) => None,
+            Self::Overlay(_) => None,
         }
     }
 
@@ -918,6 +994,16 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(widget) => {
                 push_widget_paint(&mut plan.primitives, widget.widget(), layout, theme);
+            }
+            Self::Overlay(overlay) => {
+                push_overlay_panel(
+                    &mut plan.primitives,
+                    overlay.id,
+                    overlay.rect,
+                    overlay.label.clone(),
+                    theme,
+                    overlay.style,
+                );
             }
         }
     }

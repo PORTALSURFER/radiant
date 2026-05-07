@@ -15,8 +15,8 @@ use crate::{
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget, WidgetProminence,
-        WidgetSizing, WidgetSpec, WidgetStyle, WidgetTone,
+        ButtonWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
+        WidgetProminence, WidgetSizing, WidgetSpec, WidgetStyle, WidgetTone,
     },
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
@@ -344,6 +344,7 @@ pub struct ViewNode<Message> {
     padding: Insets,
     style: Option<WidgetStyle>,
     hoverable: bool,
+    input_only: bool,
     text_wrap: Option<TextWrap>,
 }
 
@@ -369,6 +370,9 @@ enum ViewNodeKind<Message> {
         label: String,
         map: Arc<dyn Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync>,
     },
+    DragHandle {
+        map: Arc<dyn Fn(crate::widgets::DragHandleMessage) -> Message + Send + Sync>,
+    },
     Toggle {
         label: String,
         checked: bool,
@@ -390,6 +394,13 @@ enum ViewNodeKind<Message> {
     },
     Scroll {
         child: Box<ViewNode<Message>>,
+    },
+    Stack {
+        children: Vec<ViewNode<Message>>,
+    },
+    OverlayPanel {
+        rect: crate::gui::types::Rect,
+        label: Option<String>,
     },
 }
 
@@ -494,6 +505,7 @@ impl<Message> ViewNode<Message> {
         let sizing = self.sizing.unwrap_or_else(|| match &self.kind {
             ViewNodeKind::Text(_) => default_text_sizing(),
             ViewNodeKind::ButtonMapped { label, .. } => default_button_sizing(label),
+            ViewNodeKind::DragHandle { .. } => default_drag_handle_sizing(),
             ViewNodeKind::Toggle { label, compact, .. } => default_toggle_sizing(label, *compact),
             ViewNodeKind::TextInput { .. } => default_text_input_sizing(),
             _ => WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
@@ -533,6 +545,12 @@ impl<Message> ViewNode<Message> {
     /// Allow this styled container to show hover chrome.
     pub fn hoverable(mut self) -> Self {
         self.hoverable = true;
+        self
+    }
+
+    /// Keep an interactive widget in hit testing without painting its own chrome.
+    pub fn input_only(mut self) -> Self {
+        self.input_only = true;
         self
     }
 
@@ -596,6 +614,11 @@ impl<Message> ViewNode<Message> {
                     child.collect_reserved_ids(child_scope, ids);
                 }
             }
+            ViewNodeKind::Stack { children } => {
+                for child in children {
+                    child.collect_reserved_ids(child_scope, ids);
+                }
+            }
             ViewNodeKind::Scroll { child } => child.collect_reserved_ids(child_scope, ids),
             ViewNodeKind::Runtime(node) => {
                 ids.insert(node.id());
@@ -625,6 +648,7 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
             padding: Insets::default(),
             style: None,
             hoverable: false,
+            input_only: false,
             text_wrap: None,
         }
     }
@@ -671,9 +695,28 @@ where
                 if let Some(style) = self.style {
                     button.common.style = style;
                 }
+                if self.input_only {
+                    button.common.paint.paints_state_layers = false;
+                }
                 SurfaceNode::widget(
                     WidgetSpec::Button(button),
                     WidgetMessageMapper::button(move |message| map(message)),
+                )
+            }
+            ViewNodeKind::DragHandle { map } => {
+                let mut handle = DragHandleWidget::new(
+                    id,
+                    self.sizing.unwrap_or_else(default_drag_handle_sizing),
+                );
+                if let Some(style) = self.style {
+                    handle.common.style = style;
+                }
+                if self.input_only {
+                    handle.common.paint.paints_state_layers = false;
+                }
+                SurfaceNode::widget(
+                    WidgetSpec::DragHandle(handle),
+                    WidgetMessageMapper::drag_handle(move |message| map(message)),
                 )
             }
             ViewNodeKind::Toggle {
@@ -691,6 +734,9 @@ where
                 .with_checked(checked);
                 if let Some(style) = self.style {
                     toggle.common.style = style;
+                }
+                if self.input_only {
+                    toggle.common.paint.paints_state_layers = false;
                 }
                 SurfaceNode::widget(
                     WidgetSpec::Toggle(toggle),
@@ -712,6 +758,9 @@ where
                 input.props.placeholder = placeholder;
                 if let Some(style) = self.style {
                     input.common.style = style;
+                }
+                if self.input_only {
+                    input.common.paint.paints_state_layers = false;
                 }
                 SurfaceNode::widget(
                     WidgetSpec::TextInput(input),
@@ -772,6 +821,30 @@ where
                     SurfaceNode::container(id, policy, children)
                 }
             }
+            ViewNodeKind::Stack { children } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::Stack,
+                    padding: self.padding,
+                    ..ContainerPolicy::default()
+                };
+                let children = children
+                    .into_iter()
+                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
+                    .collect();
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
+            }
+            ViewNodeKind::OverlayPanel { rect, label } => {
+                if let Some(label) = label {
+                    SurfaceNode::overlay_panel(id, rect, label, self.style.unwrap_or_default())
+                } else {
+                    SurfaceNode::overlay_marker(id, rect, self.style.unwrap_or_default())
+                }
+            }
         }
     }
 
@@ -797,6 +870,7 @@ pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
         padding: Insets::default(),
         style: None,
         hoverable: false,
+        input_only: false,
         text_wrap: None,
     }
 }
@@ -857,6 +931,7 @@ impl ButtonBuilder {
             padding: Insets::default(),
             style: self.style,
             hoverable: false,
+            input_only: false,
             text_wrap: None,
         }
     }
@@ -892,6 +967,54 @@ pub fn button_mapped<Message>(
     map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
     button(label).mapped(map)
+}
+
+/// Builder for compact drag handles that can emit messages or mutate state directly.
+pub struct DragHandleBuilder;
+
+impl DragHandleBuilder {
+    /// Emit a mapped host message for drag lifecycle events.
+    pub fn mapped<Message>(
+        self,
+        map: impl Fn(crate::widgets::DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        ViewNode {
+            kind: ViewNodeKind::DragHandle { map: Arc::new(map) },
+            id: None,
+            key: None,
+            sizing: None,
+            slot: SlotBehavior::default(),
+            padding: Insets::default(),
+            style: None,
+            hoverable: false,
+            input_only: false,
+            text_wrap: None,
+        }
+    }
+
+    /// Mutate application state directly when the handle is dragged.
+    pub fn on_drag<State: 'static>(
+        self,
+        apply: impl Fn(&mut State, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let apply = Arc::new(apply);
+        self.mapped(move |message| {
+            let apply = Arc::clone(&apply);
+            StateAction::new(move |state| apply(state, message))
+        })
+    }
+}
+
+/// Build a compact drag handle for pointer-driven reordering.
+pub fn drag_handle() -> DragHandleBuilder {
+    DragHandleBuilder
+}
+
+/// Build a drag handle with a custom widget-message mapper.
+pub fn drag_handle_mapped<Message>(
+    map: impl Fn(crate::widgets::DragHandleMessage) -> Message + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    drag_handle().mapped(map)
 }
 
 /// Builder for toggles that can emit messages or mutate state directly.
@@ -946,6 +1069,7 @@ impl ToggleBuilder {
             padding: Insets::default(),
             style: self.style,
             hoverable: false,
+            input_only: false,
             text_wrap: None,
         }
     }
@@ -1038,6 +1162,7 @@ impl TextInputBuilder {
             padding: Insets::default(),
             style: self.style,
             hoverable: false,
+            input_only: false,
             text_wrap: None,
         }
     }
@@ -1094,6 +1219,7 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
         padding: Insets::default(),
         style: None,
         hoverable: false,
+        input_only: false,
         text_wrap: None,
     }
 }
@@ -1120,6 +1246,7 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
         padding: Insets::default(),
         style: None,
         hoverable: false,
+        input_only: false,
         text_wrap: None,
     }
 }
@@ -1130,6 +1257,74 @@ pub fn column_key<Message>(
     children: impl IntoIterator<Item = ViewNode<Message>>,
 ) -> ViewNode<Message> {
     column(children).key(key)
+}
+
+/// Build a stack container that overlays children in paint order.
+pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::Stack {
+            children: children.into_iter().collect(),
+        },
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
+}
+
+/// Build a floating overlay panel in surface coordinates.
+pub fn overlay_panel<Message>(
+    label: impl Into<String>,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::OverlayPanel {
+            rect: crate::gui::types::Rect::from_min_size(
+                crate::gui::types::Point::new(x, y),
+                Vector2::new(width, height),
+            ),
+            label: Some(label.into()),
+        },
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
+}
+
+/// Build a floating drop marker in surface coordinates.
+pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::OverlayPanel {
+            rect: crate::gui::types::Rect::from_min_size(
+                crate::gui::types::Point::new(x, y),
+                Vector2::new(width, height),
+            ),
+            label: None,
+        },
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: Some(primary_style()),
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
 }
 
 impl SlotBehavior {
@@ -1175,6 +1370,7 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
         padding: Insets::default(),
         style: None,
         hoverable: false,
+        input_only: false,
         text_wrap: None,
     }
 }
@@ -1245,6 +1441,10 @@ fn default_text_sizing() -> WidgetSizing {
 fn default_button_sizing(label: &str) -> WidgetSizing {
     let width = (label.chars().count() as f32 * 9.0 + 36.0).clamp(88.0, 260.0);
     WidgetSizing::fixed(Vector2::new(width, 36.0)).with_baseline(23.0)
+}
+
+fn default_drag_handle_sizing() -> WidgetSizing {
+    WidgetSizing::fixed(Vector2::new(24.0, 24.0))
 }
 
 fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {

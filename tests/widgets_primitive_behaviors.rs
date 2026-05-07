@@ -4,10 +4,11 @@ use radiant::gui::types::{ImageRgba, Point, Rect};
 use radiant::{
     layout::Vector2,
     widgets::{
-        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, ImageWidget,
-        ListItemMessage, ListItemWidget, PointerButton, ScrollbarAxis, ScrollbarMessage,
-        ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget,
-        ToggleMessage, ToggleWidget, WidgetInput, WidgetKey, WidgetSizing,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, DragHandleMessage,
+        DragHandleWidget, ImageWidget, ListItemMessage, ListItemWidget, PointerButton,
+        ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget,
+        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, WidgetInput, WidgetKey,
+        WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -151,6 +152,62 @@ fn list_item_invocation_is_public_and_deterministic() {
 }
 
 #[test]
+fn drag_handle_emits_captured_drag_lifecycle() {
+    let mut handle = DragHandleWidget::new(12, WidgetSizing::fixed(Vector2::new(24.0, 24.0)));
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(24.0, 24.0));
+
+    assert_eq!(
+        handle.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(12.0, 12.0),
+            },
+        ),
+        None
+    );
+    assert!(handle.common.state.hovered);
+    assert_eq!(
+        handle.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(12.0, 12.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(DragHandleMessage::Started {
+            position: Point::new(12.0, 12.0),
+        })
+    );
+    assert!(handle.common.state.pressed);
+    assert!(handle.common.state.active);
+    assert_eq!(
+        handle.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(12.0, 70.0),
+            },
+        ),
+        Some(DragHandleMessage::Moved {
+            position: Point::new(12.0, 70.0),
+        })
+    );
+    assert_eq!(
+        handle.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(12.0, 70.0),
+                button: PointerButton::Primary,
+            },
+        ),
+        Some(DragHandleMessage::Ended {
+            position: Point::new(12.0, 70.0),
+        })
+    );
+    assert!(!handle.common.state.pressed);
+    assert!(!handle.common.state.active);
+}
+
+#[test]
 fn selectable_toggles_selected_state_with_pointer_and_keyboard() {
     let mut selectable = SelectableWidget::new(
         11,
@@ -216,6 +273,7 @@ fn text_input_edits_and_submits_single_line_values() {
 
     let _ = input.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
     input.state.caret = 1;
+    input.state.selection_anchor = 1;
 
     assert_eq!(
         input.handle_input(Rect::default(), WidgetInput::Character('z')),

@@ -217,13 +217,17 @@ fn generic_native_example_is_registered_and_uses_application_builders() {
     for required in [
         "use radiant::prelude::*;",
         "radiant::app(DemoState::default())",
+        ".size(460, 128)",
+        ".min_size(400, 112)",
         ".update_command",
         "Command::message",
         "Command::request_repaint",
         "row([",
         "text(format!(",
+        ".preferred_size(260.0, 32.0)",
         "button(\"Increment\")",
         ".message(DemoMessage::ButtonPressed)",
+        ".size(112.0, 40.0)",
     ] {
         assert!(
             example.contains(required),

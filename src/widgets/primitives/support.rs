@@ -10,8 +10,8 @@ use crate::widgets::contract::{
     WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{
-    CanvasMessage, ListItemMessage, PointerButton, SelectableMessage, WidgetInput, WidgetKey,
-    WidgetOutput,
+    CanvasMessage, DragHandleMessage, ListItemMessage, PointerButton, SelectableMessage,
+    WidgetInput, WidgetKey, WidgetOutput,
 };
 
 /// Shared contract carried by every public widget descriptor.
@@ -149,6 +149,63 @@ impl ListItemWidget {
                 if self.common.state.focused && activate_on_keyboard(key) =>
             {
                 Some(ListItemMessage::Invoked)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Public drag handle primitive for pointer-driven reordering.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DragHandleWidget {
+    /// Shared widget contract.
+    pub common: WidgetCommon,
+}
+
+impl DragHandleWidget {
+    /// Build a compact handle that emits drag lifecycle messages.
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
+        let mut common = WidgetCommon::new(id, WidgetKind::DragHandle, sizing);
+        common.focus = FocusBehavior::Pointer;
+        common
+            .emitted_messages
+            .push(crate::widgets::contract::WidgetMessageKind::Dragged);
+        Self { common }
+    }
+
+    /// Route one backend-neutral interaction into the handle.
+    pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<DragHandleMessage> {
+        if self.common.state.disabled {
+            return None;
+        }
+
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                self.common
+                    .state
+                    .pressed
+                    .then_some(DragHandleMessage::Moved { position })
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.common.state.pressed = true;
+                self.common.state.active = true;
+                Some(DragHandleMessage::Started { position })
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                self.common.state.pressed = false;
+                self.common.state.active = false;
+                Some(DragHandleMessage::Ended { position })
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                None
             }
             _ => None,
         }
@@ -361,6 +418,8 @@ pub enum WidgetSpec {
     TextInput(super::text_input::TextInputWidget),
     /// Scroll affordance.
     Scrollbar(super::scrollbar::ScrollbarWidget),
+    /// Compact pointer handle for drag/reorder gestures.
+    DragHandle(DragHandleWidget),
     /// Focusable row/item primitive.
     ListItem(ListItemWidget),
     /// Selectable content surface.
@@ -384,12 +443,31 @@ impl WidgetSpec {
             Self::Toggle(widget) => &widget.common,
             Self::TextInput(widget) => &widget.common,
             Self::Scrollbar(widget) => &widget.common,
+            Self::DragHandle(widget) => &widget.common,
             Self::ListItem(widget) => &widget.common,
             Self::Selectable(widget) => &widget.common,
             Self::Badge(widget) => &widget.common,
             Self::Card(widget) => &widget.common,
             Self::Image(widget) => &widget.common,
             Self::Canvas(widget) => &widget.common,
+        }
+    }
+
+    /// Return the shared widget contract mutably for runtime-owned state restoration.
+    pub fn common_mut(&mut self) -> &mut WidgetCommon {
+        match self {
+            Self::Text(widget) => &mut widget.common,
+            Self::Button(widget) => &mut widget.common,
+            Self::Toggle(widget) => &mut widget.common,
+            Self::TextInput(widget) => &mut widget.common,
+            Self::Scrollbar(widget) => &mut widget.common,
+            Self::DragHandle(widget) => &mut widget.common,
+            Self::ListItem(widget) => &mut widget.common,
+            Self::Selectable(widget) => &mut widget.common,
+            Self::Badge(widget) => &mut widget.common,
+            Self::Card(widget) => &mut widget.common,
+            Self::Image(widget) => &mut widget.common,
+            Self::Canvas(widget) => &mut widget.common,
         }
     }
 
@@ -421,6 +499,9 @@ impl WidgetSpec {
             Self::Scrollbar(widget) => widget
                 .handle_input(bounds, input)
                 .map(WidgetOutput::Scrollbar),
+            Self::DragHandle(widget) => widget
+                .handle_input(bounds, input)
+                .map(WidgetOutput::DragHandle),
             Self::Badge(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Badge),
             Self::ListItem(widget) => widget
                 .handle_input(bounds, input)

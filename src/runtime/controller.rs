@@ -16,7 +16,9 @@ use crate::{
         layout_tree_with_state,
     },
     theme::ThemeTokens,
-    widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey, WidgetSpec},
+    widgets::{
+        PointerButton, TextInputState, WidgetId, WidgetInput, WidgetKey, WidgetSpec, WidgetState,
+    },
 };
 use std::collections::BTreeMap;
 
@@ -125,6 +127,8 @@ where
     hovered_container: Option<NodeId>,
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
+    pointer_capture_state: Option<(WidgetId, WidgetState)>,
+    text_input_states: BTreeMap<WidgetId, TextInputState>,
     repaint_requested: bool,
 }
 
@@ -164,6 +168,8 @@ where
             hovered_container: None,
             hovered_widget: None,
             pointer_capture: None,
+            pointer_capture_state: None,
+            text_input_states: BTreeMap::new(),
             repaint_requested: false,
         }
     }
@@ -254,6 +260,8 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         self.surface = self.bridge.pull_surface();
+        self.restore_text_input_states();
+        self.restore_pointer_capture_state();
         self.relayout();
         if self
             .focused_widget
@@ -332,6 +340,26 @@ where
         self.dispatch_input(widget_id, input).then_some(widget_id)
     }
 
+    /// Return whether the current focus target is a text input.
+    pub fn focused_text_input_id(&self) -> Option<WidgetId> {
+        let widget_id = self.focused_widget?;
+        self.surface.find_widget(widget_id).and_then(|widget| {
+            matches!(widget.widget(), WidgetSpec::TextInput(_)).then_some(widget_id)
+        })
+    }
+
+    /// Return selected text from the focused text input, if any.
+    pub fn focused_text_selection(&self) -> Option<String> {
+        let widget_id = self.focused_text_input_id()?;
+        self.surface.find_widget(widget_id).and_then(|widget| {
+            if let WidgetSpec::TextInput(input) = widget.widget() {
+                input.selected_text()
+            } else {
+                None
+            }
+        })
+    }
+
     /// Resolve one keypress through host-owned shortcuts before falling back to
     /// focused-widget key routing.
     ///
@@ -374,6 +402,7 @@ where
             Event::PointerPress { position, button } => {
                 let Some(widget_id) = self.widget_at(position) else {
                     self.pointer_capture = None;
+                    self.pointer_capture_state = None;
                     self.clear_focus();
                     return None;
                 };
@@ -385,6 +414,7 @@ where
                     .pointer_capture
                     .take()
                     .or_else(|| self.widget_at(position))?;
+                self.pointer_capture_state = None;
                 self.dispatch_input(widget_id, WidgetInput::PointerRelease { position, button })
                     .then_some(widget_id)
             }
@@ -433,14 +463,71 @@ where
             return false;
         };
         let Some(output) = self.surface.dispatch_widget_input(widget_id, bounds, input) else {
+            self.capture_text_input_state(widget_id);
+            self.capture_pointer_capture_state(widget_id);
             return self.surface.find_widget(widget_id).is_some();
         };
+        self.capture_text_input_state(widget_id);
+        self.capture_pointer_capture_state(widget_id);
         if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
             self.dispatch_message(message);
         } else {
             self.relayout();
         }
         true
+    }
+
+    fn capture_text_input_state(&mut self, widget_id: WidgetId) {
+        let Some(widget) = self.surface.find_widget(widget_id) else {
+            return;
+        };
+        if let WidgetSpec::TextInput(input) = widget.widget() {
+            self.text_input_states
+                .insert(widget_id, input.state.clone());
+        }
+    }
+
+    fn restore_text_input_states(&mut self) {
+        let states = self.text_input_states.clone();
+        for (widget_id, state) in states {
+            let Some(widget) = self.surface.find_widget_mut(widget_id) else {
+                self.text_input_states.remove(&widget_id);
+                continue;
+            };
+            let WidgetSpec::TextInput(input) = widget.widget_mut() else {
+                self.text_input_states.remove(&widget_id);
+                continue;
+            };
+            if input.state.value == state.value {
+                input.state = state;
+            }
+        }
+    }
+
+    fn capture_pointer_capture_state(&mut self, widget_id: WidgetId) {
+        if self.pointer_capture != Some(widget_id) {
+            return;
+        }
+        let Some(widget) = self.surface.find_widget(widget_id) else {
+            self.pointer_capture_state = None;
+            return;
+        };
+        self.pointer_capture_state = Some((widget_id, widget.widget().common().state));
+    }
+
+    fn restore_pointer_capture_state(&mut self) {
+        let Some((widget_id, state)) = self.pointer_capture_state else {
+            return;
+        };
+        if self.pointer_capture != Some(widget_id) {
+            self.pointer_capture_state = None;
+            return;
+        }
+        let Some(widget) = self.surface.find_widget_mut(widget_id) else {
+            self.pointer_capture_state = None;
+            return;
+        };
+        widget.widget_mut().common_mut().state = state;
     }
 
     /// Return the first projected widget whose laid-out bounds contain `point`.
@@ -593,6 +680,7 @@ where
                 | WidgetSpec::Toggle(_)
                 | WidgetSpec::TextInput(_)
                 | WidgetSpec::Scrollbar(_)
+                | WidgetSpec::DragHandle(_)
                 | WidgetSpec::ListItem(_)
                 | WidgetSpec::Selectable(_)
                 | WidgetSpec::Badge(_)

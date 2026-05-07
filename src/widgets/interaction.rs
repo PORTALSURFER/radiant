@@ -56,8 +56,43 @@ impl WidgetKey {
     }
 }
 
+/// Backend-neutral single-line text editing commands.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum TextEditCommand {
+    /// Move the caret one logical character left.
+    MoveLeft {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
+    /// Move the caret one logical character right.
+    MoveRight {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
+    /// Move the caret to the start of the value.
+    MoveHome {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
+    /// Move the caret to the end of the value.
+    MoveEnd {
+        /// Extend the current selection instead of collapsing it.
+        extend_selection: bool,
+    },
+    /// Select the full text value.
+    SelectAll,
+    /// Insert or paste a text payload at the current selection.
+    InsertText(String),
+    /// Delete the selected range or previous character.
+    Backspace,
+    /// Delete the selected range or next character.
+    Delete,
+    /// Delete the selected range for a cut operation.
+    CutSelection,
+}
+
 /// Backend-neutral interaction routed into a reusable widget primitive.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum WidgetInput {
     /// Pointer hover moved across the widget bounds.
     PointerMove {
@@ -87,6 +122,8 @@ pub enum WidgetInput {
     KeyPress(WidgetKey),
     /// One printable character should be inserted into the widget value.
     Character(char),
+    /// One higher-level text editing command should be routed to a text field.
+    TextEdit(TextEditCommand),
 }
 
 /// Message emitted by a reusable button primitive.
@@ -155,8 +192,28 @@ pub enum ScrollbarMessage {
     },
 }
 
-/// Message emitted by a reusable canvas/custom-paint primitive.
+/// Message emitted by a reusable drag handle primitive.
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DragHandleMessage {
+    /// Primary pointer drag started.
+    Started {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+    },
+    /// Captured pointer moved while the drag is active.
+    Moved {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+    },
+    /// Primary pointer drag ended or was released.
+    Ended {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+    },
+}
+
+/// Message emitted by a reusable canvas/custom-paint primitive.
+#[derive(Clone, Debug, PartialEq)]
 pub enum CanvasMessage {
     /// Backend-neutral interaction routed into the custom surface.
     Input {
@@ -182,6 +239,8 @@ pub enum WidgetOutput {
     TextInput(TextInputMessage),
     /// Scrollbar viewport-request output.
     Scrollbar(ScrollbarMessage),
+    /// Drag handle lifecycle output.
+    DragHandle(DragHandleMessage),
     /// Canvas/custom-surface input output.
     Canvas(CanvasMessage),
 }

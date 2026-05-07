@@ -132,11 +132,13 @@ where
     scene: Scene,
     retained_surface_cache: RetainedSurfaceFrameCache,
     last_cursor: Option<Point>,
+    clipboard: Option<arboard::Clipboard>,
     repaint_event_pending: Arc<std::sync::atomic::AtomicBool>,
     modifiers: winit::keyboard::ModifiersState,
     redraw_requested: bool,
     startup_timing: StartupTimingProfile,
     first_frame_presented: bool,
+    animation_origin: Instant,
     last_redraw: Instant,
     last_scene_stats: RetainedSurfaceEncodeStats,
 }
@@ -158,11 +160,13 @@ where
             scene: Scene::new(),
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
             last_cursor: None,
+            clipboard: arboard::Clipboard::new().ok(),
             repaint_event_pending: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             modifiers: winit::keyboard::ModifiersState::default(),
             redraw_requested: false,
             startup_timing: StartupTimingProfile::new(),
             first_frame_presented: false,
+            animation_origin: Instant::now(),
             last_redraw: Instant::now(),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
         }
@@ -276,6 +280,7 @@ where
             self.core.runtime.bridge_mut(),
             viewport,
             &mut self.retained_surface_cache,
+            self.animation_origin.elapsed(),
         );
     }
 
@@ -309,6 +314,14 @@ where
         if let PhysicalKey::Code(code) = event.physical_key
             && let Some(key) = key_code_from_winit(code)
         {
+            if self.route_text_input_shortcut(key, &mut route_outcome) {
+                self.handle_route_outcome(route_outcome);
+                return;
+            }
+            if self.route_text_navigation_key(key, &mut route_outcome) {
+                self.handle_route_outcome(route_outcome);
+                return;
+            }
             let outcome = self.core.route_key_press(
                 keypress_from_input(key, self.modifiers),
                 WidgetKey::from_key_code(key),
@@ -332,6 +345,80 @@ where
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         self.handle_route_outcome(route_outcome);
+    }
+
+    fn route_text_input_shortcut(
+        &mut self,
+        key: crate::gui::input::KeyCode,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        if !(self.modifiers.control_key() || self.modifiers.super_key()) {
+            return false;
+        }
+        match key {
+            crate::gui::input::KeyCode::A => {
+                let outcome = self.core.route_text_edit(TextEditCommand::SelectAll);
+                route_outcome.routed |= outcome.routed;
+                route_outcome.repaint_requested |= outcome.repaint_requested;
+                outcome.routed
+            }
+            crate::gui::input::KeyCode::C => {
+                if let Some(selection) = self.core.focused_text_selection() {
+                    if let Some(clipboard) = &mut self.clipboard {
+                        let _ = clipboard.set_text(selection);
+                    }
+                    route_outcome.routed = true;
+                    return true;
+                }
+                false
+            }
+            crate::gui::input::KeyCode::X => {
+                if let Some(selection) = self.core.focused_text_selection() {
+                    if let Some(clipboard) = &mut self.clipboard {
+                        let _ = clipboard.set_text(selection);
+                    }
+                    let outcome = self.core.route_text_edit(TextEditCommand::CutSelection);
+                    route_outcome.routed |= outcome.routed;
+                    route_outcome.repaint_requested |= outcome.repaint_requested;
+                    return outcome.routed;
+                }
+                false
+            }
+            crate::gui::input::KeyCode::V => {
+                let Some(clipboard) = &mut self.clipboard else {
+                    return false;
+                };
+                let Ok(text) = clipboard.get_text() else {
+                    return false;
+                };
+                let outcome = self.core.route_text_edit(TextEditCommand::InsertText(text));
+                route_outcome.routed |= outcome.routed;
+                route_outcome.repaint_requested |= outcome.repaint_requested;
+                outcome.routed
+            }
+            _ => false,
+        }
+    }
+
+    fn route_text_navigation_key(
+        &mut self,
+        key: crate::gui::input::KeyCode,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        let extend_selection = self.modifiers.shift_key();
+        let command = match key {
+            crate::gui::input::KeyCode::ArrowLeft => TextEditCommand::MoveLeft { extend_selection },
+            crate::gui::input::KeyCode::ArrowRight => {
+                TextEditCommand::MoveRight { extend_selection }
+            }
+            crate::gui::input::KeyCode::Home => TextEditCommand::MoveHome { extend_selection },
+            crate::gui::input::KeyCode::End => TextEditCommand::MoveEnd { extend_selection },
+            _ => return false,
+        };
+        let outcome = self.core.route_text_edit(command);
+        route_outcome.routed |= outcome.routed;
+        route_outcome.repaint_requested |= outcome.repaint_requested;
+        outcome.routed
     }
 
     /// Route printable text from a keyboard event into the focused widget.
@@ -523,7 +610,7 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
-        if !self.core.needs_animation() {
+        if !self.core.needs_animation() && !self.core.has_focused_text_input() {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }

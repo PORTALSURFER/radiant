@@ -52,14 +52,15 @@ pub mod widgets;
 pub mod prelude {
     pub use crate::Result;
     pub use crate::application::{
-        ButtonBuilder, IntoView, RunnableStatefulApp, StateAction, StateView, StatefulAppBuilder,
-        StatefulAppWithView, TextInputBuilder, ToggleBuilder, View, ViewNode, WindowBuilder, app,
-        button, button_mapped, button_message, checkbox, column, column_key, list, list_row, row,
-        row_key, scroll, scroll_column, text, text_input, text_input_mapped, toggle, toggle_mapped,
+        ButtonBuilder, DragHandleBuilder, IntoView, RunnableStatefulApp, StateAction, StateView,
+        StatefulAppBuilder, StatefulAppWithView, TextInputBuilder, ToggleBuilder, View, ViewNode,
+        WindowBuilder, app, button, button_mapped, button_message, checkbox, column, column_key,
+        drag_handle, drag_handle_mapped, drop_marker, list, list_row, overlay_panel, row, row_key,
+        scroll, scroll_column, stack, text, text_input, text_input_mapped, toggle, toggle_mapped,
         window,
     };
     pub use crate::runtime::Command;
-    pub use crate::widgets::{WidgetProminence, WidgetStyle, WidgetTone};
+    pub use crate::widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone};
 }
 
 pub use application::{Result, app, window};

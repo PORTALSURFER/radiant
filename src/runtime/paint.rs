@@ -5,8 +5,8 @@ use crate::{
     layout::{LayoutOutput, NodeId, OverflowPolicy},
     theme::ThemeTokens,
     widgets::{
-        PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, TextWrap, WidgetId, WidgetSpec,
-        WidgetState, WidgetStyle, resolve_widget_visual_tokens,
+        PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, TextInputState, TextWrap, WidgetId,
+        WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -104,6 +104,46 @@ pub struct PaintTextRun {
     pub wrap: TextWrap,
 }
 
+/// Floating overlay panel used for drag previews and transient popups.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintOverlayPanel {
+    /// Stable overlay identifier.
+    pub widget_id: WidgetId,
+    /// Overlay rectangle in logical surface coordinates.
+    pub rect: Rect,
+    /// Optional text label to paint inside the panel.
+    pub label: Option<String>,
+    /// Panel style.
+    pub style: WidgetStyle,
+}
+
+/// Single-line text-input primitive with native caret and selection state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintTextInput {
+    /// Widget that produced this text field.
+    pub widget_id: WidgetId,
+    /// Text layout rectangle inside the control chrome.
+    pub rect: Rect,
+    /// Optional placeholder shown when the value is empty.
+    pub placeholder: Option<String>,
+    /// Current text input state.
+    pub state: TextInputState,
+    /// Font size in logical pixels per em.
+    pub font_size: f32,
+    /// Optional baseline measured from the text rectangle top edge.
+    pub baseline: Option<f32>,
+    /// Value text color.
+    pub color: Rgba8,
+    /// Placeholder text color.
+    pub placeholder_color: Rgba8,
+    /// Selection fill color.
+    pub selection_color: Rgba8,
+    /// Block caret fill color.
+    pub caret_color: Rgba8,
+    /// Whether the field currently owns keyboard focus.
+    pub focused: bool,
+}
+
 /// Placeholder primitive for widgets whose paint is intentionally host-defined.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PaintCustomSurface {
@@ -163,6 +203,10 @@ pub enum PaintPrimitive {
     StrokePolyline(PaintStrokePolyline),
     /// Paint one text run.
     Text(PaintTextRun),
+    /// Paint a floating overlay panel above normal layout content.
+    OverlayPanel(PaintOverlayPanel),
+    /// Paint a single-line text input value, selection, and caret.
+    TextInput(PaintTextInput),
     /// Paint an RGBA image stretched into one destination rectangle.
     Image(PaintImage),
     /// Reserve a host-painted custom surface.
@@ -293,6 +337,70 @@ pub(super) fn push_container_chrome(
     }));
 }
 
+pub(super) fn push_overlay_panel(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    rect: Rect,
+    label: Option<String>,
+    theme: &ThemeTokens,
+    style: WidgetStyle,
+) {
+    let mut state = WidgetState {
+        active: true,
+        ..WidgetState::default()
+    };
+    if label.is_none() {
+        state.selected = true;
+    }
+    let tokens = resolve_widget_visual_tokens(theme, style, state);
+    if label.is_some() {
+        let shadow = Rect::from_min_max(
+            Point::new(rect.min.x + 4.0, rect.min.y + 6.0),
+            Point::new(rect.max.x + 4.0, rect.max.y + 6.0),
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id,
+            rect: shadow,
+            color: Rgba8 {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 96,
+            },
+        }));
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id,
+            rect,
+            color: blend_color(tokens.fill, theme.surface_overlay, 0.30),
+        }));
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id,
+            rect,
+            color: tokens.emphasis,
+            width: 1.0,
+        }));
+        if let Some(label) = label {
+            push_text_run(
+                primitives,
+                widget_id,
+                label,
+                inset_rect(rect, 48.0, 4.0),
+                optical_centered_baseline(inset_rect(rect, 48.0, 4.0), text_font_size(rect)),
+                theme.text_primary,
+                PaintTextAlign::Left,
+                TextWrap::None,
+                text_font_size(rect),
+            );
+        }
+    } else {
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id,
+            rect,
+            color: tokens.emphasis,
+        }));
+    }
+}
+
 /// Deterministic backend-neutral paint output for a generic [`crate::runtime::UiSurface`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurfacePaintPlan {
@@ -394,29 +502,22 @@ pub(super) fn push_widget_paint(
         }
         WidgetSpec::TextInput(input) => {
             push_text_input_chrome(primitives, widget, bounds, theme);
-            let (value, color) = if input.state.value.is_empty() {
-                (
-                    input.props.placeholder.clone().unwrap_or_default(),
-                    theme.text_muted,
-                )
-            } else {
-                (
-                    input.state.value.clone(),
-                    resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
-                        .foreground,
-                )
-            };
-            push_text_run(
-                primitives,
-                widget.id(),
-                value,
-                inset_rect(bounds, 16.0, 4.0),
-                optical_centered_baseline(inset_rect(bounds, 16.0, 4.0), input_font_size(bounds)),
-                color,
-                PaintTextAlign::Left,
-                TextWrap::None,
-                input_font_size(bounds),
-            );
+            let rect = inset_rect(bounds, 16.0, 4.0);
+            let font_size = input_font_size(bounds);
+            primitives.push(PaintPrimitive::TextInput(PaintTextInput {
+                widget_id: widget.id(),
+                rect,
+                placeholder: input.props.placeholder.clone(),
+                state: input.state.clone(),
+                font_size,
+                baseline: optical_centered_baseline(rect, font_size),
+                color: resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
+                    .foreground,
+                placeholder_color: theme.text_muted,
+                selection_color: theme.grid_strong,
+                caret_color: theme.accent_danger,
+                focused: input.common.state.focused,
+            }));
         }
         WidgetSpec::Scrollbar(scrollbar) => {
             let tokens =
@@ -435,6 +536,44 @@ pub(super) fn push_widget_paint(
                 push_axis_stroke(primitives, widget.id(), bounds, theme.grid_soft, true);
             } else {
                 push_axis_stroke(primitives, widget.id(), bounds, theme.grid_soft, false);
+            }
+        }
+        WidgetSpec::DragHandle(handle) => {
+            if !handle.common.paint.paints_state_layers {
+                return;
+            }
+            let tokens =
+                resolve_widget_visual_tokens(theme, handle.common.style, handle.common.state);
+            let color = if handle.common.state.pressed {
+                theme.accent_danger
+            } else if handle.common.state.hovered {
+                tokens.emphasis
+            } else {
+                theme.text_muted
+            };
+            let center_y = bounds.min.y + bounds.height() * 0.5;
+            for y in [center_y - 5.0, center_y, center_y + 5.0] {
+                primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
+                    widget_id: widget.id(),
+                    points: vec![
+                        Point::new(bounds.min.x + bounds.width() * 0.25, y),
+                        Point::new(bounds.max.x - bounds.width() * 0.25, y),
+                    ],
+                    color,
+                    width: if handle.common.state.pressed {
+                        2.0
+                    } else {
+                        1.25
+                    },
+                }));
+            }
+            if handle.common.state.hovered || handle.common.state.pressed {
+                primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+                    widget_id: widget.id(),
+                    rect: inset_rect(bounds, 2.0, 2.0),
+                    color,
+                    width: 1.0,
+                }));
             }
         }
         WidgetSpec::ListItem(item) => {

@@ -27,6 +27,8 @@ pub enum WidgetKind {
     TextInput,
     /// Scroll affordance that exposes viewport position and drag/page actions.
     Scrollbar,
+    /// Compact pointer handle for drag/reorder gestures.
+    DragHandle,
     /// Focusable row or item primitive for lists, tables, and menus.
     ListItem,
     /// Selectable content surface for cards, rows, tiles, and options.
@@ -156,6 +158,8 @@ pub enum WidgetMessageKind {
     TextEdited,
     /// Scroll thumb drag, track click, or viewport request.
     ScrollRequested,
+    /// Pointer drag gesture lifecycle.
+    Dragged,
     /// Row/item invocation distinct from selection.
     ItemInvoked,
     /// Custom pointer/keyboard gesture routed into a canvas surface.

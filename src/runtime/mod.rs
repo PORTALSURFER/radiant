@@ -35,8 +35,8 @@ pub use bridge::{
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
 pub use paint::{
-    PaintCustomSurface, PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect, PaintTextAlign,
-    PaintTextRun, Renderer, SurfacePaintPlan,
+    PaintCustomSurface, PaintFillRect, PaintImage, PaintOverlayPanel, PaintPrimitive,
+    PaintStrokeRect, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
 };
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,

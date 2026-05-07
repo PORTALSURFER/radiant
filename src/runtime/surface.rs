@@ -1,8 +1,8 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
 use super::paint::{
-    SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome, push_overlay_panel,
-    push_scroll_affordance, push_widget_paint, scroll_content_clip_rect,
+    PaintPrimitive, SurfacePaintPlan, push_builtin_widget_paint, push_clip_end, push_clip_start,
+    push_container_chrome, push_overlay_panel, push_scroll_affordance, scroll_content_clip_rect,
 };
 use crate::{
     gui::types::{ImageRgba, Rect},
@@ -16,7 +16,7 @@ use crate::{
         CardWidget, DragHandleMessage, DragHandleWidget, FocusBehavior, ImageWidget,
         ListItemMessage, ListItemWidget, RetainedSurfaceDescriptor, ScrollbarAxis,
         ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
-        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, WidgetId, WidgetInput,
+        TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetId, WidgetInput,
         WidgetOutput, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
     },
 };
@@ -49,6 +49,8 @@ pub enum WidgetMessageMapper<Message> {
     Selectable(MessageMapper<SelectableMessage, Message>),
     /// Map a canvas/custom-surface input payload into a host-defined message.
     Canvas(MessageMapper<CanvasMessage, Message>),
+    /// Map any widget output payload into an optional host-defined message.
+    Dynamic(Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>),
 }
 
 impl<Message> Clone for WidgetMessageMapper<Message> {
@@ -64,6 +66,7 @@ impl<Message> Clone for WidgetMessageMapper<Message> {
             Self::ListItem(map) => Self::ListItem(Arc::clone(map)),
             Self::Selectable(map) => Self::Selectable(Arc::clone(map)),
             Self::Canvas(map) => Self::Canvas(Arc::clone(map)),
+            Self::Dynamic(map) => Self::Dynamic(Arc::clone(map)),
         }
     }
 }
@@ -114,6 +117,11 @@ impl<Message> WidgetMessageMapper<Message> {
         Self::Canvas(Arc::new(map))
     }
 
+    /// Build a dynamic output mapper for custom widgets.
+    pub fn dynamic(map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static) -> Self {
+        Self::Dynamic(Arc::new(map))
+    }
+
     fn map_output(&self, output: WidgetOutput) -> Option<Message> {
         match (self, output) {
             (Self::Button(map), WidgetOutput::Button(message)) => Some(map(message)),
@@ -125,14 +133,105 @@ impl<Message> WidgetMessageMapper<Message> {
             (Self::ListItem(map), WidgetOutput::ListItem(message)) => Some(map(message)),
             (Self::Selectable(map), WidgetOutput::Selectable(message)) => Some(map(message)),
             (Self::Canvas(map), WidgetOutput::Canvas(message)) => Some(map(message)),
+            (Self::Dynamic(map), output) => map(output),
             _ => None,
+        }
+    }
+}
+
+/// Runtime-owned widget leaf storage.
+#[derive(Clone)]
+pub enum RuntimeWidget {
+    /// Built-in compatibility widget.
+    BuiltIn(WidgetSpec),
+    /// User-defined widget implementing the open widget contract.
+    Custom(Box<dyn Widget>),
+}
+
+impl RuntimeWidget {
+    /// Build runtime widget storage for a built-in primitive.
+    pub fn built_in(widget: WidgetSpec) -> Self {
+        Self::BuiltIn(widget)
+    }
+
+    /// Build runtime widget storage for a custom widget.
+    pub fn custom(widget: impl Widget + Clone + 'static) -> Self {
+        Self::Custom(Box::new(widget))
+    }
+
+    /// Build runtime widget storage from an existing boxed widget.
+    pub fn custom_box(widget: Box<dyn Widget>) -> Self {
+        Self::Custom(widget)
+    }
+
+    /// Return the shared widget contract.
+    pub fn common(&self) -> &crate::widgets::WidgetCommon {
+        match self {
+            Self::BuiltIn(widget) => widget.common(),
+            Self::Custom(widget) => widget.common(),
+        }
+    }
+
+    /// Return the shared widget contract mutably.
+    pub fn common_mut(&mut self) -> &mut crate::widgets::WidgetCommon {
+        match self {
+            Self::BuiltIn(widget) => widget.common_mut(),
+            Self::Custom(widget) => widget.common_mut(),
+        }
+    }
+
+    /// Return the stable widget id.
+    pub fn id(&self) -> WidgetId {
+        self.common().id
+    }
+
+    /// Project the widget into layout.
+    fn layout_node(&self) -> LayoutNode {
+        self.common().layout_node()
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match self {
+            Self::BuiltIn(widget) => widget.handle_input(bounds, input),
+            Self::Custom(widget) => widget.handle_input(bounds, input),
+        }
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let Some(bounds) = layout.rects.get(&self.id()).copied() else {
+            return;
+        };
+        match self {
+            Self::BuiltIn(widget) => push_builtin_widget_paint(primitives, widget, layout, theme),
+            Self::Custom(widget) => widget.append_paint(primitives, bounds, layout, theme),
+        }
+    }
+
+    /// Return this leaf as a built-in widget when it is one.
+    pub fn as_builtin(&self) -> Option<&WidgetSpec> {
+        match self {
+            Self::BuiltIn(widget) => Some(widget),
+            Self::Custom(_) => None,
+        }
+    }
+
+    /// Return this leaf as a mutable built-in widget when it is one.
+    pub fn as_builtin_mut(&mut self) -> Option<&mut WidgetSpec> {
+        match self {
+            Self::BuiltIn(widget) => Some(widget),
+            Self::Custom(_) => None,
         }
     }
 }
 
 /// One widget leaf inside a generic declarative [`UiSurface`].
 pub struct SurfaceWidget<Message> {
-    widget: WidgetSpec,
+    widget: RuntimeWidget,
     messages: WidgetMessageMapper<Message>,
 }
 
@@ -148,7 +247,29 @@ impl<Message> Clone for SurfaceWidget<Message> {
 impl<Message> SurfaceWidget<Message> {
     /// Build a widget leaf plus host-defined message mapper.
     pub fn new(widget: WidgetSpec, messages: WidgetMessageMapper<Message>) -> Self {
-        Self { widget, messages }
+        Self {
+            widget: RuntimeWidget::built_in(widget),
+            messages,
+        }
+    }
+
+    /// Build a custom widget leaf plus host-defined message mapper.
+    pub fn custom(
+        widget: impl Widget + Clone + 'static,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self {
+        Self {
+            widget: RuntimeWidget::custom(widget),
+            messages,
+        }
+    }
+
+    /// Build a custom boxed widget leaf plus host-defined message mapper.
+    pub fn custom_box(widget: Box<dyn Widget>, messages: WidgetMessageMapper<Message>) -> Self {
+        Self {
+            widget: RuntimeWidget::custom_box(widget),
+            messages,
+        }
     }
 
     /// Return the stable widget identifier.
@@ -156,13 +277,29 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.id()
     }
 
-    /// Return the projected widget descriptor.
+    /// Return the projected built-in widget descriptor.
+    ///
+    /// Custom widgets are exposed through [`Self::runtime_widget`].
     pub fn widget(&self) -> &WidgetSpec {
+        self.widget
+            .as_builtin()
+            .expect("custom widgets are not WidgetSpec compatibility leaves")
+    }
+
+    /// Return the projected built-in widget descriptor for runtime-owned state updates.
+    pub fn widget_mut(&mut self) -> &mut WidgetSpec {
+        self.widget
+            .as_builtin_mut()
+            .expect("custom widgets are not WidgetSpec compatibility leaves")
+    }
+
+    /// Return the runtime widget leaf.
+    pub fn runtime_widget(&self) -> &RuntimeWidget {
         &self.widget
     }
 
-    /// Return the projected widget descriptor for runtime-owned state updates.
-    pub fn widget_mut(&mut self) -> &mut WidgetSpec {
+    /// Return the runtime widget leaf mutably.
+    pub fn runtime_widget_mut(&mut self) -> &mut RuntimeWidget {
         &mut self.widget
     }
 
@@ -434,6 +571,22 @@ impl<Message> SurfaceNode<Message> {
     /// Build a widget leaf node.
     pub fn widget(widget: WidgetSpec, messages: WidgetMessageMapper<Message>) -> Self {
         Self::Widget(SurfaceWidget::new(widget, messages))
+    }
+
+    /// Build a custom widget leaf node.
+    pub fn custom_widget(
+        widget: impl Widget + Clone + 'static,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self {
+        Self::Widget(SurfaceWidget::custom(widget, messages))
+    }
+
+    /// Build a custom boxed widget leaf node.
+    pub fn custom_widget_box(
+        widget: Box<dyn Widget>,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self {
+        Self::Widget(SurfaceWidget::custom_box(widget, messages))
     }
 
     /// Build a widget leaf node that does not emit host-defined messages.
@@ -993,7 +1146,9 @@ impl<Message> SurfaceNode<Message> {
                 }
             }
             Self::Widget(widget) => {
-                push_widget_paint(&mut plan.primitives, widget.widget(), layout, theme);
+                widget
+                    .runtime_widget()
+                    .append_paint(&mut plan.primitives, layout, theme);
             }
             Self::Overlay(overlay) => {
                 push_overlay_panel(

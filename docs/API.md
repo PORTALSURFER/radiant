@@ -34,10 +34,11 @@ and explicit runtime objects are part of the same API surface:
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
 `app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
-`list_row`, `toggle`, `text_input`, `IntoView`, `View`, `StateView`, `Command`,
-and the builder types needed by method chains. These builders lower into the
-same `UiSurface`, `SurfaceNode`, `SurfaceChild`, `WidgetSizing`, and
-`RuntimeBridge` contracts available through the explicit runtime modules.
+`list_row`, `toggle`, `text_input`, `custom_widget`, `IntoView`, `View`,
+`StateView`, `Command`, and the builder types needed by method chains. These
+builders lower into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`,
+`WidgetSizing`, and `RuntimeBridge` contracts available through the explicit
+runtime modules.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -130,11 +131,21 @@ returns `Command<Message>` while keeping side effects and domain state host-owne
 `View<Message>` is the root declarative view snapshot and is a public alias for
 `UiSurface<Message>`. `Element<Message>` is the generic element tree and is a
 public alias for `SurfaceNode<Message>`: container nodes hold `SurfaceChild`
-entries and widget nodes hold `WidgetSpec` leaves. Widget primitives such as
-`ButtonWidget`, `BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
+entries and widget nodes hold runtime widget leaves. Built-in compatibility
+leaves are still represented by `WidgetSpec`; user-authored leaves implement the
+object-safe `Widget` trait. Widget primitives such as `ButtonWidget`,
+`BadgeWidget`, `TextWidget`, `TextInputWidget`, `ToggleWidget`,
 `ScrollbarWidget`, `SelectableWidget`, `CardWidget`, `ImageWidget`,
 `CanvasWidget`, and `ListItemWidget` describe reusable UI behavior without
 host-domain semantics.
+
+Implement `Widget` directly when a downstream application needs a new focusable
+leaf with its own input handling, host-routable output payload, or
+backend-neutral paint contribution. Compose existing primitives when the desired
+control is only a row, column, stack, styling change, message mapper, or
+combination of built-in widgets. `WidgetSpec` remains a source-compatible
+built-in catalog and migration wrapper; it is not the extension mechanism for
+new downstream widget types.
 
 Common declarative composition should use `SurfaceNode::row`,
 `SurfaceNode::column`, `SurfaceNode::grid`, `SurfaceChild::fill`, and
@@ -150,6 +161,11 @@ structure, fill slots, and display widgets that do not emit messages.
 `SurfaceNode::selectable`, `SurfaceNode::selectable_mapped`,
 `SurfaceNode::card`, `SurfaceNode::image`, and `SurfaceNode::canvas` cover
 common leaf widgets without requiring hosts to manually wrap `WidgetSpec`.
+`SurfaceNode::custom_widget` and the prelude `custom_widget(...)` builder accept
+owned `Widget` implementations. The application builder assigns generated,
+keyed, or explicit IDs by updating the widget's `WidgetCommon` before lowering,
+so custom widgets participate in the same focus, hit-test, sizing, and paint
+paths as built-ins.
 `SurfaceNode::stack` overlays children in slot order so hosts can compose a card
 background with nested rows, columns, labels, and controls. Lower-level
 `SurfaceNode::container` plus `ContainerPolicy` and `SlotParams` remains
@@ -176,6 +192,13 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 `Command<Message>` is the generic runtime-visible follow-up value for host
 reducers that need to queue messages, batch runtime-visible work, or request
 repaint.
+
+Built-in widgets can keep using the typed helpers such as
+`WidgetMessageMapper::button`, `WidgetMessageMapper::text_input`, and
+`WidgetMessageMapper::canvas`. Custom widgets emit `WidgetOutput::custom(...)`
+payloads and route them with `WidgetMessageMapper::dynamic(...)` or the prelude
+`custom_widget(...)` mapper. Mappers should downcast only the payloads they own
+and return `None` for output they do not handle.
 
 Asynchronous side effects remain host-owned. A host reducer may start work,
 enqueue IO, or signal background tasks, but Radiant's generic runtime only

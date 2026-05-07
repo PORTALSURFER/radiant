@@ -5,8 +5,13 @@
 //! responsibilities and vocabulary rather than locking `radiant` into one
 //! retained-tree implementation.
 
-use crate::gui::types::Vector2;
-use crate::layout::{LayoutNode, NodeId};
+use super::{WidgetCommon, WidgetInput, WidgetOutput};
+use crate::{
+    gui::types::{Rect, Vector2},
+    layout::{LayoutNode, LayoutOutput, NodeId},
+    runtime::PaintPrimitive,
+    theme::ThemeTokens,
+};
 
 /// Stable widget identifier shared with layout-node identities.
 ///
@@ -199,6 +204,53 @@ pub struct WidgetStyle {
     pub tone: WidgetTone,
     /// Relative visual weight of the widget chrome.
     pub prominence: WidgetProminence,
+}
+
+/// Clone support for boxed [`Widget`] trait objects.
+pub trait WidgetClone {
+    /// Clone this widget into an owned trait object.
+    fn clone_box(&self) -> Box<dyn Widget>;
+}
+
+impl<T> WidgetClone for T
+where
+    T: Widget + Clone + 'static,
+{
+    fn clone_box(&self) -> Box<dyn Widget> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Widget> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+/// Public object-safe contract for user-defined Radiant widgets.
+///
+/// Built-in primitives remain available through [`crate::widgets::WidgetSpec`],
+/// but custom widgets can implement this trait and travel through the runtime,
+/// input, message, paint, and application-builder paths without adding a new
+/// Radiant enum variant.
+pub trait Widget: WidgetClone + Send + Sync {
+    /// Return the shared identity, sizing, focus, state, and style contract.
+    fn common(&self) -> &WidgetCommon;
+
+    /// Return the shared contract mutably for runtime-owned state updates.
+    fn common_mut(&mut self) -> &mut WidgetCommon;
+
+    /// Route one backend-neutral input event into this widget.
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
+
+    /// Append backend-neutral paint primitives for this widget.
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    );
 }
 
 impl Default for WidgetStyle {

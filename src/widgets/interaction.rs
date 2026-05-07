@@ -2,6 +2,7 @@
 
 use crate::gui::input::KeyCode;
 use crate::gui::types::Point;
+use std::{any::Any, sync::Arc};
 
 /// Pointer button routed into a widget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -222,6 +223,41 @@ pub enum CanvasMessage {
     },
 }
 
+/// User-defined widget output payload.
+#[derive(Clone)]
+pub struct CustomWidgetOutput {
+    payload: Arc<dyn Any + Send + Sync>,
+}
+
+impl CustomWidgetOutput {
+    /// Build a custom widget output from any cloneable, thread-safe payload.
+    pub fn new<T>(payload: T) -> Self
+    where
+        T: Send + Sync + 'static,
+    {
+        Self {
+            payload: Arc::new(payload),
+        }
+    }
+
+    /// Downcast this output payload to the requested type.
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        self.payload.downcast_ref::<T>()
+    }
+}
+
+impl std::fmt::Debug for CustomWidgetOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CustomWidgetOutput").finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for CustomWidgetOutput {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.payload, &other.payload)
+    }
+}
+
 /// Union over emitted messages from the first reusable widget primitives.
 #[derive(Clone, Debug, PartialEq)]
 pub enum WidgetOutput {
@@ -243,4 +279,24 @@ pub enum WidgetOutput {
     DragHandle(DragHandleMessage),
     /// Canvas/custom-surface input output.
     Canvas(CanvasMessage),
+    /// User-defined widget output payload.
+    Custom(CustomWidgetOutput),
+}
+
+impl WidgetOutput {
+    /// Build a user-defined widget output payload.
+    pub fn custom<T>(payload: T) -> Self
+    where
+        T: Send + Sync + 'static,
+    {
+        Self::Custom(CustomWidgetOutput::new(payload))
+    }
+
+    /// Downcast a custom widget output to the requested payload type.
+    pub fn custom_ref<T: 'static>(&self) -> Option<&T> {
+        match self {
+            Self::Custom(output) => output.downcast_ref(),
+            _ => None,
+        }
+    }
 }

@@ -17,7 +17,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        PointerButton, TextInputState, WidgetId, WidgetInput, WidgetKey, WidgetSpec, WidgetState,
+        FocusBehavior, PointerButton, TextInputState, WidgetId, WidgetInput, WidgetKey, WidgetSpec,
+        WidgetState,
     },
 };
 use std::collections::BTreeMap;
@@ -344,7 +345,11 @@ where
     pub fn focused_text_input_id(&self) -> Option<WidgetId> {
         let widget_id = self.focused_widget?;
         self.surface.find_widget(widget_id).and_then(|widget| {
-            matches!(widget.widget(), WidgetSpec::TextInput(_)).then_some(widget_id)
+            matches!(
+                widget.runtime_widget().as_builtin(),
+                Some(WidgetSpec::TextInput(_))
+            )
+            .then_some(widget_id)
         })
     }
 
@@ -352,7 +357,7 @@ where
     pub fn focused_text_selection(&self) -> Option<String> {
         let widget_id = self.focused_text_input_id()?;
         self.surface.find_widget(widget_id).and_then(|widget| {
-            if let WidgetSpec::TextInput(input) = widget.widget() {
+            if let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget().as_builtin() {
                 input.selected_text()
             } else {
                 None
@@ -481,7 +486,7 @@ where
         let Some(widget) = self.surface.find_widget(widget_id) else {
             return;
         };
-        if let WidgetSpec::TextInput(input) = widget.widget() {
+        if let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget().as_builtin() {
             self.text_input_states
                 .insert(widget_id, input.state.clone());
         }
@@ -494,7 +499,8 @@ where
                 self.text_input_states.remove(&widget_id);
                 continue;
             };
-            let WidgetSpec::TextInput(input) = widget.widget_mut() else {
+            let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget_mut().as_builtin_mut()
+            else {
                 self.text_input_states.remove(&widget_id);
                 continue;
             };
@@ -512,7 +518,7 @@ where
             self.pointer_capture_state = None;
             return;
         };
-        self.pointer_capture_state = Some((widget_id, widget.widget().common().state));
+        self.pointer_capture_state = Some((widget_id, widget.runtime_widget().common().state));
     }
 
     fn restore_pointer_capture_state(&mut self) {
@@ -527,7 +533,7 @@ where
             self.pointer_capture_state = None;
             return;
         };
-        widget.widget_mut().common_mut().state = state;
+        widget.runtime_widget_mut().common_mut().state = state;
     }
 
     /// Return the first projected widget whose laid-out bounds contain `point`.
@@ -672,20 +678,23 @@ where
         let Some(widget_id) = widget_id else {
             return false;
         };
-        self.surface
-            .find_widget(widget_id)
-            .is_some_and(|widget| match widget.widget() {
-                WidgetSpec::Text(_) | WidgetSpec::Image(_) | WidgetSpec::Canvas(_) => false,
-                WidgetSpec::Button(_)
-                | WidgetSpec::Toggle(_)
-                | WidgetSpec::TextInput(_)
-                | WidgetSpec::Scrollbar(_)
-                | WidgetSpec::DragHandle(_)
-                | WidgetSpec::ListItem(_)
-                | WidgetSpec::Selectable(_)
-                | WidgetSpec::Badge(_)
-                | WidgetSpec::Card(_) => true,
-            })
+        self.surface.find_widget(widget_id).is_some_and(|widget| {
+            match widget.runtime_widget().as_builtin() {
+                Some(WidgetSpec::Text(_) | WidgetSpec::Image(_) | WidgetSpec::Canvas(_)) => false,
+                Some(
+                    WidgetSpec::Button(_)
+                    | WidgetSpec::Toggle(_)
+                    | WidgetSpec::TextInput(_)
+                    | WidgetSpec::Scrollbar(_)
+                    | WidgetSpec::DragHandle(_)
+                    | WidgetSpec::ListItem(_)
+                    | WidgetSpec::Selectable(_)
+                    | WidgetSpec::Badge(_)
+                    | WidgetSpec::Card(_),
+                ) => true,
+                None => widget.runtime_widget().common().focus != FocusBehavior::None,
+            }
+        })
     }
 
     fn relayout(&mut self) {

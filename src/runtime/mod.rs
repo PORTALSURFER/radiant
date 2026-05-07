@@ -39,6 +39,6 @@ pub use paint::{
     PaintStrokeRect, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
 };
 pub use surface::{
-    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,
-    View, WidgetMessageMapper,
+    Element, MessageMapper, RuntimeWidget, SurfaceChild, SurfaceContainer, SurfaceNode,
+    SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };

@@ -434,7 +434,11 @@ impl SurfacePaintPlan {
     }
 }
 
-pub(super) fn push_widget_paint(
+/// Emit paint for source-compatible built-in [`WidgetSpec`] leaves.
+///
+/// User-authored widgets contribute paint through [`crate::widgets::Widget`]
+/// and do not need a new branch in this compatibility catalog.
+pub(super) fn push_builtin_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     widget: &WidgetSpec,
     layout: &LayoutOutput,

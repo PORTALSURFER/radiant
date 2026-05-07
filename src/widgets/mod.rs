@@ -62,13 +62,13 @@ mod primitives;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, PaintBounds, PaintContract, WidgetId, WidgetKind, WidgetMessageKind,
+    FocusBehavior, PaintBounds, PaintContract, Widget, WidgetId, WidgetKind, WidgetMessageKind,
     WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
 };
 pub use interaction::{
-    BadgeMessage, ButtonMessage, CanvasMessage, DragHandleMessage, ListItemMessage, PointerButton,
-    ScrollbarMessage, SelectableMessage, TextEditCommand, TextInputMessage, ToggleMessage,
-    WidgetInput, WidgetKey, WidgetOutput,
+    BadgeMessage, ButtonMessage, CanvasMessage, CustomWidgetOutput, DragHandleMessage,
+    ListItemMessage, PointerButton, ScrollbarMessage, SelectableMessage, TextEditCommand,
+    TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,

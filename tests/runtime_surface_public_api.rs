@@ -23,8 +23,9 @@ use radiant::{
         BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, DragHandleMessage,
         DragHandleWidget, ListItemMessage, PointerButton, RetainedSurfaceDescriptor, ScrollbarAxis,
         ScrollbarMessage, SelectableMessage, TextEditCommand, TextInputMessage, TextInputWidget,
-        TextWidget, ToggleMessage, WidgetInput, WidgetKey, WidgetProminence, WidgetSizing,
-        WidgetSpec, WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
+        TextWidget, ToggleMessage, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetKind,
+        WidgetOutput, WidgetProminence, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        WidgetTone, resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
@@ -44,6 +45,93 @@ enum DemoMessage {
 struct DemoState {
     count: usize,
     name: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CustomWidgetMessage {
+    Activated,
+}
+
+#[derive(Clone)]
+struct CustomStatusWidget {
+    common: WidgetCommon,
+    label: &'static str,
+}
+
+impl CustomStatusWidget {
+    fn new(id: u64) -> Self {
+        let mut common = WidgetCommon::new(
+            id,
+            WidgetKind::Canvas,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+        );
+        common.focus = radiant::widgets::FocusBehavior::Keyboard;
+        Self {
+            common,
+            label: "custom",
+        }
+    }
+}
+
+impl Widget for CustomStatusWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
+            }
+            WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
+                Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::FillRect(radiant::runtime::PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: if self.common.state.hovered {
+                theme.accent_danger
+            } else {
+                theme.surface_base
+            },
+        }));
+        primitives.push(PaintPrimitive::Text(radiant::runtime::PaintTextRun {
+            widget_id: self.common.id,
+            text: self.label.to_owned(),
+            rect: bounds,
+            font_size: 13.0,
+            baseline: Some(18.0),
+            color: theme.text_primary,
+            align: radiant::runtime::PaintTextAlign::Center,
+            wrap: radiant::widgets::TextWrap::None,
+        }));
+    }
 }
 
 #[test]
@@ -87,6 +175,79 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
     };
     assert_eq!(custom.widget_id, 90);
     assert_eq!(custom.retained, Some(retained));
+}
+
+#[test]
+fn custom_widget_travels_through_runtime_input_message_and_paint_paths() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::custom_widget(
+        CustomStatusWidget::new(91),
+        WidgetMessageMapper::dynamic(|output| {
+            output
+                .custom_ref::<CustomWidgetMessage>()
+                .map(|message| DemoMessage::Rename(format!("{message:?}")))
+        }),
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 28.0)),
+    );
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+
+    assert!(matches!(
+        plan.primitives.first(),
+        Some(PaintPrimitive::FillRect(fill)) if fill.widget_id == 91
+    ));
+
+    let mut interactive = surface.clone();
+    let output = interactive
+        .dispatch_widget_input(
+            91,
+            layout.rects[&91],
+            WidgetInput::PointerRelease {
+                position: Point::new(12.0, 12.0),
+                button: PointerButton::Primary,
+            },
+        )
+        .expect("custom widget should emit output");
+    let message = surface
+        .dispatch_widget_output(91, output)
+        .expect("custom output should map to a host message");
+
+    assert_eq!(message, DemoMessage::Rename("Activated".to_owned()));
+}
+
+#[test]
+fn application_builder_accepts_custom_widgets_with_generated_and_explicit_ids() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::column([
+        ui::custom_widget(CustomStatusWidget::new(1), |output| {
+            output
+                .custom_ref::<CustomWidgetMessage>()
+                .map(|_| DemoMessage::SetActive(true))
+        })
+        .key("generated-custom"),
+        ui::custom_widget(CustomStatusWidget::new(2), |output| {
+            output
+                .custom_ref::<CustomWidgetMessage>()
+                .map(|_| DemoMessage::SetActive(false))
+        })
+        .id(77),
+    ])
+    .id(10)
+    .into_surface();
+
+    assert!(surface.find_widget(77).is_some());
+    assert_eq!(
+        surface
+            .find_widget(77)
+            .unwrap()
+            .runtime_widget()
+            .common()
+            .id,
+        77
+    );
+    assert_eq!(surface.keyboard_focus_order().len(), 2);
 }
 
 #[test]

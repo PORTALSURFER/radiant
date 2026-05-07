@@ -16,7 +16,7 @@ use crate::{
     },
     widgets::{
         ButtonWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
-        WidgetProminence, WidgetSizing, WidgetSpec, WidgetStyle, WidgetTone,
+        Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetSpec, WidgetStyle, WidgetTone,
     },
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
@@ -384,6 +384,10 @@ enum ViewNodeKind<Message> {
         placeholder: Option<String>,
         map: Arc<dyn Fn(String) -> Message + Send + Sync>,
     },
+    CustomWidget {
+        widget: Box<dyn Widget>,
+        map: Arc<dyn Fn(WidgetOutput) -> Option<Message> + Send + Sync>,
+    },
     Row {
         spacing: f32,
         children: Vec<ViewNode<Message>>,
@@ -508,6 +512,7 @@ impl<Message> ViewNode<Message> {
             ViewNodeKind::DragHandle { .. } => default_drag_handle_sizing(),
             ViewNodeKind::Toggle { label, compact, .. } => default_toggle_sizing(label, *compact),
             ViewNodeKind::TextInput { .. } => default_text_input_sizing(),
+            ViewNodeKind::CustomWidget { widget, .. } => widget.common().sizing,
             _ => WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
         });
         self.sizing = Some(sizing.with_baseline(baseline));
@@ -770,6 +775,23 @@ where
                     }),
                 )
             }
+            ViewNodeKind::CustomWidget { mut widget, map } => {
+                let common = widget.common_mut();
+                common.id = id;
+                if let Some(sizing) = self.sizing {
+                    common.sizing = sizing;
+                }
+                if let Some(style) = self.style {
+                    common.style = style;
+                }
+                if self.input_only {
+                    common.paint.paints_state_layers = false;
+                }
+                SurfaceNode::custom_widget_box(
+                    widget,
+                    WidgetMessageMapper::dynamic(move |output| map(output)),
+                )
+            }
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Row,
@@ -863,6 +885,28 @@ where
 pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
     ViewNode {
         kind: ViewNodeKind::Text(value.into()),
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
+}
+
+/// Build a custom widget view with generated identity and an output mapper.
+pub fn custom_widget<Message>(
+    widget: impl Widget + Clone + 'static,
+    map: impl Fn(WidgetOutput) -> Option<Message> + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::CustomWidget {
+            widget: Box::new(widget),
+            map: Arc::new(map),
+        },
         id: None,
         key: None,
         sizing: None,
@@ -1378,14 +1422,9 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
 /// Build a scroll viewport containing a column projected from an iterator.
 pub fn scroll_column<Message, Item>(
     items: impl IntoIterator<Item = Item>,
-    mut project: impl FnMut(Item) -> ViewNode<Message>,
+    project: impl FnMut(Item) -> ViewNode<Message>,
 ) -> ViewNode<Message> {
-    scroll(column(
-        items
-            .into_iter()
-            .map(|item| project(item))
-            .collect::<Vec<_>>(),
-    ))
+    scroll(column(items.into_iter().map(project).collect::<Vec<_>>()))
 }
 
 /// Build a scrollable vertical list with stable intrinsic-height rows.

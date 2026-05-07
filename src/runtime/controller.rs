@@ -438,7 +438,7 @@ where
                 None
             }
             Event::Scroll { position, delta } => {
-                self.scroll_at(position, delta);
+                self.wheel_or_scroll_at(position, delta);
                 None
             }
         }
@@ -619,6 +619,44 @@ where
             ),
         );
         self.relayout();
+        true
+    }
+
+    /// Route wheel input to the topmost widget under `point`, then fall back to
+    /// scrolling the topmost scroll container under the pointer.
+    pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
+        if self.dispatch_wheel_at(point, delta) {
+            return true;
+        }
+        self.scroll_at(point, delta)
+    }
+
+    fn dispatch_wheel_at(&mut self, point: Point, delta: Vector2) -> bool {
+        let Some(widget_id) = self.widget_at(point) else {
+            return false;
+        };
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return false;
+        };
+        let Some(output) = self.surface.dispatch_widget_input(
+            widget_id,
+            bounds,
+            WidgetInput::Wheel {
+                position: point,
+                delta,
+            },
+        ) else {
+            self.capture_text_input_state(widget_id);
+            self.capture_pointer_capture_state(widget_id);
+            return false;
+        };
+        self.capture_text_input_state(widget_id);
+        self.capture_pointer_capture_state(widget_id);
+        if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
+            self.dispatch_message(message);
+        } else {
+            self.relayout();
+        }
         true
     }
 

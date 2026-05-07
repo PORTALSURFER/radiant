@@ -105,7 +105,7 @@ where
         position: Point,
         delta: Vector2,
     ) -> GenericRouteOutcome {
-        let routed = self.runtime.scroll_at(position, delta);
+        let routed = self.runtime.wheel_or_scroll_at(position, delta);
         self.route_outcome(routed)
     }
 

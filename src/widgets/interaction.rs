@@ -114,6 +114,13 @@ pub enum WidgetInput {
         /// Button that ended the press.
         button: PointerButton,
     },
+    /// Pointer wheel or trackpad scroll occurred over the widget.
+    Wheel {
+        /// Pointer position in the widget host's logical coordinate space.
+        position: Point,
+        /// Logical scroll delta. Positive values move content right/down.
+        delta: crate::gui::types::Vector2,
+    },
     /// Keyboard focus changed for the widget.
     FocusChanged(
         /// `true` when the widget gained keyboard focus.

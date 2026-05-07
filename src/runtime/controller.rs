@@ -345,11 +345,12 @@ where
     pub fn focused_text_input_id(&self) -> Option<WidgetId> {
         let widget_id = self.focused_widget?;
         self.surface.find_widget(widget_id).and_then(|widget| {
-            matches!(
-                widget.runtime_widget().as_builtin(),
-                Some(WidgetSpec::TextInput(_))
-            )
-            .then_some(widget_id)
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<WidgetSpec>()
+                .is_some_and(|widget| matches!(widget, WidgetSpec::TextInput(_)))
+                .then_some(widget_id)
         })
     }
 
@@ -357,7 +358,9 @@ where
     pub fn focused_text_selection(&self) -> Option<String> {
         let widget_id = self.focused_text_input_id()?;
         self.surface.find_widget(widget_id).and_then(|widget| {
-            if let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget().as_builtin() {
+            if let Some(WidgetSpec::TextInput(input)) =
+                widget.widget_object().as_any().downcast_ref::<WidgetSpec>()
+            {
                 input.selected_text()
             } else {
                 None
@@ -486,7 +489,9 @@ where
         let Some(widget) = self.surface.find_widget(widget_id) else {
             return;
         };
-        if let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget().as_builtin() {
+        if let Some(WidgetSpec::TextInput(input)) =
+            widget.widget_object().as_any().downcast_ref::<WidgetSpec>()
+        {
             self.text_input_states
                 .insert(widget_id, input.state.clone());
         }
@@ -499,7 +504,10 @@ where
                 self.text_input_states.remove(&widget_id);
                 continue;
             };
-            let Some(WidgetSpec::TextInput(input)) = widget.runtime_widget_mut().as_builtin_mut()
+            let Some(WidgetSpec::TextInput(input)) = widget
+                .widget_object_mut()
+                .as_any_mut()
+                .downcast_mut::<WidgetSpec>()
             else {
                 self.text_input_states.remove(&widget_id);
                 continue;
@@ -518,7 +526,7 @@ where
             self.pointer_capture_state = None;
             return;
         };
-        self.pointer_capture_state = Some((widget_id, widget.runtime_widget().common().state));
+        self.pointer_capture_state = Some((widget_id, widget.widget_object().common().state));
     }
 
     fn restore_pointer_capture_state(&mut self) {
@@ -533,7 +541,7 @@ where
             self.pointer_capture_state = None;
             return;
         };
-        widget.runtime_widget_mut().common_mut().state = state;
+        widget.widget_object_mut().common_mut().state = state;
     }
 
     /// Return the first projected widget whose laid-out bounds contain `point`.
@@ -679,7 +687,7 @@ where
             return false;
         };
         self.surface.find_widget(widget_id).is_some_and(|widget| {
-            match widget.runtime_widget().as_builtin() {
+            match widget.widget_object().as_any().downcast_ref::<WidgetSpec>() {
                 Some(WidgetSpec::Text(_) | WidgetSpec::Image(_) | WidgetSpec::Canvas(_)) => false,
                 Some(
                     WidgetSpec::Button(_)
@@ -692,7 +700,7 @@ where
                     | WidgetSpec::Badge(_)
                     | WidgetSpec::Card(_),
                 ) => true,
-                None => widget.runtime_widget().common().focus != FocusBehavior::None,
+                None => widget.widget_object().common().focus != FocusBehavior::None,
             }
         })
     }

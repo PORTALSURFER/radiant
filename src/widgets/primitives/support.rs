@@ -1,13 +1,15 @@
 //! Shared widget support types plus non-interactive public primitives.
 
 use crate::gui::types::{ImageRgba, Rect};
-use crate::layout::LayoutNode;
+use crate::layout::{LayoutNode, LayoutOutput};
+use crate::runtime::{PaintPrimitive, push_builtin_widget_paint};
+use crate::theme::ThemeTokens;
 use std::sync::Arc;
 
 use super::scrollbar::ScrollbarAxis;
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, WidgetId, WidgetKind, WidgetProminence, WidgetSizing, WidgetState,
-    WidgetStyle, WidgetTone,
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetKind, WidgetProminence, WidgetSizing,
+    WidgetState, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{
     CanvasMessage, DragHandleMessage, ListItemMessage, PointerButton, SelectableMessage,
@@ -512,6 +514,30 @@ impl WidgetSpec {
             Self::Canvas(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Canvas),
             Self::Text(_) | Self::Card(_) | Self::Image(_) => None,
         }
+    }
+}
+
+impl Widget for WidgetSpec {
+    fn common(&self) -> &WidgetCommon {
+        WidgetSpec::common(self)
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        WidgetSpec::common_mut(self)
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        WidgetSpec::handle_input(self, bounds, input)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_builtin_widget_paint(primitives, self, layout, theme);
     }
 }
 

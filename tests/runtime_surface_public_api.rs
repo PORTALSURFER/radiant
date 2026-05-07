@@ -239,12 +239,7 @@ fn application_builder_accepts_custom_widgets_with_generated_and_explicit_ids() 
 
     assert!(surface.find_widget(77).is_some());
     assert_eq!(
-        surface
-            .find_widget(77)
-            .unwrap()
-            .runtime_widget()
-            .common()
-            .id,
+        surface.find_widget(77).unwrap().widget_object().common().id,
         77
     );
     assert_eq!(surface.keyboard_focus_order().len(), 2);
@@ -2362,7 +2357,7 @@ fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMessa
                 button,
                 WidgetMessageMapper::button(|_| CommandDemoMessage::Start),
             )),
-            SurfaceChild::fill(SurfaceNode::widget(input, WidgetMessageMapper::None)),
+            SurfaceChild::fill(SurfaceNode::widget(input, WidgetMessageMapper::none())),
         ],
     )))
 }

@@ -1,12 +1,18 @@
 //! Reusable scrollbar primitive.
 
 use crate::gui::types::{Point, Rect, Vector2};
+use crate::layout::LayoutOutput;
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
 
 use super::support::{
-    WidgetCommon, clamp_fraction, leading_arrow_for_axis, trailing_arrow_for_axis,
+    WidgetCommon, clamp_fraction, leading_arrow_for_axis, push_scrollbar_widget_paint,
+    trailing_arrow_for_axis,
 };
-use crate::widgets::contract::{FocusBehavior, PaintBounds, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{PointerButton, ScrollbarMessage, WidgetInput, WidgetKey};
+use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
+use crate::widgets::interaction::{
+    PointerButton, ScrollbarMessage, WidgetInput, WidgetKey, WidgetOutput,
+};
 
 const MIN_THUMB_PIXELS: f32 = 12.0;
 
@@ -198,6 +204,30 @@ impl ScrollbarWidget {
             return 1.0;
         }
         viewport.max((MIN_THUMB_PIXELS / track_length).min(1.0))
+    }
+}
+
+impl Widget for ScrollbarWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        ScrollbarWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_scrollbar_widget_paint(primitives, self, bounds, theme);
     }
 }
 

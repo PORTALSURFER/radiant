@@ -282,7 +282,7 @@ fn application_builder_accepts_widgets_through_widget_view_trait() {
     assert_eq!(
         surface.dispatch_widget_output(
             21,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
         ),
         Some(DemoMessage::Increment)
     );
@@ -316,7 +316,7 @@ fn application_view_builders_lower_into_runtime_surface_nodes() {
     let message = surface
         .dispatch_widget_output(
             42,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
         .expect("button should emit the configured host message");
     assert_eq!(message, DemoMessage::Increment);
@@ -360,7 +360,7 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
     let increment = before
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
         .expect("direct button should emit a state action");
     let command = bridge.update(increment);
@@ -754,7 +754,7 @@ fn stateful_app_builder_projects_updates_and_preserves_commands() {
     let increment = before
         .dispatch_widget_output(
             3,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
         .expect("generated button should route through the same surface mapper");
 
@@ -787,7 +787,7 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
     let rename = surface_before
         .dispatch_widget_output(
             12,
-            radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Changed {
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Changed {
                 value: String::from("Projects"),
             }),
         )
@@ -798,7 +798,7 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
         .project_surface()
         .dispatch_widget_output(
             11,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate),
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
         )
         .expect("button should emit a host-defined increment message");
     bridge.reduce_message(increment);
@@ -1304,7 +1304,7 @@ fn static_widget_helper_builds_non_emitting_leaf() {
     assert_eq!(
         surface.dispatch_widget_output(
             30,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
         ),
         None
     );
@@ -1363,28 +1363,28 @@ fn text_and_button_helpers_build_common_leaf_nodes() {
     assert_eq!(
         surface.dispatch_widget_output(
             41,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
         ),
         Some(DemoMessage::Increment)
     );
     assert_eq!(
         surface.dispatch_widget_output(
             42,
-            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate)
         ),
         Some(DemoMessage::Rename(String::from("Mapped")))
     );
     assert_eq!(
         surface.dispatch_widget_output(
             43,
-            radiant::widgets::WidgetOutput::Badge(BadgeMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate)
         ),
         Some(DemoMessage::SetActive(true))
     );
     assert_eq!(
         surface.dispatch_widget_output(
             44,
-            radiant::widgets::WidgetOutput::Badge(BadgeMessage::Activate)
+            radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate)
         ),
         Some(DemoMessage::Rename(String::from("Badge")))
     );
@@ -1448,7 +1448,7 @@ fn text_input_and_toggle_helpers_map_value_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             50,
-            radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Changed {
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Changed {
                 value: String::from("Edited"),
             })
         ),
@@ -1457,7 +1457,7 @@ fn text_input_and_toggle_helpers_map_value_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             51,
-            radiant::widgets::WidgetOutput::TextInput(TextInputMessage::Submitted {
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Submitted {
                 value: String::from("Submitted"),
             })
         ),
@@ -1466,14 +1466,14 @@ fn text_input_and_toggle_helpers_map_value_messages() {
     assert_eq!(
         surface.dispatch_widget_output(
             52,
-            radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
+            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged { checked: true })
         ),
         Some(DemoMessage::SetActive(true))
     );
     assert_eq!(
         surface.dispatch_widget_output(
             53,
-            radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
+            radiant::widgets::WidgetOutput::typed(ToggleMessage::ValueChanged { checked: true })
         ),
         Some(DemoMessage::SetActive(false))
     );
@@ -1584,7 +1584,7 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     assert_eq!(
         surface.dispatch_widget_output(
             60,
-            radiant::widgets::WidgetOutput::Scrollbar(ScrollbarMessage::OffsetChanged {
+            radiant::widgets::WidgetOutput::typed(ScrollbarMessage::OffsetChanged {
                 offset_fraction: 0.25,
             })
         ),
@@ -1593,7 +1593,7 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     assert_eq!(
         surface.dispatch_widget_output(
             61,
-            radiant::widgets::WidgetOutput::Scrollbar(ScrollbarMessage::OffsetChanged {
+            radiant::widgets::WidgetOutput::typed(ScrollbarMessage::OffsetChanged {
                 offset_fraction: 0.5,
             })
         ),
@@ -1602,14 +1602,14 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
     assert_eq!(
         surface.dispatch_widget_output(
             64,
-            radiant::widgets::WidgetOutput::ListItem(ListItemMessage::Invoked)
+            radiant::widgets::WidgetOutput::typed(ListItemMessage::Invoked)
         ),
         Some(DemoMessage::Rename(String::from("row")))
     );
     assert_eq!(
         surface.dispatch_widget_output(
             65,
-            radiant::widgets::WidgetOutput::Selectable(SelectableMessage::SelectionChanged {
+            radiant::widgets::WidgetOutput::typed(SelectableMessage::SelectionChanged {
                 selected: true,
             })
         ),
@@ -1628,8 +1628,8 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         )
         .expect("canvas should forward routed input");
     assert_eq!(
-        canvas_output,
-        radiant::widgets::WidgetOutput::Canvas(CanvasMessage::Input {
+        canvas_output.typed_ref::<CanvasMessage>(),
+        Some(&CanvasMessage::Input {
             input: canvas_input.clone()
         })
     );

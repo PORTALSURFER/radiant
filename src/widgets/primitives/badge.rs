@@ -1,12 +1,15 @@
 //! Reusable badge and pill primitive.
 
 use crate::gui::types::Rect;
+use crate::layout::LayoutOutput;
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
+use super::support::{WidgetCommon, activate_on_keyboard, push_badge_widget_paint};
 use crate::widgets::contract::{
-    FocusBehavior, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+    FocusBehavior, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
-use crate::widgets::interaction::{BadgeMessage, PointerButton, WidgetInput};
+use crate::widgets::interaction::{BadgeMessage, PointerButton, WidgetInput, WidgetOutput};
 
 /// Immutable public properties for a reusable badge or pill widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -102,6 +105,30 @@ impl BadgeWidget {
             }
             _ => None,
         }
+    }
+}
+
+impl Widget for BadgeWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        BadgeWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_badge_widget_paint(primitives, self, bounds, theme);
     }
 }
 

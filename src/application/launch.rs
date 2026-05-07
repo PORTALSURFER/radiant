@@ -84,6 +84,31 @@ impl WindowBuilder {
         );
         run_native_vello_runtime(self.options, bridge)
     }
+
+    /// Run an existing runtime bridge through this window builder.
+    ///
+    /// This keeps host-specific bridges on the same application/window launch
+    /// API as ordinary Radiant examples while preserving their custom state and
+    /// diagnostics.
+    pub fn run_bridge<Bridge, Message>(self, bridge: Bridge) -> Result
+    where
+        Bridge: RuntimeBridge<Message> + 'static,
+        Message: 'static,
+    {
+        run_native_vello_runtime(self.options, bridge)
+    }
+
+    /// Run an existing runtime bridge and return native runtime artifacts.
+    pub fn run_bridge_with_artifacts<Bridge, Message>(
+        self,
+        bridge: Bridge,
+    ) -> crate::gui_runtime::NativeGenericRunReport
+    where
+        Bridge: RuntimeBridge<Message> + 'static,
+        Message: 'static,
+    {
+        crate::runtime::run_native_vello_runtime_with_artifacts(self.options, bridge)
+    }
 }
 
 /// Initial builder for simple stateful Radiant apps.

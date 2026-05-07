@@ -692,6 +692,9 @@ where
         };
         self.surface.find_widget(widget_id).is_some_and(|widget| {
             let object = widget.widget_object();
+            if !object.common().paint.paints_state_layers {
+                return false;
+            }
             if object.as_any().downcast_ref::<TextWidget>().is_some()
                 || object.as_any().downcast_ref::<ImageWidget>().is_some()
                 || object.as_any().downcast_ref::<CanvasWidget>().is_some()

@@ -69,6 +69,11 @@ path = "examples/paint_helpers.rs"
 test = false
 
 [[example]]
+name = "passive_widgets"
+path = "examples/passive_widgets.rs"
+test = false
+
+[[example]]
 name = "list"
 path = "examples/list.rs"
 test = false

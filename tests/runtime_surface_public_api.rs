@@ -724,6 +724,37 @@ fn control_hover_suppresses_surrounding_container_hover_chrome() {
 }
 
 #[test]
+fn input_only_controls_do_not_suppress_surrounding_container_hover_chrome() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::list_row(
+        "row",
+        [ui::button("Cell")
+            .message(DemoMessage::Increment)
+            .id(20)
+            .input_only()
+            .size(120.0, 24.0)],
+    )
+    .id(10)
+    .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
+    let theme = ThemeTokens::default();
+    let before = runtime.paint_plan(&theme);
+    let body_before = widget_fill_color(&before, 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(24.0, 20.0),
+    });
+    let after = runtime.paint_plan(&theme);
+
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(runtime.hovered_container(), Some(10));
+    assert_ne!(body_before, widget_fill_color(&after, 10));
+}
+
+#[test]
 fn prelude_supports_hello_world_imports() {
     use radiant::prelude::*;
 

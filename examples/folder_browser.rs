@@ -16,6 +16,16 @@ const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
 const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_ROW_TOP: f32 = 104.0;
+const MIN_FILE_COLUMN_WIDTH: f32 = 56.0;
+const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
+const WINDOW_WIDTH: f32 = 900.0;
+const WINDOW_HEIGHT: f32 = 540.0;
+const FOLDER_MENU_WIDTH: f32 = 190.0;
+const FOLDER_MENU_HEIGHT: f32 = 126.0;
+const FILE_MENU_WIDTH: f32 = 190.0;
+const FILE_MENU_HEIGHT: f32 = 126.0;
+const COLUMN_MENU_WIDTH: f32 = 210.0;
+const COLUMN_MENU_HEIGHT: f32 = 250.0;
 
 #[derive(Clone, Debug)]
 struct FolderEntry {
@@ -43,8 +53,15 @@ struct BrowserState {
     expanded_folders: HashSet<String>,
     folder_drag: Option<FolderDrag>,
     context_folder: Option<String>,
+    context_file: Option<String>,
+    context_position: Option<radiant::layout::Point>,
     rename_folder: Option<String>,
     rename_draft: String,
+    rename_file: Option<String>,
+    file_rename_draft: String,
+    context_column: Option<String>,
+    column_resize: Option<ColumnResize>,
+    file_columns: Vec<FileColumn>,
     sort: ui::DetailsSort,
     tree_width: f32,
     folders: Vec<FolderEntry>,
@@ -55,6 +72,21 @@ struct BrowserState {
 struct FolderDrag {
     source_id: String,
     target_id: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ColumnResize {
+    column_id: String,
+    start_x: f32,
+    start_width: f32,
+}
+
+#[derive(Clone, Debug)]
+struct FileColumn {
+    id: String,
+    label: String,
+    width: f32,
+    visible: bool,
 }
 
 impl Default for BrowserState {
@@ -73,8 +105,15 @@ impl BrowserState {
             expanded_folders: [root_id].into_iter().collect(),
             folder_drag: None,
             context_folder: None,
+            context_file: None,
+            context_position: None,
             rename_folder: None,
             rename_draft: String::new(),
+            rename_file: None,
+            file_rename_draft: String::new(),
+            context_column: None,
+            column_resize: None,
+            file_columns: default_file_columns(),
             sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             tree_width: 300.0,
             folders: vec![root_folder],
@@ -98,13 +137,17 @@ impl BrowserState {
     fn select_folder(&mut self, id: impl Into<String>) {
         self.selected_folder = id.into();
         self.selected_file = None;
-        self.cancel_rename();
+        self.context_file = None;
+        self.context_position = None;
+        self.cancel_renames();
     }
 
     fn activate_folder(&mut self, id: impl Into<String>) {
         let id = id.into();
         self.context_folder = None;
-        self.cancel_rename();
+        self.context_file = None;
+        self.context_position = None;
+        self.cancel_renames();
         if !self.folder_has_children(&id) {
             self.select_folder(id);
             return;
@@ -129,16 +172,50 @@ impl BrowserState {
     fn select_file_id(&mut self, id: String) {
         self.selected_file = Some(id);
         self.context_folder = None;
-        self.cancel_rename();
+        self.context_file = None;
+        self.context_column = None;
+        self.context_position = None;
+        self.cancel_renames();
     }
 
-    fn open_context_menu(&mut self, id: String) {
+    fn open_context_menu_at(&mut self, id: String, position: radiant::layout::Point) {
         self.context_folder = Some(id);
-        self.cancel_rename();
+        self.context_file = None;
+        self.context_column = None;
+        self.context_position = Some(position);
+        self.cancel_renames();
     }
 
     fn close_context_menu(&mut self) {
         self.context_folder = None;
+        self.context_position = None;
+    }
+
+    fn open_file_context_menu_at(&mut self, id: String, position: radiant::layout::Point) {
+        self.selected_file = Some(id.clone());
+        self.context_file = Some(id);
+        self.context_folder = None;
+        self.context_column = None;
+        self.context_position = Some(position);
+        self.cancel_renames();
+    }
+
+    fn close_file_context_menu(&mut self) {
+        self.context_file = None;
+        self.context_position = None;
+    }
+
+    fn open_column_context_menu_at(&mut self, id: String, position: radiant::layout::Point) {
+        self.context_column = Some(id);
+        self.context_file = None;
+        self.context_folder = None;
+        self.context_position = Some(position);
+        self.cancel_renames();
+    }
+
+    fn close_column_context_menu(&mut self) {
+        self.context_column = None;
+        self.context_position = None;
     }
 
     fn create_folder_from_context(&mut self) {
@@ -163,6 +240,27 @@ impl BrowserState {
         }
     }
 
+    fn create_file_in_selected_folder(&mut self) {
+        let Some(root_id) = self.folders.first().map(|folder| folder.id.clone()) else {
+            return;
+        };
+        match create_child_file(&self.selected_folder, "New File.txt", &root_id) {
+            Ok(created) => {
+                self.status = format!("Created {}", file_label(Path::new(&created)));
+                self.selected_file = Some(created.clone());
+                self.context_file = None;
+                self.context_folder = None;
+                self.cancel_renames();
+                self.rename_file = Some(created);
+                self.file_rename_draft = String::from("New File.txt");
+                self.folders = vec![load_root_folder(PathBuf::from(root_id))];
+            }
+            Err(message) => {
+                self.status = message;
+            }
+        }
+    }
+
     fn begin_rename_from_context(&mut self) {
         let Some(folder_id) = self.context_folder.take() else {
             return;
@@ -171,12 +269,24 @@ impl BrowserState {
             self.rename_draft = folder.name.clone();
             self.rename_folder = Some(folder_id);
             self.selected_file = None;
+            self.context_file = None;
+            self.cancel_file_rename();
         }
     }
 
-    fn cancel_rename(&mut self) {
+    fn cancel_renames(&mut self) {
+        self.cancel_folder_rename();
+        self.cancel_file_rename();
+    }
+
+    fn cancel_folder_rename(&mut self) {
         self.rename_folder = None;
         self.rename_draft.clear();
+    }
+
+    fn cancel_file_rename(&mut self) {
+        self.rename_file = None;
+        self.file_rename_draft.clear();
     }
 
     fn commit_rename(&mut self) {
@@ -184,7 +294,7 @@ impl BrowserState {
             return;
         };
         let Some(root_id) = self.folders.first().map(|folder| folder.id.clone()) else {
-            self.cancel_rename();
+            self.cancel_folder_rename();
             return;
         };
         match rename_folder_on_disk(&folder_id, &self.rename_draft, &root_id) {
@@ -198,7 +308,66 @@ impl BrowserState {
                 self.selected_file = None;
                 self.expanded_folders.insert(root_id.clone());
                 self.expanded_folders.insert(parent_id);
-                self.cancel_rename();
+                self.cancel_folder_rename();
+                self.folders = vec![load_root_folder(PathBuf::from(root_id))];
+            }
+            Err(message) => {
+                self.status = message;
+            }
+        }
+    }
+
+    fn begin_file_rename_from_context(&mut self) {
+        let Some(file_id) = self.context_file.take() else {
+            return;
+        };
+        if let Some(file) = self
+            .selected_folder()
+            .files
+            .iter()
+            .find(|file| file.id == file_id)
+        {
+            self.file_rename_draft = file.name.clone();
+            self.rename_file = Some(file_id);
+            self.context_folder = None;
+            self.cancel_folder_rename();
+        }
+    }
+
+    fn commit_file_rename(&mut self) {
+        let Some(file_id) = self.rename_file.clone() else {
+            return;
+        };
+        let Some(root_id) = self.folders.first().map(|folder| folder.id.clone()) else {
+            self.cancel_file_rename();
+            return;
+        };
+        match rename_file_on_disk(&file_id, &self.file_rename_draft, &root_id) {
+            Ok(renamed) => {
+                self.status = format!("Renamed to {}", file_label(Path::new(&renamed)));
+                self.selected_file = Some(renamed);
+                self.context_file = None;
+                self.cancel_file_rename();
+                self.folders = vec![load_root_folder(PathBuf::from(root_id))];
+            }
+            Err(message) => {
+                self.status = message;
+            }
+        }
+    }
+
+    fn delete_file_from_context(&mut self) {
+        let Some(file_id) = self.context_file.take() else {
+            return;
+        };
+        let Some(root_id) = self.folders.first().map(|folder| folder.id.clone()) else {
+            return;
+        };
+        match delete_file_on_disk(&file_id, &root_id) {
+            Ok(()) => {
+                self.status = format!("Deleted {}", file_label(Path::new(&file_id)));
+                self.selected_file = None;
+                self.cancel_file_rename();
                 self.folders = vec![load_root_folder(PathBuf::from(root_id))];
             }
             Err(message) => {
@@ -231,6 +400,83 @@ impl BrowserState {
         }
     }
 
+    fn visible_file_columns(&self) -> Vec<&FileColumn> {
+        self.file_columns
+            .iter()
+            .filter(|column| column.visible)
+            .collect()
+    }
+
+    fn toggle_file_column(&mut self, column_id: String) {
+        let visible_count = self
+            .file_columns
+            .iter()
+            .filter(|column| column.visible)
+            .count();
+        let Some(column) = self
+            .file_columns
+            .iter_mut()
+            .find(|column| column.id == column_id)
+        else {
+            return;
+        };
+        if column.id == "name" {
+            self.status = String::from("Name column stays visible");
+            return;
+        }
+        if column.visible && visible_count <= 1 {
+            self.status = String::from("Keep at least one column visible");
+            return;
+        }
+        column.visible = !column.visible;
+        if !column.visible && self.sort.column_id == column.id {
+            self.sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        }
+        self.context_column = Some(column.id.clone());
+    }
+
+    fn reset_file_columns(&mut self) {
+        self.file_columns = default_file_columns();
+        self.sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        self.context_column = None;
+        self.status = String::from("Reset file columns");
+    }
+
+    fn resize_file_column(&mut self, column_id: String, message: ui::DragHandleMessage) {
+        match message {
+            ui::DragHandleMessage::Started { position } => {
+                if let Some(column) = self
+                    .file_columns
+                    .iter()
+                    .find(|column| column.id == column_id)
+                {
+                    self.column_resize = Some(ColumnResize {
+                        column_id,
+                        start_x: position.x,
+                        start_width: column.width,
+                    });
+                }
+            }
+            ui::DragHandleMessage::Moved { position }
+            | ui::DragHandleMessage::Ended { position } => {
+                let Some(resize) = self.column_resize.clone() else {
+                    return;
+                };
+                if let Some(column) = self
+                    .file_columns
+                    .iter_mut()
+                    .find(|column| column.id == resize.column_id)
+                {
+                    column.width = (resize.start_width + position.x - resize.start_x)
+                        .clamp(MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
+                }
+                if matches!(message, ui::DragHandleMessage::Ended { .. }) {
+                    self.column_resize = None;
+                }
+            }
+        }
+    }
+
     fn sorted_files(&self) -> Vec<&FileEntry> {
         let mut files = self.selected_folder().files.iter().collect::<Vec<_>>();
         files.sort_by(|a, b| {
@@ -244,6 +490,10 @@ impl BrowserState {
                     .modified_rank
                     .cmp(&b.modified_rank)
                     .then_with(|| a.name.cmp(&b.name)),
+                "extension" => file_extension(Path::new(&a.id))
+                    .cmp(&file_extension(Path::new(&b.id)))
+                    .then_with(|| a.name.cmp(&b.name)),
+                "path" => a.id.cmp(&b.id),
                 _ => natural_name_cmp(&a.name, &b.name),
             };
             match self.sort.direction {
@@ -410,7 +660,7 @@ fn main() -> radiant::Result {
 }
 
 fn project_surface(state: &mut BrowserState) -> ui::StateView<BrowserState> {
-    ui::column([
+    let page = ui::column([
         header(state),
         ui::row([folder_tree(state), splitter(), file_view(state)])
             .style(ui::WidgetStyle::default())
@@ -422,7 +672,18 @@ fn project_surface(state: &mut BrowserState) -> ui::StateView<BrowserState> {
     .fill_width()
     .fill_height()
     .padding(12.0)
-    .spacing(8.0)
+    .spacing(8.0);
+    if has_context_menu(state) {
+        ui::stack([page, context_menu_overlay(state)])
+            .fill_width()
+            .fill_height()
+    } else {
+        page
+    }
+}
+
+fn has_context_menu(state: &BrowserState) -> bool {
+    state.context_folder.is_some() || state.context_file.is_some() || state.context_column.is_some()
 }
 
 fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
@@ -454,17 +715,64 @@ fn folder_tree(state: &BrowserState) -> ui::StateView<BrowserState> {
         .spacing(1.0),
     )
     .fill_height();
-    let content = if let Some(folder_id) = state.context_folder.as_ref() {
-        ui::column([context_menu(state, folder_id), tree])
-            .fill_width()
-            .fill_height()
-            .spacing(6.0)
-    } else {
-        tree
-    };
-    panel("Folder Tree", content)
+    panel("Folder Tree", tree)
         .width(state.tree_width)
         .fill_height()
+}
+
+fn context_menu_overlay(state: &BrowserState) -> ui::StateView<BrowserState> {
+    let (width, height, menu) = if let Some(folder_id) = state.context_folder.as_ref() {
+        (
+            FOLDER_MENU_WIDTH,
+            FOLDER_MENU_HEIGHT,
+            context_menu(state, folder_id),
+        )
+    } else if let Some(column_id) = state.context_column.as_ref() {
+        (
+            COLUMN_MENU_WIDTH,
+            COLUMN_MENU_HEIGHT,
+            column_context_menu(state, column_id),
+        )
+    } else if let Some(file_id) = state.context_file.as_ref() {
+        (
+            FILE_MENU_WIDTH,
+            FILE_MENU_HEIGHT,
+            file_context_menu(state, file_id),
+        )
+    } else {
+        (0.0, 0.0, ui::text(""))
+    };
+    let (left, top) = anchored_context_menu_position(state.context_position, width, height);
+    ui::column([
+        ui::text("").fill_width().height(top),
+        ui::row([
+            ui::text("").size(left, 1.0),
+            menu,
+            ui::text("").fill_width().height(1.0),
+        ])
+        .fill_width()
+        .height(height),
+        ui::text("").fill_width().fill_height(),
+    ])
+    .fill_width()
+    .fill_height()
+    .key("context-menu-overlay")
+}
+
+fn anchored_context_menu_position(
+    position: Option<radiant::layout::Point>,
+    menu_width: f32,
+    menu_height: f32,
+) -> (f32, f32) {
+    let position = position.unwrap_or_else(|| radiant::layout::Point::new(0.0, 0.0));
+    let max_left = (WINDOW_WIDTH - menu_width).max(0.0);
+    let left = position.x.clamp(0.0, max_left);
+    let top = if position.y + menu_height <= WINDOW_HEIGHT {
+        position.y.max(0.0)
+    } else {
+        (position.y - menu_height).max(0.0)
+    };
+    (left, top)
 }
 
 fn context_menu(state: &BrowserState, folder_id: &str) -> ui::StateView<BrowserState> {
@@ -494,9 +802,9 @@ fn context_menu(state: &BrowserState, folder_id: &str) -> ui::StateView<BrowserS
     ])
     .style(ui::WidgetStyle {
         tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
+        prominence: ui::WidgetProminence::Strong,
     })
-    .fill_width()
+    .width(190.0)
     .height(126.0)
     .padding(8.0)
     .spacing(6.0)
@@ -527,7 +835,7 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
                 .size(36.0, 22.0),
             ui::button("X")
                 .subtle()
-                .on_click(BrowserState::cancel_rename)
+                .on_click(BrowserState::cancel_folder_rename)
                 .key(format!("folder-rename-cancel-{key}"))
                 .size(28.0, 22.0),
         ])
@@ -537,14 +845,28 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
     } else {
         let select_id = id.clone();
         let context_id = id.clone();
-        let mut label = ui::button(folder.name)
-            .on_click_or_secondary(
+        let drag_id = drag_id.clone();
+        let mut label = if folder.draggable {
+            ui::button(folder.name).on_click_secondary_at_or_drag(
                 move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
-                move |state: &mut BrowserState| state.open_context_menu(context_id.clone()),
+                move |state: &mut BrowserState, position| {
+                    state.open_context_menu_at(context_id.clone(), position);
+                },
+                move |state: &mut BrowserState, message| {
+                    state.handle_folder_drag(drag_id.clone(), message);
+                },
             )
-            .key(format!("folder-label-{key}"))
-            .fill_width()
-            .height(22.0);
+        } else {
+            ui::button(folder.name).on_click_or_secondary_at(
+                move |state: &mut BrowserState| state.activate_folder(select_id.clone()),
+                move |state: &mut BrowserState, position| {
+                    state.open_context_menu_at(context_id.clone(), position);
+                },
+            )
+        }
+        .key(format!("folder-label-{key}"))
+        .fill_width()
+        .height(22.0);
         if folder.selected || folder.drop_target {
             label = label.primary();
         } else {
@@ -555,18 +877,6 @@ fn folder_row(state: &BrowserState, folder: VisibleFolder) -> ui::StateView<Brow
 
     ui::row([
         ui::text("").size((folder.depth as f32) * 12.0, 22.0),
-        if folder.draggable {
-            ui::drag_handle()
-                .on_drag(move |state: &mut BrowserState, message| {
-                    state.handle_folder_drag(drag_id.clone(), message);
-                })
-                .key(format!("folder-drag-{id}"))
-                .size(22.0, 22.0)
-        } else {
-            ui::text("")
-                .key(format!("folder-drag-spacer-{id}"))
-                .size(22.0, 22.0)
-        },
         if folder.has_children {
             ui::button(expander)
                 .on_click(move |state: &mut BrowserState| state.toggle_folder(toggle_id.clone()))
@@ -601,54 +911,352 @@ fn splitter() -> ui::StateView<BrowserState> {
         ui::drag_handle()
             .on_drag(|state: &mut BrowserState, message| state.resize_tree(message))
             .key("splitter-handle")
-            .size(18.0, 18.0),
+            .size(5.0, 28.0),
         ui::text("").fill_width().fill_height(),
     ])
     .style(ui::WidgetStyle {
         tone: ui::WidgetTone::Accent,
         prominence: ui::WidgetProminence::Subtle,
     })
-    .width(24.0)
+    .width(11.0)
     .fill_height()
-    .padding(3.0)
+    .padding(2.0)
     .spacing(4.0)
 }
 
 fn file_view(state: &BrowserState) -> ui::StateView<BrowserState> {
     let folder = state.selected_folder();
-    panel(
-        folder.name.clone(),
-        ui::selectable_sortable_details_list(
-            [
-                ui::DetailsColumn::flexible("name", "Name"),
-                ui::DetailsColumn::fixed("size", "Size", 74),
-                ui::DetailsColumn::fixed("kind", "Type", 132),
-                ui::DetailsColumn::fixed("modified", "Modified", 112),
-            ],
+    let file_rows = ui::scroll(
+        ui::column(
             state
                 .sorted_files()
                 .into_iter()
-                .map(|file| file_row(state, file)),
-            Some(state.sort.clone()),
-            BrowserState::sort_by,
-            Some(BrowserState::select_file_id),
-        ),
+                .map(|file| file_details_row(state, file))
+                .collect::<Vec<_>>(),
+        )
+        .fill_width()
+        .spacing(1.0),
     )
+    .fill_height();
+    let details = ui::column([details_header(state), file_rows])
+        .fill_width()
+        .fill_height()
+        .spacing(3.0);
+    let file_actions = ui::row([
+        ui::text("Files").fill_width().height(28.0),
+        ui::button("New File")
+            .primary()
+            .on_click(BrowserState::create_file_in_selected_folder)
+            .size(104.0, 28.0),
+    ])
     .fill_width()
-    .fill_height()
+    .height(32.0)
+    .spacing(8.0);
+    let content = ui::column([file_actions, details])
+        .fill_width()
+        .fill_height()
+        .spacing(6.0);
+    panel(folder.name.clone(), content)
+        .fill_width()
+        .fill_height()
 }
 
-fn file_row(state: &BrowserState, file: &FileEntry) -> ui::DetailsRow {
-    ui::DetailsRow::new(
-        file.id.clone(),
-        [
-            file.name.clone(),
-            file.size.clone(),
-            file.kind.clone(),
-            file.modified.clone(),
-        ],
+fn details_header(state: &BrowserState) -> ui::StateView<BrowserState> {
+    details_header_row(
+        state
+            .visible_file_columns()
+            .iter()
+            .map(|column| {
+                let id = column.id.clone();
+                let marker = if state.sort.column_id == column.id {
+                    match state.sort.direction {
+                        ui::SortDirection::Ascending => " ^",
+                        ui::SortDirection::Descending => " v",
+                    }
+                } else {
+                    ""
+                };
+                let label = format!("{}{}", column.label, marker);
+                sized_cell(
+                    column,
+                    ui::row([
+                        ui::button(label)
+                            .on_click_or_secondary_at(
+                                move |state: &mut BrowserState| state.sort_by(id.clone()),
+                                {
+                                    let id = column.id.clone();
+                                    move |state: &mut BrowserState, position| {
+                                        state.open_column_context_menu_at(id.clone(), position);
+                                    }
+                                },
+                            )
+                            .key(format!("file-sort-{}", column.id))
+                            .fill_width()
+                            .height(20.0)
+                            .input_only(),
+                        {
+                            let id = column.id.clone();
+                            ui::drag_handle()
+                                .on_drag(move |state: &mut BrowserState, message| {
+                                    state.resize_file_column(id.clone(), message);
+                                })
+                                .key(format!("file-column-resize-{}", column.id))
+                                .size(4.0, 20.0)
+                        },
+                    ])
+                    .fill_width()
+                    .height(20.0)
+                    .spacing(1.0),
+                )
+            })
+            .collect::<Vec<_>>(),
     )
-    .selected(state.selected_file.as_deref() == Some(file.id.as_str()))
+}
+
+fn column_context_menu(state: &BrowserState, column_id: &str) -> ui::StateView<BrowserState> {
+    let column_name = state
+        .file_columns
+        .iter()
+        .find(|column| column.id == column_id)
+        .map(|column| column.label.clone())
+        .unwrap_or_else(|| String::from("columns"));
+    let mut actions = vec![
+        ui::text(format!("Columns from {column_name}"))
+            .fill_width()
+            .height(22.0),
+    ];
+    actions.extend(state.file_columns.iter().map(|column| {
+        let id = column.id.clone();
+        let marker = if column.visible { "[x]" } else { "[ ]" };
+        let label = if column.id == "name" {
+            format!("{marker} {} locked", column.label)
+        } else {
+            format!("{marker} {}", column.label)
+        };
+        ui::button(label)
+            .subtle()
+            .on_click(move |state: &mut BrowserState| state.toggle_file_column(id.clone()))
+            .fill_width()
+            .height(26.0)
+    }));
+    actions.push(
+        ui::button("Reset Defaults")
+            .primary()
+            .on_click(BrowserState::reset_file_columns)
+            .fill_width()
+            .height(28.0),
+    );
+    actions.push(
+        ui::button("Close")
+            .subtle()
+            .on_click(BrowserState::close_column_context_menu)
+            .fill_width()
+            .height(28.0),
+    );
+    ui::column(actions)
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Strong,
+        })
+        .width(210.0)
+        .height(250.0)
+        .padding(8.0)
+        .spacing(5.0)
+}
+
+fn file_context_menu(state: &BrowserState, file_id: &str) -> ui::StateView<BrowserState> {
+    let file_name = state
+        .selected_folder()
+        .files
+        .iter()
+        .find(|file| file.id == file_id)
+        .map(|file| file.name.clone())
+        .unwrap_or_else(|| String::from("item"));
+    ui::column([
+        ui::text(format!("Actions for {file_name}"))
+            .fill_width()
+            .height(22.0),
+        ui::button("Rename")
+            .primary()
+            .on_click(BrowserState::begin_file_rename_from_context)
+            .fill_width()
+            .height(28.0),
+        ui::button("Delete")
+            .subtle()
+            .on_click(BrowserState::delete_file_from_context)
+            .fill_width()
+            .height(28.0),
+        ui::button("Cancel")
+            .subtle()
+            .on_click(BrowserState::close_file_context_menu)
+            .fill_width()
+            .height(28.0),
+    ])
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Accent,
+        prominence: ui::WidgetProminence::Strong,
+    })
+    .width(190.0)
+    .height(126.0)
+    .padding(8.0)
+    .spacing(6.0)
+}
+
+fn file_details_row(state: &BrowserState, file: &FileEntry) -> ui::StateView<BrowserState> {
+    let selected = state.selected_file.as_deref() == Some(file.id.as_str());
+    let editing = state.rename_file.as_deref() == Some(file.id.as_str());
+    let cells = state
+        .visible_file_columns()
+        .into_iter()
+        .map(|column| {
+            let cell = if column.id == "name" && editing {
+                file_name_editor(state, file)
+            } else if column.id == "name" {
+                file_name_cell(file)
+            } else {
+                file_cell(
+                    file.id.clone(),
+                    column.id.clone(),
+                    file_column_value(file, column.id.as_str()),
+                )
+            };
+            sized_cell(column, cell)
+        })
+        .collect::<Vec<_>>();
+    compact_details_row(cells)
+        .key(format!("file-row-{}", file.id))
+        .style(if selected {
+            ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Subtle,
+            }
+        } else {
+            ui::WidgetStyle::default()
+        })
+        .hoverable()
+}
+
+fn file_name_editor(state: &BrowserState, file: &FileEntry) -> ui::StateView<BrowserState> {
+    ui::row([
+        ui::text_input(state.file_rename_draft.clone())
+            .placeholder("File name")
+            .bind_submit(
+                |state: &mut BrowserState| &mut state.file_rename_draft,
+                BrowserState::commit_file_rename,
+            )
+            .key(format!("file-rename-input-{}", file.id))
+            .fill_width()
+            .height(20.0),
+        ui::button("OK")
+            .primary()
+            .on_click(BrowserState::commit_file_rename)
+            .key(format!("file-rename-ok-{}", file.id))
+            .size(36.0, 20.0),
+        ui::button("X")
+            .subtle()
+            .on_click(BrowserState::cancel_file_rename)
+            .key(format!("file-rename-cancel-{}", file.id))
+            .size(28.0, 20.0),
+    ])
+    .fill_width()
+    .height(20.0)
+    .spacing(3.0)
+}
+
+fn file_name_cell(file: &FileEntry) -> ui::StateView<BrowserState> {
+    let select_id = file.id.clone();
+    let context_id = file.id.clone();
+    ui::button(file.name.clone())
+        .on_click_or_secondary_at(
+            move |state: &mut BrowserState| state.select_file_id(select_id.clone()),
+            move |state: &mut BrowserState, position| {
+                state.open_file_context_menu_at(context_id.clone(), position);
+            },
+        )
+        .key(format!("file-name-{}", file.id))
+        .fill_width()
+        .height(20.0)
+        .input_only()
+}
+
+fn file_column_value(file: &FileEntry, column_id: &str) -> String {
+    match column_id {
+        "size" => file.size.clone(),
+        "kind" => file.kind.clone(),
+        "modified" => file.modified.clone(),
+        "extension" => file_extension(Path::new(&file.id)),
+        "path" => file.id.clone(),
+        _ => file.name.clone(),
+    }
+}
+
+fn file_cell(file_id: String, column_id: String, value: String) -> ui::StateView<BrowserState> {
+    let select_id = file_id.clone();
+    let context_id = file_id.clone();
+    ui::button(value)
+        .on_click_or_secondary_at(
+            move |state: &mut BrowserState| state.select_file_id(select_id.clone()),
+            move |state: &mut BrowserState, position| {
+                state.open_file_context_menu_at(context_id.clone(), position);
+            },
+        )
+        .key(format!("{file_id}-{column_id}"))
+        .fill_width()
+        .height(20.0)
+        .input_only()
+}
+
+fn sized_cell(
+    column: &FileColumn,
+    cell: ui::StateView<BrowserState>,
+) -> ui::StateView<BrowserState> {
+    cell.size(column.width, 20.0)
+}
+
+fn compact_details_row(
+    children: impl IntoIterator<Item = ui::StateView<BrowserState>>,
+) -> ui::StateView<BrowserState> {
+    ui::row(children)
+        .fill_width()
+        .height(22.0)
+        .padding_x(8.0)
+        .padding_y(1.0)
+        .spacing(10.0)
+}
+
+fn details_header_row(
+    children: impl IntoIterator<Item = ui::StateView<BrowserState>>,
+) -> ui::StateView<BrowserState> {
+    ui::row(children)
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .fill_width()
+        .height(24.0)
+        .padding_x(8.0)
+        .padding_y(2.0)
+        .spacing(10.0)
+}
+
+fn default_file_columns() -> Vec<FileColumn> {
+    vec![
+        file_column("name", "Name", 190.0, true),
+        file_column("size", "Size", 78.0, true),
+        file_column("kind", "Type", 132.0, true),
+        file_column("modified", "Modified", 112.0, true),
+        file_column("extension", "Extension", 92.0, false),
+        file_column("path", "Path", 260.0, false),
+    ]
+}
+
+fn file_column(id: &str, label: &str, width: f32, visible: bool) -> FileColumn {
+    FileColumn {
+        id: id.to_owned(),
+        label: label.to_owned(),
+        width,
+        visible,
+    }
 }
 
 fn panel(
@@ -714,6 +1322,51 @@ fn create_child_folder(parent_id: &str, base_name: &str) -> Result<String, Strin
     Err(String::from("No available New Folder name"))
 }
 
+fn create_child_file(parent_id: &str, base_name: &str, root_id: &str) -> Result<String, String> {
+    let parent = PathBuf::from(parent_id);
+    let root = PathBuf::from(root_id);
+    if !parent.starts_with(&root) {
+        return Err(String::from("Create must stay inside C:\\temp"));
+    }
+    if !parent.is_dir() {
+        return Err(String::from("Target folder no longer exists"));
+    }
+    for index in 0..100 {
+        let name = unique_file_name(base_name, index);
+        validate_entry_name(&name, "File")?;
+        let candidate = parent.join(name);
+        if !candidate.exists() {
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+                .map_err(|error| format!("Create file failed: {error}"))?;
+            return Ok(path_id(&candidate));
+        }
+    }
+    Err(String::from("No available New File name"))
+}
+
+fn unique_file_name(base_name: &str, index: usize) -> String {
+    if index == 0 {
+        return base_name.to_owned();
+    }
+    let path = Path::new(base_name);
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or_else(|| base_name.to_owned());
+    let extension = path
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_string())
+        .filter(|extension| !extension.is_empty());
+    match extension {
+        Some(extension) => format!("{stem} {index}.{extension}"),
+        None => format!("{stem} {index}"),
+    }
+}
+
 fn rename_folder_on_disk(folder_id: &str, new_name: &str, root_id: &str) -> Result<String, String> {
     let source = PathBuf::from(folder_id);
     let root = PathBuf::from(root_id);
@@ -722,12 +1375,49 @@ fn rename_folder_on_disk(folder_id: &str, new_name: &str, root_id: &str) -> Resu
         .parent()
         .ok_or_else(|| String::from("Cannot rename unnamed folder"))?;
     let destination = parent.join(new_name.trim());
+    if destination == source {
+        return Ok(path_id(&source));
+    }
     if destination.exists() {
         return Err(format!("{} already exists", destination.display()));
     }
     fs::rename(&source, &destination)
         .map_err(|error| format!("Rename failed: {error}"))
         .map(|_| path_id(&destination))
+}
+
+fn rename_file_on_disk(file_id: &str, new_name: &str, root_id: &str) -> Result<String, String> {
+    let source = PathBuf::from(file_id);
+    let root = PathBuf::from(root_id);
+    validate_file_rename(&source, new_name, &root)?;
+    let parent = source
+        .parent()
+        .ok_or_else(|| String::from("Cannot rename unnamed file"))?;
+    let destination = parent.join(new_name.trim());
+    if destination == source {
+        return Ok(path_id(&source));
+    }
+    if destination.exists() {
+        return Err(format!("{} already exists", destination.display()));
+    }
+    fs::rename(&source, &destination)
+        .map_err(|error| format!("Rename failed: {error}"))
+        .map(|_| path_id(&destination))
+}
+
+fn delete_file_on_disk(file_id: &str, root_id: &str) -> Result<(), String> {
+    let target = PathBuf::from(file_id);
+    let root = PathBuf::from(root_id);
+    if !target.starts_with(&root) {
+        return Err(String::from("Delete must stay inside C:\\temp"));
+    }
+    if !target.exists() {
+        return Err(String::from("File no longer exists"));
+    }
+    if !target.is_file() {
+        return Err(String::from("Only files can be deleted here"));
+    }
+    fs::remove_file(&target).map_err(|error| format!("Delete failed: {error}"))
 }
 
 fn validate_folder_rename(source: &Path, new_name: &str, root: &Path) -> Result<(), String> {
@@ -740,21 +1430,38 @@ fn validate_folder_rename(source: &Path, new_name: &str, root: &Path) -> Result<
     if !source.is_dir() {
         return Err(String::from("Folder no longer exists"));
     }
+    validate_entry_name(new_name, "Folder")
+}
+
+fn validate_file_rename(source: &Path, new_name: &str, root: &Path) -> Result<(), String> {
+    if source == root {
+        return Err(String::from("Cannot rename the root folder"));
+    }
+    if !source.starts_with(root) {
+        return Err(String::from("Rename must stay inside C:\\temp"));
+    }
+    if !source.exists() {
+        return Err(String::from("File no longer exists"));
+    }
+    validate_entry_name(new_name, "File")
+}
+
+fn validate_entry_name(new_name: &str, kind: &str) -> Result<(), String> {
     let trimmed = new_name.trim();
     if trimmed.is_empty() {
-        return Err(String::from("Folder name cannot be empty"));
+        return Err(format!("{kind} name cannot be empty"));
     }
     if trimmed == "." || trimmed == ".." {
-        return Err(String::from("Folder name is reserved"));
+        return Err(format!("{kind} name is reserved"));
     }
     if trimmed.ends_with('.') || trimmed.ends_with(' ') {
-        return Err(String::from("Folder name cannot end with a dot or space"));
+        return Err(format!("{kind} name cannot end with a dot or space"));
     }
     if trimmed
         .chars()
         .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
     {
-        return Err(String::from("Folder name contains invalid characters"));
+        return Err(format!("{kind} name contains invalid characters"));
     }
     Ok(())
 }
@@ -881,6 +1588,13 @@ fn file_kind(path: &Path) -> String {
     }
 }
 
+fn file_extension(path: &Path) -> String {
+    path.extension()
+        .map(|extension| extension.to_string_lossy().to_string())
+        .filter(|extension| !extension.is_empty())
+        .unwrap_or_else(|| String::from("-"))
+}
+
 fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
@@ -952,8 +1666,15 @@ mod tests {
             expanded_folders: [selected_folder].into_iter().collect(),
             folder_drag: None,
             context_folder: None,
+            context_file: None,
+            context_position: None,
             rename_folder: None,
             rename_draft: String::new(),
+            rename_file: None,
+            file_rename_draft: String::new(),
+            context_column: None,
+            column_resize: None,
+            file_columns: default_file_columns(),
             sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             tree_width: 300.0,
             folders: vec![root],
@@ -1058,24 +1779,143 @@ mod tests {
     }
 
     #[test]
-    fn opening_context_menu_records_target_folder() {
+    fn file_columns_start_with_default_visible_set() {
+        let state = test_state();
+
+        let visible = state
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(visible, ["name", "size", "kind", "modified"]);
+    }
+
+    #[test]
+    fn toggling_file_column_updates_visible_columns_and_keeps_name_locked() {
         let mut state = test_state();
 
-        state.open_context_menu(String::from(r"C:\temp\alpha"));
+        state.toggle_file_column(String::from("extension"));
+        state.toggle_file_column(String::from("name"));
+
+        assert!(
+            state
+                .visible_file_columns()
+                .iter()
+                .any(|column| column.id == "extension")
+        );
+        assert!(
+            state
+                .visible_file_columns()
+                .iter()
+                .any(|column| column.id == "name")
+        );
+        assert_eq!(state.status, "Name column stays visible");
+    }
+
+    #[test]
+    fn file_column_resize_clamps_width() {
+        let mut state = test_state();
+
+        state.resize_file_column(
+            String::from("kind"),
+            ui::DragHandleMessage::Started {
+                position: radiant::layout::Point::new(100.0, 0.0),
+            },
+        );
+        state.resize_file_column(
+            String::from("kind"),
+            ui::DragHandleMessage::Moved {
+                position: radiant::layout::Point::new(-200.0, 0.0),
+            },
+        );
+
+        let width = state
+            .file_columns
+            .iter()
+            .find(|column| column.id == "kind")
+            .map(|column| column.width)
+            .unwrap();
+        assert_eq!(width, MIN_FILE_COLUMN_WIDTH);
+    }
+
+    #[test]
+    fn opening_file_context_selects_file_and_records_target() {
+        let mut state = test_state();
+        let position = radiant::layout::Point::new(320.0, 180.0);
+
+        state.open_file_context_menu_at(String::from(r"C:\temp\sample.txt"), position);
+
+        assert_eq!(state.selected_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.context_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.context_position, Some(position));
+    }
+
+    #[test]
+    fn opening_context_menu_records_target_folder() {
+        let mut state = test_state();
+        let position = radiant::layout::Point::new(120.0, 140.0);
+
+        state.open_context_menu_at(String::from(r"C:\temp\alpha"), position);
 
         assert_eq!(state.context_folder.as_deref(), Some(r"C:\temp\alpha"));
+        assert_eq!(state.context_position, Some(position));
+    }
+
+    #[test]
+    fn context_menu_position_anchors_to_cursor_and_flips_near_bottom() {
+        let cursor = radiant::layout::Point::new(300.0, 200.0);
+
+        assert_eq!(
+            anchored_context_menu_position(Some(cursor), FOLDER_MENU_WIDTH, FOLDER_MENU_HEIGHT),
+            (300.0, 200.0)
+        );
+        assert_eq!(
+            anchored_context_menu_position(
+                Some(radiant::layout::Point::new(300.0, 520.0)),
+                FOLDER_MENU_WIDTH,
+                FOLDER_MENU_HEIGHT
+            ),
+            (300.0, 394.0)
+        );
+        assert_eq!(
+            anchored_context_menu_position(
+                Some(radiant::layout::Point::new(880.0, 200.0)),
+                FOLDER_MENU_WIDTH,
+                FOLDER_MENU_HEIGHT
+            ),
+            (710.0, 200.0)
+        );
     }
 
     #[test]
     fn rename_from_context_opens_inline_editor_with_folder_name() {
         let mut state = test_state();
 
-        state.open_context_menu(String::from(r"C:\temp\alpha"));
+        state.open_context_menu_at(
+            String::from(r"C:\temp\alpha"),
+            radiant::layout::Point::new(120.0, 140.0),
+        );
         state.begin_rename_from_context();
 
         assert_eq!(state.context_folder, None);
         assert_eq!(state.rename_folder.as_deref(), Some(r"C:\temp\alpha"));
         assert_eq!(state.rename_draft, "alpha");
+    }
+
+    #[test]
+    fn file_rename_from_context_opens_inline_editor_with_file_name() {
+        let mut state = test_state();
+
+        state.open_file_context_menu_at(
+            String::from(r"C:\temp\sample.txt"),
+            radiant::layout::Point::new(320.0, 180.0),
+        );
+        state.begin_file_rename_from_context();
+
+        assert_eq!(state.context_file, None);
+        assert_eq!(state.rename_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.file_rename_draft, "sample.txt");
     }
 
     #[test]
@@ -1153,6 +1993,46 @@ mod tests {
     }
 
     #[test]
+    fn create_child_file_uses_unique_new_file_name() {
+        let root = temp_test_root("create-file-test");
+        let existing = root.join("New File.txt");
+        let expected = root.join("New File 1.txt");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root folder should be created");
+        fs::write(&existing, "sample").expect("existing file should be created");
+
+        let created =
+            create_child_file(&path_id(&root), "New File.txt", &path_id(&root)).expect("create");
+
+        assert_eq!(created, path_id(&expected));
+        assert!(expected.is_file());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn create_file_in_selected_folder_selects_created_file_for_rename() {
+        let root = temp_test_root("state-create-file-test");
+        let expected = root.join("New File.txt");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root folder should be created");
+        let mut state = BrowserState::from_root(root.clone());
+
+        state.create_file_in_selected_folder();
+
+        assert_eq!(
+            state.selected_file.as_deref(),
+            Some(path_id(&expected).as_str())
+        );
+        assert_eq!(
+            state.rename_file.as_deref(),
+            Some(path_id(&expected).as_str())
+        );
+        assert_eq!(state.file_rename_draft, "New File.txt");
+        assert!(expected.is_file());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn folder_rename_rejects_root_empty_and_invalid_names() {
         let root = temp_test_root("rename-reject-test");
         let source = root.join("source");
@@ -1189,6 +2069,83 @@ mod tests {
         assert_eq!(renamed, path_id(&destination));
         assert!(destination.is_dir());
         assert!(!source.exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn file_rename_rejects_empty_and_invalid_names() {
+        let root = temp_test_root("file-rename-reject-test");
+        let source = root.join("sample.txt");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root folder should be created");
+        fs::write(&source, "sample").expect("sample file should be created");
+
+        assert_eq!(
+            validate_file_rename(&source, "  ", &root).unwrap_err(),
+            "File name cannot be empty"
+        );
+        assert_eq!(
+            validate_file_rename(&source, "bad/name.txt", &root).unwrap_err(),
+            "File name contains invalid characters"
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn file_rename_changes_file_name_in_place() {
+        let root = temp_test_root("file-rename-test");
+        let source = root.join("sample.txt");
+        let destination = root.join("renamed.txt");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root folder should be created");
+        fs::write(&source, "sample").expect("sample file should be created");
+
+        let renamed = rename_file_on_disk(&path_id(&source), " renamed.txt ", &path_id(&root))
+            .expect("rename should succeed");
+
+        assert_eq!(renamed, path_id(&destination));
+        assert!(destination.is_file());
+        assert!(!source.exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn delete_file_removes_file_but_rejects_folders() {
+        let root = temp_test_root("delete-file-test");
+        let file = root.join("sample.txt");
+        let folder = root.join("folder");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&folder).expect("folder should be created");
+        fs::write(&file, "sample").expect("file should be created");
+
+        assert_eq!(
+            delete_file_on_disk(&path_id(&folder), &path_id(&root)).unwrap_err(),
+            "Only files can be deleted here"
+        );
+        delete_file_on_disk(&path_id(&file), &path_id(&root)).expect("delete should succeed");
+
+        assert!(!file.exists());
+        assert!(folder.is_dir());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn delete_file_from_context_clears_selection_and_reloads() {
+        let root = temp_test_root("state-delete-file-test");
+        let file = root.join("sample.txt");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("root folder should be created");
+        fs::write(&file, "sample").expect("file should be created");
+        let mut state = BrowserState::from_root(root.clone());
+        state.open_file_context_menu_at(path_id(&file), radiant::layout::Point::new(320.0, 180.0));
+
+        state.delete_file_from_context();
+
+        assert_eq!(state.selected_file, None);
+        assert_eq!(state.context_file, None);
+        assert!(!file.exists());
+        assert!(state.selected_folder().files.is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -128,12 +128,17 @@ pub enum WidgetInput {
 }
 
 /// Message emitted by a reusable button primitive.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ButtonMessage {
     /// The button was activated by pointer or keyboard input.
     Activate,
     /// The button received a secondary/right pointer click.
-    SecondaryActivate,
+    SecondaryActivate {
+        /// Pointer position where the secondary activation occurred.
+        position: Point,
+    },
+    /// The button is being used as a primary-pointer drag surface.
+    Drag(DragHandleMessage),
 }
 
 /// Message emitted by a reusable badge or pill primitive.

@@ -7,16 +7,17 @@
 use crate::{
     gui_runtime::NativeRunOptions,
     layout::{
-        ContainerKind, ContainerPolicy, Insets, NodeId, SizeModeCross, SizeModeMain, SlotParams,
-        Vector2,
+        ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, NodeId, SizeModeCross,
+        SizeModeMain, SlotParams, Vector2,
     },
     runtime::{
         Command, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
-        Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        ButtonWidget, CanvasWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap,
+        ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
+        WidgetTone,
     },
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};

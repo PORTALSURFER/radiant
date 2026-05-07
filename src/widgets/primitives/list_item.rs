@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, activate_on_keyboard, push_list_item_widget_paint};
@@ -93,5 +93,45 @@ impl Widget for ListItemWidget {
         theme: &ThemeTokens,
     ) {
         push_list_item_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> WidgetMessageMapper<Message> {
+    /// Build a list-item-message mapper.
+    pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::typed(map)
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a non-emitting list item leaf node.
+    pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+        Self::static_widget(ListItemWidget::new(id, label, sizing))
+    }
+
+    /// Build an invoking list item leaf node that emits one cloned host message.
+    pub fn list_item_action(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::list_item_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build an invoking list item leaf node with a custom widget-to-host message mapper.
+    pub fn list_item_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            ListItemWidget::new(id, label, sizing),
+            WidgetMessageMapper::list_item(map),
+        )
     }
 }

@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, activate_on_keyboard, push_button_widget_paint};
@@ -126,6 +126,41 @@ impl Widget for ButtonWidget {
         theme: &ThemeTokens,
     ) {
         push_button_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> WidgetMessageMapper<Message> {
+    /// Build a button-message mapper.
+    pub fn button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::typed(map)
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a button leaf node that emits one cloned host message when activated.
+    pub fn button(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        message: Message,
+    ) -> Self
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        Self::button_mapped(id, label, sizing, move |_| message.clone())
+    }
+
+    /// Build a button leaf node with a custom widget-to-host message mapper.
+    pub fn button_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        sizing: WidgetSizing,
+        map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            ButtonWidget::new(id, label, sizing),
+            WidgetMessageMapper::button(map),
+        )
     }
 }
 

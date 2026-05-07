@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, push_drag_handle_widget_paint};
@@ -84,5 +84,26 @@ impl Widget for DragHandleWidget {
         theme: &ThemeTokens,
     ) {
         push_drag_handle_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> WidgetMessageMapper<Message> {
+    /// Build a drag-handle-message mapper.
+    pub fn drag_handle(map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::typed(map)
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a drag handle with a custom widget-to-host message mapper.
+    pub fn drag_handle_mapped(
+        id: WidgetId,
+        sizing: WidgetSizing,
+        map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            DragHandleWidget::new(id, sizing),
+            WidgetMessageMapper::drag_handle(map),
+        )
     }
 }

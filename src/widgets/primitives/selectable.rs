@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::PaintPrimitive;
+use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::{WidgetCommon, activate_on_keyboard, push_selectable_widget_paint};
@@ -112,5 +112,41 @@ impl Widget for SelectableWidget {
         theme: &ThemeTokens,
     ) {
         push_selectable_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl<Message> WidgetMessageMapper<Message> {
+    /// Build a selectable-message mapper.
+    pub fn selectable(map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static) -> Self {
+        Self::typed(map)
+    }
+}
+
+impl<Message> SurfaceNode<Message> {
+    /// Build a selectable leaf that maps selection changes by selected state.
+    pub fn selectable(
+        id: WidgetId,
+        label: impl Into<String>,
+        selected: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::selectable_mapped(id, label, selected, sizing, move |message| match message {
+            SelectableMessage::SelectionChanged { selected } => map(selected),
+        })
+    }
+
+    /// Build a selectable leaf with a custom widget-to-host message mapper.
+    pub fn selectable_mapped(
+        id: WidgetId,
+        label: impl Into<String>,
+        selected: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::widget(
+            SelectableWidget::new(id, label, selected, sizing),
+            WidgetMessageMapper::selectable(map),
+        )
     }
 }

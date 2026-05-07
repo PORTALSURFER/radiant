@@ -400,6 +400,43 @@ fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
 }
 
 #[test]
+fn runtime_does_not_export_per_widget_paint_catalogs() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let runtime_dir = manifest_dir.join("src/runtime");
+    let mut violations = Vec::new();
+
+    for source_path in rust_sources_under(&runtime_dir) {
+        let source = fs::read_to_string(&source_path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display()));
+        let relative = relative_path(&manifest_dir, &source_path);
+        for forbidden in [
+            "push_text_widget_paint",
+            "push_button_widget_paint",
+            "push_toggle_widget_paint",
+            "push_text_input_widget_paint",
+            "push_scrollbar_widget_paint",
+            "push_drag_handle_widget_paint",
+            "push_list_item_widget_paint",
+            "push_selectable_widget_paint",
+            "push_badge_widget_paint",
+            "push_card_widget_paint",
+            "push_image_widget_paint",
+            "push_canvas_widget_paint",
+        ] {
+            if source.contains(forbidden) {
+                violations.push(format!("{relative} contains `{forbidden}`"));
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "runtime paint should not own or export per-widget paint catalogs:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
 fn application_view_nodes_do_not_carry_hardcoded_widget_variants() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let application = fs::read_to_string(manifest_dir.join("src/application.rs"))

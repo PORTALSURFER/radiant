@@ -293,6 +293,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "SurfaceNode",
         "WidgetId",
         "Command<Message>",
+        "Soft-Deprecated Beginner Boilerplate",
+        "not a Rust `#[deprecated]` attribute on the explicit runtime API",
         "RuntimeRunReport<Artifacts>",
         "RuntimeBridge",
         "ThemeTokens",
@@ -306,6 +308,47 @@ fn api_docs_describe_the_structural_boundary_strategy() {
             "docs/API.md should document `{required}`"
         );
     }
+}
+
+#[test]
+fn api_docs_soft_deprecate_only_beginner_runtime_boilerplate() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+    let runtime = fs::read_to_string(manifest_dir.join("src/runtime/mod.rs"))
+        .expect("runtime module should be readable");
+
+    for beginner_boilerplate in [
+        "constructing `NativeRunOptions` directly for a hello-world app",
+        "hand-writing a closure bridge before the app has meaningful state",
+        "wrapping one label in `Arc<UiSurface<_>>`",
+        "manually composing `SurfaceNode`, `SurfaceChild`, explicit numeric IDs, and",
+    ] {
+        assert!(
+            docs.contains(beginner_boilerplate),
+            "docs/API.md should soft-deprecate `{beginner_boilerplate}` for beginner first-use code"
+        );
+    }
+
+    for advanced_api in [
+        "The explicit `radiant::runtime` module",
+        "`RuntimeBridge`",
+        "`UiSurface`",
+        "`SurfaceNode`",
+        "`SurfaceChild`",
+        "`NativeRunOptions`",
+        "`WidgetSizing`",
+        "remain supported and non-deprecated for advanced",
+    ] {
+        assert!(
+            docs.contains(advanced_api),
+            "docs/API.md should preserve advanced API guidance for `{advanced_api}`"
+        );
+    }
+    assert!(
+        !runtime.contains("#[deprecated"),
+        "radiant::runtime should remain a supported advanced API, not a blanket-deprecated module"
+    );
 }
 
 #[test]

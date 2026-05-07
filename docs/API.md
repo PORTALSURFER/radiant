@@ -98,6 +98,24 @@ focus or input state must survive list edits. The launch builders expose
 stateful apps can use `.update_command(...)` when reducers need to return
 `Command<Message>` values directly.
 
+## Soft-Deprecated Beginner Boilerplate
+
+The old first-use path for beginner examples is soft-deprecated:
+
+- constructing `NativeRunOptions` directly for a hello-world app
+- hand-writing a closure bridge before the app has meaningful state
+- wrapping one label in `Arc<UiSurface<_>>`
+- manually composing `SurfaceNode`, `SurfaceChild`, explicit numeric IDs, and
+  `WidgetSizing` just to render a starter view
+
+New beginner docs and examples should use `radiant::prelude`, `radiant::window`,
+`radiant::app`, and the ergonomic view builders instead. This is a documentation
+and guardrail deprecation, not a Rust `#[deprecated]` attribute on the explicit
+runtime API. The explicit `radiant::runtime` module, `RuntimeBridge`,
+`UiSurface`, `SurfaceNode`, `SurfaceChild`, `NativeRunOptions`, `WidgetSizing`,
+and native runtime entry points remain supported and non-deprecated for advanced
+hosts that need precise runtime, layout, or bridge control.
+
 ## App
 
 An application is host-owned state plus a projection function and reducer.

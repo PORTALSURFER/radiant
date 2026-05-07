@@ -374,6 +374,8 @@ fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
     let widgets_dir = manifest_dir.join("src/widgets");
     let interaction =
         fs::read_to_string(widgets_dir.join("interaction.rs")).expect("interaction.rs is readable");
+    let primitive_support = fs::read_to_string(widgets_dir.join("primitives/support.rs"))
+        .expect("primitive widget support is readable");
     let mut violations = Vec::new();
 
     for forbidden in [
@@ -424,6 +426,27 @@ fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
             && interaction.contains("pub fn typed_ref<T"),
         "widget outputs should stay open typed payloads instead of a closed builtin enum"
     );
+
+    for forbidden in [
+        "pub struct TextWidget",
+        "pub struct ButtonWidget",
+        "pub struct ToggleWidget",
+        "pub struct TextInputWidget",
+        "pub struct ScrollbarWidget",
+        "pub struct DragHandleWidget",
+        "pub struct ListItemWidget",
+        "pub struct SelectableWidget",
+        "pub struct BadgeWidget",
+        "pub struct CardWidget",
+        "pub struct ImageWidget",
+        "pub struct CanvasWidget",
+        "impl Widget for",
+    ] {
+        assert!(
+            !primitive_support.contains(forbidden),
+            "primitive support should not own concrete widget types or trait impls: `{forbidden}`"
+        );
+    }
 }
 
 #[test]

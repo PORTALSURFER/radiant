@@ -439,8 +439,16 @@ fn runtime_does_not_export_per_widget_paint_catalogs() {
 #[test]
 fn application_view_nodes_do_not_carry_hardcoded_widget_variants() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let application = fs::read_to_string(manifest_dir.join("src/application.rs"))
+    let application_entry = fs::read_to_string(manifest_dir.join("src/application.rs"))
         .expect("application builder source should be readable");
+    let mut application = application_entry;
+    for source_path in rust_sources_under(&manifest_dir.join("src/application")) {
+        application.push('\n');
+        application.push_str(
+            &fs::read_to_string(&source_path)
+                .unwrap_or_else(|err| panic!("failed to read {}: {err}", source_path.display())),
+        );
+    }
 
     for forbidden in [
         "ViewNodeKind::Text",

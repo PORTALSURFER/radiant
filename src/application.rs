@@ -37,5 +37,7 @@ include!("application/state.rs");
 include!("application/launch.rs");
 include!("application/widget_view.rs");
 include!("application/view_node.rs");
+include!("application/tree_list.rs");
+include!("application/details_list.rs");
 include!("application/builders.rs");
 include!("application/ids.rs");

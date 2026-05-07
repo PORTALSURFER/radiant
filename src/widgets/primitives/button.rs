@@ -14,6 +14,8 @@ use crate::widgets::interaction::{ButtonMessage, PointerButton, WidgetInput, Wid
 pub struct ButtonProps {
     /// User-visible label rendered inside the button surface.
     pub label: String,
+    /// Whether secondary/right clicks should emit a distinct activation message.
+    pub secondary_click: bool,
 }
 
 /// Mutable interaction state for a reusable button widget.
@@ -43,9 +45,16 @@ impl ButtonWidget {
             common,
             props: ButtonProps {
                 label: label.into(),
+                secondary_click: false,
             },
             state: ButtonState::default(),
         }
+    }
+
+    /// Enable secondary/right-click activation messages for this button.
+    pub fn with_secondary_click(mut self) -> Self {
+        self.props.secondary_click = true;
+        self
     }
 
     /// Route one backend-neutral interaction into the button.
@@ -75,6 +84,13 @@ impl ButtonWidget {
                 self.common.state.pressed = true;
                 self.state.armed = true;
                 None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+            } if bounds.contains(position) && self.props.secondary_click => {
+                self.common.state.hovered = true;
+                Some(ButtonMessage::SecondaryActivate)
             }
             WidgetInput::PointerRelease {
                 position,
@@ -212,6 +228,30 @@ mod tests {
         assert_eq!(
             button.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Space)),
             Some(ButtonMessage::Activate)
+        );
+    }
+
+    #[test]
+    fn secondary_click_only_emits_when_enabled() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0));
+        let mut default_button =
+            ButtonWidget::new(7, "More", WidgetSizing::fixed(Vector2::new(80.0, 28.0)));
+        let mut context_button =
+            ButtonWidget::new(8, "More", WidgetSizing::fixed(Vector2::new(80.0, 28.0)))
+                .with_secondary_click();
+
+        let secondary_press = WidgetInput::PointerPress {
+            position: Point::new(10.0, 10.0),
+            button: PointerButton::Secondary,
+        };
+
+        assert_eq!(
+            default_button.handle_input(bounds, secondary_press.clone()),
+            None
+        );
+        assert_eq!(
+            context_button.handle_input(bounds, secondary_press),
+            Some(ButtonMessage::SecondaryActivate)
         );
     }
 }

@@ -35,6 +35,7 @@ pub fn custom_widget<Message: 'static>(
 pub struct ButtonBuilder {
     label: String,
     style: Option<WidgetStyle>,
+    secondary_click: bool,
 }
 
 impl ButtonBuilder {
@@ -62,6 +63,12 @@ impl ButtonBuilder {
         self
     }
 
+    /// Emit secondary/right-click messages from this button.
+    pub fn secondary_clicks(mut self) -> Self {
+        self.secondary_click = true;
+        self
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -75,8 +82,12 @@ impl ButtonBuilder {
         self,
         map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
+        let mut button = ButtonWidget::new(0, &self.label, default_button_sizing(&self.label));
+        if self.secondary_click {
+            button = button.with_secondary_click();
+        }
         let mut node = view_node_from_widget(MappedWidget::new(
-            ButtonWidget::new(0, &self.label, default_button_sizing(&self.label)),
+            button,
             WidgetMessageMapper::button(map),
         ));
         node.style = self.style;
@@ -90,6 +101,24 @@ impl ButtonBuilder {
     ) -> ViewNode<StateAction<State>> {
         self.message(StateAction::new(apply))
     }
+
+    /// Mutate application state on primary or secondary/right activation.
+    pub fn on_click_or_secondary<State: 'static>(
+        self,
+        primary: impl Fn(&mut State) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let primary = Arc::new(primary);
+        let secondary = Arc::new(secondary);
+        self.secondary_clicks().mapped(move |message| {
+            let primary = Arc::clone(&primary);
+            let secondary = Arc::clone(&secondary);
+            StateAction::new(move |state| match message {
+                crate::widgets::ButtonMessage::Activate => primary(state),
+                crate::widgets::ButtonMessage::SecondaryActivate => secondary(state),
+            })
+        })
+    }
 }
 
 /// Build a button.
@@ -97,6 +126,7 @@ pub fn button(label: impl Into<String>) -> ButtonBuilder {
     ButtonBuilder {
         label: label.into(),
         style: None,
+        secondary_click: false,
     }
 }
 
@@ -315,6 +345,36 @@ impl TextInputBuilder {
         field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
     ) -> ViewNode<StateAction<State>> {
         self.on_change(move |state, value| *field(state) = value)
+    }
+
+    /// Bind edits to a mutable `String` field and run a state callback on submit.
+    pub fn bind_submit<State: 'static>(
+        self,
+        field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
+        submit: impl Fn(&mut State) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let field = Arc::new(field);
+        let submit = Arc::new(submit);
+        let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
+        input.props.placeholder = self.placeholder;
+        let mut node = view_node_from_widget(MappedWidget::new(
+            input,
+            WidgetMessageMapper::text_input(move |message| {
+                let field = Arc::clone(&field);
+                let submit = Arc::clone(&submit);
+                StateAction::new(move |state| match &message {
+                    crate::widgets::TextInputMessage::Changed { value } => {
+                        *field(state) = value.clone();
+                    }
+                    crate::widgets::TextInputMessage::Submitted { value } => {
+                        *field(state) = value.clone();
+                        submit(state);
+                    }
+                })
+            }),
+        ));
+        node.style = self.style;
+        node
     }
 }
 

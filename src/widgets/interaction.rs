@@ -132,6 +132,8 @@ pub enum WidgetInput {
 pub enum ButtonMessage {
     /// The button was activated by pointer or keyboard input.
     Activate,
+    /// The button received a secondary/right pointer click.
+    SecondaryActivate,
 }
 
 /// Message emitted by a reusable badge or pill primitive.

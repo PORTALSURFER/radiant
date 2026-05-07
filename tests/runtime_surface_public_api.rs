@@ -340,7 +340,10 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
                         .id(11)
                         .size(96.0, 32.0),
                     ui::text_input(state.name.clone())
-                        .on_change(|state: &mut DemoState, value| state.name = value)
+                        .bind_submit(
+                            |state: &mut DemoState| &mut state.name,
+                            |state: &mut DemoState| state.count += 1,
+                        )
                         .id(12)
                         .min_size(120.0, 28.0)
                         .preferred_size(180.0, 28.0),
@@ -370,6 +373,29 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
     assert_eq!(
         widget_ref::<TextWidget, _>(&after, 10, "text").text,
         "Count: 1"
+    );
+
+    let submit = after
+        .dispatch_widget_output(
+            12,
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Submitted {
+                value: String::from("Launch now"),
+            }),
+        )
+        .expect("direct text input submit should emit a state action");
+    let command = bridge.update(submit);
+    assert!(command.requests_repaint());
+
+    let after_submit = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(&after_submit, 12, "text input")
+            .state
+            .value,
+        "Launch now"
+    );
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after_submit, 10, "text").text,
+        "Count: 2"
     );
 }
 

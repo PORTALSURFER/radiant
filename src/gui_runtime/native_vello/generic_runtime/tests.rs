@@ -54,8 +54,9 @@ fn generic_core_routes_pointer_and_key_input_to_host_messages() {
             .routed
     );
     assert!(core.route_character('R').routed);
+    assert!(core.route_character(' ').routed);
     assert!(core.route_widget_key(WidgetKey::Enter).routed);
-    assert_eq!(core.runtime.bridge().state.name, "R");
+    assert_eq!(core.runtime.bridge().state.name, "R ");
 }
 
 #[test]

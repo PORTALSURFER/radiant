@@ -322,6 +322,10 @@ where
                 self.handle_route_outcome(route_outcome);
                 return;
             }
+            if self.route_space_text_input(key, &mut route_outcome) {
+                self.handle_route_outcome(route_outcome);
+                return;
+            }
             let outcome = self.core.route_key_press(
                 keypress_from_input(key, self.modifiers),
                 WidgetKey::from_key_code(key),
@@ -331,6 +335,8 @@ where
         }
         if let Some(text) = event.text.as_ref() {
             self.route_text_input(text, &mut route_outcome);
+        } else if matches!(event.logical_key, Key::Named(NamedKey::Space)) {
+            self.route_text_input(" ", &mut route_outcome);
         } else if let Key::Character(text) = &event.logical_key {
             self.route_text_input(text.as_str(), &mut route_outcome);
         }
@@ -345,6 +351,23 @@ where
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
         self.handle_route_outcome(route_outcome);
+    }
+
+    fn route_space_text_input(
+        &mut self,
+        key: crate::gui::input::KeyCode,
+        route_outcome: &mut GenericRouteOutcome,
+    ) -> bool {
+        if key != crate::gui::input::KeyCode::Space
+            || self.modifiers.control_key()
+            || self.modifiers.super_key()
+            || self.modifiers.alt_key()
+            || !self.core.has_focused_text_input()
+        {
+            return false;
+        }
+        self.route_text_input(" ", route_outcome);
+        route_outcome.routed
     }
 
     fn route_text_input_shortcut(

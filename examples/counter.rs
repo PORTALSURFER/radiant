@@ -2,11 +2,6 @@
 
 use radiant::prelude::*;
 
-#[derive(Clone, Debug)]
-enum CounterMessage {
-    Increment,
-}
-
 #[derive(Default)]
 struct CounterState {
     count: usize,
@@ -20,12 +15,9 @@ fn main() -> radiant::Result {
         .view(|state| {
             column([
                 text(format!("Count: {}", state.count)),
-                button("Increment", CounterMessage::Increment),
+                button("Increment").on_click(|state: &mut CounterState| state.count += 1),
             ])
             .spacing(8.0)
-        })
-        .update(|state, message| match message {
-            CounterMessage::Increment => state.count += 1,
         })
         .run()
 }

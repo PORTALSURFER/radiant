@@ -1,32 +1,6 @@
 //! Standalone todo-list app built with Radiant application builders.
 
-use radiant::{
-    layout::Vector2,
-    prelude::{self as ui, IntoView},
-    runtime::SurfaceNode,
-    widgets::WidgetSizing,
-};
-
-const INPUT_ID: u64 = 100;
-const ADD_BUTTON_ID: u64 = 101;
-const ROOT_ID: u64 = 1;
-const HEADER_ROW_ID: u64 = 2;
-const INPUT_ROW_ID: u64 = 3;
-const LIST_COLUMN_ID: u64 = 4;
-const SUMMARY_ID: u64 = 5;
-const TITLE_ID: u64 = 6;
-const LIST_CONTENT_COLUMN_ID: u64 = 7;
-const FIRST_ITEM_ROW_ID: u64 = 1_000;
-const FIRST_ITEM_TOGGLE_ID: u64 = 2_000;
-const FIRST_ITEM_DELETE_ID: u64 = 3_000;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum TodoMessage {
-    DraftChanged(String),
-    AddDraft,
-    SetDone { id: u64, done: bool },
-    Delete { id: u64 },
-}
+use radiant::prelude as ui;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TodoItem {
@@ -67,111 +41,110 @@ impl Default for TodoState {
     }
 }
 
+impl TodoState {
+    fn add_draft(&mut self) {
+        let title = state_title(&self.draft);
+        if title.is_empty() {
+            return;
+        }
+        self.items.push(TodoItem {
+            id: self.next_id,
+            title,
+            done: false,
+        });
+        self.next_id += 1;
+        self.draft.clear();
+    }
+
+    fn set_done(&mut self, id: u64, done: bool) {
+        if let Some(item) = self.items.iter_mut().find(|item| item.id == id) {
+            item.done = done;
+        }
+    }
+
+    fn delete(&mut self, id: u64) {
+        self.items.retain(|item| item.id != id);
+    }
+}
+
 fn main() -> radiant::Result {
     radiant::app(TodoState::default())
         .title("Radiant Todo List")
         .size(560, 360)
         .min_size(420, 260)
         .view(project_surface)
-        .update(|state: &mut TodoState, message| match message {
-            TodoMessage::DraftChanged(value) => state.draft = value,
-            TodoMessage::AddDraft => {
-                let title = state.draft.trim();
-                if !title.is_empty() {
-                    state.items.push(TodoItem {
-                        id: state.next_id,
-                        title: title.to_owned(),
-                        done: false,
-                    });
-                    state.next_id += 1;
-                    state.draft.clear();
-                }
-            }
-            TodoMessage::SetDone { id, done } => {
-                if let Some(item) = state.items.iter_mut().find(|item| item.id == id) {
-                    item.done = done;
-                }
-            }
-            TodoMessage::Delete { id } => state.items.retain(|item| item.id != id),
-        })
         .run()
 }
 
-fn project_surface(state: &mut TodoState) -> ui::ViewNode<TodoMessage> {
+fn project_surface(state: &mut TodoState) -> ui::StateView<TodoState> {
     ui::column([header_row(state), input_row(state), todo_list(state)])
-        .id(ROOT_ID)
+        .key("root")
         .spacing(10.0)
 }
 
-fn header_row(state: &TodoState) -> ui::ViewNode<TodoMessage> {
+fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
     let complete = state.items.iter().filter(|item| item.done).count();
     let total = state.items.len();
     ui::row([
         ui::text("Todos")
-            .id(TITLE_ID)
-            .sizing(WidgetSizing::fixed(Vector2::new(140.0, 28.0)).with_baseline(20.0)),
+            .key("title")
+            .size(140.0, 28.0)
+            .baseline(20.0),
         ui::text(format!("{complete}/{total} done"))
-            .id(SUMMARY_ID)
-            .sizing(WidgetSizing::fixed(Vector2::new(120.0, 28.0)).with_baseline(20.0)),
+            .key("summary")
+            .size(120.0, 28.0)
+            .baseline(20.0),
     ])
-    .id(HEADER_ROW_ID)
+    .key("header")
     .spacing(12.0)
 }
 
-fn input_row(state: &TodoState) -> ui::ViewNode<TodoMessage> {
+fn input_row(state: &TodoState) -> ui::StateView<TodoState> {
     ui::row([
-        ui::text_input(state.draft.clone(), TodoMessage::DraftChanged)
-            .id(INPUT_ID)
-            .sizing(WidgetSizing::new(
-                Vector2::new(260.0, 32.0),
-                Vector2::new(420.0, 32.0),
-            )),
-        ui::button("Add", TodoMessage::AddDraft)
-            .id(ADD_BUTTON_ID)
-            .sizing(WidgetSizing::fixed(Vector2::new(80.0, 32.0))),
+        ui::text_input(state.draft.clone())
+            .bind(|state: &mut TodoState| &mut state.draft)
+            .key("draft")
+            .min_size(260.0, 32.0)
+            .preferred_size(420.0, 32.0),
+        ui::button("Add")
+            .on_click(TodoState::add_draft)
+            .key("add")
+            .size(80.0, 32.0),
     ])
-    .id(INPUT_ROW_ID)
+    .key("input")
     .spacing(8.0)
 }
 
-fn todo_list(state: &TodoState) -> ui::ViewNode<TodoMessage> {
-    let rows = state
-        .items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| todo_row(index as u64, item))
-        .collect::<Vec<_>>();
-
-    ui::ViewNode::from(SurfaceNode::scroll_area(
-        LIST_COLUMN_ID,
-        ui::column(rows)
-            .id(LIST_CONTENT_COLUMN_ID)
-            .spacing(6.0)
-            .into_node(),
-    ))
+fn todo_list(state: &TodoState) -> ui::StateView<TodoState> {
+    ui::scroll_column(state.items.iter(), todo_row)
+        .key("list")
+        .spacing(6.0)
 }
 
-fn todo_row(index: u64, item: &TodoItem) -> ui::ViewNode<TodoMessage> {
+fn todo_row(item: &TodoItem) -> ui::StateView<TodoState> {
     let id = item.id;
     let label = if item.done {
         format!("Done: {}", item.title)
     } else {
         item.title.clone()
     };
-    ui::row([
-        ui::toggle(label, item.done, move |done| TodoMessage::SetDone {
-            id,
-            done,
-        })
-        .id(FIRST_ITEM_TOGGLE_ID + index)
-        .sizing(WidgetSizing::new(
-            Vector2::new(260.0, 30.0),
-            Vector2::new(420.0, 30.0),
-        )),
-        ui::button("Delete", TodoMessage::Delete { id })
-            .id(FIRST_ITEM_DELETE_ID + index)
-            .sizing(WidgetSizing::fixed(Vector2::new(84.0, 30.0))),
-    ])
-    .id(FIRST_ITEM_ROW_ID + index)
+    ui::row_key(
+        item.id,
+        [
+            ui::toggle(label, item.done)
+                .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
+                .key("done")
+                .min_size(260.0, 30.0)
+                .preferred_size(420.0, 30.0),
+            ui::button("Delete")
+                .on_click(move |state: &mut TodoState| state.delete(id))
+                .key("delete")
+                .size(84.0, 30.0),
+        ],
+    )
     .spacing(8.0)
+}
+
+fn state_title(draft: &str) -> String {
+    draft.trim().to_owned()
 }

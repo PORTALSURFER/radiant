@@ -15,8 +15,56 @@ use crate::{
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
+const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
 /// Result type used by native launch helpers.
 pub type Result<T = ()> = std::result::Result<T, String>;
+
+/// Application view node type used by builder functions.
+pub type View<Message = ()> = ViewNode<Message>;
+
+/// Application view node type for direct state-callback apps.
+pub type StateView<State> = View<StateAction<State>>;
+
+/// A state mutation emitted by application builders with direct callbacks.
+pub struct StateAction<State> {
+    apply: Arc<dyn Fn(&mut State) + Send + Sync>,
+}
+
+impl<State> Clone for StateAction<State> {
+    fn clone(&self) -> Self {
+        Self {
+            apply: Arc::clone(&self.apply),
+        }
+    }
+}
+
+trait OptionalBaseline {
+    fn with_optional_baseline(self, baseline: Option<f32>) -> Self;
+}
+
+impl OptionalBaseline for WidgetSizing {
+    fn with_optional_baseline(self, baseline: Option<f32>) -> Self {
+        if let Some(baseline) = baseline {
+            self.with_baseline(baseline)
+        } else {
+            self
+        }
+    }
+}
+
+impl<State> StateAction<State> {
+    fn new(apply: impl Fn(&mut State) + Send + Sync + 'static) -> Self {
+        Self {
+            apply: Arc::new(apply),
+        }
+    }
+
+    fn run(&self, state: &mut State) {
+        (self.apply)(state);
+    }
+}
 
 /// Build a native window launcher for a simple Radiant view.
 pub fn window(title: impl Into<String>) -> WindowBuilder {
@@ -218,6 +266,32 @@ where
     }
 }
 
+impl<State, Project, View> StatefulAppWithView<State, StateAction<State>, Project, View>
+where
+    Project: FnMut(&mut State) -> View + 'static,
+    View: IntoView<StateAction<State>> + 'static,
+    State: 'static,
+{
+    /// Run this direct-callback app through the native Vello runtime.
+    pub fn run(self) -> Result {
+        let options = self.options.clone();
+        run_native_vello_runtime(options, self.into_bridge())
+    }
+
+    /// Lower this direct-callback app into the existing runtime bridge without opening a window.
+    pub fn into_bridge(self) -> impl RuntimeBridge<StateAction<State>> {
+        let mut project = self.project;
+        declarative_command_runtime_bridge(
+            self.state,
+            move |state| Arc::new(project(state).into_surface()),
+            |state, action| {
+                action.run(state);
+                Command::request_repaint()
+            },
+        )
+    }
+}
+
 /// Runnable stateful app builder.
 pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     state: State,
@@ -258,6 +332,7 @@ where
 pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
+    key: Option<String>,
     sizing: Option<WidgetSizing>,
 }
 
@@ -285,12 +360,25 @@ enum ViewNodeKind<Message> {
         spacing: f32,
         children: Vec<ViewNode<Message>>,
     },
+    Scroll {
+        child: Box<ViewNode<Message>>,
+    },
 }
 
 impl<Message> ViewNode<Message> {
     /// Use an explicit stable id instead of the generated structural id.
     pub fn id(mut self, id: NodeId) -> Self {
         self.id = Some(id);
+        self.key = None;
+        self
+    }
+
+    /// Use a scoped stable key instead of a numeric id.
+    ///
+    /// Child keys are scoped by their keyed or explicitly identified parent, so repeated rows can
+    /// use names such as `"done"` or `"delete"` without colliding with sibling rows.
+    pub fn key(mut self, key: impl ToString) -> Self {
+        self.key = Some(key.to_string());
         self
     }
 
@@ -305,8 +393,49 @@ impl<Message> ViewNode<Message> {
         self.sizing(WidgetSizing::fixed(Vector2::new(width, height)))
     }
 
+    /// Use explicit fixed widget sizing instead of the generated default.
+    pub fn fixed(self, width: f32, height: f32) -> Self {
+        self.size(width, height)
+    }
+
+    /// Set the minimum widget size while preserving any existing preferred size.
+    pub fn min_size(mut self, width: f32, height: f32) -> Self {
+        let min = Vector2::new(width, height);
+        let preferred = self.sizing.map(|sizing| sizing.preferred).unwrap_or(min);
+        let baseline = self.sizing.and_then(|sizing| sizing.baseline);
+        self.sizing = Some(WidgetSizing::new(min, preferred).with_optional_baseline(baseline));
+        self
+    }
+
+    /// Set the preferred widget size while preserving any existing minimum size.
+    pub fn preferred_size(mut self, width: f32, height: f32) -> Self {
+        let preferred = Vector2::new(width, height);
+        let min = self.sizing.map(|sizing| sizing.min).unwrap_or(preferred);
+        let baseline = self.sizing.and_then(|sizing| sizing.baseline);
+        self.sizing = Some(WidgetSizing::new(min, preferred).with_optional_baseline(baseline));
+        self
+    }
+
+    /// Set the widget text baseline.
+    pub fn baseline(mut self, baseline: f32) -> Self {
+        let sizing = self.sizing.unwrap_or_else(|| match &self.kind {
+            ViewNodeKind::Text(_) => default_text_sizing(),
+            ViewNodeKind::ButtonMapped { label, .. } => default_button_sizing(label),
+            ViewNodeKind::Toggle { label, .. } => default_toggle_sizing(label),
+            ViewNodeKind::TextInput { .. } => default_text_input_sizing(),
+            _ => WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
+        });
+        self.sizing = Some(sizing.with_baseline(baseline));
+        self
+    }
+
     /// Set row or column spacing when this node is a container.
     pub fn spacing(mut self, spacing: f32) -> Self {
+        self.set_spacing(spacing);
+        self
+    }
+
+    fn set_spacing(&mut self, spacing: f32) {
         match &mut self.kind {
             ViewNodeKind::Row {
                 spacing: current, ..
@@ -314,26 +443,37 @@ impl<Message> ViewNode<Message> {
             | ViewNodeKind::Column {
                 spacing: current, ..
             } => *current = spacing.max(0.0),
+            ViewNodeKind::Scroll { child } => child.set_spacing(spacing),
             _ => {}
         }
-        self
     }
 
-    fn collect_explicit_ids(&self, ids: &mut HashSet<NodeId>) {
-        if let Some(id) = self.id {
+    fn collect_reserved_ids(&self, scope: u64, ids: &mut HashSet<NodeId>) {
+        if let Some(id) = self.resolved_id(scope) {
             ids.insert(id);
         }
+        let child_scope = self.child_scope(scope);
         match &self.kind {
             ViewNodeKind::Row { children, .. } | ViewNodeKind::Column { children, .. } => {
                 for child in children {
-                    child.collect_explicit_ids(ids);
+                    child.collect_reserved_ids(child_scope, ids);
                 }
             }
+            ViewNodeKind::Scroll { child } => child.collect_reserved_ids(child_scope, ids),
             ViewNodeKind::Runtime(node) => {
                 ids.insert(node.id());
             }
             _ => {}
         }
+    }
+
+    fn resolved_id(&self, scope: u64) -> Option<NodeId> {
+        self.id
+            .or_else(|| self.key.as_ref().map(|key| scoped_key_id(scope, key)))
+    }
+
+    fn child_scope(&self, parent_scope: u64) -> u64 {
+        self.resolved_id(parent_scope).unwrap_or(parent_scope)
     }
 }
 
@@ -342,6 +482,7 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
         Self {
             kind: ViewNodeKind::Runtime(node),
             id: None,
+            key: None,
             sizing: None,
         }
     }
@@ -353,9 +494,9 @@ where
 {
     fn into_node(self) -> SurfaceNode<Message> {
         let mut reserved = HashSet::new();
-        self.collect_explicit_ids(&mut reserved);
+        self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
-        self.lower(&mut ids)
+        self.lower(&mut ids, ROOT_KEY_SCOPE)
     }
 }
 
@@ -363,8 +504,9 @@ impl<Message> ViewNode<Message>
 where
     Message: 'static,
 {
-    fn lower(self, ids: &mut IdGenerator) -> SurfaceNode<Message> {
-        let id = self.id.unwrap_or_else(|| ids.next());
+    fn lower(self, ids: &mut IdGenerator, scope: u64) -> SurfaceNode<Message> {
+        let id = self.resolved_id(scope).unwrap_or_else(|| ids.next());
+        let child_scope = id;
         match self.kind {
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::Text(value) => {
@@ -398,7 +540,7 @@ where
                 spacing,
                 children
                     .into_iter()
-                    .map(|child| SurfaceChild::fill(child.lower(ids)))
+                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
                     .collect(),
             ),
             ViewNodeKind::Column { spacing, children } => SurfaceNode::column(
@@ -406,9 +548,12 @@ where
                 spacing,
                 children
                     .into_iter()
-                    .map(|child| SurfaceChild::fill(child.lower(ids)))
+                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
                     .collect(),
             ),
+            ViewNodeKind::Scroll { child } => {
+                SurfaceNode::scroll_area(id, child.lower(ids, child_scope))
+            }
         }
     }
 }
@@ -418,23 +563,63 @@ pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
     ViewNode {
         kind: ViewNodeKind::Text(value.into()),
         id: None,
+        key: None,
         sizing: None,
     }
 }
 
+/// Builder for buttons that can emit messages or mutate state directly.
+pub struct ButtonBuilder {
+    label: String,
+}
+
+impl ButtonBuilder {
+    /// Emit one cloned host message when activated.
+    pub fn message<Message>(self, message: Message) -> ViewNode<Message>
+    where
+        Message: Clone + Send + Sync + 'static,
+    {
+        self.mapped(move |_| message.clone())
+    }
+
+    /// Emit a mapped host message when activated.
+    pub fn mapped<Message>(
+        self,
+        map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        ViewNode {
+            kind: ViewNodeKind::ButtonMapped {
+                label: self.label,
+                map: Arc::new(map),
+            },
+            id: None,
+            key: None,
+            sizing: None,
+        }
+    }
+
+    /// Mutate application state directly when activated.
+    pub fn on_click<State: 'static>(
+        self,
+        apply: impl Fn(&mut State) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        self.message(StateAction::new(apply))
+    }
+}
+
+/// Build a button.
+pub fn button(label: impl Into<String>) -> ButtonBuilder {
+    ButtonBuilder {
+        label: label.into(),
+    }
+}
+
 /// Build a button that emits one cloned host message when activated.
-pub fn button<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
+pub fn button_message<Message>(label: impl Into<String>, message: Message) -> ViewNode<Message>
 where
     Message: Clone + Send + Sync + 'static,
 {
-    ViewNode {
-        kind: ViewNodeKind::ButtonMapped {
-            label: label.into(),
-            map: Arc::new(move |_| message.clone()),
-        },
-        id: None,
-        sizing: None,
-    }
+    button(label).message(message)
 }
 
 /// Build a button with a custom widget-message mapper.
@@ -442,46 +627,119 @@ pub fn button_mapped<Message>(
     label: impl Into<String>,
     map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::ButtonMapped {
-            label: label.into(),
-            map: Arc::new(map),
-        },
-        id: None,
-        sizing: None,
+    button(label).mapped(map)
+}
+
+/// Builder for toggles that can emit messages or mutate state directly.
+pub struct ToggleBuilder {
+    label: String,
+    checked: bool,
+}
+
+impl ToggleBuilder {
+    /// Emit a host message mapped from checked state.
+    pub fn message<Message>(
+        self,
+        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        ViewNode {
+            kind: ViewNodeKind::Toggle {
+                label: self.label,
+                checked: self.checked,
+                map: Arc::new(map),
+            },
+            id: None,
+            key: None,
+            sizing: None,
+        }
+    }
+
+    /// Mutate application state directly when checked state changes.
+    pub fn on_change<State: 'static>(
+        self,
+        apply: impl Fn(&mut State, bool) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let apply = Arc::new(apply);
+        self.message(move |checked| {
+            let apply = Arc::clone(&apply);
+            StateAction::new(move |state| apply(state, checked))
+        })
+    }
+}
+
+/// Build a toggle.
+pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
+    ToggleBuilder {
+        label: label.into(),
+        checked,
     }
 }
 
 /// Build a toggle that maps value changes by checked state.
-pub fn toggle<Message>(
+pub fn toggle_mapped<Message>(
     label: impl Into<String>,
     checked: bool,
     map: impl Fn(bool) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Toggle {
-            label: label.into(),
-            checked,
-            map: Arc::new(map),
-        },
-        id: None,
-        sizing: None,
+    toggle(label, checked).message(map)
+}
+
+/// Builder for text inputs that can emit messages or mutate state directly.
+pub struct TextInputBuilder {
+    value: String,
+}
+
+impl TextInputBuilder {
+    /// Emit a host message mapped from the input value.
+    pub fn message<Message>(
+        self,
+        map: impl Fn(String) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        ViewNode {
+            kind: ViewNodeKind::TextInput {
+                value: self.value,
+                map: Arc::new(map),
+            },
+            id: None,
+            key: None,
+            sizing: None,
+        }
+    }
+
+    /// Mutate application state directly when the input value changes.
+    pub fn on_change<State: 'static>(
+        self,
+        apply: impl Fn(&mut State, String) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let apply = Arc::new(apply);
+        self.message(move |value| {
+            let apply = Arc::clone(&apply);
+            StateAction::new(move |state| apply(state, value.clone()))
+        })
+    }
+
+    /// Bind this input to a mutable `String` field on application state.
+    pub fn bind<State: 'static>(
+        self,
+        field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        self.on_change(move |state, value| *field(state) = value)
+    }
+}
+
+/// Build a single-line text input.
+pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
+    TextInputBuilder {
+        value: value.into(),
     }
 }
 
 /// Build a single-line text input that maps edits and submissions by value.
-pub fn text_input<Message>(
+pub fn text_input_mapped<Message>(
     value: impl Into<String>,
     map: impl Fn(String) -> Message + Send + Sync + 'static,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::TextInput {
-            value: value.into(),
-            map: Arc::new(map),
-        },
-        id: None,
-        sizing: None,
-    }
+    text_input(value).message(map)
 }
 
 /// Build a row container with fill-slot children.
@@ -492,8 +750,17 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
             children: children.into_iter().collect(),
         },
         id: None,
+        key: None,
         sizing: None,
     }
+}
+
+/// Build a keyed row container with fill-slot children.
+pub fn row_key<Message>(
+    key: impl ToString,
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    row(children).key(key)
 }
 
 /// Build a column container with fill-slot children.
@@ -504,8 +771,42 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
             children: children.into_iter().collect(),
         },
         id: None,
+        key: None,
         sizing: None,
     }
+}
+
+/// Build a keyed column container with fill-slot children.
+pub fn column_key<Message>(
+    key: impl ToString,
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    column(children).key(key)
+}
+
+/// Build a scroll viewport around one child view.
+pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::Scroll {
+            child: Box::new(child),
+        },
+        id: None,
+        key: None,
+        sizing: None,
+    }
+}
+
+/// Build a scroll viewport containing a column projected from an iterator.
+pub fn scroll_column<Message, Item>(
+    items: impl IntoIterator<Item = Item>,
+    mut project: impl FnMut(Item) -> ViewNode<Message>,
+) -> ViewNode<Message> {
+    scroll(column(
+        items
+            .into_iter()
+            .map(|item| project(item))
+            .collect::<Vec<_>>(),
+    ))
 }
 
 struct IdGenerator {
@@ -545,4 +846,19 @@ fn default_toggle_sizing(label: &str) -> WidgetSizing {
 
 fn default_text_input_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(160.0, 32.0), Vector2::new(240.0, 32.0))
+}
+
+fn scoped_key_id(scope: u64, key: &str) -> NodeId {
+    let mut hash = ROOT_KEY_SCOPE;
+    hash = hash_bytes(hash, &scope.to_le_bytes());
+    hash = hash_bytes(hash, key.as_bytes());
+    if hash == 0 { 1 } else { hash }
+}
+
+fn hash_bytes(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }

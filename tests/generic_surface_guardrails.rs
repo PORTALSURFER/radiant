@@ -222,7 +222,8 @@ fn generic_native_example_is_registered_and_uses_application_builders() {
         "Command::request_repaint",
         "row([",
         "text(format!(",
-        "button(\"Increment\", DemoMessage::ButtonPressed)",
+        "button(\"Increment\")",
+        ".message(DemoMessage::ButtonPressed)",
     ] {
         assert!(
             example.contains(required),

@@ -32,12 +32,13 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut DemoState) -> ViewNode<DemoMessage> {
+fn project_surface(state: &mut DemoState) -> View<DemoMessage> {
     row([
         text(format!("Generic Radiant count: {}", state.count))
             .id(10)
             .size(180.0, 24.0),
-        button("Increment", DemoMessage::ButtonPressed)
+        button("Increment")
+            .message(DemoMessage::ButtonPressed)
             .id(11)
             .size(96.0, 32.0),
     ])

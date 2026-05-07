@@ -33,10 +33,11 @@ and explicit runtime objects are part of the same API surface:
 
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
-`app`, `text`, `button`, `row`, `column`, `toggle`, `text_input`, `IntoView`,
-`Command`, and the builder types needed by method chains. These builders lower
-into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`, `WidgetSizing`, and
-`RuntimeBridge` contracts available through the explicit runtime modules.
+`app`, `text`, `button`, `row`, `column`, `scroll`, `toggle`, `text_input`,
+`IntoView`, `View`, `StateView`, `Command`, and the builder types needed by
+method chains. These builders lower into the same `UiSurface`, `SurfaceNode`,
+`SurfaceChild`, `WidgetSizing`, and `RuntimeBridge` contracts available through
+the explicit runtime modules.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -51,16 +52,11 @@ fn main() -> radiant::Result {
 }
 ```
 
-Small stateful apps can keep state and messages host-owned while avoiding a
-manual `RuntimeBridge` implementation:
+Small stateful apps can mutate state directly from widget callbacks while still
+lowering into the same message/command runtime:
 
 ```rust
 use radiant::prelude::*;
-
-#[derive(Clone)]
-enum Message {
-    Increment,
-}
 
 #[derive(Default)]
 struct State {
@@ -74,11 +70,10 @@ fn main() -> radiant::Result {
         .view(|state| {
             column([
                 text(format!("Count: {}", state.count)),
-                button("Increment", Message::Increment),
+                button("Increment").on_click(|state: &mut State| {
+                    state.count += 1;
+                }),
             ])
-        })
-        .update(|state, message| match message {
-            Message::Increment => state.count += 1,
         })
         .run()
 }
@@ -86,11 +81,13 @@ fn main() -> radiant::Result {
 
 Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
-explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, and
-`.spacing(...)`. Stateful examples should use explicit IDs for controls whose
-focus or input state must survive list edits. The launch builders expose
-`.options(...)` for callers that need the full `NativeRunOptions` surface, and
-stateful apps can use `.update_command(...)` when reducers need to return
+explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, `.fixed(...)`,
+`.min_size(...)`, `.preferred_size(...)`, `.baseline(...)`, and `.spacing(...)`.
+Stateful examples should use explicit IDs for controls whose focus or input
+state must survive list edits. The launch builders expose `.options(...)` for
+callers that need the full `NativeRunOptions` surface. Apps that prefer explicit
+message routing can use `.message(...)` on widgets plus `.update(...)` or
+`.update_command(...)` on the app when reducers need to return
 `Command<Message>` values directly.
 
 ## Soft-Deprecated First-Use Boilerplate

@@ -256,6 +256,39 @@ fn application_builder_accepts_custom_widgets_with_generated_and_explicit_ids() 
 }
 
 #[test]
+fn application_builder_accepts_widgets_through_widget_view_trait() {
+    use radiant::prelude::{self as ui, IntoView, MappedWidget};
+
+    let surface: UiSurface<DemoMessage> = ui::row([
+        ui::widget(TextWidget::new(
+            0,
+            "Direct",
+            WidgetSizing::fixed(Vector2::new(80.0, 20.0)).with_baseline(14.0),
+        ))
+        .id(20),
+        ui::widget(MappedWidget::new(
+            ButtonWidget::new(0, "Mapped", WidgetSizing::fixed(Vector2::new(96.0, 28.0))),
+            WidgetMessageMapper::button(|_| DemoMessage::Increment),
+        ))
+        .id(21),
+    ])
+    .id(10)
+    .into_surface();
+
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface, 20, "text").common.id,
+        20
+    );
+    assert_eq!(
+        surface.dispatch_widget_output(
+            21,
+            radiant::widgets::WidgetOutput::Button(ButtonMessage::Activate)
+        ),
+        Some(DemoMessage::Increment)
+    );
+}
+
+#[test]
 fn native_run_options_default_uses_generic_radiant_title() {
     let options = NativeRunOptions::default();
 

@@ -133,13 +133,12 @@ fn default_features_stay_empty_for_standalone_builds() {
 }
 
 #[test]
-fn public_module_tree_exposes_generic_runtime_and_beginner_api_modules() {
+fn public_module_tree_exposes_one_progressive_api_surface() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
         .expect("Radiant lib.rs should be readable");
     let public_modules = public_module_names(&lib);
     let expected = BTreeSet::from([
-        "ergonomic".to_owned(),
         "gui".to_owned(),
         "gui_runtime".to_owned(),
         "layout".to_owned(),
@@ -200,7 +199,7 @@ fn behavior_test_suite_is_explicit_and_local_to_generic_surfaces() {
 }
 
 #[test]
-fn generic_native_example_is_registered_and_uses_generic_runtime_api() {
+fn generic_native_example_is_registered_and_uses_application_builders() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
         .expect("Radiant Cargo.toml should be readable");
@@ -216,19 +215,30 @@ fn generic_native_example_is_registered_and_uses_generic_runtime_api() {
     );
 
     for required in [
-        "declarative_command_runtime_bridge",
+        "use radiant::prelude::*;",
+        "radiant::app(DemoState::default())",
+        ".update_command",
         "Command::message",
         "Command::request_repaint",
-        "run_native_vello_runtime",
-        "UiSurface",
-        "SurfaceNode::row",
-        "SurfaceNode::text",
-        "SurfaceNode::button",
-        "SurfaceChild::fill",
+        "row([",
+        "text(format!(",
+        "button(\"Increment\", DemoMessage::ButtonPressed)",
     ] {
         assert!(
             example.contains(required),
             "generic_native example should exercise `{required}`"
+        );
+    }
+    for deprecated_first_use in [
+        "NativeRunOptions",
+        "declarative_command_runtime_bridge",
+        "run_native_vello_runtime",
+        "SurfaceChild",
+        "Arc<UiSurface",
+    ] {
+        assert!(
+            !example.contains(deprecated_first_use),
+            "generic_native example should not use old first-use boilerplate `{deprecated_first_use}`"
         );
     }
 }
@@ -276,6 +286,10 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "Boundary tests prove that dependency direction, public exports, examples, and",
         "they intentionally avoid enforcing product",
         "Radiant now exposes only generic GUI and native runtime APIs",
+        "Radiant exposes one public API with progressive control",
+        "Application builders and explicit runtime objects are part of the same API surface",
+        "same model with more explicit control",
+        "Radiant's application API is designed to be easy to read without hiding the runtime model",
         "View, Element, And Widget",
         "VirtualListWindow",
         "virtual_list_view_start_after_scroll_delta",
@@ -293,8 +307,8 @@ fn api_docs_describe_the_structural_boundary_strategy() {
         "SurfaceNode",
         "WidgetId",
         "Command<Message>",
-        "Soft-Deprecated Beginner Boilerplate",
-        "not a Rust `#[deprecated]` attribute on the explicit runtime API",
+        "Soft-Deprecated First-Use Boilerplate",
+        "not a Rust `#[deprecated]` attribute on the explicit control objects",
         "RuntimeRunReport<Artifacts>",
         "RuntimeBridge",
         "ThemeTokens",
@@ -311,43 +325,43 @@ fn api_docs_describe_the_structural_boundary_strategy() {
 }
 
 #[test]
-fn api_docs_soft_deprecate_only_beginner_runtime_boilerplate() {
+fn api_docs_soft_deprecate_only_first_use_runtime_boilerplate() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
         .expect("docs/API.md should be readable");
     let runtime = fs::read_to_string(manifest_dir.join("src/runtime/mod.rs"))
         .expect("runtime module should be readable");
 
-    for beginner_boilerplate in [
+    for first_use_boilerplate in [
         "constructing `NativeRunOptions` directly for a hello-world app",
         "hand-writing a closure bridge before the app has meaningful state",
         "wrapping one label in `Arc<UiSurface<_>>`",
         "manually composing `SurfaceNode`, `SurfaceChild`, explicit numeric IDs, and",
     ] {
         assert!(
-            docs.contains(beginner_boilerplate),
-            "docs/API.md should soft-deprecate `{beginner_boilerplate}` for beginner first-use code"
+            docs.contains(first_use_boilerplate),
+            "docs/API.md should soft-deprecate `{first_use_boilerplate}` for first-use application code"
         );
     }
 
-    for advanced_api in [
-        "The explicit `radiant::runtime` module",
+    for explicit_control in [
+        "The `radiant::runtime` module",
         "`RuntimeBridge`",
         "`UiSurface`",
         "`SurfaceNode`",
         "`SurfaceChild`",
         "`NativeRunOptions`",
         "`WidgetSizing`",
-        "remain supported and non-deprecated for advanced",
+        "remain supported and non-deprecated for hosts",
     ] {
         assert!(
-            docs.contains(advanced_api),
-            "docs/API.md should preserve advanced API guidance for `{advanced_api}`"
+            docs.contains(explicit_control),
+            "docs/API.md should preserve explicit-control API guidance for `{explicit_control}`"
         );
     }
     assert!(
         !runtime.contains("#[deprecated"),
-        "radiant::runtime should remain a supported advanced API, not a blanket-deprecated module"
+        "radiant::runtime should remain supported, not a blanket-deprecated module"
     );
 }
 

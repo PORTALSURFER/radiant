@@ -1,8 +1,8 @@
-//! Standalone todo-list app built on the beginner-facing Radiant API.
+//! Standalone todo-list app built with Radiant application builders.
 
 use radiant::{
     layout::Vector2,
-    prelude::{self as beginner, IntoView},
+    prelude::{self as ui, IntoView},
     runtime::SurfaceNode,
     widgets::WidgetSizing,
 };
@@ -97,20 +97,20 @@ fn main() -> radiant::Result {
         .run()
 }
 
-fn project_surface(state: &mut TodoState) -> beginner::ViewNode<TodoMessage> {
-    beginner::column([header_row(state), input_row(state), todo_list(state)])
+fn project_surface(state: &mut TodoState) -> ui::ViewNode<TodoMessage> {
+    ui::column([header_row(state), input_row(state), todo_list(state)])
         .id(ROOT_ID)
         .spacing(10.0)
 }
 
-fn header_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
+fn header_row(state: &TodoState) -> ui::ViewNode<TodoMessage> {
     let complete = state.items.iter().filter(|item| item.done).count();
     let total = state.items.len();
-    beginner::row([
-        beginner::text("Todos")
+    ui::row([
+        ui::text("Todos")
             .id(TITLE_ID)
             .sizing(WidgetSizing::fixed(Vector2::new(140.0, 28.0)).with_baseline(20.0)),
-        beginner::text(format!("{complete}/{total} done"))
+        ui::text(format!("{complete}/{total} done"))
             .id(SUMMARY_ID)
             .sizing(WidgetSizing::fixed(Vector2::new(120.0, 28.0)).with_baseline(20.0)),
     ])
@@ -118,15 +118,15 @@ fn header_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
     .spacing(12.0)
 }
 
-fn input_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
-    beginner::row([
-        beginner::text_input(state.draft.clone(), TodoMessage::DraftChanged)
+fn input_row(state: &TodoState) -> ui::ViewNode<TodoMessage> {
+    ui::row([
+        ui::text_input(state.draft.clone(), TodoMessage::DraftChanged)
             .id(INPUT_ID)
             .sizing(WidgetSizing::new(
                 Vector2::new(260.0, 32.0),
                 Vector2::new(420.0, 32.0),
             )),
-        beginner::button("Add", TodoMessage::AddDraft)
+        ui::button("Add", TodoMessage::AddDraft)
             .id(ADD_BUTTON_ID)
             .sizing(WidgetSizing::fixed(Vector2::new(80.0, 32.0))),
     ])
@@ -134,7 +134,7 @@ fn input_row(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
     .spacing(8.0)
 }
 
-fn todo_list(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
+fn todo_list(state: &TodoState) -> ui::ViewNode<TodoMessage> {
     let rows = state
         .items
         .iter()
@@ -142,24 +142,24 @@ fn todo_list(state: &TodoState) -> beginner::ViewNode<TodoMessage> {
         .map(|(index, item)| todo_row(index as u64, item))
         .collect::<Vec<_>>();
 
-    beginner::ViewNode::from(SurfaceNode::scroll_area(
+    ui::ViewNode::from(SurfaceNode::scroll_area(
         LIST_COLUMN_ID,
-        beginner::column(rows)
+        ui::column(rows)
             .id(LIST_CONTENT_COLUMN_ID)
             .spacing(6.0)
             .into_node(),
     ))
 }
 
-fn todo_row(index: u64, item: &TodoItem) -> beginner::ViewNode<TodoMessage> {
+fn todo_row(index: u64, item: &TodoItem) -> ui::ViewNode<TodoMessage> {
     let id = item.id;
     let label = if item.done {
         format!("Done: {}", item.title)
     } else {
         item.title.clone()
     };
-    beginner::row([
-        beginner::toggle(label, item.done, move |done| TodoMessage::SetDone {
+    ui::row([
+        ui::toggle(label, item.done, move |done| TodoMessage::SetDone {
             id,
             done,
         })
@@ -168,7 +168,7 @@ fn todo_row(index: u64, item: &TodoItem) -> beginner::ViewNode<TodoMessage> {
             Vector2::new(260.0, 30.0),
             Vector2::new(420.0, 30.0),
         )),
-        beginner::button("Delete", TodoMessage::Delete { id })
+        ui::button("Delete", TodoMessage::Delete { id })
             .id(FIRST_ITEM_DELETE_ID + index)
             .sizing(WidgetSizing::fixed(Vector2::new(84.0, 30.0))),
     ])

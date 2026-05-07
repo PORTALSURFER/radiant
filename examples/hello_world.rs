@@ -1,4 +1,4 @@
-//! Minimal hello-world app built on the beginner-facing Radiant API.
+//! Minimal hello-world app built with Radiant application builders.
 
 use radiant::prelude::*;
 

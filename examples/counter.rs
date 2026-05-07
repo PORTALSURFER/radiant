@@ -1,4 +1,4 @@
-//! Small stateful counter app built on the beginner-facing Radiant API.
+//! Small stateful counter app built with Radiant application builders.
 
 use radiant::prelude::*;
 

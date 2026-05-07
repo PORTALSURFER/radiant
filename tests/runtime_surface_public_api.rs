@@ -97,12 +97,12 @@ fn native_run_options_default_uses_generic_radiant_title() {
 }
 
 #[test]
-fn ergonomic_view_builders_lower_into_runtime_surface_nodes() {
-    use radiant::prelude::{self as beginner, IntoView};
+fn application_view_builders_lower_into_runtime_surface_nodes() {
+    use radiant::prelude::{self as ui, IntoView};
 
-    let surface = beginner::row([
-        beginner::text("Title"),
-        beginner::button("Increment", DemoMessage::Increment).id(42),
+    let surface = ui::row([
+        ui::text("Title"),
+        ui::button("Increment", DemoMessage::Increment).id(42),
     ])
     .id(1)
     .into_surface();
@@ -121,7 +121,7 @@ fn ergonomic_view_builders_lower_into_runtime_surface_nodes() {
 }
 
 #[test]
-fn prelude_supports_beginner_hello_world_imports() {
+fn prelude_supports_hello_world_imports() {
     use radiant::prelude::*;
 
     fn hello_body() -> impl IntoView<()> {
@@ -134,7 +134,7 @@ fn prelude_supports_beginner_hello_world_imports() {
 }
 
 #[test]
-fn hello_world_example_stays_on_beginner_api() {
+fn hello_world_example_stays_on_application_builders() {
     let source = include_str!("../examples/hello_world.rs");
 
     assert!(source.contains("use radiant::prelude::*;"));
@@ -149,15 +149,15 @@ fn hello_world_example_stays_on_beginner_api() {
 
 #[test]
 fn stateful_app_builder_projects_updates_and_preserves_commands() {
-    use radiant::prelude as beginner;
+    use radiant::prelude as ui;
 
-    let mut bridge = beginner::app(DemoState::default())
+    let mut bridge = ui::app(DemoState::default())
         .title("Counter")
         .size(320, 120)
         .view(|state| {
-            beginner::column([
-                beginner::text(format!("Count: {}", state.count)),
-                beginner::button("Increment", DemoMessage::Increment),
+            ui::column([
+                ui::text(format!("Count: {}", state.count)),
+                ui::button("Increment", DemoMessage::Increment),
             ])
         })
         .update_command(|state, message| match message {

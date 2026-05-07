@@ -1,4 +1,4 @@
-//! Beginner-facing Radiant application and view builders.
+//! Readable Radiant application and view builders.
 //!
 //! This module is a convenience layer over [`crate::runtime`]. It generates
 //! deterministic widget ids, supplies default widget sizing, and lowers every
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
-/// Beginner-facing result type used by native launch helpers.
+/// Result type used by native launch helpers.
 pub type Result<T = ()> = std::result::Result<T, String>;
 
 /// Build a native window launcher for a simple Radiant view.
@@ -28,7 +28,7 @@ pub fn app<State>(state: State) -> StatefulAppBuilder<State> {
     StatefulAppBuilder::new(state)
 }
 
-/// Converts beginner-facing view values into the existing runtime surface.
+/// Converts application view values into the existing runtime surface.
 pub trait IntoView<Message> {
     /// Lower this value into a runtime surface node.
     fn into_node(self) -> SurfaceNode<Message>;
@@ -138,7 +138,7 @@ impl<State> StatefulAppBuilder<State> {
         self
     }
 
-    /// Set the full native runtime options for apps that need advanced launch configuration.
+    /// Set the full native runtime options for apps that need explicit launch control.
     pub fn options(mut self, options: NativeRunOptions) -> Self {
         self.options = options;
         self
@@ -254,7 +254,7 @@ where
     }
 }
 
-/// Beginner-facing view node with generated identity and default sizing.
+/// Application view node with generated identity and default sizing.
 pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
@@ -294,13 +294,13 @@ impl<Message> ViewNode<Message> {
         self
     }
 
-    /// Use explicit widget sizing instead of the beginner default.
+    /// Use explicit widget sizing instead of the generated default.
     pub fn sizing(mut self, sizing: WidgetSizing) -> Self {
         self.sizing = Some(sizing);
         self
     }
 
-    /// Use explicit fixed widget sizing instead of the beginner default.
+    /// Use explicit fixed widget sizing instead of the generated default.
     pub fn size(self, width: f32, height: f32) -> Self {
         self.sizing(WidgetSizing::fixed(Vector2::new(width, height)))
     }

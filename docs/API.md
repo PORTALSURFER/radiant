@@ -17,31 +17,26 @@ Boundary tests prove that dependency direction, public exports, examples, and
 runtime behavior stay generic; they intentionally avoid enforcing product
 neutrality through lists of forbidden host-domain words.
 
-New host applications should start with:
+Radiant exposes one public API with progressive control. Application builders
+and explicit runtime objects are part of the same API surface:
 
-- `radiant::prelude` for beginner-facing window, app, and view builders.
+- `radiant::prelude` collects the common imports for readable application code.
 - `radiant::window("Title").size(...).run(text("Hello"))` for no-state apps.
 - `radiant::app(State::default()).view(...).update(...).run()` for small
   stateful apps.
+- `radiant::runtime`, `radiant::widgets`, `radiant::layout`, `radiant::theme`,
+  and `radiant::gui` expose the same model with more explicit control over
+  projection, commands, sizing, layout, styling, input, invalidation, and
+  backend integration.
 
-Advanced host applications should use:
+## Application API
 
-- `radiant::runtime` for explicit application projection, message dispatch, and
-  native runtime entry points.
-- `radiant::widgets` for reusable leaf widgets and widget interaction
-  contracts.
-- `radiant::layout` for container measurement and placement.
-- `radiant::theme` for shared style tokens.
-- `radiant::gui` for lower-level geometry, input, invalidation, frame, and
-  repaint primitives.
-
-## Beginner API
-
-The beginner API is an ergonomic layer over the explicit runtime API, not a
-second view tree or runtime. `radiant::prelude` re-exports the intended
-first-use symbols: `window`, `app`, `text`, `button`, `row`, `column`,
-`toggle`, `text_input`, `IntoView`, `Command`, and the builder types needed by
-method chains.
+Radiant's application API is designed to be easy to read without hiding the
+runtime model. `radiant::prelude` re-exports the common symbols: `window`,
+`app`, `text`, `button`, `row`, `column`, `toggle`, `text_input`, `IntoView`,
+`Command`, and the builder types needed by method chains. These builders lower
+into the same `UiSurface`, `SurfaceNode`, `SurfaceChild`, `WidgetSizing`, and
+`RuntimeBridge` contracts available through the explicit runtime modules.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -89,7 +84,7 @@ fn main() -> radiant::Result {
 }
 ```
 
-Beginner builders generate deterministic structural IDs during projection and
+Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
 explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, and
 `.spacing(...)`. Stateful examples should use explicit IDs for controls whose
@@ -98,9 +93,9 @@ focus or input state must survive list edits. The launch builders expose
 stateful apps can use `.update_command(...)` when reducers need to return
 `Command<Message>` values directly.
 
-## Soft-Deprecated Beginner Boilerplate
+## Soft-Deprecated First-Use Boilerplate
 
-The old first-use path for beginner examples is soft-deprecated:
+The old explicit first-use path is soft-deprecated:
 
 - constructing `NativeRunOptions` directly for a hello-world app
 - hand-writing a closure bridge before the app has meaningful state
@@ -108,13 +103,13 @@ The old first-use path for beginner examples is soft-deprecated:
 - manually composing `SurfaceNode`, `SurfaceChild`, explicit numeric IDs, and
   `WidgetSizing` just to render a starter view
 
-New beginner docs and examples should use `radiant::prelude`, `radiant::window`,
-`radiant::app`, and the ergonomic view builders instead. This is a documentation
-and guardrail deprecation, not a Rust `#[deprecated]` attribute on the explicit
-runtime API. The explicit `radiant::runtime` module, `RuntimeBridge`,
+New docs and examples should use `radiant::prelude`, `radiant::window`,
+`radiant::app`, and the application view builders instead. This is a
+documentation and guardrail deprecation, not a Rust `#[deprecated]` attribute on
+the explicit control objects. The `radiant::runtime` module, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, `NativeRunOptions`, `WidgetSizing`,
-and native runtime entry points remain supported and non-deprecated for advanced
-hosts that need precise runtime, layout, or bridge control.
+and native runtime entry points remain supported and non-deprecated for hosts
+that need precise runtime, layout, or bridge control.
 
 ## App
 
@@ -127,7 +122,7 @@ Hosts whose update flow returns runtime-visible follow-up work can use
 `declarative_command_runtime_bridge(state, project, update)`; its update closure
 returns `Command<Message>` while keeping side effects and domain state host-owned.
 
-## Advanced View, Element, And Widget
+## View, Element, And Widget
 
 `View<Message>` is the root declarative view snapshot and is a public alias for
 `UiSurface<Message>`. `Element<Message>` is the generic element tree and is a
@@ -162,7 +157,7 @@ linear lists without tying the framework API to any host content-list model.
 
 Widget identity is explicit through stable `WidgetId` values. Stable identity is
 required for focus, input capture, message routing, and efficient updates.
-The beginner view builders generate IDs as a convenience, then lower into these
+The application view builders generate IDs as a convenience, then lower into these
 same `SurfaceNode`, `SurfaceChild`, and `WidgetSizing` contracts.
 
 ## Message And Command

@@ -223,7 +223,7 @@ pub enum CanvasMessage {
     },
 }
 
-/// User-defined widget output payload.
+/// Type-erased widget output payload.
 #[derive(Clone)]
 pub struct CustomWidgetOutput {
     payload: Arc<dyn Any + Send + Sync>,
@@ -258,45 +258,49 @@ impl PartialEq for CustomWidgetOutput {
     }
 }
 
-/// Union over emitted messages from the first reusable widget primitives.
-#[derive(Clone, Debug, PartialEq)]
-pub enum WidgetOutput {
-    /// Button activation output.
-    Button(ButtonMessage),
-    /// Badge or pill activation output.
-    Badge(BadgeMessage),
-    /// List item invocation output.
-    ListItem(ListItemMessage),
-    /// Selectable state-change output.
-    Selectable(SelectableMessage),
-    /// Toggle value-change output.
-    Toggle(ToggleMessage),
-    /// Text-input editing or submit output.
-    TextInput(TextInputMessage),
-    /// Scrollbar viewport-request output.
-    Scrollbar(ScrollbarMessage),
-    /// Drag handle lifecycle output.
-    DragHandle(DragHandleMessage),
-    /// Canvas/custom-surface input output.
-    Canvas(CanvasMessage),
-    /// User-defined widget output payload.
-    Custom(CustomWidgetOutput),
+/// Typed widget output payload.
+///
+/// Outputs are intentionally open: a widget emits its own message type with
+/// [`WidgetOutput::typed`], and message mappers downcast only the payload types
+/// they understand. Adding a widget does not require adding a central enum
+/// variant.
+#[derive(Clone, PartialEq)]
+pub struct WidgetOutput {
+    payload: CustomWidgetOutput,
 }
 
 impl WidgetOutput {
+    /// Build a typed widget output payload.
+    pub fn typed<T>(payload: T) -> Self
+    where
+        T: Send + Sync + 'static,
+    {
+        Self {
+            payload: CustomWidgetOutput::new(payload),
+        }
+    }
+
+    /// Downcast this widget output to the requested payload type.
+    pub fn typed_ref<T: 'static>(&self) -> Option<&T> {
+        self.payload.downcast_ref()
+    }
+
     /// Build a user-defined widget output payload.
     pub fn custom<T>(payload: T) -> Self
     where
         T: Send + Sync + 'static,
     {
-        Self::Custom(CustomWidgetOutput::new(payload))
+        Self::typed(payload)
     }
 
-    /// Downcast a custom widget output to the requested payload type.
+    /// Downcast this widget output to the requested custom payload type.
     pub fn custom_ref<T: 'static>(&self) -> Option<&T> {
-        match self {
-            Self::Custom(output) => output.downcast_ref(),
-            _ => None,
-        }
+        self.typed_ref()
+    }
+}
+
+impl std::fmt::Debug for WidgetOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WidgetOutput").finish_non_exhaustive()
     }
 }

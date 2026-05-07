@@ -358,6 +358,7 @@ fn runtime_widgets_are_open_trait_objects_not_closed_builtin_enums() {
     for open_runtime_shape in [
         "Box<dyn Widget>",
         "WidgetMessageMapper<Message> {",
+        "pub fn typed<",
         "pub fn dynamic(",
     ] {
         assert!(
@@ -371,7 +372,26 @@ fn runtime_widgets_are_open_trait_objects_not_closed_builtin_enums() {
 fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let widgets_dir = manifest_dir.join("src/widgets");
+    let interaction =
+        fs::read_to_string(widgets_dir.join("interaction.rs")).expect("interaction.rs is readable");
     let mut violations = Vec::new();
+
+    for forbidden in [
+        "pub enum WidgetOutput",
+        "WidgetOutput::Button",
+        "WidgetOutput::Badge",
+        "WidgetOutput::ListItem",
+        "WidgetOutput::Selectable",
+        "WidgetOutput::Toggle",
+        "WidgetOutput::TextInput",
+        "WidgetOutput::Scrollbar",
+        "WidgetOutput::DragHandle",
+        "WidgetOutput::Canvas",
+    ] {
+        if interaction.contains(forbidden) {
+            violations.push(format!("src/widgets/interaction.rs contains `{forbidden}`"));
+        }
+    }
 
     for source_path in rust_sources_under(&widgets_dir) {
         let source = fs::read_to_string(&source_path)
@@ -396,6 +416,13 @@ fn widget_common_does_not_carry_hardcoded_widget_taxonomies() {
         violations.is_empty(),
         "widget core should not carry hardcoded widget taxonomies:\n{}",
         violations.join("\n")
+    );
+
+    assert!(
+        interaction.contains("pub struct WidgetOutput")
+            && interaction.contains("pub fn typed<T>")
+            && interaction.contains("pub fn typed_ref<T"),
+        "widget outputs should stay open typed payloads instead of a closed builtin enum"
     );
 }
 

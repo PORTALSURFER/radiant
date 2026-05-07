@@ -1,11 +1,15 @@
 //! Reusable single-line text-input primitive.
 
 use crate::gui::types::Rect;
+use crate::layout::LayoutOutput;
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
-use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing};
+use super::support::push_text_input_widget_paint;
+use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
-    PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey,
+    PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 
 /// Immutable public properties for a reusable single-line text input.
@@ -325,6 +329,30 @@ impl TextInputWidget {
 
     fn char_len(&self) -> usize {
         self.state.value.chars().count()
+    }
+}
+
+impl Widget for TextInputWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_text_input_widget_paint(primitives, self, bounds, theme);
     }
 }
 

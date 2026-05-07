@@ -1,10 +1,13 @@
 //! Reusable button primitive.
 
 use crate::gui::types::Rect;
+use crate::layout::LayoutOutput;
+use crate::runtime::PaintPrimitive;
+use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
-use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{ButtonMessage, PointerButton, WidgetInput};
+use super::support::{WidgetCommon, activate_on_keyboard, push_button_widget_paint};
+use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
+use crate::widgets::interaction::{ButtonMessage, PointerButton, WidgetInput, WidgetOutput};
 
 /// Immutable public properties for a reusable button widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -99,6 +102,30 @@ impl ButtonWidget {
             }
             _ => None,
         }
+    }
+}
+
+impl Widget for ButtonWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_button_widget_paint(primitives, self, bounds, theme);
     }
 }
 

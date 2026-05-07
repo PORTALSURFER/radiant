@@ -205,10 +205,12 @@ repaint.
 
 Built-in widgets can keep using the typed helpers such as
 `WidgetMessageMapper::button`, `WidgetMessageMapper::text_input`, and
-`WidgetMessageMapper::canvas`. Custom widgets emit `WidgetOutput::custom(...)`
-payloads and route them with `WidgetMessageMapper::dynamic(...)` or the prelude
-`custom_widget(...)` mapper. Mappers should downcast only the payloads they own
-and return `None` for output they do not handle.
+`WidgetMessageMapper::canvas`. Any widget can emit its own output type with
+`WidgetOutput::typed(...)` and route it with `WidgetMessageMapper::typed(...)`.
+`WidgetOutput::custom(...)` remains an alias for user-defined widget payloads,
+and `WidgetMessageMapper::dynamic(...)` is available when a host needs manual
+downcast or filtering behavior. Adding a widget should not require adding a
+central output enum variant.
 
 Asynchronous side effects remain host-owned. A host reducer may start work,
 enqueue IO, or signal background tasks, but Radiant's generic runtime only

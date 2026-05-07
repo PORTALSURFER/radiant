@@ -12,7 +12,15 @@ use radiant::{
         ToggleWidget, Widget, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
+
+fn assert_typed_widget_output<T>(output: Option<WidgetOutput>, expected: T)
+where
+    T: Debug + PartialEq + 'static,
+{
+    let output = output.expect("widget should emit output");
+    assert_eq!(output.typed_ref::<T>(), Some(&expected));
+}
 
 #[test]
 fn public_widgets_compose_with_public_layout_containers() {
@@ -142,49 +150,41 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
         Widget::handle_input(&mut button, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(&mut button, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
-        Some(WidgetOutput::Button(
-            radiant::widgets::ButtonMessage::Activate
-        ))
+        radiant::widgets::ButtonMessage::Activate,
     );
 
     assert_eq!(
         Widget::handle_input(&mut toggle, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(&mut toggle, bounds, WidgetInput::KeyPress(WidgetKey::Space)),
-        Some(WidgetOutput::Toggle(
-            radiant::widgets::ToggleMessage::ValueChanged { checked: true }
-        ))
+        radiant::widgets::ToggleMessage::ValueChanged { checked: true },
     );
 
     assert_eq!(
         Widget::handle_input(&mut input, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(&mut input, bounds, WidgetInput::Character('z')),
-        Some(WidgetOutput::TextInput(
-            radiant::widgets::TextInputMessage::Changed {
-                value: String::from("abz"),
-            }
-        ))
+        radiant::widgets::TextInputMessage::Changed {
+            value: String::from("abz"),
+        },
     );
 
     assert_eq!(
         Widget::handle_input(&mut badge, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(&mut badge, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
-        Some(WidgetOutput::Badge(
-            radiant::widgets::BadgeMessage::Activate
-        ))
+        radiant::widgets::BadgeMessage::Activate,
     );
 
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(
             &mut drag,
             bounds,
@@ -193,13 +193,11 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
                 button: radiant::widgets::PointerButton::Primary,
             },
         ),
-        Some(WidgetOutput::DragHandle(
-            radiant::widgets::DragHandleMessage::Started {
-                position: Point::new(10.0, 10.0),
-            }
-        ))
+        radiant::widgets::DragHandleMessage::Started {
+            position: Point::new(10.0, 10.0),
+        },
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(
             &mut drag,
             bounds,
@@ -207,36 +205,30 @@ fn public_widgets_dispatch_messages_for_reusable_controls() {
                 position: Point::new(10.0, 38.0),
             },
         ),
-        Some(WidgetOutput::DragHandle(
-            radiant::widgets::DragHandleMessage::Moved {
-                position: Point::new(10.0, 38.0),
-            }
-        ))
+        radiant::widgets::DragHandleMessage::Moved {
+            position: Point::new(10.0, 38.0),
+        },
     );
 
     assert_eq!(
         Widget::handle_input(&mut item, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(&mut item, bounds, WidgetInput::KeyPress(WidgetKey::Enter)),
-        Some(WidgetOutput::ListItem(
-            radiant::widgets::ListItemMessage::Invoked
-        ))
+        radiant::widgets::ListItemMessage::Invoked,
     );
 
     assert_eq!(
         Widget::handle_input(&mut selectable, bounds, WidgetInput::FocusChanged(true)),
         None
     );
-    assert_eq!(
+    assert_typed_widget_output(
         Widget::handle_input(
             &mut selectable,
             bounds,
-            WidgetInput::KeyPress(WidgetKey::Space)
+            WidgetInput::KeyPress(WidgetKey::Space),
         ),
-        Some(WidgetOutput::Selectable(
-            radiant::widgets::SelectableMessage::SelectionChanged { selected: true }
-        ))
+        radiant::widgets::SelectableMessage::SelectionChanged { selected: true },
     );
 }

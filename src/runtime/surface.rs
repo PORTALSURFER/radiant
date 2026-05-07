@@ -47,74 +47,55 @@ impl<Message> WidgetMessageMapper<Message> {
 
     /// Build a button-message mapper.
     pub fn button(map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Button(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a badge-message mapper.
     pub fn badge(map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Badge(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a toggle-message mapper.
     pub fn toggle(map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Toggle(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a text-input-message mapper.
     pub fn text_input(map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::TextInput(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a scrollbar-message mapper.
     pub fn scrollbar(map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Scrollbar(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a drag-handle-message mapper.
     pub fn drag_handle(map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::DragHandle(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a list-item-message mapper.
     pub fn list_item(map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::ListItem(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a selectable-message mapper.
     pub fn selectable(map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Selectable(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
     }
 
     /// Build a canvas-message mapper.
     pub fn canvas(map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static) -> Self {
-        Self::dynamic(move |output| match output {
-            WidgetOutput::Canvas(message) => Some(map(message)),
-            _ => None,
-        })
+        Self::typed(map)
+    }
+
+    /// Build a mapper for any typed widget output payload.
+    pub fn typed<Output>(map: impl Fn(Output) -> Message + Send + Sync + 'static) -> Self
+    where
+        Output: Clone + Send + Sync + 'static,
+    {
+        Self::dynamic(move |output| output.typed_ref::<Output>().cloned().map(&map))
     }
 
     /// Build a dynamic output mapper for custom widgets.

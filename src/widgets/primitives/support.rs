@@ -470,7 +470,7 @@ fn push_control_chrome(
     }
 }
 
-fn push_button_widget_paint(
+pub(super) fn push_button_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     button: &super::button::ButtonWidget,
     bounds: Rect,
@@ -546,7 +546,7 @@ fn push_checkbox_chrome(
     }
 }
 
-fn push_toggle_widget_paint(
+pub(super) fn push_toggle_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     toggle: &super::toggle::ToggleWidget,
     bounds: Rect,
@@ -621,7 +621,7 @@ fn push_text_input_chrome(
     }
 }
 
-fn push_text_input_widget_paint(
+pub(super) fn push_text_input_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     input: &super::text_input::TextInputWidget,
     bounds: Rect,
@@ -650,7 +650,7 @@ fn push_text_input_widget_paint(
     }));
 }
 
-fn push_scrollbar_widget_paint(
+pub(super) fn push_scrollbar_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     scrollbar: &ScrollbarWidget,
     bounds: Rect,
@@ -789,7 +789,7 @@ fn push_selectable_widget_paint(
     );
 }
 
-fn push_badge_widget_paint(
+pub(super) fn push_badge_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     badge: &super::badge::BadgeWidget,
     bounds: Rect,
@@ -874,85 +874,11 @@ impl Widget for TextWidget {
     }
 }
 
-impl Widget for super::button::ButtonWidget {
-    impl_widget_common!(super::button::ButtonWidget);
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        super::button::ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::Button)
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        push_button_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl Widget for super::toggle::ToggleWidget {
-    impl_widget_common!(super::toggle::ToggleWidget);
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        super::toggle::ToggleWidget::handle_input(self, bounds, input).map(WidgetOutput::Toggle)
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        push_toggle_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl Widget for super::text_input::TextInputWidget {
-    impl_widget_common!(super::text_input::TextInputWidget);
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        super::text_input::TextInputWidget::handle_input(self, bounds, input)
-            .map(WidgetOutput::TextInput)
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        push_text_input_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl Widget for super::scrollbar::ScrollbarWidget {
-    impl_widget_common!(super::scrollbar::ScrollbarWidget);
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        super::scrollbar::ScrollbarWidget::handle_input(self, bounds, input)
-            .map(WidgetOutput::Scrollbar)
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        push_scrollbar_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
 impl Widget for DragHandleWidget {
     impl_widget_common!(DragHandleWidget);
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        DragHandleWidget::handle_input(self, bounds, input).map(WidgetOutput::DragHandle)
+        DragHandleWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
     fn append_paint(
@@ -970,7 +896,7 @@ impl Widget for ListItemWidget {
     impl_widget_common!(ListItemWidget);
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        ListItemWidget::handle_input(self, bounds, input).map(WidgetOutput::ListItem)
+        ListItemWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
     fn append_paint(
@@ -988,7 +914,7 @@ impl Widget for SelectableWidget {
     impl_widget_common!(SelectableWidget);
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        SelectableWidget::handle_input(self, bounds, input).map(WidgetOutput::Selectable)
+        SelectableWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
     fn append_paint(
@@ -999,24 +925,6 @@ impl Widget for SelectableWidget {
         theme: &ThemeTokens,
     ) {
         push_selectable_widget_paint(primitives, self, bounds, theme);
-    }
-}
-
-impl Widget for super::badge::BadgeWidget {
-    impl_widget_common!(super::badge::BadgeWidget);
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        super::badge::BadgeWidget::handle_input(self, bounds, input).map(WidgetOutput::Badge)
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        push_badge_widget_paint(primitives, self, bounds, theme);
     }
 }
 
@@ -1066,7 +974,7 @@ impl Widget for CanvasWidget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        CanvasWidget::handle_input(self, bounds, input).map(WidgetOutput::Canvas)
+        CanvasWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
     fn append_paint(

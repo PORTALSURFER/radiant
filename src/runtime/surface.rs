@@ -1,6 +1,9 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
-use super::paint::{SurfacePaintPlan, push_widget_paint};
+use super::paint::{
+    SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome,
+    push_scroll_affordance, push_widget_paint, scroll_content_clip_rect,
+};
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
@@ -14,9 +17,10 @@ use crate::{
         RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
         SelectableMessage, SelectableWidget, TextInputMessage, TextInputWidget, TextWidget,
         ToggleMessage, ToggleWidget, WidgetId, WidgetInput, WidgetOutput, WidgetSizing, WidgetSpec,
+        WidgetStyle,
     },
 };
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Shared mapper type that turns widget-specific payloads into host-defined messages.
 pub type MessageMapper<Input, Message> = Arc<dyn Fn(Input) -> Message + Send + Sync>;
@@ -213,6 +217,7 @@ impl<Message> SurfaceChild<Message> {
 pub struct SurfaceContainer<Message> {
     id: NodeId,
     policy: ContainerPolicy,
+    style: Option<WidgetStyle>,
     children: Vec<SurfaceChild<Message>>,
 }
 
@@ -221,6 +226,7 @@ impl<Message> Clone for SurfaceContainer<Message> {
         Self {
             id: self.id,
             policy: self.policy.clone(),
+            style: self.style,
             children: self.children.clone(),
         }
     }
@@ -232,8 +238,15 @@ impl<Message> SurfaceContainer<Message> {
         Self {
             id,
             policy,
+            style: None,
             children,
         }
+    }
+
+    /// Return this container with explicit chrome styling.
+    pub fn with_style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
     }
 }
 
@@ -262,6 +275,16 @@ impl<Message> SurfaceNode<Message> {
         children: Vec<SurfaceChild<Message>>,
     ) -> Self {
         Self::Container(SurfaceContainer::new(id, policy, children))
+    }
+
+    /// Build a styled container node.
+    pub fn styled_container(
+        id: NodeId,
+        policy: ContainerPolicy,
+        style: WidgetStyle,
+        children: Vec<SurfaceChild<Message>>,
+    ) -> Self {
+        Self::Container(SurfaceContainer::new(id, policy, children).with_style(style))
     }
 
     /// Build a row container with default policy and the requested spacing.
@@ -723,6 +746,63 @@ impl<Message> SurfaceNode<Message> {
         }
     }
 
+    fn collect_widget_clip_ancestors(
+        &self,
+        scroll_stack: &mut Vec<NodeId>,
+        clips: &mut BTreeMap<WidgetId, Vec<NodeId>>,
+    ) {
+        match self {
+            Self::Container(container) => {
+                let is_scroll = container.policy.kind == ContainerKind::ScrollView;
+                if is_scroll {
+                    scroll_stack.push(container.id);
+                }
+                for child in &container.children {
+                    child
+                        .child
+                        .collect_widget_clip_ancestors(scroll_stack, clips);
+                }
+                if is_scroll {
+                    scroll_stack.pop();
+                }
+            }
+            Self::Widget(widget) => {
+                if !scroll_stack.is_empty() {
+                    clips.insert(widget.id(), scroll_stack.clone());
+                }
+            }
+        }
+    }
+
+    fn collect_scroll_container_order(&self, order: &mut Vec<NodeId>) {
+        match self {
+            Self::Container(container) => {
+                if container.policy.kind == ContainerKind::ScrollView {
+                    order.push(container.id);
+                }
+                for child in &container.children {
+                    child.child.collect_scroll_container_order(order);
+                }
+            }
+            Self::Widget(_) => {}
+        }
+    }
+
+    fn scroll_content_id(&self, scroll_id: NodeId) -> Option<NodeId> {
+        match self {
+            Self::Container(container) => {
+                if container.id == scroll_id && container.policy.kind == ContainerKind::ScrollView {
+                    return container.children.first().map(|child| child.child.id());
+                }
+                container
+                    .children
+                    .iter()
+                    .find_map(|child| child.child.scroll_content_id(scroll_id))
+            }
+            Self::Widget(_) => None,
+        }
+    }
+
     fn append_paint(
         &self,
         layout: &LayoutOutput,
@@ -731,8 +811,36 @@ impl<Message> SurfaceNode<Message> {
     ) {
         match self {
             Self::Container(container) => {
-                for child in &container.children {
-                    child.child.append_paint(layout, theme, plan);
+                if let Some(style) = container.style {
+                    push_container_chrome(&mut plan.primitives, container.id, layout, theme, style);
+                }
+                if container.policy.kind == ContainerKind::ScrollView {
+                    if let Some(bounds) = layout.rects.get(&container.id).copied() {
+                        push_clip_start(
+                            &mut plan.primitives,
+                            container.id,
+                            scroll_content_clip_rect(container.id, layout, bounds),
+                        );
+                        for child in &container.children {
+                            child.child.append_paint(layout, theme, plan);
+                        }
+                        push_clip_end(&mut plan.primitives, container.id);
+                        if let Some(content_id) =
+                            container.children.first().map(|child| child.child.id())
+                        {
+                            push_scroll_affordance(
+                                &mut plan.primitives,
+                                container.id,
+                                content_id,
+                                layout,
+                                theme,
+                            );
+                        }
+                    }
+                } else {
+                    for child in &container.children {
+                        child.child.append_paint(layout, theme, plan);
+                    }
                 }
             }
             Self::Widget(widget) => {
@@ -846,5 +954,22 @@ impl<Message> UiSurface<Message> {
         let mut order = Vec::new();
         self.root.collect_widget_paint_order(&mut order);
         order
+    }
+
+    pub(super) fn scroll_container_order(&self) -> Vec<NodeId> {
+        let mut order = Vec::new();
+        self.root.collect_scroll_container_order(&mut order);
+        order
+    }
+
+    pub(super) fn scroll_content_id(&self, scroll_id: NodeId) -> Option<NodeId> {
+        self.root.scroll_content_id(scroll_id)
+    }
+
+    pub(super) fn widget_clip_ancestors(&self) -> BTreeMap<WidgetId, Vec<NodeId>> {
+        let mut clips = BTreeMap::new();
+        self.root
+            .collect_widget_clip_ancestors(&mut Vec::new(), &mut clips);
+        clips
     }
 }

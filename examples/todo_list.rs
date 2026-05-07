@@ -19,7 +19,7 @@ impl Default for TodoState {
     fn default() -> Self {
         Self {
             next_id: 4,
-            draft: String::from("Review public API"),
+            draft: String::new(),
             items: vec![
                 TodoItem {
                     id: 1,
@@ -70,7 +70,7 @@ impl TodoState {
 fn main() -> radiant::Result {
     radiant::app(TodoState::default())
         .title("Radiant Todo List")
-        .size(560, 360)
+        .size(560, 420)
         .min_size(420, 260)
         .view(project_surface)
         .run()
@@ -79,7 +79,8 @@ fn main() -> radiant::Result {
 fn project_surface(state: &mut TodoState) -> ui::StateView<TodoState> {
     ui::column([header_row(state), input_row(state), todo_list(state)])
         .key("root")
-        .spacing(10.0)
+        .padding(16.0)
+        .spacing(12.0)
 }
 
 fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
@@ -89,6 +90,7 @@ fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
         ui::text("Todos")
             .key("title")
             .size(140.0, 28.0)
+            .fill_width()
             .baseline(20.0),
         ui::text(format!("{complete}/{total} done"))
             .key("summary")
@@ -96,53 +98,58 @@ fn header_row(state: &TodoState) -> ui::StateView<TodoState> {
             .baseline(20.0),
     ])
     .key("header")
+    .fill_width()
     .spacing(12.0)
 }
 
 fn input_row(state: &TodoState) -> ui::StateView<TodoState> {
     ui::row([
         ui::text_input(state.draft.clone())
+            .placeholder("What needs to be done?")
             .bind(|state: &mut TodoState| &mut state.draft)
             .key("draft")
-            .min_size(260.0, 32.0)
-            .preferred_size(420.0, 32.0),
-        ui::button("Add")
+            .min_size(260.0, 46.0)
+            .preferred_size(420.0, 46.0)
+            .fill_width(),
+        ui::button("ADD +")
+            .primary()
             .on_click(TodoState::add_draft)
             .key("add")
-            .size(80.0, 32.0),
+            .size(136.0, 46.0),
     ])
     .key("input")
+    .fill_width()
     .spacing(8.0)
 }
 
 fn todo_list(state: &TodoState) -> ui::StateView<TodoState> {
-    ui::scroll_column(state.items.iter(), todo_row)
+    ui::list(state.items.iter(), todo_row)
         .key("list")
         .spacing(6.0)
 }
 
 fn todo_row(item: &TodoItem) -> ui::StateView<TodoState> {
     let id = item.id;
-    let label = if item.done {
-        format!("Done: {}", item.title)
-    } else {
-        item.title.clone()
-    };
-    ui::row_key(
+    ui::list_row(
         item.id,
         [
-            ui::toggle(label, item.done)
+            ui::checkbox(item.done)
                 .on_change(move |state: &mut TodoState, done| state.set_done(id, done))
                 .key("done")
-                .min_size(260.0, 30.0)
-                .preferred_size(420.0, 30.0),
-            ui::button("Delete")
+                .size(22.0, 22.0),
+            ui::text(item.title.clone())
+                .key("title")
+                .min_size(160.0, 24.0)
+                .preferred_size(420.0, 24.0)
+                .fill_width(),
+            ui::button("DELETE")
+                .danger()
+                .subtle()
                 .on_click(move |state: &mut TodoState| state.delete(id))
                 .key("delete")
-                .size(84.0, 30.0),
+                .size(108.0, 32.0),
         ],
     )
-    .spacing(8.0)
 }
 
 fn state_title(draft: &str) -> String {

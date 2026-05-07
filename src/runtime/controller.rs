@@ -11,10 +11,14 @@ use crate::{
         input::KeyPress,
         types::{Point, Rect, Vector2},
     },
-    layout::{LayoutOutput, layout_tree},
+    layout::{
+        LayoutDebugOptions, LayoutOutput, LayoutState, NodeId, OverflowPolicy,
+        layout_tree_with_state,
+    },
     theme::ThemeTokens,
     widgets::{PointerButton, WidgetId, WidgetInput, WidgetKey},
 };
+use std::collections::BTreeMap;
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -60,6 +64,13 @@ pub enum Event {
     TraverseFocus(FocusTraversal),
     /// Clear current runtime focus ownership.
     ClearFocus,
+    /// Scroll the scrollable container under the pointer by logical pixels.
+    Scroll {
+        /// Pointer position in surface logical coordinates.
+        position: Point,
+        /// Logical scroll delta. Positive values move content right/down.
+        delta: Vector2,
+    },
 }
 
 /// Borrowed runtime context for one projected Radiant surface.
@@ -103,7 +114,10 @@ where
     viewport: Rect,
     surface: UiSurface<Message>,
     layout: LayoutOutput,
+    layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
+    scroll_hit_order: Vec<NodeId>,
+    widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
     hovered_widget: Option<WidgetId>,
@@ -119,14 +133,25 @@ where
     pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
         let viewport = normalized_viewport(viewport);
         let surface = bridge.pull_surface();
-        let layout = layout_tree(&surface.layout_node(), viewport);
+        let layout_state = LayoutState::default();
+        let layout = layout_tree_with_state(
+            &surface.layout_node(),
+            viewport,
+            &layout_state,
+            LayoutDebugOptions::default(),
+        );
         let widget_hit_order = surface.widget_paint_order();
+        let scroll_hit_order = surface.scroll_container_order();
+        let widget_clip_ancestors = surface.widget_clip_ancestors();
         Self {
             bridge,
             viewport,
             surface,
             layout,
+            layout_state,
             widget_hit_order,
+            scroll_hit_order,
+            widget_clip_ancestors,
             focused_widget: None,
             pending_key_chord: None,
             hovered_widget: None,
@@ -352,6 +377,10 @@ where
                 self.clear_focus();
                 None
             }
+            Event::Scroll { position, delta } => {
+                self.scroll_at(position, delta);
+                None
+            }
         }
     }
 
@@ -405,7 +434,56 @@ where
                     .rects
                     .get(widget_id)
                     .is_some_and(|rect| rect.contains(point))
+                    && self.widget_clip_contains_point(*widget_id, point)
             })
+    }
+
+    fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+        self.widget_clip_ancestors
+            .get(&widget_id)
+            .is_none_or(|clip_nodes| {
+                clip_nodes.iter().all(|node_id| {
+                    self.layout
+                        .rects
+                        .get(node_id)
+                        .is_some_and(|rect| rect.contains(point))
+                })
+            })
+    }
+
+    /// Scroll the topmost scroll container under `point`.
+    ///
+    /// Returns `true` when a scroll container accepted the delta.
+    pub fn scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
+        let Some(node_id) = self.scroll_container_at(point) else {
+            return false;
+        };
+        let current = self.layout_state.scroll_offset(node_id);
+        self.layout_state.scroll_offsets.insert(
+            node_id,
+            Vector2::new(
+                (current.x + delta.x).max(0.0),
+                (current.y + delta.y).max(0.0),
+            ),
+        );
+        self.relayout();
+        true
+    }
+
+    fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
+        self.scroll_hit_order.iter().rev().copied().find(|node_id| {
+            self.layout
+                .rects
+                .get(node_id)
+                .is_some_and(|rect| rect.contains(point))
+                && self
+                    .layout
+                    .overflow_flags
+                    .get(node_id)
+                    .is_some_and(|overflow| {
+                        overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
+                    })
+        })
     }
 
     /// Route one normalized widget interaction by point hit test.
@@ -448,8 +526,50 @@ where
     }
 
     fn relayout(&mut self) {
-        self.layout = layout_tree(&self.surface.layout_node(), self.viewport);
+        self.layout = layout_tree_with_state(
+            &self.surface.layout_node(),
+            self.viewport,
+            &self.layout_state,
+            LayoutDebugOptions::default(),
+        );
         self.widget_hit_order = self.surface.widget_paint_order();
+        self.scroll_hit_order = self.surface.scroll_container_order();
+        self.widget_clip_ancestors = self.surface.widget_clip_ancestors();
+        self.sync_scroll_offsets();
+    }
+
+    fn sync_scroll_offsets(&mut self) {
+        let clamped: Vec<(NodeId, Vector2)> = self
+            .layout
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.code == crate::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
+            })
+            .filter_map(|diagnostic| {
+                let child_rect = self
+                    .layout
+                    .rects
+                    .get(&self.surface.scroll_content_id(diagnostic.node_id)?)?;
+                let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
+                Some((
+                    diagnostic.node_id,
+                    Vector2::new(
+                        self.layout_state
+                            .scroll_offset(diagnostic.node_id)
+                            .x
+                            .min((child_rect.width() - viewport_rect.width()).max(0.0)),
+                        self.layout_state
+                            .scroll_offset(diagnostic.node_id)
+                            .y
+                            .min((child_rect.height() - viewport_rect.height()).max(0.0)),
+                    ),
+                ))
+            })
+            .collect();
+        for (node_id, offset) in clamped {
+            self.layout_state.scroll_offsets.insert(node_id, offset);
+        }
     }
 
     fn route_focus_changed(&mut self, widget_id: WidgetId, focused: bool) {

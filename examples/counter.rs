@@ -15,8 +15,11 @@ fn main() -> radiant::Result {
         .view(|state| {
             column([
                 text(format!("Count: {}", state.count)),
-                button("Increment").on_click(|state: &mut CounterState| state.count += 1),
+                button("Increment")
+                    .primary()
+                    .on_click(|state: &mut CounterState| state.count += 1),
             ])
+            .padding(16.0)
             .spacing(8.0)
         })
         .run()

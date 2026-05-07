@@ -43,6 +43,46 @@ name = "todo_list"
 path = "examples/todo_list.rs"
 test = false
 
+[[example]]
+name = "form"
+path = "examples/form.rs"
+test = false
+
+[[example]]
+name = "layout_rows_columns"
+path = "examples/layout_rows_columns.rs"
+test = false
+
+[[example]]
+name = "list"
+path = "examples/list.rs"
+test = false
+
+[[example]]
+name = "styling"
+path = "examples/styling.rs"
+test = false
+
+[[example]]
+name = "scroll"
+path = "examples/scroll.rs"
+test = false
+
+[[example]]
+name = "sizing"
+path = "examples/sizing.rs"
+test = false
+
+[[example]]
+name = "message_routing"
+path = "examples/message_routing.rs"
+test = false
+
+[[example]]
+name = "keys"
+path = "examples/keys.rs"
+test = false
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",

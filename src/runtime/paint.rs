@@ -2,11 +2,11 @@
 
 use crate::{
     gui::types::{ImageRgba, Point, Rect, Rgba8},
-    layout::LayoutOutput,
+    layout::{LayoutOutput, NodeId, OverflowPolicy},
     theme::ThemeTokens,
     widgets::{
         PaintBounds, RetainedSurfaceDescriptor, ScrollbarAxis, TextWrap, WidgetId, WidgetSpec,
-        resolve_widget_visual_tokens,
+        WidgetState, WidgetStyle, resolve_widget_visual_tokens,
     },
 };
 use std::sync::Arc;
@@ -40,6 +40,30 @@ pub struct PaintStrokeRect {
     pub widget_id: WidgetId,
     /// Rectangle to stroke.
     pub rect: Rect,
+    /// Stroke color.
+    pub color: Rgba8,
+    /// Stroke width in logical pixels.
+    pub width: f32,
+}
+
+/// Filled polygon primitive in logical surface coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintFillPolygon {
+    /// Widget or node that produced this primitive.
+    pub widget_id: WidgetId,
+    /// Polygon points in clockwise or counter-clockwise order.
+    pub points: Vec<Point>,
+    /// Fill color.
+    pub color: Rgba8,
+}
+
+/// Stroked polygon primitive in logical surface coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintStrokePolygon {
+    /// Widget or node that produced this primitive.
+    pub widget_id: WidgetId,
+    /// Polygon points in clockwise or counter-clockwise order.
+    pub points: Vec<Point>,
     /// Stroke color.
     pub color: Rgba8,
     /// Stroke width in logical pixels.
@@ -91,19 +115,173 @@ pub struct PaintImage {
     pub image: Arc<ImageRgba>,
 }
 
+/// Begin clipping subsequent paint primitives to a rectangle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PaintClipStart {
+    /// Container node that owns this clip.
+    pub node_id: NodeId,
+    /// Clip rectangle in logical surface coordinates.
+    pub rect: Rect,
+}
+
+/// End the most recent paint clip.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PaintClipEnd {
+    /// Container node that owns the matching clip.
+    pub node_id: NodeId,
+}
+
 /// One backend-neutral primitive emitted by a generic surface projection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaintPrimitive {
+    /// Begin a rectangular clip.
+    ClipStart(PaintClipStart),
+    /// End the current clip.
+    ClipEnd(PaintClipEnd),
     /// Fill a rectangle.
     FillRect(PaintFillRect),
     /// Stroke a rectangle.
     StrokeRect(PaintStrokeRect),
+    /// Fill a polygon.
+    FillPolygon(PaintFillPolygon),
+    /// Stroke a polygon.
+    StrokePolygon(PaintStrokePolygon),
     /// Paint one text run.
     Text(PaintTextRun),
     /// Paint an RGBA image stretched into one destination rectangle.
     Image(PaintImage),
     /// Reserve a host-painted custom surface.
     CustomSurface(PaintCustomSurface),
+}
+
+pub(super) fn push_clip_start(primitives: &mut Vec<PaintPrimitive>, node_id: NodeId, rect: Rect) {
+    primitives.push(PaintPrimitive::ClipStart(PaintClipStart { node_id, rect }));
+}
+
+pub(super) fn push_clip_end(primitives: &mut Vec<PaintPrimitive>, node_id: NodeId) {
+    primitives.push(PaintPrimitive::ClipEnd(PaintClipEnd { node_id }));
+}
+
+pub(super) fn push_scroll_affordance(
+    primitives: &mut Vec<PaintPrimitive>,
+    node_id: NodeId,
+    content_id: NodeId,
+    layout: &LayoutOutput,
+    theme: &ThemeTokens,
+) {
+    let Some(viewport) = layout.rects.get(&node_id).copied() else {
+        return;
+    };
+    let Some(content) = layout.rects.get(&content_id).copied() else {
+        return;
+    };
+    let Some(overflow) = layout.overflow_flags.get(&node_id) else {
+        return;
+    };
+    if overflow.policy != OverflowPolicy::Scroll || !overflow.y {
+        return;
+    }
+
+    let viewport_h = viewport.height().max(0.0);
+    let content_h = content.height().max(viewport_h);
+    if viewport_h <= 0.0 || content_h <= viewport_h {
+        return;
+    }
+
+    let gutter = scroll_gutter_width();
+    let gutter_rect = Rect::from_min_max(
+        Point::new(viewport.max.x - gutter, viewport.min.y),
+        Point::new(viewport.max.x, viewport.max.y),
+    );
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: node_id,
+        rect: gutter_rect,
+        color: theme.bg_secondary,
+    }));
+    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id: node_id,
+        rect: Rect::from_min_max(
+            gutter_rect.min,
+            Point::new(gutter_rect.min.x, gutter_rect.max.y),
+        ),
+        color: theme.grid_soft,
+        width: 1.0,
+    }));
+
+    let track_w = 4.0;
+    let inset = 4.0;
+    let track_x = gutter_rect.min.x + (gutter - track_w) * 0.5;
+    let track = Rect::from_min_max(
+        Point::new(track_x, viewport.min.y + inset),
+        Point::new(track_x + track_w, viewport.max.y - inset),
+    );
+    let max_scroll = (content_h - viewport_h).max(1.0);
+    let scroll_y = (viewport.min.y - content.min.y).clamp(0.0, max_scroll);
+    let thumb_h = ((viewport_h / content_h) * track.height()).clamp(24.0, track.height());
+    let thumb_y = track.min.y + ((track.height() - thumb_h) * (scroll_y / max_scroll));
+    let thumb = Rect::from_min_size(
+        Point::new(track.min.x, thumb_y),
+        crate::gui::types::Vector2::new(track.width(), thumb_h),
+    );
+
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: node_id,
+        rect: track,
+        color: theme.grid_soft,
+    }));
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: node_id,
+        rect: thumb,
+        color: theme.border_emphasis,
+    }));
+}
+
+pub(super) fn scroll_content_clip_rect(
+    node_id: NodeId,
+    layout: &LayoutOutput,
+    viewport: Rect,
+) -> Rect {
+    let Some(overflow) = layout.overflow_flags.get(&node_id) else {
+        return viewport;
+    };
+    if overflow.policy != OverflowPolicy::Scroll || !overflow.y {
+        return viewport;
+    }
+    Rect::from_min_max(
+        viewport.min,
+        Point::new(
+            (viewport.max.x - scroll_gutter_width()).max(viewport.min.x),
+            viewport.max.y,
+        ),
+    )
+}
+
+fn scroll_gutter_width() -> f32 {
+    14.0
+}
+
+pub(super) fn push_container_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    node_id: NodeId,
+    layout: &LayoutOutput,
+    theme: &ThemeTokens,
+    style: WidgetStyle,
+) {
+    let Some(bounds) = layout.rects.get(&node_id).copied() else {
+        return;
+    };
+    let tokens = resolve_widget_visual_tokens(theme, style, WidgetState::default());
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id: node_id,
+        rect: bounds,
+        color: tokens.fill,
+    }));
+    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id: node_id,
+        rect: bounds,
+        color: tokens.border,
+        width: 1.0,
+    }));
 }
 
 /// Deterministic backend-neutral paint output for a generic [`crate::runtime::UiSurface`].
@@ -163,7 +341,7 @@ pub(super) fn push_widget_paint(
             );
         }
         WidgetSpec::Button(button) => {
-            push_control_chrome(primitives, widget, bounds, theme);
+            push_button_chrome(primitives, widget, bounds, theme);
             push_text_run(
                 primitives,
                 widget.id(),
@@ -177,29 +355,45 @@ pub(super) fn push_widget_paint(
             );
         }
         WidgetSpec::Toggle(toggle) => {
-            push_control_chrome(primitives, widget, bounds, theme);
-            push_text_run(
-                primitives,
-                widget.id(),
-                toggle.props.label.clone(),
-                inset_rect(bounds, 8.0, 4.0),
-                toggle.common.sizing.baseline,
-                resolve_widget_visual_tokens(theme, toggle.common.style, toggle.common.state)
-                    .foreground,
-                PaintTextAlign::Left,
-                TextWrap::None,
-            );
+            let tokens =
+                resolve_widget_visual_tokens(theme, toggle.common.style, toggle.common.state);
+            if toggle.props.label.is_empty() {
+                push_checkbox_chrome(primitives, widget.id(), bounds, theme, toggle.state.checked);
+            } else {
+                push_control_chrome(primitives, widget, bounds, theme);
+                push_text_run(
+                    primitives,
+                    widget.id(),
+                    toggle.props.label.clone(),
+                    inset_rect(bounds, 8.0, 4.0),
+                    toggle.common.sizing.baseline,
+                    tokens.foreground,
+                    PaintTextAlign::Left,
+                    TextWrap::None,
+                );
+            }
         }
         WidgetSpec::TextInput(input) => {
             push_control_chrome(primitives, widget, bounds, theme);
+            let (value, color) = if input.state.value.is_empty() {
+                (
+                    input.props.placeholder.clone().unwrap_or_default(),
+                    theme.text_muted,
+                )
+            } else {
+                (
+                    input.state.value.clone(),
+                    resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
+                        .foreground,
+                )
+            };
             push_text_run(
                 primitives,
                 widget.id(),
-                input.state.value.clone(),
-                inset_rect(bounds, 8.0, 4.0),
+                value,
+                inset_rect(bounds, 16.0, 4.0),
                 input.common.sizing.baseline,
-                resolve_widget_visual_tokens(theme, input.common.style, input.common.state)
-                    .foreground,
+                color,
                 PaintTextAlign::Left,
                 TextWrap::None,
             );
@@ -302,6 +496,75 @@ pub(super) fn push_widget_paint(
     }
 }
 
+fn push_checkbox_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    bounds: Rect,
+    theme: &ThemeTokens,
+    checked: bool,
+) {
+    let side = bounds.width().min(bounds.height()).max(0.0);
+    let bounds = Rect::from_min_size(
+        Point::new(
+            bounds.min.x + (bounds.width() - side) * 0.5,
+            bounds.min.y + (bounds.height() - side) * 0.5,
+        ),
+        crate::gui::types::Vector2::new(side, side),
+    );
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect: bounds,
+        color: theme.surface_base,
+    }));
+    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+        widget_id,
+        rect: bounds,
+        color: if checked {
+            theme.accent_danger
+        } else {
+            theme.border_emphasis
+        },
+        width: 1.0,
+    }));
+    if checked {
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id,
+            rect: inset_rect(bounds, side * 0.32, side * 0.32),
+            color: theme.accent_danger,
+        }));
+    }
+}
+
+fn push_button_chrome(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget: &WidgetSpec,
+    bounds: Rect,
+    theme: &ThemeTokens,
+) {
+    let common = widget.common();
+    let tokens = resolve_widget_visual_tokens(theme, common.style, common.state);
+    let points = diagonal_cut_rect_points(bounds);
+    primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
+        widget_id: common.id,
+        points: points.clone(),
+        color: tokens.fill,
+    }));
+    primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
+        widget_id: common.id,
+        points,
+        color: tokens.border,
+        width: 1.0,
+    }));
+    if common.state.focused && common.paint.paints_focus {
+        primitives.push(PaintPrimitive::StrokePolygon(PaintStrokePolygon {
+            widget_id: common.id,
+            points: diagonal_cut_rect_points(inset_rect(bounds, -1.0, -1.0)),
+            color: tokens.emphasis,
+            width: 1.0,
+        }));
+    }
+}
+
 fn push_control_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     widget: &WidgetSpec,
@@ -329,6 +592,17 @@ fn push_control_chrome(
             width: 1.0,
         }));
     }
+}
+
+fn diagonal_cut_rect_points(rect: Rect) -> Vec<Point> {
+    let cut = (rect.height().min(rect.width()) * 0.18).clamp(4.0, 8.0);
+    vec![
+        Point::new(rect.min.x, rect.min.y),
+        Point::new(rect.max.x, rect.min.y),
+        Point::new(rect.max.x, rect.max.y - cut),
+        Point::new(rect.max.x - cut, rect.max.y),
+        Point::new(rect.min.x, rect.max.y),
+    ]
 }
 
 fn push_text_run(

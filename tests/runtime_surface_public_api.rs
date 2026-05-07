@@ -23,7 +23,8 @@ use radiant::{
         BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
         RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, SelectableMessage,
         TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
-        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
+        WidgetProminence, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, WidgetTone,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
@@ -217,6 +218,173 @@ fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     assert_eq!(ids.len(), 3);
     for id in ids {
         assert!(surface.find_widget(id).is_some());
+    }
+}
+
+#[test]
+fn application_builder_lists_keep_row_heights_stable_across_item_counts() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    fn surface(count: u64) -> UiSurface<()> {
+        ui::column([ui::list(0..count, |index| {
+            ui::list_row(
+                index,
+                [
+                    ui::text(format!("Item {index}"))
+                        .id(100 + index)
+                        .fill_width(),
+                    ui::button("Delete").danger().message(()).id(200 + index),
+                ],
+            )
+            .id(10 + index)
+        })
+        .id(2)])
+        .id(1)
+        .padding(12.0)
+        .into_surface()
+    }
+
+    let two = layout_tree(
+        &surface(2).layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(300.0, 200.0)),
+    );
+    let ten = layout_tree(
+        &surface(10).layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(300.0, 200.0)),
+    );
+
+    assert_eq!(two.rects[&10].height(), 52.0);
+    assert_eq!(two.rects[&11].height(), 52.0);
+    assert_eq!(ten.rects[&10].height(), 52.0);
+    assert_eq!(ten.rects[&11].height(), 52.0);
+}
+
+#[test]
+fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([
+        ui::row([
+            ui::text("Todos").id(10).size(140.0, 28.0),
+            ui::text("1/3 done").id(11).size(120.0, 28.0),
+        ])
+        .id(2)
+        .fill_width(),
+        ui::row([
+            ui::text_input("Review public API")
+                .message(|_| ())
+                .id(12)
+                .min_size(260.0, 32.0)
+                .preferred_size(420.0, 32.0)
+                .fill_width(),
+            ui::button("Add")
+                .primary()
+                .message(())
+                .id(13)
+                .size(80.0, 32.0),
+        ])
+        .id(3)
+        .fill_width(),
+        ui::list(0..3, |index| {
+            ui::list_row(
+                index,
+                [
+                    ui::checkbox(false)
+                        .message(|_| ())
+                        .id(20 + index)
+                        .size(24.0, 24.0),
+                    ui::text(format!("Item {index}"))
+                        .id(60 + index)
+                        .fill_width(),
+                    ui::button("Delete")
+                        .danger()
+                        .message(())
+                        .id(30 + index)
+                        .size(84.0, 30.0),
+                ],
+            )
+            .id(40 + index)
+        })
+        .id(4),
+    ])
+    .id(1)
+    .padding(16.0)
+    .spacing(12.0)
+    .into_surface();
+
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(560.0, 360.0)),
+    );
+
+    let header = layout.rects[&2];
+    let input = layout.rects[&3];
+    let list = layout.rects[&4];
+    let first_row = layout.rects[&40];
+
+    assert_eq!(header.height(), 28.0);
+    assert_eq!(input.height(), 32.0);
+    assert!(input.min.y >= header.max.y + 12.0);
+    assert!(list.min.y >= input.max.y + 12.0);
+    assert!(first_row.min.y >= list.min.y);
+    assert_eq!(first_row.height(), 52.0);
+}
+
+#[test]
+fn application_builders_expose_padding_style_and_text_policy_helpers() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([
+        ui::text("Long title").wrap().id(10),
+        ui::button("Add").primary().message(()).id(11),
+        ui::button("Delete").danger().message(()).id(12),
+        ui::checkbox(true).message(|_| ()).id(13),
+        ui::text_input("")
+            .placeholder("What needs to be done?")
+            .message(|_| ())
+            .id(14),
+    ])
+    .id(1)
+    .padding(16.0)
+    .into_surface();
+
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 160.0)),
+    );
+
+    assert_eq!(layout.rects[&10].min.x, 16.0);
+    match surface.find_widget(10).unwrap().widget() {
+        WidgetSpec::Text(text) => assert_eq!(text.wrap, radiant::widgets::TextWrap::Word),
+        other => panic!("expected text widget, got {other:?}"),
+    }
+    match surface.find_widget(11).unwrap().widget() {
+        WidgetSpec::Button(button) => {
+            assert_eq!(button.common.style.tone, WidgetTone::Accent);
+            assert_eq!(button.common.style.prominence, WidgetProminence::Strong);
+        }
+        other => panic!("expected button widget, got {other:?}"),
+    }
+    match surface.find_widget(12).unwrap().widget() {
+        WidgetSpec::Button(button) => assert_eq!(button.common.style.tone, WidgetTone::Danger),
+        other => panic!("expected button widget, got {other:?}"),
+    }
+    match surface.find_widget(13).unwrap().widget() {
+        WidgetSpec::Toggle(toggle) => {
+            assert_eq!(toggle.props.label, "");
+            assert!(toggle.state.checked);
+            assert_eq!(toggle.common.sizing.preferred, Vector2::new(24.0, 24.0));
+        }
+        other => panic!("expected toggle-backed checkbox widget, got {other:?}"),
+    }
+    match surface.find_widget(14).unwrap().widget() {
+        WidgetSpec::TextInput(input) => {
+            assert_eq!(
+                input.props.placeholder.as_deref(),
+                Some("What needs to be done?")
+            );
+        }
+        other => panic!("expected text input widget, got {other:?}"),
     }
 }
 
@@ -609,6 +777,142 @@ fn surface_node_scroll_area_helpers_project_scroll_view_layout() {
     assert!(surface.find_widget(32).is_some());
     assert!(overflow.x);
     assert!(overflow.y);
+}
+
+#[test]
+fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::column(
+            32,
+            2.0,
+            (0..8)
+                .map(|index| {
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::text(
+                            100 + index,
+                            format!("Row {index}"),
+                            WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                        ),
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 80.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+    let clip_start = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::ClipStart(clip) if clip.node_id == 31),
+        )
+        .expect("scroll paint should start a clip");
+    let PaintPrimitive::ClipStart(clip) = &plan.primitives[clip_start] else {
+        unreachable!("clip_start index was matched above");
+    };
+    let clip_end = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::ClipEnd(clip) if clip.node_id == 31),
+        )
+        .expect("scroll paint should end the clip");
+    let scrollbar_after_clip = plan.primitives.iter().skip(clip_end + 1).any(
+        |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31),
+    );
+
+    assert!(clip_start < clip_end);
+    assert!(clip.rect.max.x < layout.rects[&31].max.x);
+    assert!(scrollbar_after_clip);
+}
+
+#[test]
+fn surface_runtime_routes_scroll_delta_to_scroll_view_under_pointer() {
+    let bridge = declarative_runtime_bridge(
+        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+            31,
+            SurfaceNode::column(
+                32,
+                2.0,
+                (0..12)
+                    .map(|index| {
+                        SurfaceChild::new(
+                            intrinsic_slot(),
+                            SurfaceNode::text(
+                                100 + index,
+                                format!("Row {index}"),
+                                WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
+        ))),
+        |surface| Arc::clone(surface),
+        |_, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 96.0));
+    let before = runtime.layout().rects[&100];
+
+    assert!(runtime.scroll_at(Point::new(20.0, 20.0), Vector2::new(0.0, 48.0)));
+    let after = runtime.layout().rects[&100];
+
+    assert!(after.min.y < before.min.y);
+    assert_eq!(before.min.y - after.min.y, 48.0);
+}
+
+#[test]
+fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
+    let bridge = declarative_runtime_bridge(
+        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::column(
+            1,
+            8.0,
+            vec![
+                SurfaceChild::new(
+                    intrinsic_slot(),
+                    SurfaceNode::button(
+                        10,
+                        "Header",
+                        WidgetSizing::fixed(Vector2::new(220.0, 32.0)),
+                        DemoMessage::Increment,
+                    ),
+                ),
+                SurfaceChild::fill(SurfaceNode::scroll_area(
+                    20,
+                    SurfaceNode::column(
+                        21,
+                        2.0,
+                        (0..12)
+                            .map(|index| {
+                                SurfaceChild::new(
+                                    intrinsic_slot(),
+                                    SurfaceNode::button(
+                                        100 + index,
+                                        format!("Row {index}"),
+                                        WidgetSizing::fixed(Vector2::new(220.0, 30.0)),
+                                        DemoMessage::Increment,
+                                    ),
+                                )
+                            })
+                            .collect(),
+                    ),
+                )),
+            ],
+        ))),
+        |surface| Arc::clone(surface),
+        |_, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 120.0));
+
+    assert!(runtime.scroll_at(Point::new(20.0, 60.0), Vector2::new(0.0, 80.0)));
+
+    assert_eq!(runtime.widget_at(Point::new(20.0, 16.0)), Some(10));
 }
 
 #[test]
@@ -1396,10 +1700,17 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
             _ => None,
         })
         .collect();
-    assert_eq!(
-        fills,
-        vec![(11, theme.surface_raised), (12, theme.surface_raised)]
-    );
+    assert_eq!(fills, vec![(12, theme.surface_raised)]);
+
+    let button_polygons: Vec<_> = runtime_plan
+        .primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::FillPolygon(fill) => Some((fill.widget_id, fill.points.len())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(button_polygons, vec![(11, 5)]);
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {

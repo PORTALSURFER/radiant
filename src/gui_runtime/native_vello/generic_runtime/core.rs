@@ -100,6 +100,15 @@ where
         self.route_outcome(routed)
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_scroll(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+    ) -> GenericRouteOutcome {
+        let routed = self.runtime.scroll_at(position, delta);
+        self.route_outcome(routed)
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_key_press(
         &mut self,
         press: KeyPress,

@@ -33,11 +33,11 @@ and explicit runtime objects are part of the same API surface:
 
 Radiant's application API is designed to be easy to read without hiding the
 runtime model. `radiant::prelude` re-exports the common symbols: `window`,
-`app`, `text`, `button`, `row`, `column`, `scroll`, `toggle`, `text_input`,
-`IntoView`, `View`, `StateView`, `Command`, and the builder types needed by
-method chains. These builders lower into the same `UiSurface`, `SurfaceNode`,
-`SurfaceChild`, `WidgetSizing`, and `RuntimeBridge` contracts available through
-the explicit runtime modules.
+`app`, `text`, `button`, `row`, `column`, `scroll`, `scroll_column`, `list`,
+`list_row`, `toggle`, `text_input`, `IntoView`, `View`, `StateView`, `Command`,
+and the builder types needed by method chains. These builders lower into the
+same `UiSurface`, `SurfaceNode`, `SurfaceChild`, `WidgetSizing`, and
+`RuntimeBridge` contracts available through the explicit runtime modules.
 
 No-state apps can launch without naming `NativeRunOptions`, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, or `WidgetSizing`:
@@ -83,11 +83,17 @@ Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
 explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, `.fixed(...)`,
 `.min_size(...)`, `.preferred_size(...)`, `.baseline(...)`, and `.spacing(...)`.
-Stateful examples should use explicit IDs for controls whose focus or input
-state must survive list edits. The launch builders expose `.options(...)` for
-callers that need the full `NativeRunOptions` surface. Apps that prefer explicit
-message routing can use `.message(...)` on widgets plus `.update(...)` or
-`.update_command(...)` on the app when reducers need to return
+Rows and columns use intrinsic main-axis child sizing by default, so list rows
+do not stretch just because there are only a few items. Apps can request
+stretch behavior explicitly with `.fill()`, `.fill_width()`, `.fill_height()`,
+and `.grow(...)`, add container padding with `.padding(...)`, `.padding_x(...)`,
+and `.padding_y(...)`, and use `.primary()`, `.danger()`, `.subtle()`,
+`.wrap()`, or `.truncate()` for common style and text policies. Stateful
+examples should use stable keys or explicit IDs for controls whose focus or
+input state must survive list edits. The launch builders expose `.options(...)`
+for callers that need the full `NativeRunOptions` surface. Apps that prefer
+explicit message routing can use `.message(...)` on widgets plus `.update(...)`
+or `.update_command(...)` on the app when reducers need to return
 `Command<Message>` values directly.
 
 ## Soft-Deprecated First-Use Boilerplate

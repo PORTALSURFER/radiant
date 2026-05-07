@@ -490,6 +490,15 @@ where
                 };
                 self.handle_route_outcome(routed);
             }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let Some(position) = self.last_cursor else {
+                    return;
+                };
+                let routed = self
+                    .core
+                    .route_scroll(position, scroll_delta_to_logical(delta));
+                self.handle_route_outcome(routed);
+            }
             WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_event(event),
             WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::RedrawRequested => self.redraw(event_loop),
@@ -537,6 +546,15 @@ where
 fn animation_frame_interval(target_fps: u32) -> Duration {
     let fps = target_fps.clamp(1, 240);
     Duration::from_secs_f64(1.0 / f64::from(fps))
+}
+
+fn scroll_delta_to_logical(delta: MouseScrollDelta) -> Vector2 {
+    match delta {
+        MouseScrollDelta::LineDelta(x, y) => Vector2::new(-(x * 40.0), -(y * 40.0)),
+        MouseScrollDelta::PixelDelta(position) => {
+            Vector2::new(-(position.x as f32), -(position.y as f32))
+        }
+    }
 }
 
 fn maybe_log_render_profile(

@@ -36,12 +36,15 @@ fn project_surface(state: &mut DemoState) -> View<DemoMessage> {
     row([
         text(format!("Generic Radiant count: {}", state.count))
             .id(10)
-            .size(180.0, 24.0),
+            .size(180.0, 24.0)
+            .fill_width(),
         button("Increment")
+            .primary()
             .message(DemoMessage::ButtonPressed)
             .id(11)
             .size(96.0, 32.0),
     ])
     .id(1)
+    .padding(16.0)
     .spacing(12.0)
 }

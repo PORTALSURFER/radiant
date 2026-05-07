@@ -245,6 +245,78 @@ fn generic_native_example_is_registered_and_uses_application_builders() {
 }
 
 #[test]
+fn focused_examples_are_registered_and_stay_on_application_builders() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+
+    for (name, required) in [
+        (
+            "form",
+            vec!["text_input(", ".bind(", "toggle(", ".on_change("],
+        ),
+        (
+            "layout_rows_columns",
+            vec!["row([", "column([", ".padding(", ".fill_width()"],
+        ),
+        ("list", vec!["list(", "list_row(", ".fill_height()"]),
+        (
+            "styling",
+            vec![".primary()", ".danger()", ".subtle()", "toggle("],
+        ),
+        ("scroll", vec!["scroll_column(", ".fill_height()"]),
+        (
+            "sizing",
+            vec![".size(", ".min_size(", ".preferred_size(", ".fill_width()"],
+        ),
+        (
+            "message_routing",
+            vec![
+                ".update_command",
+                "Command::message",
+                "Command::request_repaint",
+            ],
+        ),
+        ("keys", vec![".key(", "list_row(", ".reverse()"]),
+    ] {
+        let path = format!("examples/{name}.rs");
+        let source = fs::read_to_string(manifest_dir.join(&path))
+            .unwrap_or_else(|_| panic!("{name} example should be readable"));
+
+        assert!(
+            manifest.contains(&format!("name = \"{name}\""))
+                && manifest.contains(&format!("path = \"{path}\""))
+                && manifest.contains("test = false"),
+            "{name} should be an explicit standalone Cargo example target"
+        );
+        assert!(
+            source.contains("use radiant::prelude::*;")
+                || source.contains("use radiant::prelude as ui;"),
+            "{name} should use the application prelude"
+        );
+        for required in required {
+            assert!(
+                source.contains(required),
+                "{name} example should exercise `{required}`"
+            );
+        }
+        for deprecated_first_use in [
+            "NativeRunOptions",
+            "declarative_command_runtime_bridge",
+            "run_native_vello_runtime",
+            "SurfaceChild",
+            "Arc<UiSurface",
+            "WidgetSizing",
+        ] {
+            assert!(
+                !source.contains(deprecated_first_use),
+                "{name} example should not use old first-use boilerplate `{deprecated_first_use}`"
+            );
+        }
+    }
+}
+
+#[test]
 fn gui_runtime_public_facade_exports_generic_runtime_entrypoints() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source = fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs"))

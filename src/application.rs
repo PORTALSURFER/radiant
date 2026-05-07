@@ -6,12 +6,18 @@
 
 use crate::{
     gui_runtime::NativeRunOptions,
-    layout::{NodeId, Vector2},
+    layout::{
+        ContainerKind, ContainerPolicy, Insets, NodeId, SizeModeCross, SizeModeMain, SlotParams,
+        Vector2,
+    },
     runtime::{
-        Command, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
+        Command, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
-    widgets::WidgetSizing,
+    widgets::{
+        ButtonWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget, WidgetProminence,
+        WidgetSizing, WidgetSpec, WidgetStyle, WidgetTone,
+    },
 };
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
@@ -334,6 +340,25 @@ pub struct ViewNode<Message> {
     id: Option<NodeId>,
     key: Option<String>,
     sizing: Option<WidgetSizing>,
+    slot: SlotBehavior,
+    padding: Insets,
+    style: Option<WidgetStyle>,
+    text_wrap: Option<TextWrap>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct SlotBehavior {
+    width: AxisSlotBehavior,
+    height: AxisSlotBehavior,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum AxisSlotBehavior {
+    #[default]
+    Default,
+    Intrinsic,
+    Fill(f32),
+    Fixed(f32),
 }
 
 enum ViewNodeKind<Message> {
@@ -346,10 +371,12 @@ enum ViewNodeKind<Message> {
     Toggle {
         label: String,
         checked: bool,
+        compact: bool,
         map: Arc<dyn Fn(bool) -> Message + Send + Sync>,
     },
     TextInput {
         value: String,
+        placeholder: Option<String>,
         map: Arc<dyn Fn(String) -> Message + Send + Sync>,
     },
     Row {
@@ -398,6 +425,51 @@ impl<Message> ViewNode<Message> {
         self.size(width, height)
     }
 
+    /// Fill remaining space on the parent main axis and stretch on the cross axis.
+    pub fn fill(mut self) -> Self {
+        self.slot.width = AxisSlotBehavior::Fill(1.0);
+        self.slot.height = AxisSlotBehavior::Fill(1.0);
+        self
+    }
+
+    /// Fill remaining horizontal space in the parent layout.
+    pub fn fill_width(mut self) -> Self {
+        self.slot.width = AxisSlotBehavior::Fill(1.0);
+        self
+    }
+
+    /// Fill remaining vertical space in the parent layout.
+    pub fn fill_height(mut self) -> Self {
+        self.slot.height = AxisSlotBehavior::Fill(1.0);
+        self
+    }
+
+    /// Fill remaining main-axis space with the provided weight.
+    pub fn grow(mut self, weight: f32) -> Self {
+        self.slot.width = AxisSlotBehavior::Fill(weight);
+        self.slot.height = AxisSlotBehavior::Fill(weight);
+        self
+    }
+
+    /// Use intrinsic parent slot sizing on both axes.
+    pub fn intrinsic(mut self) -> Self {
+        self.slot.width = AxisSlotBehavior::Intrinsic;
+        self.slot.height = AxisSlotBehavior::Intrinsic;
+        self
+    }
+
+    /// Use a fixed parent slot width.
+    pub fn width(mut self, width: f32) -> Self {
+        self.slot.width = AxisSlotBehavior::Fixed(width);
+        self
+    }
+
+    /// Use a fixed parent slot height.
+    pub fn height(mut self, height: f32) -> Self {
+        self.slot.height = AxisSlotBehavior::Fixed(height);
+        self
+    }
+
     /// Set the minimum widget size while preserving any existing preferred size.
     pub fn min_size(mut self, width: f32, height: f32) -> Self {
         let min = Vector2::new(width, height);
@@ -421,11 +493,69 @@ impl<Message> ViewNode<Message> {
         let sizing = self.sizing.unwrap_or_else(|| match &self.kind {
             ViewNodeKind::Text(_) => default_text_sizing(),
             ViewNodeKind::ButtonMapped { label, .. } => default_button_sizing(label),
-            ViewNodeKind::Toggle { label, .. } => default_toggle_sizing(label),
+            ViewNodeKind::Toggle { label, compact, .. } => default_toggle_sizing(label, *compact),
             ViewNodeKind::TextInput { .. } => default_text_input_sizing(),
             _ => WidgetSizing::fixed(Vector2::new(0.0, 0.0)),
         });
         self.sizing = Some(sizing.with_baseline(baseline));
+        self
+    }
+
+    /// Apply equal content padding when this node is a container.
+    pub fn padding(mut self, padding: f32) -> Self {
+        self.padding = Insets::all(padding.max(0.0));
+        self
+    }
+
+    /// Apply horizontal content padding when this node is a container.
+    pub fn padding_x(mut self, padding: f32) -> Self {
+        let padding = padding.max(0.0);
+        self.padding.left = padding;
+        self.padding.right = padding;
+        self
+    }
+
+    /// Apply vertical content padding when this node is a container.
+    pub fn padding_y(mut self, padding: f32) -> Self {
+        let padding = padding.max(0.0);
+        self.padding.top = padding;
+        self.padding.bottom = padding;
+        self
+    }
+
+    /// Apply an explicit widget style.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Use the accent tone and strong prominence.
+    pub fn primary(self) -> Self {
+        self.style(primary_style())
+    }
+
+    /// Use the danger tone for destructive actions.
+    pub fn danger(self) -> Self {
+        self.style(danger_style())
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        let mut style = self.style.unwrap_or_default();
+        style.prominence = WidgetProminence::Subtle;
+        self.style = Some(style);
+        self
+    }
+
+    /// Allow text to wrap by words inside its assigned rectangle.
+    pub fn wrap(mut self) -> Self {
+        self.text_wrap = Some(TextWrap::Word);
+        self
+    }
+
+    /// Keep text on one line and clip overflow.
+    pub fn truncate(mut self) -> Self {
+        self.text_wrap = Some(TextWrap::None);
         self
     }
 
@@ -484,6 +614,10 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
             id: None,
             key: None,
             sizing: None,
+            slot: SlotBehavior::default(),
+            padding: Insets::default(),
+            style: None,
+            text_wrap: None,
         }
     }
 }
@@ -510,51 +644,123 @@ where
         match self.kind {
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::Text(value) => {
-                SurfaceNode::text(id, value, self.sizing.unwrap_or_else(default_text_sizing))
+                let mut text =
+                    TextWidget::new(id, value, self.sizing.unwrap_or_else(default_text_sizing));
+                if let Some(wrap) = self.text_wrap {
+                    text.wrap = wrap;
+                }
+                if let Some(style) = self.style {
+                    text.common.style = style;
+                }
+                SurfaceNode::static_widget(WidgetSpec::Text(text))
             }
-            ViewNodeKind::ButtonMapped { label, map } => SurfaceNode::button_mapped(
-                id,
-                label.clone(),
-                self.sizing.unwrap_or_else(|| default_button_sizing(&label)),
-                move |message| map(message),
-            ),
+            ViewNodeKind::ButtonMapped { label, map } => {
+                let mut button = ButtonWidget::new(
+                    id,
+                    label.clone(),
+                    self.sizing.unwrap_or_else(|| default_button_sizing(&label)),
+                );
+                if let Some(style) = self.style {
+                    button.common.style = style;
+                }
+                SurfaceNode::widget(
+                    WidgetSpec::Button(button),
+                    WidgetMessageMapper::button(move |message| map(message)),
+                )
+            }
             ViewNodeKind::Toggle {
                 label,
                 checked,
+                compact,
                 map,
-            } => SurfaceNode::toggle_with_checked(
-                id,
-                label.clone(),
-                checked,
-                self.sizing.unwrap_or_else(|| default_toggle_sizing(&label)),
-                move |checked| map(checked),
-            ),
-            ViewNodeKind::TextInput { value, map } => SurfaceNode::text_input(
-                id,
+            } => {
+                let mut toggle = ToggleWidget::new(
+                    id,
+                    label.clone(),
+                    self.sizing
+                        .unwrap_or_else(|| default_toggle_sizing(&label, compact)),
+                )
+                .with_checked(checked);
+                if let Some(style) = self.style {
+                    toggle.common.style = style;
+                }
+                SurfaceNode::widget(
+                    WidgetSpec::Toggle(toggle),
+                    WidgetMessageMapper::toggle(move |message| match message {
+                        crate::widgets::ToggleMessage::ValueChanged { checked } => map(checked),
+                    }),
+                )
+            }
+            ViewNodeKind::TextInput {
                 value,
-                self.sizing.unwrap_or(default_text_input_sizing()),
-                move |value| map(value),
-            ),
-            ViewNodeKind::Row { spacing, children } => SurfaceNode::row(
-                id,
-                spacing,
-                children
+                placeholder,
+                map,
+            } => {
+                let mut input = TextInputWidget::new(
+                    id,
+                    value,
+                    self.sizing.unwrap_or(default_text_input_sizing()),
+                );
+                input.props.placeholder = placeholder;
+                if let Some(style) = self.style {
+                    input.common.style = style;
+                }
+                SurfaceNode::widget(
+                    WidgetSpec::TextInput(input),
+                    WidgetMessageMapper::text_input(move |message| match message {
+                        crate::widgets::TextInputMessage::Changed { value }
+                        | crate::widgets::TextInputMessage::Submitted { value } => map(value),
+                    }),
+                )
+            }
+            ViewNodeKind::Row { spacing, children } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::Row,
+                    spacing,
+                    padding: self.padding,
+                    ..ContainerPolicy::default()
+                };
+                let children = children
                     .into_iter()
-                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
-                    .collect(),
-            ),
-            ViewNodeKind::Column { spacing, children } => SurfaceNode::column(
-                id,
-                spacing,
-                children
+                    .map(|child| child.lower_child(ids, child_scope, true))
+                    .collect();
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
+            }
+            ViewNodeKind::Column { spacing, children } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    spacing,
+                    padding: self.padding,
+                    ..ContainerPolicy::default()
+                };
+                let children = children
                     .into_iter()
-                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
-                    .collect(),
-            ),
+                    .map(|child| child.lower_child(ids, child_scope, false))
+                    .collect();
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
+            }
             ViewNodeKind::Scroll { child } => {
                 SurfaceNode::scroll_area(id, child.lower(ids, child_scope))
             }
         }
+    }
+
+    fn lower_child(
+        self,
+        ids: &mut IdGenerator,
+        scope: u64,
+        parent_horizontal: bool,
+    ) -> SurfaceChild<Message> {
+        let slot = self.slot.to_slot_params(parent_horizontal);
+        SurfaceChild::new(slot, self.lower(ids, scope))
     }
 }
 
@@ -565,15 +771,44 @@ pub fn text<Message>(value: impl Into<String>) -> ViewNode<Message> {
         id: None,
         key: None,
         sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        text_wrap: None,
     }
 }
 
 /// Builder for buttons that can emit messages or mutate state directly.
 pub struct ButtonBuilder {
     label: String,
+    style: Option<WidgetStyle>,
 }
 
 impl ButtonBuilder {
+    /// Apply an explicit widget style before binding this button.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Use the accent tone and strong prominence.
+    pub fn primary(self) -> Self {
+        self.style(primary_style())
+    }
+
+    /// Use the danger tone for destructive actions.
+    pub fn danger(self) -> Self {
+        self.style(danger_style())
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        let mut style = self.style.unwrap_or_default();
+        style.prominence = WidgetProminence::Subtle;
+        self.style = Some(style);
+        self
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -595,6 +830,10 @@ impl ButtonBuilder {
             id: None,
             key: None,
             sizing: None,
+            slot: SlotBehavior::default(),
+            padding: Insets::default(),
+            style: self.style,
+            text_wrap: None,
         }
     }
 
@@ -611,6 +850,7 @@ impl ButtonBuilder {
 pub fn button(label: impl Into<String>) -> ButtonBuilder {
     ButtonBuilder {
         label: label.into(),
+        style: None,
     }
 }
 
@@ -634,9 +874,35 @@ pub fn button_mapped<Message>(
 pub struct ToggleBuilder {
     label: String,
     checked: bool,
+    compact: bool,
+    style: Option<WidgetStyle>,
 }
 
 impl ToggleBuilder {
+    /// Apply an explicit widget style before binding this toggle.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Use the accent tone and strong prominence.
+    pub fn primary(self) -> Self {
+        self.style(primary_style())
+    }
+
+    /// Use the danger tone.
+    pub fn danger(self) -> Self {
+        self.style(danger_style())
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        let mut style = self.style.unwrap_or_default();
+        style.prominence = WidgetProminence::Subtle;
+        self.style = Some(style);
+        self
+    }
+
     /// Emit a host message mapped from checked state.
     pub fn message<Message>(
         self,
@@ -646,11 +912,16 @@ impl ToggleBuilder {
             kind: ViewNodeKind::Toggle {
                 label: self.label,
                 checked: self.checked,
+                compact: self.compact,
                 map: Arc::new(map),
             },
             id: None,
             key: None,
             sizing: None,
+            slot: SlotBehavior::default(),
+            padding: Insets::default(),
+            style: self.style,
+            text_wrap: None,
         }
     }
 
@@ -672,6 +943,18 @@ pub fn toggle(label: impl Into<String>, checked: bool) -> ToggleBuilder {
     ToggleBuilder {
         label: label.into(),
         checked,
+        compact: false,
+        style: None,
+    }
+}
+
+/// Build a compact checkbox.
+pub fn checkbox(checked: bool) -> ToggleBuilder {
+    ToggleBuilder {
+        label: String::new(),
+        checked,
+        compact: true,
+        style: None,
     }
 }
 
@@ -687,9 +970,31 @@ pub fn toggle_mapped<Message>(
 /// Builder for text inputs that can emit messages or mutate state directly.
 pub struct TextInputBuilder {
     value: String,
+    placeholder: Option<String>,
+    style: Option<WidgetStyle>,
 }
 
 impl TextInputBuilder {
+    /// Show placeholder text when the input value is empty.
+    pub fn placeholder(mut self, placeholder: impl Into<String>) -> Self {
+        self.placeholder = Some(placeholder.into());
+        self
+    }
+
+    /// Apply an explicit widget style before binding this text input.
+    pub fn style(mut self, style: WidgetStyle) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// Use a lower-prominence treatment.
+    pub fn subtle(mut self) -> Self {
+        let mut style = self.style.unwrap_or_default();
+        style.prominence = WidgetProminence::Subtle;
+        self.style = Some(style);
+        self
+    }
+
     /// Emit a host message mapped from the input value.
     pub fn message<Message>(
         self,
@@ -698,11 +1003,16 @@ impl TextInputBuilder {
         ViewNode {
             kind: ViewNodeKind::TextInput {
                 value: self.value,
+                placeholder: self.placeholder,
                 map: Arc::new(map),
             },
             id: None,
             key: None,
             sizing: None,
+            slot: SlotBehavior::default(),
+            padding: Insets::default(),
+            style: self.style,
+            text_wrap: None,
         }
     }
 
@@ -731,6 +1041,8 @@ impl TextInputBuilder {
 pub fn text_input(value: impl Into<String>) -> TextInputBuilder {
     TextInputBuilder {
         value: value.into(),
+        placeholder: None,
+        style: None,
     }
 }
 
@@ -752,6 +1064,10 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
         id: None,
         key: None,
         sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        text_wrap: None,
     }
 }
 
@@ -773,6 +1089,10 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
         id: None,
         key: None,
         sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        text_wrap: None,
     }
 }
 
@@ -784,6 +1104,36 @@ pub fn column_key<Message>(
     column(children).key(key)
 }
 
+impl SlotBehavior {
+    fn to_slot_params(self, horizontal: bool) -> SlotParams {
+        let main_axis = if horizontal { self.width } else { self.height };
+        let cross_axis = if horizontal { self.height } else { self.width };
+        SlotParams {
+            size_main: main_axis.to_main(),
+            size_cross: cross_axis.to_cross(),
+            ..SlotParams::fill()
+        }
+    }
+}
+
+impl AxisSlotBehavior {
+    fn to_main(self) -> SizeModeMain {
+        match self {
+            Self::Default | Self::Intrinsic => SizeModeMain::Intrinsic,
+            Self::Fill(weight) => SizeModeMain::Fill(weight.max(0.0)),
+            Self::Fixed(value) => SizeModeMain::Fixed(value.max(0.0)),
+        }
+    }
+
+    fn to_cross(self) -> SizeModeCross {
+        match self {
+            Self::Default | Self::Intrinsic => SizeModeCross::Intrinsic,
+            Self::Fill(_) => SizeModeCross::Fill,
+            Self::Fixed(value) => SizeModeCross::Fixed(value.max(0.0)),
+        }
+    }
+}
+
 /// Build a scroll viewport around one child view.
 pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
     ViewNode {
@@ -793,6 +1143,10 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
         id: None,
         key: None,
         sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        style: None,
+        text_wrap: None,
     }
 }
 
@@ -807,6 +1161,28 @@ pub fn scroll_column<Message, Item>(
             .map(|item| project(item))
             .collect::<Vec<_>>(),
     ))
+}
+
+/// Build a scrollable vertical list with stable intrinsic-height rows.
+pub fn list<Message, Item>(
+    items: impl IntoIterator<Item = Item>,
+    project: impl FnMut(Item) -> ViewNode<Message>,
+) -> ViewNode<Message> {
+    scroll_column(items, project).fill_height()
+}
+
+/// Build a keyed list row with full-width, fixed-height defaults.
+pub fn list_row<Message>(
+    key: impl ToString,
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> ViewNode<Message> {
+    row_key(key, children)
+        .subtle()
+        .fill_width()
+        .height(52.0)
+        .padding_x(18.0)
+        .padding_y(10.0)
+        .spacing(16.0)
 }
 
 struct IdGenerator {
@@ -839,13 +1215,30 @@ fn default_button_sizing(label: &str) -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(width, 32.0))
 }
 
-fn default_toggle_sizing(label: &str) -> WidgetSizing {
+fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
+    if compact {
+        return WidgetSizing::fixed(Vector2::new(24.0, 24.0)).with_baseline(17.0);
+    }
     let width = (label.chars().count() as f32 * 8.0 + 52.0).clamp(96.0, 280.0);
     WidgetSizing::fixed(Vector2::new(width, 30.0))
 }
 
 fn default_text_input_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(160.0, 32.0), Vector2::new(240.0, 32.0))
+}
+
+fn primary_style() -> WidgetStyle {
+    WidgetStyle {
+        tone: WidgetTone::Accent,
+        prominence: WidgetProminence::Strong,
+    }
+}
+
+fn danger_style() -> WidgetStyle {
+    WidgetStyle {
+        tone: WidgetTone::Danger,
+        prominence: WidgetProminence::Normal,
+    }
 }
 
 fn scoped_key_id(scope: u64, key: &str) -> NodeId {

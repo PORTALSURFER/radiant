@@ -54,8 +54,9 @@ pub mod prelude {
     pub use crate::application::{
         ButtonBuilder, IntoView, RunnableStatefulApp, StateAction, StateView, StatefulAppBuilder,
         StatefulAppWithView, TextInputBuilder, ToggleBuilder, View, ViewNode, WindowBuilder, app,
-        button, button_mapped, button_message, column, column_key, row, row_key, scroll,
-        scroll_column, text, text_input, text_input_mapped, toggle, toggle_mapped, window,
+        button, button_mapped, button_message, checkbox, column, column_key, list, list_row, row,
+        row_key, scroll, scroll_column, text, text_input, text_input_mapped, toggle, toggle_mapped,
+        window,
     };
     pub use crate::runtime::Command;
 }

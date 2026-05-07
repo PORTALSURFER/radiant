@@ -22,14 +22,14 @@ use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
     AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, Circle, Point as KurboPoint, Rect as KurboRect},
+    kurbo::{Affine, BezPath, Circle, Point as KurboPoint, Rect as KurboRect},
     peniko::{Blob, Color, Fill, FontData, Gradient, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
-    event::{ElementState, WindowEvent},
+    event::{ElementState, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, NamedKey, PhysicalKey},
     window::{Icon, Window, WindowAttributes, WindowId},

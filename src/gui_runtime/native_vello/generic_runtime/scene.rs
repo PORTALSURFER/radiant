@@ -79,6 +79,14 @@ where
     let mut text_runs = Vec::new();
     for primitive in &plan.primitives {
         match primitive {
+            PaintPrimitive::ClipStart(clip) => {
+                flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+                scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &to_kurbo_rect(clip.rect));
+            }
+            PaintPrimitive::ClipEnd(_) => {
+                flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+                scene.pop_layer();
+            }
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
             PaintPrimitive::StrokeRect(stroke) => {
                 scene.stroke(
@@ -88,6 +96,12 @@ where
                     None,
                     &to_kurbo_rect(stroke.rect),
                 );
+            }
+            PaintPrimitive::FillPolygon(fill) => {
+                encode_polygon_fill(scene, fill.color, &fill.points);
+            }
+            PaintPrimitive::StrokePolygon(stroke) => {
+                encode_polygon_stroke(scene, stroke.color, stroke.width, &stroke.points);
             }
             PaintPrimitive::Text(text) => {
                 let align = match text.align {
@@ -158,8 +172,22 @@ where
             }
         }
     }
-    text_renderer.draw_text_runs(scene, &text_runs);
+    flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
     stats
+}
+
+fn flush_text_runs(
+    scene: &mut Scene,
+    text_renderer: &mut NativeTextRenderer,
+    text_runs: &mut Vec<TextRun>,
+    stats: &mut RetainedSurfaceEncodeStats,
+) {
+    if text_runs.is_empty() {
+        return;
+    }
+    stats.text_run_count = stats.text_run_count.saturating_add(text_runs.len());
+    text_renderer.draw_text_runs(scene, text_runs);
+    text_runs.clear();
 }
 
 fn encode_paint_frame_to_scene(
@@ -223,6 +251,41 @@ fn encode_rect(scene: &mut Scene, color: Rgba8, rect: UiRect) {
         None,
         &to_kurbo_rect(rect),
     );
+}
+
+fn encode_polygon_fill(scene: &mut Scene, color: Rgba8, points: &[Point]) {
+    if let Some(path) = polygon_path(points) {
+        scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            color_from_rgba(color),
+            None,
+            &path,
+        );
+    }
+}
+
+fn encode_polygon_stroke(scene: &mut Scene, color: Rgba8, width: f32, points: &[Point]) {
+    if let Some(path) = polygon_path(points) {
+        scene.stroke(
+            &vello::kurbo::Stroke::new(width as f64),
+            Affine::IDENTITY,
+            color_from_rgba(color),
+            None,
+            &path,
+        );
+    }
+}
+
+fn polygon_path(points: &[Point]) -> Option<BezPath> {
+    let first = points.first()?;
+    let mut path = BezPath::new();
+    path.move_to(KurboPoint::new(first.x as f64, first.y as f64));
+    for point in &points[1..] {
+        path.line_to(KurboPoint::new(point.x as f64, point.y as f64));
+    }
+    path.close_path();
+    Some(path)
 }
 
 fn encode_image(

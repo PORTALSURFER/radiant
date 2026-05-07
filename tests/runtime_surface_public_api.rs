@@ -1574,7 +1574,7 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
         })),
         Some(12)
     );
-    assert_eq!(runtime.focused_text_selection().as_deref(), Some("a"));
+    assert_eq!(runtime.focused_text_selection().as_deref(), Some("ab"));
     assert_eq!(
         runtime.dispatch_focused_input(WidgetInput::TextEdit(TextEditCommand::InsertText(
             String::from("z")
@@ -1589,7 +1589,7 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
         .widget();
     match field {
         WidgetSpec::TextInput(input) => {
-            assert_eq!(input.state.value, "zbcd");
+            assert_eq!(input.state.value, "zcd");
             assert_eq!(input.state.caret, 1);
             assert_eq!(input.state.selection_anchor, 1);
         }

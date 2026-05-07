@@ -216,10 +216,21 @@ fn encode_text_input(
     };
     if input.focused && !is_placeholder {
         let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
-        let caret_byte = byte_index_for_char(text, input.state.caret);
-        let anchor_byte = byte_index_for_char(text, input.state.selection_anchor);
-        editor.set_cursor(text, anchor_byte, false);
-        editor.set_cursor(text, caret_byte, true);
+        let caret_char = input.state.caret.min(text.chars().count());
+        let anchor_char = input.state.selection_anchor.min(text.chars().count());
+        let has_selection = caret_char != anchor_char;
+        let selection_start = caret_char.min(anchor_char);
+        let selection_end = if has_selection {
+            caret_char.max(anchor_char).saturating_add(1)
+        } else {
+            caret_char
+        }
+        .min(text.chars().count());
+        let caret_byte = byte_index_for_char(text, caret_char);
+        let selection_start_byte = byte_index_for_char(text, selection_start);
+        let selection_end_byte = byte_index_for_char(text, selection_end);
+        editor.set_cursor(text, selection_start_byte, false);
+        editor.set_cursor(text, selection_end_byte, true);
         let layout = build_text_field_layout(
             text_renderer,
             &mut editor,
@@ -239,12 +250,21 @@ fn encode_text_input(
                 ),
             );
         }
-        encode_block_caret(
-            scene,
-            input,
-            text_rect.min.x + layout.caret_offset,
-            animation_time,
-        );
+        let caret_offset = if has_selection {
+            let mut caret_editor = SingleLineTextEditorState::collapsed_at_end(text);
+            caret_editor.set_cursor(text, caret_byte, false);
+            build_text_field_layout(
+                text_renderer,
+                &mut caret_editor,
+                text,
+                input.font_size,
+                text_rect.width(),
+            )
+            .caret_offset
+        } else {
+            layout.caret_offset
+        };
+        encode_block_caret(scene, input, text_rect.min.x + caret_offset, animation_time);
         draw_text_input_text(
             scene,
             text_renderer,
@@ -303,6 +323,8 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
     let mut color = input.caret_color;
     color.a = ((color.a as f32) * alpha).round() as u8;
     let caret_width = (input.font_size * 0.62).clamp(7.0, 12.0);
+    let caret_height = (input.font_size * 1.15).clamp(12.0, input.rect.height().max(0.0));
+    let caret_y = input.rect.min.y + (input.rect.height() - caret_height) * 0.5;
     let caret_x = x.clamp(
         input.rect.min.x,
         (input.rect.max.x - caret_width).max(input.rect.min.x),
@@ -311,8 +333,8 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
         scene,
         color,
         UiRect::from_min_max(
-            Point::new(caret_x, input.rect.min.y + 4.0),
-            Point::new(caret_x + caret_width, input.rect.max.y - 4.0),
+            Point::new(caret_x, caret_y),
+            Point::new(caret_x + caret_width, caret_y + caret_height),
         ),
     );
 }

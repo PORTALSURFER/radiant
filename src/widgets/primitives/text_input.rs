@@ -76,6 +76,9 @@ impl TextInputWidget {
         match input {
             WidgetInput::PointerMove { position } => {
                 self.common.state.hovered = bounds.contains(position);
+                if self.common.state.pressed {
+                    self.set_caret(caret_for_pointer_x(bounds, position.x), true);
+                }
                 None
             }
             WidgetInput::PointerPress {
@@ -84,7 +87,15 @@ impl TextInputWidget {
             } if bounds.contains(position) => {
                 self.common.state.focused = true;
                 self.common.state.hovered = true;
-                self.move_to_end(false);
+                self.common.state.pressed = true;
+                self.set_caret(caret_for_pointer_x(bounds, position.x), false);
+                None
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } => {
+                self.common.state.pressed = false;
                 None
             }
             WidgetInput::FocusChanged(focused) => {
@@ -129,10 +140,17 @@ impl TextInputWidget {
 
     /// Return the selected character range sorted from start to end.
     pub fn selection_range(&self) -> (usize, usize) {
-        (
-            self.state.selection_anchor.min(self.state.caret),
-            self.state.selection_anchor.max(self.state.caret),
-        )
+        if !self.has_selection() {
+            return (self.state.caret, self.state.caret);
+        }
+        let start = self.state.selection_anchor.min(self.state.caret);
+        let end = self
+            .state
+            .selection_anchor
+            .max(self.state.caret)
+            .saturating_add(1)
+            .min(self.char_len());
+        (start, end)
     }
 
     fn handle_key_input(&mut self, key: WidgetKey) -> Option<TextInputMessage> {
@@ -320,6 +338,13 @@ fn byte_index_for_char(text: &str, char_index: usize) -> usize {
         .unwrap_or(text.len())
 }
 
+fn caret_for_pointer_x(bounds: Rect, x: f32) -> usize {
+    let text_x = (x - bounds.min.x - 16.0).max(0.0);
+    let font_size: f32 = if bounds.height() >= 42.0 { 15.0 } else { 13.0 };
+    let char_width = (font_size * 0.58_f32).max(1.0_f32);
+    (text_x / char_width).floor().max(0.0) as usize
+}
+
 fn sanitize_single_line_text(text: &str) -> String {
     let mut sanitized = String::with_capacity(text.len());
     for ch in text.chars() {
@@ -390,7 +415,7 @@ mod tests {
                 extend_selection: false,
             }),
         );
-        for _ in 0..5 {
+        for _ in 0..4 {
             let _ = input.handle_input(
                 bounds,
                 WidgetInput::TextEdit(TextEditCommand::MoveRight {
@@ -418,5 +443,49 @@ mod tests {
                 value: String::new(),
             })
         );
+    }
+
+    #[test]
+    fn text_input_pointer_drag_extends_selection_including_caret_character() {
+        let mut input = TextInputWidget::new(
+            7,
+            "abcdef",
+            WidgetSizing::new(Vector2::new(100.0, 42.0), Vector2::new(180.0, 42.0)),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 42.0));
+
+        assert_eq!(
+            input.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(26.0, 20.0),
+                    button: PointerButton::Primary,
+                },
+            ),
+            None
+        );
+        assert_eq!(input.state.caret, 1);
+        assert_eq!(
+            input.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(43.0, 20.0),
+                },
+            ),
+            None
+        );
+        assert_eq!(input.state.caret, 3);
+        assert_eq!(input.selected_text().as_deref(), Some("bcd"));
+        assert_eq!(
+            input.handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(43.0, 20.0),
+                    button: PointerButton::Primary,
+                },
+            ),
+            None
+        );
+        assert!(!input.common.state.pressed);
     }
 }

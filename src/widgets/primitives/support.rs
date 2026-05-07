@@ -2,14 +2,19 @@
 
 use crate::gui::types::{ImageRgba, Rect};
 use crate::layout::{LayoutNode, LayoutOutput};
-use crate::runtime::{PaintPrimitive, push_builtin_widget_paint};
+use crate::runtime::{
+    PaintPrimitive, push_badge_widget_paint, push_button_widget_paint, push_canvas_widget_paint,
+    push_card_widget_paint, push_drag_handle_widget_paint, push_image_widget_paint,
+    push_list_item_widget_paint, push_scrollbar_widget_paint, push_selectable_widget_paint,
+    push_text_input_widget_paint, push_text_widget_paint, push_toggle_widget_paint,
+};
 use crate::theme::ThemeTokens;
 use std::sync::Arc;
 
 use super::scrollbar::ScrollbarAxis;
 use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetKind, WidgetProminence, WidgetSizing,
-    WidgetState, WidgetStyle, WidgetTone,
+    FocusBehavior, PaintBounds, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetState,
+    WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{
     CanvasMessage, DragHandleMessage, ListItemMessage, PointerButton, SelectableMessage,
@@ -21,8 +26,6 @@ use crate::widgets::interaction::{
 pub struct WidgetCommon {
     /// Stable widget identifier.
     pub id: WidgetId,
-    /// Primitive taxonomy entry.
-    pub kind: WidgetKind,
     /// Intrinsic sizing contract exposed to layout containers.
     pub sizing: WidgetSizing,
     /// Focus participation contract.
@@ -33,22 +36,18 @@ pub struct WidgetCommon {
     pub style: WidgetStyle,
     /// Current interaction and visual state.
     pub state: WidgetState,
-    /// Semantic event families this widget may emit.
-    pub emitted_messages: Vec<crate::widgets::contract::WidgetMessageKind>,
 }
 
 impl WidgetCommon {
     /// Build a shared widget contract with neutral defaults.
-    pub fn new(id: WidgetId, kind: WidgetKind, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
         Self {
             id,
-            kind,
             sizing,
             focus: FocusBehavior::None,
             paint: Default::default(),
             style: WidgetStyle::default(),
             state: WidgetState::default(),
-            emitted_messages: Vec::new(),
         }
     }
 
@@ -81,7 +80,7 @@ pub struct TextWidget {
 impl TextWidget {
     /// Build a label/text widget with a preferred intrinsic size.
     pub fn new(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Text, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.paint.paints_focus = false;
         Self {
             common,
@@ -105,11 +104,8 @@ pub struct ListItemWidget {
 impl ListItemWidget {
     /// Build a list-item descriptor that can be focused, selected, and invoked.
     pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::ListItem, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
-        common
-            .emitted_messages
-            .push(crate::widgets::contract::WidgetMessageKind::ItemInvoked);
         Self {
             common,
             label: label.into(),
@@ -167,11 +163,8 @@ pub struct DragHandleWidget {
 impl DragHandleWidget {
     /// Build a compact handle that emits drag lifecycle messages.
     pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::DragHandle, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Pointer;
-        common
-            .emitted_messages
-            .push(crate::widgets::contract::WidgetMessageKind::Dragged);
         Self { common }
     }
 
@@ -238,12 +231,9 @@ impl SelectableWidget {
         selected: bool,
         sizing: WidgetSizing,
     ) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Selectable, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         common.state.selected = selected;
-        common
-            .emitted_messages
-            .push(crate::widgets::contract::WidgetMessageKind::ValueChanged);
         Self {
             common,
             props: SelectableProps {
@@ -309,7 +299,7 @@ pub struct CardWidget {
 impl CardWidget {
     /// Build a non-interactive card descriptor with neutral panel styling.
     pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Card, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.paint.paints_focus = false;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
@@ -338,7 +328,7 @@ pub struct ImageWidget {
 impl ImageWidget {
     /// Build a non-interactive image descriptor that reuses shared pixel storage.
     pub fn new(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Image, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
         Self {
@@ -379,16 +369,13 @@ pub struct RetainedSurfaceDescriptor {
 impl CanvasWidget {
     /// Build a canvas descriptor for custom paint and routed pointer/keyboard input.
     pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Canvas, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::AllowOverflow;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
             prominence: WidgetProminence::Subtle,
         };
-        common
-            .emitted_messages
-            .push(crate::widgets::contract::WidgetMessageKind::CanvasInput);
         Self {
             common,
             retained: None,
@@ -407,137 +394,239 @@ impl CanvasWidget {
     }
 }
 
-/// Union over the first-class public widget primitives.
-#[derive(Clone, Debug, PartialEq)]
-pub enum WidgetSpec {
-    /// Non-interactive text or label content.
-    Text(TextWidget),
-    /// Momentary action control.
-    Button(super::button::ButtonWidget),
-    /// Boolean or multi-state toggle control.
-    Toggle(super::toggle::ToggleWidget),
-    /// Editable text field.
-    TextInput(super::text_input::TextInputWidget),
-    /// Scroll affordance.
-    Scrollbar(super::scrollbar::ScrollbarWidget),
-    /// Compact pointer handle for drag/reorder gestures.
-    DragHandle(DragHandleWidget),
-    /// Focusable row/item primitive.
-    ListItem(ListItemWidget),
-    /// Selectable content surface.
-    Selectable(SelectableWidget),
-    /// Compact badge or pill primitive.
-    Badge(super::badge::BadgeWidget),
-    /// Non-interactive card or panel surface.
-    Card(CardWidget),
-    /// Non-interactive raster image surface.
-    Image(ImageWidget),
-    /// Custom paint/input surface.
-    Canvas(CanvasWidget),
+macro_rules! impl_widget_common {
+    ($widget:ty) => {
+        fn common(&self) -> &WidgetCommon {
+            &self.common
+        }
+
+        fn common_mut(&mut self) -> &mut WidgetCommon {
+            &mut self.common
+        }
+    };
 }
 
-impl WidgetSpec {
-    /// Return the shared widget contract for this primitive.
-    pub fn common(&self) -> &WidgetCommon {
-        match self {
-            Self::Text(widget) => &widget.common,
-            Self::Button(widget) => &widget.common,
-            Self::Toggle(widget) => &widget.common,
-            Self::TextInput(widget) => &widget.common,
-            Self::Scrollbar(widget) => &widget.common,
-            Self::DragHandle(widget) => &widget.common,
-            Self::ListItem(widget) => &widget.common,
-            Self::Selectable(widget) => &widget.common,
-            Self::Badge(widget) => &widget.common,
-            Self::Card(widget) => &widget.common,
-            Self::Image(widget) => &widget.common,
-            Self::Canvas(widget) => &widget.common,
-        }
-    }
+impl Widget for TextWidget {
+    impl_widget_common!(TextWidget);
 
-    /// Return the shared widget contract mutably for runtime-owned state restoration.
-    pub fn common_mut(&mut self) -> &mut WidgetCommon {
-        match self {
-            Self::Text(widget) => &mut widget.common,
-            Self::Button(widget) => &mut widget.common,
-            Self::Toggle(widget) => &mut widget.common,
-            Self::TextInput(widget) => &mut widget.common,
-            Self::Scrollbar(widget) => &mut widget.common,
-            Self::DragHandle(widget) => &mut widget.common,
-            Self::ListItem(widget) => &mut widget.common,
-            Self::Selectable(widget) => &mut widget.common,
-            Self::Badge(widget) => &mut widget.common,
-            Self::Card(widget) => &mut widget.common,
-            Self::Image(widget) => &mut widget.common,
-            Self::Canvas(widget) => &mut widget.common,
-        }
-    }
-
-    /// Return the stable widget id.
-    pub fn id(&self) -> WidgetId {
-        self.common().id
-    }
-
-    /// Return the primitive taxonomy entry.
-    pub fn kind(&self) -> WidgetKind {
-        self.common().kind
-    }
-
-    /// Project the widget into a public layout leaf.
-    pub fn layout_node(&self) -> LayoutNode {
-        self.common().layout_node()
-    }
-
-    /// Route one backend-neutral interaction into the concrete widget.
-    ///
-    /// Non-interactive primitives ignore input and return `None`.
-    pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match self {
-            Self::Button(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Button),
-            Self::Toggle(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Toggle),
-            Self::TextInput(widget) => widget
-                .handle_input(bounds, input)
-                .map(WidgetOutput::TextInput),
-            Self::Scrollbar(widget) => widget
-                .handle_input(bounds, input)
-                .map(WidgetOutput::Scrollbar),
-            Self::DragHandle(widget) => widget
-                .handle_input(bounds, input)
-                .map(WidgetOutput::DragHandle),
-            Self::Badge(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Badge),
-            Self::ListItem(widget) => widget
-                .handle_input(bounds, input)
-                .map(WidgetOutput::ListItem),
-            Self::Selectable(widget) => widget
-                .handle_input(bounds, input)
-                .map(WidgetOutput::Selectable),
-            Self::Canvas(widget) => widget.handle_input(bounds, input).map(WidgetOutput::Canvas),
-            Self::Text(_) | Self::Card(_) | Self::Image(_) => None,
-        }
-    }
-}
-
-impl Widget for WidgetSpec {
-    fn common(&self) -> &WidgetCommon {
-        WidgetSpec::common(self)
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        WidgetSpec::common_mut(self)
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        WidgetSpec::handle_input(self, bounds, input)
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
     }
 
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
-        layout: &LayoutOutput,
+        bounds: Rect,
+        _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_builtin_widget_paint(primitives, self, layout, theme);
+        push_text_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for super::button::ButtonWidget {
+    impl_widget_common!(super::button::ButtonWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        super::button::ButtonWidget::handle_input(self, bounds, input).map(WidgetOutput::Button)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_button_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for super::toggle::ToggleWidget {
+    impl_widget_common!(super::toggle::ToggleWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        super::toggle::ToggleWidget::handle_input(self, bounds, input).map(WidgetOutput::Toggle)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_toggle_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for super::text_input::TextInputWidget {
+    impl_widget_common!(super::text_input::TextInputWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        super::text_input::TextInputWidget::handle_input(self, bounds, input)
+            .map(WidgetOutput::TextInput)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_text_input_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for super::scrollbar::ScrollbarWidget {
+    impl_widget_common!(super::scrollbar::ScrollbarWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        super::scrollbar::ScrollbarWidget::handle_input(self, bounds, input)
+            .map(WidgetOutput::Scrollbar)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_scrollbar_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for DragHandleWidget {
+    impl_widget_common!(DragHandleWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        DragHandleWidget::handle_input(self, bounds, input).map(WidgetOutput::DragHandle)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_drag_handle_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for ListItemWidget {
+    impl_widget_common!(ListItemWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        ListItemWidget::handle_input(self, bounds, input).map(WidgetOutput::ListItem)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_list_item_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for SelectableWidget {
+    impl_widget_common!(SelectableWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        SelectableWidget::handle_input(self, bounds, input).map(WidgetOutput::Selectable)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_selectable_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for super::badge::BadgeWidget {
+    impl_widget_common!(super::badge::BadgeWidget);
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        super::badge::BadgeWidget::handle_input(self, bounds, input).map(WidgetOutput::Badge)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_badge_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for CardWidget {
+    impl_widget_common!(CardWidget);
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        push_card_widget_paint(primitives, self, bounds, theme);
+    }
+}
+
+impl Widget for ImageWidget {
+    impl_widget_common!(ImageWidget);
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        push_image_widget_paint(primitives, self, bounds);
+    }
+}
+
+impl Widget for CanvasWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        CanvasWidget::handle_input(self, bounds, input).map(WidgetOutput::Canvas)
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        push_canvas_widget_paint(primitives, self, bounds);
     }
 }
 

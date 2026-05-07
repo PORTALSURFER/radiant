@@ -1,13 +1,13 @@
-//! First-class public widget taxonomy and contracts for `radiant`.
+//! First-class public widget contracts for `radiant`.
 //!
 //! `radiant::layout` owns container placement. `radiant::widgets` owns the leaf
 //! and tightly-bounded composite vocabulary that applications place inside those
 //! containers.
 //!
 //! This module is intentionally additive and design-focused:
-//! - it defines the public widget taxonomy
-//! - it documents the shared sizing, focus, paint, and message contracts
+//! - it documents the shared sizing, focus, and paint contracts
 //! - it lets the generic runtime project reusable widgets into paint data
+//! - it keeps widget variation in concrete widget implementations
 //!
 //! Native runtime adapters can layer on top of this vocabulary without changing
 //! the public widget contracts.
@@ -62,8 +62,8 @@ mod primitives;
 mod theme;
 
 pub use contract::{
-    FocusBehavior, PaintBounds, PaintContract, Widget, WidgetId, WidgetKind, WidgetMessageKind,
-    WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
+    FocusBehavior, PaintBounds, PaintContract, Widget, WidgetId, WidgetProminence, WidgetSizing,
+    WidgetState, WidgetStyle, WidgetTone,
 };
 pub use interaction::{
     BadgeMessage, ButtonMessage, CanvasMessage, CustomWidgetOutput, DragHandleMessage,
@@ -75,6 +75,6 @@ pub use primitives::{
     CardWidget, DragHandleWidget, ImageProps, ImageWidget, ListItemWidget,
     RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget,
     SelectableProps, SelectableWidget, TextInputProps, TextInputState, TextInputWidget, TextWidget,
-    TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon, WidgetSpec,
+    TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

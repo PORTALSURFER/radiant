@@ -3,9 +3,7 @@
 use crate::gui::types::Rect;
 
 use super::WidgetCommon;
-use crate::widgets::contract::{
-    FocusBehavior, WidgetId, WidgetKind, WidgetMessageKind, WidgetSizing,
-};
+use crate::widgets::contract::{FocusBehavior, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{
     PointerButton, TextEditCommand, TextInputMessage, WidgetInput, WidgetKey,
 };
@@ -57,9 +55,8 @@ pub struct TextInputWidget {
 impl TextInputWidget {
     /// Build a single-line text-input descriptor with edit semantics.
     pub fn new(id: WidgetId, value: impl Into<String>, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::TextInput, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
-        common.emitted_messages.push(WidgetMessageKind::TextEdited);
         Self {
             common,
             props: TextInputProps {

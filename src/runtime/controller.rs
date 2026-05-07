@@ -17,8 +17,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, PointerButton, TextInputState, WidgetId, WidgetInput, WidgetKey, WidgetSpec,
-        WidgetState,
+        CanvasWidget, CardWidget, FocusBehavior, ImageWidget, PointerButton, TextInputState,
+        TextInputWidget, TextWidget, WidgetId, WidgetInput, WidgetKey, WidgetState,
     },
 };
 use std::collections::BTreeMap;
@@ -348,8 +348,8 @@ where
             widget
                 .widget_object()
                 .as_any()
-                .downcast_ref::<WidgetSpec>()
-                .is_some_and(|widget| matches!(widget, WidgetSpec::TextInput(_)))
+                .downcast_ref::<TextInputWidget>()
+                .is_some()
                 .then_some(widget_id)
         })
     }
@@ -358,8 +358,10 @@ where
     pub fn focused_text_selection(&self) -> Option<String> {
         let widget_id = self.focused_text_input_id()?;
         self.surface.find_widget(widget_id).and_then(|widget| {
-            if let Some(WidgetSpec::TextInput(input)) =
-                widget.widget_object().as_any().downcast_ref::<WidgetSpec>()
+            if let Some(input) = widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<TextInputWidget>()
             {
                 input.selected_text()
             } else {
@@ -489,8 +491,10 @@ where
         let Some(widget) = self.surface.find_widget(widget_id) else {
             return;
         };
-        if let Some(WidgetSpec::TextInput(input)) =
-            widget.widget_object().as_any().downcast_ref::<WidgetSpec>()
+        if let Some(input) = widget
+            .widget_object()
+            .as_any()
+            .downcast_ref::<TextInputWidget>()
         {
             self.text_input_states
                 .insert(widget_id, input.state.clone());
@@ -504,10 +508,10 @@ where
                 self.text_input_states.remove(&widget_id);
                 continue;
             };
-            let Some(WidgetSpec::TextInput(input)) = widget
+            let Some(input) = widget
                 .widget_object_mut()
                 .as_any_mut()
-                .downcast_mut::<WidgetSpec>()
+                .downcast_mut::<TextInputWidget>()
             else {
                 self.text_input_states.remove(&widget_id);
                 continue;
@@ -687,21 +691,15 @@ where
             return false;
         };
         self.surface.find_widget(widget_id).is_some_and(|widget| {
-            match widget.widget_object().as_any().downcast_ref::<WidgetSpec>() {
-                Some(WidgetSpec::Text(_) | WidgetSpec::Image(_) | WidgetSpec::Canvas(_)) => false,
-                Some(
-                    WidgetSpec::Button(_)
-                    | WidgetSpec::Toggle(_)
-                    | WidgetSpec::TextInput(_)
-                    | WidgetSpec::Scrollbar(_)
-                    | WidgetSpec::DragHandle(_)
-                    | WidgetSpec::ListItem(_)
-                    | WidgetSpec::Selectable(_)
-                    | WidgetSpec::Badge(_)
-                    | WidgetSpec::Card(_),
-                ) => true,
-                None => widget.widget_object().common().focus != FocusBehavior::None,
+            let object = widget.widget_object();
+            if object.as_any().downcast_ref::<TextWidget>().is_some()
+                || object.as_any().downcast_ref::<ImageWidget>().is_some()
+                || object.as_any().downcast_ref::<CanvasWidget>().is_some()
+            {
+                return false;
             }
+            object.common().focus != FocusBehavior::None
+                || object.as_any().downcast_ref::<CardWidget>().is_some()
         })
     }
 

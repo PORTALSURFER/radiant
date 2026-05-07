@@ -17,7 +17,7 @@ use crate::{
         ListItemMessage, ListItemWidget, RetainedSurfaceDescriptor, ScrollbarAxis,
         ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget, TextInputMessage,
         TextInputWidget, TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetId, WidgetInput,
-        WidgetOutput, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
+        WidgetOutput, WidgetSizing, WidgetState, WidgetStyle,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -146,7 +146,10 @@ impl<Message> Clone for SurfaceWidget<Message> {
 
 impl<Message> SurfaceWidget<Message> {
     /// Build a widget leaf plus host-defined message mapper.
-    pub fn new(widget: WidgetSpec, messages: WidgetMessageMapper<Message>) -> Self {
+    pub fn new(
+        widget: impl Widget + Clone + 'static,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self {
         Self {
             widget: Box::new(widget),
             messages,
@@ -174,22 +177,14 @@ impl<Message> SurfaceWidget<Message> {
         self.widget.common().id
     }
 
-    /// Return the projected built-in widget descriptor.
-    ///
-    /// Custom widgets are exposed through [`Self::widget_object`].
-    pub fn widget(&self) -> &WidgetSpec {
-        self.widget
-            .as_any()
-            .downcast_ref::<WidgetSpec>()
-            .expect("custom widgets are not WidgetSpec compatibility leaves")
+    /// Return the runtime widget object.
+    pub fn widget(&self) -> &dyn Widget {
+        self.widget.as_ref()
     }
 
-    /// Return the projected built-in widget descriptor for runtime-owned state updates.
-    pub fn widget_mut(&mut self) -> &mut WidgetSpec {
-        self.widget
-            .as_any_mut()
-            .downcast_mut::<WidgetSpec>()
-            .expect("custom widgets are not WidgetSpec compatibility leaves")
+    /// Return the runtime widget object mutably.
+    pub fn widget_mut(&mut self) -> &mut dyn Widget {
+        self.widget.as_mut()
     }
 
     /// Return the runtime widget object.
@@ -468,7 +463,10 @@ impl<Message> SurfaceNode<Message> {
     }
 
     /// Build a widget leaf node.
-    pub fn widget(widget: WidgetSpec, messages: WidgetMessageMapper<Message>) -> Self {
+    pub fn widget(
+        widget: impl Widget + Clone + 'static,
+        messages: WidgetMessageMapper<Message>,
+    ) -> Self {
         Self::Widget(SurfaceWidget::new(widget, messages))
     }
 
@@ -489,7 +487,7 @@ impl<Message> SurfaceNode<Message> {
     }
 
     /// Build a widget leaf node that does not emit host-defined messages.
-    pub fn static_widget(widget: WidgetSpec) -> Self {
+    pub fn static_widget(widget: impl Widget + Clone + 'static) -> Self {
         Self::widget(widget, WidgetMessageMapper::none())
     }
 
@@ -520,7 +518,7 @@ impl<Message> SurfaceNode<Message> {
 
     /// Build a non-emitting text leaf node.
     pub fn text(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(WidgetSpec::Text(TextWidget::new(id, text, sizing)))
+        Self::static_widget(TextWidget::new(id, text, sizing))
     }
 
     /// Build a button leaf node that emits one cloned host message when activated.
@@ -544,7 +542,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Button(ButtonWidget::new(id, label, sizing)),
+            ButtonWidget::new(id, label, sizing),
             WidgetMessageMapper::button(map),
         )
     }
@@ -570,7 +568,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Badge(BadgeWidget::new(id, label, sizing)),
+            BadgeWidget::new(id, label, sizing),
             WidgetMessageMapper::badge(map),
         )
     }
@@ -597,7 +595,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(TextInputMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::TextInput(TextInputWidget::new(id, value, sizing)),
+            TextInputWidget::new(id, value, sizing),
             WidgetMessageMapper::text_input(map),
         )
     }
@@ -644,7 +642,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Toggle(ToggleWidget::new(id, label, sizing).with_checked(checked)),
+            ToggleWidget::new(id, label, sizing).with_checked(checked),
             WidgetMessageMapper::toggle(map),
         )
     }
@@ -669,7 +667,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(ScrollbarMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Scrollbar(ScrollbarWidget::new(id, axis, sizing)),
+            ScrollbarWidget::new(id, axis, sizing),
             WidgetMessageMapper::scrollbar(map),
         )
     }
@@ -681,14 +679,14 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(DragHandleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::DragHandle(DragHandleWidget::new(id, sizing)),
+            DragHandleWidget::new(id, sizing),
             WidgetMessageMapper::drag_handle(map),
         )
     }
 
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)))
+        Self::static_widget(ListItemWidget::new(id, label, sizing))
     }
 
     /// Build an invoking list item leaf node that emits one cloned host message.
@@ -712,7 +710,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::ListItem(ListItemWidget::new(id, label, sizing)),
+            ListItemWidget::new(id, label, sizing),
             WidgetMessageMapper::list_item(map),
         )
     }
@@ -739,24 +737,24 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Selectable(SelectableWidget::new(id, label, selected, sizing)),
+            SelectableWidget::new(id, label, selected, sizing),
             WidgetMessageMapper::selectable(map),
         )
     }
 
     /// Build a non-emitting card or panel leaf node.
     pub fn card(id: WidgetId, sizing: WidgetSizing) -> Self {
-        Self::static_widget(WidgetSpec::Card(CardWidget::new(id, sizing)))
+        Self::static_widget(CardWidget::new(id, sizing))
     }
 
     /// Build a non-emitting raster image leaf node.
     pub fn image(id: WidgetId, image: Arc<ImageRgba>, sizing: WidgetSizing) -> Self {
-        Self::static_widget(WidgetSpec::Image(ImageWidget::new(id, image, sizing)))
+        Self::static_widget(ImageWidget::new(id, image, sizing))
     }
 
     /// Build a non-emitting canvas leaf node for custom paint or routed input surfaces.
     pub fn canvas(id: WidgetId, sizing: WidgetSizing) -> Self {
-        Self::static_widget(WidgetSpec::Canvas(CanvasWidget::new(id, sizing)))
+        Self::static_widget(CanvasWidget::new(id, sizing))
     }
 
     /// Build a canvas leaf node with a custom widget-to-host message mapper.
@@ -766,7 +764,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Canvas(CanvasWidget::new(id, sizing)),
+            CanvasWidget::new(id, sizing),
             WidgetMessageMapper::canvas(map),
         )
     }
@@ -779,7 +777,7 @@ impl<Message> SurfaceNode<Message> {
         map: impl Fn(CanvasMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
         Self::widget(
-            WidgetSpec::Canvas(CanvasWidget::new(id, sizing).with_retained_surface(retained)),
+            CanvasWidget::new(id, sizing).with_retained_surface(retained),
             WidgetMessageMapper::canvas(map),
         )
     }

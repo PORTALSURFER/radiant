@@ -12,7 +12,7 @@
 //!
 //! Generic host-facing modules:
 //! - [`layout`]: stable slot-based layout primitives
-//! - [`widgets`]: first-class reusable widget taxonomy and contracts
+//! - [`widgets`]: first-class reusable widget contracts
 //! - [`gui_runtime`]: backend runtimes and scheduling
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
@@ -45,7 +45,7 @@ pub mod gui_runtime;
 pub mod runtime;
 /// Generic theme tokens for reusable Radiant widgets and containers.
 pub mod theme;
-/// Stable public widget taxonomy and contracts.
+/// Stable public widget contracts.
 pub mod widgets;
 
 /// Common imports for Radiant apps.

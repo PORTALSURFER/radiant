@@ -5,9 +5,7 @@ use radiant::{
     layout::{LayoutOutput, Rect, Vector2},
     runtime::{PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun},
     theme::ThemeTokens,
-    widgets::{
-        FocusBehavior, PointerButton, TextWrap, WidgetCommon, WidgetInput, WidgetKind, WidgetSizing,
-    },
+    widgets::{FocusBehavior, PointerButton, TextWrap, WidgetCommon, WidgetInput, WidgetSizing},
 };
 
 #[derive(Default)]
@@ -28,11 +26,7 @@ struct StatusChip {
 
 impl StatusChip {
     fn new(active: bool) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetKind::Canvas,
-            WidgetSizing::fixed(Vector2::new(140.0, 32.0)),
-        );
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(140.0, 32.0)));
         common.focus = FocusBehavior::Keyboard;
         Self { common, active }
     }

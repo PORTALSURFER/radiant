@@ -5,9 +5,7 @@ use crate::gui::types::{Point, Rect, Vector2};
 use super::support::{
     WidgetCommon, clamp_fraction, leading_arrow_for_axis, trailing_arrow_for_axis,
 };
-use crate::widgets::contract::{
-    FocusBehavior, PaintBounds, WidgetId, WidgetKind, WidgetMessageKind, WidgetSizing,
-};
+use crate::widgets::contract::{FocusBehavior, PaintBounds, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{PointerButton, ScrollbarMessage, WidgetInput, WidgetKey};
 
 const MIN_THUMB_PIXELS: f32 = 12.0;
@@ -55,11 +53,8 @@ pub struct ScrollbarWidget {
 impl ScrollbarWidget {
     /// Build a scrollbar descriptor with drag/page request semantics.
     pub fn new(id: WidgetId, axis: ScrollbarAxis, sizing: WidgetSizing) -> Self {
-        let mut common = WidgetCommon::new(id, WidgetKind::Scrollbar, sizing);
+        let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Pointer;
-        common
-            .emitted_messages
-            .push(WidgetMessageKind::ScrollRequested);
         common.paint.bounds = PaintBounds::ClipToRect;
         Self {
             common,

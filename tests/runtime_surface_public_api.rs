@@ -20,12 +20,13 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, DragHandleMessage,
-        DragHandleWidget, ListItemMessage, PointerButton, RetainedSurfaceDescriptor, ScrollbarAxis,
-        ScrollbarMessage, SelectableMessage, TextEditCommand, TextInputMessage, TextInputWidget,
-        TextWidget, ToggleMessage, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetKind,
-        WidgetOutput, WidgetProminence, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
-        WidgetTone, resolve_widget_visual_tokens,
+        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget, DragHandleMessage,
+        DragHandleWidget, ListItemMessage, ListItemWidget, PointerButton,
+        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
+        SelectableMessage, SelectableWidget, TextEditCommand, TextInputMessage, TextInputWidget,
+        TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
+        WidgetOutput, WidgetProminence, WidgetSizing, WidgetState, WidgetStyle, WidgetTone,
+        resolve_widget_visual_tokens,
     },
 };
 use std::sync::{
@@ -60,11 +61,7 @@ struct CustomStatusWidget {
 
 impl CustomStatusWidget {
     fn new(id: u64) -> Self {
-        let mut common = WidgetCommon::new(
-            id,
-            WidgetKind::Canvas,
-            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
-        );
+        let mut common = WidgetCommon::new(id, WidgetSizing::fixed(Vector2::new(120.0, 28.0)));
         common.focus = radiant::widgets::FocusBehavior::Keyboard;
         Self {
             common,
@@ -132,6 +129,19 @@ impl Widget for CustomStatusWidget {
             wrap: radiant::widgets::TextWrap::None,
         }));
     }
+}
+
+fn widget_ref<'a, T, Message>(surface: &'a UiSurface<Message>, id: u64, expected: &str) -> &'a T
+where
+    T: Widget + 'static,
+{
+    surface
+        .find_widget(id)
+        .unwrap_or_else(|| panic!("expected {expected} widget {id} to exist"))
+        .widget()
+        .as_any()
+        .downcast_ref::<T>()
+        .unwrap_or_else(|| panic!("expected widget {id} to be {expected}"))
 }
 
 #[test]
@@ -324,14 +334,10 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
     assert!(command.requests_repaint());
 
     let after = bridge.project_surface();
-    let title = after
-        .find_widget(10)
-        .expect("title widget should remain")
-        .widget();
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Count: 1"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 10, "text").text,
+        "Count: 1"
+    );
 }
 
 #[test]
@@ -510,38 +516,31 @@ fn application_builders_expose_padding_style_and_text_policy_helpers() {
     );
 
     assert_eq!(layout.rects[&10].min.x, 16.0);
-    match surface.find_widget(10).unwrap().widget() {
-        WidgetSpec::Text(text) => assert_eq!(text.wrap, radiant::widgets::TextWrap::Word),
-        other => panic!("expected text widget, got {other:?}"),
-    }
-    match surface.find_widget(11).unwrap().widget() {
-        WidgetSpec::Button(button) => {
-            assert_eq!(button.common.style.tone, WidgetTone::Accent);
-            assert_eq!(button.common.style.prominence, WidgetProminence::Strong);
-        }
-        other => panic!("expected button widget, got {other:?}"),
-    }
-    match surface.find_widget(12).unwrap().widget() {
-        WidgetSpec::Button(button) => assert_eq!(button.common.style.tone, WidgetTone::Danger),
-        other => panic!("expected button widget, got {other:?}"),
-    }
-    match surface.find_widget(13).unwrap().widget() {
-        WidgetSpec::Toggle(toggle) => {
-            assert_eq!(toggle.props.label, "");
-            assert!(toggle.state.checked);
-            assert_eq!(toggle.common.sizing.preferred, Vector2::new(22.0, 22.0));
-        }
-        other => panic!("expected toggle-backed checkbox widget, got {other:?}"),
-    }
-    match surface.find_widget(14).unwrap().widget() {
-        WidgetSpec::TextInput(input) => {
-            assert_eq!(
-                input.props.placeholder.as_deref(),
-                Some("What needs to be done?")
-            );
-        }
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface, 10, "text").wrap,
+        radiant::widgets::TextWrap::Word
+    );
+    let primary = widget_ref::<ButtonWidget, _>(&surface, 11, "button");
+    assert_eq!(primary.common.style.tone, WidgetTone::Accent);
+    assert_eq!(primary.common.style.prominence, WidgetProminence::Strong);
+    assert_eq!(
+        widget_ref::<ButtonWidget, _>(&surface, 12, "button")
+            .common
+            .style
+            .tone,
+        WidgetTone::Danger
+    );
+    let toggle = widget_ref::<ToggleWidget, _>(&surface, 13, "toggle");
+    assert_eq!(toggle.props.label, "");
+    assert!(toggle.state.checked);
+    assert_eq!(toggle.common.sizing.preferred, Vector2::new(22.0, 22.0));
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(&surface, 14, "text input")
+            .props
+            .placeholder
+            .as_deref(),
+        Some("What needs to be done?")
+    );
 }
 
 #[test]
@@ -730,14 +729,10 @@ fn stateful_app_builder_projects_updates_and_preserves_commands() {
 
     assert!(command.requests_repaint());
     let after = bridge.project_surface();
-    let title = after
-        .find_widget(2)
-        .expect("generated title widget should still be present")
-        .widget();
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Count: 1"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 2, "text").text,
+        "Count: 1"
+    );
 }
 
 #[test]
@@ -776,23 +771,16 @@ fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
     bridge.reduce_message(increment);
 
     let surface_after = bridge.project_surface();
-    let title = surface_after
-        .find_widget(10)
-        .expect("title widget should still be present")
-        .widget();
-    let field = surface_after
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Projects (1)"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
-    match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Projects"),
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface_after, 10, "text").text,
+        "Projects (1)"
+    );
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(&surface_after, 12, "text input")
+            .state
+            .value,
+        "Projects"
+    );
 }
 
 #[test]
@@ -851,21 +839,17 @@ fn view_and_element_aliases_match_runtime_surface_types() {
 
 #[test]
 fn surface_node_row_column_and_fill_helpers_project_layout() {
-    let header = WidgetSpec::Text(TextWidget::new(
+    let header = TextWidget::new(
         20,
         "Header",
         WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
-    ));
-    let primary = WidgetSpec::Button(ButtonWidget::new(
-        21,
-        "Primary",
-        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let secondary = WidgetSpec::Button(ButtonWidget::new(
+    );
+    let primary = ButtonWidget::new(21, "Primary", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let secondary = ButtonWidget::new(
         22,
         "Secondary",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
+    );
 
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::column(
         2,
@@ -1276,11 +1260,11 @@ fn surface_node_virtual_scroll_area_helper_records_virtual_window() {
 
 #[test]
 fn static_widget_helper_builds_non_emitting_leaf() {
-    let title = WidgetSpec::Text(TextWidget::new(
+    let title = TextWidget::new(
         30,
         "Status",
         WidgetSizing::fixed(Vector2::new(120.0, 20.0)).with_baseline(14.0),
-    ));
+    );
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::static_widget(title));
 
     assert!(surface.find_widget(30).is_some());
@@ -1528,30 +1512,42 @@ fn scrollbar_list_item_and_canvas_helpers_build_common_leaf_nodes() {
         ],
     ));
 
-    assert!(matches!(
-        surface.find_widget(60).map(|widget| widget.widget()),
-        Some(WidgetSpec::Scrollbar(_))
-    ));
-    assert!(matches!(
-        surface.find_widget(62).map(|widget| widget.widget()),
-        Some(WidgetSpec::ListItem(_))
-    ));
-    assert!(matches!(
-        surface.find_widget(64).map(|widget| widget.widget()),
-        Some(WidgetSpec::ListItem(_))
-    ));
-    assert!(matches!(
-        surface.find_widget(65).map(|widget| widget.widget()),
-        Some(WidgetSpec::Selectable(_))
-    ));
-    assert!(matches!(
-        surface.find_widget(63).map(|widget| widget.widget()),
-        Some(WidgetSpec::Canvas(_))
-    ));
-    assert!(matches!(
-        surface.find_widget(66).map(|widget| widget.widget()),
-        Some(WidgetSpec::Canvas(_))
-    ));
+    assert!(
+        widget_ref::<ScrollbarWidget, _>(&surface, 60, "scrollbar")
+            .common()
+            .id
+            == 60
+    );
+    assert!(
+        widget_ref::<ListItemWidget, _>(&surface, 62, "list item")
+            .common()
+            .id
+            == 62
+    );
+    assert!(
+        widget_ref::<ListItemWidget, _>(&surface, 64, "list item")
+            .common()
+            .id
+            == 64
+    );
+    assert!(
+        widget_ref::<SelectableWidget, _>(&surface, 65, "selectable")
+            .common()
+            .id
+            == 65
+    );
+    assert!(
+        widget_ref::<CanvasWidget, _>(&surface, 63, "canvas")
+            .common()
+            .id
+            == 63
+    );
+    assert!(
+        widget_ref::<CanvasWidget, _>(&surface, 66, "canvas")
+            .common()
+            .id
+            == 66
+    );
     assert_eq!(
         surface.dispatch_widget_output(
             60,
@@ -1669,15 +1665,10 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         Some(11)
     );
 
-    let title = runtime
-        .surface()
-        .find_widget(10)
-        .expect("title widget should still be present")
-        .widget();
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Untitled (1)"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Untitled (1)"
+    );
 
     assert!(runtime.focus_widget(12));
     assert_eq!(
@@ -1691,15 +1682,12 @@ fn surface_runtime_manages_focus_and_routes_keyboard_to_focused_widget() {
         None
     );
 
-    let field = runtime
-        .surface()
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-    match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Q"),
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(runtime.surface(), 12, "text input")
+            .state
+            .value,
+        "Q"
+    );
 }
 
 #[test]
@@ -1738,19 +1726,10 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
         Some(12)
     );
 
-    let field = runtime
-        .surface()
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-    match field {
-        WidgetSpec::TextInput(input) => {
-            assert_eq!(input.state.value, "zcd");
-            assert_eq!(input.state.caret, 1);
-            assert_eq!(input.state.selection_anchor, 1);
-        }
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    let input = widget_ref::<TextInputWidget, _>(runtime.surface(), 12, "text input");
+    assert_eq!(input.state.value, "zcd");
+    assert_eq!(input.state.caret, 1);
+    assert_eq!(input.state.selection_anchor, 1);
 }
 
 #[test]
@@ -1812,24 +1791,16 @@ fn surface_runtime_routes_backend_neutral_events() {
     );
     assert_eq!(runtime.dispatch_event(Event::Character('R')), Some(12));
 
-    let title = runtime
-        .surface()
-        .find_widget(10)
-        .expect("title widget should still be present")
-        .widget();
-    let field = runtime
-        .surface()
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "R (1)"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
-    match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "R"),
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "R (1)"
+    );
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(runtime.surface(), 12, "text input")
+            .state
+            .value,
+        "R"
+    );
 }
 
 #[test]
@@ -1873,10 +1844,7 @@ fn surface_runtime_preserves_captured_drag_state_across_repaint_refreshes() {
         Vec::<DragHandleMessage>::new(),
         |_| {
             Arc::new(UiSurface::new(SurfaceNode::widget(
-                WidgetSpec::DragHandle(DragHandleWidget::new(
-                    10,
-                    WidgetSizing::fixed(Vector2::new(24.0, 24.0)),
-                )),
+                DragHandleWidget::new(10, WidgetSizing::fixed(Vector2::new(24.0, 24.0))),
                 WidgetMessageMapper::drag_handle(|message| message),
             )))
         },
@@ -1929,24 +1897,16 @@ fn surface_runtime_executes_command_messages_and_repaint_requests() {
     assert!(runtime.take_repaint_requested());
     assert!(!runtime.repaint_requested());
 
-    let title = runtime
-        .surface()
-        .find_widget(10)
-        .expect("title widget should still be present")
-        .widget();
-    let field = runtime
-        .surface()
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "Commands (1)"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
-    match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "Commands"),
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Commands (1)"
+    );
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(runtime.surface(), 12, "text input")
+            .state
+            .value,
+        "Commands"
+    );
 }
 
 #[test]
@@ -2016,25 +1976,16 @@ fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     );
     assert!(runtime.dispatch_input(11, WidgetInput::KeyPress(WidgetKey::Enter)));
 
-    let title = runtime
-        .surface()
-        .find_widget(10)
-        .expect("title widget should still be present")
-        .widget();
-    let field = runtime
-        .surface()
-        .find_widget(12)
-        .expect("text input widget should still be present")
-        .widget();
-
-    match title {
-        WidgetSpec::Text(text) => assert_eq!(text.text, "F (1)"),
-        other => panic!("expected text widget, got {other:?}"),
-    }
-    match field {
-        WidgetSpec::TextInput(input) => assert_eq!(input.state.value, "F"),
-        other => panic!("expected text input widget, got {other:?}"),
-    }
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "F (1)"
+    );
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(runtime.surface(), 12, "text input")
+            .state
+            .value,
+        "F"
+    );
 }
 
 #[derive(Default)]
@@ -2138,16 +2089,16 @@ fn generic_surface_projects_deterministic_paint_without_legacy_shell_contracts()
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {
-    let title = WidgetSpec::Text(TextWidget::new(
+    let title = TextWidget::new(
         10,
         format!("{} ({})", display_name(state), state.count),
         WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
-    ));
-    let button = WidgetSpec::Button(ButtonWidget::new(
+    );
+    let button = ButtonWidget::new(
         11,
         "Increment",
         WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
+    );
     Arc::new(UiSurface::new(SurfaceNode::row(
         1,
         8.0,
@@ -2176,14 +2127,10 @@ fn display_name(state: &DemoState) -> &str {
 }
 
 fn button_hovered(surface: &UiSurface<DemoMessage>, widget_id: u64) -> bool {
-    match surface
-        .find_widget(widget_id)
-        .expect("button widget should exist")
-        .widget()
-    {
-        WidgetSpec::Button(button) => button.common.state.hovered,
-        other => panic!("expected button widget, got {other:?}"),
-    }
+    widget_ref::<ButtonWidget, _>(surface, widget_id, "button")
+        .common
+        .state
+        .hovered
 }
 
 fn widget_fill_color(plan: &radiant::runtime::SurfacePaintPlan, widget_id: u64) -> Option<Rgba8> {
@@ -2332,21 +2279,17 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
 }
 
 fn project_demo_surface(state: &mut DemoState) -> Arc<UiSurface<CommandDemoMessage>> {
-    let title = WidgetSpec::Text(TextWidget::new(
+    let title = TextWidget::new(
         10,
         format!("{} ({})", display_name(state), state.count),
         WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
-    ));
-    let button = WidgetSpec::Button(ButtonWidget::new(
-        11,
-        "Run",
-        WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
-    ));
-    let input = WidgetSpec::TextInput(TextInputWidget::new(
+    );
+    let button = ButtonWidget::new(11, "Run", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+    let input = TextInputWidget::new(
         12,
         state.name.clone(),
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
-    ));
+    );
 
     Arc::new(UiSurface::new(SurfaceNode::row(
         1,

@@ -12,6 +12,7 @@ use crate::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
 };
+use std::any::Any;
 
 /// Stable widget identifier shared with layout-node identities.
 ///
@@ -233,7 +234,7 @@ impl Clone for Box<dyn Widget> {
 /// but custom widgets can implement this trait and travel through the runtime,
 /// input, message, paint, and application-builder paths without adding a new
 /// Radiant enum variant.
-pub trait Widget: WidgetClone + Send + Sync {
+pub trait Widget: WidgetClone + Send + Sync + Any {
     /// Return the shared identity, sizing, focus, state, and style contract.
     fn common(&self) -> &WidgetCommon;
 
@@ -251,6 +252,18 @@ pub trait Widget: WidgetClone + Send + Sync {
         layout: &LayoutOutput,
         theme: &ThemeTokens,
     );
+}
+
+impl dyn Widget {
+    /// Return this widget as `Any` for compatibility adapters.
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    /// Return this widget mutably as `Any` for compatibility adapters.
+    pub fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl Default for WidgetStyle {

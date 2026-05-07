@@ -1,8 +1,8 @@
 //! User-authored widget object integrated through Radiant's application builder.
 
+use radiant::prelude::*;
 use radiant::{
     layout::{LayoutOutput, Rect, Vector2},
-    prelude::*,
     runtime::{PaintFillRect, PaintPrimitive, PaintTextAlign, PaintTextRun},
     theme::ThemeTokens,
     widgets::{

@@ -34,11 +34,12 @@ pub use bridge::{
 };
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
+pub(crate) use paint::push_builtin_widget_paint;
 pub use paint::{
     PaintCustomSurface, PaintFillRect, PaintImage, PaintOverlayPanel, PaintPrimitive,
     PaintStrokeRect, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
 };
 pub use surface::{
-    Element, MessageMapper, RuntimeWidget, SurfaceChild, SurfaceContainer, SurfaceNode,
-    SurfaceWidget, UiSurface, View, WidgetMessageMapper,
+    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceWidget, UiSurface,
+    View, WidgetMessageMapper,
 };

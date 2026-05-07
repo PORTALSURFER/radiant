@@ -288,6 +288,14 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         ("keys", vec![".key(", "list_row(", ".reverse()"]),
+        (
+            "custom_widget",
+            vec![
+                "impl Widget for StatusChip",
+                "custom_widget(",
+                "WidgetOutput::custom(",
+            ],
+        ),
     ] {
         let path = format!("examples/{name}.rs");
         let source = fs::read_to_string(manifest_dir.join(&path))
@@ -310,19 +318,52 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "{name} example should exercise `{required}`"
             );
         }
-        for deprecated_first_use in [
+        let mut deprecated_first_use = vec![
             "NativeRunOptions",
             "declarative_command_runtime_bridge",
             "run_native_vello_runtime",
             "SurfaceChild",
             "Arc<UiSurface",
-            "WidgetSizing",
-        ] {
+        ];
+        if name != "custom_widget" {
+            deprecated_first_use.push("WidgetSizing");
+        }
+
+        for deprecated_first_use in deprecated_first_use {
             assert!(
                 !source.contains(deprecated_first_use),
                 "{name} example should not use old first-use boilerplate `{deprecated_first_use}`"
             );
         }
+    }
+}
+
+#[test]
+fn runtime_widgets_are_open_trait_objects_not_closed_builtin_enums() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let surface = fs::read_to_string(manifest_dir.join("src/runtime/surface.rs"))
+        .expect("runtime surface should be readable");
+
+    for closed_runtime_shape in [
+        "enum RuntimeWidget",
+        "enum WidgetMessageMapper",
+        "WidgetMessageMapper::None",
+    ] {
+        assert!(
+            !surface.contains(closed_runtime_shape),
+            "runtime widget routing should not reintroduce closed builtin-only dispatch `{closed_runtime_shape}`"
+        );
+    }
+
+    for open_runtime_shape in [
+        "Box<dyn Widget>",
+        "WidgetMessageMapper<Message> {",
+        "pub fn dynamic(",
+    ] {
+        assert!(
+            surface.contains(open_runtime_shape),
+            "runtime widget routing should preserve open widget API support `{open_runtime_shape}`"
+        );
     }
 }
 

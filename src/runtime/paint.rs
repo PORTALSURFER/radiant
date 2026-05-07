@@ -438,7 +438,7 @@ impl SurfacePaintPlan {
 ///
 /// User-authored widgets contribute paint through [`crate::widgets::Widget`]
 /// and do not need a new branch in this compatibility catalog.
-pub(super) fn push_builtin_widget_paint(
+pub(crate) fn push_builtin_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     widget: &WidgetSpec,
     layout: &LayoutOutput,

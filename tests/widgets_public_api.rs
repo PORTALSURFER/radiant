@@ -3,8 +3,8 @@
 use radiant::{
     gui::types::ImageRgba,
     layout::{
-        ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild, SlotParams, Vector2,
-        layout_tree,
+        layout_tree, ContainerKind, ContainerPolicy, LayoutNode, Point, Rect, SlotChild,
+        SlotParams, Vector2,
     },
     widgets::{
         BadgeWidget, ButtonWidget, CardWidget, ImageWidget, ListItemWidget, ScrollbarAxis,
@@ -31,9 +31,13 @@ fn public_widgets_compose_with_public_layout_containers() {
         "",
         WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(200.0, 28.0)),
     ));
-    let snap = WidgetSpec::Toggle(ToggleWidget::new(
-        5,
-        "Snap",
+    let snap = WidgetSpec::Toggle(
+        ToggleWidget::new(5, "Snap", WidgetSizing::fixed(Vector2::new(84.0, 28.0)))
+            .with_checked(true),
+    );
+    let muted_snap = WidgetSpec::Toggle(ToggleWidget::new(
+        17,
+        "Muted",
         WidgetSizing::fixed(Vector2::new(84.0, 28.0)),
     ));
     let scroll = WidgetSpec::Scrollbar(ScrollbarWidget::new(
@@ -81,6 +85,7 @@ fn public_widgets_compose_with_public_layout_containers() {
             SlotChild::new(SlotParams::fill(), rename.layout_node()),
             SlotChild::new(SlotParams::fill(), filter.layout_node()),
             SlotChild::new(SlotParams::fill(), snap.layout_node()),
+            SlotChild::new(SlotParams::fill(), muted_snap.layout_node()),
             SlotChild::new(SlotParams::fill(), scroll.layout_node()),
             SlotChild::new(SlotParams::fill(), badge.layout_node()),
             SlotChild::new(SlotParams::fill(), card.layout_node()),
@@ -99,6 +104,7 @@ fn public_widgets_compose_with_public_layout_containers() {
     assert!(output.rects.contains_key(&rename.id()));
     assert!(output.rects.contains_key(&filter.id()));
     assert!(output.rects.contains_key(&snap.id()));
+    assert!(output.rects.contains_key(&muted_snap.id()));
     assert!(output.rects.contains_key(&scroll.id()));
     assert!(output.rects.contains_key(&badge.id()));
     assert!(output.rects.contains_key(&card.id()));
@@ -117,6 +123,8 @@ fn public_widgets_compose_with_public_layout_containers() {
         snap.common().emitted_messages,
         vec![WidgetMessageKind::ValueChanged]
     );
+    assert!(snap.common().state.active);
+    assert!(!muted_snap.common().state.active);
     assert_eq!(
         scroll.common().emitted_messages,
         vec![WidgetMessageKind::ScrollRequested]

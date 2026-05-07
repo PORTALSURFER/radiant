@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
+use super::support::{activate_on_keyboard, WidgetCommon};
 use crate::widgets::contract::{
     FocusBehavior, WidgetId, WidgetKind, WidgetMessageKind, WidgetSizing,
 };
@@ -50,6 +50,13 @@ impl ToggleWidget {
             },
             state: ToggleState::default(),
         }
+    }
+
+    /// Return this toggle with an explicit checked value.
+    pub fn with_checked(mut self, checked: bool) -> Self {
+        self.state.checked = checked;
+        self.common.state.active = checked;
+        self
     }
 
     /// Route one backend-neutral interaction into the toggle.

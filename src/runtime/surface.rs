@@ -1,6 +1,6 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
-use super::paint::{SurfacePaintPlan, push_widget_paint};
+use super::paint::{push_widget_paint, SurfacePaintPlan};
 use crate::{
     gui::types::{ImageRgba, Rect},
     layout::{
@@ -466,7 +466,18 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(bool) -> Message + Send + Sync + 'static,
     ) -> Self {
-        Self::toggle_mapped(id, label, sizing, move |message| match message {
+        Self::toggle_with_checked(id, label, false, sizing, map)
+    }
+
+    /// Build a toggle leaf with an explicit checked state.
+    pub fn toggle_with_checked(
+        id: WidgetId,
+        label: impl Into<String>,
+        checked: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(bool) -> Message + Send + Sync + 'static,
+    ) -> Self {
+        Self::toggle_mapped_with_checked(id, label, checked, sizing, move |message| match message {
             ToggleMessage::ValueChanged { checked } => map(checked),
         })
     }
@@ -478,8 +489,19 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        Self::toggle_mapped_with_checked(id, label, false, sizing, map)
+    }
+
+    /// Build a toggle leaf with explicit checked state and a custom mapper.
+    pub fn toggle_mapped_with_checked(
+        id: WidgetId,
+        label: impl Into<String>,
+        checked: bool,
+        sizing: WidgetSizing,
+        map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
+    ) -> Self {
         Self::widget(
-            WidgetSpec::Toggle(ToggleWidget::new(id, label, sizing)),
+            WidgetSpec::Toggle(ToggleWidget::new(id, label, sizing).with_checked(checked)),
             WidgetMessageMapper::toggle(map),
         )
     }

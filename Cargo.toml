@@ -28,6 +28,16 @@ name = "generic_native"
 path = "examples/generic_native.rs"
 test = false
 
+[[example]]
+name = "hello_world"
+path = "examples/hello_world.rs"
+test = false
+
+[[example]]
+name = "todo_list"
+path = "examples/todo_list.rs"
+test = false
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",

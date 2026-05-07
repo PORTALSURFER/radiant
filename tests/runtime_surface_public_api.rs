@@ -9,26 +9,26 @@ use radiant::{
         types::ImageRgba,
     },
     layout::{
-        Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
-        SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
+        layout_tree, layout_tree_with_state, Constraints, LayoutDebugOptions, LayoutState, Point,
+        Rect, SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis,
     },
     runtime::{
-        App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
-        NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
-        declarative_runtime_bridge,
+        declarative_command_runtime_bridge, declarative_runtime_bridge, App, Command, Element,
+        Event, FocusTraversal, NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge,
+        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View, WidgetMessageMapper,
+        DEFAULT_NATIVE_WINDOW_TITLE,
     },
     theme::ThemeTokens,
     widgets::{
-        BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, ListItemMessage, PointerButton,
-        RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, SelectableMessage,
-        TextInputMessage, TextInputWidget, TextWidget, ToggleMessage, WidgetInput, WidgetKey,
-        WidgetSizing, WidgetSpec, WidgetState, WidgetStyle, resolve_widget_visual_tokens,
+        resolve_widget_visual_tokens, BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage,
+        ListItemMessage, PointerButton, RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage,
+        SelectableMessage, TextInputMessage, TextInputWidget, TextWidget, ToggleMessage,
+        WidgetInput, WidgetKey, WidgetSizing, WidgetSpec, WidgetState, WidgetStyle,
     },
 };
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, Ordering},
+    Arc,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -586,6 +586,22 @@ fn text_input_and_toggle_helpers_map_value_messages() {
                     ToggleMessage::ValueChanged { checked } => DemoMessage::SetActive(!checked),
                 },
             )),
+            SurfaceChild::fill(SurfaceNode::toggle_with_checked(
+                54,
+                "Done",
+                true,
+                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+                DemoMessage::SetActive,
+            )),
+            SurfaceChild::fill(SurfaceNode::toggle_mapped_with_checked(
+                55,
+                "Raw done",
+                true,
+                WidgetSizing::fixed(Vector2::new(112.0, 28.0)),
+                |message| match message {
+                    ToggleMessage::ValueChanged { checked } => DemoMessage::SetActive(!checked),
+                },
+            )),
         ],
     ));
 
@@ -620,6 +636,18 @@ fn text_input_and_toggle_helpers_map_value_messages() {
             radiant::widgets::WidgetOutput::Toggle(ToggleMessage::ValueChanged { checked: true })
         ),
         Some(DemoMessage::SetActive(false))
+    );
+    assert_eq!(
+        surface
+            .find_widget(54)
+            .map(|widget| widget.widget().common().state.active),
+        Some(true)
+    );
+    assert_eq!(
+        surface
+            .find_widget(55)
+            .map(|widget| widget.widget().common().state.active),
+        Some(true)
     );
 }
 

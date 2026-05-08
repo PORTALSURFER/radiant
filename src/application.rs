@@ -53,5 +53,6 @@ include!("application/tree_list.rs");
 include!("application/details_list.rs");
 include!("application/retained_canvas.rs");
 include!("application/builders.rs");
+include!("application/control_builders.rs");
 include!("application/layout_builders.rs");
 include!("application/ids.rs");

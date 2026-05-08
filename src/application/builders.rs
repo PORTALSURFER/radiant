@@ -118,6 +118,24 @@ pub fn custom_widget<Message: 'static>(
     view_node_from_widget(DynamicWidget::new(widget, map))
 }
 
+/// Build a custom widget view with a typed output mapper.
+///
+/// This is the application-builder companion to
+/// [`WidgetMessageMapper::typed`]. Use it when a custom widget emits one
+/// concrete output payload with [`WidgetOutput::typed`] or
+/// [`WidgetOutput::custom`] and every matching output should become a host
+/// message.
+pub fn custom_widget_mapped<Output, Message>(
+    widget: impl Widget + Clone + 'static,
+    map: impl Fn(Output) -> Message + Send + Sync + 'static,
+) -> ViewNode<Message>
+where
+    Output: Clone + Send + Sync + 'static,
+    Message: 'static,
+{
+    view_node_from_widget(MappedWidget::new(widget, WidgetMessageMapper::typed(map)))
+}
+
 fn default_text_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(160.0, 24.0)).with_baseline(17.0)
 }

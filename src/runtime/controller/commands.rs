@@ -1,0 +1,116 @@
+use super::*;
+
+/// Summary of one command-dispatch pass through a [`SurfaceRuntime`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommandOutcome {
+    /// Number of host-defined messages reduced during this pass.
+    pub messages_dispatched: usize,
+    /// Whether any command requested a repaint.
+    pub repaint_requested: bool,
+    /// Whether this pass requires declarative surface reprojection and layout.
+    pub surface_refresh_requested: bool,
+    /// Whether any command requested runtime exit.
+    pub exit_requested: bool,
+}
+
+impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
+where
+    Bridge: RuntimeBridge<Message>,
+{
+    /// Reduce one host-defined message and execute its runtime-visible command.
+    pub fn dispatch_message(&mut self, message: Message) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        self.dispatch_message_inner(message, &mut outcome);
+        self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
+        outcome
+    }
+
+    /// Execute a command without an initial widget message.
+    ///
+    /// This is useful for backend adapters or host shells that need to replay a
+    /// queued command through the same message/repaint handling path used by
+    /// widget dispatch.
+    pub fn execute_command(&mut self, command: Command<Message>) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        self.execute_command_inner(command, &mut outcome);
+        self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
+        outcome
+    }
+
+    /// Dispatch any messages queued by bridge-owned runtime work.
+    pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        for command in self.bridge.take_runtime_commands() {
+            self.execute_command_inner(command, &mut outcome);
+        }
+        for message in self.bridge.take_runtime_messages() {
+            self.dispatch_message_inner(message, &mut outcome);
+        }
+        self.refresh_if_requested(outcome.surface_refresh_requested);
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
+        outcome
+    }
+
+    fn refresh_if_requested(&mut self, requested: bool) {
+        if requested {
+            self.refresh();
+        }
+    }
+
+    pub(super) fn dispatch_message_inner(
+        &mut self,
+        message: Message,
+        outcome: &mut CommandOutcome,
+    ) {
+        outcome.messages_dispatched += 1;
+        outcome.surface_refresh_requested = true;
+        let command = self.bridge.update(message);
+        self.execute_command_inner(command, outcome);
+    }
+
+    fn execute_command_inner(&mut self, command: Command<Message>, outcome: &mut CommandOutcome) {
+        match command {
+            Command::None => {}
+            Command::Message(message) => self.dispatch_message_inner(message, outcome),
+            Command::Batch(commands) => {
+                for command in commands {
+                    self.execute_command_inner(command, outcome);
+                }
+            }
+            Command::RequestRepaint => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+            }
+            Command::RequestPaintOnly => {
+                self.repaint_requested = true;
+                outcome.repaint_requested = true;
+                outcome.surface_refresh_requested = false;
+            }
+            Command::After { delay, message } => {
+                if self.bridge.schedule_message(delay, message) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Perform { name, work } => {
+                if self.bridge.spawn_message_task(name, work) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Focus(widget_id) => {
+                outcome.repaint_requested |= self.focus_widget(widget_id);
+            }
+            Command::Exit => {
+                outcome.exit_requested = true;
+                self.exit_requested = true;
+            }
+        }
+    }
+}

@@ -16,8 +16,8 @@ use crate::{
         WidgetMessageMapper, declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, CanvasWidget, DragHandleWidget, GpuSurfaceWidget, ImageWidget,
-        TextInputWidget, TextWidget, TextWrap, ToggleWidget, Widget, WidgetOutput,
+        ButtonWidget, CanvasWidget, DragHandleWidget, GpuSurfaceMessage, GpuSurfaceWidget,
+        ImageWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget, Widget, WidgetOutput,
         WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };

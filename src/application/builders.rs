@@ -86,6 +86,25 @@ pub fn gpu_surface<Message: 'static>(
     ))
 }
 
+/// Build an input-emitting retained GPU surface view with generated identity.
+///
+/// This keeps GPU-heavy widgets on the same application message path as
+/// standard widgets while leaving plain [`gpu_surface`] views passive.
+pub fn gpu_surface_input<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: GpuSurfaceContent,
+    map: impl Fn(crate::widgets::WidgetInput) -> Message + Send + Sync + 'static,
+) -> ViewNode<Message> {
+    view_node_from_widget(MappedWidget::new(
+        GpuSurfaceWidget::new(0, default_gpu_surface_sizing(), key, revision, content)
+            .with_input_events(true),
+        WidgetMessageMapper::typed(move |message: GpuSurfaceMessage| match message {
+            GpuSurfaceMessage::Input { input } => map(input),
+        }),
+    ))
+}
+
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
     canvas().size(1.0, 1.0)

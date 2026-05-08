@@ -6,13 +6,13 @@ use radiant::{
         repaint::RepaintSignal,
         types::{ImageRgba, Rect, Vector2},
     },
-    prelude::{GpuSurfaceContent, IntoView, gpu_surface},
+    prelude::{GpuSurfaceContent, IntoView, gpu_surface, gpu_surface_input},
     runtime::{
         Command, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
         UiSurface,
     },
     theme::ThemeTokens,
-    widgets::{TextInputWidget, TextWidget, WidgetSizing},
+    widgets::{TextInputWidget, TextWidget, WidgetInput, WidgetSizing},
 };
 use std::sync::{
     Arc,
@@ -23,6 +23,7 @@ use std::time::Duration;
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
+    GpuInput(WidgetInput),
 }
 
 #[derive(Default)]
@@ -273,4 +274,47 @@ fn app_gpu_surface_builder_lowers_through_normal_view_path() {
         panic!("expected RGBA atlas content");
     };
     assert!(Arc::ptr_eq(&atlas, emitted));
+}
+
+#[test]
+fn app_gpu_surface_input_helper_routes_through_normal_message_path() {
+    let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
+    let bridge = app(DemoState::default())
+        .view(move |state: &mut DemoState| {
+            radiant::prelude::column([
+                radiant::prelude::text(format!("GPU inputs: {}", state.count)).id(91),
+                gpu_surface_input(
+                    41,
+                    7,
+                    GpuSurfaceContent::RgbaAtlas {
+                        source_rect: Rect::from_min_size(
+                            radiant::layout::Point::new(0.0, 0.0),
+                            Vector2::new(2.0, 1.0),
+                        ),
+                        atlas: Arc::clone(&atlas),
+                    },
+                    DemoMessage::GpuInput,
+                )
+                .id(90)
+                .size(240.0, 120.0),
+            ])
+        })
+        .update_with(|state, message, _context| {
+            if let DemoMessage::GpuInput(WidgetInput::PointerPress { .. }) = message {
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 160.0));
+
+    let handled = runtime.dispatch_input(
+        90,
+        WidgetInput::PointerPress {
+            position: radiant::layout::Point::new(24.0, 24.0),
+            button: radiant::widgets::PointerButton::Primary,
+        },
+    );
+
+    assert!(handled);
+    assert_eq!(text_value(runtime.surface(), 91), "GPU inputs: 1");
 }

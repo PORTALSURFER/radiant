@@ -67,8 +67,8 @@ pub use contract::{
 };
 pub use interaction::{
     BadgeMessage, ButtonMessage, CanvasMessage, CustomWidgetOutput, DragHandleMessage,
-    ListItemMessage, PointerButton, ScrollbarMessage, SelectableMessage, TextEditCommand,
-    TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
+    GpuSurfaceMessage, ListItemMessage, PointerButton, ScrollbarMessage, SelectableMessage,
+    TextEditCommand, TextInputMessage, ToggleMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,

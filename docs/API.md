@@ -114,6 +114,10 @@ same generated-ID, layout, focus, hit-test, and paint-plan path as standard
 widgets, then emits `PaintPrimitive::GpuSurface` for native GPU backends.
 Applications that need custom capability flags or overlays can compose the same
 path explicitly with `widget(GpuSurfaceWidget::new(...).with_capabilities(...))`.
+GPU surfaces that need host-visible input can use
+`gpu_surface_input(key, revision, content, |input| Message::GpuInput(input))`;
+plain `gpu_surface(...)` remains passive so pointer motion over retained visual
+surfaces does not force unnecessary message dispatch or relayout.
 
 ## Soft-Deprecated First-Use Boilerplate
 

@@ -297,6 +297,17 @@ fn native_run_options_default_uses_generic_radiant_title() {
 
     assert_eq!(options.title, DEFAULT_NATIVE_WINDOW_TITLE);
     assert_eq!(options.title, "Radiant");
+    assert!(options.drag_and_drop);
+}
+
+#[test]
+fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
+    let options = NativeRunOptions {
+        drag_and_drop: false,
+        ..NativeRunOptions::default()
+    };
+
+    assert!(!options.drag_and_drop);
 }
 
 #[test]

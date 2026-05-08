@@ -19,8 +19,14 @@ pub(super) fn generic_window_attributes(options: &NativeRunOptions) -> WindowAtt
     }
     #[cfg(target_os = "windows")]
     {
-        use winit::platform::windows::WindowAttributesExtWindows;
-        attrs = attrs.with_drag_and_drop(true);
+        if platform_drag_and_drop_enabled(options) {
+            use winit::platform::windows::WindowAttributesExtWindows;
+            attrs = attrs.with_drag_and_drop(true);
+        }
     }
     attrs
+}
+
+pub(super) fn platform_drag_and_drop_enabled(options: &NativeRunOptions) -> bool {
+    options.drag_and_drop
 }

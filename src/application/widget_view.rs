@@ -41,10 +41,10 @@ impl WidgetViewContext {
         if self.input_only {
             common.paint.paints_state_layers = false;
         }
-        if let Some(wrap) = self.text_wrap {
-            if let Some(text) = widget.as_any_mut().downcast_mut::<TextWidget>() {
-                text.wrap = wrap;
-            }
+        if let Some(wrap) = self.text_wrap
+            && let Some(text) = widget.as_any_mut().downcast_mut::<TextWidget>()
+        {
+            text.wrap = wrap;
         }
     }
 }

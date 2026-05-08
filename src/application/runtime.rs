@@ -401,10 +401,8 @@ where
             .animation
             .as_mut()
             .is_some_and(|animation| animation(&mut self.state));
-        if active {
-            if let Some(frame_message) = self.frame_message.as_mut() {
-                self.runtime.enqueue_frame(frame_message());
-            }
+        if active && let Some(frame_message) = self.frame_message.as_mut() {
+            self.runtime.enqueue_frame(frame_message());
         }
         active
     }

@@ -77,10 +77,10 @@ impl SharedRepaintSignal {
 
     /// Request a repaint through the active callback, if one is available.
     pub fn request_repaint(&self) {
-        if let Ok(lock) = self.signal.read() {
-            if let Some(signal) = lock.as_ref() {
-                signal.request_repaint();
-            }
+        if let Ok(lock) = self.signal.read()
+            && let Some(signal) = lock.as_ref()
+        {
+            signal.request_repaint();
         }
     }
 }

@@ -52,6 +52,7 @@ const EXEMPT_TOP_LEVEL_GUI_FILES: &[&str] = &["src/gui/mod.rs"];
 
 const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "app_runtime_api.rs",
+    "custom_widget_public_api.rs",
     "generic_surface_guardrails.rs",
     "layout_public_api.rs",
     "runtime_surface_public_api.rs",

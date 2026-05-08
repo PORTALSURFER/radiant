@@ -2,7 +2,6 @@
 
 use super::{NativeRunOptions, WindowIconRgba};
 use crate::gui::{
-    input::key_code_from_winit,
     paint::{PaintFrame, Primitive, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };

@@ -3,7 +3,8 @@
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{
-    GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfaceNode,
+    GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface,
+    PaintPrimitive, SurfaceNode,
 };
 use crate::theme::ThemeTokens;
 
@@ -24,6 +25,8 @@ pub struct GpuSurfaceWidget {
     pub revision: u64,
     /// Backend-neutral retained GPU content.
     pub content: GpuSurfaceContent,
+    /// Runtime interaction capabilities requested by this GPU surface.
+    pub capabilities: GpuSurfaceCapabilities,
     /// Optional lightweight overlays composited by the native GPU backend.
     pub overlays: Vec<GpuSurfaceOverlay>,
 }
@@ -48,8 +51,33 @@ impl GpuSurfaceWidget {
             key,
             revision,
             content,
+            capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
         }
+    }
+
+    /// Replace the runtime interaction capabilities for this retained GPU surface.
+    pub fn with_capabilities(mut self, capabilities: GpuSurfaceCapabilities) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
+
+    /// Enable runtime-owned hover cursor updates for this retained GPU surface.
+    pub fn with_native_hover_cursor(mut self, cursor: GpuHoverCursor) -> Self {
+        self.capabilities.native_hover_cursor = Some(cursor);
+        self
+    }
+
+    /// Enable fast pointer-motion routing for this retained GPU surface.
+    pub fn with_fast_pointer_move(mut self, enabled: bool) -> Self {
+        self.capabilities.fast_pointer_move = enabled;
+        self
+    }
+
+    /// Enable coalesced vertical wheel routing for this retained GPU surface.
+    pub fn with_coalesced_vertical_wheel(mut self, enabled: bool) -> Self {
+        self.capabilities.coalesce_vertical_wheel = enabled;
+        self
     }
 
     /// Replace the lightweight overlays for this retained GPU surface.
@@ -85,6 +113,7 @@ impl Widget for GpuSurfaceWidget {
             revision: self.revision,
             rect: bounds,
             content: self.content.clone(),
+            capabilities: self.capabilities,
             overlays: self.overlays.clone(),
         }));
     }

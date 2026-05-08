@@ -209,18 +209,11 @@ where
             return false;
         };
         self.surface.find_widget(widget_id).is_some_and(|widget| {
-            let object = widget.widget_object();
-            if !object.common().paint.paints_state_layers {
+            let common = widget.widget_object().common();
+            if !common.paint.paints_state_layers {
                 return false;
             }
-            if object.as_any().downcast_ref::<TextWidget>().is_some()
-                || object.as_any().downcast_ref::<ImageWidget>().is_some()
-                || object.as_any().downcast_ref::<CanvasWidget>().is_some()
-            {
-                return false;
-            }
-            object.common().focus != FocusBehavior::None
-                || object.as_any().downcast_ref::<CardWidget>().is_some()
+            common.focus != FocusBehavior::None || common.paint.suppresses_container_hover
         })
     }
 }

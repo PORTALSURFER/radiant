@@ -23,6 +23,7 @@ impl CardWidget {
     pub fn new(id: WidgetId, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.paint.paints_focus = false;
+        common.paint.suppresses_container_hover = true;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
             prominence: WidgetProminence::Subtle,

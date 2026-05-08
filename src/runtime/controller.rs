@@ -23,9 +23,8 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        CanvasWidget, CardWidget, FocusBehavior, ImageWidget, PointerButton, ScrollbarState,
-        ScrollbarWidget, TextInputState, TextInputWidget, TextWidget, WidgetId, WidgetInput,
-        WidgetKey, WidgetState,
+        FocusBehavior, PointerButton, ScrollbarState, ScrollbarWidget, TextInputState,
+        TextInputWidget, WidgetId, WidgetInput, WidgetKey, WidgetState,
     },
 };
 use std::collections::BTreeMap;

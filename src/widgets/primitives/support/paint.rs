@@ -3,9 +3,9 @@
 use crate::gui::types::{Point, Rect, Vector2};
 use crate::runtime::{
     PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintImage, PaintPrimitive,
-    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign, PaintTextInput,
-    blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
-    optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
+    PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign, button_font_size,
+    diagonal_cut_rect_points, inset_rect, optical_centered_baseline, push_axis_stroke,
+    push_text_run, text_font_size,
 };
 use crate::theme::ThemeTokens;
 use std::sync::Arc;
@@ -14,10 +14,13 @@ use super::super::{
     badge::BadgeWidget, button::ButtonWidget, canvas::CanvasWidget, card::CardWidget,
     drag_handle::DragHandleWidget, image::ImageWidget, list_item::ListItemWidget,
     scrollbar::ScrollbarAxis, scrollbar::ScrollbarWidget, selectable::SelectableWidget,
-    text::TextWidget, text::TextWrap, text_input::TextInputWidget, toggle::ToggleWidget,
+    text::TextWidget, text::TextWrap, toggle::ToggleWidget,
 };
 use super::common::WidgetCommon;
 use crate::widgets::contract::{WidgetId, WidgetState};
+
+mod text_input;
+pub(in crate::widgets::primitives) use text_input::push_text_input_widget_paint;
 
 pub(in crate::widgets::primitives) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
@@ -205,74 +208,6 @@ pub(in crate::widgets::primitives) fn push_toggle_widget_paint(
             text_font_size(bounds),
         );
     }
-}
-
-fn push_text_input_chrome(
-    primitives: &mut Vec<PaintPrimitive>,
-    common: &WidgetCommon,
-    bounds: Rect,
-    theme: &ThemeTokens,
-) {
-    let tokens = crate::widgets::resolve_widget_visual_tokens(theme, common.style, common.state);
-    let fill = if common.state.disabled {
-        tokens.fill
-    } else if common.state.hovered {
-        blend_color(
-            theme.bg_primary,
-            theme.surface_raised,
-            theme.state_hover_strong,
-        )
-    } else {
-        theme.bg_primary
-    };
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: common.id,
-        rect: bounds,
-        color: fill,
-    }));
-    primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-        widget_id: common.id,
-        rect: bounds,
-        color: tokens.border,
-        width: 1.0,
-    }));
-    if common.state.focused && common.paint.paints_focus {
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: common.id,
-            rect: inset_rect(bounds, -1.0, -1.0),
-            color: tokens.emphasis,
-            width: 1.0,
-        }));
-    }
-}
-
-pub(in crate::widgets::primitives) fn push_text_input_widget_paint(
-    primitives: &mut Vec<PaintPrimitive>,
-    input: &TextInputWidget,
-    bounds: Rect,
-    theme: &ThemeTokens,
-) {
-    push_text_input_chrome(primitives, &input.common, bounds, theme);
-    let rect = inset_rect(bounds, 16.0, 4.0);
-    let font_size = input_font_size(bounds);
-    primitives.push(PaintPrimitive::TextInput(PaintTextInput {
-        widget_id: input.common.id,
-        rect,
-        placeholder: input.props.placeholder.clone(),
-        state: input.state.clone(),
-        font_size,
-        baseline: optical_centered_baseline(rect, font_size),
-        color: crate::widgets::resolve_widget_visual_tokens(
-            theme,
-            input.common.style,
-            input.common.state,
-        )
-        .foreground,
-        placeholder_color: theme.text_muted,
-        selection_color: theme.grid_strong,
-        caret_color: theme.accent_danger,
-        focused: input.common.state.focused,
-    }));
 }
 
 pub(in crate::widgets::primitives) fn push_scrollbar_widget_paint(

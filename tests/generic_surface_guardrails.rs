@@ -56,6 +56,7 @@ const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "custom_widget_public_api.rs",
     "generic_surface_guardrails.rs",
     "layout_public_api.rs",
+    "runtime_bridge_public_api.rs",
     "runtime_surface_public_api.rs",
     "surface_hover_public_api.rs",
     "surface_node_public_api.rs",

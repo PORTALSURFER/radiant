@@ -20,6 +20,7 @@
 mod bridge;
 mod command;
 mod controller;
+mod gpu_surface;
 mod paint;
 mod surface;
 
@@ -34,12 +35,14 @@ pub use bridge::{
 };
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
-pub use paint::{
+pub use gpu_surface::{
     GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintCustomSurface,
-    PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintImage, PaintOverlayPanel,
-    PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign,
-    PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
+    GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay,
+};
+pub use paint::{
+    PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintGpuSurface, PaintImage,
+    PaintOverlayPanel, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect,
+    PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

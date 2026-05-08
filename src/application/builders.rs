@@ -68,6 +68,24 @@ pub fn image<Message: 'static>(image: Arc<ImageRgba>) -> ViewNode<Message> {
     view_node_from_widget(ImageWidget::new(0, image, WidgetSizing::fixed(size)))
 }
 
+/// Build a retained GPU surface view with generated application identity.
+///
+/// The surface lowers through the same widget/layout/paint path as standard
+/// widgets and emits a `PaintPrimitive::GpuSurface` for native GPU backends.
+pub fn gpu_surface<Message: 'static>(
+    key: u64,
+    revision: u64,
+    content: GpuSurfaceContent,
+) -> ViewNode<Message> {
+    view_node_from_widget(GpuSurfaceWidget::new(
+        0,
+        default_gpu_surface_sizing(),
+        key,
+        revision,
+        content,
+    ))
+}
+
 /// Build a minimal passive spacer view.
 pub fn spacer<Message: 'static>() -> ViewNode<Message> {
     canvas().size(1.0, 1.0)
@@ -736,6 +754,10 @@ fn default_text_input_sizing() -> WidgetSizing {
 
 fn default_canvas_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(1.0, 1.0))
+}
+
+fn default_gpu_surface_sizing() -> WidgetSizing {
+    WidgetSizing::new(Vector2::new(160.0, 90.0), Vector2::new(320.0, 180.0))
 }
 
 fn primary_style() -> WidgetStyle {

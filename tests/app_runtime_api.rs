@@ -2,8 +2,16 @@
 
 use radiant::{
     app,
-    gui::{repaint::RepaintSignal, types::Vector2},
-    runtime::{Command, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface},
+    gui::{
+        repaint::RepaintSignal,
+        types::{ImageRgba, Rect, Vector2},
+    },
+    prelude::{GpuSurfaceContent, IntoView, gpu_surface},
+    runtime::{
+        Command, PaintPrimitive, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
+        UiSurface,
+    },
+    theme::ThemeTokens,
     widgets::{TextInputWidget, TextWidget, WidgetSizing},
 };
 use std::sync::{
@@ -216,4 +224,53 @@ fn paint_only_command_skips_surface_reprojection() {
     assert_eq!(runtime.bridge().count, 1);
     assert_eq!(runtime.bridge().project_count, 1);
     assert_eq!(text_value(runtime.surface(), 10), "PaintOnly (0)");
+}
+
+#[test]
+fn app_gpu_surface_builder_lowers_through_normal_view_path() {
+    let atlas = Arc::new(ImageRgba::new(2, 1, vec![255; 8]).expect("valid atlas"));
+    let view = radiant::prelude::row([gpu_surface::<DemoMessage>(
+        41,
+        7,
+        GpuSurfaceContent::RgbaAtlas {
+            source_rect: Rect::from_min_size(
+                radiant::layout::Point::new(0.0, 0.0),
+                Vector2::new(2.0, 1.0),
+            ),
+            atlas: Arc::clone(&atlas),
+        },
+    )
+    .id(90)
+    .size(240.0, 120.0)
+    .width(240.0)
+    .height(120.0)])
+    .align_cross(radiant::layout::CrossAlign::Start);
+    let surface = view.into_surface();
+    let layout = radiant::layout::layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(
+            radiant::layout::Point::new(0.0, 0.0),
+            Vector2::new(320.0, 160.0),
+        ),
+    );
+
+    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+
+    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
+        panic!("app GPU surface should emit a retained GPU paint primitive");
+    };
+    assert_eq!(gpu.widget_id, 90);
+    assert_eq!(gpu.key, 41);
+    assert_eq!(gpu.revision, 7);
+    assert_eq!(
+        gpu.rect,
+        Rect::from_min_size(
+            radiant::layout::Point::new(0.0, 0.0),
+            Vector2::new(240.0, 120.0)
+        )
+    );
+    let GpuSurfaceContent::RgbaAtlas { atlas: emitted, .. } = &gpu.content else {
+        panic!("expected RGBA atlas content");
+    };
+    assert!(Arc::ptr_eq(&atlas, emitted));
 }

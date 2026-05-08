@@ -95,6 +95,10 @@ path = "examples/keys.rs"
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 
+[[example]]
+name = "gpu_surface"
+path = "examples/gpu_surface.rs"
+
 [[bench]]
 name = "perf_harness"
 path = "benches/perf_harness.rs"

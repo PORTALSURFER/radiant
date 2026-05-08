@@ -14,14 +14,14 @@ use radiant::{
     },
     runtime::{
         App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
-        NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
-        declarative_runtime_bridge,
+        GpuSurfaceContent, GpuSurfaceOverlay, NativeRunOptions, PaintPrimitive, Renderer,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
+        WidgetMessageMapper, declarative_command_runtime_bridge, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget, DragHandleMessage,
-        DragHandleWidget, ListItemMessage, ListItemWidget, PointerButton,
+        DragHandleWidget, GpuSurfaceWidget, ListItemMessage, ListItemWidget, PointerButton,
         RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
         SelectableMessage, SelectableWidget, TextEditCommand, TextInputMessage, TextInputWidget,
         TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
@@ -1066,6 +1066,52 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
             .collect::<Vec<_>>(),
         vec![(27, 1)]
     );
+}
+
+#[test]
+fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
+    let atlas = Arc::new(ImageRgba::new(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255]).unwrap());
+    let content = GpuSurfaceContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 1.0)),
+        atlas: Arc::clone(&atlas),
+    };
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+        GpuSurfaceWidget::new(
+            41,
+            WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+            9001,
+            7,
+            content,
+        )
+        .with_overlays(vec![GpuSurfaceOverlay::VerticalCursor {
+            ratio: 0.5,
+            color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            width: 1.0,
+        }]),
+    ));
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
+        panic!("expected gpu surface primitive");
+    };
+    assert_eq!(gpu.widget_id, 41);
+    assert_eq!(gpu.key, 9001);
+    assert_eq!(gpu.revision, 7);
+    assert_eq!(gpu.overlays.len(), 1);
+    let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &gpu.content else {
+        panic!("expected rgba atlas gpu content");
+    };
+    assert_eq!(atlas.width, 2);
 }
 
 #[test]

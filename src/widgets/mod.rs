@@ -72,7 +72,7 @@ pub use interaction::{
 };
 pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,
-    CardWidget, DragHandleWidget, ImageProps, ImageWidget, ListItemWidget,
+    CardWidget, DragHandleWidget, GpuSurfaceWidget, ImageProps, ImageWidget, ListItemWidget,
     RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget,
     SelectableProps, SelectableWidget, TextInputProps, TextInputState, TextInputWidget, TextWidget,
     TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,

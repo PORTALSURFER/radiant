@@ -109,6 +109,17 @@ where
         self.route_outcome(routed)
     }
 
+    pub(in crate::gui_runtime::native_vello) fn route_scroll_deferred_refresh(
+        &mut self,
+        position: Point,
+        delta: Vector2,
+    ) -> GenericRouteOutcome {
+        let routed = self
+            .runtime
+            .wheel_or_scroll_at_deferred_refresh(position, delta);
+        self.route_outcome(routed)
+    }
+
     pub(in crate::gui_runtime::native_vello) fn route_key_press(
         &mut self,
         press: KeyPress,

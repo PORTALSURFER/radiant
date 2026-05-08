@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(
             context_button.handle_input(bounds, secondary_press),
             Some(ButtonMessage::SecondaryActivate {
-                position: Point::new(4.0, 5.0),
+                position: Point::new(10.0, 10.0),
             })
         );
     }

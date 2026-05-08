@@ -1,10 +1,10 @@
 use super::*;
 use crate::{
-    layout::{ContainerKind, ContainerPolicy, SlotParams},
+    layout::{ContainerKind, ContainerPolicy, Rect, SlotParams},
     runtime::{Command, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
     widgets::{
-        ButtonWidget, CanvasMessage, PointerButton, TextInputMessage, TextInputWidget, WidgetInput,
-        WidgetSizing,
+        ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, TextInputMessage, TextInputWidget, WidgetInput, WidgetSizing,
     },
 };
 
@@ -99,6 +99,94 @@ fn generic_canvas_receives_wheel_before_scroll_fallback() {
     );
 
     assert_eq!(core.runtime.bridge().text, "wheel");
+}
+
+#[test]
+fn gpu_surface_fast_path_does_not_capture_horizontal_pan() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 80.0),
+    );
+    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(200.0, 40.0),
+    ));
+    let point = Point::new(20.0, 20.0);
+
+    assert!(runner.can_fast_path_gpu_surface_route(point, Vector2::new(0.0, -40.0)));
+    assert!(!runner.can_fast_path_gpu_surface_route(point, Vector2::new(40.0, 1.0)));
+}
+
+#[test]
+fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
+    let mut core =
+        GenericNativeRuntimeCore::new(WheelRefreshBridge::default(), Vector2::new(240.0, 40.0));
+    let point = Point::new(12.0, 12.0);
+
+    assert!(
+        core.route_scroll_deferred_refresh(point, Vector2::new(0.0, -40.0))
+            .routed
+    );
+    assert_eq!(core.runtime.bridge().wheel_count, 1);
+    assert_eq!(
+        core.runtime.bridge().project_count,
+        1,
+        "deferred wheel routing should not refresh the projected surface immediately"
+    );
+
+    core.refresh_surface();
+    assert_eq!(core.runtime.bridge().project_count, 2);
+}
+
+#[test]
+fn gpu_surface_pointer_move_fast_path_only_within_cached_surface() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 80.0),
+    );
+    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(200.0, 40.0),
+    ));
+
+    assert!(runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(20.0, 20.0)),
+        Point::new(40.0, 20.0)
+    ));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(None, Point::new(40.0, 20.0)));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(4.0, 20.0)),
+        Point::new(40.0, 20.0)
+    ));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(20.0, 20.0)),
+        Point::new(240.0, 20.0)
+    ));
+}
+
+#[test]
+fn scrollbar_drag_state_survives_view_refresh_after_offset_message() {
+    let mut core =
+        GenericNativeRuntimeCore::new(ScrollbarBridge::default(), Vector2::new(240.0, 24.0));
+    let press = Point::new(12.0, 7.0);
+    let first_drag = Point::new(72.0, 7.0);
+    let second_drag = Point::new(132.0, 7.0);
+
+    assert!(
+        core.route_pointer_press(press, PointerButton::Primary)
+            .routed
+    );
+    assert!(core.route_pointer_move(first_drag).routed);
+    let first_offset = core.runtime.bridge().offset;
+    assert!(first_offset > 0.0);
+
+    assert!(core.route_pointer_move(second_drag).routed);
+    assert!(
+        core.runtime.bridge().offset > first_offset,
+        "drag should continue after the first offset message refreshes the surface"
+    );
 }
 
 #[test]
@@ -387,6 +475,17 @@ struct CanvasBridge {
 }
 
 #[derive(Default)]
+struct ScrollbarBridge {
+    offset: f32,
+}
+
+#[derive(Default)]
+struct WheelRefreshBridge {
+    wheel_count: usize,
+    project_count: usize,
+}
+
+#[derive(Default)]
 struct RetainedBridge {
     render_count: usize,
     dirty_mask: u64,
@@ -468,5 +567,49 @@ impl RuntimeBridge<String> for CanvasBridge {
     fn update(&mut self, message: String) -> Command<String> {
         self.text.push_str(&message);
         Command::none()
+    }
+}
+
+impl RuntimeBridge<f32> for ScrollbarBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<f32>> {
+        let mut scrollbar = ScrollbarWidget::new(
+            41,
+            ScrollbarAxis::Horizontal,
+            WidgetSizing::fixed(Vector2::new(220.0, 14.0)),
+        );
+        scrollbar.props.viewport_fraction = 0.25;
+        scrollbar.state.offset_fraction = self.offset;
+        Arc::new(UiSurface::new(SurfaceNode::widget(
+            scrollbar,
+            WidgetMessageMapper::scrollbar(|message| match message {
+                ScrollbarMessage::OffsetChanged { offset_fraction } => offset_fraction,
+            }),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: f32) {
+        self.offset = message;
+    }
+}
+
+impl RuntimeBridge<String> for WheelRefreshBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+        self.project_count += 1;
+        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+            51,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            |message| match message {
+                CanvasMessage::Input {
+                    input: WidgetInput::Wheel { .. },
+                } => String::from("wheel"),
+                _ => String::new(),
+            },
+        )))
+    }
+
+    fn reduce_message(&mut self, message: String) {
+        if message == "wheel" {
+            self.wheel_count += 1;
+        }
     }
 }

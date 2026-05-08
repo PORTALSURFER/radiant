@@ -1,19 +1,23 @@
 //! Load one WAV file and display it as an interactive mono waveform view.
 
-#[cfg(test)]
 use radiant::gui::types::ImageRgba;
 use radiant::prelude as ui;
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
-    runtime::{PaintFillPolygon, PaintFillRect, PaintPrimitive, PaintStrokePolyline},
+    runtime::{GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive},
     theme::ThemeTokens,
     widgets::{
         FocusBehavior, PaintBounds, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, Widget,
         WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    path::PathBuf,
+    sync::Arc,
+};
 
 const DEFAULT_SAMPLE_PATH: &str = r"C:\dev\sempal\assets\portal_SS_kick_003.wav";
 const FALLBACK_SAMPLE_PATH: &str = r"..\..\assets\portal_SS_kick_003.wav";
@@ -24,6 +28,7 @@ const BAND_COUNT: usize = 4;
 const SUMMARY_BLOCK_FRAMES: usize = 128;
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct WaveformFile {
     path: PathBuf,
     sample_rate: u32,
@@ -32,15 +37,28 @@ struct WaveformFile {
     mono_samples: Vec<f32>,
     mono_summary: WaveformSummary,
     bands: [WaveformBand; BAND_COUNT],
+    gpu_signal_samples: Arc<[f32]>,
+}
+
+impl WaveformFile {
+    fn path_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.path.hash(&mut hasher);
+        self.frames.hash(&mut hasher);
+        self.sample_rate.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct WaveformBand {
     samples: Vec<f32>,
     summary: WaveformSummary,
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct WaveformSummary {
     blocks: Vec<SummaryBlock>,
 }
@@ -129,7 +147,7 @@ fn waveform_viewport(
     cursor_ratio: Option<f32>,
 ) -> ui::View<WaveformInteraction> {
     ui::custom_widget(
-        WaveformVectorWidget::new(file, viewport, cursor_ratio),
+        WaveformWidget::new(file, viewport, cursor_ratio),
         |output| output.typed_ref::<WaveformInteraction>().copied(),
     )
 }
@@ -189,14 +207,14 @@ fn waveform_controls() -> ui::View<WaveformInteraction> {
 }
 
 #[derive(Clone, Debug)]
-struct WaveformVectorWidget {
+struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     cursor_ratio: Option<f32>,
 }
 
-impl WaveformVectorWidget {
+impl WaveformWidget {
     fn new(file: Arc<WaveformFile>, viewport: WaveformViewport, cursor_ratio: Option<f32>) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -219,7 +237,7 @@ impl WaveformVectorWidget {
     }
 }
 
-impl Widget for WaveformVectorWidget {
+impl Widget for WaveformWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -257,14 +275,33 @@ impl Widget for WaveformVectorWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        push_waveform_vector_paint(
-            primitives,
-            self.common.id,
-            &self.file,
-            self.viewport,
-            self.cursor_ratio,
-            bounds,
-        );
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: self.common.id,
+            key: self.file.path_hash(),
+            revision: 0,
+            rect: bounds,
+            content: GpuSurfaceContent::SignalBands {
+                frames: self.file.frames,
+                band_count: BAND_COUNT,
+                frame_range: [self.viewport.start as f32, self.viewport.end as f32],
+                samples: Arc::clone(&self.file.gpu_signal_samples),
+            },
+            overlays: self
+                .cursor_ratio
+                .map(|ratio| {
+                    vec![GpuSurfaceOverlay::VerticalCursor {
+                        ratio,
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 235,
+                        },
+                        width: 1.5,
+                    }]
+                })
+                .unwrap_or_default(),
+        }));
     }
 }
 
@@ -335,6 +372,7 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
     }
     let mono_summary = WaveformSummary::from_samples(&mono_samples);
     let bands = split_frequency_bands(&mono_samples, spec.sample_rate);
+    let gpu_signal_samples = interleaved_band_samples(&bands);
 
     Ok(WaveformFile {
         path,
@@ -344,7 +382,22 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         mono_samples,
         mono_summary,
         bands,
+        gpu_signal_samples,
     })
+}
+
+fn interleaved_band_samples(bands: &[WaveformBand; BAND_COUNT]) -> Arc<[f32]> {
+    let frames = bands
+        .first()
+        .map(|band| band.samples.len())
+        .unwrap_or_default();
+    let mut samples = Vec::with_capacity(frames.saturating_mul(BAND_COUNT));
+    for frame in 0..frames {
+        for band in bands {
+            samples.push(band.samples.get(frame).copied().unwrap_or_default());
+        }
+    }
+    samples.into()
 }
 
 fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> {
@@ -410,273 +463,7 @@ fn normalized_band(mut samples: Vec<f32>, gain: f32) -> Vec<f32> {
     samples
 }
 
-fn push_waveform_vector_paint(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    file: &WaveformFile,
-    viewport: WaveformViewport,
-    cursor_ratio: Option<f32>,
-    bounds: Rect,
-) {
-    push_fill_rect(primitives, widget_id, bounds, rgba(2, 3, 3, 255));
-    push_waveform_grid(primitives, widget_id, bounds);
-    push_band_labels(primitives, widget_id, bounds);
-
-    let viewport = viewport.clamp(file.frames);
-    let visible = viewport.visible_frames().max(1);
-    let mid = bounds.min.y + bounds.height() * 0.5;
-    let half = (bounds.height() * 0.42).max(1.0);
-    let columns = bounds.width().round().clamp(64.0, 1600.0) as usize;
-    let band_styles = [
-        BandStyle {
-            fill: [0, 102, 255, 215],
-            ridge: [32, 139, 255, 255],
-            scale: 1.0,
-        },
-        BandStyle {
-            fill: [154, 91, 38, 198],
-            ridge: [205, 132, 60, 240],
-            scale: 0.82,
-        },
-        BandStyle {
-            fill: [246, 160, 58, 212],
-            ridge: [255, 190, 84, 250],
-            scale: 0.72,
-        },
-        BandStyle {
-            fill: [250, 250, 244, 238],
-            ridge: [255, 255, 255, 255],
-            scale: 0.48,
-        },
-    ];
-    for (band, style) in file.bands.iter().zip(band_styles) {
-        push_band_shape(
-            primitives, widget_id, band, viewport, visible, bounds, columns, mid, half, style,
-        );
-    }
-    push_mono_shape(
-        primitives, widget_id, file, viewport, visible, bounds, columns, mid, half,
-    );
-    if let Some(ratio) = cursor_ratio {
-        push_cursor_line(primitives, widget_id, bounds, ratio);
-    }
-}
-
-fn push_waveform_grid(primitives: &mut Vec<PaintPrimitive>, widget_id: u64, bounds: Rect) {
-    let major = rgba(46, 48, 50, 90);
-    let minor = rgba(22, 24, 26, 95);
-    let width = bounds.width().max(1.0);
-    let height = bounds.height().max(1.0);
-    for index in 0..=16 {
-        let x = bounds.min.x + width * index as f32 / 16.0;
-        let color = if index % 4 == 0 { major } else { minor };
-        push_fill_rect(
-            primitives,
-            widget_id,
-            Rect::from_min_size(Point::new(x, bounds.min.y), Vector2::new(1.0, height)),
-            color,
-        );
-    }
-    for index in 0..=4 {
-        let y = bounds.min.y + height * index as f32 / 4.0;
-        push_fill_rect(
-            primitives,
-            widget_id,
-            Rect::from_min_size(Point::new(bounds.min.x, y), Vector2::new(width, 1.0)),
-            minor,
-        );
-    }
-    push_fill_rect(
-        primitives,
-        widget_id,
-        Rect::from_min_size(
-            Point::new(bounds.min.x, bounds.min.y + height * 0.5),
-            Vector2::new(width, 1.0),
-        ),
-        rgba(82, 82, 78, 140),
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_band_shape(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    band: &WaveformBand,
-    viewport: WaveformViewport,
-    visible: usize,
-    bounds: Rect,
-    columns: usize,
-    mid: f32,
-    half: f32,
-    style: BandStyle,
-) {
-    let mut top = Vec::with_capacity(columns);
-    let mut bottom = Vec::with_capacity(columns);
-    let max_x = (columns.saturating_sub(1)).max(1);
-    for column in 0..columns {
-        let x = bounds.min.x + bounds.width() * column as f32 / max_x as f32;
-        let start = viewport.start + column * visible / columns.max(1);
-        let end = viewport.start
-            + ((column + 1) * visible / columns.max(1)).max(column * visible / columns.max(1) + 1);
-        let stats = band.stats(start, end.min(viewport.end));
-        let extent = stats.peak * half * style.scale;
-        top.push(Point::new(x, mid - extent));
-        bottom.push(Point::new(x, mid + extent));
-    }
-    push_symmetric_band(primitives, widget_id, top, bottom, style.fill, style.ridge);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_mono_shape(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    file: &WaveformFile,
-    viewport: WaveformViewport,
-    visible: usize,
-    bounds: Rect,
-    columns: usize,
-    mid: f32,
-    half: f32,
-) {
-    let mut top = Vec::with_capacity(columns);
-    let mut bottom = Vec::with_capacity(columns);
-    let max_x = (columns.saturating_sub(1)).max(1);
-    for column in 0..columns {
-        let x = bounds.min.x + bounds.width() * column as f32 / max_x as f32;
-        let start = viewport.start + column * visible / columns.max(1);
-        let end = viewport.start
-            + ((column + 1) * visible / columns.max(1)).max(column * visible / columns.max(1) + 1);
-        let stats = file
-            .mono_summary
-            .stats(&file.mono_samples, start, end.min(viewport.end));
-        let extent = stats.peak * half * 0.36;
-        top.push(Point::new(x, mid - extent));
-        bottom.push(Point::new(x, mid + extent));
-    }
-    push_symmetric_band(
-        primitives,
-        widget_id,
-        top,
-        bottom,
-        [255, 255, 255, 245],
-        [255, 255, 255, 255],
-    );
-}
-
-fn push_symmetric_band(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    top: Vec<Point>,
-    mut bottom: Vec<Point>,
-    fill: [u8; 4],
-    ridge: [u8; 4],
-) {
-    let mut polygon = top.clone();
-    bottom.reverse();
-    polygon.extend(bottom.iter().copied());
-    primitives.push(PaintPrimitive::FillPolygon(PaintFillPolygon {
-        widget_id,
-        points: polygon,
-        color: rgba(fill[0], fill[1], fill[2], fill[3]),
-    }));
-    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-        widget_id,
-        points: top,
-        color: rgba(ridge[0], ridge[1], ridge[2], ridge[3]),
-        width: 1.0,
-    }));
-    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-        widget_id,
-        points: bottom,
-        color: rgba(ridge[0], ridge[1], ridge[2], ridge[3]),
-        width: 1.0,
-    }));
-}
-
-fn push_band_labels(primitives: &mut Vec<PaintPrimitive>, widget_id: u64, bounds: Rect) {
-    let labels = [
-        ("low", rgba(32, 139, 255, 255)),
-        ("low_mid", rgba(205, 132, 60, 255)),
-        ("mid", rgba(255, 190, 84, 255)),
-        ("high", rgba(255, 255, 255, 255)),
-    ];
-    let mut x = bounds.min.x + 8.0;
-    let y = bounds.min.y + 8.0;
-    for (label, color) in labels {
-        push_fill_rect(
-            primitives,
-            widget_id,
-            Rect::from_min_size(Point::new(x, y + 1.0), Vector2::new(8.0, 8.0)),
-            color,
-        );
-        let mut cursor = x + 12.0;
-        for ch in label.chars() {
-            push_glyph(primitives, widget_id, cursor, y, ch, color);
-            cursor += 5.0;
-        }
-        x += label.len() as f32 * 6.0 + 18.0;
-    }
-}
-
-fn push_cursor_line(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    bounds: Rect,
-    ratio: f32,
-) {
-    let x = bounds.min.x + bounds.width() * ratio.clamp(0.0, 1.0);
-    primitives.push(PaintPrimitive::StrokePolyline(PaintStrokePolyline {
-        widget_id,
-        points: vec![Point::new(x, bounds.min.y), Point::new(x, bounds.max.y)],
-        color: rgba(255, 255, 255, 210),
-        width: 1.5,
-    }));
-    push_fill_rect(
-        primitives,
-        widget_id,
-        Rect::from_min_size(Point::new(x - 3.0, bounds.min.y), Vector2::new(6.0, 3.0)),
-        rgba(255, 255, 255, 230),
-    );
-}
-
-fn push_glyph(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: u64,
-    x: f32,
-    y: f32,
-    ch: char,
-    color: Rgba8,
-) {
-    for (row, bits) in glyph_rows(ch).iter().enumerate() {
-        for col in 0..3 {
-            if bits & (1 << (2 - col)) != 0 {
-                push_fill_rect(
-                    primitives,
-                    widget_id,
-                    Rect::from_min_size(
-                        Point::new(x + col as f32, y + row as f32),
-                        Vector2::new(1.0, 1.0),
-                    ),
-                    color,
-                );
-            }
-        }
-    }
-}
-
-fn push_fill_rect(primitives: &mut Vec<PaintPrimitive>, widget_id: u64, rect: Rect, color: Rgba8) {
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
-}
-
-fn rgba(r: u8, g: u8, b: u8, a: u8) -> Rgba8 {
-    Rgba8 { r, g, b, a }
-}
-
-#[cfg(test)]
+#[allow(dead_code)]
 fn render_waveform_image(
     file: &WaveformFile,
     viewport: WaveformViewport,
@@ -690,14 +477,14 @@ fn render_waveform_image(
     image.into_image()
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 struct WaveformRaster {
     width: usize,
     height: usize,
     pixels: Vec<u8>,
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 impl WaveformRaster {
     fn new(width: usize, height: usize) -> Self {
         Self {
@@ -942,6 +729,7 @@ impl WaveformRaster {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
 struct BandStyle {
     fill: [u8; 4],
     ridge: [u8; 4],
@@ -949,18 +737,21 @@ struct BandStyle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
 struct BandStats {
     peak: f32,
     rms: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[allow(dead_code)]
 struct StatsAccumulator {
     peak: f32,
     energy: f32,
     count: usize,
 }
 
+#[allow(dead_code)]
 impl WaveformBand {
     fn new(samples: Vec<f32>) -> Self {
         let summary = WaveformSummary::from_samples(&samples);
@@ -972,6 +763,7 @@ impl WaveformBand {
     }
 }
 
+#[allow(dead_code)]
 impl WaveformSummary {
     fn from_samples(samples: &[f32]) -> Self {
         let blocks = samples
@@ -1008,6 +800,7 @@ impl WaveformSummary {
     }
 }
 
+#[allow(dead_code)]
 impl SummaryBlock {
     fn from_samples(samples: &[f32]) -> Self {
         let mut block = Self::default();
@@ -1029,6 +822,7 @@ impl SummaryBlock {
     }
 }
 
+#[allow(dead_code)]
 impl StatsAccumulator {
     fn add_samples(&mut self, samples: &[f32]) {
         for sample in samples {
@@ -1063,17 +857,18 @@ fn band_stats(samples: &[f32], start: usize, end: usize) -> BandStats {
     SummaryBlock::from_samples(&samples[start..end]).into_stats()
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 fn column_alpha(y: usize, mid: f32, half: f32) -> f32 {
     let distance = ((y as f32 - mid).abs() / half.max(1.0)).clamp(0.0, 1.0);
     lerp(0.42, 0.92, distance)
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 fn band_alpha(peak: f32, scale: f32) -> f32 {
     (0.34 + peak * 0.72 * scale).clamp(0.28, 0.9)
 }
 
+#[allow(dead_code)]
 fn glyph_rows(ch: char) -> [u8; 7] {
     match ch {
         'd' => [0b110, 0b101, 0b101, 0b101, 0b101, 0b101, 0b110],
@@ -1089,7 +884,7 @@ fn glyph_rows(ch: char) -> [u8; 7] {
     }
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 fn lerp(from: f32, to: f32, t: f32) -> f32 {
     from + (to - from) * t.clamp(0.0, 1.0)
 }
@@ -1227,6 +1022,21 @@ impl WaveformApp {
 mod tests {
     use super::*;
 
+    fn synthetic_file(mono_samples: Vec<f32>, sample_rate: u32, channels: usize) -> WaveformFile {
+        let bands = split_frequency_bands(&mono_samples, sample_rate);
+        let gpu_signal_samples = interleaved_band_samples(&bands);
+        WaveformFile {
+            path: PathBuf::from("synthetic.wav"),
+            sample_rate,
+            channels,
+            frames: mono_samples.len(),
+            mono_summary: WaveformSummary::from_samples(&mono_samples),
+            bands,
+            mono_samples,
+            gpu_signal_samples,
+        }
+    }
+
     #[test]
     fn stereo_samples_downmix_to_single_mono_stream() {
         let mono = downmix_to_mono(&[1.0, -1.0, 0.6, 0.2], 2, 2);
@@ -1235,19 +1045,173 @@ mod tests {
     }
 
     #[test]
+    fn gpu_low_band_projection_avoids_thin_cuts_without_flattening_detail() {
+        let frame_count = 65_536;
+        let low_samples: Vec<f32> = (0..frame_count)
+            .map(|index| {
+                let carrier = (index as f32 / 34.0).sin();
+                let contour = 0.28 + 0.58 * (index as f32 / 12_000.0).sin().abs();
+                (carrier * contour).clamp(-1.0, 1.0)
+            })
+            .collect();
+        let bands = [
+            WaveformBand::new(low_samples.clone()),
+            WaveformBand::new(vec![0.0; frame_count]),
+            WaveformBand::new(vec![0.0; frame_count]),
+            WaveformBand::new(vec![0.0; frame_count]),
+        ];
+
+        let gpu_samples = interleaved_band_samples(&bands);
+        let low_gpu_samples: Vec<f32> = gpu_samples
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[0])
+            .collect();
+        let extents = shader_projected_band_extents(&low_gpu_samples, 192, 0);
+        let isolated_cuts = isolated_cut_count(&extents);
+        let isolated_spikes = isolated_spike_count(&extents);
+        let roughness = extent_roughness(&extents);
+        let max_step = max_adjacent_step(&extents);
+        let detail_range = extent_range(&extents);
+
+        assert!(
+            isolated_cuts <= 1,
+            "low-frequency projection should not contain repeated one-column zero-crossing cuts; extents: {extents:?}"
+        );
+        assert!(
+            isolated_spikes <= 1,
+            "low-frequency projection should not contain repeated one-column crest spikes; extents: {extents:?}"
+        );
+        assert!(
+            roughness < 0.012,
+            "low-frequency projection should stay continuous at full zoom-out"
+        );
+        assert!(
+            max_step < 0.16,
+            "low-frequency projection should not contain long vertical edge jumps"
+        );
+        assert!(
+            detail_range > 0.18,
+            "low-frequency projection should retain amplitude contour detail, not flatten into a rectangle"
+        );
+    }
+
+    fn shader_projected_band_extents(samples: &[f32], columns: usize, _band: usize) -> Vec<f32> {
+        let frames_per_pixel = samples.len() as f32 / columns.max(1) as f32;
+        (0..columns)
+            .map(|column| {
+                let peak = smoothed_test_peak(samples, columns, column);
+                let left = smoothed_test_peak(samples, columns, column.saturating_sub(1));
+                let right = smoothed_test_peak(
+                    samples,
+                    columns,
+                    (column + 1).min(columns.saturating_sub(1)),
+                );
+                let neighbor = left.max(right);
+                let corner_limit =
+                    0.24 + (0.095 - 0.24) * smoothstep_test(18.0, 260.0, frames_per_pixel);
+                let corner_delta = (peak - neighbor).max(0.0);
+                let corner_strength =
+                    smoothstep_test(corner_limit, corner_limit * 2.8, corner_delta);
+                peak + (neighbor + corner_limit - peak) * corner_strength * 0.82
+            })
+            .collect()
+    }
+
+    fn smoothed_test_peak(samples: &[f32], columns: usize, column: usize) -> f32 {
+        weighted_test_projection(samples, columns, column, test_peak_extent)
+    }
+
+    fn weighted_test_projection(
+        samples: &[f32],
+        columns: usize,
+        column: usize,
+        project: fn(&[f32], usize, usize) -> f32,
+    ) -> f32 {
+        let taps = [
+            (column.saturating_sub(1), 0.24),
+            (column, 0.52),
+            ((column + 1).min(columns.saturating_sub(1)), 0.24),
+        ];
+        taps.iter()
+            .map(|(tap, weight)| project(samples, columns, *tap) * weight)
+            .sum()
+    }
+
+    fn test_peak_extent(samples: &[f32], columns: usize, column: usize) -> f32 {
+        test_column_samples(samples, columns, column)
+            .map(f32::abs)
+            .fold(0.0_f32, f32::max)
+    }
+
+    fn test_column_samples(
+        samples: &[f32],
+        columns: usize,
+        column: usize,
+    ) -> impl Iterator<Item = f32> + '_ {
+        let start = column * samples.len() / columns.max(1);
+        let end = ((column + 1) * samples.len() / columns.max(1))
+            .max(start + 1)
+            .min(samples.len());
+        let span = end.saturating_sub(start).max(1);
+        let step = (span / 40).max(1);
+        (start..end).step_by(step).map(|frame| samples[frame])
+    }
+
+    fn smoothstep_test(edge0: f32, edge1: f32, value: f32) -> f32 {
+        let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    }
+
+    fn isolated_cut_count(extents: &[f32]) -> usize {
+        extents
+            .windows(3)
+            .filter(|window| {
+                let neighbor_floor = window[0].min(window[2]);
+                neighbor_floor > 0.24 && window[1] < neighbor_floor * 0.54
+            })
+            .count()
+    }
+
+    fn isolated_spike_count(extents: &[f32]) -> usize {
+        extents
+            .windows(3)
+            .filter(|window| {
+                let neighbor_ceiling = window[0].max(window[2]);
+                window[1] > 0.32 && window[1] > neighbor_ceiling * 1.42
+            })
+            .count()
+    }
+
+    fn extent_range(extents: &[f32]) -> f32 {
+        let min = extents.iter().copied().fold(f32::INFINITY, f32::min);
+        let max = extents.iter().copied().fold(0.0_f32, f32::max);
+        max - min
+    }
+
+    fn extent_roughness(extents: &[f32]) -> f32 {
+        if extents.len() < 3 {
+            return 0.0;
+        }
+        let total = extents
+            .windows(3)
+            .map(|window| (window[1] * 2.0 - window[0] - window[2]).abs())
+            .sum::<f32>();
+        total / (extents.len() - 2) as f32
+    }
+
+    fn max_adjacent_step(extents: &[f32]) -> f32 {
+        extents
+            .windows(2)
+            .map(|window| (window[1] - window[0]).abs())
+            .fold(0.0_f32, f32::max)
+    }
+
+    #[test]
     fn synthetic_waveform_renders_nonblank_mono_image() {
         let mono_samples: Vec<f32> = (0..512)
             .map(|index| ((index as f32 / 16.0).sin() * 0.8).clamp(-1.0, 1.0))
             .collect();
-        let file = WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
-            sample_rate: 48_000,
-            channels: 2,
-            frames: 512,
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands: split_frequency_bands(&mono_samples, 48_000),
-            mono_samples,
-        };
+        let file = synthetic_file(mono_samples, 48_000, 2);
 
         let image = render_waveform_image(&file, WaveformViewport::full(file.frames), 128, 48);
 
@@ -1263,64 +1227,60 @@ mod tests {
     }
 
     #[test]
-    fn vector_waveform_paint_uses_polygons_not_images() {
+    fn waveform_widget_paints_cached_body_and_cursor_overlay() {
         let mono_samples: Vec<f32> = (0..512)
             .map(|index| ((index as f32 / 16.0).sin() * 0.8).clamp(-1.0, 1.0))
             .collect();
-        let file = WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
-            sample_rate: 48_000,
-            channels: 2,
-            frames: 512,
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands: split_frequency_bands(&mono_samples, 48_000),
-            mono_samples,
-        };
+        let file = Arc::new(synthetic_file(mono_samples, 48_000, 2));
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 96.0));
+        let mut widget =
+            WaveformWidget::new(Arc::clone(&file), WaveformViewport::full(file.frames), None);
         let mut primitives = Vec::new();
 
-        push_waveform_vector_paint(
+        assert_eq!(
+            widget.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(160.0, 48.0)
+                }
+            ),
+            None,
+            "hover cursor updates should stay local to the widget"
+        );
+        widget.append_paint(
             &mut primitives,
-            99,
-            &file,
-            WaveformViewport::full(file.frames),
-            Some(0.5),
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 96.0)),
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
         );
 
         assert!(
-            primitives
+            primitives.iter().any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::GpuSurface(PaintGpuSurface {
+                    overlays,
+                    ..
+                }) if !overlays.is_empty()
+            )),
+            "waveform body should use a GPU signal primitive so zoom does not regenerate pixels"
+        );
+        assert!(
+            !primitives
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_)))
         );
         assert!(
             !primitives
                 .iter()
-                .any(|primitive| matches!(primitive, PaintPrimitive::Image(_)))
-        );
-        assert!(
-            primitives.iter().any(|primitive| {
-                matches!(
-                    primitive,
-                    PaintPrimitive::StrokePolyline(PaintStrokePolyline { color, .. })
-                        if color.r == 255 && color.g == 255 && color.b == 255 && color.a == 210
-                )
-            }),
-            "cursor line should be painted when a cursor ratio is provided"
+                .any(|primitive| matches!(primitive, PaintPrimitive::StrokePolyline(_))),
+            "cursor line should be handled by the GPU waveform shader"
         );
     }
 
     #[test]
     fn zoom_and_pan_keep_viewport_inside_sample() {
         let mono_samples = vec![0.0; 20_000];
-        let file = Arc::new(WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
-            sample_rate: 48_000,
-            channels: 1,
-            frames: 20_000,
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands: split_frequency_bands(&mono_samples, 48_000),
-            mono_samples,
-        });
+        let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
         let mut app = WaveformApp {
             file,
             viewport: WaveformViewport::full(20_000),
@@ -1338,15 +1298,7 @@ mod tests {
     #[test]
     fn wheel_zoom_and_scrollbar_offset_update_viewport() {
         let mono_samples = vec![0.0; 20_000];
-        let file = Arc::new(WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
-            sample_rate: 48_000,
-            channels: 1,
-            frames: 20_000,
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands: split_frequency_bands(&mono_samples, 48_000),
-            mono_samples,
-        });
+        let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
         let mut app = WaveformApp {
             file,
             viewport: WaveformViewport::full(20_000),
@@ -1368,15 +1320,7 @@ mod tests {
     #[test]
     fn zoom_around_anchor_keeps_anchor_frame_at_same_ratio() {
         let mono_samples = vec![0.0; 20_000];
-        let file = Arc::new(WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
-            sample_rate: 48_000,
-            channels: 1,
-            frames: 20_000,
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands: split_frequency_bands(&mono_samples, 48_000),
-            mono_samples,
-        });
+        let file = Arc::new(synthetic_file(mono_samples, 48_000, 1));
         let mut app = WaveformApp {
             file,
             viewport: WaveformViewport {

@@ -162,10 +162,68 @@ pub struct PaintCustomSurface {
 pub struct PaintImage {
     /// Widget that produced this image primitive.
     pub widget_id: WidgetId,
+    /// Optional source rectangle in image-pixel coordinates.
+    ///
+    /// When omitted, the full image is stretched into `rect`.
+    pub source_rect: Option<Rect>,
     /// Destination rectangle.
     pub rect: Rect,
     /// Shared RGBA image payload.
     pub image: Arc<ImageRgba>,
+}
+
+/// Retained GPU surface drawn by native GPU backends.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PaintGpuSurface {
+    /// Widget that produced this GPU surface.
+    pub widget_id: WidgetId,
+    /// Stable surface key used to retain GPU resources across frames.
+    pub key: u64,
+    /// Monotonic content revision for retained GPU resources.
+    pub revision: u64,
+    /// Destination rectangle in logical surface coordinates.
+    pub rect: Rect,
+    /// Backend-neutral retained content payload.
+    pub content: GpuSurfaceContent,
+    /// Optional lightweight overlays composited by the native GPU backend.
+    pub overlays: Vec<GpuSurfaceOverlay>,
+}
+
+/// Backend-neutral retained GPU surface content.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GpuSurfaceContent {
+    /// Shared RGBA atlas payload sampled from a source rectangle.
+    RgbaAtlas {
+        /// Source rectangle in atlas-pixel coordinates.
+        source_rect: Rect,
+        /// Shared RGBA atlas payload uploaded once per key/revision by native backends.
+        atlas: Arc<ImageRgba>,
+    },
+    /// Interleaved floating-point signal bands rendered directly at surface resolution.
+    SignalBands {
+        /// Total frame count in the retained signal data.
+        frames: usize,
+        /// Number of interleaved bands per frame.
+        band_count: usize,
+        /// Visible frame range as start/end frame offsets.
+        frame_range: [f32; 2],
+        /// Interleaved frame-major band samples.
+        samples: Arc<[f32]>,
+    },
+}
+
+/// Lightweight GPU-surface overlay.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GpuSurfaceOverlay {
+    /// Vertical cursor line positioned as a 0..1 ratio inside the destination rect.
+    VerticalCursor {
+        /// Horizontal cursor position as a 0..1 ratio inside the destination rect.
+        ratio: f32,
+        /// Cursor color.
+        color: Rgba8,
+        /// Cursor width in logical pixels.
+        width: f32,
+    },
 }
 
 /// Begin clipping subsequent paint primitives to a rectangle.
@@ -209,6 +267,8 @@ pub enum PaintPrimitive {
     TextInput(PaintTextInput),
     /// Paint an RGBA image stretched into one destination rectangle.
     Image(PaintImage),
+    /// Paint a retained generic GPU surface using native GPU resources when available.
+    GpuSurface(PaintGpuSurface),
     /// Reserve a host-painted custom surface.
     CustomSurface(PaintCustomSurface),
 }

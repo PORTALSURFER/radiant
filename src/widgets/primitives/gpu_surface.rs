@@ -12,7 +12,7 @@ use super::support::WidgetCommon;
 use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing, WidgetStyle,
 };
-use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{GpuSurfaceMessage, WidgetInput, WidgetOutput};
 
 /// Reusable widget that reserves a retained native GPU surface.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,6 +29,8 @@ pub struct GpuSurfaceWidget {
     pub capabilities: GpuSurfaceCapabilities,
     /// Optional lightweight overlays composited by the native GPU backend.
     pub overlays: Vec<GpuSurfaceOverlay>,
+    /// Whether routed widget input should be emitted as host-mappable output.
+    pub emits_input: bool,
 }
 
 impl GpuSurfaceWidget {
@@ -53,6 +55,7 @@ impl GpuSurfaceWidget {
             content,
             capabilities: GpuSurfaceCapabilities::default(),
             overlays: Vec::new(),
+            emits_input: false,
         }
     }
 
@@ -85,6 +88,12 @@ impl GpuSurfaceWidget {
         self.overlays = overlays;
         self
     }
+
+    /// Enable or disable host-mappable input events for this GPU surface.
+    pub fn with_input_events(mut self, enabled: bool) -> Self {
+        self.emits_input = enabled;
+        self
+    }
 }
 
 impl Widget for GpuSurfaceWidget {
@@ -96,8 +105,9 @@ impl Widget for GpuSurfaceWidget {
         &mut self.common
     }
 
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        self.emits_input
+            .then(|| WidgetOutput::typed(GpuSurfaceMessage::Input { input }))
     }
 
     fn append_paint(

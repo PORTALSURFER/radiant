@@ -237,6 +237,16 @@ pub enum CanvasMessage {
     },
 }
 
+/// Message emitted by a retained GPU surface primitive.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GpuSurfaceMessage {
+    /// Backend-neutral interaction routed into the GPU surface widget.
+    Input {
+        /// Routed widget input payload.
+        input: WidgetInput,
+    },
+}
+
 /// Type-erased widget output payload.
 #[derive(Clone)]
 pub struct CustomWidgetOutput {

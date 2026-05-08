@@ -3,7 +3,18 @@
 use radiant::gui::types::ImageRgba;
 use radiant::layout::{Point, Rect, Vector2};
 use radiant::prelude::*;
+use radiant::widgets::{PointerButton, WidgetInput};
 use std::sync::Arc;
+
+#[derive(Default)]
+struct DemoState {
+    pressed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum DemoMessage {
+    SurfaceInput(WidgetInput),
+}
 
 fn demo_atlas() -> Arc<ImageRgba> {
     let width = 256usize;
@@ -25,11 +36,16 @@ fn demo_atlas() -> Arc<ImageRgba> {
     Arc::new(ImageRgba::new(width, height, pixels).expect("atlas dimensions match pixels"))
 }
 
-fn demo_view() -> View {
+fn demo_view(state: &DemoState) -> View<DemoMessage> {
     let atlas = demo_atlas();
+    let status = if state.pressed {
+        "GPU surface input: pressed"
+    } else {
+        "GPU surface input: idle"
+    };
     column([
         text("GPU surface").size(180.0, 28.0),
-        gpu_surface(
+        gpu_surface_input(
             7,
             1,
             GpuSurfaceContent::RgbaAtlas {
@@ -39,10 +55,13 @@ fn demo_view() -> View {
                 ),
                 atlas,
             },
+            DemoMessage::SurfaceInput,
         )
+        .id(11)
         .size(360.0, 180.0)
         .width(360.0)
         .height(180.0),
+        text(status).id(12).size(260.0, 28.0),
     ])
     .padding(24.0)
     .spacing(12.0)
@@ -50,20 +69,34 @@ fn demo_view() -> View {
 }
 
 fn main() -> radiant::Result {
-    radiant::window("Radiant GPU Surface")
+    radiant::app(DemoState::default())
+        .title("Radiant GPU Surface")
         .size(440, 280)
-        .run(demo_view())
+        .view(|state| demo_view(state))
+        .update(|state, message| match message {
+            DemoMessage::SurfaceInput(WidgetInput::PointerPress {
+                button: PointerButton::Primary,
+                ..
+            }) => state.pressed = true,
+            DemoMessage::SurfaceInput(WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            }) => state.pressed = false,
+            _ => {}
+        })
+        .run()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use radiant::runtime::PaintPrimitive;
+    use radiant::runtime::SurfaceRuntime;
     use radiant::theme::ThemeTokens;
 
     #[test]
     fn gpu_surface_example_lowers_to_retained_gpu_primitive() {
-        let surface = demo_view().into_surface();
+        let surface = demo_view(&DemoState::default()).into_surface();
         let layout = radiant::layout::layout_tree(
             &surface.layout_node(),
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(440.0, 280.0)),
@@ -85,5 +118,42 @@ mod tests {
         assert_eq!(gpu.revision, 1);
         assert_eq!(gpu.rect.width(), 360.0);
         assert_eq!(gpu.rect.height(), 180.0);
+    }
+
+    #[test]
+    fn gpu_surface_example_routes_input_to_state() {
+        let bridge = radiant::app(DemoState::default())
+            .view(|state| demo_view(state))
+            .update(|state, message| match message {
+                DemoMessage::SurfaceInput(WidgetInput::PointerPress {
+                    button: PointerButton::Primary,
+                    ..
+                }) => state.pressed = true,
+                _ => {}
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(440.0, 280.0));
+
+        let handled = runtime.dispatch_input(
+            11,
+            WidgetInput::PointerPress {
+                position: Point::new(48.0, 72.0),
+                button: PointerButton::Primary,
+            },
+        );
+
+        let text = runtime
+            .surface()
+            .find_widget(12)
+            .and_then(|widget: &radiant::runtime::SurfaceWidget<DemoMessage>| {
+                widget
+                    .widget_object()
+                    .as_any()
+                    .downcast_ref::<radiant::widgets::TextWidget>()
+            })
+            .map(|widget| widget.text.as_str());
+
+        assert!(handled);
+        assert_eq!(text, Some("GPU surface input: pressed"));
     }
 }

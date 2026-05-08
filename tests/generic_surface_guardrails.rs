@@ -340,8 +340,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "custom_widget",
             vec![
                 "impl Widget for StatusChip",
-                "custom_widget_mapped(",
                 "WidgetOutput::custom(",
+                "dispatch_input(",
             ],
         ),
     ] {

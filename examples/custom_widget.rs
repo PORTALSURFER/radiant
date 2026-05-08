@@ -112,3 +112,43 @@ fn main() -> radiant::Result {
         })
         .run()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::layout::Point;
+    use radiant::runtime::SurfaceRuntime;
+
+    #[test]
+    fn custom_widget_routes_typed_output_through_application_runtime() {
+        let bridge = radiant::app(DemoState::default())
+            .view(|state| {
+                column([custom_widget_mapped(
+                    StatusChip::new(state.active),
+                    |message: ChipOutput| message,
+                )
+                .id(10)])
+            })
+            .update(|state, message| match message {
+                ChipOutput::Toggle => state.active = !state.active,
+            })
+            .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(320.0, 120.0));
+
+        let handled = runtime.dispatch_input(
+            10,
+            WidgetInput::PointerRelease {
+                position: Point::new(20.0, 20.0),
+                button: PointerButton::Primary,
+            },
+        );
+        let active = runtime
+            .surface()
+            .find_widget(10)
+            .and_then(|widget| widget.widget_object().as_any().downcast_ref::<StatusChip>())
+            .map(|chip| chip.active);
+
+        assert!(handled);
+        assert_eq!(active, Some(true));
+    }
+}

@@ -1,10 +1,7 @@
 //! Folder browser with an expandable tree, details list, and resizable panes.
 
 use radiant::prelude as ui;
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[path = "folder_browser/columns.rs"]
 mod columns;
@@ -12,6 +9,8 @@ mod columns;
 mod menu_geometry;
 #[path = "folder_browser/model.rs"]
 mod model;
+#[path = "folder_browser/state.rs"]
+mod state;
 #[path = "folder_browser/storage.rs"]
 mod storage;
 #[path = "folder_browser/view.rs"]
@@ -19,6 +18,7 @@ mod view;
 use columns::*;
 use menu_geometry::*;
 use model::*;
+use state::BrowserState;
 use storage::*;
 
 const MIN_TREE_WIDTH: f32 = 190.0;
@@ -32,73 +32,7 @@ const MIN_FILE_COLUMN_WIDTH: f32 = 56.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
 const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 
-#[derive(Clone, Debug)]
-struct BrowserState {
-    selected_folder: String,
-    selected_file: Option<String>,
-    expanded_folders: HashSet<String>,
-    folder_drag: Option<FolderDrag>,
-    context_folder: Option<String>,
-    context_file: Option<String>,
-    context_position: Option<radiant::layout::Point>,
-    rename_folder: Option<String>,
-    rename_draft: String,
-    rename_file: Option<String>,
-    file_rename_draft: String,
-    context_column: Option<String>,
-    column_resize: Option<ColumnResize>,
-    file_columns: Vec<FileColumn>,
-    sort: ui::DetailsSort,
-    tree_width: f32,
-    folders: Vec<FolderEntry>,
-    status: String,
-}
-
-impl Default for BrowserState {
-    fn default() -> Self {
-        Self::from_root(temp_root())
-    }
-}
-
 impl BrowserState {
-    fn from_root(root: PathBuf) -> Self {
-        let root_folder = load_root_folder(root);
-        let root_id = root_folder.id.clone();
-        Self {
-            selected_folder: root_id.clone(),
-            selected_file: None,
-            expanded_folders: [root_id].into_iter().collect(),
-            folder_drag: None,
-            context_folder: None,
-            context_file: None,
-            context_position: None,
-            rename_folder: None,
-            rename_draft: String::new(),
-            rename_file: None,
-            file_rename_draft: String::new(),
-            context_column: None,
-            column_resize: None,
-            file_columns: default_file_columns(),
-            sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
-            tree_width: 300.0,
-            folders: vec![root_folder],
-            status: String::from("Drag a folder handle onto another folder"),
-        }
-    }
-
-    fn selected_folder(&self) -> &FolderEntry {
-        self.find_folder(&self.selected_folder)
-            .unwrap_or(&self.folders[0])
-    }
-
-    fn find_folder(&self, id: &str) -> Option<&FolderEntry> {
-        self.folders.iter().find_map(|folder| folder.find(id))
-    }
-
-    fn folder_has_children(&self, id: &str) -> bool {
-        self.find_folder(id).is_some_and(FolderEntry::has_children)
-    }
-
     fn select_folder(&mut self, id: impl Into<String>) {
         self.selected_folder = id.into();
         self.selected_file = None;
@@ -341,35 +275,12 @@ impl BrowserState {
         }
     }
 
-    fn is_expanded(&self, id: &str) -> bool {
-        self.expanded_folders.contains(id)
-    }
-
-    fn selected_file_label(&self) -> String {
-        let Some(id) = self.selected_file.as_deref() else {
-            return String::from("No file selected");
-        };
-        self.selected_folder()
-            .files
-            .iter()
-            .find(|file| file.id == id)
-            .map(|file| file.name.clone())
-            .unwrap_or_else(|| String::from("No file selected"))
-    }
-
     fn sort_by(&mut self, column_id: String) {
         if self.sort.column_id == column_id {
             self.sort.direction = self.sort.direction.toggled();
         } else {
             self.sort = ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
         }
-    }
-
-    fn visible_file_columns(&self) -> Vec<&FileColumn> {
-        self.file_columns
-            .iter()
-            .filter(|column| column.visible)
-            .collect()
     }
 
     fn toggle_file_column(&mut self, column_id: String) {
@@ -440,33 +351,6 @@ impl BrowserState {
                 }
             }
         }
-    }
-
-    fn sorted_files(&self) -> Vec<&FileEntry> {
-        let mut files = self.selected_folder().files.iter().collect::<Vec<_>>();
-        files.sort_by(|a, b| {
-            let ordering = match self.sort.column_id.as_str() {
-                "size" => a
-                    .size_bytes
-                    .cmp(&b.size_bytes)
-                    .then_with(|| a.name.cmp(&b.name)),
-                "kind" => a.kind.cmp(&b.kind).then_with(|| a.name.cmp(&b.name)),
-                "modified" => a
-                    .modified_rank
-                    .cmp(&b.modified_rank)
-                    .then_with(|| a.name.cmp(&b.name)),
-                "extension" => file_extension(Path::new(&a.id))
-                    .cmp(&file_extension(Path::new(&b.id)))
-                    .then_with(|| a.name.cmp(&b.name)),
-                "path" => a.id.cmp(&b.id),
-                _ => natural_name_cmp(&a.name, &b.name),
-            };
-            match self.sort.direction {
-                ui::SortDirection::Ascending => ordering,
-                ui::SortDirection::Descending => ordering.reverse(),
-            }
-        });
-        files
     }
 
     fn resize_tree(&mut self, message: ui::DragHandleMessage) {
@@ -544,49 +428,6 @@ impl BrowserState {
                 self.status = message;
             }
         }
-    }
-
-    fn visible_folders(&self) -> Vec<VisibleFolder> {
-        let mut folders = Vec::new();
-        for folder in &self.folders {
-            self.push_visible_folder(folder, 0, &mut folders);
-        }
-        folders
-    }
-
-    fn push_visible_folder(
-        &self,
-        folder: &FolderEntry,
-        depth: usize,
-        folders: &mut Vec<VisibleFolder>,
-    ) {
-        folders.push(VisibleFolder {
-            id: folder.id.clone(),
-            name: folder.name.clone(),
-            depth,
-            has_children: folder.has_children(),
-            expanded: self.is_expanded(&folder.id),
-            selected: self.selected_folder == folder.id,
-            drop_target: self
-                .folder_drag
-                .as_ref()
-                .and_then(|drag| drag.target_id.as_ref())
-                == Some(&folder.id),
-            draggable: self.folders.first().is_none_or(|root| root.id != folder.id),
-        });
-        if self.is_expanded(&folder.id) {
-            for child in &folder.children {
-                self.push_visible_folder(child, depth + 1, folders);
-            }
-        }
-    }
-
-    #[cfg(test)]
-    fn visible_folder_ids(&self) -> Vec<String> {
-        self.visible_folders()
-            .into_iter()
-            .map(|folder| folder.id)
-            .collect()
     }
 }
 

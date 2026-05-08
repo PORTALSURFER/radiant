@@ -10,6 +10,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use radiant::{
+    layout::Vector2,
+    runtime::{SurfaceNode, UiSurface, WidgetMessageMapper},
+    widgets::{TextWidget, WidgetOutput, WidgetSizing},
+};
+
 const DOMAIN_EXTRACTION_INVENTORY: &str = include_str!("../domain_extraction_inventory.tsv");
 
 const GENERIC_SOURCE_ROOTS: &[&str] = &[
@@ -427,59 +433,35 @@ fn clippy_quality_gate_is_documented_without_blanket_complexity_allow() {
 }
 
 #[test]
-fn runtime_widgets_are_open_trait_objects_not_closed_builtin_enums() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let surface = fs::read_to_string(manifest_dir.join("src/runtime/surface.rs"))
-        .expect("runtime surface should be readable");
+fn runtime_widgets_accept_boxed_widgets_and_dynamic_messages() {
+    #[derive(Clone, Debug, PartialEq)]
+    struct CustomPayload(&'static str);
 
-    for closed_runtime_shape in [
-        "enum RuntimeWidget",
-        "enum WidgetMessageMapper",
-        "WidgetMessageMapper::None",
-        "ButtonWidget",
-        "ToggleWidget",
-        "TextInputWidget",
-        "ScrollbarWidget",
-        "DragHandleWidget",
-        "ListItemWidget",
-        "SelectableWidget",
-        "BadgeWidget",
-        "CardWidget",
-        "ImageWidget",
-        "CanvasWidget",
-        "pub fn button(",
-        "pub fn button_mapped(",
-        "pub fn text_input(",
-        "pub fn text_input_mapped(",
-        "pub fn toggle(",
-        "pub fn toggle_mapped(",
-        "pub fn scrollbar(",
-        "pub fn scrollbar_mapped(",
-        "pub fn drag_handle_mapped(",
-        "pub fn list_item(",
-        "pub fn list_item_mapped(",
-        "pub fn selectable(",
-        "pub fn selectable_mapped(",
-        "pub fn canvas(",
-        "pub fn canvas_mapped(",
-    ] {
-        assert!(
-            !surface.contains(closed_runtime_shape),
-            "runtime widget routing should not reintroduce closed builtin-only dispatch `{closed_runtime_shape}`"
-        );
+    #[derive(Debug, PartialEq)]
+    enum HostMessage {
+        Custom(&'static str),
     }
 
-    for open_runtime_shape in [
-        "Box<dyn Widget>",
-        "WidgetMessageMapper<Message> {",
-        "pub fn typed<",
-        "pub fn dynamic(",
-    ] {
-        assert!(
-            surface.contains(open_runtime_shape),
-            "runtime widget routing should preserve open widget API support `{open_runtime_shape}`"
-        );
-    }
+    let widget_id = 91;
+    let boxed_widget = Box::new(TextWidget::new(
+        widget_id,
+        "boxed",
+        WidgetSizing::fixed(Vector2::new(80.0, 24.0)),
+    ));
+    let surface = UiSurface::new(SurfaceNode::custom_widget_box(
+        boxed_widget,
+        WidgetMessageMapper::dynamic(|output| {
+            output
+                .typed_ref::<CustomPayload>()
+                .map(|payload| HostMessage::Custom(payload.0))
+        }),
+    ));
+
+    assert!(surface.find_widget(widget_id).is_some());
+    assert_eq!(
+        surface.dispatch_widget_output(widget_id, WidgetOutput::custom(CustomPayload("open"))),
+        Some(HostMessage::Custom("open"))
+    );
 }
 
 #[test]

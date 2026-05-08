@@ -85,13 +85,12 @@ pub fn tree_list_with_drag<State: 'static>(
         impl Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
     >,
 ) -> StateView<State> {
-    let on_select: Arc<dyn Fn(&mut State, String) + Send + Sync> = Arc::new(on_select);
-    let on_toggle: Arc<dyn Fn(&mut State, String) + Send + Sync> = Arc::new(on_toggle);
-    let on_context: Option<Arc<dyn Fn(&mut State, String) + Send + Sync>> =
-        on_context.map(|on_context| Arc::new(on_context) as Arc<_>);
-    let on_drag: Option<
-        Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>,
-    > = on_drag.map(|on_drag| Arc::new(on_drag) as Arc<_>);
+    let on_select: StateStringCallback<State> = Arc::new(on_select);
+    let on_toggle: StateStringCallback<State> = Arc::new(on_toggle);
+    let on_context: Option<StateStringCallback<State>> =
+        on_context.map(|on_context| Arc::new(on_context) as StateStringCallback<State>);
+    let on_drag: Option<StateDragCallback<State>> =
+        on_drag.map(|on_drag| Arc::new(on_drag) as StateDragCallback<State>);
 
     scroll(
         column(
@@ -116,10 +115,10 @@ pub fn tree_list_with_drag<State: 'static>(
 
 fn tree_list_row<State: 'static>(
     item: TreeListItem,
-    on_select: Arc<dyn Fn(&mut State, String) + Send + Sync>,
-    on_toggle: Arc<dyn Fn(&mut State, String) + Send + Sync>,
-    on_context: Option<Arc<dyn Fn(&mut State, String) + Send + Sync>>,
-    on_drag: Option<Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>>,
+    on_select: StateStringCallback<State>,
+    on_toggle: StateStringCallback<State>,
+    on_context: Option<StateStringCallback<State>>,
+    on_drag: Option<StateDragCallback<State>>,
 ) -> StateView<State> {
     let select_id = item.id.clone();
     let context_id = item.id.clone();

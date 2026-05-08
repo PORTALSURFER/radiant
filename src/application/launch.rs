@@ -180,12 +180,12 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     state: State,
     options: NativeRunOptions,
     project: Project,
-    animation: Option<Box<dyn FnMut(&mut State) -> bool>>,
-    frame_message: Option<Box<dyn FnMut() -> Message>>,
-    subscriptions: Option<Box<dyn FnMut(&mut State) -> Subscription<Message>>>,
-    startup: Option<Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>>,
-    shutdown: Option<Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>>,
-    close_requested: Option<Box<dyn FnMut(&mut State) -> bool>>,
+    animation: Option<AppAnimation<State>>,
+    frame_message: Option<AppFrameMessage<Message>>,
+    subscriptions: Option<AppSubscriptions<State, Message>>,
+    startup: Option<AppStartup<State, Message>>,
+    shutdown: Option<AppShutdown<State>>,
+    close_requested: Option<AppCloseRequested<State>>,
     retained_painters: HashMap<u64, RetainedPainter<State>>,
     _message: PhantomData<Message>,
     _view: PhantomData<View>,
@@ -202,20 +202,14 @@ where
     pub fn update<Update>(
         self,
         mut update: Update,
-    ) -> RunnableStatefulApp<
-        State,
-        Message,
-        Project,
-        impl FnMut(&mut State, Message, &mut UpdateContext<Message>),
-        View,
-    >
+    ) -> RunnableStatefulApp<State, Message, Project, AppUpdate<State, Message>, View>
     where
         Update: FnMut(&mut State, Message) + 'static,
     {
-        self.update_command(move |state, message| {
+        self.update_with(Box::new(move |state, message, context| {
             update(state, message);
-            Command::request_repaint()
-        })
+            context.command(Command::request_repaint());
+        }))
     }
 
     /// Attach a reducer that can queue runtime-visible work through an update context.
@@ -247,19 +241,13 @@ where
     pub fn update_command<Update>(
         self,
         mut update: Update,
-    ) -> RunnableStatefulApp<
-        State,
-        Message,
-        Project,
-        impl FnMut(&mut State, Message, &mut UpdateContext<Message>),
-        View,
-    >
+    ) -> RunnableStatefulApp<State, Message, Project, AppUpdate<State, Message>, View>
     where
         Update: FnMut(&mut State, Message) -> Command<Message> + 'static,
     {
-        self.update_with(move |state, message, context| {
+        self.update_with(Box::new(move |state, message, context| {
             context.command(update(state, message));
-        })
+        }))
     }
 
     /// Declare whether this app currently needs animation-driven frames.
@@ -362,12 +350,12 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     options: NativeRunOptions,
     project: Project,
     update: Update,
-    animation: Option<Box<dyn FnMut(&mut State) -> bool>>,
-    frame_message: Option<Box<dyn FnMut() -> Message>>,
-    subscriptions: Option<Box<dyn FnMut(&mut State) -> Subscription<Message>>>,
-    startup: Option<Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>>,
-    shutdown: Option<Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>>,
-    close_requested: Option<Box<dyn FnMut(&mut State) -> bool>>,
+    animation: Option<AppAnimation<State>>,
+    frame_message: Option<AppFrameMessage<Message>>,
+    subscriptions: Option<AppSubscriptions<State, Message>>,
+    startup: Option<AppStartup<State, Message>>,
+    shutdown: Option<AppShutdown<State>>,
+    close_requested: Option<AppCloseRequested<State>>,
     retained_painters: HashMap<u64, RetainedPainter<State>>,
     _message: PhantomData<Message>,
     _view: PhantomData<View>,

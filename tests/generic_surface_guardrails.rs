@@ -252,9 +252,8 @@ fn generic_native_example_is_registered_and_uses_application_builders() {
     assert!(
         manifest.contains("[[example]]")
             && manifest.contains("name = \"generic_native\"")
-            && manifest.contains("path = \"examples/generic_native.rs\"")
-            && manifest.contains("test = false"),
-        "generic_native should be an explicit standalone Cargo example target"
+            && manifest.contains("path = \"examples/generic_native.rs\""),
+        "generic_native should be an explicit checked Cargo example target"
     );
 
     for required in [
@@ -346,9 +345,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
 
         assert!(
             manifest.contains(&format!("name = \"{name}\""))
-                && manifest.contains(&format!("path = \"{path}\""))
-                && manifest.contains("test = false"),
-            "{name} should be an explicit standalone Cargo example target"
+                && manifest.contains(&format!("path = \"{path}\"")),
+            "{name} should be an explicit checked Cargo example target"
         );
         assert!(
             source.contains("use radiant::prelude::*;")
@@ -379,6 +377,53 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             );
         }
     }
+}
+
+#[test]
+fn examples_are_checked_portable_sandboxes() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+
+    assert!(
+        !manifest.contains("test = false"),
+        "maintained examples should participate in `cargo test --examples`"
+    );
+    assert!(
+        docs.contains("cargo test --examples")
+            && docs.contains("RADIANT_FOLDER_BROWSER_ROOT")
+            && docs.contains("RADIANT_WAVEFORM_PATH"),
+        "API docs should describe checked examples and their optional input paths"
+    );
+
+    for path in ["examples/folder_browser.rs", "examples/waveform_view.rs"] {
+        let source = fs::read_to_string(manifest_dir.join(path))
+            .unwrap_or_else(|_| panic!("{path} should be readable"));
+        assert!(
+            !source.contains("C:\\") && !source.contains("C:/"),
+            "{path} should not hardcode local Windows paths"
+        );
+    }
+}
+
+#[test]
+fn clippy_quality_gate_is_documented_without_blanket_complexity_allow() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("Radiant API docs should be readable");
+    let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))
+        .expect("Radiant lib.rs should be readable");
+
+    assert!(
+        docs.contains("cargo clippy --all-targets --all-features -- -D warnings"),
+        "API docs should document the all-target Clippy quality gate"
+    );
+    assert!(
+        !lib.contains("clippy::type_complexity"),
+        "Radiant should not hide callback-shape drift behind a crate-level type_complexity allow"
+    );
 }
 
 #[test]

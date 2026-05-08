@@ -5,7 +5,9 @@ use radiant::prelude as ui;
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
-    runtime::{GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive},
+    runtime::{
+        GpuSignalSummary, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive,
+    },
     theme::ThemeTokens,
     widgets::{
         FocusBehavior, PaintBounds, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, Widget,
@@ -38,6 +40,7 @@ struct WaveformFile {
     mono_summary: WaveformSummary,
     bands: [WaveformBand; BAND_COUNT],
     gpu_signal_samples: Arc<[f32]>,
+    gpu_signal_summary: Arc<GpuSignalSummary>,
 }
 
 impl WaveformFile {
@@ -81,6 +84,8 @@ struct WaveformApp {
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     zoom_anchor_ratio: f32,
+    playing: bool,
+    playhead_ratio: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -89,6 +94,8 @@ enum WaveformInteraction {
     ScrollTo { offset_fraction: f32 },
     Zoom { factor: f32 },
     Pan { visible_fraction: f32 },
+    TogglePlayback,
+    Frame,
     Reset,
 }
 
@@ -100,12 +107,19 @@ fn main() -> radiant::Result {
         file,
         viewport,
         zoom_anchor_ratio: 0.5,
+        playing: false,
+        playhead_ratio: 0.5,
     })
     .title("Radiant Waveform View")
     .size(1280, 560)
     .min_size(820, 420)
     .view(view)
-    .update(|state, message| state.apply_interaction(message))
+    .animation(|state| state.playing)
+    .on_frame(|| WaveformInteraction::Frame)
+    .update_with(|state, message, context| {
+        state.apply_interaction(message);
+        context.request_repaint();
+    })
     .run()
 }
 
@@ -126,7 +140,11 @@ fn view(state: &mut WaveformApp) -> ui::View<WaveformInteraction> {
         waveform_viewport(
             Arc::clone(&state.file),
             state.viewport,
-            Some(state.zoom_anchor_ratio),
+            Some(if state.playing {
+                state.playhead_ratio
+            } else {
+                state.zoom_anchor_ratio
+            }),
         )
         .id(10)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -196,6 +214,9 @@ fn waveform_controls() -> ui::View<WaveformInteraction> {
             .message(WaveformInteraction::Pan {
                 visible_fraction: 0.25,
             }),
+        ui::button("Play")
+            .subtle()
+            .message(WaveformInteraction::TogglePlayback),
         ui::button("Reset")
             .subtle()
             .message(WaveformInteraction::Reset),
@@ -211,11 +232,14 @@ struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
-    cursor_ratio: Option<f32>,
 }
 
 impl WaveformWidget {
-    fn new(file: Arc<WaveformFile>, viewport: WaveformViewport, cursor_ratio: Option<f32>) -> Self {
+    fn new(
+        file: Arc<WaveformFile>,
+        viewport: WaveformViewport,
+        _cursor_ratio: Option<f32>,
+    ) -> Self {
         let mut common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
@@ -228,7 +252,6 @@ impl WaveformWidget {
             common,
             file,
             viewport,
-            cursor_ratio,
         }
     }
 
@@ -250,7 +273,6 @@ impl Widget for WaveformWidget {
         match input {
             WidgetInput::PointerMove { position } if bounds.contains(position) => {
                 self.common.state.hovered = true;
-                self.cursor_ratio = Some(self.ratio_from_position(bounds, position));
                 None
             }
             WidgetInput::PointerMove { .. } => {
@@ -258,7 +280,6 @@ impl Widget for WaveformWidget {
                 None
             }
             WidgetInput::Wheel { position, delta } if bounds.contains(position) => {
-                self.cursor_ratio = Some(self.ratio_from_position(bounds, position));
                 Some(WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
                     anchor_ratio: self.ratio_from_position(bounds, position),
@@ -280,27 +301,21 @@ impl Widget for WaveformWidget {
             key: self.file.path_hash(),
             revision: 0,
             rect: bounds,
-            content: GpuSurfaceContent::SignalBands {
+            content: GpuSurfaceContent::SignalSummaryBands {
                 frames: self.file.frames,
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
-                samples: Arc::clone(&self.file.gpu_signal_samples),
+                summary: Arc::clone(&self.file.gpu_signal_summary),
             },
-            overlays: self
-                .cursor_ratio
-                .map(|ratio| {
-                    vec![GpuSurfaceOverlay::VerticalCursor {
-                        ratio,
-                        color: Rgba8 {
-                            r: 255,
-                            g: 255,
-                            b: 255,
-                            a: 235,
-                        },
-                        width: 1.5,
-                    }]
-                })
-                .unwrap_or_default(),
+            overlays: vec![GpuSurfaceOverlay::NativeVerticalHoverCursor {
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 235,
+                },
+                width: 1.5,
+            }],
         }));
     }
 }
@@ -373,6 +388,11 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
     let mono_summary = WaveformSummary::from_samples(&mono_samples);
     let bands = split_frequency_bands(&mono_samples, spec.sample_rate);
     let gpu_signal_samples = interleaved_band_samples(&bands);
+    let gpu_signal_summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+        &gpu_signal_samples,
+        frames,
+        BAND_COUNT,
+    ));
 
     Ok(WaveformFile {
         path,
@@ -383,6 +403,7 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         mono_summary,
         bands,
         gpu_signal_samples,
+        gpu_signal_summary,
     })
 }
 
@@ -955,8 +976,21 @@ impl WaveformApp {
             WaveformInteraction::Pan { visible_fraction } => {
                 self.pan_by_visible_fraction(visible_fraction)
             }
+            WaveformInteraction::TogglePlayback => {
+                self.playing = !self.playing;
+            }
+            WaveformInteraction::Frame => {
+                if self.playing {
+                    self.playhead_ratio += 0.01;
+                    if self.playhead_ratio > 1.0 {
+                        self.playhead_ratio = 0.0;
+                    }
+                    self.zoom_anchor_ratio = self.playhead_ratio;
+                }
+            }
             WaveformInteraction::Reset => {
                 self.viewport = WaveformViewport::full(self.file.frames);
+                self.playhead_ratio = 0.5;
             }
         }
     }
@@ -1025,6 +1059,11 @@ mod tests {
     fn synthetic_file(mono_samples: Vec<f32>, sample_rate: u32, channels: usize) -> WaveformFile {
         let bands = split_frequency_bands(&mono_samples, sample_rate);
         let gpu_signal_samples = interleaved_band_samples(&bands);
+        let gpu_signal_summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            &gpu_signal_samples,
+            mono_samples.len(),
+            BAND_COUNT,
+        ));
         WaveformFile {
             path: PathBuf::from("synthetic.wav"),
             sample_rate,
@@ -1034,6 +1073,7 @@ mod tests {
             bands,
             mono_samples,
             gpu_signal_samples,
+            gpu_signal_summary,
         }
     }
 
@@ -1285,6 +1325,8 @@ mod tests {
             file,
             viewport: WaveformViewport::full(20_000),
             zoom_anchor_ratio: 0.5,
+            playing: false,
+            playhead_ratio: 0.5,
         };
 
         app.zoom_around_anchor(0.5, 0.5);
@@ -1303,6 +1345,8 @@ mod tests {
             file,
             viewport: WaveformViewport::full(20_000),
             zoom_anchor_ratio: 0.5,
+            playing: false,
+            playhead_ratio: 0.5,
         };
 
         app.apply_interaction(WaveformInteraction::Wheel {
@@ -1328,6 +1372,8 @@ mod tests {
                 end: 12_000,
             },
             zoom_anchor_ratio: 0.5,
+            playing: false,
+            playhead_ratio: 0.5,
         };
         let ratio = 0.25;
         let before_anchor =

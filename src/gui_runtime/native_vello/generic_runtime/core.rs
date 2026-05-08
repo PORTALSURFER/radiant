@@ -21,6 +21,7 @@ where
 pub(in crate::gui_runtime::native_vello) struct GenericRouteOutcome {
     pub(in crate::gui_runtime::native_vello) routed: bool,
     pub(in crate::gui_runtime::native_vello) repaint_requested: bool,
+    pub(in crate::gui_runtime::native_vello) exit_requested: bool,
 }
 
 impl GenericRouteOutcome {
@@ -62,6 +63,7 @@ where
         GenericRouteOutcome {
             routed,
             repaint_requested: self.runtime.take_repaint_requested(),
+            exit_requested: self.runtime.take_exit_requested(),
         }
     }
 
@@ -151,6 +153,17 @@ where
             .dispatch_focused_input(WidgetInput::TextEdit(command))
             .is_some();
         self.route_outcome(routed)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn drain_runtime_messages(
+        &mut self,
+    ) -> GenericRouteOutcome {
+        let outcome = self.runtime.drain_runtime_messages();
+        GenericRouteOutcome {
+            routed: outcome.messages_dispatched > 0,
+            repaint_requested: outcome.repaint_requested || self.runtime.take_repaint_requested(),
+            exit_requested: outcome.exit_requested,
+        }
     }
 
     pub(in crate::gui_runtime::native_vello) fn focused_text_selection(&self) -> Option<String> {

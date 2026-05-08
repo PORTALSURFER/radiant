@@ -1,5 +1,6 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
+use radiant::prelude::IntoView;
 use radiant::{
     gui::{
         focus::FocusSurface,
@@ -33,6 +34,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -2046,6 +2048,71 @@ fn surface_runtime_executes_command_messages_and_repaint_requests() {
 }
 
 #[test]
+fn surface_runtime_executes_focus_exit_and_deferred_commands() {
+    let bridge = RuntimeCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+
+    let focus = runtime.execute_command(Command::focus(11));
+    assert!(!focus.exit_requested);
+    assert_eq!(runtime.focused_widget(), Some(11));
+
+    let deferred = runtime.execute_command(Command::after(
+        Duration::from_millis(1),
+        DemoMessage::Increment,
+    ));
+    assert!(deferred.repaint_requested);
+    std::thread::sleep(Duration::from_millis(20));
+    let drained = runtime.drain_runtime_messages();
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().count, 1);
+
+    let performed = runtime.execute_command(Command::perform(
+        "increment",
+        || DemoMessage::Increment,
+        |message| message,
+    ));
+    assert!(performed.repaint_requested);
+    std::thread::sleep(Duration::from_millis(20));
+    let drained = runtime.drain_runtime_messages();
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().count, 2);
+
+    let exit = runtime.execute_command(Command::exit());
+    assert!(exit.exit_requested);
+    assert!(runtime.take_exit_requested());
+}
+
+#[test]
+fn retained_canvas_builder_projects_metadata_and_input_mapping() {
+    let surface = radiant::prelude::retained_canvas(44, 7, 3, true)
+        .on_input(|message| match message {
+            CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+        })
+        .id(44)
+        .size(120.0, 40.0)
+        .into_surface();
+    let plan = surface.paint_plan(
+        &layout_tree(
+            &surface.layout_node(),
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 40.0)),
+        ),
+        &ThemeTokens::default(),
+    );
+    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
+        panic!("retained canvas should project one custom surface primitive");
+    };
+    assert_eq!(
+        custom.retained,
+        Some(RetainedSurfaceDescriptor {
+            key: 44,
+            revision: 7,
+            dirty_mask: 3,
+            volatile: true,
+        })
+    );
+}
+
+#[test]
 fn declarative_command_bridge_supports_command_update_flow() {
     let bridge = declarative_command_runtime_bridge(
         DemoState::default(),
@@ -2304,6 +2371,12 @@ struct CommandDemoBridge {
 }
 
 #[derive(Default)]
+struct RuntimeCommandBridge {
+    count: usize,
+    pending: Arc<std::sync::Mutex<Vec<DemoMessage>>>,
+}
+
+#[derive(Default)]
 struct ShortcutDemoBridge {
     state: DemoState,
 }
@@ -2411,6 +2484,56 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
                 Command::none()
             }
         }
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        Arc::new(UiSurface::new(SurfaceNode::row(
+            1,
+            8.0,
+            vec![SurfaceChild::fill(SurfaceNode::static_widget(
+                ButtonWidget::new(11, "Focus", WidgetSizing::fixed(Vector2::new(80.0, 32.0))),
+            ))],
+        )))
+    }
+
+    fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+        if matches!(message, DemoMessage::Increment) {
+            self.count += 1;
+        }
+        Command::none()
+    }
+
+    fn schedule_message(&mut self, delay: Duration, message: DemoMessage) -> bool {
+        let pending = Arc::clone(&self.pending);
+        std::thread::spawn(move || {
+            std::thread::sleep(delay);
+            pending
+                .lock()
+                .expect("pending messages poisoned")
+                .push(message);
+        });
+        true
+    }
+
+    fn spawn_message_task(
+        &mut self,
+        _name: &'static str,
+        work: Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
+    ) -> bool {
+        let pending = Arc::clone(&self.pending);
+        std::thread::spawn(move || {
+            pending
+                .lock()
+                .expect("pending messages poisoned")
+                .push(work());
+        });
+        true
+    }
+
+    fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
+        std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
     }
 }
 

@@ -151,6 +151,7 @@ where
     gpu_surface_hit_rects: Vec<Rect>,
     scene_texture_dirty: bool,
     deferred_surface_refresh: bool,
+    pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
 }
 
 impl<Bridge, Message> GenericNativeVelloRunner<Bridge, Message>
@@ -184,6 +185,7 @@ where
             gpu_surface_hit_rects: Vec::new(),
             scene_texture_dirty: true,
             deferred_surface_refresh: false,
+            pending_gpu_surface_wheel: None,
         }
     }
 
@@ -317,7 +319,11 @@ where
         }
     }
 
-    fn handle_route_outcome(&mut self, outcome: GenericRouteOutcome) {
+    fn handle_route_outcome(&mut self, event_loop: &ActiveEventLoop, outcome: GenericRouteOutcome) {
+        if outcome.exit_requested {
+            event_loop.exit();
+            return;
+        }
         if outcome.needs_redraw() {
             self.rebuild_scene();
             self.request_redraw_if_needed();
@@ -340,6 +346,35 @@ where
         }
         self.rebuild_scene();
         self.request_redraw_if_needed();
+    }
+
+    fn queue_gpu_surface_wheel(&mut self, position: Point, delta: Vector2) {
+        match &mut self.pending_gpu_surface_wheel {
+            Some(pending) => {
+                pending.position = position;
+                pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
+            }
+            None => {
+                self.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel { position, delta });
+            }
+        }
+        self.update_gpu_surface_cursor_overlay(position);
+        self.request_redraw_if_needed();
+    }
+
+    fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {
+        let Some(pending) = self.pending_gpu_surface_wheel.take() else {
+            return;
+        };
+        let started = Instant::now();
+        let outcome = self
+            .core
+            .route_scroll_deferred_refresh(pending.position, pending.delta);
+        profile.coalesced_wheel_route = started.elapsed();
+        maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
+        if outcome.needs_redraw() {
+            self.deferred_surface_refresh = true;
+        }
     }
 
     fn handle_gpu_surface_pointer_move_outcome(
@@ -384,6 +419,23 @@ where
             .any(|rect| rect.contains(position))
     }
 
+    fn native_hover_surface_contains(&self, position: Point) -> bool {
+        self.last_paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface) => {
+                    surface.rect.contains(position) && gpu_surface_has_native_hover_cursor(surface)
+                }
+                _ => false,
+            })
+    }
+
+    fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
+        let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
+        is_vertical && self.native_hover_surface_contains(position)
+    }
+
     fn update_gpu_surface_hit_rects(&mut self, primitives: &[PaintPrimitive]) {
         self.gpu_surface_hit_rects = gpu_surface_hit_rects(primitives);
     }
@@ -393,24 +445,27 @@ where
         else {
             return false;
         };
+        if !gpu_surface_has_native_hover_cursor(surface) {
+            return false;
+        }
         let ratio =
             ((position.x - surface.rect.min.x) / surface.rect.width().max(1.0)).clamp(0.0, 1.0);
-        let overlay = surface
+        let (color, width) = surface
             .overlays
             .iter()
-            .copied()
-            .find(|overlay| matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }))
-            .unwrap_or(GpuSurfaceOverlay::VerticalCursor {
-                ratio,
-                color: Rgba8 {
+            .find_map(|overlay| match *overlay {
+                GpuSurfaceOverlay::NativeVerticalHoverCursor { color, width }
+                | GpuSurfaceOverlay::VerticalCursor { color, width, .. } => Some((color, width)),
+            })
+            .unwrap_or((
+                Rgba8 {
                     r: 255,
                     g: 255,
                     b: 255,
                     a: 235,
                 },
-                width: 1.5,
-            });
-        let GpuSurfaceOverlay::VerticalCursor { color, width, .. } = overlay;
+                1.5,
+            ));
         surface
             .overlays
             .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
@@ -422,7 +477,26 @@ where
         true
     }
 
-    fn handle_keyboard_event(&mut self, event: winit::event::KeyEvent) {
+    fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
+        let Some(surface) = gpu_surface_at_mut(&mut self.last_paint_plan.primitives, position)
+        else {
+            return false;
+        };
+        if !gpu_surface_has_native_hover_cursor(surface) {
+            return false;
+        }
+        let previous_len = surface.overlays.len();
+        surface
+            .overlays
+            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
+        previous_len != surface.overlays.len()
+    }
+
+    fn handle_keyboard_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        event: winit::event::KeyEvent,
+    ) {
         if event.state != ElementState::Pressed || event.repeat {
             return;
         }
@@ -431,15 +505,15 @@ where
             && let Some(key) = key_code_from_winit(code)
         {
             if self.route_text_input_shortcut(key, &mut route_outcome) {
-                self.handle_route_outcome(route_outcome);
+                self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
             if self.route_text_navigation_key(key, &mut route_outcome) {
-                self.handle_route_outcome(route_outcome);
+                self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
             if self.route_space_text_input(key, &mut route_outcome) {
-                self.handle_route_outcome(route_outcome);
+                self.handle_route_outcome(event_loop, route_outcome);
                 return;
             }
             let outcome = self.core.route_key_press(
@@ -466,7 +540,7 @@ where
             route_outcome.routed |= outcome.routed;
             route_outcome.repaint_requested |= outcome.repaint_requested;
         }
-        self.handle_route_outcome(route_outcome);
+        self.handle_route_outcome(event_loop, route_outcome);
     }
 
     fn route_space_text_input(
@@ -606,6 +680,7 @@ where
             }
         };
         let mut profile = RenderFrameProfile::default();
+        self.flush_pending_gpu_surface_wheel(&mut profile);
         if self.deferred_surface_refresh {
             let started = Instant::now();
             self.core.refresh_surface();
@@ -711,6 +786,13 @@ fn gpu_surface_at_mut(
     })
 }
 
+fn gpu_surface_has_native_hover_cursor(surface: &PaintGpuSurface) -> bool {
+    surface
+        .overlays
+        .iter()
+        .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeVerticalHoverCursor { .. }))
+}
+
 fn gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
     primitives
         .iter()
@@ -719,6 +801,12 @@ fn gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
             _ => None,
         })
         .collect()
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingGpuSurfaceWheel {
+    position: Point,
+    delta: Vector2,
 }
 
 impl<Bridge, Message> ApplicationHandler<RuntimeUserEvent>
@@ -742,19 +830,40 @@ where
             return;
         }
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if self.core.runtime.bridge_mut().close_requested() {
+                    event_loop.exit();
+                }
+            }
             WindowEvent::Resized(size) => self.resize_surface(size),
             WindowEvent::ScaleFactorChanged { .. } => self.request_redraw_if_needed(),
             WindowEvent::CursorMoved { position, .. } => {
                 let position = Point::new(position.x as f32, position.y as f32);
                 let previous = self.last_cursor;
                 self.last_cursor = Some(position);
+                if self.native_hover_surface_contains(position) {
+                    self.update_gpu_surface_cursor_overlay(position);
+                    self.request_redraw_if_needed();
+                    return;
+                }
+                if previous.is_some_and(|previous| self.native_hover_surface_contains(previous))
+                    && previous
+                        .is_some_and(|previous| self.clear_gpu_surface_cursor_overlay(previous))
+                {
+                    self.request_redraw_if_needed();
+                    return;
+                }
                 let started = Instant::now();
                 let outcome = self.core.route_pointer_move(position);
                 maybe_log_route_profile("pointer_move", started.elapsed(), outcome);
                 self.handle_gpu_surface_pointer_move_outcome(outcome, previous, position);
             }
             WindowEvent::CursorLeft { .. } => {
+                if let Some(previous) = self.last_cursor
+                    && self.clear_gpu_surface_cursor_overlay(previous)
+                {
+                    self.request_redraw_if_needed();
+                }
                 self.last_cursor = None;
             }
             WindowEvent::MouseInput { button, state, .. } => {
@@ -770,13 +879,17 @@ where
                     ElementState::Released => self.core.route_pointer_release(position, button),
                 };
                 maybe_log_route_profile("pointer_button", started.elapsed(), routed);
-                self.handle_route_outcome(routed);
+                self.handle_route_outcome(event_loop, routed);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let Some(position) = self.last_cursor else {
                     return;
                 };
                 let delta = scroll_delta_to_logical(delta);
+                if self.can_coalesce_gpu_surface_wheel(position, delta) {
+                    self.queue_gpu_surface_wheel(position, delta);
+                    return;
+                }
                 let started = Instant::now();
                 let routed = if self.can_fast_path_gpu_surface_route(position, delta) {
                     self.core.route_scroll_deferred_refresh(position, delta)
@@ -786,19 +899,25 @@ where
                 maybe_log_route_profile("wheel", started.elapsed(), routed);
                 self.handle_gpu_surface_route_outcome(routed, position, delta);
             }
-            WindowEvent::KeyboardInput { event, .. } => self.handle_keyboard_event(event),
+            WindowEvent::KeyboardInput { event, .. } => {
+                self.handle_keyboard_event(event_loop, event)
+            }
             WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeUserEvent) {
         match event {
             RuntimeUserEvent::RepaintRequested => {
                 self.repaint_event_pending
                     .store(false, std::sync::atomic::Ordering::Release);
-                self.core.refresh_surface();
+                let outcome = self.core.drain_runtime_messages();
+                if outcome.exit_requested {
+                    event_loop.exit();
+                    return;
+                }
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
             }
@@ -819,7 +938,11 @@ where
         let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
         if now >= next_frame {
             if !self.redraw_requested {
-                self.core.refresh_surface();
+                let outcome = self.core.drain_runtime_messages();
+                if outcome.exit_requested {
+                    event_loop.exit();
+                    return;
+                }
                 self.rebuild_scene();
                 self.request_redraw_if_needed();
             }
@@ -865,6 +988,7 @@ fn maybe_log_render_profile(
         paint_plan_us = frame.paint_plan.as_micros(),
         render_to_texture_us = render_to_texture_elapsed.as_micros(),
         full_screen_blit_encode_us = frame.full_screen_blit.as_micros(),
+        coalesced_wheel_route_us = frame.coalesced_wheel_route.as_micros(),
         gpu_signal_body_renders = gpu_surface_stats.signal_body_renders,
         gpu_signal_body_cache_hits = gpu_surface_stats.signal_body_cache_hits,
         gpu_signal_body_encode_us = gpu_surface_stats.signal_body_encode_elapsed.as_micros(),
@@ -890,6 +1014,7 @@ fn maybe_log_route_profile(reason: &'static str, elapsed: Duration, outcome: Gen
 
 #[derive(Clone, Copy, Debug, Default)]
 struct RenderFrameProfile {
+    coalesced_wheel_route: Duration,
     refresh_surface: Duration,
     paint_plan: Duration,
     full_screen_blit: Duration,

@@ -99,6 +99,8 @@ pub struct CommandOutcome {
     pub messages_dispatched: usize,
     /// Whether any command requested a repaint.
     pub repaint_requested: bool,
+    /// Whether any command requested runtime exit.
+    pub exit_requested: bool,
 }
 
 /// Stateful generic runtime controller for message-driven Radiant hosts.
@@ -133,6 +135,7 @@ where
     scrollbar_states: BTreeMap<WidgetId, ScrollbarState>,
     text_input_states: BTreeMap<WidgetId, TextInputState>,
     repaint_requested: bool,
+    exit_requested: bool,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -175,6 +178,7 @@ where
             scrollbar_states: BTreeMap::new(),
             text_input_states: BTreeMap::new(),
             repaint_requested: false,
+            exit_requested: false,
         }
     }
 
@@ -238,6 +242,13 @@ where
         let repaint_requested = self.repaint_requested;
         self.repaint_requested = false;
         repaint_requested
+    }
+
+    /// Return and clear the current runtime-exit request flag.
+    pub fn take_exit_requested(&mut self) -> bool {
+        let exit_requested = self.exit_requested;
+        self.exit_requested = false;
+        exit_requested
     }
 
     /// Return an immutable reference to the owned bridge.
@@ -453,6 +464,9 @@ where
         let mut outcome = CommandOutcome::default();
         self.dispatch_message_inner(message, &mut outcome);
         self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
         outcome
     }
 
@@ -465,6 +479,22 @@ where
         let mut outcome = CommandOutcome::default();
         self.execute_command_inner(command, &mut outcome);
         self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
+        outcome
+    }
+
+    /// Dispatch any messages queued by bridge-owned runtime work.
+    pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        for message in self.bridge.take_runtime_messages() {
+            self.dispatch_message_inner(message, &mut outcome);
+        }
+        self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
         outcome
     }
 
@@ -876,6 +906,23 @@ where
             Command::RequestRepaint => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
+            }
+            Command::After { delay, message } => {
+                if self.bridge.schedule_message(delay, message) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Perform { name, work } => {
+                if self.bridge.spawn_message_task(name, work) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Focus(widget_id) => {
+                outcome.repaint_requested |= self.focus_widget(widget_id);
+            }
+            Command::Exit => {
+                outcome.exit_requested = true;
+                self.exit_requested = true;
             }
         }
     }

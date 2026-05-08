@@ -1,7 +1,10 @@
 //! Native GPU renderer for retained generic GPU-surface paint primitives.
 
 use super::*;
-use crate::runtime::{GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive};
+use crate::runtime::{
+    GpuSignalSummary, GpuSignalSummaryBucket, GpuSurfaceContent, GpuSurfaceOverlay,
+    PaintGpuSurface, PaintPrimitive,
+};
 use wgpu::util::DeviceExt;
 
 #[derive(Default)]
@@ -12,6 +15,7 @@ pub(super) struct GpuSurfaceRenderer {
     textures: HashMap<u64, GpuSurfaceTexture>,
     signal_bodies: HashMap<u64, SignalBodyTexture>,
     signals: HashMap<u64, SignalBuffer>,
+    signal_summaries: HashMap<u64, CachedSignalSummary>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -52,6 +56,14 @@ struct SignalBuffer {
     bind_group: wgpu::BindGroup,
 }
 
+struct CachedSignalSummary {
+    revision: u64,
+    frames: usize,
+    band_count: usize,
+    sample_count: usize,
+    summary: Arc<GpuSignalSummary>,
+}
+
 struct SignalBodyTexture {
     cache_key: SignalBodyCacheKey,
     _texture: wgpu::Texture,
@@ -68,6 +80,8 @@ struct SignalBodyCacheKey {
     frames: usize,
     band_count: usize,
     sample_count: usize,
+    level_index: usize,
+    style_revision: u32,
 }
 
 impl SignalBodyCacheKey {
@@ -77,6 +91,7 @@ impl SignalBodyCacheKey {
         band_count: usize,
         frame_range: [f32; 2],
         sample_count: usize,
+        level_index: usize,
     ) -> Self {
         Self {
             revision: surface.revision,
@@ -87,9 +102,13 @@ impl SignalBodyCacheKey {
             frames,
             band_count,
             sample_count,
+            level_index,
+            style_revision: GPU_SIGNAL_STYLE_REVISION,
         }
     }
 }
+
+const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]
@@ -107,6 +126,7 @@ struct GpuSurfaceUniforms {
 struct SignalUniforms {
     dest: [f32; 4],
     frame_range: [f32; 4],
+    summary_meta: [f32; 4],
     target_size: [f32; 2],
     cursor_ratio: f32,
     cursor_width: f32,
@@ -151,6 +171,21 @@ impl GpuSurfaceRenderer {
                 }
                 GpuSurfaceContent::SignalBands { samples, .. } => {
                     if samples.is_empty() {
+                        continue;
+                    }
+                    self.render_signal(
+                        device,
+                        queue,
+                        encoder,
+                        target_view,
+                        target_format,
+                        target_size,
+                        surface,
+                        &mut stats,
+                    );
+                }
+                GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
+                    if summary.levels.is_empty() {
                         continue;
                     }
                     self.render_signal(
@@ -248,25 +283,81 @@ impl GpuSurfaceRenderer {
         surface: &PaintGpuSurface,
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        let GpuSurfaceContent::SignalBands {
+        let (frames, band_count, frame_range, summary) = match &surface.content {
+            GpuSurfaceContent::SignalBands {
+                frames,
+                band_count,
+                frame_range,
+                samples,
+            } => {
+                let summary = self.cached_signal_summary(
+                    surface.key,
+                    surface.revision,
+                    *frames,
+                    *band_count,
+                    samples,
+                );
+                (*frames, *band_count, *frame_range, summary)
+            }
+            GpuSurfaceContent::SignalSummaryBands {
+                frames,
+                band_count,
+                frame_range,
+                summary,
+            } => (*frames, *band_count, *frame_range, Arc::clone(summary)),
+            _ => return,
+        };
+        let visible = (frame_range[1] - frame_range[0]).max(1.0);
+        let frames_per_pixel = visible / surface.rect.width().max(1.0);
+        let level_index = summary.level_for_frames_per_pixel(frames_per_pixel);
+        let Some(level) = summary.levels.get(level_index) else {
+            return;
+        };
+        let body_key = SignalBodyCacheKey::new(
+            surface,
             frames,
             band_count,
             frame_range,
-            samples,
-        } = &surface.content
-        else {
+            level.buckets.len(),
+            level_index,
+        );
+        self.ensure_pipeline(device, target_format);
+        if self
+            .signal_bodies
+            .get(&surface.key)
+            .is_some_and(|body| body.cache_key == body_key)
+        {
+            stats.signal_body_cache_hits += 1;
+            let Some(body) = self.signal_bodies.get(&surface.key) else {
+                return;
+            };
+            self.render_texture_view(
+                device,
+                encoder,
+                target_view,
+                target_format,
+                target_size,
+                surface,
+                &body.view,
+                [0.0, 0.0, body_key.width as f32, body_key.height as f32],
+                stats,
+            );
             return;
-        };
+        }
         self.ensure_signal_pipeline(device, wgpu::TextureFormat::Rgba8Unorm);
-        let body_key =
-            SignalBodyCacheKey::new(surface, *frames, *band_count, *frame_range, samples.len());
         let uniforms = SignalUniforms {
             dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
             frame_range: [
                 frame_range[0],
                 frame_range[1],
-                *frames as f32,
-                *band_count as f32,
+                frames as f32,
+                band_count as f32,
+            ],
+            summary_meta: [
+                level.bucket_frames as f32,
+                (level.buckets.len() / band_count.max(1)) as f32,
+                level_index as f32,
+                0.0,
             ],
             target_size: [body_key.width as f32, body_key.height as f32],
             cursor_ratio: -1.0,
@@ -277,11 +368,10 @@ impl GpuSurfaceRenderer {
             device,
             queue,
             surface.key,
-            surface.revision,
-            samples,
+            surface.revision ^ ((level_index as u64) << 32),
+            level.buckets.as_ref(),
             &uniforms,
         );
-        self.ensure_pipeline(device, target_format);
         self.ensure_signal_body_texture(device, encoder, surface.key, body_key, stats);
         let Some(body) = self.signal_bodies.get(&surface.key) else {
             return;
@@ -495,12 +585,13 @@ impl GpuSurfaceRenderer {
         queue: &wgpu::Queue,
         key: u64,
         revision: u64,
-        samples: &Arc<[f32]>,
+        buckets: &[GpuSignalSummaryBucket],
         uniforms: &SignalUniforms,
     ) {
+        let values = summary_buckets_as_f32s(buckets);
         if self.signals.get(&key).is_some_and(|buffer| {
             buffer.revision == revision
-                && buffer.sample_count == samples.len()
+                && buffer.sample_count == values.len()
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
             let buffer = self.signals.get(&key).expect("checked signal buffer");
@@ -516,8 +607,8 @@ impl GpuSurfaceRenderer {
             .as_ref()
             .expect("gpu signal surface pipeline");
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("radiant_gpu_signal_samples"),
-            contents: f32s_as_bytes(samples),
+            label: Some("radiant_gpu_signal_summary_buckets"),
+            contents: f32s_as_bytes(&values),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -543,13 +634,45 @@ impl GpuSurfaceRenderer {
             key,
             SignalBuffer {
                 revision,
-                sample_count: samples.len(),
+                sample_count: values.len(),
                 pipeline_generation: self.signal_pipeline_generation,
                 _sample_buffer: sample_buffer,
                 uniform_buffer,
                 bind_group,
             },
         );
+    }
+
+    fn cached_signal_summary(
+        &mut self,
+        key: u64,
+        revision: u64,
+        frames: usize,
+        band_count: usize,
+        samples: &Arc<[f32]>,
+    ) -> Arc<GpuSignalSummary> {
+        if let Some(cached) = self.signal_summaries.get(&key)
+            && cached.revision == revision
+            && cached.frames == frames
+            && cached.band_count == band_count
+            && cached.sample_count == samples.len()
+        {
+            return Arc::clone(&cached.summary);
+        }
+        let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+            samples, frames, band_count,
+        ));
+        self.signal_summaries.insert(
+            key,
+            CachedSignalSummary {
+                revision,
+                frames,
+                band_count,
+                sample_count: samples.len(),
+                summary: Arc::clone(&summary),
+            },
+        );
+        summary
     }
 
     fn ensure_signal_pipeline(
@@ -748,6 +871,15 @@ fn f32s_as_bytes(values: &[f32]) -> &[u8] {
     unsafe { std::slice::from_raw_parts(ptr, len) }
 }
 
+fn summary_buckets_as_f32s(buckets: &[GpuSignalSummaryBucket]) -> Vec<f32> {
+    let mut values = Vec::with_capacity(buckets.len().saturating_mul(2));
+    for bucket in buckets {
+        values.push(bucket.min);
+        values.push(bucket.max);
+    }
+    values
+}
+
 fn surface_dest(surface: &PaintGpuSurface) -> [f32; 4] {
     [
         surface.rect.min.x,
@@ -814,6 +946,7 @@ fn vertical_cursor(overlays: &[GpuSurfaceOverlay]) -> Option<(f32, Rgba8, f32)> 
             color,
             width,
         } => Some((ratio, color, width)),
+        GpuSurfaceOverlay::NativeVerticalHoverCursor { .. } => None,
     })
 }
 
@@ -826,311 +959,5 @@ fn rgba_to_float(color: Rgba8) -> [f32; 4] {
     ]
 }
 
-const GPU_SURFACE_SHADER: &str = r#"
-struct Params {
-    dest: vec4<f32>,
-    source: vec4<f32>,
-    target_size: vec2<f32>,
-    cursor_ratio: f32,
-    cursor_width: f32,
-    cursor_color: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> params: Params;
-@group(0) @binding(1)
-var surface_texture: texture_2d<f32>;
-@group(0) @binding(2)
-var surface_sampler: sampler;
-
-struct VertexOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) local: vec2<f32>,
-    @location(1) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
-    var corners = array<vec2<f32>, 6>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-    );
-    let local = corners[vertex_index];
-    let pixel = params.dest.xy + local * params.dest.zw;
-    let clip = vec2<f32>(
-        pixel.x / params.target_size.x * 2.0 - 1.0,
-        1.0 - pixel.y / params.target_size.y * 2.0,
-    );
-    let texture_size = vec2<f32>(textureDimensions(surface_texture));
-    let source_pixel = params.source.xy + local * params.source.zw;
-    var out: VertexOut;
-    out.position = vec4<f32>(clip, 0.0, 1.0);
-    out.local = local;
-    out.uv = source_pixel / texture_size;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    var color = textureSample(surface_texture, surface_sampler, in.uv);
-    let cursor_half_width = max(params.cursor_width / max(params.dest.z, 1.0), 0.0005);
-    if (params.cursor_ratio >= 0.0 && abs(in.local.x - params.cursor_ratio) <= cursor_half_width) {
-        color = params.cursor_color;
-    }
-    return color;
-}
-"#;
-
-const GPU_SIGNAL_SHADER: &str = r#"
-struct Params {
-    dest: vec4<f32>,
-    frame_range: vec4<f32>,
-    target_size: vec2<f32>,
-    cursor_ratio: f32,
-    cursor_width: f32,
-    cursor_color: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> params: Params;
-@group(0) @binding(1)
-var<storage, read> samples: array<f32>;
-
-struct VertexOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) local: vec2<f32>,
-};
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOut {
-    var corners = array<vec2<f32>, 6>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(0.0, 1.0),
-        vec2<f32>(1.0, 0.0),
-        vec2<f32>(1.0, 1.0),
-    );
-    let local = corners[vertex_index];
-    let pixel = params.dest.xy + local * params.dest.zw;
-    let clip = vec2<f32>(
-        pixel.x / params.target_size.x * 2.0 - 1.0,
-        1.0 - pixel.y / params.target_size.y * 2.0,
-    );
-    var out: VertexOut;
-    out.position = vec4<f32>(clip, 0.0, 1.0);
-    out.local = local;
-    return out;
-}
-
-fn sample_band(frame: u32, band: u32, frames: u32, band_count: u32) -> f32 {
-    if (frame >= frames || band >= band_count) {
-        return 0.0;
-    }
-    return samples[frame * band_count + band];
-}
-
-fn sample_band_linear(frame_pos: f32, band: u32, frames: u32, band_count: u32) -> f32 {
-    let left_pos = clamp(floor(frame_pos), 0.0, f32(frames - 1u));
-    let right_pos = clamp(left_pos + 1.0, 0.0, f32(frames - 1u));
-    let t = clamp(frame_pos - left_pos, 0.0, 1.0);
-    let left = sample_band(u32(left_pos), band, frames, band_count);
-    let right = sample_band(u32(right_pos), band, frames, band_count);
-    return mix(left, right, smoothstep(0.0, 1.0, t));
-}
-
-fn band_peak(start_frame: u32, end_frame: u32, band: u32, frames: u32, band_count: u32) -> f32 {
-    var peak = 0.0;
-    let span = max(end_frame - start_frame, 1u);
-    let step = max(span / 40u, 1u);
-    var frame = start_frame;
-    loop {
-        if (frame >= end_frame || frame >= frames) {
-            break;
-        }
-        peak = max(peak, abs(sample_band(frame, band, frames, band_count)));
-        frame = frame + step;
-    }
-    return peak;
-}
-
-fn band_peak_at(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32) -> f32 {
-    let center = clamp(x, 0.0, 1.0);
-    let a = u32(clamp(floor(start + visible * max(center - pixel_width * 0.5, 0.0)), 0.0, f32(frames - 1u)));
-    let b = u32(clamp(ceil(start + visible * min(center + pixel_width * 0.5, 1.0)), 1.0, f32(frames)));
-    return band_peak(a, max(b, a + 1u), band, frames, band_count);
-}
-
-fn smoothed_band_peak(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32) -> f32 {
-    let p1 = band_peak_at(x - pixel_width, pixel_width, band, frames, band_count, start, visible);
-    let p2 = band_peak_at(x, pixel_width, band, frames, band_count, start, visible);
-    let p3 = band_peak_at(x + pixel_width, pixel_width, band, frames, band_count, start, visible);
-    return p1 * 0.24 + p2 * 0.52 + p3 * 0.24;
-}
-
-fn corner_limited_band_peak(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32, frames_per_pixel: f32) -> f32 {
-    let peak = smoothed_band_peak(x, pixel_width, band, frames, band_count, start, visible);
-    let left = smoothed_band_peak(x - pixel_width, pixel_width, band, frames, band_count, start, visible);
-    let right = smoothed_band_peak(x + pixel_width, pixel_width, band, frames, band_count, start, visible);
-    let neighbor = max(left, right);
-    let corner_limit = mix(0.24, 0.095, smoothstep(18.0, 260.0, frames_per_pixel));
-    let corner_delta = max(peak - neighbor, 0.0);
-    let corner_strength = smoothstep(corner_limit, corner_limit * 2.8, corner_delta);
-    return mix(peak, neighbor + corner_limit, corner_strength * 0.82);
-}
-
-fn low_band_detail_envelope(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32) -> f32 {
-    let frame_pos = clamp(start + visible * clamp(x, 0.0, 1.0), 0.0, f32(frames - 1u));
-    let spread = max(visible * pixel_width, 8.0);
-    let p0 = abs(sample_band_linear(frame_pos - spread * 2.0, band, frames, band_count));
-    let p1 = abs(sample_band_linear(frame_pos - spread, band, frames, band_count));
-    let p2 = abs(sample_band_linear(frame_pos, band, frames, band_count));
-    let p3 = abs(sample_band_linear(frame_pos + spread, band, frames, band_count));
-    let p4 = abs(sample_band_linear(frame_pos + spread * 2.0, band, frames, band_count));
-    return p0 * 0.08 + p1 * 0.22 + p2 * 0.40 + p3 * 0.22 + p4 * 0.08;
-}
-
-fn low_band_closed_envelope(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32) -> f32 {
-    let center = low_band_detail_envelope(x, pixel_width, band, frames, band_count, start, visible);
-    let left = low_band_detail_envelope(x - pixel_width * 1.4, pixel_width, band, frames, band_count, start, visible);
-    let right = low_band_detail_envelope(x + pixel_width * 1.4, pixel_width, band, frames, band_count, start, visible);
-    let fill_narrow_dip = min(left, right) * 0.86;
-    let close_strength = smoothstep(8.0, 72.0, visible * pixel_width);
-    return mix(center, max(center, fill_narrow_dip), close_strength);
-}
-
-fn interpolated_band_extent(x: f32, pixel_width: f32, band: u32, frames: u32, band_count: u32, start: f32, visible: f32) -> f32 {
-    let frame_pos = clamp(start + visible * clamp(x, 0.0, 1.0), 0.0, f32(frames - 1u));
-    let center = abs(sample_band_linear(frame_pos, band, frames, band_count));
-    let left = abs(sample_band_linear(frame_pos - visible * pixel_width, band, frames, band_count));
-    let right = abs(sample_band_linear(frame_pos + visible * pixel_width, band, frames, band_count));
-    return left * 0.18 + center * 0.64 + right * 0.18;
-}
-
-fn blend(src: vec3<f32>, alpha: f32, dst: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(mix(dst.rgb, src, clamp(alpha, 0.0, 1.0)), 1.0);
-}
-
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-    let frames = u32(max(params.frame_range.z, 1.0));
-    let band_count = u32(max(params.frame_range.w, 1.0));
-    let start = params.frame_range.x;
-    let end = max(params.frame_range.y, start + 1.0);
-    let visible = end - start;
-    let pixel_width = 1.0 / max(params.dest.z, 1.0);
-    let frames_per_pixel = visible * pixel_width;
-    let y = abs(in.local.y - 0.5) * 2.0;
-    let base_feather = max(0.55 / max(params.dest.y, 1.0), 0.00075);
-
-    let vignette = (1.0 - y) * (1.0 - y);
-    var color = vec4<f32>(0.004, 0.005, 0.005, 1.0);
-    color = blend(vec3<f32>(0.012, 0.030, 0.044), vignette * 0.18, color);
-
-    let band_colors = array<vec4<f32>, 4>(
-        vec4<f32>(0.015, 0.16, 0.82, 0.46),
-        vec4<f32>(0.58, 0.25, 0.07, 0.42),
-        vec4<f32>(0.98, 0.46, 0.07, 0.50),
-        vec4<f32>(1.00, 0.92, 0.66, 0.62),
-    );
-    let inner_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.06, 0.70, 1.00),
-        vec3<f32>(0.92, 0.44, 0.16),
-        vec3<f32>(1.00, 0.68, 0.20),
-        vec3<f32>(1.00, 1.00, 0.88),
-    );
-    let ridge_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.02, 0.92, 1.00),
-        vec3<f32>(0.95, 0.52, 0.20),
-        vec3<f32>(1.00, 0.76, 0.28),
-        vec3<f32>(1.00, 1.00, 0.96),
-    );
-    let glow_colors = array<vec3<f32>, 4>(
-        vec3<f32>(0.00, 0.34, 1.00),
-        vec3<f32>(0.78, 0.23, 0.04),
-        vec3<f32>(1.00, 0.36, 0.02),
-        vec3<f32>(1.00, 0.82, 0.36),
-    );
-    let band_scales = array<f32, 4>(1.00, 0.82, 0.72, 0.48);
-    var low_signal = 0.0;
-    var mid_signal = 0.0;
-    var high_signal = 0.0;
-    for (var band = 0u; band < min(band_count, 4u); band = band + 1u) {
-        var peak = 0.0;
-        if (frames_per_pixel <= 2.0) {
-            peak = interpolated_band_extent(in.local.x, pixel_width, band, frames, band_count, start, visible);
-        } else {
-            peak = corner_limited_band_peak(in.local.x, pixel_width, band, frames, band_count, start, visible, frames_per_pixel);
-        }
-        if (band == 0u) {
-            low_signal = peak;
-        } else if (band == min(2u, band_count - 1u)) {
-            mid_signal = peak;
-        } else if (band == min(3u, band_count - 1u)) {
-            high_signal = peak;
-        }
-        let intensity = clamp(peak * 1.04, 0.0, 1.0);
-        let extent = peak * band_scales[band] * 0.86;
-        let edge = abs(y - extent);
-        let aa = max(fwidth(y - extent) * 0.90, base_feather);
-        let coverage = smoothstep(extent + aa, extent - aa, y);
-        let ridge = 1.0 - smoothstep(aa * 0.35, aa * 1.70, edge);
-        let inside = clamp(1.0 - y / max(extent, 0.001), 0.0, 1.0);
-        let inner_light = inside * inside;
-        let shell_light = clamp(y / max(extent, 0.001), 0.0, 1.0);
-        let edge_halo = smoothstep(extent + aa * 8.0, extent, y) * (1.0 - coverage);
-        let heat_mix = smoothstep(0.38, 0.96, intensity);
-        var low_depth = 0.0;
-        var low_lift = vec3<f32>(0.0);
-        var low_belly = 0.0;
-        var ridge_seed = ridge_colors[band];
-        if (band == 0u) {
-            low_depth = smoothstep(0.03, 0.82, peak);
-            let low_inner_cyan = low_depth * inside * inside * inside;
-            let low_outer_blue = low_depth * smoothstep(0.28, 0.92, shell_light);
-            let low_edge = low_depth * (1.0 - smoothstep(aa * 1.5, aa * 9.0, edge));
-            let belly = clamp(1.0 - inside, 0.0, 1.0);
-            low_belly = low_depth * belly * belly;
-            low_lift = vec3<f32>(0.0, 0.17, 0.34) * low_outer_blue
-                + vec3<f32>(0.0, 0.24, 0.44) * low_inner_cyan
-                + vec3<f32>(0.0, 0.10, 0.20) * low_edge;
-            ridge_seed = mix(ridge_seed, vec3<f32>(0.32, 0.95, 1.00), low_depth * 0.55);
-        }
-        let low_band = select(0.0, 1.0, band == 0u);
-        let body_rgb = mix(
-            mix(
-                band_colors[band].rgb * (1.0 - low_belly * 0.18),
-                inner_colors[band],
-                inner_light * (0.46 + low_depth * 0.16),
-            ) + low_lift,
-            ridge_colors[band],
-            shell_light * (0.14 + low_depth * 0.10) + heat_mix * 0.12,
-        );
-        let ridge_rgb = mix(
-            ridge_seed,
-            vec3<f32>(1.0, 0.86, 0.38),
-            heat_mix * 0.30 * (1.0 - low_band * 0.70),
-        );
-        let alpha_boost = 0.62 + intensity * 0.28 + inner_light * 0.15;
-        color = blend(glow_colors[band], edge_halo * band_colors[band].a * (0.06 + intensity * 0.09 + low_depth * 0.05), color);
-        color = blend(body_rgb, band_colors[band].a * coverage * alpha_boost, color);
-        color = blend(ridge_rgb, ridge * band_colors[band].a * (0.22 + intensity * 0.30), color);
-    }
-    let heat = clamp(low_signal * 0.45 + mid_signal * 0.70 + high_signal * 1.10, 0.0, 1.0);
-    let hot = smoothstep(0.52, 0.98, heat);
-    let center_width = max(5.0 / max(params.dest.y, 1.0), 0.014);
-    let center = 1.0 - smoothstep(0.0, center_width, abs(in.local.y - 0.5));
-    color = blend(vec3<f32>(1.00, 0.72, 0.28), center * (0.14 + hot * 0.14), color);
-    color = blend(vec3<f32>(1.00, 0.98, 0.84), center * high_signal * 0.24, color);
-
-    let cursor_half_width = max(params.cursor_width / max(params.dest.z, 1.0), 0.0005);
-    if (params.cursor_ratio >= 0.0 && abs(in.local.x - params.cursor_ratio) <= cursor_half_width) {
-        color = params.cursor_color;
-    }
-    return color;
-}
-"#;
+const GPU_SURFACE_SHADER: &str = include_str!("../shaders/gpu_surface.wgsl");
+pub(super) const GPU_SIGNAL_SHADER: &str = include_str!("../shaders/gpu_signal_surface.wgsl");

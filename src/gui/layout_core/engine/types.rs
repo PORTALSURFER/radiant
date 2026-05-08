@@ -93,7 +93,7 @@ pub struct LayoutDebugPrimitive {
 }
 
 /// Debug primitive emission switches for layout traversal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct LayoutDebugOptions {
     /// Master switch for debug primitive recording.
     pub enabled: bool,
@@ -107,19 +107,6 @@ pub struct LayoutDebugOptions {
     pub show_margins: bool,
     /// Emit overflow markers.
     pub show_overflow: bool,
-}
-
-impl Default for LayoutDebugOptions {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            show_bounds: false,
-            show_measured: false,
-            show_padding: false,
-            show_margins: false,
-            show_overflow: false,
-        }
-    }
 }
 
 impl LayoutDebugOptions {

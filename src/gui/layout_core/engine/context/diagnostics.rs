@@ -24,10 +24,10 @@ impl<'a> LayoutContext<'a> {
             LayoutDiagnosticCode::OverflowOccurred,
             "node overflowed available space",
         );
-        if self.debug_options.show_overflow {
-            if let Some(rect) = self.output.rects.get(&node_id).copied() {
-                self.record_debug(node_id, DebugPrimitiveKind::OverflowMarker, rect);
-            }
+        if self.debug_options.show_overflow
+            && let Some(rect) = self.output.rects.get(&node_id).copied()
+        {
+            self.record_debug(node_id, DebugPrimitiveKind::OverflowMarker, rect);
         }
     }
 
@@ -35,17 +35,17 @@ impl<'a> LayoutContext<'a> {
         if self.debug_options.show_bounds {
             self.record_debug(node_id, DebugPrimitiveKind::NodeBounds, rect);
         }
-        if self.debug_options.show_measured {
-            if let Some(measured) = self.measured_by_node.get(&node_id).copied() {
-                let measured_rect = Rect::from_min_size(
-                    rect.min,
-                    crate::gui::types::Vector2::new(
-                        measured.x.max(0.0).min(rect.width().max(0.0)),
-                        measured.y.max(0.0).min(rect.height().max(0.0)),
-                    ),
-                );
-                self.record_debug(node_id, DebugPrimitiveKind::MeasuredBounds, measured_rect);
-            }
+        if self.debug_options.show_measured
+            && let Some(measured) = self.measured_by_node.get(&node_id).copied()
+        {
+            let measured_rect = Rect::from_min_size(
+                rect.min,
+                crate::gui::types::Vector2::new(
+                    measured.x.max(0.0).min(rect.width().max(0.0)),
+                    measured.y.max(0.0).min(rect.height().max(0.0)),
+                ),
+            );
+            self.record_debug(node_id, DebugPrimitiveKind::MeasuredBounds, measured_rect);
         }
     }
 
@@ -114,10 +114,10 @@ impl<'a> LayoutContext<'a> {
         if !self.debug_options.enabled {
             return;
         }
-        if let Some(filter) = self.debug_node_filter {
-            if !filter.contains(&node_id) {
-                return;
-            }
+        if let Some(filter) = self.debug_node_filter
+            && !filter.contains(&node_id)
+        {
+            return;
         }
         self.output.debug_primitives.push(LayoutDebugPrimitive {
             node_id,

@@ -33,9 +33,7 @@ impl NativeTextRenderer {
             self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
         }
 
-        let Some(layout) = Self::compute_layout(font, text, font_size) else {
-            return None;
-        };
+        let layout = Self::compute_layout(font, text, font_size)?;
         self.layout_cache_order.push_back(key.clone());
         let cached_layout = self.layout_cache.entry(key).or_insert(layout);
         Some(cached_layout)

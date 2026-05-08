@@ -252,10 +252,10 @@ fn measure_switch_layout(
     context: &mut LayoutContext,
 ) -> Vector2 {
     let selected = select_switch_child(container, constraints.max_w);
-    if let Some(index) = selected {
-        if let Some(child) = container.children.get(index) {
-            return measure_node(&child.child, child.slot.constraints, context);
-        }
+    if let Some(index) = selected
+        && let Some(child) = container.children.get(index)
+    {
+        return measure_node(&child.child, child.slot.constraints, context);
     }
     Vector2::new(0.0, 0.0)
 }

@@ -149,9 +149,7 @@ impl ScrollbarWidget {
     }
 
     fn drag_to(&mut self, bounds: Rect, position: Point) -> Option<ScrollbarMessage> {
-        let Some(grip_fraction) = self.state.drag_grip_fraction else {
-            return None;
-        };
+        let grip_fraction = self.state.drag_grip_fraction?;
         let track_length = axis_length(self.props.axis, bounds);
         let thumb_fraction = self.thumb_fraction(track_length);
         let thumb_length = track_length * thumb_fraction;

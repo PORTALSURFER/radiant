@@ -8,8 +8,10 @@ use std::{fmt, time::Duration};
 /// Radiant commands are intentionally small and domain-neutral. Hosts keep
 /// ownership of IO, background work, and other side effects; this type only
 /// represents values the generic runtime can understand directly.
+#[derive(Default)]
 pub enum Command<Message> {
     /// No follow-up work is required.
+    #[default]
     None,
     /// Dispatch a host-defined message.
     Message(Message),
@@ -59,12 +61,6 @@ where
             Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
             Self::Exit => f.write_str("Exit"),
         }
-    }
-}
-
-impl<Message> Default for Command<Message> {
-    fn default() -> Self {
-        Self::None
     }
 }
 

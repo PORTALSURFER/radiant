@@ -17,16 +17,6 @@
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
 
-#![allow(clippy::collapsible_if)]
-#![allow(clippy::derivable_impls)]
-#![allow(clippy::double_ended_iterator_last)]
-#![allow(clippy::field_reassign_with_default)]
-#![allow(clippy::if_same_then_else)]
-#![allow(clippy::into_iter_on_ref)]
-#![allow(clippy::manual_clamp)]
-#![allow(clippy::manual_is_multiple_of)]
-#![allow(clippy::needless_borrow)]
-#![allow(clippy::question_mark)]
 #![allow(clippy::too_many_arguments)]
 
 /// Readable application and view builder implementation.

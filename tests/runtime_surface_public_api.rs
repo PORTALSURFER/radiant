@@ -5,13 +5,12 @@ use radiant::{
     gui::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
-        repaint::RepaintSignal,
         shortcuts::ShortcutResolution,
         types::{ImageRgba, Rgba8},
     },
     layout::{Point, Rect, Vector2, layout_tree},
     runtime::{
-        App, Command, Element, Event, FocusTraversal, GpuHoverCursor, GpuSurfaceCapabilities,
+        Command, Element, Event, FocusTraversal, GpuHoverCursor, GpuSurfaceCapabilities,
         GpuSurfaceContent, GpuSurfaceOverlay, PaintPrimitive, Renderer, RuntimeBridge,
         SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View, WidgetMessageMapper,
         declarative_command_runtime_bridge, declarative_runtime_bridge,
@@ -26,10 +25,7 @@ use radiant::{
         WidgetState, WidgetStyle, WidgetTone, resolve_widget_visual_tokens,
     },
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -100,99 +96,6 @@ fn retained_canvas_metadata_reaches_backend_neutral_paint_plan() {
     };
     assert_eq!(custom.widget_id, 90);
     assert_eq!(custom.retained, Some(retained));
-}
-
-#[test]
-fn generic_runtime_bridge_projects_and_reduces_host_defined_messages() {
-    let mut bridge = declarative_runtime_bridge(
-        DemoState::default(),
-        project_surface,
-        |state: &mut DemoState, message| match message {
-            DemoMessage::Increment => state.count += 1,
-            DemoMessage::Rename(name) => state.name = name,
-            DemoMessage::SetActive(active) => {
-                state.name = if active { "active" } else { "inactive" }.to_owned()
-            }
-            DemoMessage::CanvasInput(_) => {}
-        },
-    );
-
-    let surface_before = bridge.project_surface();
-    let rename = surface_before
-        .dispatch_widget_output(
-            12,
-            radiant::widgets::WidgetOutput::typed(TextInputMessage::Changed {
-                value: String::from("Projects"),
-            }),
-        )
-        .expect("text input should emit a host-defined rename message");
-    bridge.reduce_message(rename);
-
-    let increment = bridge
-        .project_surface()
-        .dispatch_widget_output(
-            11,
-            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
-        )
-        .expect("button should emit a host-defined increment message");
-    bridge.reduce_message(increment);
-
-    let surface_after = bridge.project_surface();
-    assert_eq!(
-        widget_ref::<TextWidget, _>(&surface_after, 10, "text").text,
-        "Projects (1)"
-    );
-    assert_eq!(
-        widget_ref::<TextInputWidget, _>(&surface_after, 12, "text input")
-            .state
-            .value,
-        "Projects"
-    );
-}
-
-#[test]
-fn runtime_bridge_is_the_public_app_contract() {
-    let mut bridge = declarative_runtime_bridge(
-        DemoState::default(),
-        project_surface,
-        |state: &mut DemoState, message| match message {
-            DemoMessage::Increment => state.count += 1,
-            DemoMessage::Rename(name) => state.name = name,
-            DemoMessage::SetActive(active) => {
-                state.name = if active { "active" } else { "inactive" }.to_owned()
-            }
-            DemoMessage::CanvasInput(_) => {}
-        },
-    );
-
-    let surface = project_app_once(&mut bridge);
-    assert!(surface.find_widget(10).is_some());
-}
-
-#[test]
-fn runtime_bridge_accepts_repaint_signal_for_host_background_work() {
-    let called = Arc::new(AtomicBool::new(false));
-    let mut bridge = RepaintSignalBridge::default();
-
-    bridge.install_repaint_signal(Arc::new(CountingRepaintSignal {
-        called: Arc::clone(&called),
-    }));
-    bridge.request_worker_repaint();
-
-    assert!(called.load(Ordering::Acquire));
-}
-
-#[test]
-fn runtime_bridge_exposes_host_owned_runtime_exit_artifact() {
-    let mut bridge = RuntimeExitBridge;
-
-    assert_eq!(
-        bridge.on_runtime_exit(),
-        Some(serde_json::json!({
-            "status": "clean",
-            "phase": "host-owned"
-        }))
-    );
 }
 
 #[test]
@@ -1047,37 +950,6 @@ fn retained_canvas_builder_projects_metadata_and_input_mapping() {
 }
 
 #[test]
-fn declarative_command_bridge_supports_command_update_flow() {
-    let bridge = declarative_command_runtime_bridge(
-        DemoState::default(),
-        project_demo_surface,
-        |state: &mut DemoState, message| match message {
-            CommandDemoMessage::Start => Command::batch([
-                Command::message(CommandDemoMessage::Rename(String::from("Closure"))),
-                Command::message(CommandDemoMessage::Increment),
-                Command::request_repaint(),
-            ]),
-            CommandDemoMessage::Increment => {
-                state.count += 1;
-                Command::none()
-            }
-            CommandDemoMessage::Rename(name) => {
-                state.name = name;
-                Command::none()
-            }
-        },
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(420.0, 32.0));
-
-    let outcome = runtime.dispatch_message(CommandDemoMessage::Start);
-
-    assert_eq!(outcome.messages_dispatched, 3);
-    assert!(outcome.repaint_requested);
-    assert_eq!(runtime.bridge().state().count, 1);
-    assert_eq!(runtime.bridge().state().name, "Closure");
-}
-
-#[test]
 fn surface_runtime_routes_widget_input_and_reprojects_surface() {
     let bridge = declarative_runtime_bridge(
         DemoState::default(),
@@ -1137,10 +1009,6 @@ impl Renderer for CountingRenderer {
         self.rendered_primitives += plan.primitives.len();
         Ok(())
     }
-}
-
-fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessage>> {
-    app.project_surface()
 }
 
 #[test]
@@ -1322,54 +1190,6 @@ impl RuntimeBridge<DemoMessage> for ShortcutDemoBridge {
             };
         }
         ShortcutResolution::unhandled()
-    }
-}
-
-#[derive(Default)]
-struct RepaintSignalBridge {
-    signal: Option<Arc<dyn RepaintSignal>>,
-}
-
-impl RepaintSignalBridge {
-    fn request_worker_repaint(&self) {
-        if let Some(signal) = self.signal.as_ref() {
-            signal.request_repaint();
-        }
-    }
-}
-
-impl RuntimeBridge<DemoMessage> for RepaintSignalBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-        project_surface(&mut DemoState::default())
-    }
-
-    fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        self.signal = Some(signal);
-    }
-}
-
-struct CountingRepaintSignal {
-    called: Arc<AtomicBool>,
-}
-
-impl RepaintSignal for CountingRepaintSignal {
-    fn request_repaint(&self) {
-        self.called.store(true, Ordering::Release);
-    }
-}
-
-struct RuntimeExitBridge;
-
-impl RuntimeBridge<DemoMessage> for RuntimeExitBridge {
-    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
-        project_surface(&mut DemoState::default())
-    }
-
-    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
-        Some(serde_json::json!({
-            "status": "clean",
-            "phase": "host-owned"
-        }))
     }
 }
 

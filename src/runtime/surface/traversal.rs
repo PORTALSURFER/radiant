@@ -1,4 +1,5 @@
 use super::*;
+use crate::layout::ContainerKind;
 use std::collections::BTreeMap;
 
 impl<Message> SurfaceNode<Message> {

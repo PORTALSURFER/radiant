@@ -35,9 +35,10 @@ pub use bridge::{
 pub use command::Command;
 pub use controller::{CommandOutcome, Event, FocusTraversal, RuntimeContext, SurfaceRuntime};
 pub use paint::{
-    PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintImage, PaintOverlayPanel,
-    PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign,
-    PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
+    GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel, GpuSurfaceContent,
+    GpuSurfaceOverlay, PaintCustomSurface, PaintFillPolygon, PaintFillRect, PaintGpuSurface,
+    PaintImage, PaintOverlayPanel, PaintPrimitive, PaintStrokePolygon, PaintStrokePolyline,
+    PaintStrokeRect, PaintTextAlign, PaintTextInput, PaintTextRun, Renderer, SurfacePaintPlan,
 };
 pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,

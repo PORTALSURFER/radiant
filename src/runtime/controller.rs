@@ -17,8 +17,9 @@ use crate::{
     },
     theme::ThemeTokens,
     widgets::{
-        CanvasWidget, CardWidget, FocusBehavior, ImageWidget, PointerButton, TextInputState,
-        TextInputWidget, TextWidget, WidgetId, WidgetInput, WidgetKey, WidgetState,
+        CanvasWidget, CardWidget, FocusBehavior, ImageWidget, PointerButton, ScrollbarState,
+        ScrollbarWidget, TextInputState, TextInputWidget, TextWidget, WidgetId, WidgetInput,
+        WidgetKey, WidgetState,
     },
 };
 use std::collections::BTreeMap;
@@ -98,6 +99,8 @@ pub struct CommandOutcome {
     pub messages_dispatched: usize,
     /// Whether any command requested a repaint.
     pub repaint_requested: bool,
+    /// Whether any command requested runtime exit.
+    pub exit_requested: bool,
 }
 
 /// Stateful generic runtime controller for message-driven Radiant hosts.
@@ -129,8 +132,10 @@ where
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     pointer_capture_state: Option<(WidgetId, WidgetState)>,
+    scrollbar_states: BTreeMap<WidgetId, ScrollbarState>,
     text_input_states: BTreeMap<WidgetId, TextInputState>,
     repaint_requested: bool,
+    exit_requested: bool,
 }
 
 impl<Bridge, Message> SurfaceRuntime<Bridge, Message>
@@ -170,8 +175,10 @@ where
             hovered_widget: None,
             pointer_capture: None,
             pointer_capture_state: None,
+            scrollbar_states: BTreeMap::new(),
             text_input_states: BTreeMap::new(),
             repaint_requested: false,
+            exit_requested: false,
         }
     }
 
@@ -237,6 +244,13 @@ where
         repaint_requested
     }
 
+    /// Return and clear the current runtime-exit request flag.
+    pub fn take_exit_requested(&mut self) -> bool {
+        let exit_requested = self.exit_requested;
+        self.exit_requested = false;
+        exit_requested
+    }
+
     /// Return an immutable reference to the owned bridge.
     pub fn bridge(&self) -> &Bridge {
         &self.bridge
@@ -262,6 +276,7 @@ where
     pub fn refresh(&mut self) {
         self.surface = self.bridge.pull_surface();
         self.restore_text_input_states();
+        self.restore_scrollbar_states();
         self.restore_pointer_capture_state();
         self.relayout();
         if self
@@ -438,7 +453,7 @@ where
                 None
             }
             Event::Scroll { position, delta } => {
-                self.scroll_at(position, delta);
+                self.wheel_or_scroll_at(position, delta);
                 None
             }
         }
@@ -449,6 +464,9 @@ where
         let mut outcome = CommandOutcome::default();
         self.dispatch_message_inner(message, &mut outcome);
         self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
         outcome
     }
 
@@ -461,6 +479,22 @@ where
         let mut outcome = CommandOutcome::default();
         self.execute_command_inner(command, &mut outcome);
         self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
+        outcome
+    }
+
+    /// Dispatch any messages queued by bridge-owned runtime work.
+    pub fn drain_runtime_messages(&mut self) -> CommandOutcome {
+        let mut outcome = CommandOutcome::default();
+        for message in self.bridge.take_runtime_messages() {
+            self.dispatch_message_inner(message, &mut outcome);
+        }
+        self.refresh();
+        if outcome.exit_requested {
+            self.exit_requested = true;
+        }
         outcome
     }
 
@@ -531,6 +565,13 @@ where
             return;
         };
         self.pointer_capture_state = Some((widget_id, widget.widget_object().common().state));
+        if let Some(scrollbar) = widget
+            .widget_object()
+            .as_any()
+            .downcast_ref::<ScrollbarWidget>()
+        {
+            self.scrollbar_states.insert(widget_id, scrollbar.state);
+        }
     }
 
     fn restore_pointer_capture_state(&mut self) {
@@ -546,6 +587,25 @@ where
             return;
         };
         widget.widget_object_mut().common_mut().state = state;
+    }
+
+    fn restore_scrollbar_states(&mut self) {
+        let states = self.scrollbar_states.clone();
+        for (widget_id, state) in states {
+            let Some(widget) = self.surface.find_widget_mut(widget_id) else {
+                self.scrollbar_states.remove(&widget_id);
+                continue;
+            };
+            let Some(scrollbar) = widget
+                .widget_object_mut()
+                .as_any_mut()
+                .downcast_mut::<ScrollbarWidget>()
+            else {
+                self.scrollbar_states.remove(&widget_id);
+                continue;
+            };
+            scrollbar.state.drag_grip_fraction = state.drag_grip_fraction;
+        }
     }
 
     /// Return the first projected widget whose laid-out bounds contain `point`.
@@ -622,6 +682,68 @@ where
         true
     }
 
+    /// Route wheel input to the topmost widget under `point`, then fall back to
+    /// scrolling the topmost scroll container under the pointer.
+    pub fn wheel_or_scroll_at(&mut self, point: Point, delta: Vector2) -> bool {
+        if self.dispatch_wheel_at(point, delta) {
+            return true;
+        }
+        self.scroll_at(point, delta)
+    }
+
+    /// Route wheel input but defer host-surface refresh until the caller chooses
+    /// to refresh. This is intended for GPU-backed surfaces whose bounds do not
+    /// change during rapid wheel updates.
+    pub fn wheel_or_scroll_at_deferred_refresh(&mut self, point: Point, delta: Vector2) -> bool {
+        if self.dispatch_wheel_at_with_refresh(point, delta, false) {
+            return true;
+        }
+        self.scroll_at(point, delta)
+    }
+
+    fn dispatch_wheel_at(&mut self, point: Point, delta: Vector2) -> bool {
+        self.dispatch_wheel_at_with_refresh(point, delta, true)
+    }
+
+    fn dispatch_wheel_at_with_refresh(
+        &mut self,
+        point: Point,
+        delta: Vector2,
+        refresh_after_message: bool,
+    ) -> bool {
+        let Some(widget_id) = self.widget_at(point) else {
+            return false;
+        };
+        let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
+            return false;
+        };
+        let Some(output) = self.surface.dispatch_widget_input(
+            widget_id,
+            bounds,
+            WidgetInput::Wheel {
+                position: point,
+                delta,
+            },
+        ) else {
+            self.capture_text_input_state(widget_id);
+            self.capture_pointer_capture_state(widget_id);
+            return false;
+        };
+        self.capture_text_input_state(widget_id);
+        self.capture_pointer_capture_state(widget_id);
+        if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
+            if refresh_after_message {
+                self.dispatch_message(message);
+            } else {
+                let mut outcome = CommandOutcome::default();
+                self.dispatch_message_inner(message, &mut outcome);
+            }
+        } else {
+            self.relayout();
+        }
+        true
+    }
+
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {
         self.scroll_hit_order.iter().rev().copied().find(|node_id| {
             self.layout
@@ -692,6 +814,9 @@ where
         };
         self.surface.find_widget(widget_id).is_some_and(|widget| {
             let object = widget.widget_object();
+            if !object.common().paint.paints_state_layers {
+                return false;
+            }
             if object.as_any().downcast_ref::<TextWidget>().is_some()
                 || object.as_any().downcast_ref::<ImageWidget>().is_some()
                 || object.as_any().downcast_ref::<CanvasWidget>().is_some()
@@ -781,6 +906,23 @@ where
             Command::RequestRepaint => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
+            }
+            Command::After { delay, message } => {
+                if self.bridge.schedule_message(delay, message) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Perform { name, work } => {
+                if self.bridge.spawn_message_task(name, work) {
+                    outcome.repaint_requested = true;
+                }
+            }
+            Command::Focus(widget_id) => {
+                outcome.repaint_requested |= self.focus_widget(widget_id);
+            }
+            Command::Exit => {
+                outcome.exit_requested = true;
+                self.exit_requested = true;
             }
         }
     }

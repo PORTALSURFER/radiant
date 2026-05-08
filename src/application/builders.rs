@@ -6,6 +6,8 @@ fn view_node_from_widget<Message>(widget: impl WidgetView<Message> + 'static) ->
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -23,6 +25,96 @@ pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
     view_node_from_widget(TextWidget::new(0, value, default_text_sizing()))
 }
 
+/// Build a passive button view for retained surfaces that need button chrome
+/// without host messages.
+pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
+    view_node_from_widget(ButtonWidget::new(0, label, default_button_sizing("")))
+}
+
+/// Build a passive toggle view for retained surfaces that need toggle chrome
+/// without host messages.
+pub fn passive_toggle<Message: 'static>(
+    label: impl Into<String>,
+    checked: bool,
+) -> ViewNode<Message> {
+    view_node_from_widget(
+        ToggleWidget::new(0, label, default_toggle_sizing("", true)).with_checked(checked),
+    )
+}
+
+/// Build a passive single-line text input view for retained surfaces that need
+/// input chrome without host messages.
+pub fn passive_text_input<Message: 'static>(
+    value: impl Into<String>,
+    placeholder: impl Into<String>,
+) -> ViewNode<Message> {
+    let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
+    let placeholder = placeholder.into();
+    if !placeholder.is_empty() {
+        input.props.placeholder = Some(placeholder);
+    }
+    view_node_from_widget(input)
+}
+
+/// Build a passive canvas view for retained surfaces that need a generic paint
+/// or input slot without host messages.
+pub fn canvas<Message: 'static>() -> ViewNode<Message> {
+    view_node_from_widget(CanvasWidget::new(0, default_canvas_sizing()))
+}
+
+/// Build a retained canvas view with app-owned paint supplied by the app builder.
+pub fn retained_canvas(
+    key: u64,
+    revision: u64,
+    dirty_mask: u64,
+    volatile: bool,
+) -> RetainedCanvasBuilder {
+    RetainedCanvasBuilder {
+        descriptor: RetainedSurfaceDescriptor {
+            key,
+            revision,
+            dirty_mask,
+            volatile,
+        },
+    }
+}
+
+/// Builder for retained canvas views.
+pub struct RetainedCanvasBuilder {
+    descriptor: RetainedSurfaceDescriptor,
+}
+
+impl RetainedCanvasBuilder {
+    /// Build a non-emitting retained canvas view.
+    pub fn view<Message: 'static>(self) -> ViewNode<Message> {
+        view_node_from_widget(CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(
+            self.descriptor,
+        ))
+    }
+
+    /// Build a retained canvas that maps canvas input to host messages.
+    pub fn on_input<Message: 'static>(
+        self,
+        map: impl Fn(crate::widgets::CanvasMessage) -> Message + Send + Sync + 'static,
+    ) -> ViewNode<Message> {
+        view_node_from_widget(MappedWidget::new(
+            CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(self.descriptor),
+            WidgetMessageMapper::canvas(map),
+        ))
+    }
+}
+
+/// Build a non-interactive raster image view.
+pub fn image<Message: 'static>(image: Arc<ImageRgba>) -> ViewNode<Message> {
+    let size = Vector2::new(image.width.max(1) as f32, image.height.max(1) as f32);
+    view_node_from_widget(ImageWidget::new(0, image, WidgetSizing::fixed(size)))
+}
+
+/// Build a minimal passive spacer view.
+pub fn spacer<Message: 'static>() -> ViewNode<Message> {
+    canvas().size(1.0, 1.0)
+}
+
 /// Build a custom widget view with generated identity and an output mapper.
 pub fn custom_widget<Message: 'static>(
     widget: impl Widget + Clone + 'static,
@@ -35,6 +127,8 @@ pub fn custom_widget<Message: 'static>(
 pub struct ButtonBuilder {
     label: String,
     style: Option<WidgetStyle>,
+    secondary_click: bool,
+    drag: bool,
 }
 
 impl ButtonBuilder {
@@ -62,6 +156,18 @@ impl ButtonBuilder {
         self
     }
 
+    /// Emit secondary/right-click messages from this button.
+    pub fn secondary_clicks(mut self) -> Self {
+        self.secondary_click = true;
+        self
+    }
+
+    /// Emit drag lifecycle messages from the button surface.
+    pub fn draggable(mut self) -> Self {
+        self.drag = true;
+        self
+    }
+
     /// Emit one cloned host message when activated.
     pub fn message<Message>(self, message: Message) -> ViewNode<Message>
     where
@@ -75,10 +181,15 @@ impl ButtonBuilder {
         self,
         map: impl Fn(crate::widgets::ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
-        let mut node = view_node_from_widget(MappedWidget::new(
-            ButtonWidget::new(0, &self.label, default_button_sizing(&self.label)),
-            WidgetMessageMapper::button(map),
-        ));
+        let mut button = ButtonWidget::new(0, &self.label, default_button_sizing(&self.label));
+        if self.secondary_click {
+            button = button.with_secondary_click();
+        }
+        if self.drag {
+            button = button.with_drag();
+        }
+        let mut node =
+            view_node_from_widget(MappedWidget::new(button, WidgetMessageMapper::button(map)));
         node.style = self.style;
         node
     }
@@ -90,6 +201,94 @@ impl ButtonBuilder {
     ) -> ViewNode<StateAction<State>> {
         self.message(StateAction::new(apply))
     }
+
+    /// Mutate application state on primary or secondary/right activation.
+    pub fn on_click_or_secondary<State: 'static>(
+        self,
+        primary: impl Fn(&mut State) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let primary = Arc::new(primary);
+        let secondary = Arc::new(secondary);
+        self.secondary_clicks().mapped(move |message| {
+            let primary = Arc::clone(&primary);
+            let secondary = Arc::clone(&secondary);
+            StateAction::new(move |state| match message {
+                crate::widgets::ButtonMessage::Activate => primary(state),
+                crate::widgets::ButtonMessage::SecondaryActivate { .. } => secondary(state),
+                crate::widgets::ButtonMessage::Drag(_) => {}
+            })
+        })
+    }
+
+    /// Mutate application state on primary activation or secondary/right
+    /// activation with pointer position.
+    pub fn on_click_or_secondary_at<State: 'static>(
+        self,
+        primary: impl Fn(&mut State) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State, crate::gui::types::Point) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let primary = Arc::new(primary);
+        let secondary = Arc::new(secondary);
+        self.secondary_clicks().mapped(move |message| {
+            let primary = Arc::clone(&primary);
+            let secondary = Arc::clone(&secondary);
+            StateAction::new(move |state| match message {
+                crate::widgets::ButtonMessage::Activate => primary(state),
+                crate::widgets::ButtonMessage::SecondaryActivate { position } => {
+                    secondary(state, position);
+                }
+                crate::widgets::ButtonMessage::Drag(_) => {}
+            })
+        })
+    }
+
+    /// Mutate application state on primary, secondary/right, or drag lifecycle messages.
+    pub fn on_click_secondary_or_drag<State: 'static>(
+        self,
+        primary: impl Fn(&mut State) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State) + Send + Sync + 'static,
+        drag: impl Fn(&mut State, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let primary = Arc::new(primary);
+        let secondary = Arc::new(secondary);
+        let drag = Arc::new(drag);
+        self.secondary_clicks().draggable().mapped(move |message| {
+            let primary = Arc::clone(&primary);
+            let secondary = Arc::clone(&secondary);
+            let drag = Arc::clone(&drag);
+            StateAction::new(move |state| match message {
+                crate::widgets::ButtonMessage::Activate => primary(state),
+                crate::widgets::ButtonMessage::SecondaryActivate { .. } => secondary(state),
+                crate::widgets::ButtonMessage::Drag(message) => drag(state, message),
+            })
+        })
+    }
+
+    /// Mutate application state on primary, secondary/right with pointer
+    /// position, or drag lifecycle messages.
+    pub fn on_click_secondary_at_or_drag<State: 'static>(
+        self,
+        primary: impl Fn(&mut State) + Send + Sync + 'static,
+        secondary: impl Fn(&mut State, crate::gui::types::Point) + Send + Sync + 'static,
+        drag: impl Fn(&mut State, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let primary = Arc::new(primary);
+        let secondary = Arc::new(secondary);
+        let drag = Arc::new(drag);
+        self.secondary_clicks().draggable().mapped(move |message| {
+            let primary = Arc::clone(&primary);
+            let secondary = Arc::clone(&secondary);
+            let drag = Arc::clone(&drag);
+            StateAction::new(move |state| match message {
+                crate::widgets::ButtonMessage::Activate => primary(state),
+                crate::widgets::ButtonMessage::SecondaryActivate { position } => {
+                    secondary(state, position);
+                }
+                crate::widgets::ButtonMessage::Drag(message) => drag(state, message),
+            })
+        })
+    }
 }
 
 /// Build a button.
@@ -97,6 +296,8 @@ pub fn button(label: impl Into<String>) -> ButtonBuilder {
     ButtonBuilder {
         label: label.into(),
         style: None,
+        secondary_click: false,
+        drag: false,
     }
 }
 
@@ -316,6 +517,36 @@ impl TextInputBuilder {
     ) -> ViewNode<StateAction<State>> {
         self.on_change(move |state, value| *field(state) = value)
     }
+
+    /// Bind edits to a mutable `String` field and run a state callback on submit.
+    pub fn bind_submit<State: 'static>(
+        self,
+        field: impl for<'a> Fn(&'a mut State) -> &'a mut String + Send + Sync + 'static,
+        submit: impl Fn(&mut State) + Send + Sync + 'static,
+    ) -> ViewNode<StateAction<State>> {
+        let field = Arc::new(field);
+        let submit = Arc::new(submit);
+        let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
+        input.props.placeholder = self.placeholder;
+        let mut node = view_node_from_widget(MappedWidget::new(
+            input,
+            WidgetMessageMapper::text_input(move |message| {
+                let field = Arc::clone(&field);
+                let submit = Arc::clone(&submit);
+                StateAction::new(move |state| match &message {
+                    crate::widgets::TextInputMessage::Changed { value } => {
+                        *field(state) = value.clone();
+                    }
+                    crate::widgets::TextInputMessage::Submitted { value } => {
+                        *field(state) = value.clone();
+                        submit(state);
+                    }
+                })
+            }),
+        ));
+        node.style = self.style;
+        node
+    }
 }
 
 /// Build a single-line text input.
@@ -347,6 +578,8 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -374,6 +607,8 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -400,6 +635,8 @@ pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> 
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -428,6 +665,8 @@ pub fn overlay_panel<Message>(
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -450,6 +689,8 @@ pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: Some(primary_style()),
         hoverable: false,
         input_only: false,
@@ -468,6 +709,8 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
         sizing: None,
         slot: SlotBehavior::default(),
         padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
         style: None,
         hoverable: false,
         input_only: false,
@@ -531,6 +774,10 @@ fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
 
 fn default_text_input_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(280.0, 42.0)).with_baseline(26.0)
+}
+
+fn default_canvas_sizing() -> WidgetSizing {
+    WidgetSizing::fixed(Vector2::new(1.0, 1.0))
 }
 
 fn primary_style() -> WidgetStyle {

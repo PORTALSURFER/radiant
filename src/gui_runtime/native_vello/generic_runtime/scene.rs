@@ -152,9 +152,11 @@ where
                     Arc::clone(&draw.image.pixels),
                     draw.image.width,
                     draw.image.height,
+                    draw.source_rect,
                     draw.rect,
                 );
             }
+            PaintPrimitive::GpuSurface(_) => {}
             PaintPrimitive::CustomSurface(custom) => {
                 if let Some(retained) = custom.retained {
                     if let Some(frame) =
@@ -405,6 +407,7 @@ fn encode_paint_frame_to_scene(
                     Arc::clone(&draw.image.pixels),
                     draw.image.width,
                     draw.image.height,
+                    None,
                     draw.rect,
                 );
             }
@@ -485,6 +488,7 @@ fn encode_image(
     pixels: Arc<[u8]>,
     image_width: usize,
     image_height: usize,
+    source_rect: Option<UiRect>,
     rect: UiRect,
 ) {
     let (Ok(width), Ok(height)) = (u32::try_from(image_width), u32::try_from(image_height)) else {
@@ -500,10 +504,26 @@ fn encode_image(
         width,
         height,
     };
-    let transform = Affine::translate((rect.min.x as f64, rect.min.y as f64))
-        * Affine::scale_non_uniform(
-            rect.width() as f64 / f64::from(width),
-            rect.height() as f64 / f64::from(height),
-        );
+    let full_source = UiRect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(width as f32, height as f32),
+    );
+    let source = source_rect.unwrap_or(full_source).clamp_to(full_source);
+    if source.width() <= 0.0 || source.height() <= 0.0 {
+        return;
+    }
+    let transform = Affine::translate((
+        rect.min.x as f64 - source.min.x as f64 * rect.width() as f64 / source.width() as f64,
+        rect.min.y as f64 - source.min.y as f64 * rect.height() as f64 / source.height() as f64,
+    )) * Affine::scale_non_uniform(
+        rect.width() as f64 / source.width() as f64,
+        rect.height() as f64 / source.height() as f64,
+    );
+    if source_rect.is_some() {
+        scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &to_kurbo_rect(rect));
+    }
     scene.draw_image(&image_data, transform);
+    if source_rect.is_some() {
+        scene.pop_layer();
+    }
 }

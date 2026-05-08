@@ -1,5 +1,6 @@
 //! Public API coverage for the generic `radiant::runtime` surface.
 
+use radiant::prelude::IntoView;
 use radiant::{
     gui::{
         focus::FocusSurface,
@@ -14,14 +15,14 @@ use radiant::{
     },
     runtime::{
         App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
-        NativeRunOptions, PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode,
-        SurfaceRuntime, UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
-        declarative_runtime_bridge,
+        GpuSurfaceContent, GpuSurfaceOverlay, NativeRunOptions, PaintPrimitive, Renderer,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
+        WidgetMessageMapper, declarative_command_runtime_bridge, declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
         BadgeMessage, ButtonMessage, ButtonWidget, CanvasMessage, CanvasWidget, DragHandleMessage,
-        DragHandleWidget, ListItemMessage, ListItemWidget, PointerButton,
+        DragHandleWidget, GpuSurfaceWidget, ListItemMessage, ListItemWidget, PointerButton,
         RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarMessage, ScrollbarWidget,
         SelectableMessage, SelectableWidget, TextEditCommand, TextInputMessage, TextInputWidget,
         TextWidget, ToggleMessage, ToggleWidget, Widget, WidgetCommon, WidgetInput, WidgetKey,
@@ -33,6 +34,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
@@ -340,7 +342,10 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
                         .id(11)
                         .size(96.0, 32.0),
                     ui::text_input(state.name.clone())
-                        .on_change(|state: &mut DemoState, value| state.name = value)
+                        .bind_submit(
+                            |state: &mut DemoState| &mut state.name,
+                            |state: &mut DemoState| state.count += 1,
+                        )
                         .id(12)
                         .min_size(120.0, 28.0)
                         .preferred_size(180.0, 28.0),
@@ -370,6 +375,29 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
     assert_eq!(
         widget_ref::<TextWidget, _>(&after, 10, "text").text,
         "Count: 1"
+    );
+
+    let submit = after
+        .dispatch_widget_output(
+            12,
+            radiant::widgets::WidgetOutput::typed(TextInputMessage::Submitted {
+                value: String::from("Launch now"),
+            }),
+        )
+        .expect("direct text input submit should emit a state action");
+    let command = bridge.update(submit);
+    assert!(command.requests_repaint());
+
+    let after_submit = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextInputWidget, _>(&after_submit, 12, "text input")
+            .state
+            .value,
+        "Launch now"
+    );
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after_submit, 10, "text").text,
+        "Count: 2"
     );
 }
 
@@ -698,6 +726,37 @@ fn control_hover_suppresses_surrounding_container_hover_chrome() {
 }
 
 #[test]
+fn input_only_controls_do_not_suppress_surrounding_container_hover_chrome() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::list_row(
+        "row",
+        [ui::button("Cell")
+            .message(DemoMessage::Increment)
+            .id(20)
+            .input_only()
+            .size(120.0, 24.0)],
+    )
+    .id(10)
+    .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
+    let theme = ThemeTokens::default();
+    let before = runtime.paint_plan(&theme);
+    let body_before = widget_fill_color(&before, 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(24.0, 20.0),
+    });
+    let after = runtime.paint_plan(&theme);
+
+    assert_eq!(runtime.hovered_widget(), Some(20));
+    assert_eq!(runtime.hovered_container(), Some(10));
+    assert_ne!(body_before, widget_fill_color(&after, 10));
+}
+
+#[test]
 fn prelude_supports_hello_world_imports() {
     use radiant::prelude::*;
 
@@ -1009,6 +1068,52 @@ fn surface_node_stack_and_card_helpers_project_grouped_surface() {
             .collect::<Vec<_>>(),
         vec![(27, 1)]
     );
+}
+
+#[test]
+fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
+    let atlas = Arc::new(ImageRgba::new(2, 1, vec![0, 0, 0, 255, 255, 255, 255, 255]).unwrap());
+    let content = GpuSurfaceContent::RgbaAtlas {
+        source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(2.0, 1.0)),
+        atlas: Arc::clone(&atlas),
+    };
+    let surface: UiSurface<()> = UiSurface::new(SurfaceNode::static_widget(
+        GpuSurfaceWidget::new(
+            41,
+            WidgetSizing::fixed(Vector2::new(80.0, 20.0)),
+            9001,
+            7,
+            content,
+        )
+        .with_overlays(vec![GpuSurfaceOverlay::VerticalCursor {
+            ratio: 0.5,
+            color: Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            width: 1.0,
+        }]),
+    ));
+
+    let output = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 40.0)),
+    );
+    let plan = surface.paint_plan(&output, &ThemeTokens::default());
+
+    let Some(PaintPrimitive::GpuSurface(gpu)) = plan.primitives.first() else {
+        panic!("expected gpu surface primitive");
+    };
+    assert_eq!(gpu.widget_id, 41);
+    assert_eq!(gpu.key, 9001);
+    assert_eq!(gpu.revision, 7);
+    assert_eq!(gpu.overlays.len(), 1);
+    let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &gpu.content else {
+        panic!("expected rgba atlas gpu content");
+    };
+    assert_eq!(atlas.width, 2);
 }
 
 #[test]
@@ -1943,6 +2048,71 @@ fn surface_runtime_executes_command_messages_and_repaint_requests() {
 }
 
 #[test]
+fn surface_runtime_executes_focus_exit_and_deferred_commands() {
+    let bridge = RuntimeCommandBridge::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 80.0));
+
+    let focus = runtime.execute_command(Command::focus(11));
+    assert!(!focus.exit_requested);
+    assert_eq!(runtime.focused_widget(), Some(11));
+
+    let deferred = runtime.execute_command(Command::after(
+        Duration::from_millis(1),
+        DemoMessage::Increment,
+    ));
+    assert!(deferred.repaint_requested);
+    std::thread::sleep(Duration::from_millis(20));
+    let drained = runtime.drain_runtime_messages();
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().count, 1);
+
+    let performed = runtime.execute_command(Command::perform(
+        "increment",
+        || DemoMessage::Increment,
+        |message| message,
+    ));
+    assert!(performed.repaint_requested);
+    std::thread::sleep(Duration::from_millis(20));
+    let drained = runtime.drain_runtime_messages();
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(runtime.bridge().count, 2);
+
+    let exit = runtime.execute_command(Command::exit());
+    assert!(exit.exit_requested);
+    assert!(runtime.take_exit_requested());
+}
+
+#[test]
+fn retained_canvas_builder_projects_metadata_and_input_mapping() {
+    let surface = radiant::prelude::retained_canvas(44, 7, 3, true)
+        .on_input(|message| match message {
+            CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
+        })
+        .id(44)
+        .size(120.0, 40.0)
+        .into_surface();
+    let plan = surface.paint_plan(
+        &layout_tree(
+            &surface.layout_node(),
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 40.0)),
+        ),
+        &ThemeTokens::default(),
+    );
+    let Some(PaintPrimitive::CustomSurface(custom)) = plan.primitives.first() else {
+        panic!("retained canvas should project one custom surface primitive");
+    };
+    assert_eq!(
+        custom.retained,
+        Some(RetainedSurfaceDescriptor {
+            key: 44,
+            revision: 7,
+            dirty_mask: 3,
+            volatile: true,
+        })
+    );
+}
+
+#[test]
 fn declarative_command_bridge_supports_command_update_flow() {
     let bridge = declarative_command_runtime_bridge(
         DemoState::default(),
@@ -2201,6 +2371,12 @@ struct CommandDemoBridge {
 }
 
 #[derive(Default)]
+struct RuntimeCommandBridge {
+    count: usize,
+    pending: Arc<std::sync::Mutex<Vec<DemoMessage>>>,
+}
+
+#[derive(Default)]
 struct ShortcutDemoBridge {
     state: DemoState,
 }
@@ -2308,6 +2484,56 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
                 Command::none()
             }
         }
+    }
+}
+
+impl RuntimeBridge<DemoMessage> for RuntimeCommandBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<DemoMessage>> {
+        Arc::new(UiSurface::new(SurfaceNode::row(
+            1,
+            8.0,
+            vec![SurfaceChild::fill(SurfaceNode::static_widget(
+                ButtonWidget::new(11, "Focus", WidgetSizing::fixed(Vector2::new(80.0, 32.0))),
+            ))],
+        )))
+    }
+
+    fn update(&mut self, message: DemoMessage) -> Command<DemoMessage> {
+        if matches!(message, DemoMessage::Increment) {
+            self.count += 1;
+        }
+        Command::none()
+    }
+
+    fn schedule_message(&mut self, delay: Duration, message: DemoMessage) -> bool {
+        let pending = Arc::clone(&self.pending);
+        std::thread::spawn(move || {
+            std::thread::sleep(delay);
+            pending
+                .lock()
+                .expect("pending messages poisoned")
+                .push(message);
+        });
+        true
+    }
+
+    fn spawn_message_task(
+        &mut self,
+        _name: &'static str,
+        work: Box<dyn FnOnce() -> DemoMessage + Send + 'static>,
+    ) -> bool {
+        let pending = Arc::clone(&self.pending);
+        std::thread::spawn(move || {
+            pending
+                .lock()
+                .expect("pending messages poisoned")
+                .push(work());
+        });
+        true
+    }
+
+    fn take_runtime_messages(&mut self) -> Vec<DemoMessage> {
+        std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
     }
 }
 

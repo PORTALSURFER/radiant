@@ -95,7 +95,19 @@ input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Apps that prefer
 explicit message routing can use `.message(...)` on widgets plus `.update(...)`
 or `.update_command(...)` on the app when reducers need to return
-`Command<Message>` values directly.
+`Command<Message>` values directly. Reducers that need the full app runtime can
+use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
+request repaint, move focus, start background work, schedule delayed messages,
+or request runtime exit.
+
+Serious apps use the same builder API. `radiant::app(...)` supports
+`.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
+with `.on_frame(...)` for frame-driven UI, `.on_startup(...)`,
+`.on_shutdown(...)`, `.on_close_requested(...)`, `.run_with_artifacts()`, and
+retained-surface painters registered through `.retained_painter(...)`.
+Retained canvas views reserve stable cached surfaces with
+`retained_canvas(key, revision, dirty_mask, volatile).on_input(...)`, while the
+app painter owns the corresponding backend-neutral `PaintFrame`.
 
 ## Soft-Deprecated First-Use Boilerplate
 
@@ -112,8 +124,9 @@ New docs and examples should use `radiant::prelude`, `radiant::window`,
 documentation and guardrail deprecation, not a Rust `#[deprecated]` attribute on
 the explicit control objects. The `radiant::runtime` module, `RuntimeBridge`,
 `UiSurface`, `SurfaceNode`, `SurfaceChild`, `NativeRunOptions`, `WidgetSizing`,
-and native runtime entry points remain supported and non-deprecated for hosts
-that need precise runtime, layout, or bridge control.
+and native runtime entry points remain supported as low-level adapter
+infrastructure for unusual embedding and runtime tests, not as the ordinary
+path for feature-complete applications. They remain supported and non-deprecated for hosts that need precise runtime, layout, or bridge control.
 
 ## App
 
@@ -122,9 +135,12 @@ Radiant does not define the domain model. The public `App<Message>` contract is
 implemented by every `RuntimeBridge<Message>`: hosts can provide a custom bridge
 or use `declarative_runtime_bridge(state, project, reduce)` to project an
 immutable `UiSurface<Message>` from state and reduce messages back into state.
-Hosts whose update flow returns runtime-visible follow-up work can use
-`declarative_command_runtime_bridge(state, project, update)`; its update closure
-returns `Command<Message>` while keeping side effects and domain state host-owned.
+Apps whose update flow returns runtime-visible follow-up work should use
+`radiant::app(...).update_command(...)` or `.update_with(...)`. The app builder
+lowers into Radiant's bridge internally while keeping side effects and domain
+state host-owned. Low-level hosts can still provide a custom bridge or use
+`declarative_command_runtime_bridge(state, project, update)` when embedding
+Radiant outside the application builder.
 
 ## View, Element, And Widget
 
@@ -194,8 +210,9 @@ hook for hosts that only mutate state; `RuntimeBridge::update` can return
 `SurfaceRuntime::dispatch_message` and `SurfaceRuntime::execute_command` both
 return `CommandOutcome` with dispatched-message and repaint-request summaries.
 `Command<Message>` is the generic runtime-visible follow-up value for host
-reducers that need to queue messages, batch runtime-visible work, or request
-repaint.
+reducers that need to queue messages, batch runtime-visible work, request
+repaint, schedule delayed messages, run background work, move focus, or request
+runtime exit.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
@@ -207,10 +224,10 @@ and `WidgetMessageMapper::dynamic(...)` is available when a host needs manual
 downcast or filtering behavior. Adding a widget should not require adding a
 central output enum variant.
 
-Asynchronous side effects remain host-owned. A host reducer may start work,
-enqueue IO, or signal background tasks, but Radiant's generic runtime only
-observes `Command<Message>` values, repaint requests, projected surface
-snapshots, and host-defined messages.
+Asynchronous side effects remain host-owned, but normal apps use Radiant's app
+runtime to wire them into the UI. `Command::perform(...)`, `Command::after(...)`,
+`UpdateContext`, and `Subscription` provide message delivery and repaint
+wakeups; the app still owns the work and resulting domain messages.
 
 ## Layout
 

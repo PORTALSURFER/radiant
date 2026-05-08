@@ -487,6 +487,7 @@ pub(super) fn push_image_widget_paint(
 ) {
     primitives.push(PaintPrimitive::Image(PaintImage {
         widget_id: image.common.id,
+        source_rect: None,
         rect: bounds,
         image: Arc::clone(&image.props.image),
     }));

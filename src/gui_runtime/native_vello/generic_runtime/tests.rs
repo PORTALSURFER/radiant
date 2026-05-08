@@ -1,10 +1,14 @@
 use super::*;
 use crate::{
-    layout::{ContainerKind, ContainerPolicy, SlotParams},
-    runtime::{Command, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    layout::{ContainerKind, ContainerPolicy, Rect, SlotParams},
+    runtime::{
+        Command, GpuSignalSummary, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface,
+        PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+    },
     widgets::{
-        ButtonWidget, CanvasMessage, PointerButton, TextInputMessage, TextInputWidget, WidgetInput,
-        WidgetSizing,
+        ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
+        ScrollbarWidget, TextInputMessage, TextInputWidget, Widget, WidgetCommon, WidgetInput,
+        WidgetOutput, WidgetSizing,
     },
 };
 
@@ -54,8 +58,9 @@ fn generic_core_routes_pointer_and_key_input_to_host_messages() {
             .routed
     );
     assert!(core.route_character('R').routed);
+    assert!(core.route_character(' ').routed);
     assert!(core.route_widget_key(WidgetKey::Enter).routed);
-    assert_eq!(core.runtime.bridge().state.name, "R");
+    assert_eq!(core.runtime.bridge().state.name, "R ");
 }
 
 #[test]
@@ -78,6 +83,233 @@ fn generic_canvas_can_receive_keyboard_focus_and_text_input() {
     assert!(core.route_character('K').routed);
 
     assert_eq!(core.runtime.bridge().text, "K");
+}
+
+#[test]
+fn generic_canvas_receives_wheel_before_scroll_fallback() {
+    let bridge = CanvasBridge::default();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let canvas_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&21)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("canvas should be laid out");
+
+    assert!(
+        core.route_scroll(canvas_point, Vector2::new(0.0, -40.0))
+            .routed
+    );
+
+    assert_eq!(core.runtime.bridge().text, "wheel");
+}
+
+#[test]
+fn gpu_surface_fast_path_does_not_capture_horizontal_pan() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 80.0),
+    );
+    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(200.0, 40.0),
+    ));
+    let point = Point::new(20.0, 20.0);
+
+    assert!(runner.can_fast_path_gpu_surface_route(point, Vector2::new(0.0, -40.0)));
+    assert!(!runner.can_fast_path_gpu_surface_route(point, Vector2::new(40.0, 1.0)));
+}
+
+#[test]
+fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
+    let mut core =
+        GenericNativeRuntimeCore::new(WheelRefreshBridge::default(), Vector2::new(240.0, 40.0));
+    let point = Point::new(12.0, 12.0);
+
+    assert!(
+        core.route_scroll_deferred_refresh(point, Vector2::new(0.0, -40.0))
+            .routed
+    );
+    assert_eq!(core.runtime.bridge().wheel_count, 1);
+    assert_eq!(
+        core.runtime.bridge().project_count,
+        1,
+        "deferred wheel routing should not refresh the projected surface immediately"
+    );
+
+    core.refresh_surface();
+    assert_eq!(core.runtime.bridge().project_count, 2);
+}
+
+#[test]
+fn gpu_surface_pointer_move_fast_path_only_within_cached_surface() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        demo_bridge(),
+        Vector2::new(320.0, 80.0),
+    );
+    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
+        Point::new(10.0, 10.0),
+        Vector2::new(200.0, 40.0),
+    ));
+
+    assert!(runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(20.0, 20.0)),
+        Point::new(40.0, 20.0)
+    ));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(None, Point::new(40.0, 20.0)));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(4.0, 20.0)),
+        Point::new(40.0, 20.0)
+    ));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(
+        Some(Point::new(20.0, 20.0)),
+        Point::new(240.0, 20.0)
+    ));
+}
+
+#[test]
+fn native_gpu_hover_updates_cached_overlay_without_refreshing_surface() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let project_count = runner.core.runtime.bridge().project_count;
+
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count,
+        "native cursor updates should not refresh or reproject the app surface"
+    );
+    let surface = runner
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) => Some(surface),
+            _ => None,
+        })
+        .expect("gpu surface primitive");
+    assert!(surface.overlays.iter().any(|overlay| matches!(
+        overlay,
+        GpuSurfaceOverlay::VerticalCursor { ratio, .. } if (*ratio - 0.25).abs() < 0.001
+    )));
+}
+
+#[test]
+fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+
+    assert!(runner.update_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    assert!(runner.clear_gpu_surface_cursor_overlay(Point::new(60.0, 20.0)));
+    let surface = runner
+        .last_paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::GpuSurface(surface) => Some(surface),
+            _ => None,
+        })
+        .expect("gpu surface primitive");
+    assert!(
+        surface
+            .overlays
+            .iter()
+            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeVerticalHoverCursor { .. }))
+    );
+    assert!(
+        !surface
+            .overlays
+            .iter()
+            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }))
+    );
+}
+
+#[test]
+fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge::default(),
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+    let project_count = runner.core.runtime.bridge().project_count;
+
+    runner.queue_gpu_surface_wheel(point, Vector2::new(0.0, -20.0));
+    runner.queue_gpu_surface_wheel(Point::new(80.0, 20.0), Vector2::new(0.0, -30.0));
+    runner.flush_pending_gpu_surface_wheel(&mut RenderFrameProfile::default());
+
+    assert_eq!(runner.core.runtime.bridge().wheel_count, 1);
+    assert_eq!(
+        runner.core.runtime.bridge().last_delta,
+        Vector2::new(0.0, -50.0)
+    );
+    assert_eq!(
+        runner.core.runtime.bridge().project_count,
+        project_count,
+        "coalesced wheel routing should not refresh until redraw applies deferred refresh"
+    );
+    assert!(runner.deferred_surface_refresh);
+}
+
+#[test]
+fn signal_summary_pyramid_preserves_band_min_max_and_level_selection() {
+    let samples: Arc<[f32]> = [
+        -0.1, 0.2, -0.7, 0.4, 0.3, -0.8, 0.9, -0.2, -0.5, 0.1, 0.6, -0.6,
+    ]
+    .into_iter()
+    .collect();
+    let summary = GpuSignalSummary::from_interleaved_samples(&samples, 6, 2);
+
+    assert_eq!(summary.levels[0].bucket_frames, 1);
+    assert_eq!(summary.levels[0].buckets[0].min, -0.1);
+    assert_eq!(summary.levels[0].buckets[0].max, -0.1);
+    assert!(summary.levels.iter().any(|level| {
+        level.bucket_frames >= 4 && level.buckets[0].min <= -0.7 && level.buckets[0].max >= 0.9
+    }));
+    assert_eq!(summary.level_for_frames_per_pixel(1.0), 0);
+    assert!(summary.level_for_frames_per_pixel(5.0) > 0);
+}
+
+#[test]
+fn gpu_signal_shader_uses_summary_sampling_without_looped_sample_scan() {
+    assert!(!super::gpu_surface::GPU_SIGNAL_SHADER.contains("loop"));
+    assert!(!super::gpu_surface::GPU_SIGNAL_SHADER.contains("fn band_peak("));
+    assert!(super::gpu_surface::GPU_SIGNAL_SHADER.contains("summary_peak"));
+}
+
+#[test]
+fn scrollbar_drag_state_survives_view_refresh_after_offset_message() {
+    let mut core =
+        GenericNativeRuntimeCore::new(ScrollbarBridge::default(), Vector2::new(240.0, 24.0));
+    let press = Point::new(12.0, 7.0);
+    let first_drag = Point::new(72.0, 7.0);
+    let second_drag = Point::new(132.0, 7.0);
+
+    assert!(
+        core.route_pointer_press(press, PointerButton::Primary)
+            .routed
+    );
+    assert!(core.route_pointer_move(first_drag).routed);
+    let first_offset = core.runtime.bridge().offset;
+    assert!(first_offset > 0.0);
+
+    assert!(core.route_pointer_move(second_drag).routed);
+    assert!(
+        core.runtime.bridge().offset > first_offset,
+        "drag should continue after the first offset message refreshes the surface"
+    );
 }
 
 #[test]
@@ -366,6 +598,92 @@ struct CanvasBridge {
 }
 
 #[derive(Default)]
+struct ScrollbarBridge {
+    offset: f32,
+}
+
+#[derive(Default)]
+struct WheelRefreshBridge {
+    wheel_count: usize,
+    project_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct GpuWheelMessage {
+    delta: Vector2,
+}
+
+#[derive(Default)]
+struct GpuWheelBridge {
+    wheel_count: usize,
+    project_count: usize,
+    last_delta: Vector2,
+}
+
+#[derive(Clone, Debug)]
+struct TestGpuWheelWidget {
+    common: WidgetCommon,
+}
+
+impl TestGpuWheelWidget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(61, WidgetSizing::fixed(Vector2::new(200.0, 40.0)));
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for TestGpuWheelWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::Wheel { delta, .. } => {
+                Some(WidgetOutput::typed(GpuWheelMessage { delta }))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &crate::layout::LayoutOutput,
+        _theme: &crate::theme::ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: self.common.id,
+            key: 61,
+            revision: 1,
+            rect: bounds,
+            content: GpuSurfaceContent::SignalBands {
+                frames: 4,
+                band_count: 1,
+                frame_range: [0.0, 4.0],
+                samples: Arc::<[f32]>::from(vec![0.0, 0.25, -0.5, 1.0]),
+            },
+            overlays: vec![GpuSurfaceOverlay::NativeVerticalHoverCursor {
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: 1.0,
+            }],
+        }));
+    }
+}
+
+#[derive(Default)]
 struct RetainedBridge {
     render_count: usize,
     dirty_mask: u64,
@@ -436,6 +754,9 @@ impl RuntimeBridge<String> for CanvasBridge {
                 CanvasMessage::Input {
                     input: WidgetInput::Character(character),
                 } => character.to_string(),
+                CanvasMessage::Input {
+                    input: WidgetInput::Wheel { .. },
+                } => String::from("wheel"),
                 _ => String::new(),
             },
         )))
@@ -444,5 +765,64 @@ impl RuntimeBridge<String> for CanvasBridge {
     fn update(&mut self, message: String) -> Command<String> {
         self.text.push_str(&message);
         Command::none()
+    }
+}
+
+impl RuntimeBridge<f32> for ScrollbarBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<f32>> {
+        let mut scrollbar = ScrollbarWidget::new(
+            41,
+            ScrollbarAxis::Horizontal,
+            WidgetSizing::fixed(Vector2::new(220.0, 14.0)),
+        );
+        scrollbar.props.viewport_fraction = 0.25;
+        scrollbar.state.offset_fraction = self.offset;
+        Arc::new(UiSurface::new(SurfaceNode::widget(
+            scrollbar,
+            WidgetMessageMapper::scrollbar(|message| match message {
+                ScrollbarMessage::OffsetChanged { offset_fraction } => offset_fraction,
+            }),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: f32) {
+        self.offset = message;
+    }
+}
+
+impl RuntimeBridge<String> for WheelRefreshBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<String>> {
+        self.project_count += 1;
+        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+            51,
+            WidgetSizing::fixed(Vector2::new(120.0, 28.0)),
+            |message| match message {
+                CanvasMessage::Input {
+                    input: WidgetInput::Wheel { .. },
+                } => String::from("wheel"),
+                _ => String::new(),
+            },
+        )))
+    }
+
+    fn reduce_message(&mut self, message: String) {
+        if message == "wheel" {
+            self.wheel_count += 1;
+        }
+    }
+}
+
+impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<GpuWheelMessage>> {
+        self.project_count += 1;
+        Arc::new(UiSurface::new(SurfaceNode::custom_widget(
+            TestGpuWheelWidget::new(),
+            WidgetMessageMapper::typed(|message: GpuWheelMessage| message),
+        )))
+    }
+
+    fn reduce_message(&mut self, message: GpuWheelMessage) {
+        self.wheel_count += 1;
+        self.last_delta = message.delta;
     }
 }

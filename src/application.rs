@@ -5,21 +5,29 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
+    gui::types::ImageRgba,
     gui_runtime::NativeRunOptions,
     layout::{
-        ContainerKind, ContainerPolicy, Insets, NodeId, SizeModeCross, SizeModeMain, SlotParams,
-        Vector2,
+        ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, NodeId, SizeModeCross,
+        SizeModeMain, SlotParams, Vector2,
     },
     runtime::{
         Command, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
         declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, DragHandleWidget, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
-        Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        ButtonWidget, CanvasWidget, DragHandleWidget, ImageWidget, TextInputWidget, TextWidget,
+        TextWrap, ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
+        WidgetTone,
     },
 };
-use std::{collections::HashSet, marker::PhantomData, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -34,8 +42,11 @@ pub type View<Message = ()> = ViewNode<Message>;
 pub type StateView<State> = View<StateAction<State>>;
 
 include!("application/state.rs");
+include!("application/runtime.rs");
 include!("application/launch.rs");
 include!("application/widget_view.rs");
 include!("application/view_node.rs");
+include!("application/tree_list.rs");
+include!("application/details_list.rs");
 include!("application/builders.rs");
 include!("application/ids.rs");

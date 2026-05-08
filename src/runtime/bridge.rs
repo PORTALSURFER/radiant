@@ -10,7 +10,7 @@ use crate::gui::{
     types::{Rect, Vector2},
 };
 use crate::widgets::RetainedSurfaceDescriptor;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 /// Generic host/runtime bridge for declarative message-driven surfaces.
 ///
@@ -61,6 +61,29 @@ pub trait RuntimeBridge<Message> {
     /// internals.
     fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {}
 
+    /// Queue a host-defined message from runtime-managed background work.
+    ///
+    /// The default returns `false` so low-level custom bridges keep full control.
+    /// Application-builder bridges override this to support delayed messages,
+    /// background tasks, and subscriptions through the unified app API.
+    fn schedule_message(&mut self, _delay: Duration, _message: Message) -> bool {
+        false
+    }
+
+    /// Spawn message-producing host work through the bridge-owned app runtime.
+    fn spawn_message_task(
+        &mut self,
+        _name: &'static str,
+        _work: Box<dyn FnOnce() -> Message + Send + 'static>,
+    ) -> bool {
+        false
+    }
+
+    /// Drain messages delivered by app-level tasks, timers, or subscriptions.
+    fn take_runtime_messages(&mut self) -> Vec<Message> {
+        Vec::new()
+    }
+
     /// Return whether the host currently needs animation-driven redraws.
     ///
     /// Generic declarative hosts can stay repaint-driven by using the default
@@ -94,6 +117,11 @@ pub trait RuntimeBridge<Message> {
     /// application-specific shutdown phases remain host-owned.
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
         None
+    }
+
+    /// Return whether the runtime should continue closing the active window.
+    fn close_requested(&mut self) -> bool {
+        true
     }
 }
 

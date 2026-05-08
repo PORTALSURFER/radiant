@@ -83,11 +83,14 @@ impl TodoState {
         if title.is_empty() {
             return;
         }
-        self.items.push(TodoItem {
-            id: self.next_id,
-            title,
-            done: false,
-        });
+        self.items.insert(
+            0,
+            TodoItem {
+                id: self.next_id,
+                title,
+                done: false,
+            },
+        );
         self.next_id += 1;
         self.draft.clear();
     }
@@ -155,22 +158,11 @@ impl TodoState {
         let Some(drag) = self.drag.as_ref() else {
             return self.items.iter().map(TodoListRow::Item).collect();
         };
-        let mut rows = Vec::with_capacity(self.items.len());
-        let mut visible_index = 0usize;
-        for item in &self.items {
-            if item.id == drag.item_id {
-                continue;
-            }
-            if visible_index == drag.drop_index {
-                rows.push(TodoListRow::DropTarget(drag.item_id));
-            }
-            rows.push(TodoListRow::Item(item));
-            visible_index += 1;
-        }
-        if drag.drop_index >= visible_index {
-            rows.push(TodoListRow::DropTarget(drag.item_id));
-        }
-        rows
+        self.items
+            .iter()
+            .filter(|item| item.id != drag.item_id)
+            .map(TodoListRow::Item)
+            .collect()
     }
 
     fn index_of(&self, id: u64) -> Option<usize> {
@@ -180,7 +172,6 @@ impl TodoState {
 
 enum TodoListRow<'a> {
     Item(&'a TodoItem),
-    DropTarget(u64),
 }
 
 fn main() -> radiant::Result {
@@ -201,6 +192,7 @@ fn project_surface(state: &mut TodoState) -> ui::StateView<TodoState> {
     if let Some(drag) = state.drag.as_ref() {
         ui::stack([
             page,
+            drag_capture_handle(drag.item_id),
             ui::drop_marker(
                 TODO_LIST_LEFT,
                 TODO_LIST_TOP + drag.drop_index as f32 * TODO_ROW_STEP - 2.0,
@@ -261,7 +253,10 @@ fn input_row(state: &TodoState) -> ui::StateView<TodoState> {
     ui::row([
         ui::text_input(state.draft.clone())
             .placeholder("What needs to be done?")
-            .bind(|state: &mut TodoState| &mut state.draft)
+            .bind_submit(
+                |state: &mut TodoState| &mut state.draft,
+                TodoState::add_draft,
+            )
             .key("draft")
             .min_size(300.0, 42.0)
             .preferred_size(480.0, 42.0)
@@ -297,8 +292,15 @@ fn todo_row(row: TodoListRow<'_>, dragging: bool) -> ui::StateView<TodoState> {
     match row {
         TodoListRow::Item(item) if dragging => passive_todo_item_row(item),
         TodoListRow::Item(item) => todo_item_row(item),
-        TodoListRow::DropTarget(id) => drop_target_row(id),
     }
+}
+
+fn drag_capture_handle(item_id: u64) -> ui::StateView<TodoState> {
+    ui::drag_handle()
+        .on_drag(move |state: &mut TodoState, message| state.drag_item(item_id, message))
+        .id(drag_handle_id(item_id))
+        .input_only()
+        .size(1.0, 1.0)
 }
 
 fn todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
@@ -363,30 +365,65 @@ fn passive_todo_item_row(item: &TodoItem) -> ui::StateView<TodoState> {
     .spacing(16.0)
 }
 
-fn drop_target_row(id: u64) -> ui::StateView<TodoState> {
-    ui::row([
-        ui::drag_handle()
-            .on_drag(move |state: &mut TodoState, message| state.drag_item(id, message))
-            .id(drag_handle_id(id))
-            .input_only()
-            .size(22.0, 22.0),
-        ui::text("").fill_width(),
-    ])
-    .key("drop-target")
-    .fill_width()
-    .height(TODO_ROW_STEP)
-    .padding_x(18.0)
-    .padding_y(10.0)
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-}
-
 fn state_title(draft: &str) -> String {
     draft.trim().to_owned()
 }
 
 fn drag_handle_id(item_id: u64) -> u64 {
     50_000 + item_id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_draft_inserts_new_items_at_top() {
+        let mut state = TodoState::default();
+        state.draft = String::from("Ship keyboard support");
+
+        state.add_draft();
+
+        assert_eq!(state.items[0].title, "Ship keyboard support");
+        assert_eq!(state.items[0].id, 8);
+        assert_eq!(state.items[1].title, "Add a reusable example");
+        assert!(state.draft.is_empty());
+    }
+
+    #[test]
+    fn projected_rows_do_not_include_drop_target_gap_while_dragging() {
+        let mut state = TodoState::default();
+        state.drag = Some(TodoDragState {
+            item_id: 2,
+            pointer_x: TODO_LIST_LEFT,
+            pointer_y: TODO_LIST_TOP,
+            drop_index: 3,
+            title: String::from("Wire text input and buttons"),
+        });
+
+        let rows = state.projected_rows();
+
+        assert_eq!(rows.len(), state.items.len() - 1);
+        assert!(rows.iter().all(|row| match row {
+            TodoListRow::Item(item) => item.id != 2,
+        }));
+    }
+
+    #[test]
+    fn drag_projection_keeps_active_handle_for_pointer_capture() {
+        use radiant::prelude::IntoView;
+
+        let mut state = TodoState::default();
+        state.drag = Some(TodoDragState {
+            item_id: 2,
+            pointer_x: TODO_LIST_LEFT,
+            pointer_y: TODO_LIST_TOP,
+            drop_index: 3,
+            title: String::from("Wire text input and buttons"),
+        });
+
+        let surface = project_surface(&mut state).into_surface();
+
+        assert!(surface.find_widget(drag_handle_id(2)).is_some());
+    }
 }

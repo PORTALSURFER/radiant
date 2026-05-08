@@ -6,6 +6,8 @@ pub struct ViewNode<Message> {
     sizing: Option<WidgetSizing>,
     slot: SlotBehavior,
     padding: Insets,
+    align_main: Option<MainAlign>,
+    align_cross: Option<CrossAlign>,
     style: Option<WidgetStyle>,
     hoverable: bool,
     input_only: bool,
@@ -24,6 +26,7 @@ enum AxisSlotBehavior {
     Default,
     Intrinsic,
     Fill(f32),
+    Percent(f32),
     Fixed(f32),
 }
 
@@ -122,9 +125,21 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Use a percentage of the parent width when this node is in a row.
+    pub fn width_percent(mut self, ratio: f32) -> Self {
+        self.slot.width = AxisSlotBehavior::Percent(ratio);
+        self
+    }
+
     /// Use a fixed parent slot height.
     pub fn height(mut self, height: f32) -> Self {
         self.slot.height = AxisSlotBehavior::Fixed(height);
+        self
+    }
+
+    /// Use a percentage of the parent height when this node is in a column.
+    pub fn height_percent(mut self, ratio: f32) -> Self {
+        self.slot.height = AxisSlotBehavior::Percent(ratio);
         self
     }
 
@@ -175,6 +190,18 @@ impl<Message> ViewNode<Message> {
         let padding = padding.max(0.0);
         self.padding.top = padding;
         self.padding.bottom = padding;
+        self
+    }
+
+    /// Align this container's children along the main axis.
+    pub fn align_main(mut self, align: MainAlign) -> Self {
+        self.align_main = Some(align);
+        self
+    }
+
+    /// Align this container's children along the cross axis.
+    pub fn align_cross(mut self, align: CrossAlign) -> Self {
+        self.align_cross = Some(align);
         self
     }
 
@@ -288,6 +315,8 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
             sizing: None,
             slot: SlotBehavior::default(),
             padding: Insets::default(),
+            align_main: None,
+            align_cross: None,
             style: None,
             hoverable: false,
             input_only: false,
@@ -329,6 +358,8 @@ where
                     kind: ContainerKind::Row,
                     spacing,
                     padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
                     ..ContainerPolicy::default()
                 };
                 let children = children
@@ -347,6 +378,8 @@ where
                     kind: ContainerKind::Column,
                     spacing,
                     padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
                     ..ContainerPolicy::default()
                 };
                 let children = children
@@ -365,6 +398,8 @@ where
                     kind: ContainerKind::ScrollView,
                     overflow: crate::layout::OverflowPolicy::Scroll,
                     padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
                     ..ContainerPolicy::default()
                 };
                 let children = vec![SurfaceChild::fill(child.lower(ids, child_scope))];
@@ -379,6 +414,8 @@ where
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Stack,
                     padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
                     ..ContainerPolicy::default()
                 };
                 let children = children
@@ -430,6 +467,7 @@ impl AxisSlotBehavior {
         match self {
             Self::Default | Self::Intrinsic => SizeModeMain::Intrinsic,
             Self::Fill(weight) => SizeModeMain::Fill(weight.max(0.0)),
+            Self::Percent(ratio) => SizeModeMain::Percent(ratio.max(0.0)),
             Self::Fixed(value) => SizeModeMain::Fixed(value.max(0.0)),
         }
     }
@@ -437,7 +475,7 @@ impl AxisSlotBehavior {
     fn to_cross(self) -> SizeModeCross {
         match self {
             Self::Default | Self::Intrinsic => SizeModeCross::Intrinsic,
-            Self::Fill(_) => SizeModeCross::Fill,
+            Self::Fill(_) | Self::Percent(_) => SizeModeCross::Fill,
             Self::Fixed(value) => SizeModeCross::Fixed(value.max(0.0)),
         }
     }

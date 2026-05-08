@@ -1,11 +1,13 @@
 //! Generic command values returned or queued by host-side runtime code.
 
+use crate::widgets::WidgetId;
+use std::{fmt, time::Duration};
+
 /// Runtime-facing command produced by host application logic.
 ///
 /// Radiant commands are intentionally small and domain-neutral. Hosts keep
 /// ownership of IO, background work, and other side effects; this type only
 /// represents values the generic runtime can understand directly.
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command<Message> {
     /// No follow-up work is required.
     None,
@@ -15,6 +17,46 @@ pub enum Command<Message> {
     Batch(Vec<Command<Message>>),
     /// Request another redraw from the active runtime adapter.
     RequestRepaint,
+    /// Dispatch a host-defined message after a delay.
+    After {
+        /// Delay before the message is delivered.
+        delay: Duration,
+        /// Message to dispatch.
+        message: Message,
+    },
+    /// Run host work on a background thread and dispatch the resulting message.
+    Perform {
+        /// Human-readable task name for diagnostics.
+        name: &'static str,
+        /// Background work lowered into a message-producing closure.
+        work: Box<dyn FnOnce() -> Message + Send + 'static>,
+    },
+    /// Move keyboard focus to one widget.
+    Focus(WidgetId),
+    /// Request that the active runtime exits.
+    Exit,
+}
+
+impl<Message> fmt::Debug for Command<Message>
+where
+    Message: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::None => f.write_str("None"),
+            Self::Message(message) => f.debug_tuple("Message").field(message).finish(),
+            Self::Batch(commands) => f.debug_tuple("Batch").field(commands).finish(),
+            Self::RequestRepaint => f.write_str("RequestRepaint"),
+            Self::After { delay, message } => f
+                .debug_struct("After")
+                .field("delay", delay)
+                .field("message", message)
+                .finish(),
+            Self::Perform { name, .. } => f.debug_struct("Perform").field("name", name).finish(),
+            Self::Focus(widget_id) => f.debug_tuple("Focus").field(widget_id).finish(),
+            Self::Exit => f.write_str("Exit"),
+        }
+    }
 }
 
 impl<Message> Default for Command<Message> {
@@ -52,11 +94,47 @@ impl<Message> Command<Message> {
         Self::RequestRepaint
     }
 
+    /// Build a command that dispatches one message after the provided delay.
+    pub const fn after(delay: Duration, message: Message) -> Self {
+        Self::After { delay, message }
+    }
+
+    /// Build a command that runs work on a background thread and maps its result
+    /// into a host message.
+    pub fn perform<Output>(
+        name: &'static str,
+        work: impl FnOnce() -> Output + Send + 'static,
+        map: impl FnOnce(Output) -> Message + Send + 'static,
+    ) -> Self
+    where
+        Output: Send + 'static,
+    {
+        Self::Perform {
+            name,
+            work: Box::new(move || map(work())),
+        }
+    }
+
+    /// Build a command that moves keyboard focus to one widget.
+    pub const fn focus(widget_id: WidgetId) -> Self {
+        Self::Focus(widget_id)
+    }
+
+    /// Build a command that asks the active runtime to exit.
+    pub const fn exit() -> Self {
+        Self::Exit
+    }
+
     /// Return whether this command performs no work.
     pub fn is_empty(&self) -> bool {
         match self {
             Self::None => true,
-            Self::Message(_) | Self::RequestRepaint => false,
+            Self::Message(_)
+            | Self::RequestRepaint
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::Focus(_)
+            | Self::Exit => false,
             Self::Batch(commands) => commands.iter().all(Self::is_empty),
         }
     }
@@ -66,7 +144,12 @@ impl<Message> Command<Message> {
         match self {
             Self::RequestRepaint => true,
             Self::Batch(commands) => commands.iter().any(Self::requests_repaint),
-            Self::None | Self::Message(_) => false,
+            Self::None
+            | Self::Message(_)
+            | Self::After { .. }
+            | Self::Perform { .. }
+            | Self::Focus(_)
+            | Self::Exit => false,
         }
     }
 
@@ -80,12 +163,17 @@ impl<Message> Command<Message> {
     fn collect_messages(self, messages: &mut Vec<Message>) {
         match self {
             Self::Message(message) => messages.push(message),
+            Self::After { message, .. } => messages.push(message),
             Self::Batch(commands) => {
                 for command in commands {
                     command.collect_messages(messages);
                 }
             }
-            Self::None | Self::RequestRepaint => {}
+            Self::None
+            | Self::RequestRepaint
+            | Self::Perform { .. }
+            | Self::Focus(_)
+            | Self::Exit => {}
         }
     }
 }

@@ -437,6 +437,9 @@ If no folder root is supplied, `folder_browser` uses a temp-directory demo
 root. If no WAV path is supplied, `waveform_view` uses a generated synthetic
 signal while exercising the same waveform summary and GPU-surface projection
 path as real input.
+Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
+that uses the prelude `gpu_surface(...)` application builder with generated
+demo atlas data.
 
 ## Quality Gate
 

@@ -108,6 +108,12 @@ retained-surface painters registered through `.retained_painter(...)`.
 Retained canvas views reserve stable cached surfaces with
 `retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
+GPU-heavy retained views can be placed directly with
+`gpu_surface(key, revision, GpuSurfaceContent::...)`. This lowers through the
+same generated-ID, layout, focus, hit-test, and paint-plan path as standard
+widgets, then emits `PaintPrimitive::GpuSurface` for native GPU backends.
+Applications that need custom capability flags or overlays can compose the same
+path explicitly with `widget(GpuSurfaceWidget::new(...).with_capabilities(...))`.
 
 ## Soft-Deprecated First-Use Boilerplate
 

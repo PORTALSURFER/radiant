@@ -12,13 +12,13 @@ use crate::{
         SizeModeMain, SlotParams, Vector2,
     },
     runtime::{
-        Command, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
-        declarative_command_runtime_bridge, run_native_vello_runtime,
+        Command, GpuSurfaceContent, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
+        WidgetMessageMapper, declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        ButtonWidget, CanvasWidget, DragHandleWidget, ImageWidget, TextInputWidget, TextWidget,
-        TextWrap, ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
-        WidgetTone,
+        ButtonWidget, CanvasWidget, DragHandleWidget, GpuSurfaceWidget, ImageWidget,
+        TextInputWidget, TextWidget, TextWrap, ToggleWidget, Widget, WidgetOutput,
+        WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{

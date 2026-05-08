@@ -59,9 +59,9 @@ pub mod prelude {
         WidgetViewContext, WindowBuilder, app, button, button_mapped, button_message, canvas,
         checkbox, column, column_key, custom_widget, drag_handle, drag_handle_mapped, drop_marker,
         image, list, list_row, overlay_panel, passive_button, passive_text_input, passive_toggle,
-        retained_canvas, row, row_key, scroll, scroll_column, selectable_sortable_details_list,
-        sortable_details_list, spacer, stack, text, text_input, text_input_mapped, toggle,
-        toggle_mapped, tree_list, tree_list_with_drag, widget, window,
+        retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column,
+        selectable_sortable_details_list, sortable_details_list, spacer, stack, text, text_input,
+        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, widget, window,
     };
     pub use crate::runtime::Command;
     pub use crate::widgets::{

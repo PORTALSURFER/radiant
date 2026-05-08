@@ -106,7 +106,7 @@ with `.on_frame(...)` for frame-driven UI, `.on_startup(...)`,
 `.on_shutdown(...)`, `.on_close_requested(...)`, `.run_with_artifacts()`, and
 retained-surface painters registered through `.retained_painter(...)`.
 Retained canvas views reserve stable cached surfaces with
-`retained_canvas(key, revision, dirty_mask, volatile).on_input(...)`, while the
+`retained_canvas(key).revision(...).dirty_mask(...).volatile(...).on_input(...)`, while the
 app painter owns the corresponding backend-neutral `PaintFrame`.
 
 ## Soft-Deprecated First-Use Boilerplate

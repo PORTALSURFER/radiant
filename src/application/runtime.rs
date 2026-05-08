@@ -8,26 +8,61 @@ type RetainedPainter<State> =
 
 struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
+    commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
+    alive: AtomicBool,
+    frame_pending: AtomicBool,
 }
 
 impl<Message> Default for AppRuntime<Message> {
     fn default() -> Self {
         Self {
             pending: Mutex::new(Vec::new()),
+            commands: Mutex::new(Vec::new()),
             repaint: Mutex::new(None),
+            alive: AtomicBool::new(true),
+            frame_pending: AtomicBool::new(false),
         }
     }
 }
 
 impl<Message> AppRuntime<Message> {
-    fn enqueue(&self, message: Message) {
+    fn enqueue(&self, message: Message) -> bool {
+        if !self.is_alive() {
+            return false;
+        }
         self.pending.lock().expect("pending messages poisoned").push(message);
         self.request_repaint();
+        true
+    }
+
+    fn enqueue_frame(&self, message: Message) -> bool {
+        if self.frame_pending.swap(true, Ordering::AcqRel) {
+            return false;
+        }
+        self.enqueue(message)
+    }
+
+    fn enqueue_command(&self, command: Command<Message>) -> bool {
+        if !self.is_alive() || command.is_empty() {
+            return false;
+        }
+        self.commands
+            .lock()
+            .expect("pending commands poisoned")
+            .push(command);
+        self.request_repaint();
+        true
     }
 
     fn take_pending(&self) -> Vec<Message> {
-        std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"))
+        let pending = std::mem::take(&mut *self.pending.lock().expect("pending messages poisoned"));
+        self.frame_pending.store(false, Ordering::Release);
+        pending
+    }
+
+    fn take_commands(&self) -> Vec<Command<Message>> {
+        std::mem::take(&mut *self.commands.lock().expect("pending commands poisoned"))
     }
 
     fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
@@ -43,6 +78,23 @@ impl<Message> AppRuntime<Message> {
         {
             signal.request_repaint();
         }
+    }
+
+    fn shutdown(&self) {
+        self.alive.store(false, Ordering::Release);
+        self.frame_pending.store(false, Ordering::Release);
+        self.pending
+            .lock()
+            .expect("pending messages poisoned")
+            .clear();
+        self.commands
+            .lock()
+            .expect("pending commands poisoned")
+            .clear();
+    }
+
+    fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Acquire)
     }
 }
 
@@ -73,6 +125,11 @@ impl<Message> UpdateContext<Message> {
     /// Request another repaint from the active runtime.
     pub fn request_repaint(&mut self) {
         self.command(Command::request_repaint());
+    }
+
+    /// Request repaint without forcing declarative surface reprojection.
+    pub fn request_paint_only(&mut self) {
+        self.command(Command::request_paint_only());
     }
 
     /// Dispatch a message after a delay.
@@ -173,7 +230,7 @@ impl<Message> Subscription<Message> {
 }
 
 fn spawn_subscription<Message>(
-    runtime: Arc<AppRuntime<Message>>,
+    runtime: Weak<AppRuntime<Message>>,
     subscription: Subscription<Message>,
 ) where
     Message: Send + 'static,
@@ -182,7 +239,7 @@ fn spawn_subscription<Message>(
         Subscription::None => {}
         Subscription::Batch(subscriptions) => {
             for subscription in subscriptions {
-                spawn_subscription(Arc::clone(&runtime), subscription);
+                spawn_subscription(runtime.clone(), subscription);
             }
         }
         Subscription::Interval { id, every, message } => {
@@ -192,7 +249,12 @@ fn spawn_subscription<Message>(
                 .spawn(move || {
                     loop {
                         thread::sleep(delay);
-                        runtime.enqueue(message());
+                        let Some(runtime) = runtime.upgrade() else {
+                            break;
+                        };
+                        if !runtime.enqueue(message()) {
+                            break;
+                        }
                     }
                 });
         }
@@ -201,7 +263,12 @@ fn spawn_subscription<Message>(
                 .name(format!("radiant-worker-subscription-{id}"))
                 .spawn(move || {
                     for message in receiver {
-                        runtime.enqueue(message);
+                        let Some(runtime) = runtime.upgrade() else {
+                            break;
+                        };
+                        if !runtime.enqueue(message) {
+                            break;
+                        }
                     }
                 });
         }
@@ -261,29 +328,32 @@ where
             if let Some(startup) = self.startup.as_mut() {
                 let mut context = UpdateContext::default();
                 startup(&mut self.state, &mut context);
-                for message in context.into_command().into_messages() {
-                    self.runtime.enqueue(message);
-                }
+                self.runtime.enqueue_command(context.into_command());
             }
             self.startup_ran = true;
         }
         if !self.subscriptions_started {
             if let Some(subscriptions) = self.subscriptions.as_mut() {
-                spawn_subscription(Arc::clone(&self.runtime), subscriptions(&mut self.state));
+                spawn_subscription(Arc::downgrade(&self.runtime), subscriptions(&mut self.state));
             }
             self.subscriptions_started = true;
         }
     }
 
     fn schedule_message(&mut self, delay: Duration, message: Message) -> bool {
-        let runtime = Arc::clone(&self.runtime);
+        if !self.runtime.is_alive() {
+            return false;
+        }
+        let runtime = Arc::downgrade(&self.runtime);
         let _ = thread::Builder::new()
             .name(String::from("radiant-delayed-message"))
             .spawn(move || {
                 if !delay.is_zero() {
                     thread::sleep(delay);
                 }
-                runtime.enqueue(message);
+                if let Some(runtime) = runtime.upgrade() {
+                    let _ = runtime.enqueue(message);
+                }
             });
         true
     }
@@ -293,11 +363,23 @@ where
         name: &'static str,
         work: Box<dyn FnOnce() -> Message + Send + 'static>,
     ) -> bool {
-        let runtime = Arc::clone(&self.runtime);
+        if !self.runtime.is_alive() {
+            return false;
+        }
+        let runtime = Arc::downgrade(&self.runtime);
         let _ = thread::Builder::new()
             .name(format!("radiant-task-{name}"))
-            .spawn(move || runtime.enqueue(work()));
+            .spawn(move || {
+                let message = work();
+                if let Some(runtime) = runtime.upgrade() {
+                    let _ = runtime.enqueue(message);
+                }
+            });
         true
+    }
+
+    fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {
+        self.runtime.take_commands()
     }
 
     fn take_runtime_messages(&mut self) -> Vec<Message> {
@@ -311,7 +393,7 @@ where
             .is_some_and(|animation| animation(&mut self.state));
         if active {
             if let Some(frame_message) = self.frame_message.as_mut() {
-                self.runtime.enqueue(frame_message());
+                self.runtime.enqueue_frame(frame_message());
             }
         }
         active
@@ -329,6 +411,7 @@ where
     }
 
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.runtime.shutdown();
         self.shutdown
             .as_mut()
             .and_then(|shutdown| shutdown(&mut self.state))

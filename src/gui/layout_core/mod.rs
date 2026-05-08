@@ -2,27 +2,28 @@
 //!
 //! This module exposes a deterministic two-pass measure/layout engine that is
 //! independent from the current native shell. Applications describe a layout
-//! tree with [`LayoutNode`] values, configure parent-owned slot behavior with
-//! [`SlotParams`], and then run [`layout_tree`] or [`LayoutEngine`] to produce
+//! tree with [`LayoutNode`](crate::layout::LayoutNode) values, configure parent-owned slot behavior with
+//! [`SlotParams`](crate::layout::SlotParams), and then run
+//! [`layout_tree`](crate::layout::layout_tree) or [`LayoutEngine`](crate::layout::LayoutEngine) to produce
 //! a [`LayoutOutput`](crate::gui::layout_core::LayoutOutput).
 //!
 //! The layout flow is intentionally explicit:
-//! - widgets provide intrinsic size hints through [`WidgetNode`]
-//! - containers own child placement through [`ContainerPolicy`]
+//! - widgets provide intrinsic size hints through [`WidgetNode`](crate::layout::WidgetNode)
+//! - containers own child placement through [`ContainerPolicy`](crate::layout::ContainerPolicy)
 //! - slots express the contract between a parent and one child
 //! - the engine measures bottom-up and assigns final rectangles top-down
 //!
 //! Baseline container policies:
-//! - [`ContainerKind::Row`]
-//! - [`ContainerKind::Column`]
-//! - [`ContainerKind::Stack`]
-//! - [`ContainerKind::PaddingBox`]
-//! - [`ContainerKind::AlignBox`]
-//! - [`ContainerKind::AspectBox`]
-//! - [`ContainerKind::Grid`]
-//! - [`ContainerKind::ScrollView`]
-//! - [`ContainerKind::Wrap`]
-//! - [`ContainerKind::SwitchLayout`]
+//! - [`ContainerKind::Row`](crate::layout::ContainerKind::Row)
+//! - [`ContainerKind::Column`](crate::layout::ContainerKind::Column)
+//! - [`ContainerKind::Stack`](crate::layout::ContainerKind::Stack)
+//! - [`ContainerKind::PaddingBox`](crate::layout::ContainerKind::PaddingBox)
+//! - [`ContainerKind::AlignBox`](crate::layout::ContainerKind::AlignBox)
+//! - [`ContainerKind::AspectBox`](crate::layout::ContainerKind::AspectBox)
+//! - [`ContainerKind::Grid`](crate::layout::ContainerKind::Grid)
+//! - [`ContainerKind::ScrollView`](crate::layout::ContainerKind::ScrollView)
+//! - [`ContainerKind::Wrap`](crate::layout::ContainerKind::Wrap)
+//! - [`ContainerKind::SwitchLayout`](crate::layout::ContainerKind::SwitchLayout)
 //!
 //! # Example
 //!

@@ -2,8 +2,9 @@ use super::*;
 use crate::{
     layout::{ContainerKind, ContainerPolicy, Rect, SlotParams},
     runtime::{
-        Command, GpuSignalSummary, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface,
-        PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper,
+        Command, GpuHoverCursor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
+        GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfaceChild, SurfaceNode, UiSurface,
+        WidgetMessageMapper,
     },
     widgets::{
         ButtonWidget, CanvasMessage, PointerButton, ScrollbarAxis, ScrollbarMessage,
@@ -109,13 +110,10 @@ fn generic_canvas_receives_wheel_before_scroll_fallback() {
 fn gpu_surface_fast_path_does_not_capture_horizontal_pan() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
-        demo_bridge(),
+        GpuWheelBridge::default(),
         Vector2::new(320.0, 80.0),
     );
-    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
-        Point::new(10.0, 10.0),
-        Vector2::new(200.0, 40.0),
-    ));
+    runner.rebuild_scene();
     let point = Point::new(20.0, 20.0);
 
     assert!(runner.can_fast_path_gpu_surface_route(point, Vector2::new(0.0, -40.0)));
@@ -147,13 +145,10 @@ fn deferred_scroll_routes_message_without_refreshing_surface_until_requested() {
 fn gpu_surface_pointer_move_fast_path_only_within_cached_surface() {
     let mut runner = GenericNativeVelloRunner::new(
         NativeRunOptions::default(),
-        demo_bridge(),
+        GpuWheelBridge::default(),
         Vector2::new(320.0, 80.0),
     );
-    runner.gpu_surface_hit_rects.push(Rect::from_min_size(
-        Point::new(10.0, 10.0),
-        Vector2::new(200.0, 40.0),
-    ));
+    runner.rebuild_scene();
 
     assert!(runner.can_fast_path_gpu_surface_pointer_move(
         Some(Point::new(20.0, 20.0)),
@@ -161,12 +156,12 @@ fn gpu_surface_pointer_move_fast_path_only_within_cached_surface() {
     ));
     assert!(!runner.can_fast_path_gpu_surface_pointer_move(None, Point::new(40.0, 20.0)));
     assert!(!runner.can_fast_path_gpu_surface_pointer_move(
-        Some(Point::new(4.0, 20.0)),
+        Some(Point::new(-4.0, 20.0)),
         Point::new(40.0, 20.0)
     ));
     assert!(!runner.can_fast_path_gpu_surface_pointer_move(
         Some(Point::new(20.0, 20.0)),
-        Point::new(240.0, 20.0)
+        Point::new(20.0, 90.0)
     ));
 }
 
@@ -221,12 +216,7 @@ fn native_gpu_hover_clear_hides_cached_cursor_without_rebuild() {
             _ => None,
         })
         .expect("gpu surface primitive");
-    assert!(
-        surface
-            .overlays
-            .iter()
-            .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeVerticalHoverCursor { .. }))
-    );
+    assert!(surface.capabilities.native_hover_cursor.is_some());
     assert!(
         !surface
             .overlays
@@ -261,6 +251,25 @@ fn queued_gpu_surface_wheel_flushes_one_coalesced_update() {
         "coalesced wheel routing should not refresh until redraw applies deferred refresh"
     );
     assert!(runner.deferred_surface_refresh);
+}
+
+#[test]
+fn plain_gpu_surface_does_not_opt_into_runtime_fast_paths() {
+    let mut runner = GenericNativeVelloRunner::new(
+        NativeRunOptions::default(),
+        GpuWheelBridge {
+            capabilities: GpuSurfaceCapabilities::default(),
+            ..GpuWheelBridge::default()
+        },
+        Vector2::new(240.0, 80.0),
+    );
+    runner.rebuild_scene();
+    let point = Point::new(40.0, 20.0);
+
+    assert!(!runner.can_fast_path_gpu_surface_route(point, Vector2::new(0.0, -40.0)));
+    assert!(!runner.can_coalesce_gpu_surface_wheel(point, Vector2::new(0.0, -40.0)));
+    assert!(!runner.can_fast_path_gpu_surface_pointer_move(Some(point), Point::new(80.0, 20.0)));
+    assert!(!runner.update_gpu_surface_cursor_overlay(point));
 }
 
 #[test]
@@ -613,24 +622,51 @@ struct GpuWheelMessage {
     delta: Vector2,
 }
 
-#[derive(Default)]
 struct GpuWheelBridge {
     wheel_count: usize,
     project_count: usize,
     last_delta: Vector2,
+    capabilities: GpuSurfaceCapabilities,
+}
+
+impl Default for GpuWheelBridge {
+    fn default() -> Self {
+        Self {
+            wheel_count: 0,
+            project_count: 0,
+            last_delta: Vector2::new(0.0, 0.0),
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: true,
+                native_hover_cursor: Some(GpuHoverCursor {
+                    color: Rgba8 {
+                        r: 255,
+                        g: 255,
+                        b: 255,
+                        a: 255,
+                    },
+                    width: 1.0,
+                }),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 struct TestGpuWheelWidget {
     common: WidgetCommon,
+    capabilities: GpuSurfaceCapabilities,
 }
 
 impl TestGpuWheelWidget {
-    fn new() -> Self {
+    fn new(capabilities: GpuSurfaceCapabilities) -> Self {
         let mut common = WidgetCommon::new(61, WidgetSizing::fixed(Vector2::new(200.0, 40.0)));
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
-        Self { common }
+        Self {
+            common,
+            capabilities,
+        }
     }
 }
 
@@ -670,15 +706,8 @@ impl Widget for TestGpuWheelWidget {
                 frame_range: [0.0, 4.0],
                 samples: Arc::<[f32]>::from(vec![0.0, 0.25, -0.5, 1.0]),
             },
-            overlays: vec![GpuSurfaceOverlay::NativeVerticalHoverCursor {
-                color: Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 255,
-                },
-                width: 1.0,
-            }],
+            capabilities: self.capabilities,
+            overlays: Vec::new(),
         }));
     }
 }
@@ -816,7 +845,7 @@ impl RuntimeBridge<GpuWheelMessage> for GpuWheelBridge {
     fn project_surface(&mut self) -> Arc<UiSurface<GpuWheelMessage>> {
         self.project_count += 1;
         Arc::new(UiSurface::new(SurfaceNode::custom_widget(
-            TestGpuWheelWidget::new(),
+            TestGpuWheelWidget::new(self.capabilities),
             WidgetMessageMapper::typed(|message: GpuWheelMessage| message),
         )))
     }

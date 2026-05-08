@@ -835,7 +835,6 @@ fn vertical_cursor(overlays: &[GpuSurfaceOverlay]) -> Option<(f32, Rgba8, f32)> 
             color,
             width,
         } => Some((ratio, color, width)),
-        GpuSurfaceOverlay::NativeVerticalHoverCursor { .. } => None,
     })
 }
 

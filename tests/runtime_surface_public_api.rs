@@ -14,10 +14,11 @@ use radiant::{
         SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal,
-        GpuSurfaceContent, GpuSurfaceOverlay, NativeRunOptions, PaintPrimitive, Renderer,
-        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, View,
-        WidgetMessageMapper, declarative_command_runtime_bridge, declarative_runtime_bridge,
+        App, Command, DEFAULT_NATIVE_WINDOW_TITLE, Element, Event, FocusTraversal, GpuHoverCursor,
+        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, NativeRunOptions,
+        PaintPrimitive, Renderer, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime,
+        UiSurface, View, WidgetMessageMapper, declarative_command_runtime_bridge,
+        declarative_runtime_bridge,
     },
     theme::ThemeTokens,
     widgets::{
@@ -1085,6 +1086,19 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
             7,
             content,
         )
+        .with_capabilities(GpuSurfaceCapabilities {
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: true,
+            native_hover_cursor: Some(GpuHoverCursor {
+                color: Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+                width: 1.0,
+            }),
+        })
         .with_overlays(vec![GpuSurfaceOverlay::VerticalCursor {
             ratio: 0.5,
             color: Rgba8 {
@@ -1109,6 +1123,9 @@ fn gpu_surface_widget_projects_generic_retained_gpu_primitive() {
     assert_eq!(gpu.widget_id, 41);
     assert_eq!(gpu.key, 9001);
     assert_eq!(gpu.revision, 7);
+    assert!(gpu.capabilities.fast_pointer_move);
+    assert!(gpu.capabilities.coalesce_vertical_wheel);
+    assert!(gpu.capabilities.native_hover_cursor.is_some());
     assert_eq!(gpu.overlays.len(), 1);
     let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &gpu.content else {
         panic!("expected rgba atlas gpu content");

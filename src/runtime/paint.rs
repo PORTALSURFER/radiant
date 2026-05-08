@@ -185,8 +185,31 @@ pub struct PaintGpuSurface {
     pub rect: Rect,
     /// Backend-neutral retained content payload.
     pub content: GpuSurfaceContent,
+    /// Runtime interaction capabilities requested by this GPU surface.
+    pub capabilities: GpuSurfaceCapabilities,
     /// Optional lightweight overlays composited by the native GPU backend.
     pub overlays: Vec<GpuSurfaceOverlay>,
+}
+
+/// Runtime interaction capabilities for retained GPU surfaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GpuSurfaceCapabilities {
+    /// Whether pointer motion inside this surface can update runtime-owned overlays
+    /// without refreshing the projected app surface.
+    pub fast_pointer_move: bool,
+    /// Whether vertical wheel deltas over this surface can be coalesced until redraw.
+    pub coalesce_vertical_wheel: bool,
+    /// Optional native-runtime hover cursor policy for this surface.
+    pub native_hover_cursor: Option<GpuHoverCursor>,
+}
+
+/// Native-runtime hover cursor styling for retained GPU surfaces.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GpuHoverCursor {
+    /// Cursor color.
+    pub color: Rgba8,
+    /// Cursor width in logical pixels.
+    pub width: f32,
 }
 
 /// Backend-neutral retained GPU surface content.
@@ -336,13 +359,6 @@ pub enum GpuSurfaceOverlay {
     VerticalCursor {
         /// Horizontal cursor position as a 0..1 ratio inside the destination rect.
         ratio: f32,
-        /// Cursor color.
-        color: Rgba8,
-        /// Cursor width in logical pixels.
-        width: f32,
-    },
-    /// Vertical cursor line whose position is owned by the native runtime hover path.
-    NativeVerticalHoverCursor {
         /// Cursor color.
         color: Rgba8,
         /// Cursor width in logical pixels.

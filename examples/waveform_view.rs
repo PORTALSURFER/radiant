@@ -6,7 +6,8 @@ use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
     runtime::{
-        GpuSignalSummary, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive,
+        GpuHoverCursor, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent,
+        PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -307,15 +308,20 @@ impl Widget for WaveformWidget {
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
                 summary: Arc::clone(&self.file.gpu_signal_summary),
             },
-            overlays: vec![GpuSurfaceOverlay::NativeVerticalHoverCursor {
-                color: Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 235,
-                },
-                width: 1.5,
-            }],
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: true,
+                native_hover_cursor: Some(GpuHoverCursor {
+                    color: Rgba8 {
+                        r: 255,
+                        g: 255,
+                        b: 255,
+                        a: 235,
+                    },
+                    width: 1.5,
+                }),
+            },
+            overlays: Vec::new(),
         }));
     }
 }
@@ -1298,9 +1304,11 @@ mod tests {
             primitives.iter().any(|primitive| matches!(
                 primitive,
                 PaintPrimitive::GpuSurface(PaintGpuSurface {
-                    overlays,
+                    capabilities,
                     ..
-                }) if !overlays.is_empty()
+                }) if capabilities.native_hover_cursor.is_some()
+                    && capabilities.fast_pointer_move
+                    && capabilities.coalesce_vertical_wheel
             )),
             "waveform body should use a GPU signal primitive so zoom does not regenerate pixels"
         );

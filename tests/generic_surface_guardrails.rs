@@ -134,6 +134,48 @@ fn default_features_stay_empty_for_standalone_builds() {
 }
 
 #[test]
+fn performance_harness_is_registered_and_documented() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest = fs::read_to_string(manifest_dir.join("Cargo.toml"))
+        .expect("Radiant Cargo.toml should be readable");
+    let bench = fs::read_to_string(manifest_dir.join("benches/perf_harness.rs"))
+        .expect("perf_harness bench should be readable");
+    let docs = fs::read_to_string(manifest_dir.join("docs/API.md"))
+        .expect("docs/API.md should be readable");
+
+    for required in [
+        "[[bench]]",
+        "name = \"perf_harness\"",
+        "path = \"benches/perf_harness.rs\"",
+        "harness = false",
+    ] {
+        assert!(
+            manifest.contains(required),
+            "Cargo.toml should register perf harness with `{required}`"
+        );
+    }
+    for scenario in [
+        "layout_deep_nesting",
+        "layout_wrap_1k",
+        "layout_virtualized_10k",
+        "runtime_surface_large_tree",
+        "gpu_signal_summary",
+        "gpu_surface_projection",
+        "radiant_perf scenario=",
+    ] {
+        assert!(
+            bench.contains(scenario),
+            "perf_harness should include `{scenario}`"
+        );
+    }
+    assert!(
+        docs.contains("cargo bench --bench perf_harness")
+            && docs.contains("does not enforce machine-dependent pass/fail timing thresholds"),
+        "docs/API.md should describe how to run and interpret the perf harness"
+    );
+}
+
+#[test]
 fn public_module_tree_exposes_one_progressive_api_surface() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let lib = fs::read_to_string(manifest_dir.join("src/lib.rs"))

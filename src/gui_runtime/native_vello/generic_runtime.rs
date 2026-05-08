@@ -148,7 +148,7 @@ where
     animation_origin: Instant,
     last_redraw: Instant,
     last_scene_stats: RetainedSurfaceEncodeStats,
-    gpu_surface_hit_rects: Vec<Rect>,
+    fast_pointer_move_gpu_surface_hit_rects: Vec<Rect>,
     scene_texture_dirty: bool,
     deferred_surface_refresh: bool,
     pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
@@ -182,7 +182,7 @@ where
             animation_origin: Instant::now(),
             last_redraw: Instant::now(),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
-            gpu_surface_hit_rects: Vec::new(),
+            fast_pointer_move_gpu_surface_hit_rects: Vec::new(),
             scene_texture_dirty: true,
             deferred_surface_refresh: false,
             pending_gpu_surface_wheel: None,
@@ -397,7 +397,7 @@ where
 
     fn can_fast_path_gpu_surface_route(&self, position: Point, delta: Vector2) -> bool {
         let is_horizontal_pan = delta.x.abs() > delta.y.abs() && delta.x.abs() > f32::EPSILON;
-        !is_horizontal_pan && self.paint_plan_has_gpu_surface_at(position)
+        !is_horizontal_pan && self.paint_plan_has_coalescing_gpu_surface_at(position)
     }
 
     fn can_fast_path_gpu_surface_pointer_move(
@@ -408,15 +408,21 @@ where
         let Some(previous) = previous else {
             return false;
         };
-        self.gpu_surface_hit_rects
+        self.fast_pointer_move_gpu_surface_hit_rects
             .iter()
             .any(|rect| rect.contains(previous) && rect.contains(position))
     }
 
-    fn paint_plan_has_gpu_surface_at(&self, position: Point) -> bool {
-        self.gpu_surface_hit_rects
+    fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
+        self.last_paint_plan
+            .primitives
             .iter()
-            .any(|rect| rect.contains(position))
+            .any(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface) => {
+                    surface.rect.contains(position) && surface.capabilities.coalesce_vertical_wheel
+                }
+                _ => false,
+            })
     }
 
     fn native_hover_surface_contains(&self, position: Point) -> bool {
@@ -425,7 +431,8 @@ where
             .iter()
             .any(|primitive| match primitive {
                 PaintPrimitive::GpuSurface(surface) => {
-                    surface.rect.contains(position) && gpu_surface_has_native_hover_cursor(surface)
+                    surface.rect.contains(position)
+                        && surface.capabilities.native_hover_cursor.is_some()
                 }
                 _ => false,
             })
@@ -433,11 +440,12 @@ where
 
     fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
         let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
-        is_vertical && self.native_hover_surface_contains(position)
+        is_vertical && self.paint_plan_has_coalescing_gpu_surface_at(position)
     }
 
     fn update_gpu_surface_hit_rects(&mut self, primitives: &[PaintPrimitive]) {
-        self.gpu_surface_hit_rects = gpu_surface_hit_rects(primitives);
+        self.fast_pointer_move_gpu_surface_hit_rects =
+            fast_pointer_move_gpu_surface_hit_rects(primitives);
     }
 
     fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
@@ -445,34 +453,18 @@ where
         else {
             return false;
         };
-        if !gpu_surface_has_native_hover_cursor(surface) {
+        let Some(cursor) = surface.capabilities.native_hover_cursor else {
             return false;
-        }
+        };
         let ratio =
             ((position.x - surface.rect.min.x) / surface.rect.width().max(1.0)).clamp(0.0, 1.0);
-        let (color, width) = surface
-            .overlays
-            .iter()
-            .find_map(|overlay| match *overlay {
-                GpuSurfaceOverlay::NativeVerticalHoverCursor { color, width }
-                | GpuSurfaceOverlay::VerticalCursor { color, width, .. } => Some((color, width)),
-            })
-            .unwrap_or((
-                Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 235,
-                },
-                1.5,
-            ));
         surface
             .overlays
             .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
         surface.overlays.push(GpuSurfaceOverlay::VerticalCursor {
             ratio,
-            color,
-            width,
+            color: cursor.color,
+            width: cursor.width,
         });
         true
     }
@@ -482,7 +474,7 @@ where
         else {
             return false;
         };
-        if !gpu_surface_has_native_hover_cursor(surface) {
+        if surface.capabilities.native_hover_cursor.is_none() {
             return false;
         }
         let previous_len = surface.overlays.len();
@@ -689,7 +681,8 @@ where
             let started = Instant::now();
             self.last_paint_plan = self.core.paint_plan();
             profile.paint_plan = started.elapsed();
-            self.gpu_surface_hit_rects = gpu_surface_hit_rects(&self.last_paint_plan.primitives);
+            self.fast_pointer_move_gpu_surface_hit_rects =
+                fast_pointer_move_gpu_surface_hit_rects(&self.last_paint_plan.primitives);
         }
         let Some(surface) = self.render_surface.as_mut() else {
             return;
@@ -786,18 +779,13 @@ fn gpu_surface_at_mut(
     })
 }
 
-fn gpu_surface_has_native_hover_cursor(surface: &PaintGpuSurface) -> bool {
-    surface
-        .overlays
-        .iter()
-        .any(|overlay| matches!(overlay, GpuSurfaceOverlay::NativeVerticalHoverCursor { .. }))
-}
-
-fn gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
+fn fast_pointer_move_gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
     primitives
         .iter()
         .filter_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) => Some(surface.rect),
+            PaintPrimitive::GpuSurface(surface) if surface.capabilities.fast_pointer_move => {
+                Some(surface.rect)
+            }
             _ => None,
         })
         .collect()

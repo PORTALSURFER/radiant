@@ -113,6 +113,11 @@ name = "custom_widget"
 path = "examples/custom_widget.rs"
 test = false
 
+[[bench]]
+name = "perf_harness"
+path = "benches/perf_harness.rs"
+harness = false
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",

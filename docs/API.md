@@ -304,6 +304,24 @@ support is an adapter that consumes this paint plan through
 `run_native_vello_runtime`. Renderers should consume paint plans and report
 frame results without owning host state.
 
+Standard widgets emit Vello-friendly paint primitives such as fills, strokes,
+text, images, clips, and overlays. Specialized realtime visuals can instead
+emit `PaintPrimitive::GpuSurface` through `GpuSurfaceWidget` or a custom
+`Widget` implementation. GPU surfaces are still normal Radiant widgets: they
+own stable identity, receive layout bounds, can route widget input, and paint
+through the same `SurfacePaintPlan` as Vello-backed widgets.
+
+`PaintGpuSurface` currently supports the built-in v1 content payloads
+`GpuSurfaceContent::RgbaAtlas`, `SignalBands`, and `SignalSummaryBands`.
+Runtime behavior is declared explicitly through `GpuSurfaceCapabilities`:
+`fast_pointer_move` allows pointer-motion overlay updates without reprojecting
+the app surface, `coalesce_vertical_wheel` allows vertical wheel deltas to be
+batched until redraw, and `native_hover_cursor` lets the native runtime compose
+a lightweight vertical cursor. These capabilities are part of the GPU-surface
+contract, not side effects inferred from overlays. Future custom shader or
+program support should extend this contract rather than adding backend-specific
+runtime special cases.
+
 Native runtime entry points return `RuntimeRunReport<Artifacts>` when artifact
 capture is requested. The report envelope is generic: Radiant owns the
 success/error transport while each runtime path chooses its artifact payload.
@@ -372,6 +390,23 @@ hit testing, and automation paths.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.
+
+## Performance Harness
+
+Radiant includes a standalone performance harness for trend and profiling
+evidence. Run it with:
+
+```powershell
+cargo bench --bench perf_harness
+```
+
+The harness prints parseable `radiant_perf` metric lines for layout, runtime
+surface, and GPU-surface data preparation scenarios. It currently covers deep
+layout trees, 1k wrap layout, 10k virtualized scroll layout, large declarative
+surface layout plus paint-plan generation, GPU signal-summary construction, and
+GPU-surface primitive projection. The harness performs sanity assertions, but
+does not enforce machine-dependent pass/fail timing thresholds; use the output
+for local comparisons, profiling runs, and regression investigation.
 
 ## Automation
 

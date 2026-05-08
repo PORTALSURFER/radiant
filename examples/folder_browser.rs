@@ -8,9 +8,12 @@ use std::{
 
 #[path = "folder_browser/columns.rs"]
 mod columns;
+#[path = "folder_browser/menu_geometry.rs"]
+mod menu_geometry;
 #[path = "folder_browser/storage.rs"]
 mod storage;
 use columns::*;
+use menu_geometry::*;
 use storage::*;
 
 const MIN_TREE_WIDTH: f32 = 190.0;
@@ -22,14 +25,6 @@ const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_ROW_TOP: f32 = 104.0;
 const MIN_FILE_COLUMN_WIDTH: f32 = 56.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
-const WINDOW_WIDTH: f32 = 900.0;
-const WINDOW_HEIGHT: f32 = 540.0;
-const FOLDER_MENU_WIDTH: f32 = 190.0;
-const FOLDER_MENU_HEIGHT: f32 = 126.0;
-const FILE_MENU_WIDTH: f32 = 190.0;
-const FILE_MENU_HEIGHT: f32 = 126.0;
-const COLUMN_MENU_WIDTH: f32 = 210.0;
-const COLUMN_MENU_HEIGHT: f32 = 250.0;
 const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 
 #[derive(Clone, Debug)]
@@ -754,22 +749,6 @@ fn context_menu_overlay(state: &BrowserState) -> ui::StateView<BrowserState> {
     .fill_width()
     .fill_height()
     .key("context-menu-overlay")
-}
-
-fn anchored_context_menu_position(
-    position: Option<radiant::layout::Point>,
-    menu_width: f32,
-    menu_height: f32,
-) -> (f32, f32) {
-    let position = position.unwrap_or_else(|| radiant::layout::Point::new(0.0, 0.0));
-    let max_left = (WINDOW_WIDTH - menu_width).max(0.0);
-    let left = position.x.clamp(0.0, max_left);
-    let top = if position.y + menu_height <= WINDOW_HEIGHT {
-        position.y.max(0.0)
-    } else {
-        (position.y - menu_height).max(0.0)
-    };
-    (left, top)
 }
 
 fn context_menu(state: &BrowserState, folder_id: &str) -> ui::StateView<BrowserState> {

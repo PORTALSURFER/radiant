@@ -3,11 +3,12 @@
 use super::*;
 use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
 use crate::layout::Rect;
-use crate::runtime::{GpuSurfaceOverlay, PaintGpuSurface, PaintPrimitive, SurfacePaintPlan};
+use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
 use crate::theme::ThemeTokens;
 
 mod core;
 mod gpu_surface;
+mod gpu_surface_interaction;
 mod input;
 mod keyboard;
 mod lifecycle;
@@ -19,6 +20,7 @@ pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, GenericRouteOutcome,
 };
 use gpu_surface::GpuSurfaceRenderer;
+use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
 pub(in crate::gui_runtime::native_vello) use scene::{
@@ -334,169 +336,10 @@ where
         }
     }
 
-    fn handle_gpu_surface_route_outcome(
-        &mut self,
-        outcome: GenericRouteOutcome,
-        position: Point,
-        delta: Vector2,
-    ) {
-        if !outcome.needs_redraw() {
-            return;
-        }
-        if self.can_fast_path_gpu_surface_route(position, delta) {
-            self.deferred_surface_refresh = true;
-            self.request_redraw_if_needed();
-            return;
-        }
-        self.rebuild_scene();
-        self.request_redraw_if_needed();
-    }
-
-    fn queue_gpu_surface_wheel(&mut self, position: Point, delta: Vector2) {
-        match &mut self.pending_gpu_surface_wheel {
-            Some(pending) => {
-                pending.position = position;
-                pending.delta = Vector2::new(pending.delta.x + delta.x, pending.delta.y + delta.y);
-            }
-            None => {
-                self.pending_gpu_surface_wheel = Some(PendingGpuSurfaceWheel { position, delta });
-            }
-        }
-        self.update_gpu_surface_cursor_overlay(position);
-        self.request_redraw_if_needed();
-    }
-
-    fn flush_pending_gpu_surface_wheel(&mut self, profile: &mut RenderFrameProfile) {
-        let Some(pending) = self.pending_gpu_surface_wheel.take() else {
-            return;
-        };
-        let started = Instant::now();
-        let outcome = self
-            .core
-            .route_scroll_deferred_refresh(pending.position, pending.delta);
-        profile.coalesced_wheel_route = started.elapsed();
-        maybe_log_route_profile("coalesced_wheel", profile.coalesced_wheel_route, outcome);
-        if outcome.needs_redraw() {
-            self.deferred_surface_refresh = true;
-        }
-    }
-
-    fn handle_gpu_surface_pointer_move_outcome(
-        &mut self,
-        outcome: GenericRouteOutcome,
-        previous: Option<Point>,
-        position: Point,
-    ) {
-        if !outcome.needs_redraw() {
-            return;
-        }
-        if self.can_fast_path_gpu_surface_pointer_move(previous, position) {
-            self.update_gpu_surface_cursor_overlay(position);
-            self.request_redraw_if_needed();
-            return;
-        }
-        self.rebuild_scene();
-        self.request_redraw_if_needed();
-    }
-
-    fn can_fast_path_gpu_surface_route(&self, position: Point, delta: Vector2) -> bool {
-        let is_horizontal_pan = delta.x.abs() > delta.y.abs() && delta.x.abs() > f32::EPSILON;
-        !is_horizontal_pan && self.paint_plan_has_coalescing_gpu_surface_at(position)
-    }
-
-    fn can_fast_path_gpu_surface_pointer_move(
-        &self,
-        previous: Option<Point>,
-        position: Point,
-    ) -> bool {
-        let Some(previous) = previous else {
-            return false;
-        };
-        self.fast_pointer_move_gpu_surface_hit_rects
-            .iter()
-            .any(|rect| rect.contains(previous) && rect.contains(position))
-    }
-
-    fn paint_plan_has_coalescing_gpu_surface_at(&self, position: Point) -> bool {
-        self.last_paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| match primitive {
-                PaintPrimitive::GpuSurface(surface) => {
-                    surface.rect.contains(position) && surface.capabilities.coalesce_vertical_wheel
-                }
-                _ => false,
-            })
-    }
-
-    fn native_hover_surface_contains(&self, position: Point) -> bool {
-        self.last_paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| match primitive {
-                PaintPrimitive::GpuSurface(surface) => {
-                    surface.rect.contains(position)
-                        && surface.capabilities.native_hover_cursor.is_some()
-                }
-                _ => false,
-            })
-    }
-
-    fn can_coalesce_gpu_surface_wheel(&self, position: Point, delta: Vector2) -> bool {
-        let is_vertical = delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON;
-        is_vertical && self.paint_plan_has_coalescing_gpu_surface_at(position)
-    }
-
     fn update_gpu_surface_hit_rects(&mut self, primitives: &[PaintPrimitive]) {
         self.fast_pointer_move_gpu_surface_hit_rects =
             fast_pointer_move_gpu_surface_hit_rects(primitives);
     }
-
-    fn update_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let Some(surface) = gpu_surface_at_mut(&mut self.last_paint_plan.primitives, position)
-        else {
-            return false;
-        };
-        let Some(cursor) = surface.capabilities.native_hover_cursor else {
-            return false;
-        };
-        let ratio =
-            ((position.x - surface.rect.min.x) / surface.rect.width().max(1.0)).clamp(0.0, 1.0);
-        surface
-            .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
-        surface.overlays.push(GpuSurfaceOverlay::VerticalCursor {
-            ratio,
-            color: cursor.color,
-            width: cursor.width,
-        });
-        true
-    }
-
-    fn clear_gpu_surface_cursor_overlay(&mut self, position: Point) -> bool {
-        let Some(surface) = gpu_surface_at_mut(&mut self.last_paint_plan.primitives, position)
-        else {
-            return false;
-        };
-        if surface.capabilities.native_hover_cursor.is_none() {
-            return false;
-        }
-        let previous_len = surface.overlays.len();
-        surface
-            .overlays
-            .retain(|overlay| !matches!(overlay, GpuSurfaceOverlay::VerticalCursor { .. }));
-        previous_len != surface.overlays.len()
-    }
-}
-
-fn gpu_surface_at_mut(
-    primitives: &mut [PaintPrimitive],
-    position: Point,
-) -> Option<&mut PaintGpuSurface> {
-    primitives.iter_mut().find_map(|primitive| match primitive {
-        PaintPrimitive::GpuSurface(surface) if surface.rect.contains(position) => Some(surface),
-        _ => None,
-    })
 }
 
 fn fast_pointer_move_gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
@@ -509,12 +352,6 @@ fn fast_pointer_move_gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec
             _ => None,
         })
         .collect()
-}
-
-#[derive(Clone, Copy, Debug)]
-struct PendingGpuSurfaceWheel {
-    position: Point,
-    delta: Vector2,
 }
 
 fn animation_frame_interval(target_fps: u32) -> Duration {

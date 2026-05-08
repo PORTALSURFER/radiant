@@ -101,12 +101,10 @@ fn main() -> radiant::Result {
         .title("Radiant Custom Widget")
         .size(320, 120)
         .view(|state| {
-            column([custom_widget(StatusChip::new(state.active), |output| {
-                output
-                    .custom_ref::<ChipOutput>()
-                    .map(|_| ChipOutput::Toggle)
-            })
-            .id(10)])
+            column([
+                custom_widget_mapped(StatusChip::new(state.active), |message: ChipOutput| message)
+                    .id(10),
+            ])
             .padding(24.0)
         })
         .update(|state, message| match message {

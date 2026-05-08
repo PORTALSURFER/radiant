@@ -181,8 +181,9 @@ Radiant's built-in primitives, without requiring an enum wrapper.
 The application builder uses the same ownership model through `WidgetView`.
 Any `Widget + Clone + 'static` is a non-emitting `WidgetView`, so it can be
 placed directly with prelude `widget(my_widget)`. Interactive application
-widgets use `MappedWidget::new(widget, WidgetMessageMapper::...)` when widget
-outputs should become host messages. For fully dynamic custom output,
+widgets can use `custom_widget_mapped(widget, |payload| message)` for typed
+custom outputs, or `MappedWidget::new(widget, WidgetMessageMapper::...)` when
+they need an explicit mapper object. For fully dynamic custom output,
 `DynamicWidget` and the compatibility `custom_widget(...)` helper wrap a boxed
 `Widget` plus a `WidgetOutput` mapper. This keeps widget variation in widget
 implementations and their mapper adapters instead of a central application enum

@@ -46,6 +46,7 @@ impl CanvasWidget {
         let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::AllowOverflow;
+        common.paint.paints_state_layers = false;
         common.style = WidgetStyle {
             tone: WidgetTone::Neutral,
             prominence: WidgetProminence::Subtle,

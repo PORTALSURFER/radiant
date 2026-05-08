@@ -109,6 +109,8 @@ pub struct PaintContract {
     pub paints_focus: bool,
     /// Whether selection/active state should be expressed visually by the widget.
     pub paints_state_layers: bool,
+    /// Whether this widget's own chrome should block hover chrome on parent containers.
+    pub suppresses_container_hover: bool,
 }
 
 impl Default for PaintContract {
@@ -117,6 +119,7 @@ impl Default for PaintContract {
             bounds: PaintBounds::ClipToRect,
             paints_focus: true,
             paints_state_layers: true,
+            suppresses_container_hover: false,
         }
     }
 }

@@ -26,92 +26,74 @@ gui-performance = []
 [[example]]
 name = "generic_native"
 path = "examples/generic_native.rs"
-test = false
 
 [[example]]
 name = "hello_world"
 path = "examples/hello_world.rs"
-test = false
 
 [[example]]
 name = "counter"
 path = "examples/counter.rs"
-test = false
 
 [[example]]
 name = "todo_list"
 path = "examples/todo_list.rs"
-test = false
 
 [[example]]
 name = "form"
 path = "examples/form.rs"
-test = false
 
 [[example]]
 name = "layout_rows_columns"
 path = "examples/layout_rows_columns.rs"
-test = false
 
 [[example]]
 name = "folder_browser"
 path = "examples/folder_browser.rs"
-test = false
 
 [[example]]
 name = "tree_and_details"
 path = "examples/tree_and_details.rs"
-test = false
 
 [[example]]
 name = "paint_helpers"
 path = "examples/paint_helpers.rs"
-test = false
 
 [[example]]
 name = "passive_widgets"
 path = "examples/passive_widgets.rs"
-test = false
 
 [[example]]
 name = "waveform_view"
 path = "examples/waveform_view.rs"
-test = true
 
 [[example]]
 name = "list"
 path = "examples/list.rs"
-test = false
 
 [[example]]
 name = "styling"
 path = "examples/styling.rs"
-test = false
 
 [[example]]
 name = "scroll"
 path = "examples/scroll.rs"
-test = false
 
 [[example]]
 name = "sizing"
 path = "examples/sizing.rs"
-test = false
 
 [[example]]
 name = "message_routing"
 path = "examples/message_routing.rs"
-test = false
 
 [[example]]
 name = "keys"
 path = "examples/keys.rs"
-test = false
 
 [[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
-test = false
 
 [[bench]]
 name = "perf_harness"

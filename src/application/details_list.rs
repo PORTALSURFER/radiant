@@ -124,9 +124,9 @@ pub fn selectable_sortable_details_list<State: 'static>(
     on_select: Option<impl Fn(&mut State, String) + Send + Sync + 'static>,
 ) -> StateView<State> {
     let columns = columns.into_iter().collect::<Vec<_>>();
-    let on_sort: Arc<dyn Fn(&mut State, String) + Send + Sync> = Arc::new(on_sort);
-    let on_select: Option<Arc<dyn Fn(&mut State, String) + Send + Sync>> =
-        on_select.map(|on_select| Arc::new(on_select) as Arc<_>);
+    let on_sort: StateStringCallback<State> = Arc::new(on_sort);
+    let on_select: Option<StateStringCallback<State>> =
+        on_select.map(|on_select| Arc::new(on_select) as StateStringCallback<State>);
 
     column([
         details_header(&columns, sort.as_ref(), Arc::clone(&on_sort)),
@@ -149,7 +149,7 @@ pub fn selectable_sortable_details_list<State: 'static>(
 fn details_header<State: 'static>(
     columns: &[DetailsColumn],
     sort: Option<&DetailsSort>,
-    on_sort: Arc<dyn Fn(&mut State, String) + Send + Sync>,
+    on_sort: StateStringCallback<State>,
 ) -> StateView<State> {
     compact_details_row(
         columns
@@ -177,7 +177,7 @@ fn details_header<State: 'static>(
 fn details_row<State: 'static>(
     columns: &[DetailsColumn],
     row_data: DetailsRow,
-    on_select: Option<Arc<dyn Fn(&mut State, String) + Send + Sync>>,
+    on_select: Option<StateStringCallback<State>>,
 ) -> StateView<State> {
     let row_id = row_data.id.clone();
     let selectable = on_select.is_some();

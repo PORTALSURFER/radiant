@@ -408,6 +408,43 @@ GPU-surface primitive projection. The harness performs sanity assertions, but
 does not enforce machine-dependent pass/fail timing thresholds; use the output
 for local comparisons, profiling runs, and regression investigation.
 
+## Examples And Sandboxes
+
+Radiant examples are maintained API and sandbox contracts. They should compile
+as checked example targets and participate in normal example validation:
+
+```powershell
+cargo test --examples
+```
+
+Run an example interactively with `cargo run --example <name>`. Showcase
+examples use portable defaults, with optional inputs for real local data:
+
+```powershell
+cargo run --example folder_browser -- C:\path\to\root
+$env:RADIANT_FOLDER_BROWSER_ROOT = "C:\path\to\root"
+cargo run --example waveform_view -- C:\path\to\sample.wav
+$env:RADIANT_WAVEFORM_PATH = "C:\path\to\sample.wav"
+```
+
+If no folder root is supplied, `folder_browser` uses a temp-directory demo
+root. If no WAV path is supplied, `waveform_view` uses a generated synthetic
+signal while exercising the same waveform summary and GPU-surface projection
+path as real input.
+
+## Quality Gate
+
+Radiant's normal local quality lane includes Clippy across library, tests,
+examples, and benches:
+
+```powershell
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+This command is a code-quality baseline, not a performance benchmark. Keep new
+lint exceptions local and specific instead of adding broad crate-level Clippy
+allows.
+
 ## Automation
 
 `radiant::gui::automation` owns the serializable automation snapshot contract:

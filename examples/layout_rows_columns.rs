@@ -209,7 +209,7 @@ fn grid_cell(
     let title = format!("Cell {}.{}", row_index + 1, column_index + 1);
     let body = if state.show_nested {
         nested_layout(state.depth, row_index + column_index)
-    } else if (row_index + column_index) % 2 == 0 {
+    } else if (row_index + column_index).is_multiple_of(2) {
         ui::column([
             fixed_tile("Fixed top", 32.0),
             fill_tile("Fill center"),
@@ -275,7 +275,7 @@ fn nested_layout(depth: usize, seed: usize) -> ui::StateView<LayoutDemoState> {
         return fill_tile(format!("Leaf fill {}", seed + 1));
     }
 
-    if (depth + seed) % 2 == 0 {
+    if (depth + seed).is_multiple_of(2) {
         ui::row([
             fixed_size_tile(format!("W{}", depth), 54.0 + depth as f32 * 12.0, 40.0),
             nested_layout(depth - 1, seed + 1),

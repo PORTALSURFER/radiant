@@ -829,12 +829,12 @@ fn set_surface_scissor(pass: &mut wgpu::RenderPass<'_>, rect: UiRect) {
 }
 
 fn vertical_cursor(overlays: &[GpuSurfaceOverlay]) -> Option<(f32, Rgba8, f32)> {
-    overlays.iter().find_map(|overlay| match *overlay {
+    overlays.first().map(|overlay| match *overlay {
         GpuSurfaceOverlay::VerticalCursor {
             ratio,
             color,
             width,
-        } => Some((ratio, color, width)),
+        } => (ratio, color, width),
     })
 }
 

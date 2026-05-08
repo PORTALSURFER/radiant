@@ -1,4 +1,4 @@
-//! Folder browser for `C:\temp` with an expandable tree, details list, and resizable panes.
+//! Folder browser with an expandable tree, details list, and resizable panes.
 
 use radiant::prelude as ui;
 use std::{
@@ -26,6 +26,7 @@ const FILE_MENU_WIDTH: f32 = 190.0;
 const FILE_MENU_HEIGHT: f32 = 126.0;
 const COLUMN_MENU_WIDTH: f32 = 210.0;
 const COLUMN_MENU_HEIGHT: f32 = 250.0;
+const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
 
 #[derive(Clone, Debug)]
 struct FolderEntry {
@@ -651,7 +652,7 @@ impl FolderEntry {
 }
 
 fn main() -> radiant::Result {
-    radiant::app(BrowserState::default())
+    radiant::app(BrowserState::from_root(resolve_browser_root()))
         .title("Radiant Folder Browser")
         .size(900, 540)
         .min_size(640, 360)
@@ -688,7 +689,7 @@ fn has_context_menu(state: &BrowserState) -> bool {
 
 fn header(state: &BrowserState) -> ui::StateView<BrowserState> {
     ui::row([
-        ui::text("C:\\temp browser").size(170.0, 24.0),
+        ui::text("Folder browser").size(170.0, 24.0),
         ui::text(format!(
             "{} items in {}",
             state.selected_folder().files.len(),
@@ -1272,7 +1273,15 @@ fn panel(
 }
 
 fn temp_root() -> PathBuf {
-    PathBuf::from(r"C:\temp")
+    std::env::temp_dir().join("radiant-folder-browser-demo")
+}
+
+fn resolve_browser_root() -> PathBuf {
+    std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os(ROOT_ENV_VAR).map(PathBuf::from))
+        .unwrap_or_else(temp_root)
 }
 
 fn load_root_folder(root: PathBuf) -> FolderEntry {
@@ -1326,7 +1335,7 @@ fn create_child_file(parent_id: &str, base_name: &str, root_id: &str) -> Result<
     let parent = PathBuf::from(parent_id);
     let root = PathBuf::from(root_id);
     if !parent.starts_with(&root) {
-        return Err(String::from("Create must stay inside C:\\temp"));
+        return Err(String::from("Create must stay inside the browser root"));
     }
     if !parent.is_dir() {
         return Err(String::from("Target folder no longer exists"));
@@ -1409,7 +1418,7 @@ fn delete_file_on_disk(file_id: &str, root_id: &str) -> Result<(), String> {
     let target = PathBuf::from(file_id);
     let root = PathBuf::from(root_id);
     if !target.starts_with(&root) {
-        return Err(String::from("Delete must stay inside C:\\temp"));
+        return Err(String::from("Delete must stay inside the browser root"));
     }
     if !target.exists() {
         return Err(String::from("File no longer exists"));
@@ -1425,7 +1434,7 @@ fn validate_folder_rename(source: &Path, new_name: &str, root: &Path) -> Result<
         return Err(String::from("Cannot rename the root folder"));
     }
     if !source.starts_with(root) {
-        return Err(String::from("Rename must stay inside C:\\temp"));
+        return Err(String::from("Rename must stay inside the browser root"));
     }
     if !source.is_dir() {
         return Err(String::from("Folder no longer exists"));
@@ -1438,7 +1447,7 @@ fn validate_file_rename(source: &Path, new_name: &str, root: &Path) -> Result<()
         return Err(String::from("Cannot rename the root folder"));
     }
     if !source.starts_with(root) {
-        return Err(String::from("Rename must stay inside C:\\temp"));
+        return Err(String::from("Rename must stay inside the browser root"));
     }
     if !source.exists() {
         return Err(String::from("File no longer exists"));
@@ -1479,7 +1488,7 @@ fn validate_folder_move(source: &Path, target: &Path, root: &Path) -> Result<(),
         ));
     }
     if !source.starts_with(root) || !target.starts_with(root) {
-        return Err(String::from("Move must stay inside C:\\temp"));
+        return Err(String::from("Move must stay inside the browser root"));
     }
     if !source.is_dir() {
         return Err(String::from("Source folder no longer exists"));
@@ -1642,21 +1651,27 @@ fn natural_name_cmp(a: &str, b: &str) -> Ordering {
 mod tests {
     use super::*;
 
+    const TEST_ROOT: &str = "demo-root";
+    const TEST_ALPHA: &str = "demo-root/alpha";
+    const TEST_ALPHA_NESTED: &str = "demo-root/alpha/nested";
+    const TEST_BETA: &str = "demo-root/beta";
+    const TEST_SAMPLE: &str = "demo-root/sample.txt";
+
     fn test_state() -> BrowserState {
         let root = folder_entry_for_test(
-            r"C:\temp",
-            "temp",
+            TEST_ROOT,
+            "demo-root",
             vec![
                 folder_entry_for_test(
-                    r"C:\temp\alpha",
+                    TEST_ALPHA,
                     "alpha",
                     vec![folder_entry_for_test(
-                        r"C:\temp\alpha\nested",
+                        TEST_ALPHA_NESTED,
                         "nested",
                         Vec::new(),
                     )],
                 ),
-                folder_entry_for_test(r"C:\temp\beta", "beta", Vec::new()),
+                folder_entry_for_test(TEST_BETA, "beta", Vec::new()),
             ],
         );
         let selected_folder = root.id.clone();
@@ -1688,7 +1703,7 @@ mod tests {
             name: name.to_owned(),
             children,
             files: vec![FileEntry {
-                id: format!("{id}\\sample.txt"),
+                id: format!("{id}/sample.txt"),
                 name: String::from("sample.txt"),
                 kind: String::from("Text"),
                 size: String::from("1 KB"),
@@ -1724,8 +1739,8 @@ mod tests {
     #[test]
     fn folder_expansion_controls_visible_tree_rows() {
         let mut state = test_state();
-        let alpha = String::from(r"C:\temp\alpha");
-        let nested = String::from(r"C:\temp\alpha\nested");
+        let alpha = String::from(TEST_ALPHA);
+        let nested = String::from(TEST_ALPHA_NESTED);
 
         assert!(!state.visible_folder_ids().contains(&nested));
         state.toggle_folder(alpha);
@@ -1736,8 +1751,8 @@ mod tests {
     #[test]
     fn expander_toggle_collapses_without_selecting_folder_first() {
         let mut state = test_state();
-        let alpha = String::from(r"C:\temp\alpha");
-        let beta = String::from(r"C:\temp\beta");
+        let alpha = String::from(TEST_ALPHA);
+        let beta = String::from(TEST_BETA);
 
         state.activate_folder(alpha.clone());
         state.activate_folder(beta.clone());
@@ -1753,8 +1768,8 @@ mod tests {
     #[test]
     fn folder_click_expands_collapsed_branches_and_only_collapses_selected_expanded_branch() {
         let mut state = test_state();
-        let alpha = String::from(r"C:\temp\alpha");
-        let beta = String::from(r"C:\temp\beta");
+        let alpha = String::from(TEST_ALPHA);
+        let beta = String::from(TEST_BETA);
 
         state.activate_folder(alpha.clone());
         assert!(state.is_expanded(&alpha));
@@ -1773,9 +1788,9 @@ mod tests {
     fn selecting_file_records_selected_file_id() {
         let mut state = test_state();
 
-        state.select_file_id(String::from(r"C:\temp\sample.txt"));
+        state.select_file_id(String::from(TEST_SAMPLE));
 
-        assert_eq!(state.selected_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.selected_file.as_deref(), Some(TEST_SAMPLE));
     }
 
     #[test]
@@ -1844,10 +1859,10 @@ mod tests {
         let mut state = test_state();
         let position = radiant::layout::Point::new(320.0, 180.0);
 
-        state.open_file_context_menu_at(String::from(r"C:\temp\sample.txt"), position);
+        state.open_file_context_menu_at(String::from(TEST_SAMPLE), position);
 
-        assert_eq!(state.selected_file.as_deref(), Some(r"C:\temp\sample.txt"));
-        assert_eq!(state.context_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.selected_file.as_deref(), Some(TEST_SAMPLE));
+        assert_eq!(state.context_file.as_deref(), Some(TEST_SAMPLE));
         assert_eq!(state.context_position, Some(position));
     }
 
@@ -1856,9 +1871,9 @@ mod tests {
         let mut state = test_state();
         let position = radiant::layout::Point::new(120.0, 140.0);
 
-        state.open_context_menu_at(String::from(r"C:\temp\alpha"), position);
+        state.open_context_menu_at(String::from(TEST_ALPHA), position);
 
-        assert_eq!(state.context_folder.as_deref(), Some(r"C:\temp\alpha"));
+        assert_eq!(state.context_folder.as_deref(), Some(TEST_ALPHA));
         assert_eq!(state.context_position, Some(position));
     }
 
@@ -1893,13 +1908,13 @@ mod tests {
         let mut state = test_state();
 
         state.open_context_menu_at(
-            String::from(r"C:\temp\alpha"),
+            String::from(TEST_ALPHA),
             radiant::layout::Point::new(120.0, 140.0),
         );
         state.begin_rename_from_context();
 
         assert_eq!(state.context_folder, None);
-        assert_eq!(state.rename_folder.as_deref(), Some(r"C:\temp\alpha"));
+        assert_eq!(state.rename_folder.as_deref(), Some(TEST_ALPHA));
         assert_eq!(state.rename_draft, "alpha");
     }
 
@@ -1908,25 +1923,25 @@ mod tests {
         let mut state = test_state();
 
         state.open_file_context_menu_at(
-            String::from(r"C:\temp\sample.txt"),
+            String::from(TEST_SAMPLE),
             radiant::layout::Point::new(320.0, 180.0),
         );
         state.begin_file_rename_from_context();
 
         assert_eq!(state.context_file, None);
-        assert_eq!(state.rename_file.as_deref(), Some(r"C:\temp\sample.txt"));
+        assert_eq!(state.rename_file.as_deref(), Some(TEST_SAMPLE));
         assert_eq!(state.file_rename_draft, "sample.txt");
     }
 
     #[test]
     fn leaf_folder_click_selects_without_recording_expansion() {
         let mut state = test_state();
-        let beta = String::from(r"C:\temp\beta");
+        let beta = String::from(TEST_BETA);
 
         state.activate_folder(beta.clone());
 
         assert_eq!(state.selected_folder, beta);
-        assert!(!state.is_expanded(r"C:\temp\beta"));
+        assert!(!state.is_expanded(TEST_BETA));
     }
 
     #[test]
@@ -1939,9 +1954,9 @@ mod tests {
 
     #[test]
     fn folder_move_rejects_root_self_and_descendant_targets() {
-        let root = PathBuf::from(r"C:\temp");
-        let source = PathBuf::from(r"C:\temp\alpha");
-        let child = PathBuf::from(r"C:\temp\alpha\nested");
+        let root = PathBuf::from(TEST_ROOT);
+        let source = PathBuf::from(TEST_ALPHA);
+        let child = PathBuf::from(TEST_ALPHA_NESTED);
 
         assert_eq!(
             validate_folder_move(&root, &source, &root).unwrap_err(),

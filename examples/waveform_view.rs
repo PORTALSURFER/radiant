@@ -22,13 +22,14 @@ use std::{
     sync::Arc,
 };
 
-const DEFAULT_SAMPLE_PATH: &str = r"C:\dev\sempal\assets\portal_SS_kick_003.wav";
-const FALLBACK_SAMPLE_PATH: &str = r"..\..\assets\portal_SS_kick_003.wav";
+const WAVEFORM_PATH_ENV_VAR: &str = "RADIANT_WAVEFORM_PATH";
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
 const MIN_VISIBLE_FRAMES: usize = 256;
 const BAND_COUNT: usize = 4;
 const SUMMARY_BLOCK_FRAMES: usize = 128;
+const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
+const SYNTHETIC_SECONDS: usize = 4;
 
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
@@ -101,7 +102,7 @@ enum WaveformInteraction {
 }
 
 fn main() -> radiant::Result {
-    let file = Arc::new(load_waveform_file(resolve_sample_path()?)?);
+    let file = Arc::new(load_waveform_source(resolve_sample_path())?);
     let viewport = WaveformViewport::full(file.frames);
 
     radiant::app(WaveformApp {
@@ -326,21 +327,38 @@ impl Widget for WaveformWidget {
     }
 }
 
-fn resolve_sample_path() -> Result<PathBuf, String> {
-    if let Some(arg) = std::env::args_os().nth(1) {
-        return Ok(PathBuf::from(arg));
+fn resolve_sample_path() -> Option<PathBuf> {
+    std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os(WAVEFORM_PATH_ENV_VAR).map(PathBuf::from))
+}
+
+fn load_waveform_source(path: Option<PathBuf>) -> Result<WaveformFile, String> {
+    match path {
+        Some(path) => load_waveform_file(path),
+        None => Ok(synthetic_waveform_file()),
     }
-    let default = PathBuf::from(DEFAULT_SAMPLE_PATH);
-    if default.is_file() {
-        return Ok(default);
-    }
-    let fallback = PathBuf::from(FALLBACK_SAMPLE_PATH);
-    if fallback.is_file() {
-        return Ok(fallback);
-    }
-    Err(format!(
-        "waveform file not found; pass a path or place a WAV at {DEFAULT_SAMPLE_PATH}"
-    ))
+}
+
+fn synthetic_waveform_file() -> WaveformFile {
+    let frames = SYNTHETIC_SAMPLE_RATE as usize * SYNTHETIC_SECONDS;
+    let samples = (0..frames)
+        .map(|frame| {
+            let t = frame as f32 / SYNTHETIC_SAMPLE_RATE as f32;
+            let envelope = (1.0 - t / SYNTHETIC_SECONDS as f32).clamp(0.18, 1.0);
+            let low = (std::f32::consts::TAU * 72.0 * t).sin() * 0.48;
+            let mid = (std::f32::consts::TAU * 220.0 * t).sin() * 0.24;
+            let high = (std::f32::consts::TAU * 1_760.0 * t).sin() * 0.1;
+            ((low + mid + high) * envelope).clamp(-1.0, 1.0)
+        })
+        .collect::<Vec<_>>();
+    waveform_file_from_mono_samples(
+        PathBuf::from("synthetic-waveform"),
+        SYNTHETIC_SAMPLE_RATE,
+        1,
+        samples,
+    )
 }
 
 fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
@@ -411,6 +429,32 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         gpu_signal_samples,
         gpu_signal_summary,
     })
+}
+
+fn waveform_file_from_mono_samples(
+    path: PathBuf,
+    sample_rate: u32,
+    channels: usize,
+    mono_samples: Vec<f32>,
+) -> WaveformFile {
+    let bands = split_frequency_bands(&mono_samples, sample_rate);
+    let gpu_signal_samples = interleaved_band_samples(&bands);
+    let gpu_signal_summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
+        &gpu_signal_samples,
+        mono_samples.len(),
+        BAND_COUNT,
+    ));
+    WaveformFile {
+        path,
+        sample_rate,
+        channels,
+        frames: mono_samples.len(),
+        mono_summary: WaveformSummary::from_samples(&mono_samples),
+        bands,
+        mono_samples,
+        gpu_signal_samples,
+        gpu_signal_summary,
+    }
 }
 
 fn interleaved_band_samples(bands: &[WaveformBand; BAND_COUNT]) -> Arc<[f32]> {
@@ -1063,24 +1107,12 @@ mod tests {
     use super::*;
 
     fn synthetic_file(mono_samples: Vec<f32>, sample_rate: u32, channels: usize) -> WaveformFile {
-        let bands = split_frequency_bands(&mono_samples, sample_rate);
-        let gpu_signal_samples = interleaved_band_samples(&bands);
-        let gpu_signal_summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
-            &gpu_signal_samples,
-            mono_samples.len(),
-            BAND_COUNT,
-        ));
-        WaveformFile {
-            path: PathBuf::from("synthetic.wav"),
+        waveform_file_from_mono_samples(
+            PathBuf::from("synthetic-test-waveform"),
             sample_rate,
             channels,
-            frames: mono_samples.len(),
-            mono_summary: WaveformSummary::from_samples(&mono_samples),
-            bands,
             mono_samples,
-            gpu_signal_samples,
-            gpu_signal_summary,
-        }
+        )
     }
 
     #[test]
@@ -1407,13 +1439,8 @@ mod tests {
     }
 
     #[test]
-    fn provided_sample_decodes_when_available() {
-        let path = PathBuf::from(DEFAULT_SAMPLE_PATH);
-        if !path.is_file() {
-            return;
-        }
-
-        let file = load_waveform_file(path).expect("provided sample should decode");
+    fn default_waveform_source_uses_synthetic_signal_without_input_path() {
+        let file = load_waveform_source(None).expect("synthetic waveform should load");
 
         assert!(file.sample_rate > 0);
         assert!(!file.mono_samples.is_empty());

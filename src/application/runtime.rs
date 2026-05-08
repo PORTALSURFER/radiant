@@ -5,6 +5,16 @@ use crate::{
 
 type RetainedPainter<State> =
     Box<dyn FnMut(&mut State, RetainedSurfaceDescriptor, Rect, Vector2) -> Option<GuiPaintFrame>>;
+type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
+type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
+type AppSubscriptions<State, Message> = Box<dyn FnMut(&mut State) -> Subscription<Message>>;
+type AppStartup<State, Message> = Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>;
+type AppShutdown<State> = Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>;
+type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;
+type AppUpdate<State, Message> = Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
+type StateStringCallback<State> = Arc<dyn Fn(&mut State, String) + Send + Sync>;
+type StateDragCallback<State> =
+    Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>;
 
 struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
@@ -280,12 +290,12 @@ struct AppBridge<State, Message, Project, Update, View> {
     project: Project,
     update: Update,
     runtime: Arc<AppRuntime<Message>>,
-    animation: Option<Box<dyn FnMut(&mut State) -> bool>>,
-    frame_message: Option<Box<dyn FnMut() -> Message>>,
-    subscriptions: Option<Box<dyn FnMut(&mut State) -> Subscription<Message>>>,
-    startup: Option<Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>>,
-    shutdown: Option<Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>>,
-    close_requested: Option<Box<dyn FnMut(&mut State) -> bool>>,
+    animation: Option<AppAnimation<State>>,
+    frame_message: Option<AppFrameMessage<Message>>,
+    subscriptions: Option<AppSubscriptions<State, Message>>,
+    startup: Option<AppStartup<State, Message>>,
+    shutdown: Option<AppShutdown<State>>,
+    close_requested: Option<AppCloseRequested<State>>,
     retained_painters: HashMap<u64, RetainedPainter<State>>,
     subscriptions_started: bool,
     startup_ran: bool,

@@ -503,6 +503,17 @@ fn generic_native_window_starts_hidden_during_surface_setup() {
 }
 
 #[test]
+fn generic_native_window_uses_configured_drag_and_drop_policy() {
+    assert!(window::platform_drag_and_drop_enabled(
+        &NativeRunOptions::default()
+    ));
+    assert!(!window::platform_drag_and_drop_enabled(&NativeRunOptions {
+        drag_and_drop: false,
+        ..NativeRunOptions::default()
+    }));
+}
+
+#[test]
 fn generic_runtime_clamps_animation_frame_interval() {
     assert_eq!(animation_frame_interval(0), Duration::from_secs(1));
     assert_eq!(

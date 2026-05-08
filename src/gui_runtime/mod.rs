@@ -42,6 +42,12 @@ pub struct NativeRunOptions {
     pub maximized: bool,
     /// Whether native window decorations remain enabled.
     pub decorations: bool,
+    /// Whether native file drag-and-drop should be enabled when supported.
+    ///
+    /// Unsupported platforms may ignore this option. Keeping the capability on
+    /// the generic runtime options avoids hardcoding platform-specific window
+    /// behavior into application-independent launch code.
+    pub drag_and_drop: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
@@ -56,6 +62,7 @@ impl Default for NativeRunOptions {
             min_inner_size: None,
             maximized: false,
             decorations: true,
+            drag_and_drop: true,
             icon: None,
             target_fps: 120,
         }

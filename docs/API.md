@@ -99,6 +99,11 @@ or `.update_command(...)` on the app when reducers need to return
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
 or request runtime exit.
+`NativeRunOptions` keeps platform/window integration policy behind Radiant's
+native runtime boundary. Common launch code can stay platform-neutral while
+still configuring window title, logical size, minimum size, maximized state,
+decorations, icon, target frame rate, and whether native file drag-and-drop is
+requested on platforms that support it.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`

@@ -19,7 +19,7 @@ pub(in crate::gui_runtime::native_vello) use core::{
     GenericNativeRuntimeCore, GenericRouteOutcome,
 };
 use gpu_surface::GpuSurfaceRenderer;
-use input::{keypress_from_input, pointer_button_from_winit};
+use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
 pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, encode_surface_paint_plan_to_scene,

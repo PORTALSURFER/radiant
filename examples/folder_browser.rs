@@ -10,10 +10,13 @@ use std::{
 mod columns;
 #[path = "folder_browser/menu_geometry.rs"]
 mod menu_geometry;
+#[path = "folder_browser/model.rs"]
+mod model;
 #[path = "folder_browser/storage.rs"]
 mod storage;
 use columns::*;
 use menu_geometry::*;
+use model::*;
 use storage::*;
 
 const MIN_TREE_WIDTH: f32 = 190.0;
@@ -26,25 +29,6 @@ const TREE_ROW_TOP: f32 = 104.0;
 const MIN_FILE_COLUMN_WIDTH: f32 = 56.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 360.0;
 const ROOT_ENV_VAR: &str = "RADIANT_FOLDER_BROWSER_ROOT";
-
-#[derive(Clone, Debug)]
-struct FolderEntry {
-    id: String,
-    name: String,
-    children: Vec<FolderEntry>,
-    files: Vec<FileEntry>,
-}
-
-#[derive(Clone, Debug)]
-struct FileEntry {
-    id: String,
-    name: String,
-    kind: String,
-    size: String,
-    size_bytes: u64,
-    modified: String,
-    modified_rank: u64,
-}
 
 #[derive(Clone, Debug)]
 struct BrowserState {
@@ -66,19 +50,6 @@ struct BrowserState {
     tree_width: f32,
     folders: Vec<FolderEntry>,
     status: String,
-}
-
-#[derive(Clone, Debug)]
-struct FolderDrag {
-    source_id: String,
-    target_id: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-struct ColumnResize {
-    column_id: String,
-    start_x: f32,
-    start_width: f32,
 }
 
 impl Default for BrowserState {
@@ -614,31 +585,6 @@ impl BrowserState {
             .into_iter()
             .map(|folder| folder.id)
             .collect()
-    }
-}
-
-#[derive(Clone, Debug)]
-struct VisibleFolder {
-    id: String,
-    name: String,
-    depth: usize,
-    has_children: bool,
-    expanded: bool,
-    selected: bool,
-    drop_target: bool,
-    draggable: bool,
-}
-
-impl FolderEntry {
-    fn find(&self, id: &str) -> Option<&FolderEntry> {
-        if self.id == id {
-            return Some(self);
-        }
-        self.children.iter().find_map(|child| child.find(id))
-    }
-
-    fn has_children(&self) -> bool {
-        !self.children.is_empty()
     }
 }
 

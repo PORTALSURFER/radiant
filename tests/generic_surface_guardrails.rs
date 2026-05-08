@@ -61,6 +61,7 @@ const REQUIRED_BEHAVIOR_TESTS: &[&str] = &[
     "surface_hover_public_api.rs",
     "surface_node_public_api.rs",
     "surface_scroll_public_api.rs",
+    "surface_widget_helpers_public_api.rs",
     "widgets_primitive_behaviors.rs",
     "widgets_public_api.rs",
 ];

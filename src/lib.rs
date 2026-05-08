@@ -1,9 +1,9 @@
 //! `radiant`: reusable GUI primitives and runtimes for host applications.
 //!
 //! Radiant exposes one public API with progressive control. Applications can
-//! start with [`prelude`](crate::prelude) for readable window, app, and view
-//! builders, then name [`runtime`](crate::runtime), [`widgets`](crate::widgets),
-//! [`layout`](crate::layout), and [`theme`](crate::theme) objects when they need
+//! start with [`prelude`] for readable window, app, and view
+//! builders, then name [`runtime`], [`widgets`],
+//! [`layout`], and [`theme`] objects when they need
 //! more explicit control. All of those entry points lower into the same generic
 //! declarative UI tree and native Vello backend without depending on host-shaped
 //! shell DTOs. See the checked `hello_world`, `counter`, and `generic_native`

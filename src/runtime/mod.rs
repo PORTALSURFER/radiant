@@ -2,15 +2,15 @@
 //!
 //! This module exposes a message-driven top-level UI tree built from public
 //! layout containers and widget primitives. Hosts project immutable
-//! [`UiSurface`] snapshots and reduce host-defined messages while compatibility
+//! [`UiSurface`](crate::runtime::UiSurface) snapshots and reduce host-defined messages while compatibility
 //! adapters continue to live outside this generic surface.
 //!
-//! [`SurfaceRuntime`] closes the generic declarative flow by running public
+//! [`SurfaceRuntime`](crate::runtime::SurfaceRuntime) closes the generic declarative flow by running public
 //! layout, routing backend-neutral widget input, mapping widget outputs into
 //! host-defined messages, reducing those messages, reprojecting the next
 //! immutable surface snapshot, and exposing deterministic backend-neutral paint
 //! plans for generic renderers.
-//! [`Command`] is the domain-neutral follow-up value for host-side reducers
+//! [`Command`](crate::runtime::Command) is the domain-neutral follow-up value for host-side reducers
 //! that need to queue messages, batch runtime-visible work, or request repaint
 //! without moving side-effect ownership into Radiant.
 //!

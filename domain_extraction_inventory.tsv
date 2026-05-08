@@ -1,0 +1,7 @@
+# Radiant standalone extraction inventory.
+#
+# OPT-278 removed the active host-shaped compatibility tree. Keep this boundary
+# note as a checked artifact for the closeout audit; it is no longer an active
+# migration backlog.
+#
+# pattern	disposition	owner	notes

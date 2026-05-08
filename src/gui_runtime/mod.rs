@@ -1,7 +1,7 @@
 //! Shared GUI runtime host implementations.
 //!
 //! The runtime is responsible for the host integration lifecycle:
-//! 1. open/create a window and event loop,
+//! 1. open/create a window and platform event pump,
 //! 2. pull app snapshots and submit them to `radiant` for frame build,
 //! 3. schedule redraws when input, timers, or host events require updates,
 //! 4. emit platform input into normalized runtime events.
@@ -9,8 +9,14 @@
 //! Render work is intentionally performed through feature-gated hooks in the
 //! underlying backend (for example `gui-performance`) so release builds that do
 //! not request profiling have no measurable instrumentation overhead.
+//!
+//! Native Vello exposes a generic [`crate::runtime::RuntimeBridge`] entrypoint
+//! for reusable host applications.
 
-mod native_vello;
+pub(crate) mod native_vello;
+
+/// Default title for generic Radiant native windows.
+pub const DEFAULT_NATIVE_WINDOW_TITLE: &str = "Radiant";
 
 /// RGBA icon bytes used to initialize a native window icon.
 #[derive(Clone, Debug)]
@@ -34,6 +40,8 @@ pub struct NativeRunOptions {
     pub min_inner_size: Option<[f32; 2]>,
     /// Whether the window starts maximized.
     pub maximized: bool,
+    /// Whether native window decorations remain enabled.
+    pub decorations: bool,
     /// Optional window icon.
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
@@ -43,16 +51,31 @@ pub struct NativeRunOptions {
 impl Default for NativeRunOptions {
     fn default() -> Self {
         Self {
-            title: String::from("Sempal"),
+            title: String::from(DEFAULT_NATIVE_WINDOW_TITLE),
             inner_size: None,
             min_inner_size: None,
             maximized: false,
+            decorations: true,
             icon: None,
             target_fps: 120,
         }
     }
 }
 
+/// Generic result envelope returned by native runtime entry points.
+///
+/// The artifact payload is supplied by the concrete runtime path, keeping the
+/// success/error transport generic while allowing compatibility shells to attach
+/// host-specific diagnostics during migration.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuntimeRunReport<Artifacts> {
+    /// Structured artifacts captured during the run.
+    pub artifacts: Artifacts,
+    /// Native runtime success or error outcome.
+    pub result: Result<(), String>,
+}
+
 pub use native_vello::{
-    run_native_vello_app, run_native_vello_app_declarative, run_native_vello_preview,
+    NativeGenericRunReport, NativeGenericRuntimeArtifacts, NativeStartupTimingArtifact,
+    run_native_vello_runtime, run_native_vello_runtime_with_artifacts,
 };

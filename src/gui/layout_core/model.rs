@@ -1,4 +1,8 @@
 //! Slot and container policy definitions for the slot-based layout engine.
+//!
+//! The native shell currently instantiates only a subset of these policies, but
+//! the wider enum surface remains intentional because layout-core tests and
+//! declarative adapters exercise a broader configuration space.
 
 use super::constraints::Constraints;
 
@@ -32,11 +36,17 @@ pub enum SizeModeCross {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MainAlign {
+    /// Pack children toward the start edge.
     Start,
+    /// Center the packed child run.
     Center,
+    /// Pack children toward the end edge.
     End,
+    /// Distribute free space only between children.
     SpaceBetween,
+    /// Distribute free space before, between, and after children with half-sized edges.
     SpaceAround,
+    /// Distribute free space evenly before, between, and after children.
     SpaceEvenly,
 }
 
@@ -44,9 +54,13 @@ pub enum MainAlign {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrossAlign {
+    /// Align children to the start edge.
     Start,
+    /// Center children in the cross axis.
     Center,
+    /// Align children to the end edge.
     End,
+    /// Stretch children to fill the available cross-axis span.
     Stretch,
 }
 
@@ -54,9 +68,13 @@ pub enum CrossAlign {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverflowPolicy {
+    /// Clip child content to the container bounds.
     Clip,
+    /// Keep a viewport and expose overflow through scroll offsets.
     Scroll,
+    /// Wrap items onto additional lines or tracks.
     Wrap,
+    /// Compress children before overflow escapes the container.
     Shrink,
 }
 
@@ -84,9 +102,13 @@ pub struct VirtualizationPolicy {
 /// Axis-agnostic insets.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Insets {
+    /// Left edge inset in logical pixels.
     pub left: f32,
+    /// Right edge inset in logical pixels.
     pub right: f32,
+    /// Top edge inset in logical pixels.
     pub top: f32,
+    /// Bottom edge inset in logical pixels.
     pub bottom: f32,
 }
 
@@ -213,15 +235,25 @@ impl SwitchBreakpoint {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerKind {
+    /// Lay out children horizontally using slot main-axis sizing rules.
     Row,
+    /// Lay out children vertically using slot main-axis sizing rules.
     Column,
+    /// Overlay children in shared bounds using slot order as z-order.
     Stack,
+    /// Apply container padding around one logical content child.
     PaddingBox,
+    /// Align one logical content child inside the assigned bounds.
     AlignBox,
+    /// Maintain a fixed aspect ratio for one logical content child.
     AspectBox,
+    /// Place children in deterministic rows and columns.
     Grid,
+    /// Create a scrollable viewport around one content child.
     ScrollView,
+    /// Wrap children onto additional lines when space runs out.
     Wrap,
+    /// Select one branch child based on the available width.
     SwitchLayout,
 }
 

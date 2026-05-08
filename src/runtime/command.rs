@@ -17,6 +17,8 @@ pub enum Command<Message> {
     Batch(Vec<Command<Message>>),
     /// Request another redraw from the active runtime adapter.
     RequestRepaint,
+    /// Request redraw without forcing declarative surface reprojection.
+    RequestPaintOnly,
     /// Dispatch a host-defined message after a delay.
     After {
         /// Delay before the message is delivered.
@@ -47,6 +49,7 @@ where
             Self::Message(message) => f.debug_tuple("Message").field(message).finish(),
             Self::Batch(commands) => f.debug_tuple("Batch").field(commands).finish(),
             Self::RequestRepaint => f.write_str("RequestRepaint"),
+            Self::RequestPaintOnly => f.write_str("RequestPaintOnly"),
             Self::After { delay, message } => f
                 .debug_struct("After")
                 .field("delay", delay)
@@ -94,6 +97,11 @@ impl<Message> Command<Message> {
         Self::RequestRepaint
     }
 
+    /// Build a command that repaints without refreshing the declarative surface.
+    pub const fn request_paint_only() -> Self {
+        Self::RequestPaintOnly
+    }
+
     /// Build a command that dispatches one message after the provided delay.
     pub const fn after(delay: Duration, message: Message) -> Self {
         Self::After { delay, message }
@@ -131,6 +139,7 @@ impl<Message> Command<Message> {
             Self::None => true,
             Self::Message(_)
             | Self::RequestRepaint
+            | Self::RequestPaintOnly
             | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
@@ -142,7 +151,7 @@ impl<Message> Command<Message> {
     /// Return whether this command or any nested command requests repaint.
     pub fn requests_repaint(&self) -> bool {
         match self {
-            Self::RequestRepaint => true,
+            Self::RequestRepaint | Self::RequestPaintOnly => true,
             Self::Batch(commands) => commands.iter().any(Self::requests_repaint),
             Self::None
             | Self::Message(_)
@@ -153,7 +162,11 @@ impl<Message> Command<Message> {
         }
     }
 
-    /// Flatten all host-defined messages carried by this command.
+    /// Flatten immediate host-defined messages carried by this command.
+    ///
+    /// Runtime-visible effects such as delayed messages, background work, focus,
+    /// repaint, and exit are intentionally not flattened. Execute the command
+    /// through `SurfaceRuntime` when those effects must be preserved.
     pub fn into_messages(self) -> Vec<Message> {
         let mut messages = Vec::new();
         self.collect_messages(&mut messages);
@@ -163,7 +176,6 @@ impl<Message> Command<Message> {
     fn collect_messages(self, messages: &mut Vec<Message>) {
         match self {
             Self::Message(message) => messages.push(message),
-            Self::After { message, .. } => messages.push(message),
             Self::Batch(commands) => {
                 for command in commands {
                     command.collect_messages(messages);
@@ -171,6 +183,8 @@ impl<Message> Command<Message> {
             }
             Self::None
             | Self::RequestRepaint
+            | Self::RequestPaintOnly
+            | Self::After { .. }
             | Self::Perform { .. }
             | Self::Focus(_)
             | Self::Exit => {}

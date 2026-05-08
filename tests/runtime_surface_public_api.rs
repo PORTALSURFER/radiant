@@ -2084,7 +2084,10 @@ fn surface_runtime_executes_focus_exit_and_deferred_commands() {
 
 #[test]
 fn retained_canvas_builder_projects_metadata_and_input_mapping() {
-    let surface = radiant::prelude::retained_canvas(44, 7, 3, true)
+    let surface = radiant::prelude::retained_canvas(44)
+        .revision(7)
+        .dirty_mask(3)
+        .volatile(true)
         .on_input(|message| match message {
             CanvasMessage::Input { input } => DemoMessage::CanvasInput(input),
         })

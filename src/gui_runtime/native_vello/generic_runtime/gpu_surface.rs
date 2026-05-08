@@ -7,6 +7,10 @@ use crate::runtime::{
 };
 use wgpu::util::DeviceExt;
 
+mod gpu_surface_types;
+pub(super) use gpu_surface_types::GpuSurfaceRenderStats;
+use gpu_surface_types::*;
+
 #[derive(Default)]
 pub(super) struct GpuSurfaceRenderer {
     pipeline: Option<GpuSurfacePipeline>,
@@ -16,121 +20,6 @@ pub(super) struct GpuSurfaceRenderer {
     signal_bodies: HashMap<u64, SignalBodyTexture>,
     signals: HashMap<u64, SignalBuffer>,
     signal_summaries: HashMap<u64, CachedSignalSummary>,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub(super) struct GpuSurfaceRenderStats {
-    pub(super) signal_body_renders: usize,
-    pub(super) signal_body_cache_hits: usize,
-    pub(super) signal_body_encode_elapsed: Duration,
-    pub(super) composite_encode_elapsed: Duration,
-}
-
-struct GpuSurfacePipeline {
-    format: wgpu::TextureFormat,
-    bind_group_layout: wgpu::BindGroupLayout,
-    pipeline: wgpu::RenderPipeline,
-    sampler: wgpu::Sampler,
-}
-
-struct GpuSurfaceTexture {
-    revision: u64,
-    width: usize,
-    height: usize,
-    _texture: wgpu::Texture,
-    view: wgpu::TextureView,
-}
-
-struct SignalPipeline {
-    format: wgpu::TextureFormat,
-    bind_group_layout: wgpu::BindGroupLayout,
-    pipeline: wgpu::RenderPipeline,
-}
-
-struct SignalBuffer {
-    revision: u64,
-    sample_count: usize,
-    pipeline_generation: u64,
-    _sample_buffer: wgpu::Buffer,
-    uniform_buffer: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
-}
-
-struct CachedSignalSummary {
-    revision: u64,
-    frames: usize,
-    band_count: usize,
-    sample_count: usize,
-    summary: Arc<GpuSignalSummary>,
-}
-
-struct SignalBodyTexture {
-    cache_key: SignalBodyCacheKey,
-    _texture: wgpu::Texture,
-    view: wgpu::TextureView,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SignalBodyCacheKey {
-    revision: u64,
-    width: u32,
-    height: u32,
-    frame_start_bits: u32,
-    frame_end_bits: u32,
-    frames: usize,
-    band_count: usize,
-    sample_count: usize,
-    level_index: usize,
-    style_revision: u32,
-}
-
-impl SignalBodyCacheKey {
-    fn new(
-        surface: &PaintGpuSurface,
-        frames: usize,
-        band_count: usize,
-        frame_range: [f32; 2],
-        sample_count: usize,
-        level_index: usize,
-    ) -> Self {
-        Self {
-            revision: surface.revision,
-            width: surface.rect.width().ceil().max(1.0) as u32,
-            height: surface.rect.height().ceil().max(1.0) as u32,
-            frame_start_bits: frame_range[0].to_bits(),
-            frame_end_bits: frame_range[1].to_bits(),
-            frames,
-            band_count,
-            sample_count,
-            level_index,
-            style_revision: GPU_SIGNAL_STYLE_REVISION,
-        }
-    }
-}
-
-const GPU_SIGNAL_STYLE_REVISION: u32 = 1;
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
-struct GpuSurfaceUniforms {
-    dest: [f32; 4],
-    source: [f32; 4],
-    target_size: [f32; 2],
-    cursor_ratio: f32,
-    cursor_width: f32,
-    cursor_color: [f32; 4],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
-struct SignalUniforms {
-    dest: [f32; 4],
-    frame_range: [f32; 4],
-    summary_meta: [f32; 4],
-    target_size: [f32; 2],
-    cursor_ratio: f32,
-    cursor_width: f32,
-    cursor_color: [f32; 4],
 }
 
 impl GpuSurfaceRenderer {

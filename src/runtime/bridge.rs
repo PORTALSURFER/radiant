@@ -79,6 +79,11 @@ pub trait RuntimeBridge<Message> {
         false
     }
 
+    /// Drain commands delivered by app startup hooks or bridge-owned runtime work.
+    fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {
+        Vec::new()
+    }
+
     /// Drain messages delivered by app-level tasks, timers, or subscriptions.
     fn take_runtime_messages(&mut self) -> Vec<Message> {
         Vec::new()

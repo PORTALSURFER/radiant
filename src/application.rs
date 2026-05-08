@@ -24,7 +24,10 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     marker::PhantomData,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::Duration,
 };
@@ -48,5 +51,6 @@ include!("application/widget_view.rs");
 include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
+include!("application/retained_canvas.rs");
 include!("application/builders.rs");
 include!("application/ids.rs");

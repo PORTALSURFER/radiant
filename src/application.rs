@@ -5,7 +5,7 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
-    gui::types::ImageRgba,
+    gui::types::{ImageRgba, Point},
     gui_runtime::NativeRunOptions,
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, NodeId, SizeModeCross,
@@ -52,6 +52,7 @@ include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
 include!("application/property_panel.rs");
+include!("application/menu.rs");
 include!("application/retained_canvas.rs");
 include!("application/builders.rs");
 include!("application/control_builders.rs");

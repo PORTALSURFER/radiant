@@ -378,6 +378,64 @@ fn application_builder_property_panel_read_only_rows_do_not_join_focus_order() {
 }
 
 #[test]
+fn application_builder_context_menu_overlay_routes_items() {
+    use radiant::prelude as ui;
+
+    let mut bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::stack([
+                ui::text(format!("Selected: {}", state.name))
+                    .id(10)
+                    .height(24.0)
+                    .fill_width(),
+                ui::context_menu_overlay(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+                    Point::new(260.0, 150.0),
+                    Vector2::new(140.0, 92.0),
+                    "Actions",
+                    [
+                        ui::MenuItem::new("Inspect", |state: &mut DemoState| {
+                            state.name = "inspect".to_string()
+                        })
+                        .primary(),
+                        ui::MenuItem::new("Delete", |state: &mut DemoState| {
+                            state.name = "delete".to_string()
+                        })
+                        .danger(),
+                    ],
+                )
+                .id(20),
+            ])
+        })
+        .into_bridge();
+
+    let surface = bridge.project_surface();
+    let focus_order = surface.keyboard_focus_order();
+    assert_eq!(focus_order.len(), 2);
+
+    let message = surface
+        .dispatch_widget_output(
+            focus_order[1],
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        )
+        .expect("context menu item should emit a state action");
+    let command = bridge.update(message);
+    assert!(command.requests_repaint());
+
+    let after = bridge.project_surface();
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&after, 10, "text").text,
+        "Selected: delete"
+    );
+
+    let layout = layout_tree(
+        &after.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+    );
+    assert_eq!(layout.rects[&20].min.x, 0.0);
+}
+
+#[test]
 fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     use radiant::prelude::{self as ui, IntoView};
 

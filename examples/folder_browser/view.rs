@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 pub(super) fn project_surface(state: &mut BrowserState) -> ui::StateView<BrowserState> {
     let page = ui::column([

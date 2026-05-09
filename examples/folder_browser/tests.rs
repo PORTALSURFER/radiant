@@ -1,5 +1,6 @@
 use super::*;
 use std::fs;
+use std::path::PathBuf;
 
 const TEST_ROOT: &str = "demo-root";
 const TEST_ALPHA: &str = "demo-root/alpha";

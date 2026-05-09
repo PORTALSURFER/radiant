@@ -468,6 +468,9 @@ stateful examples.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.
+Run `cargo run --example split_workspace` for an editor-style split workspace
+that uses `SplitPaneSidebarState`, `SplitPaneSlot`, and generic Radiant views
+without adding docking-specific runtime concepts.
 Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
 uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.

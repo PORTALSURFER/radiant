@@ -103,6 +103,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec!["context_menu_overlay(", "MenuItem::new(", ".danger()"],
         ),
         (
+            "split_workspace",
+            vec![
+                "SplitPaneSidebarState",
+                "SplitPaneSlot",
+                "assign_selected_to",
+                "pane_view(",
+            ],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

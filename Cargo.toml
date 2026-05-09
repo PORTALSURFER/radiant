@@ -72,6 +72,10 @@ name = "tree_and_details"
 path = "examples/tree_and_details.rs"
 
 [[example]]
+name = "split_workspace"
+path = "examples/split_workspace.rs"
+
+[[example]]
 name = "inspector_panel"
 path = "examples/inspector_panel.rs"
 

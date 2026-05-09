@@ -88,6 +88,10 @@ name = "paint_helpers"
 path = "examples/paint_helpers.rs"
 
 [[example]]
+name = "layout_diagnostics"
+path = "examples/layout_diagnostics.rs"
+
+[[example]]
 name = "passive_widgets"
 path = "examples/passive_widgets.rs"
 

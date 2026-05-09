@@ -459,6 +459,9 @@ path as real input.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
+Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
+that collects `LayoutDiagnostic` entries and debug primitives from
+`LayoutDebugOptions::all_enabled()`.
 Run `cargo run --example virtualized_list` for a large application-builder list
 sandbox that projects 10k selectable rows through `virtual_list(...)`.
 Run `cargo run --example inspector_panel` for a compact inspector/property

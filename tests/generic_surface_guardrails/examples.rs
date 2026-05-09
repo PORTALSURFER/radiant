@@ -103,6 +103,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec!["context_menu_overlay(", "MenuItem::new(", ".danger()"],
         ),
         (
+            "layout_diagnostics",
+            vec![
+                "LayoutDebugOptions::all_enabled()",
+                "LayoutDiagnosticCode::InvalidScrollOffsetClamped",
+                "DebugPrimitiveKind::NodeBounds",
+                "layout_tree_with_state(",
+            ],
+        ),
+        (
             "split_workspace",
             vec![
                 "SplitPaneSidebarState",

@@ -11,6 +11,7 @@ use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
 
 mod editing;
+mod editing_ops;
 mod input;
 mod model;
 

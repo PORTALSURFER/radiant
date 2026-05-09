@@ -139,6 +139,16 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "host_surface_frame",
+            vec![
+                "SurfaceRuntime::new(",
+                "dispatch_event(Event::PointerMove",
+                "runtime.frame(&theme)",
+                "paint_plan.stats()",
+                "radiant_host_surface_frame",
+            ],
+        ),
+        (
             "split_workspace",
             vec![
                 "SplitPaneSidebarState",

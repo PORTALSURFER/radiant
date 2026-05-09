@@ -108,6 +108,10 @@ name = "rendering_benchmark"
 path = "examples/rendering_benchmark.rs"
 
 [[example]]
+name = "host_surface_frame"
+path = "examples/host_surface_frame.rs"
+
+[[example]]
 name = "passive_widgets"
 path = "examples/passive_widgets.rs"
 

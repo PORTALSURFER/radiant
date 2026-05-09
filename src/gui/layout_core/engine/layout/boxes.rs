@@ -2,7 +2,8 @@
 
 use super::super::LayoutContext;
 use super::super::helpers::place_child_rect;
-use super::{layout_node, resolve_cross_layout, resolve_nonfill_main};
+use super::layout_node;
+use super::linear::{resolve_cross_layout, resolve_nonfill_main};
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{CrossAlign, MainAlign};
 use crate::gui::layout_core::tree::{ContainerNode, SlotChild};

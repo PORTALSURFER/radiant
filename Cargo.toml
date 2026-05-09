@@ -72,6 +72,10 @@ name = "list"
 path = "examples/list.rs"
 
 [[example]]
+name = "virtualized_list"
+path = "examples/virtualized_list.rs"
+
+[[example]]
 name = "styling"
 path = "examples/styling.rs"
 

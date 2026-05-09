@@ -134,6 +134,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "timeline_editor",
+            vec![
+                "TimelineSurfaceState::new(",
+                "TimelineMotionState::new(",
+                "retained_canvas(",
+                "drop_marker(",
+            ],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

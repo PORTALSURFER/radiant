@@ -5,9 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard, push_list_item_widget_paint};
+use super::support::{WidgetCommon, activate_on_keyboard};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ListItemMessage, PointerButton, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Public list-row or list-item primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -92,7 +94,7 @@ impl Widget for ListItemWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_list_item_widget_paint(primitives, self, bounds, theme);
+        paint::push_list_item_widget_paint(primitives, self, bounds, theme);
     }
 }
 

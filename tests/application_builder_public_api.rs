@@ -7,7 +7,7 @@ use radiant::{
     runtime::{
         Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
         NativeTextOptions, RuntimeBridge, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        WindowSpec,
+        WindowManifest, WindowSpec,
     },
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
@@ -168,6 +168,37 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     assert_eq!(inspector.clone().into_native_options().target_fps, 60);
     let options: NativeRunOptions = inspector.into();
     assert_eq!(options.inner_size, Some([320.0, 500.0]));
+}
+
+#[test]
+fn window_manifest_validates_stable_unique_window_keys() {
+    let manifest = WindowManifest::from_specs([
+        WindowSpec::new("main", "Main").size(800, 600),
+        WindowSpec::new("inspector", "Inspector").size(320, 500),
+    ])
+    .expect("unique keys should be valid");
+
+    assert_eq!(manifest.len(), 2);
+    assert_eq!(manifest.keys().collect::<Vec<_>>(), ["main", "inspector"]);
+    assert_eq!(
+        manifest
+            .get("inspector")
+            .unwrap()
+            .native_options()
+            .inner_size,
+        Some([320.0, 500.0])
+    );
+    assert!(manifest.validate().is_ok());
+}
+
+#[test]
+fn window_manifest_rejects_duplicate_window_keys() {
+    let duplicate = WindowManifest::from_specs([
+        WindowSpec::new("main", "Main"),
+        WindowSpec::new("main", "Duplicate"),
+    ]);
+
+    assert_eq!(duplicate, Err(String::from("duplicate window key 'main'")));
 }
 
 #[test]

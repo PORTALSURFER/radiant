@@ -113,10 +113,10 @@ request a specific backend such as DX12, Vulkan, Metal, GL, or browser WebGPU.
 back to environment or system fonts, keeping text/font policy explicit without
 moving application asset loading into the renderer.
 `WindowSpec` describes one host-managed window without opening the platform
-runtime. It carries a stable host key plus native options, so multi-window or
-embedded hosts can keep a manifest of windows and attach a separate bridge or
-view to each spec. `radiant::window(...).spec("main")` converts the no-state
-launch builder into the same manifest shape.
+runtime. `WindowManifest` stores ordered specs and rejects duplicate stable
+keys, so multi-window or embedded hosts can validate a window set and attach a
+separate bridge or view to each spec. `radiant::window(...).spec("main")`
+converts the no-state launch builder into the same manifest shape.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
@@ -480,8 +480,8 @@ Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
 Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
-that describes multiple windows and separate views without expanding the native
-runtime event loop.
+that uses `WindowManifest` to describe multiple windows and separate views
+without expanding the native runtime event loop.
 Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.

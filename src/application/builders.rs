@@ -56,6 +56,11 @@ pub fn passive_text_input<Message: 'static>(
     view_node_from_widget(input)
 }
 
+/// Build a passive card or panel view.
+pub fn card<Message: 'static>() -> ViewNode<Message> {
+    view_node_from_widget(CardWidget::new(0, default_card_sizing()))
+}
+
 /// Build a passive canvas view for retained surfaces that need a generic paint
 /// or input slot without host messages.
 pub fn canvas<Message: 'static>() -> ViewNode<Message> {
@@ -149,6 +154,16 @@ fn default_drag_handle_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(24.0, 24.0))
 }
 
+fn default_badge_sizing(label: &str) -> WidgetSizing {
+    let width = (label.chars().count() as f32 * 8.0 + 24.0).clamp(56.0, 180.0);
+    WidgetSizing::fixed(Vector2::new(width, 24.0)).with_baseline(17.0)
+}
+
+fn default_selectable_sizing(label: &str) -> WidgetSizing {
+    let width = (label.chars().count() as f32 * 8.0 + 28.0).clamp(92.0, 260.0);
+    WidgetSizing::fixed(Vector2::new(width, 30.0)).with_baseline(20.0)
+}
+
 fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
     if compact {
         return WidgetSizing::fixed(Vector2::new(22.0, 22.0)).with_baseline(16.0);
@@ -163,6 +178,10 @@ fn default_text_input_sizing() -> WidgetSizing {
 
 fn default_canvas_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(1.0, 1.0))
+}
+
+fn default_card_sizing() -> WidgetSizing {
+    WidgetSizing::new(Vector2::new(120.0, 72.0), Vector2::new(220.0, 120.0))
 }
 
 fn default_gpu_surface_sizing() -> WidgetSizing {

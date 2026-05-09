@@ -483,6 +483,9 @@ state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
+Run `cargo run --example widget_gallery` for a reusable-widget gallery that
+shows `badge(...)`, `selectable(...)`, and passive `card()` composition through
+the prelude builders.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses

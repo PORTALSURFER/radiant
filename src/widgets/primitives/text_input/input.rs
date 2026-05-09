@@ -4,7 +4,7 @@ use crate::gui::types::Rect;
 use crate::widgets::interaction::{PointerButton, TextInputMessage, WidgetInput};
 
 use super::TextInputWidget;
-use super::editing::caret_for_pointer_x;
+use super::editing_ops::caret_for_pointer_x;
 
 pub(super) fn handle_text_input(
     text_input: &mut TextInputWidget,

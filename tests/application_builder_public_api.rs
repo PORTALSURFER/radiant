@@ -9,8 +9,9 @@ use radiant::{
         UiSurface, WidgetMessageMapper,
     },
     widgets::{
-        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, TextWrap,
-        ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
+        SelectableWidget, TextInputMessage, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
+        Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{thread, time::Duration};
@@ -29,6 +30,12 @@ enum LoadingMessage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum FocusMessage {
     FocusName,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GalleryMessage {
+    Badge,
+    Selected(bool),
 }
 
 #[derive(Default)]
@@ -541,6 +548,49 @@ fn application_builder_dense_control_panel_uses_generic_focusable_widgets() {
     assert_eq!(layout.rects[&50].min.y, layout.rects[&51].min.y);
     assert!(layout.rects[&51].min.x > layout.rects[&50].max.x);
     assert_eq!(layout.rects[&50].height(), 96.0);
+}
+
+#[test]
+fn application_builder_gallery_widgets_lower_and_route_messages() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<GalleryMessage> = ui::column([
+        ui::badge("Ready").message(GalleryMessage::Badge).id(10),
+        ui::selectable("Option", false)
+            .message(GalleryMessage::Selected)
+            .id(11),
+        ui::card().id(12).size(160.0, 72.0),
+    ])
+    .id(1)
+    .into_surface();
+
+    let badge = widget_ref::<BadgeWidget, _>(&surface, 10, "badge");
+    assert_eq!(badge.props.label, "Ready");
+    assert_eq!(
+        surface.dispatch_widget_output(
+            10,
+            radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate)
+        ),
+        Some(GalleryMessage::Badge)
+    );
+
+    let selectable = widget_ref::<SelectableWidget, _>(&surface, 11, "selectable");
+    assert_eq!(selectable.props.label, "Option");
+    assert!(!selectable.common.state.selected);
+    assert_eq!(
+        surface.dispatch_widget_output(
+            11,
+            radiant::widgets::WidgetOutput::typed(SelectableMessage::SelectionChanged {
+                selected: true,
+            })
+        ),
+        Some(GalleryMessage::Selected(true))
+    );
+
+    let card = widget_ref::<CardWidget, _>(&surface, 12, "card");
+    assert!(!card.common.paint.paints_focus);
+    assert!(card.common.paint.suppresses_container_hover);
+    assert_eq!(surface.keyboard_focus_order(), vec![10, 11]);
 }
 
 #[test]

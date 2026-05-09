@@ -85,6 +85,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "WidgetTone::Accent",
             ],
         ),
+        (
+            "widget_gallery",
+            vec!["badge(", "selectable(", "card()", "stack(["],
+        ),
         ("list", vec!["list(", "list_row(", ".fill_height()"]),
         (
             "virtualized_list",

@@ -64,6 +64,10 @@ name = "grid_gallery"
 path = "examples/grid_gallery.rs"
 
 [[example]]
+name = "widget_gallery"
+path = "examples/widget_gallery.rs"
+
+[[example]]
 name = "folder_browser"
 path = "examples/folder_browser.rs"
 

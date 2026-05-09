@@ -1,21 +1,17 @@
 //! Reusable scrollbar primitive.
 
-use crate::gui::types::{Point, Rect};
+use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{
-    WidgetCommon, clamp_fraction, leading_arrow_for_axis, push_scrollbar_widget_paint,
-    trailing_arrow_for_axis,
-};
+use super::support::{WidgetCommon, clamp_fraction, push_scrollbar_widget_paint};
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{
-    PointerButton, ScrollbarMessage, WidgetInput, WidgetKey, WidgetOutput,
-};
+use crate::widgets::interaction::{ScrollbarMessage, WidgetInput, WidgetOutput};
 
 mod geometry;
-use geometry::{axis_length, axis_position, axis_rect, axis_start};
+mod input;
+use geometry::{axis_length, axis_rect, axis_start};
 
 const MIN_THUMB_PIXELS: f32 = 12.0;
 
@@ -88,107 +84,10 @@ impl ScrollbarWidget {
 
     /// Route one backend-neutral interaction into the scrollbar.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ScrollbarMessage> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            self.state.drag_grip_fraction = None;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                self.drag_to(bounds, position)
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.focused = true;
-                self.common.state.hovered = true;
-                let thumb = self.thumb_rect(bounds);
-                if thumb.contains(position) {
-                    self.common.state.pressed = true;
-                    self.state.drag_grip_fraction =
-                        Some(self.pointer_grip_fraction(thumb, position));
-                    None
-                } else {
-                    self.set_offset_fraction(self.centered_offset_fraction(bounds, position))
-                }
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                self.common.state.hovered = bounds.contains(position);
-                self.common.state.pressed = false;
-                self.state.drag_grip_fraction = None;
-                None
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                    self.state.drag_grip_fraction = None;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key) if self.common.state.focused => self.handle_key_input(key),
-            _ => None,
-        }
+        input::handle_scrollbar_input(self, bounds, input)
     }
 
-    fn handle_key_input(&mut self, key: WidgetKey) -> Option<ScrollbarMessage> {
-        let delta = if key == leading_arrow_for_axis(self.props.axis) {
-            Some(-self.props.step_fraction)
-        } else if key == trailing_arrow_for_axis(self.props.axis) {
-            Some(self.props.step_fraction)
-        } else {
-            None
-        };
-        match key {
-            WidgetKey::Home => self.set_offset_fraction(0.0),
-            WidgetKey::End => self.set_offset_fraction(1.0),
-            _ => delta.and_then(|step| self.set_offset_fraction(self.state.offset_fraction + step)),
-        }
-    }
-
-    fn drag_to(&mut self, bounds: Rect, position: Point) -> Option<ScrollbarMessage> {
-        let grip_fraction = self.state.drag_grip_fraction?;
-        let track_length = axis_length(self.props.axis, bounds);
-        let thumb_fraction = self.thumb_fraction(track_length);
-        let thumb_length = track_length * thumb_fraction;
-        let pointer_axis = axis_position(self.props.axis, position);
-        let start = pointer_axis - thumb_length * grip_fraction;
-        let free_track = (track_length - thumb_length).max(0.0);
-        let offset = if free_track <= f32::EPSILON {
-            0.0
-        } else {
-            (start - axis_start(self.props.axis, bounds)) / free_track
-        };
-        self.set_offset_fraction(offset)
-    }
-
-    fn centered_offset_fraction(&self, bounds: Rect, position: Point) -> f32 {
-        let track_length = axis_length(self.props.axis, bounds);
-        let thumb_fraction = self.thumb_fraction(track_length);
-        let thumb_length = track_length * thumb_fraction;
-        let centered_start = axis_position(self.props.axis, position)
-            - axis_start(self.props.axis, bounds)
-            - thumb_length * 0.5;
-        let free_track = (track_length - thumb_length).max(0.0);
-        if free_track <= f32::EPSILON {
-            0.0
-        } else {
-            centered_start / free_track
-        }
-    }
-
-    fn pointer_grip_fraction(&self, thumb: Rect, position: Point) -> f32 {
-        let grip = axis_position(self.props.axis, position) - axis_start(self.props.axis, thumb);
-        let thumb_length = axis_length(self.props.axis, thumb).max(1.0);
-        clamp_fraction(grip / thumb_length)
-    }
-
-    fn set_offset_fraction(&mut self, value: f32) -> Option<ScrollbarMessage> {
+    pub(super) fn set_offset_fraction(&mut self, value: f32) -> Option<ScrollbarMessage> {
         let clamped = clamp_fraction(value);
         if (self.state.offset_fraction - clamped).abs() <= f32::EPSILON {
             return None;
@@ -199,7 +98,7 @@ impl ScrollbarWidget {
         })
     }
 
-    fn thumb_fraction(&self, track_length: f32) -> f32 {
+    pub(super) fn thumb_fraction(&self, track_length: f32) -> f32 {
         let viewport = clamp_fraction(self.props.viewport_fraction);
         if track_length <= f32::EPSILON {
             return 1.0;

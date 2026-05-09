@@ -6,7 +6,7 @@ use radiant::{
     },
     runtime::{
         Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, RuntimeBridge, SurfaceRuntime,
-        UiSurface, WidgetMessageMapper,
+        UiSurface, WidgetMessageMapper, WindowSpec,
     },
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
@@ -107,6 +107,27 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
     };
 
     assert!(!options.drag_and_drop);
+}
+
+#[test]
+fn window_specs_describe_multiple_windows_without_opening_runtime() {
+    let main = radiant::window("Main")
+        .size(800, 600)
+        .min_size(640, 480)
+        .spec("main");
+    let inspector = WindowSpec::new("inspector", "Inspector")
+        .size(320, 500)
+        .drag_and_drop(false)
+        .target_fps(60);
+
+    assert_eq!(main.key, "main");
+    assert_eq!(main.native_options().title, "Main");
+    assert_eq!(main.native_options().inner_size, Some([800.0, 600.0]));
+    assert_eq!(inspector.native_options().title, "Inspector");
+    assert!(!inspector.native_options().drag_and_drop);
+    assert_eq!(inspector.clone().into_native_options().target_fps, 60);
+    let options: NativeRunOptions = inspector.into();
+    assert_eq!(options.inner_size, Some([320.0, 500.0]));
 }
 
 #[test]

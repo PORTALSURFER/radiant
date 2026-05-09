@@ -1,5 +1,6 @@
 mod button;
 mod list_item;
+mod selectable;
 mod toggle;
 
 use super::chrome::push_control_chrome;
@@ -13,11 +14,12 @@ use crate::theme::ThemeTokens;
 
 use super::super::super::{
     badge::BadgeWidget, card::CardWidget, drag_handle::DragHandleWidget, scrollbar::ScrollbarAxis,
-    scrollbar::ScrollbarWidget, selectable::SelectableWidget, text::TextWidget, text::TextWrap,
+    scrollbar::ScrollbarWidget, text::TextWidget, text::TextWrap,
 };
 
 pub(in crate::widgets::primitives) use button::push_button_widget_paint;
 pub(in crate::widgets::primitives) use list_item::push_list_item_widget_paint;
+pub(in crate::widgets::primitives) use selectable::push_selectable_widget_paint;
 pub(in crate::widgets::primitives) use toggle::push_toggle_widget_paint;
 
 pub(in crate::widgets::primitives) fn push_text_widget_paint(
@@ -114,31 +116,6 @@ pub(in crate::widgets::primitives) fn push_drag_handle_widget_paint(
             width: 1.0,
         }));
     }
-}
-
-pub(in crate::widgets::primitives) fn push_selectable_widget_paint(
-    primitives: &mut Vec<PaintPrimitive>,
-    selectable: &SelectableWidget,
-    bounds: Rect,
-    theme: &ThemeTokens,
-) {
-    push_control_chrome(primitives, &selectable.common, bounds, theme);
-    push_text_run(
-        primitives,
-        selectable.common.id,
-        selectable.props.label.clone(),
-        inset_rect(bounds, 8.0, 3.0),
-        optical_centered_baseline(inset_rect(bounds, 8.0, 3.0), text_font_size(bounds)),
-        crate::widgets::resolve_widget_visual_tokens(
-            theme,
-            selectable.common.style,
-            selectable.common.state,
-        )
-        .foreground,
-        PaintTextAlign::Left,
-        TextWrap::None,
-        text_font_size(bounds),
-    );
 }
 
 pub(in crate::widgets::primitives) fn push_badge_widget_paint(

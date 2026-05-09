@@ -70,6 +70,14 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec!["radiant::app(", "virtual_list(", "list_row(", ".update("],
         ),
         (
+            "inspector_panel",
+            vec![
+                "selectable_property_panel(",
+                "PropertyRow::new(",
+                ".on_change(",
+            ],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

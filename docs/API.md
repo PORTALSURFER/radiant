@@ -460,6 +460,10 @@ that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
 Run `cargo run --example virtualized_list` for a large application-builder list
 sandbox that projects 10k selectable rows through `virtual_list(...)`.
+Run `cargo run --example inspector_panel` for a compact inspector/property
+panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
+`selectable_property_panel(...)` on the same application-builder path as other
+stateful examples.
 
 ## Quality Gate
 

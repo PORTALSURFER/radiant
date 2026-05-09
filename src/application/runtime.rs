@@ -13,6 +13,7 @@ type AppShutdown<State> = Box<dyn FnMut(&mut State) -> Option<serde_json::Value>
 type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;
 type AppUpdate<State, Message> = Box<dyn FnMut(&mut State, Message, &mut UpdateContext<Message>)>;
 type StateStringCallback<State> = Arc<dyn Fn(&mut State, String) + Send + Sync>;
+type StateCallback<State> = Arc<dyn Fn(&mut State) + Send + Sync>;
 type StateDragCallback<State> =
     Arc<dyn Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync>;
 

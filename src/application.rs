@@ -51,6 +51,7 @@ include!("application/widget_view.rs");
 include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
+include!("application/property_panel.rs");
 include!("application/retained_canvas.rs");
 include!("application/builders.rs");
 include!("application/control_builders.rs");

@@ -5,12 +5,14 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, push_canvas_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle,
     WidgetTone,
 };
 use crate::widgets::interaction::{CanvasMessage, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Public canvas/custom-paint primitive.
 #[derive(Clone, Debug, PartialEq)]
@@ -89,7 +91,7 @@ impl Widget for CanvasWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        push_canvas_widget_paint(primitives, self, bounds);
+        paint::push_canvas_widget_paint(primitives, self, bounds);
     }
 }
 

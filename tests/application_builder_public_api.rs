@@ -9,8 +9,8 @@ use radiant::{
         UiSurface, WidgetMessageMapper,
     },
     widgets::{
-        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, ToggleWidget,
-        Widget, WidgetProminence, WidgetSizing, WidgetTone,
+        ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, TextWrap,
+        ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetTone,
     },
 };
 use std::{thread, time::Duration};
@@ -597,6 +597,63 @@ fn application_builder_todo_layout_does_not_overlap_header_input_and_list() {
     assert!(list.min.y >= input.max.y + 12.0);
     assert!(first_row.min.y >= list.min.y);
     assert_eq!(first_row.height(), 52.0);
+}
+
+#[test]
+fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([
+        ui::text("Wrapped text that should stay inside the assigned text rectangle")
+            .wrap()
+            .id(10)
+            .fill_width()
+            .height(64.0)
+            .baseline(18.0),
+        ui::text("Truncated text that keeps one line")
+            .truncate()
+            .id(11)
+            .fill_width()
+            .height(28.0)
+            .baseline(19.0),
+        ui::row([
+            ui::text("Name").id(12).size(80.0, 28.0).baseline(19.0),
+            ui::text("Radiant")
+                .id(13)
+                .fill_width()
+                .height(28.0)
+                .baseline(19.0),
+        ])
+        .id(20)
+        .fill_width()
+        .spacing(8.0),
+    ])
+    .id(1)
+    .padding(16.0)
+    .spacing(10.0)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(360.0, 180.0)),
+    );
+
+    let wrapped = widget_ref::<TextWidget, _>(&surface, 10, "wrapped text");
+    let truncated = widget_ref::<TextWidget, _>(&surface, 11, "truncated text");
+    assert_eq!(wrapped.wrap, TextWrap::Word);
+    assert_eq!(wrapped.common.sizing.baseline, Some(18.0));
+    assert_eq!(truncated.wrap, TextWrap::None);
+    assert_eq!(truncated.common.sizing.baseline, Some(19.0));
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface, 12, "label")
+            .common
+            .sizing
+            .baseline,
+        Some(19.0)
+    );
+    assert_eq!(layout.rects[&10].height(), 64.0);
+    assert_eq!(layout.rects[&11].height(), 28.0);
+    assert_eq!(layout.rects[&12].height(), layout.rects[&13].height());
+    assert!(layout.rects[&13].min.x >= layout.rects[&12].max.x + 8.0);
 }
 
 #[test]

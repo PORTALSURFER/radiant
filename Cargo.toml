@@ -44,6 +44,10 @@ name = "background_loading"
 path = "examples/background_loading.rs"
 
 [[example]]
+name = "typography"
+path = "examples/typography.rs"
+
+[[example]]
 name = "todo_list"
 path = "examples/todo_list.rs"
 

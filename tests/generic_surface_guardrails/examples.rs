@@ -69,6 +69,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
         ),
         (
+            "typography",
+            vec![".wrap()", ".truncate()", ".baseline(", ".fill_width()"],
+        ),
+        (
             "layout_rows_columns",
             vec!["row([", "column([", ".padding(", ".fill_width()"],
         ),

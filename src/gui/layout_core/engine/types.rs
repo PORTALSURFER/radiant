@@ -111,7 +111,6 @@ pub struct LayoutDebugOptions {
 
 impl LayoutDebugOptions {
     /// Enable all debug primitive categories.
-    #[cfg(test)]
     pub fn all_enabled() -> Self {
         Self {
             enabled: true,

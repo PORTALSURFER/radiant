@@ -36,6 +36,10 @@ name = "counter"
 path = "examples/counter.rs"
 
 [[example]]
+name = "animation_showcase"
+path = "examples/animation_showcase.rs"
+
+[[example]]
 name = "todo_list"
 path = "examples/todo_list.rs"
 

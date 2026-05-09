@@ -6,6 +6,8 @@ use radiant::prelude as ui;
 mod actions;
 #[path = "folder_browser/columns.rs"]
 mod columns;
+#[path = "folder_browser/file_view.rs"]
+mod file_view;
 #[path = "folder_browser/menu_geometry.rs"]
 mod menu_geometry;
 #[path = "folder_browser/model.rs"]

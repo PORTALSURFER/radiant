@@ -8,7 +8,10 @@ fn main() -> radiant::Result {
         .min_size(420, 260)
         .run(
             column([
-                text("Typography").size(220.0, 32.0).baseline(22.0),
+                text("Typography")
+                    .size(220.0, 32.0)
+                    .baseline(22.0)
+                    .align_text(TextAlign::Center),
                 text(
                     "Wrapped text keeps a fixed row height while Radiant clips, measures, and paints words inside the assigned rectangle.",
                 )
@@ -24,11 +27,15 @@ fn main() -> radiant::Result {
                 .height(28.0)
                 .baseline(19.0),
                 row([
-                    text("Label").size(92.0, 28.0).baseline(19.0),
+                    text("Label")
+                        .size(92.0, 28.0)
+                        .baseline(19.0)
+                        .align_text(TextAlign::Right),
                     text("Value aligned on the same baseline")
                         .fill_width()
                         .height(28.0)
-                        .baseline(19.0),
+                        .baseline(19.0)
+                        .align_text(TextAlign::Left),
                 ])
                 .fill_width()
                 .spacing(8.0),

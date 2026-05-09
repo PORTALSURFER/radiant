@@ -12,6 +12,7 @@ fn view_node_from_widget<Message>(widget: impl WidgetView<Message> + 'static) ->
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 

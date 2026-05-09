@@ -74,7 +74,7 @@ pub use primitives::{
     BadgeProps, BadgeState, BadgeWidget, ButtonProps, ButtonState, ButtonWidget, CanvasWidget,
     CardWidget, DragHandleWidget, GpuSurfaceWidget, ImageProps, ImageWidget, ListItemWidget,
     RetainedSurfaceDescriptor, ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget,
-    SelectableProps, SelectableWidget, TextInputProps, TextInputState, TextInputWidget, TextWidget,
-    TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,
+    SelectableProps, SelectableWidget, TextAlign, TextInputProps, TextInputState, TextInputWidget,
+    TextWidget, TextWrap, ToggleProps, ToggleState, ToggleWidget, WidgetCommon,
 };
 pub use theme::{WidgetVisualTokens, resolve_widget_visual_tokens};

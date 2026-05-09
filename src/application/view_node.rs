@@ -14,6 +14,7 @@ pub struct ViewNode<Message> {
     hoverable: bool,
     input_only: bool,
     text_wrap: Option<TextWrap>,
+    text_align: Option<TextAlign>,
 }
 
 enum ViewNodeKind<Message> {
@@ -67,6 +68,7 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
             hoverable: false,
             input_only: false,
             text_wrap: None,
+            text_align: None,
         }
     }
 }

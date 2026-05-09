@@ -90,7 +90,8 @@ a few items. Apps can request
 stretch behavior explicitly with `.fill()`, `.fill_width()`, `.fill_height()`,
 and `.grow(...)`, add container padding with `.padding(...)`, `.padding_x(...)`,
 and `.padding_y(...)`, and use `.primary()`, `.danger()`, `.subtle()`,
-`.wrap()`, or `.truncate()` for common style and text policies. Stateful
+`.wrap()`, `.truncate()`, or `.align_text(TextAlign::Center)` for common style
+and text policies. Stateful
 examples should use stable keys or explicit IDs for controls whose focus or
 input state must survive list edits. The launch builders expose `.options(...)`
 for callers that need the full `NativeRunOptions` surface. Apps that prefer

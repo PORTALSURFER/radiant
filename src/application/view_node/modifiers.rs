@@ -198,6 +198,12 @@ impl<Message> ViewNode<Message> {
         self
     }
 
+    /// Set horizontal alignment for text widgets.
+    pub fn align_text(mut self, align: TextAlign) -> Self {
+        self.text_align = Some(align);
+        self
+    }
+
     /// Set row or column spacing when this node is a container.
     pub fn spacing(mut self, spacing: f32) -> Self {
         self.set_spacing(spacing);

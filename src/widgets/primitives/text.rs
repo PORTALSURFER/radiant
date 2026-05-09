@@ -18,6 +18,18 @@ pub enum TextWrap {
     Word,
 }
 
+/// Horizontal alignment for label/text widgets.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TextAlign {
+    /// Align text to the left edge of the assigned text rectangle.
+    #[default]
+    Left,
+    /// Align text to the center of the assigned text rectangle.
+    Center,
+    /// Align text to the right edge of the assigned text rectangle.
+    Right,
+}
+
 /// Public label/text primitive.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextWidget {
@@ -27,6 +39,8 @@ pub struct TextWidget {
     pub text: String,
     /// Wrapping policy used for intrinsic sizing and paint.
     pub wrap: TextWrap,
+    /// Horizontal alignment used inside the assigned text rectangle.
+    pub align: TextAlign,
 }
 
 impl TextWidget {
@@ -38,7 +52,14 @@ impl TextWidget {
             common,
             text: text.into(),
             wrap: TextWrap::None,
+            align: TextAlign::Left,
         }
+    }
+
+    /// Set horizontal alignment inside the assigned text rectangle.
+    pub fn with_align(mut self, align: TextAlign) -> Self {
+        self.align = align;
+        self
     }
 }
 

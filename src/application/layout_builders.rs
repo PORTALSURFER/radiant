@@ -16,6 +16,7 @@ pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> Vi
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -45,6 +46,7 @@ pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) ->
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -89,6 +91,7 @@ pub fn grid_with_gaps<Message>(
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -109,6 +112,7 @@ pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> 
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -139,6 +143,7 @@ pub fn overlay_panel<Message>(
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -163,6 +168,7 @@ pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -183,6 +189,7 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 
@@ -204,6 +211,7 @@ pub fn virtual_scroll<Message>(child: ViewNode<Message>, overscan_px: f32) -> Vi
         hoverable: false,
         input_only: false,
         text_wrap: None,
+        text_align: None,
     }
 }
 

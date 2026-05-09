@@ -6,13 +6,13 @@ use radiant::{
     },
     runtime::{
         Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
-        NativeTextOptions, RuntimeBridge, SurfaceRuntime, UiSurface, WidgetMessageMapper,
-        WindowManifest, WindowSpec,
+        NativeTextOptions, PaintPrimitive, RuntimeBridge, SurfaceRuntime, UiSurface,
+        WidgetMessageMapper, WindowManifest, WindowSpec,
     },
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
-        SelectableWidget, TextInputMessage, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
-        Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        SelectableWidget, TextAlign, TextInputMessage, TextInputWidget, TextWidget, TextWrap,
+        ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{thread, time::Duration};
@@ -896,12 +896,17 @@ fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
             .height(28.0)
             .baseline(19.0),
         ui::row([
-            ui::text("Name").id(12).size(80.0, 28.0).baseline(19.0),
+            ui::text("Name")
+                .id(12)
+                .size(80.0, 28.0)
+                .baseline(19.0)
+                .align_text(TextAlign::Right),
             ui::text("Radiant")
                 .id(13)
                 .fill_width()
                 .height(28.0)
-                .baseline(19.0),
+                .baseline(19.0)
+                .align_text(TextAlign::Center),
         ])
         .id(20)
         .fill_width()
@@ -919,9 +924,18 @@ fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
     let wrapped = widget_ref::<TextWidget, _>(&surface, 10, "wrapped text");
     let truncated = widget_ref::<TextWidget, _>(&surface, 11, "truncated text");
     assert_eq!(wrapped.wrap, TextWrap::Word);
+    assert_eq!(wrapped.align, TextAlign::Left);
     assert_eq!(wrapped.common.sizing.baseline, Some(18.0));
     assert_eq!(truncated.wrap, TextWrap::None);
     assert_eq!(truncated.common.sizing.baseline, Some(19.0));
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface, 12, "label").align,
+        TextAlign::Right
+    );
+    assert_eq!(
+        widget_ref::<TextWidget, _>(&surface, 13, "value").align,
+        TextAlign::Center
+    );
     assert_eq!(
         widget_ref::<TextWidget, _>(&surface, 12, "label")
             .common
@@ -929,6 +943,21 @@ fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
             .baseline,
         Some(19.0)
     );
+    let paint = surface.paint_plan(&layout, &radiant::theme::ThemeTokens::default());
+    assert!(paint.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::Text(text)
+                if text.widget_id == 12 && text.align == radiant::runtime::PaintTextAlign::Right
+        )
+    }));
+    assert!(paint.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::Text(text)
+                if text.widget_id == 13 && text.align == radiant::runtime::PaintTextAlign::Center
+        )
+    }));
     assert_eq!(layout.rects[&10].height(), 64.0);
     assert_eq!(layout.rects[&11].height(), 28.0);
     assert_eq!(layout.rects[&12].height(), layout.rects[&13].height());

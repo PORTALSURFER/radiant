@@ -10,6 +10,7 @@ pub struct WidgetViewContext {
     style: Option<WidgetStyle>,
     input_only: bool,
     text_wrap: Option<TextWrap>,
+    text_align: Option<TextAlign>,
 }
 
 impl WidgetViewContext {
@@ -45,6 +46,11 @@ impl WidgetViewContext {
             && let Some(text) = widget.as_any_mut().downcast_mut::<TextWidget>()
         {
             text.wrap = wrap;
+        }
+        if let Some(align) = self.text_align
+            && let Some(text) = widget.as_any_mut().downcast_mut::<TextWidget>()
+        {
+            text.align = align;
         }
     }
 }

@@ -25,6 +25,7 @@ where
                 style: self.style,
                 input_only: self.input_only,
                 text_wrap: self.text_wrap,
+                text_align: self.text_align,
             }),
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {

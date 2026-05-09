@@ -26,6 +26,6 @@ pub use list_item::ListItemWidget;
 pub use scrollbar::{ScrollbarAxis, ScrollbarProps, ScrollbarState, ScrollbarWidget};
 pub use selectable::{SelectableProps, SelectableWidget};
 pub use support::WidgetCommon;
-pub use text::{TextWidget, TextWrap};
+pub use text::{TextAlign, TextWidget, TextWrap};
 pub use text_input::{TextInputProps, TextInputState, TextInputWidget};
 pub use toggle::{ToggleProps, ToggleState, ToggleWidget};

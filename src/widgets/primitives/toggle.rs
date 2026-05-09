@@ -1,13 +1,15 @@
 //! Reusable toggle primitive.
 
+mod input;
+
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard, push_toggle_widget_paint};
+use super::support::{WidgetCommon, push_toggle_widget_paint};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{PointerButton, ToggleMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{ToggleMessage, WidgetInput, WidgetOutput};
 
 /// Immutable public properties for a reusable toggle widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -59,58 +61,12 @@ impl ToggleWidget {
 
     /// Route one backend-neutral interaction into the toggle.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ToggleMessage> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            self.state.armed = false;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    self.state.armed = self.common.state.hovered;
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.focused = true;
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.state.armed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                let should_toggle =
-                    self.common.state.pressed && self.state.armed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.state.armed = false;
-                should_toggle.then(|| self.toggle())
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                    self.state.armed = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused && activate_on_keyboard(key) =>
-            {
-                Some(self.toggle())
-            }
-            _ => None,
-        }
+        input::handle_toggle_input(self, bounds, input)
     }
+}
 
-    fn toggle(&mut self) -> ToggleMessage {
+impl ToggleWidget {
+    pub(super) fn toggle(&mut self) -> ToggleMessage {
         self.state.checked = !self.state.checked;
         self.common.state.active = self.state.checked;
         ToggleMessage::ValueChanged {
@@ -204,7 +160,7 @@ mod tests {
     use crate::gui::types::{Point, Vector2};
 
     use super::*;
-    use crate::widgets::interaction::WidgetKey;
+    use crate::widgets::interaction::{PointerButton, WidgetKey};
 
     #[test]
     fn toggle_keyboard_activation_flips_active_state() {

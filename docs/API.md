@@ -343,6 +343,13 @@ support is an adapter that consumes this paint plan through
 `run_native_vello_runtime`. Renderers should consume paint plans and report
 frame results without owning host state.
 
+Paint primitive generation is owned by the projected surface types that carry
+the visual contract: widgets implement widget paint through the `Widget` trait,
+and containers/overlays append their own chrome, clipping, scroll affordances,
+and overlay primitives during surface traversal. The surface runtime
+orchestrates layout-aware traversal and collection; backend adapters consume the
+resulting paint plan.
+
 Standard widgets emit Vello-friendly paint primitives such as fills, strokes,
 text, images, clips, and overlays. Specialized realtime visuals can instead
 emit `PaintPrimitive::GpuSurface` through `GpuSurfaceWidget` or a custom

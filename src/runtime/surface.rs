@@ -1,5 +1,6 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
+mod layout;
 mod node;
 mod paint;
 mod traversal;

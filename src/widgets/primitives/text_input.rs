@@ -8,10 +8,10 @@ use crate::theme::ThemeTokens;
 use super::WidgetCommon;
 use super::support::push_text_input_widget_paint;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{PointerButton, TextInputMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
 
 mod editing;
-use editing::caret_for_pointer_x;
+mod input;
 
 /// Immutable public properties for a reusable single-line text input.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -75,59 +75,7 @@ impl TextInputWidget {
 
     /// Route one backend-neutral interaction into the single-line text input.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<TextInputMessage> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    self.set_caret(caret_for_pointer_x(bounds, position.x), true);
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.focused = true;
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.set_caret(caret_for_pointer_x(bounds, position.x), false);
-                None
-            }
-            WidgetInput::PointerRelease {
-                button: PointerButton::Primary,
-                ..
-            } => {
-                self.common.state.pressed = false;
-                None
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                None
-            }
-            WidgetInput::Character(ch)
-                if self.common.state.focused
-                    && !self.common.state.disabled
-                    && !self.common.state.read_only
-                    && !ch.is_control() =>
-            {
-                self.insert_text(ch.encode_utf8(&mut [0; 4]))
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused
-                    && !self.common.state.disabled
-                    && !self.common.state.read_only =>
-            {
-                self.handle_key_input(key)
-            }
-            WidgetInput::TextEdit(command)
-                if self.common.state.focused
-                    && !self.common.state.disabled
-                    && !self.common.state.read_only =>
-            {
-                self.handle_text_edit(command)
-            }
-            _ => None,
-        }
+        input::handle_text_input(self, bounds, input)
     }
 }
 
@@ -194,7 +142,7 @@ impl<Message> SurfaceNode<Message> {
 #[cfg(test)]
 mod tests {
     use crate::gui::types::{Point, Vector2};
-    use crate::widgets::interaction::{TextEditCommand, WidgetKey};
+    use crate::widgets::interaction::{PointerButton, TextEditCommand, WidgetKey};
 
     use super::*;
 

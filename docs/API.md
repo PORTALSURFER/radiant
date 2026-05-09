@@ -105,6 +105,10 @@ native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,
 decorations, icon, target frame rate, and whether native file drag-and-drop is
 requested on platforms that support it.
+`NativeGpuOptions` and `NativeGpuBackend` keep WGPU backend selection explicit
+without exposing normal app code to raw WGPU setup; the default remains WGPU's
+environment-aware adapter selection, while diagnostics or platform work can
+request a specific backend such as DX12, Vulkan, Metal, GL, or browser WebGPU.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. It carries a stable host key plus native options, so multi-window or
 embedded hosts can keep a manifest of windows and attach a separate bridge or

@@ -5,8 +5,8 @@ use radiant::{
         LayoutDebugOptions, LayoutState, Point, Rect, Vector2, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, RuntimeBridge, SurfaceRuntime,
-        UiSurface, WidgetMessageMapper, WindowSpec,
+        Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
+        RuntimeBridge, SurfaceRuntime, UiSurface, WidgetMessageMapper, WindowSpec,
     },
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
@@ -107,6 +107,24 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
     };
 
     assert!(!options.drag_and_drop);
+}
+
+#[test]
+fn native_run_options_expose_gpu_backend_policy() {
+    let options = NativeRunOptions {
+        gpu: NativeGpuOptions {
+            backend: NativeGpuBackend::Dx12,
+        },
+        ..NativeRunOptions::default()
+    };
+    let spec = WindowSpec::new("main", "Main").gpu_backend(NativeGpuBackend::Vulkan);
+
+    assert_eq!(
+        NativeRunOptions::default().gpu.backend,
+        NativeGpuBackend::Auto
+    );
+    assert_eq!(options.gpu.backend, NativeGpuBackend::Dx12);
+    assert_eq!(spec.native_options().gpu.backend, NativeGpuBackend::Vulkan);
 }
 
 #[test]

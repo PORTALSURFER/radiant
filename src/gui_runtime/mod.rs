@@ -29,6 +29,33 @@ pub struct WindowIconRgba {
     pub height: u32,
 }
 
+/// Explicit native GPU backend preference.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeGpuBackend {
+    /// Use WGPU's normal environment-aware backend selection.
+    #[default]
+    Auto,
+    /// Prefer WGPU's primary production backends for the current platform.
+    Primary,
+    /// Restrict adapter selection to Vulkan.
+    Vulkan,
+    /// Restrict adapter selection to DirectX 12.
+    Dx12,
+    /// Restrict adapter selection to Metal.
+    Metal,
+    /// Restrict adapter selection to OpenGL or OpenGL ES.
+    Gl,
+    /// Restrict adapter selection to browser WebGPU.
+    BrowserWebGpu,
+}
+
+/// Native GPU policy used by backend runtime adapters.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NativeGpuOptions {
+    /// Preferred GPU backend for adapter selection.
+    pub backend: NativeGpuBackend,
+}
+
 /// Window configuration shared by native runtime entry points.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NativeRunOptions {
@@ -52,6 +79,8 @@ pub struct NativeRunOptions {
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
     pub target_fps: u32,
+    /// GPU adapter/backend policy for native renderers.
+    pub gpu: NativeGpuOptions,
 }
 
 impl Default for NativeRunOptions {
@@ -65,6 +94,7 @@ impl Default for NativeRunOptions {
             drag_and_drop: true,
             icon: None,
             target_fps: 120,
+            gpu: NativeGpuOptions::default(),
         }
     }
 }
@@ -142,6 +172,12 @@ impl WindowSpec {
     /// Set the target animation frame rate for this window.
     pub fn target_fps(mut self, target_fps: u32) -> Self {
         self.options.target_fps = target_fps;
+        self
+    }
+
+    /// Set the preferred native GPU backend for this window.
+    pub fn gpu_backend(mut self, backend: NativeGpuBackend) -> Self {
+        self.options.gpu.backend = backend;
         self
     }
 

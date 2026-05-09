@@ -1,6 +1,6 @@
 //! Native `winit + vello` runtime for generic `RuntimeBridge` hosts.
 
-use super::{NativeRunOptions, WindowIconRgba};
+use super::{NativeGpuBackend, NativeRunOptions, WindowIconRgba};
 use crate::gui::{
     paint::{PaintFrame, Primitive, TextAlign, TextRun},
     types::{Point, Rect as UiRect, Rgba8, Vector2},

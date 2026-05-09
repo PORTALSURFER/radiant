@@ -473,6 +473,9 @@ builder.
 Run `cargo run --example background_loading` for a background-work sandbox that
 uses `UpdateContext::spawn(...)` to route worker results back into the normal
 state update path.
+Run `cargo run --example typography` for a focused text sandbox that exercises
+wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
+through the application-builder API.
 
 ## Quality Gate
 

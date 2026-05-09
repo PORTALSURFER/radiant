@@ -29,6 +29,15 @@ fn main() -> radiant::Result {
     .size(560, 240)
     .min_size(420, 180)
     .view(project_surface)
+    .shortcuts(|_, _, press, _| {
+        if press == KeyPress::with_command(KeyCode::F) {
+            ShortcutResolution::action(FocusMessage::FocusSearch)
+        } else if press == KeyPress::with_command(KeyCode::N) {
+            ShortcutResolution::action(FocusMessage::FocusName)
+        } else {
+            ShortcutResolution::unhandled()
+        }
+    })
     .update_with(update)
     .run()
 }

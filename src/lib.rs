@@ -57,6 +57,11 @@ pub mod prelude {
         stack, text, text_input, text_input_mapped, toggle, toggle_mapped, tree_list,
         tree_list_with_drag, virtual_list, virtual_scroll, widget, window,
     };
+    pub use crate::gui::{
+        focus::FocusSurface,
+        input::{KeyCode, KeyPress},
+        shortcuts::ShortcutResolution,
+    };
     pub use crate::runtime::{
         Command, GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, ResourceKey, ResourceLoad,

@@ -202,6 +202,8 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "focus_controls",
             vec![
+                ".shortcuts(",
+                "ShortcutResolution::action",
                 ".update_with(",
                 "context.focus(",
                 "text_input(",

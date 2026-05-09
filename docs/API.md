@@ -429,6 +429,12 @@ hit testing, and automation paths.
 Pointer dispatch through `dispatch_input_at` can assign focus from hit testing;
 keyboard dispatch through `dispatch_focused_input` routes input to the focused
 widget by stable `WidgetId`.
+Application builders can register host-owned shortcut catalogs with
+`.shortcuts(...)`. The runtime supplies pending chord state, normalized
+`KeyPress`, and `FocusSurface`; returning `ShortcutResolution::action(message)`
+dispatches a normal app message before focused-widget key routing, while
+`ShortcutResolution::handled()` suppresses the fallback without coupling Radiant
+to an application command model.
 
 ## Performance Harness
 
@@ -526,7 +532,8 @@ Run `cargo run --example theme_playground` for a theme-token sandbox that
 combines `ThemeTokens`, viewport density policy, and widget visual-token
 resolution with normal application views.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
-`UpdateContext::focus(...)` to move keyboard focus from normal app messages.
+`UpdateContext::focus(...)` and app-level `.shortcuts(...)` to move keyboard
+focus from normal app messages.
 Run `cargo run --example plugin_panel` for a dense plugin-style control panel
 that stays on generic Radiant layout, style, focus, and state-callback APIs;
 host/plugin SDK integration remains outside Radiant.

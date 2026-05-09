@@ -52,6 +52,7 @@ impl<State> StatefulAppBuilder<State> {
             animation: None,
             frame_message: None,
             subscriptions: None,
+            shortcuts: None,
             startup: None,
             shutdown: None,
             close_requested: None,
@@ -70,6 +71,7 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     animation: Option<AppAnimation<State>>,
     frame_message: Option<AppFrameMessage<Message>>,
     subscriptions: Option<AppSubscriptions<State, Message>>,
+    shortcuts: Option<AppShortcuts<State, Message>>,
     startup: Option<AppStartup<State, Message>>,
     shutdown: Option<AppShutdown<State>>,
     close_requested: Option<AppCloseRequested<State>>,
@@ -115,6 +117,7 @@ where
             animation: self.animation,
             frame_message: self.frame_message,
             subscriptions: self.subscriptions,
+            shortcuts: self.shortcuts,
             startup: self.startup,
             shutdown: self.shutdown,
             close_requested: self.close_requested,
@@ -160,15 +163,28 @@ where
 
     /// Lower this direct-callback app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<StateAction<State>> {
-        let mut project = self.project;
-        declarative_command_runtime_bridge(
-            self.state,
-            move |state| Arc::new(project(state).into_surface()),
-            |state, action| {
+        AppBridge {
+            state: self.state,
+            project: self.project,
+            update: |state: &mut State,
+                     action: StateAction<State>,
+                     context: &mut UpdateContext<StateAction<State>>| {
                 action.run(state);
-                Command::request_repaint()
+                context.request_repaint();
             },
-        )
+            runtime: Arc::new(AppRuntime::default()),
+            animation: self.animation,
+            frame_message: self.frame_message,
+            subscriptions: self.subscriptions,
+            shortcuts: self.shortcuts,
+            startup: self.startup,
+            shutdown: self.shutdown,
+            close_requested: self.close_requested,
+            retained_painters: self.retained_painters,
+            subscriptions_started: false,
+            startup_ran: false,
+            _view: PhantomData,
+        }
     }
 }
 
@@ -181,6 +197,7 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     animation: Option<AppAnimation<State>>,
     frame_message: Option<AppFrameMessage<Message>>,
     subscriptions: Option<AppSubscriptions<State, Message>>,
+    shortcuts: Option<AppShortcuts<State, Message>>,
     startup: Option<AppStartup<State, Message>>,
     shutdown: Option<AppShutdown<State>>,
     close_requested: Option<AppCloseRequested<State>>,
@@ -220,6 +237,7 @@ where
             animation: self.animation,
             frame_message: self.frame_message,
             subscriptions: self.subscriptions,
+            shortcuts: self.shortcuts,
             startup: self.startup,
             shutdown: self.shutdown,
             close_requested: self.close_requested,

@@ -7,7 +7,7 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::text::{TextAlign, TextWidget};
 
-pub(in crate::widgets::primitives) fn push_text_widget_paint(
+pub(super) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     text: &TextWidget,
     bounds: Rect,

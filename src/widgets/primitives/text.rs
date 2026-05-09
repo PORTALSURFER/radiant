@@ -5,9 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, push_text_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Text wrapping behavior for text-like widgets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -83,7 +85,7 @@ impl Widget for TextWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_text_widget_paint(primitives, self, bounds, theme);
+        paint::push_text_widget_paint(primitives, self, bounds, theme);
     }
 }
 

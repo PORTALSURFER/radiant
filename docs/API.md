@@ -477,6 +477,10 @@ for local comparisons, profiling runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
 and prints parseable primitive-count diagnostics.
+Run `cargo run --example host_surface_frame` for a checked embedded-host
+sandbox that drives `SurfaceRuntime` with backend-neutral events, requests a
+`SurfaceFrame`, and reports `SurfacePaintStats` without opening the native
+window runtime.
 
 For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
 per-frame `radiant native render profile` tracing line. The profile separates

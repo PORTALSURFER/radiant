@@ -15,7 +15,9 @@ impl<Message> ViewNode<Message> {
                     child.collect_reserved_ids(child_scope, ids);
                 }
             }
-            ViewNodeKind::Scroll { child } => child.collect_reserved_ids(child_scope, ids),
+            ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
+                child.collect_reserved_ids(child_scope, ids)
+            }
             ViewNodeKind::Runtime(node) => {
                 ids.insert(node.id());
             }

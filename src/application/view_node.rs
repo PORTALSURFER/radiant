@@ -30,6 +30,10 @@ enum ViewNodeKind<Message> {
     Scroll {
         child: Box<ViewNode<Message>>,
     },
+    VirtualScroll {
+        child: Box<ViewNode<Message>>,
+        overscan_px: f32,
+    },
     Stack {
         children: Vec<ViewNode<Message>>,
     },

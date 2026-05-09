@@ -212,7 +212,9 @@ impl<Message> ViewNode<Message> {
             | ViewNodeKind::Column {
                 spacing: current, ..
             } => *current = spacing.max(0.0),
-            ViewNodeKind::Scroll { child } => child.set_spacing(spacing),
+            ViewNodeKind::Scroll { child } | ViewNodeKind::VirtualScroll { child, .. } => {
+                child.set_spacing(spacing)
+            }
             _ => {}
         }
     }

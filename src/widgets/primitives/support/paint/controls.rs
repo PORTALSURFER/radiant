@@ -1,25 +1,24 @@
 mod badge;
 mod button;
 mod list_item;
+mod scrollbar;
 mod selectable;
 mod toggle;
 
 use super::chrome::push_control_chrome;
 use crate::gui::types::{Point, Rect};
 use crate::runtime::{
-    PaintFillRect, PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign,
-    inset_rect, optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
+    PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign, inset_rect,
+    optical_centered_baseline, push_text_run, text_font_size,
 };
 use crate::theme::ThemeTokens;
 
-use super::super::super::{
-    card::CardWidget, drag_handle::DragHandleWidget, scrollbar::ScrollbarAxis,
-    scrollbar::ScrollbarWidget, text::TextWidget,
-};
+use super::super::super::{card::CardWidget, drag_handle::DragHandleWidget, text::TextWidget};
 
 pub(in crate::widgets::primitives) use badge::push_badge_widget_paint;
 pub(in crate::widgets::primitives) use button::push_button_widget_paint;
 pub(in crate::widgets::primitives) use list_item::push_list_item_widget_paint;
+pub(in crate::widgets::primitives) use scrollbar::push_scrollbar_widget_paint;
 pub(in crate::widgets::primitives) use selectable::push_selectable_widget_paint;
 pub(in crate::widgets::primitives) use toggle::push_toggle_widget_paint;
 
@@ -39,36 +38,6 @@ pub(in crate::widgets::primitives) fn push_text_widget_paint(
         PaintTextAlign::Left,
         text.wrap,
         text_font_size(bounds),
-    );
-}
-
-pub(in crate::widgets::primitives) fn push_scrollbar_widget_paint(
-    primitives: &mut Vec<PaintPrimitive>,
-    scrollbar: &ScrollbarWidget,
-    bounds: Rect,
-    theme: &ThemeTokens,
-) {
-    let tokens = crate::widgets::resolve_widget_visual_tokens(
-        theme,
-        scrollbar.common.style,
-        scrollbar.common.state,
-    );
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: scrollbar.common.id,
-        rect: bounds,
-        color: theme.surface_base,
-    }));
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: scrollbar.common.id,
-        rect: scrollbar.thumb_rect(bounds),
-        color: tokens.emphasis,
-    }));
-    push_axis_stroke(
-        primitives,
-        scrollbar.common.id,
-        bounds,
-        theme.grid_soft,
-        scrollbar.props.axis == ScrollbarAxis::Horizontal,
     );
 }
 

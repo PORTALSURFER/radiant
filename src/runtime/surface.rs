@@ -7,6 +7,7 @@ mod input;
 mod layout;
 mod node;
 mod paint;
+mod scroll;
 mod traversal;
 mod widget;
 

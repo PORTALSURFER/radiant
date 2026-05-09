@@ -14,6 +14,8 @@ mod model;
 mod state;
 #[path = "folder_browser/storage.rs"]
 mod storage;
+#[path = "folder_browser/tree.rs"]
+mod tree;
 #[path = "folder_browser/view.rs"]
 mod view;
 use columns::*;

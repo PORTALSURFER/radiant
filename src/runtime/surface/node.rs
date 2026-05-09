@@ -2,8 +2,8 @@ use super::widget::{SurfaceWidget, WidgetMessageMapper};
 use crate::{
     gui::types::Rect,
     layout::{
-        ContainerKind, ContainerPolicy, GridPolicy, LayoutNode, NodeId, OverflowPolicy, SlotChild,
-        SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, NodeId, OverflowPolicy, SlotParams,
+        VirtualizationAxis, VirtualizationPolicy,
     },
     widgets::{Widget, WidgetId, WidgetInput, WidgetOutput, WidgetStyle},
 };
@@ -301,22 +301,6 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(container) => container.id,
             Self::Widget(widget) => widget.id(),
             Self::Overlay(overlay) => overlay.id,
-        }
-    }
-
-    pub(super) fn layout_node(&self) -> LayoutNode {
-        match self {
-            Self::Container(container) => LayoutNode::container(
-                container.id,
-                container.policy.clone(),
-                container
-                    .children
-                    .iter()
-                    .map(|child| SlotChild::new(child.slot, child.child.layout_node()))
-                    .collect(),
-            ),
-            Self::Widget(widget) => widget.layout_node(),
-            Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
         }
     }
 

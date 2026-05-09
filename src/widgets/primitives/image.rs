@@ -6,9 +6,11 @@ use crate::runtime::{PaintPrimitive, SurfaceNode};
 use crate::theme::ThemeTokens;
 use std::sync::Arc;
 
-use super::support::{WidgetCommon, push_image_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Immutable public properties for a reusable image widget.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -59,7 +61,7 @@ impl Widget for ImageWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        push_image_widget_paint(primitives, self, bounds);
+        paint::push_image_widget_paint(primitives, self, bounds);
     }
 }
 

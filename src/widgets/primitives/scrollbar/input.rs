@@ -2,12 +2,10 @@
 
 use crate::gui::types::{Point, Rect};
 use crate::widgets::interaction::{PointerButton, ScrollbarMessage, WidgetInput, WidgetKey};
-use crate::widgets::primitives::support::{
-    clamp_fraction, leading_arrow_for_axis, trailing_arrow_for_axis,
-};
+use crate::widgets::primitives::support::clamp_fraction;
 
-use super::ScrollbarWidget;
 use super::geometry::{axis_length, axis_position, axis_start};
+use super::{ScrollbarAxis, ScrollbarWidget};
 
 pub(super) fn handle_scrollbar_input(
     scrollbar: &mut ScrollbarWidget,
@@ -77,6 +75,20 @@ fn handle_key_input(scrollbar: &mut ScrollbarWidget, key: WidgetKey) -> Option<S
         WidgetKey::End => scrollbar.set_offset_fraction(1.0),
         _ => delta
             .and_then(|step| scrollbar.set_offset_fraction(scrollbar.state.offset_fraction + step)),
+    }
+}
+
+fn leading_arrow_for_axis(axis: ScrollbarAxis) -> WidgetKey {
+    match axis {
+        ScrollbarAxis::Horizontal => WidgetKey::ArrowLeft,
+        ScrollbarAxis::Vertical => WidgetKey::ArrowUp,
+    }
+}
+
+fn trailing_arrow_for_axis(axis: ScrollbarAxis) -> WidgetKey {
+    match axis {
+        ScrollbarAxis::Horizontal => WidgetKey::ArrowRight,
+        ScrollbarAxis::Vertical => WidgetKey::ArrowDown,
     }
 }
 

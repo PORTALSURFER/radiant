@@ -5,11 +5,13 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, push_card_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{
     Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Public card/panel primitive for grouped content surfaces.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +54,7 @@ impl Widget for CardWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_card_widget_paint(primitives, self, bounds, theme);
+        paint::push_card_widget_paint(primitives, self, bounds, theme);
     }
 }
 

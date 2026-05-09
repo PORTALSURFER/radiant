@@ -105,6 +105,29 @@ impl<T> ResourceLoad<T> {
     }
 }
 
+/// Request token for one in-flight resource load.
+///
+/// Hosts that can start repeated loads for the same key should keep this token
+/// with the worker result and apply it through [`ResourceSlot::apply_for`] so an
+/// older completion cannot overwrite a newer request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResourceRequest {
+    key: ResourceKey,
+    generation: u64,
+}
+
+impl ResourceRequest {
+    /// Return the resource key associated with this request.
+    pub fn key(&self) -> &ResourceKey {
+        &self.key
+    }
+
+    /// Return the monotonic request generation.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+}
+
 /// Stored state for one host-owned resource.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResourceSlot<T> {
@@ -113,6 +136,7 @@ pub struct ResourceSlot<T> {
     value: Option<T>,
     error: Option<String>,
     revision: u64,
+    generation: u64,
 }
 
 impl<T> ResourceSlot<T> {
@@ -124,6 +148,7 @@ impl<T> ResourceSlot<T> {
             value: None,
             error: None,
             revision: 0,
+            generation: 0,
         }
     }
 
@@ -157,14 +182,28 @@ impl<T> ResourceSlot<T> {
         self.revision
     }
 
-    /// Mark this resource as loading and clear the previous error.
-    pub fn mark_loading(&mut self) {
+    /// Mark this resource as loading and return a request token.
+    ///
+    /// Applying a later completion with [`Self::apply_for`] rejects older
+    /// tokens for the same resource key.
+    pub fn begin_load(&mut self) -> ResourceRequest {
+        self.generation = self.generation.saturating_add(1);
         self.state = ResourceLoadState::Loading;
         self.error = None;
+        ResourceRequest {
+            key: self.key.clone(),
+            generation: self.generation,
+        }
+    }
+
+    /// Mark this resource as loading and clear the previous error.
+    pub fn mark_loading(&mut self) {
+        let _ = self.begin_load();
     }
 
     /// Clear loaded value and error state.
     pub fn clear(&mut self) {
+        self.generation = self.generation.saturating_add(1);
         self.state = ResourceLoadState::Idle;
         self.value = None;
         self.error = None;
@@ -193,6 +232,17 @@ impl<T> ResourceSlot<T> {
         }
         self.bump_revision();
         true
+    }
+
+    /// Apply a completed load only if it belongs to the current request token.
+    ///
+    /// Results for another key or an older request generation are ignored and
+    /// return `false`.
+    pub fn apply_for(&mut self, request: &ResourceRequest, load: ResourceLoad<T>) -> bool {
+        if request.key != self.key || request.generation != self.generation {
+            return false;
+        }
+        self.apply(load)
     }
 
     fn bump_revision(&mut self) {
@@ -240,5 +290,37 @@ mod tests {
         assert!(!slot.apply(ResourceLoad::ready("other", String::from("stale"))));
         assert_eq!(slot.state(), ResourceLoadState::Idle);
         assert_eq!(slot.revision(), 0);
+    }
+
+    #[test]
+    fn resource_slot_rejects_stale_request_results_for_same_key() {
+        let mut slot = ResourceSlot::new("preview");
+
+        let stale = slot.begin_load();
+        let current = slot.begin_load();
+
+        assert_eq!(stale.key().as_str(), "preview");
+        assert!(current.generation() > stale.generation());
+        assert!(!slot.apply_for(&stale, ResourceLoad::ready("preview", "old pixels")));
+        assert_eq!(slot.state(), ResourceLoadState::Loading);
+        assert_eq!(slot.revision(), 0);
+
+        assert!(slot.apply_for(&current, ResourceLoad::ready("preview", "new pixels")));
+        assert_eq!(slot.state(), ResourceLoadState::Ready);
+        assert_eq!(slot.value(), Some(&"new pixels"));
+        assert_eq!(slot.revision(), 1);
+    }
+
+    #[test]
+    fn resource_slot_clear_invalidates_in_flight_request() {
+        let mut slot = ResourceSlot::new("preview");
+
+        let request = slot.begin_load();
+        slot.clear();
+
+        assert!(!slot.apply_for(&request, ResourceLoad::ready("preview", "pixels")));
+        assert_eq!(slot.state(), ResourceLoadState::Idle);
+        assert_eq!(slot.value(), None);
+        assert_eq!(slot.revision(), 1);
     }
 }

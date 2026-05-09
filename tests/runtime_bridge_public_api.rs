@@ -4,8 +4,8 @@ use radiant::{
     gui::repaint::RepaintSignal,
     layout::Vector2,
     runtime::{
-        App, Command, ResourceLoad, ResourceLoadState, ResourceSlot, RuntimeBridge, SurfaceChild,
-        SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        App, Command, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
         declarative_command_runtime_bridge, declarative_runtime_bridge,
     },
     widgets::{
@@ -173,6 +173,22 @@ fn runtime_resource_slot_tracks_host_owned_background_results() {
     assert!(preview.apply(ResourceLoad::failed("preview", "invalid resource")));
     assert_eq!(preview.state(), ResourceLoadState::Failed);
     assert_eq!(preview.error(), Some("invalid resource"));
+}
+
+#[test]
+fn runtime_resource_requests_reject_stale_same_key_results() {
+    let mut preview = ResourceSlot::new("preview");
+
+    let stale: ResourceRequest = preview.begin_load();
+    let current = preview.begin_load();
+
+    assert!(!preview.apply_for(&stale, ResourceLoad::ready("preview", String::from("old"))));
+    assert_eq!(preview.state(), ResourceLoadState::Loading);
+    assert!(preview.apply_for(
+        &current,
+        ResourceLoad::ready("preview", String::from("current"))
+    ));
+    assert_eq!(preview.value().map(String::as_str), Some("current"));
 }
 
 fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessage>> {

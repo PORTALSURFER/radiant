@@ -60,7 +60,7 @@ pub mod prelude {
     pub use crate::runtime::{
         Command, GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
         GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, ResourceKey, ResourceLoad,
-        ResourceLoadState, ResourceSlot, WindowManifest, WindowSpec,
+        ResourceLoadState, ResourceRequest, ResourceSlot, WindowManifest, WindowSpec,
     };
     pub use crate::widgets::{
         DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, Widget, WidgetOutput,

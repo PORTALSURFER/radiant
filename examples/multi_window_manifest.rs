@@ -5,7 +5,7 @@ use radiant::prelude::*;
 fn main() {
     let manifest = build_window_manifest();
     let view_count = build_window_views().len();
-    for spec in manifest {
+    for spec in manifest.specs() {
         let options = spec.native_options();
         println!(
             "radiant_window_spec key={} title={} size={:?} min_size={:?} views={}",
@@ -14,8 +14,8 @@ fn main() {
     }
 }
 
-fn build_window_manifest() -> Vec<WindowSpec> {
-    vec![
+fn build_window_manifest() -> WindowManifest {
+    WindowManifest::from_specs([
         radiant::window("Radiant Main Workspace")
             .size(900, 620)
             .min_size(640, 420)
@@ -27,7 +27,8 @@ fn build_window_manifest() -> Vec<WindowSpec> {
         WindowSpec::new("preview", "Radiant Preview")
             .size(480, 320)
             .drag_and_drop(false),
-    ]
+    ])
+    .expect("example manifest has unique stable window keys")
 }
 
 fn build_window_views() -> Vec<View> {
@@ -65,12 +66,21 @@ mod tests {
 
         assert_eq!(manifest.len(), 3);
         assert_eq!(views.len(), manifest.len());
-        assert_eq!(manifest[0].key, "main");
         assert_eq!(
-            manifest[0].native_options().inner_size,
+            manifest.keys().collect::<Vec<_>>(),
+            ["main", "inspector", "preview"]
+        );
+        assert_eq!(
+            manifest.get("main").unwrap().native_options().inner_size,
             Some([900.0, 620.0])
         );
-        assert!(!manifest[2].native_options().drag_and_drop);
+        assert!(
+            !manifest
+                .get("preview")
+                .unwrap()
+                .native_options()
+                .drag_and_drop
+        );
         let first_view = views.into_iter().next().expect("main view exists");
         assert!(first_view.into_surface().find_widget(3).is_some());
     }

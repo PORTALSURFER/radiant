@@ -5,9 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, push_drag_handle_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Public drag handle primitive for pointer-driven reordering.
 #[derive(Clone, Debug, PartialEq)]
@@ -83,7 +85,7 @@ impl Widget for DragHandleWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_drag_handle_widget_paint(primitives, self, bounds, theme);
+        paint::push_drag_handle_widget_paint(primitives, self, bounds, theme);
     }
 }
 

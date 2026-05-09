@@ -5,7 +5,7 @@ use crate::runtime::{PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, inset
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::drag_handle::DragHandleWidget;
 
-pub(in crate::widgets::primitives) fn push_drag_handle_widget_paint(
+pub(super) fn push_drag_handle_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     handle: &DragHandleWidget,
     bounds: Rect,

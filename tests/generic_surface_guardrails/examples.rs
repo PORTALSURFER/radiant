@@ -170,6 +170,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
                 "toggle(",
             ],
         ),
+        (
+            "theme_playground",
+            vec![
+                "ThemeTokens::dark_for_viewport_width(",
+                "effective_ui_scale(",
+                "resolve_widget_visual_tokens(",
+                "radiant_theme_playground",
+            ],
+        ),
         ("scroll", vec!["scroll_column(", ".fill_height()"]),
         (
             "sizing",

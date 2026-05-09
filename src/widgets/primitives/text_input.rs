@@ -6,7 +6,6 @@ use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::WidgetCommon;
-use super::support::push_text_input_widget_paint;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{TextInputMessage, WidgetInput, WidgetOutput};
 
@@ -14,6 +13,7 @@ mod editing;
 mod editing_ops;
 mod input;
 mod model;
+mod paint;
 
 pub use model::{TextInputProps, TextInputState};
 
@@ -70,7 +70,7 @@ impl Widget for TextInputWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_text_input_widget_paint(primitives, self, bounds, theme);
+        paint::push_text_input_widget_paint(primitives, self, bounds, theme);
     }
 }
 

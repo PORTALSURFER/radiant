@@ -1,6 +1,6 @@
 //! Reusable scrollbar primitive.
 
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Point, Rect};
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
@@ -13,6 +13,9 @@ use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, Wid
 use crate::widgets::interaction::{
     PointerButton, ScrollbarMessage, WidgetInput, WidgetKey, WidgetOutput,
 };
+
+mod geometry;
+use geometry::{axis_length, axis_position, axis_rect, axis_start};
 
 const MIN_THUMB_PIXELS: f32 = 12.0;
 
@@ -260,40 +263,6 @@ impl<Message> SurfaceNode<Message> {
             ScrollbarWidget::new(id, axis, sizing),
             WidgetMessageMapper::scrollbar(map),
         )
-    }
-}
-
-fn axis_length(axis: ScrollbarAxis, rect: Rect) -> f32 {
-    match axis {
-        ScrollbarAxis::Horizontal => rect.width(),
-        ScrollbarAxis::Vertical => rect.height(),
-    }
-}
-
-fn axis_start(axis: ScrollbarAxis, rect: Rect) -> f32 {
-    match axis {
-        ScrollbarAxis::Horizontal => rect.min.x,
-        ScrollbarAxis::Vertical => rect.min.y,
-    }
-}
-
-fn axis_position(axis: ScrollbarAxis, point: Point) -> f32 {
-    match axis {
-        ScrollbarAxis::Horizontal => point.x,
-        ScrollbarAxis::Vertical => point.y,
-    }
-}
-
-fn axis_rect(axis: ScrollbarAxis, bounds: Rect, start: f32, length: f32) -> Rect {
-    match axis {
-        ScrollbarAxis::Horizontal => Rect::from_min_size(
-            Point::new(start, bounds.min.y),
-            Vector2::new(length, bounds.height()),
-        ),
-        ScrollbarAxis::Vertical => Rect::from_min_size(
-            Point::new(bounds.min.x, start),
-            Vector2::new(bounds.width(), length),
-        ),
     }
 }
 

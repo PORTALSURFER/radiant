@@ -1,6 +1,6 @@
 //! Native startup timing diagnostic emission.
 
-use super::StartupTimingProfile;
+use super::{StartupTimingProfile, artifact};
 
 const STARTUP_PROFILE_ENV: &str = "RADIANT_NATIVE_STARTUP_PROFILE";
 const STARTUP_PROFILE_LOG_PREFIX: &str = "[native-vello-startup]";
@@ -13,7 +13,7 @@ pub(super) fn emit_summary_if_ready(profile: &mut StartupTimingProfile) {
     if profile.summary_emitted {
         return;
     }
-    let Some(artifact) = profile.export_completed_artifact() else {
+    let Some(artifact) = artifact::export_completed_startup_timing_artifact(profile) else {
         return;
     };
     tracing::info!(

@@ -60,6 +60,10 @@ name = "layout_rows_columns"
 path = "examples/layout_rows_columns.rs"
 
 [[example]]
+name = "grid_gallery"
+path = "examples/grid_gallery.rs"
+
+[[example]]
 name = "folder_browser"
 path = "examples/folder_browser.rs"
 

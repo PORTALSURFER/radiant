@@ -76,6 +76,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             "layout_rows_columns",
             vec!["row([", "column([", ".padding(", ".fill_width()"],
         ),
+        (
+            "grid_gallery",
+            vec![
+                "grid_with_gaps(",
+                ".wrap()",
+                ".fill()",
+                "WidgetTone::Accent",
+            ],
+        ),
         ("list", vec!["list(", "list_row(", ".fill_height()"]),
         (
             "virtualized_list",

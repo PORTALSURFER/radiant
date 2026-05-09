@@ -407,6 +407,39 @@ fn application_builder_virtual_list_records_virtual_window() {
 }
 
 #[test]
+fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::grid_with_gaps(
+        (0..5).map(|index| {
+            ui::text(format!("Tile {index}"))
+                .id(100 + index)
+                .fill_width()
+                .height(28.0)
+        }),
+        2,
+        10.0,
+        6.0,
+    )
+    .id(10)
+    .padding(4.0)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 160.0)),
+    );
+    let first = layout.rects[&100];
+    let second = layout.rects[&101];
+    let third = layout.rects[&102];
+
+    assert_eq!(layout.rects[&10].min.x, 0.0);
+    assert!(second.min.x > first.max.x);
+    assert_eq!(first.min.y, second.min.y);
+    assert!(third.min.y > first.min.y);
+    assert_eq!(first.height(), 28.0);
+}
+
+#[test]
 fn application_builder_property_panel_routes_row_selection() {
     use radiant::prelude as ui;
 

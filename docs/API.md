@@ -474,6 +474,9 @@ normal state callbacks.
 Run `cargo run --example split_workspace` for an editor-style split workspace
 that uses `SplitPaneSidebarState`, `SplitPaneSlot`, and generic Radiant views
 without adding docking-specific runtime concepts.
+Run `cargo run --example node_editor` for a node-editor-style workspace that
+composes retained canvas metadata, drop markers, card stacks, selectables, and
+drag handles through public application builders.
 Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
 uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.

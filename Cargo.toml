@@ -80,6 +80,10 @@ name = "split_workspace"
 path = "examples/split_workspace.rs"
 
 [[example]]
+name = "node_editor"
+path = "examples/node_editor.rs"
+
+[[example]]
 name = "inspector_panel"
 path = "examples/inspector_panel.rs"
 

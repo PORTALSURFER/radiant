@@ -125,6 +125,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "node_editor",
+            vec![
+                "retained_canvas(",
+                "drop_marker(",
+                "drag_handle()",
+                "selectable(",
+            ],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

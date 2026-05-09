@@ -5,9 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard, push_selectable_widget_paint};
+use super::support::{WidgetCommon, activate_on_keyboard};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{PointerButton, SelectableMessage, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Immutable public properties for a reusable selectable surface.
 #[derive(Clone, Debug, PartialEq)]
@@ -111,7 +113,7 @@ impl Widget for SelectableWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_selectable_widget_paint(primitives, self, bounds, theme);
+        paint::push_selectable_widget_paint(primitives, self, bounds, theme);
     }
 }
 

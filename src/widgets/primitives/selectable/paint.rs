@@ -1,15 +1,16 @@
 //! Selectable paint command generation.
 
-use super::super::chrome::push_control_chrome;
 use crate::gui::types::Rect;
 use crate::runtime::{
     PaintPrimitive, PaintTextAlign, inset_rect, optical_centered_baseline, push_text_run,
     text_font_size,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::{selectable::SelectableWidget, text::TextWrap};
+use crate::widgets::primitives::{
+    selectable::SelectableWidget, support::push_control_chrome, text::TextWrap,
+};
 
-pub(in crate::widgets::primitives) fn push_selectable_widget_paint(
+pub(super) fn push_selectable_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     selectable: &SelectableWidget,
     bounds: Rect,

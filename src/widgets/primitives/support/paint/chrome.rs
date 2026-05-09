@@ -7,7 +7,7 @@ use crate::theme::ThemeTokens;
 use crate::widgets::contract::{WidgetId, WidgetState};
 use crate::widgets::primitives::WidgetCommon;
 
-pub(super) fn push_button_chrome(
+pub(in crate::widgets::primitives) fn push_button_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     common: &WidgetCommon,
     bounds: Rect,

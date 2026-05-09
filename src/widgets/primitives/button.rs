@@ -2,13 +2,14 @@
 
 mod input;
 mod model;
+mod paint;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, push_button_widget_paint};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
 
@@ -82,7 +83,7 @@ impl Widget for ButtonWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_button_widget_paint(primitives, self, bounds, theme);
+        paint::push_button_widget_paint(primitives, self, bounds, theme);
     }
 }
 

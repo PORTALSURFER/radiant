@@ -1,15 +1,16 @@
 //! Button paint command generation.
 
-use super::super::chrome::push_button_chrome;
 use crate::gui::types::Rect;
 use crate::runtime::{
     PaintPrimitive, PaintTextAlign, button_font_size, inset_rect, optical_centered_baseline,
     push_text_run,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::{button::ButtonWidget, text::TextWrap};
+use crate::widgets::primitives::{
+    button::ButtonWidget, support::push_button_chrome, text::TextWrap,
+};
 
-pub(in crate::widgets::primitives) fn push_button_widget_paint(
+pub(super) fn push_button_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     button: &ButtonWidget,
     bounds: Rect,

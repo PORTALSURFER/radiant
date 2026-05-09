@@ -8,9 +8,10 @@ pub use common::WidgetCommon;
 pub(super) use input::{
     activate_on_keyboard, clamp_fraction, leading_arrow_for_axis, trailing_arrow_for_axis,
 };
+pub(super) use paint::push_button_chrome;
 pub(super) use paint::{
-    push_badge_widget_paint, push_button_widget_paint, push_canvas_widget_paint,
-    push_card_widget_paint, push_drag_handle_widget_paint, push_image_widget_paint,
-    push_list_item_widget_paint, push_scrollbar_widget_paint, push_selectable_widget_paint,
-    push_text_input_widget_paint, push_text_widget_paint, push_toggle_widget_paint,
+    push_badge_widget_paint, push_canvas_widget_paint, push_card_widget_paint,
+    push_drag_handle_widget_paint, push_image_widget_paint, push_list_item_widget_paint,
+    push_scrollbar_widget_paint, push_selectable_widget_paint, push_text_input_widget_paint,
+    push_text_widget_paint, push_toggle_widget_paint,
 };

@@ -84,8 +84,9 @@ Application builders generate deterministic structural IDs during projection and
 provide default widget sizing. Production apps and tests can opt back into
 explicit control with `.id(...)`, `.sizing(...)`, `.size(...)`, `.fixed(...)`,
 `.min_size(...)`, `.preferred_size(...)`, `.baseline(...)`, and `.spacing(...)`.
-Rows and columns use intrinsic main-axis child sizing by default, so list rows
-do not stretch just because there are only a few items. Apps can request
+Rows, columns, and fixed-column grids use intrinsic main-axis child sizing by
+default, so list rows and grid tiles do not stretch just because there are only
+a few items. Apps can request
 stretch behavior explicitly with `.fill()`, `.fill_width()`, `.fill_height()`,
 and `.grow(...)`, add container padding with `.padding(...)`, `.padding_x(...)`,
 and `.padding_y(...)`, and use `.primary()`, `.danger()`, `.subtle()`,
@@ -476,6 +477,8 @@ state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
+Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
+uses `grid_with_gaps(...)` with normal nested views and styling.
 
 ## Quality Gate
 

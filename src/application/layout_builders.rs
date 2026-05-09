@@ -56,6 +56,42 @@ pub fn column_key<Message>(
     column(children).key(key)
 }
 
+/// Build a grid container with a fixed column count and default gaps.
+pub fn grid<Message>(
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+    columns: usize,
+) -> ViewNode<Message> {
+    grid_with_gaps(children, columns, 8.0, 8.0)
+}
+
+/// Build a grid container with a fixed column count and explicit gaps.
+pub fn grid_with_gaps<Message>(
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+    columns: usize,
+    column_gap: f32,
+    row_gap: f32,
+) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::Grid {
+            columns,
+            column_gap,
+            row_gap,
+            children: children.into_iter().collect(),
+        },
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
+        style: None,
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
+}
+
 /// Build a stack container that overlays children in paint order.
 pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     ViewNode {

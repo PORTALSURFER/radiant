@@ -66,6 +66,35 @@ where
                     SurfaceNode::container(id, policy, children)
                 }
             }
+            ViewNodeKind::Grid {
+                columns,
+                column_gap,
+                row_gap,
+                children,
+            } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::Grid,
+                    grid: GridPolicy {
+                        columns,
+                        column_gap,
+                        row_gap,
+                    },
+                    padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
+                    ..ContainerPolicy::default()
+                };
+                let children = children
+                    .into_iter()
+                    .map(|child| child.lower_child(ids, child_scope, false))
+                    .collect();
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
+            }
             ViewNodeKind::Scroll { child } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::ScrollView,

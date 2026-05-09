@@ -27,6 +27,12 @@ enum ViewNodeKind<Message> {
         spacing: f32,
         children: Vec<ViewNode<Message>>,
     },
+    Grid {
+        columns: usize,
+        column_gap: f32,
+        row_gap: f32,
+        children: Vec<ViewNode<Message>>,
+    },
     Scroll {
         child: Box<ViewNode<Message>>,
     },

@@ -5,11 +5,13 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard, push_badge_widget_paint};
+use super::support::{WidgetCommon, activate_on_keyboard};
 use crate::widgets::contract::{
     FocusBehavior, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
 use crate::widgets::interaction::{BadgeMessage, PointerButton, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Immutable public properties for a reusable badge or pill widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -128,7 +130,7 @@ impl Widget for BadgeWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_badge_widget_paint(primitives, self, bounds, theme);
+        paint::push_badge_widget_paint(primitives, self, bounds, theme);
     }
 }
 

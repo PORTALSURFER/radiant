@@ -2,7 +2,7 @@ use crate::gui::types::Rect;
 use crate::runtime::{PaintCustomSurface, PaintPrimitive};
 use crate::widgets::primitives::canvas::CanvasWidget;
 
-pub(in crate::widgets::primitives) fn push_canvas_widget_paint(
+pub(super) fn push_canvas_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     canvas: &CanvasWidget,
     bounds: Rect,

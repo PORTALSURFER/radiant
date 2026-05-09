@@ -7,6 +7,7 @@ mod frame;
 mod image;
 mod shape;
 mod text_input;
+mod text_input_selection;
 pub(in crate::gui_runtime::native_vello) use cache::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache,
 };

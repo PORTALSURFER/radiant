@@ -5,6 +5,8 @@ use crate::gui_runtime::native_vello::{
     *,
 };
 
+use super::text_input_selection::resolve_text_input_selection;
+
 pub(super) fn encode_text_input(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
@@ -21,21 +23,10 @@ pub(super) fn encode_text_input(
     };
     if input.focused && !is_placeholder {
         let mut editor = SingleLineTextEditorState::collapsed_at_end(text);
-        let caret_char = input.state.caret.min(text.chars().count());
-        let anchor_char = input.state.selection_anchor.min(text.chars().count());
-        let has_selection = caret_char != anchor_char;
-        let selection_start = caret_char.min(anchor_char);
-        let selection_end = if has_selection {
-            caret_char.max(anchor_char).saturating_add(1)
-        } else {
-            caret_char
-        }
-        .min(text.chars().count());
-        let caret_byte = byte_index_for_char(text, caret_char);
-        let selection_start_byte = byte_index_for_char(text, selection_start);
-        let selection_end_byte = byte_index_for_char(text, selection_end);
-        editor.set_cursor(text, selection_start_byte, false);
-        editor.set_cursor(text, selection_end_byte, true);
+        let selection =
+            resolve_text_input_selection(text, input.state.caret, input.state.selection_anchor);
+        editor.set_cursor(text, selection.start_byte, false);
+        editor.set_cursor(text, selection.end_byte, true);
         let layout = build_text_field_layout(
             text_renderer,
             &mut editor,
@@ -55,9 +46,9 @@ pub(super) fn encode_text_input(
                 ),
             );
         }
-        let caret_offset = if has_selection {
+        let caret_offset = if selection.has_selection {
             let mut caret_editor = SingleLineTextEditorState::collapsed_at_end(text);
-            caret_editor.set_cursor(text, caret_byte, false);
+            caret_editor.set_cursor(text, selection.caret_byte, false);
             build_text_field_layout(
                 text_renderer,
                 &mut caret_editor,
@@ -142,11 +133,4 @@ fn encode_block_caret(scene: &mut Scene, input: &PaintTextInput, x: f32, animati
             Point::new(caret_x + caret_width, caret_y + caret_height),
         ),
     );
-}
-
-fn byte_index_for_char(text: &str, char_index: usize) -> usize {
-    text.char_indices()
-        .nth(char_index)
-        .map(|(index, _)| index)
-        .unwrap_or(text.len())
 }

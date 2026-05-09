@@ -78,6 +78,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "context_menu",
+            vec!["context_menu_overlay(", "MenuItem::new(", ".danger()"],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

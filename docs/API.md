@@ -464,6 +464,9 @@ Run `cargo run --example inspector_panel` for a compact inspector/property
 panel sandbox that uses `PropertyRow`, `property_panel(...)`, and
 `selectable_property_panel(...)` on the same application-builder path as other
 stateful examples.
+Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
+that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
+normal state callbacks.
 
 ## Quality Gate
 

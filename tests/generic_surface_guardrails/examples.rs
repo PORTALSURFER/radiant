@@ -69,6 +69,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
         ),
         (
+            "multi_window_manifest",
+            vec![
+                "radiant::window(",
+                ".spec(",
+                "WindowSpec::new(",
+                "build_window_views()",
+            ],
+        ),
+        (
             "typography",
             vec![".wrap()", ".truncate()", ".baseline(", ".fill_width()"],
         ),

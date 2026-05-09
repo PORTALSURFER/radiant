@@ -6,7 +6,7 @@
 
 use crate::{
     gui::types::{ImageRgba, Point},
-    gui_runtime::NativeRunOptions,
+    gui_runtime::{NativeRunOptions, WindowSpec},
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, NodeId,
         SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,

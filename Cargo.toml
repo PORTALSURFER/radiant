@@ -32,6 +32,10 @@ name = "hello_world"
 path = "examples/hello_world.rs"
 
 [[example]]
+name = "multi_window_manifest"
+path = "examples/multi_window_manifest.rs"
+
+[[example]]
 name = "counter"
 path = "examples/counter.rs"
 

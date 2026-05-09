@@ -31,6 +31,11 @@ impl WindowBuilder {
         self
     }
 
+    /// Convert this launch builder into a platform-neutral window descriptor.
+    pub fn spec(self, key: impl Into<String>) -> WindowSpec {
+        WindowSpec::from_options(key, self.options)
+    }
+
     /// Run one static view through the native Vello runtime.
     pub fn run<View>(self, view: View) -> Result
     where

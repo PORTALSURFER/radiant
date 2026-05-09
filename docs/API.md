@@ -105,6 +105,11 @@ native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,
 decorations, icon, target frame rate, and whether native file drag-and-drop is
 requested on platforms that support it.
+`WindowSpec` describes one host-managed window without opening the platform
+runtime. It carries a stable host key plus native options, so multi-window or
+embedded hosts can keep a manifest of windows and attach a separate bridge or
+view to each spec. `radiant::window(...).spec("main")` converts the no-state
+launch builder into the same manifest shape.
 
 Serious apps use the same builder API. `radiant::app(...)` supports
 `.subscriptions(...)` for interval and worker-message sources, `.animation(...)`
@@ -462,6 +467,9 @@ path as real input.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
+Run `cargo run --example multi_window_manifest` for a checked manifest sandbox
+that describes multiple windows and separate views without expanding the native
+runtime event loop.
 Run `cargo run --example layout_diagnostics` for a layout diagnostics sandbox
 that collects `LayoutDiagnostic` entries and debug primitives from
 `LayoutDebugOptions::all_enabled()`.

@@ -109,6 +109,33 @@ fn styled_list_row_hover_changes_container_chrome() {
 }
 
 #[test]
+fn runtime_frame_reflects_hover_aware_paint_state() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> =
+        ui::list_row("row", [ui::text("Hover row").id(20).fill_width()])
+            .id(10)
+            .into_surface();
+    let bridge =
+        declarative_runtime_bridge(Arc::new(surface), |surface| Arc::clone(surface), |_, _| {});
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 52.0));
+    let theme = ThemeTokens::default();
+    let before = widget_fill_color(&runtime.frame(&theme).paint_plan, 10);
+
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(12.0, 12.0),
+    });
+    let frame = runtime.frame(&theme);
+    let after = widget_fill_color(&frame.paint_plan, 10);
+
+    assert_eq!(frame.viewport.width(), 240.0);
+    assert!(frame.layout.rects.contains_key(&10));
+    assert_eq!(frame.paint_plan, runtime.paint_plan(&theme));
+    assert_eq!(runtime.hovered_container(), Some(10));
+    assert_ne!(before, after);
+}
+
+#[test]
 fn static_styled_container_does_not_hover_without_opt_in() {
     use radiant::prelude::{self as ui, IntoView};
 

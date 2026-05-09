@@ -16,7 +16,7 @@ pub use commands::CommandOutcome;
 pub use context::RuntimeContext;
 pub use events::Event;
 
-use super::{Command, RuntimeBridge, SurfacePaintPlan, UiSurface};
+use super::{Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, UiSurface};
 use crate::{
     gui::{
         focus::FocusSurface,

@@ -349,6 +349,10 @@ direct embedded-host path when the application or plugin framework owns the
 window, native surface, or render pass; `UiSurface::frame_with_layout_options(...)`
 keeps layout state, debug primitives, and diagnostics available for hosts that
 need scroll offsets, virtualization state, or layout debugging.
+`SurfaceRuntime::frame(...)` packages the same frame shape from the current
+event-driven runtime state, including hover-aware paint and refreshed layout, so
+custom host loops do not need to stitch viewport, layout, and paint data
+manually after dispatching events.
 
 Paint primitive generation is owned by the projected surface types that carry
 the visual contract: widgets implement widget paint through the `Widget` trait,

@@ -1,5 +1,12 @@
 use crate::{
-    gui::{paint::PaintFrame as GuiPaintFrame, repaint::RepaintSignal, types::Rect},
+    gui::{
+        focus::FocusSurface,
+        input::KeyPress,
+        paint::PaintFrame as GuiPaintFrame,
+        repaint::RepaintSignal,
+        shortcuts::ShortcutResolution,
+        types::Rect,
+    },
     widgets::{RetainedSurfaceDescriptor, WidgetId},
 };
 
@@ -8,6 +15,8 @@ type RetainedPainter<State> =
 type AppAnimation<State> = Box<dyn FnMut(&mut State) -> bool>;
 type AppFrameMessage<Message> = Box<dyn FnMut() -> Message>;
 type AppSubscriptions<State, Message> = Box<dyn FnMut(&mut State) -> Subscription<Message>>;
+type AppShortcuts<State, Message> =
+    Box<dyn FnMut(&mut State, Option<KeyPress>, KeyPress, FocusSurface) -> ShortcutResolution<Message>>;
 type AppStartup<State, Message> = Box<dyn FnMut(&mut State, &mut UpdateContext<Message>)>;
 type AppShutdown<State> = Box<dyn FnMut(&mut State) -> Option<serde_json::Value>>;
 type AppCloseRequested<State> = Box<dyn FnMut(&mut State) -> bool>;

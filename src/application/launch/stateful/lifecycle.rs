@@ -26,6 +26,21 @@ where
         self
     }
 
+    /// Resolve app-level keyboard shortcuts before focused-widget key routing.
+    pub fn shortcuts(
+        mut self,
+        shortcuts: impl FnMut(
+                &mut State,
+                Option<KeyPress>,
+                KeyPress,
+                FocusSurface,
+            ) -> ShortcutResolution<Message>
+            + 'static,
+    ) -> Self {
+        self.shortcuts = Some(Box::new(shortcuts));
+        self
+    }
+
     /// Register a startup hook.
     pub fn on_startup(
         mut self,

@@ -6,6 +6,7 @@ struct AppBridge<State, Message, Project, Update, View> {
     animation: Option<AppAnimation<State>>,
     frame_message: Option<AppFrameMessage<Message>>,
     subscriptions: Option<AppSubscriptions<State, Message>>,
+    shortcuts: Option<AppShortcuts<State, Message>>,
     startup: Option<AppStartup<State, Message>>,
     shutdown: Option<AppShutdown<State>>,
     close_requested: Option<AppCloseRequested<State>>,
@@ -43,6 +44,18 @@ where
 
     fn update(&mut self, message: Message) -> Command<Message> {
         self.run_update(message)
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        pending_chord: Option<KeyPress>,
+        press: KeyPress,
+        focus: FocusSurface,
+    ) -> ShortcutResolution<Message> {
+        self.shortcuts
+            .as_mut()
+            .map(|shortcuts| shortcuts(&mut self.state, pending_chord, press, focus))
+            .unwrap_or_else(ShortcutResolution::unhandled)
     }
 
     fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {

@@ -3,7 +3,10 @@
 use radiant::{
     app,
     gui::{
+        focus::FocusSurface,
+        input::{KeyCode, KeyPress},
         repaint::RepaintSignal,
+        shortcuts::ShortcutResolution,
         types::{ImageRgba, Rect, Vector2},
     },
     prelude::{GpuSurfaceContent, IntoView, gpu_surface, gpu_surface_input},
@@ -12,7 +15,7 @@ use radiant::{
         UiSurface,
     },
     theme::ThemeTokens,
-    widgets::{TextInputWidget, TextWidget, WidgetInput, WidgetSizing},
+    widgets::{ButtonWidget, TextInputWidget, TextWidget, WidgetInput, WidgetKey, WidgetSizing},
 };
 use std::sync::{
     Arc,
@@ -208,6 +211,67 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
     assert!(runtime.bridge_mut().needs_animation());
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 1);
+}
+
+fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String {
+    surface
+        .find_widget(widget_id)
+        .expect("widget exists")
+        .widget_object()
+        .as_any()
+        .downcast_ref::<ButtonWidget>()
+        .expect("widget is button")
+        .props
+        .label
+        .clone()
+}
+
+#[test]
+fn app_shortcuts_dispatch_messages_before_focused_widget_key_routing() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            radiant::prelude::button(format!("Count {}", state.count))
+                .message(DemoMessage::Increment)
+                .id(10)
+        })
+        .shortcuts(|_, _, press, _| {
+            if press == KeyPress::with_command(KeyCode::I) {
+                ShortcutResolution::action(DemoMessage::Increment)
+            } else if press == KeyPress::new(KeyCode::Enter) {
+                ShortcutResolution::handled()
+            } else {
+                ShortcutResolution::unhandled()
+            }
+        })
+        .update_with(|state, message, _context| {
+            if matches!(message, DemoMessage::Increment) {
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::with_command(KeyCode::I),
+        None,
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+
+    assert!(runtime.focus_widget(10));
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::Enter),
+        Some(WidgetKey::Enter),
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 1");
+
+    assert!(runtime.dispatch_key_press(
+        KeyPress::new(KeyCode::Space),
+        Some(WidgetKey::Space),
+        FocusSurface::None
+    ));
+    assert_eq!(button_label(runtime.surface(), 10), "Count 2");
 }
 
 #[test]

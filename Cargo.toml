@@ -124,6 +124,10 @@ name = "focus_controls"
 path = "examples/focus_controls.rs"
 
 [[example]]
+name = "plugin_panel"
+path = "examples/plugin_panel.rs"
+
+[[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 

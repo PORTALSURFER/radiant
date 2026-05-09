@@ -481,6 +481,9 @@ Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` to move keyboard focus from normal app messages.
+Run `cargo run --example plugin_panel` for a dense plugin-style control panel
+that stays on generic Radiant layout, style, focus, and state-callback APIs;
+host/plugin SDK integration remains outside Radiant.
 
 ## Quality Gate
 

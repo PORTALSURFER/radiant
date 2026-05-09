@@ -136,6 +136,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             ],
         ),
         (
+            "plugin_panel",
+            vec![
+                "grid_with_gaps(",
+                "toggle(",
+                "parameter_tile(",
+                "WidgetProminence::Subtle",
+            ],
+        ),
+        (
             "custom_widget",
             vec![
                 "impl Widget for StatusChip",

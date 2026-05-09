@@ -2,14 +2,15 @@
 
 use radiant::{
     layout::{
-        Constraints, LayoutDebugOptions, LayoutState, Point, Rect, SizeModeCross, SizeModeMain,
-        SlotParams, Vector2, VirtualizationAxis, layout_tree, layout_tree_with_state,
+        Constraints, ContainerKind, ContainerPolicy, LayoutDebugOptions, LayoutState, Point, Rect,
+        SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis, layout_tree,
+        layout_tree_with_state,
     },
     runtime::{
         PaintPrimitive, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
         declarative_runtime_bridge,
     },
-    widgets::WidgetSizing,
+    widgets::{WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
 
@@ -113,6 +114,49 @@ fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {
     assert_eq!(scrollbar_fills.len(), 1);
     assert!(scrollbar_fills[0].rect.width() <= 3.0);
     assert_eq!(scrollbar_fills[0].rect.max.x, layout.rects[&31].max.x);
+}
+
+#[test]
+fn styled_scroll_container_paints_own_chrome_then_clips_content() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::styled_container(
+        31,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: radiant::layout::OverflowPolicy::Scroll,
+            ..ContainerPolicy::default()
+        },
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: WidgetProminence::Subtle,
+        },
+        vec![SurfaceChild::fill(SurfaceNode::text(
+            32,
+            "Long content",
+            WidgetSizing::fixed(Vector2::new(220.0, 160.0)),
+        ))],
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(100.0, 80.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &Default::default());
+    let chrome = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.widget_id == 31),
+        )
+        .expect("styled scroll container should paint its own chrome");
+    let clip_start = plan
+        .primitives
+        .iter()
+        .position(
+            |primitive| matches!(primitive, PaintPrimitive::ClipStart(clip) if clip.node_id == 31),
+        )
+        .expect("styled scroll container should clip its content after chrome");
+
+    assert!(chrome < clip_start);
 }
 
 #[test]

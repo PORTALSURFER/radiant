@@ -8,7 +8,7 @@ pub(in crate::widgets::primitives) use chrome::{
     push_button_chrome, push_checkbox_chrome, push_control_chrome,
 };
 pub(in crate::widgets::primitives) use controls::{
-    push_card_widget_paint, push_drag_handle_widget_paint, push_list_item_widget_paint,
-    push_selectable_widget_paint, push_text_widget_paint,
+    push_drag_handle_widget_paint, push_list_item_widget_paint, push_selectable_widget_paint,
+    push_text_widget_paint,
 };
 pub(in crate::widgets::primitives) use media::{push_canvas_widget_paint, push_image_widget_paint};

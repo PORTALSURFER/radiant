@@ -6,6 +6,7 @@ mod linear;
 mod scroll;
 mod scroll_helpers;
 mod scroll_linear;
+mod wrap;
 
 use super::helpers::content_rect;
 use super::{LayoutContext, round_rect};
@@ -33,7 +34,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::AspectBox => boxes::layout_aspect_box(container, content, context),
         ContainerKind::Grid => grid::layout_grid(container, content, context),
         ContainerKind::ScrollView => scroll::layout_scroll_view(container, content, context),
-        ContainerKind::Wrap => boxes::layout_wrap(container, content, context),
+        ContainerKind::Wrap => wrap::layout_wrap(container, content, context),
         ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),
     }
 }

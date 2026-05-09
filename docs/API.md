@@ -343,6 +343,13 @@ support is an adapter that consumes this paint plan through
 `run_native_vello_runtime`. Renderers should consume paint plans and report
 frame results without owning host state.
 
+`SurfaceFrame` packages one host-controlled rendering frame as a viewport,
+resolved layout, and backend-neutral paint plan. `UiSurface::frame(...)` is the
+direct embedded-host path when the application or plugin framework owns the
+window, native surface, or render pass; `UiSurface::frame_with_layout_options(...)`
+keeps layout state, debug primitives, and diagnostics available for hosts that
+need scroll offsets, virtualization state, or layout debugging.
+
 Paint primitive generation is owned by the projected surface types that carry
 the visual contract: widgets implement widget paint through the `Widget` trait,
 and containers/overlays append their own chrome, clipping, scroll affordances,

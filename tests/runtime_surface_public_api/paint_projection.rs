@@ -194,6 +194,60 @@ fn runtime_context_and_renderer_cover_paint_plan_boundary() {
 }
 
 #[test]
+fn host_controlled_surface_frame_packages_layout_and_paint_plan() {
+    let surface = project_surface(&mut DemoState {
+        count: 4,
+        name: String::from("Embedded"),
+    });
+    let theme = ThemeTokens::default();
+    let viewport = Rect::from_min_size(Point::new(4.0, 6.0), Vector2::new(420.0, 32.0));
+
+    let frame: radiant::runtime::SurfaceFrame = surface.frame(viewport, &theme);
+
+    assert_eq!(frame.viewport, viewport);
+    assert!(frame.layout.rects.contains_key(&11));
+    assert_eq!(frame.paint_plan.clear_color, theme.clear_color);
+    assert_eq!(
+        frame.paint_plan,
+        surface.paint_plan(&frame.layout, &theme),
+        "host frame should use the same deterministic paint-plan path as manual layout"
+    );
+}
+
+#[test]
+fn host_controlled_surface_frame_can_collect_layout_debug_output() {
+    let surface: UiSurface<()> = radiant::prelude::scroll(
+        radiant::prelude::column((0..10).map(|index| {
+            radiant::prelude::text(format!("Debug row {index}"))
+                .height(28.0)
+                .fill_width()
+        }))
+        .id(20)
+        .fill_width(),
+    )
+    .id(10)
+    .fill()
+    .into_surface();
+    let mut layout_state = radiant::layout::LayoutState::default();
+    layout_state
+        .scroll_offsets
+        .insert(10, Vector2::new(0.0, 1_000.0));
+
+    let frame = surface.frame_with_layout_options(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 80.0)),
+        &ThemeTokens::default(),
+        &layout_state,
+        radiant::layout::LayoutDebugOptions::all_enabled(),
+    );
+
+    assert!(frame.layout.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == radiant::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
+    }));
+    assert!(!frame.layout.debug_primitives.is_empty());
+    assert!(!frame.paint_plan.primitives.is_empty());
+}
+
+#[test]
 fn retained_canvas_builder_projects_metadata_and_input_mapping() {
     let surface = radiant::prelude::retained_canvas(44)
         .revision(7)

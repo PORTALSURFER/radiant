@@ -235,6 +235,11 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 reducers that need to queue messages, batch runtime-visible work, request
 repaint, schedule delayed messages, run background work, move focus, or request
 runtime exit.
+`ResourceSlot<T>`, `ResourceLoad<T>`, and `ResourceLoadState` provide a small
+runtime-level state contract for host-owned background resource work. Radiant
+does not own the filesystem or asset decoder, but examples and apps can use the
+same key/state/result shape for loading images, previews, manifests, fonts, or
+other resources through `Command::perform(...)` or `UpdateContext::spawn(...)`.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may
@@ -495,8 +500,8 @@ Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
 uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
 Run `cargo run --example background_loading` for a background-work sandbox that
-uses `UpdateContext::spawn(...)` to route worker results back into the normal
-state update path.
+uses `ResourceSlot`, `ResourceLoad`, and `UpdateContext::spawn(...)` to route
+worker resource results back into the normal state update path.
 Run `cargo run --example typography` for a focused text sandbox that exercises
 wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.

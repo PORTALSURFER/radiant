@@ -6,21 +6,19 @@ use std::{thread, time::Duration};
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum LoadingMessage {
     Start,
-    Loaded(String),
+    Loaded(ResourceLoad<String>),
     Reset,
 }
 
 #[derive(Clone, Debug)]
 struct LoadingState {
-    loading: bool,
-    result: String,
+    resource: ResourceSlot<String>,
 }
 
 impl Default for LoadingState {
     fn default() -> Self {
         Self {
-            loading: false,
-            result: "Idle".to_string(),
+            resource: ResourceSlot::new("demo-loader"),
         }
     }
 }
@@ -33,14 +31,8 @@ fn main() -> radiant::Result {
         .view(|state| {
             column([
                 text("Background Loading").height(28.0).fill_width(),
-                text(if state.loading {
-                    "Status: loading"
-                } else {
-                    "Status: ready"
-                })
-                .height(24.0)
-                .fill_width(),
-                text(state.result.clone()).height(28.0).fill_width(),
+                text(status_text(&state.resource)).height(24.0).fill_width(),
+                text(result_text(&state.resource)).height(28.0).fill_width(),
                 row([
                     button("Start")
                         .primary()
@@ -62,28 +54,45 @@ fn main() -> radiant::Result {
         })
         .update_with(|state, message, context| match message {
             LoadingMessage::Start => {
-                state.loading = true;
-                state.result = "Worker running".to_string();
+                state.resource.mark_loading();
                 context.spawn(
                     "demo-loader",
                     || {
                         thread::sleep(Duration::from_millis(60));
-                        "Loaded payload from background work".to_string()
+                        ResourceLoad::ready(
+                            "demo-loader",
+                            "Loaded payload from background work".to_string(),
+                        )
                     },
                     LoadingMessage::Loaded,
                 );
                 context.request_repaint();
             }
-            LoadingMessage::Loaded(result) => {
-                state.loading = false;
-                state.result = result;
+            LoadingMessage::Loaded(load) => {
+                state.resource.apply(load);
                 context.request_repaint();
             }
             LoadingMessage::Reset => {
-                state.loading = false;
-                state.result = "Idle".to_string();
+                state.resource.clear();
                 context.request_repaint();
             }
         })
         .run()
+}
+
+fn status_text(resource: &ResourceSlot<String>) -> &'static str {
+    match resource.state() {
+        ResourceLoadState::Idle => "Status: idle",
+        ResourceLoadState::Loading => "Status: loading",
+        ResourceLoadState::Ready => "Status: ready",
+        ResourceLoadState::Failed => "Status: failed",
+    }
+}
+
+fn result_text(resource: &ResourceSlot<String>) -> String {
+    resource
+        .value()
+        .cloned()
+        .or_else(|| resource.error().map(ToOwned::to_owned))
+        .unwrap_or_else(|| "Idle".to_string())
 }

@@ -22,6 +22,7 @@ mod command;
 mod controller;
 mod gpu_surface;
 mod paint;
+mod resource;
 mod surface;
 
 pub use crate::gui_runtime::{
@@ -48,6 +49,7 @@ pub(crate) use paint::{
     blend_color, button_font_size, diagonal_cut_rect_points, input_font_size, inset_rect,
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
+pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceSlot};
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay,
     SurfaceWidget, UiSurface, View, WidgetMessageMapper,

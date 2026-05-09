@@ -9,8 +9,19 @@ fn generic_paint_plan_encodes_to_vello_scene() {
     let mut retained_cache = RetainedSurfaceFrameCache::default();
     let viewport = core.runtime.viewport();
 
-    encode_surface_paint_plan_to_scene(
-        &core.paint_plan(),
+    let plan = core.paint_plan();
+    let expected_text_primitives = plan
+        .primitives
+        .iter()
+        .filter(|primitive| matches!(primitive, PaintPrimitive::Text(_)))
+        .count();
+    let expected_text_inputs = plan
+        .primitives
+        .iter()
+        .filter(|primitive| matches!(primitive, PaintPrimitive::TextInput(_)))
+        .count();
+    let stats = encode_surface_paint_plan_to_scene(
+        &plan,
         &mut scene,
         &mut text_renderer,
         core.runtime.bridge_mut(),
@@ -18,6 +29,11 @@ fn generic_paint_plan_encodes_to_vello_scene() {
         &mut retained_cache,
         Duration::ZERO,
     );
+
+    assert_eq!(stats.paint_plan_primitives, plan.primitives.len());
+    assert_eq!(stats.text_primitive_count, expected_text_primitives);
+    assert_eq!(stats.text_input_count, expected_text_inputs);
+    assert!(stats.text_run_count >= expected_text_primitives);
 }
 
 #[test]
@@ -51,8 +67,12 @@ fn retained_custom_surface_cache_skips_unchanged_bridge_render() {
 
     assert_eq!(first.bridge_calls, 1);
     assert_eq!(first.cache_hits, 0);
+    assert_eq!(first.retained_frame_primitive_count, 1);
+    assert_eq!(first.retained_frame_text_run_count, 0);
     assert_eq!(second.bridge_calls, 0);
     assert_eq!(second.cache_hits, 1);
+    assert_eq!(second.retained_frame_primitive_count, 1);
+    assert_eq!(second.retained_frame_text_run_count, 0);
     assert_eq!(core.runtime.bridge().render_count, 1);
 }
 

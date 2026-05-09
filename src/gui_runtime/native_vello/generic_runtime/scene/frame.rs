@@ -10,7 +10,7 @@ pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_r
     if text_runs.is_empty() {
         return;
     }
-    stats.text_run_count = stats.text_run_count.saturating_add(text_runs.len());
+    stats.record_text_runs(text_runs.len());
     text_renderer.draw_text_runs(scene, text_runs);
     text_runs.clear();
 }

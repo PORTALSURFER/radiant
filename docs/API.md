@@ -424,6 +424,14 @@ GPU-surface primitive projection. The harness performs sanity assertions, but
 does not enforce machine-dependent pass/fail timing thresholds; use the output
 for local comparisons, profiling runs, and regression investigation.
 
+For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
+per-frame `radiant native render profile` tracing line. The profile separates
+paint-plan primitive counts, Vello scene encode categories, retained-surface
+bridge/cache counts, GPU-surface render/cache counts, and timing for surface
+refresh, paint-plan generation, Vello render-to-texture, composition, and
+presentation. This is a development diagnostic, not a stable public telemetry
+schema.
+
 ## Examples And Sandboxes
 
 Radiant examples are maintained API and sandbox contracts. They should compile

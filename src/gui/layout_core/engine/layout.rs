@@ -1,6 +1,7 @@
 //! Layout pass implementation for strict slot-based layout trees.
 
 mod boxes;
+mod grid;
 mod linear;
 mod scroll;
 mod scroll_helpers;
@@ -30,7 +31,7 @@ pub(super) fn layout_node(node: &LayoutNode, rect: Rect, context: &mut LayoutCon
         ContainerKind::PaddingBox => boxes::layout_single_fill(container, content, context),
         ContainerKind::AlignBox => boxes::layout_align_box(container, content, context),
         ContainerKind::AspectBox => boxes::layout_aspect_box(container, content, context),
-        ContainerKind::Grid => boxes::layout_grid(container, content, context),
+        ContainerKind::Grid => grid::layout_grid(container, content, context),
         ContainerKind::ScrollView => scroll::layout_scroll_view(container, content, context),
         ContainerKind::Wrap => boxes::layout_wrap(container, content, context),
         ContainerKind::SwitchLayout => boxes::layout_switch(container, content, context),

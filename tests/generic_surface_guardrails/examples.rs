@@ -65,6 +65,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
         ),
         (
+            "background_loading",
+            vec![".update_with(", "context.spawn(", "LoadingMessage::Loaded"],
+        ),
+        (
             "layout_rows_columns",
             vec!["row([", "column([", ".padding(", ".fill_width()"],
         ),

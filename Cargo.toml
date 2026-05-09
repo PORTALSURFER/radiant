@@ -40,6 +40,10 @@ name = "animation_showcase"
 path = "examples/animation_showcase.rs"
 
 [[example]]
+name = "background_loading"
+path = "examples/background_loading.rs"
+
+[[example]]
 name = "todo_list"
 path = "examples/todo_list.rs"
 

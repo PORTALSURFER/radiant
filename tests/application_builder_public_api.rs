@@ -13,10 +13,17 @@ use radiant::{
         Widget, WidgetProminence, WidgetSizing, WidgetTone,
     },
 };
+use std::{thread, time::Duration};
 
 #[derive(Clone, Debug, PartialEq)]
 enum DemoMessage {
     Increment,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum LoadingMessage {
+    Start,
+    Loaded(String),
 }
 
 #[derive(Default)]
@@ -116,6 +123,63 @@ fn application_builder_animation_frames_route_through_public_app_path() {
     assert_eq!(
         widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
         "Frame 1"
+    );
+}
+
+#[test]
+fn application_builder_background_spawn_routes_worker_result() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::column([
+                ui::text(format!("Loaded: {}", state.name))
+                    .id(10)
+                    .height(24.0),
+                ui::button("Load")
+                    .message(LoadingMessage::Start)
+                    .id(11)
+                    .height(28.0),
+            ])
+        })
+        .update_with(|state, message, context| match message {
+            LoadingMessage::Start => {
+                state.name = "loading".to_string();
+                context.spawn(
+                    "test-loader",
+                    || "ready".to_string(),
+                    LoadingMessage::Loaded,
+                );
+                context.request_repaint();
+            }
+            LoadingMessage::Loaded(value) => {
+                state.name = value;
+                context.request_repaint();
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 80.0));
+    let start = runtime
+        .surface()
+        .dispatch_widget_output(
+            11,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        )
+        .expect("load button should emit a start message");
+
+    let started = runtime.dispatch_message(start);
+    assert!(started.repaint_requested);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Loaded: loading"
+    );
+
+    thread::sleep(Duration::from_millis(10));
+    let finished = runtime.drain_runtime_messages();
+    assert_eq!(finished.messages_dispatched, 1);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Loaded: ready"
     );
 }
 

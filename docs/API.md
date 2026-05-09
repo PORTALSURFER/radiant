@@ -470,6 +470,9 @@ normal state callbacks.
 Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
 uses `.animation(...)` and `.on_frame(...)` through the stateful application
 builder.
+Run `cargo run --example background_loading` for a background-work sandbox that
+uses `UpdateContext::spawn(...)` to route worker results back into the normal
+state update path.
 
 ## Quality Gate
 

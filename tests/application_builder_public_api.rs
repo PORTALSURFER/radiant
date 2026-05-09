@@ -5,8 +5,8 @@ use radiant::{
         LayoutDebugOptions, LayoutState, Point, Rect, Vector2, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, RuntimeBridge, UiSurface,
-        WidgetMessageMapper,
+        Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, RuntimeBridge, SurfaceRuntime,
+        UiSurface, WidgetMessageMapper,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, ToggleWidget,
@@ -88,6 +88,35 @@ fn native_run_options_expose_platform_neutral_drag_and_drop_policy() {
     };
 
     assert!(!options.drag_and_drop);
+}
+
+#[test]
+fn application_builder_animation_frames_route_through_public_app_path() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::text(format!("Frame {}", state.count))
+                .id(10)
+                .height(24.0)
+        })
+        .animation(|_| true)
+        .on_frame(|| DemoMessage::Increment)
+        .update(|state, message| match message {
+            DemoMessage::Increment => state.count += 1,
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 48.0));
+
+    assert!(runtime.bridge_mut().needs_animation());
+    assert!(runtime.bridge_mut().needs_animation());
+    let drained = runtime.drain_runtime_messages();
+
+    assert_eq!(drained.messages_dispatched, 1);
+    assert_eq!(
+        widget_ref::<TextWidget, _>(runtime.surface(), 10, "text").text,
+        "Frame 1"
+    );
 }
 
 #[test]

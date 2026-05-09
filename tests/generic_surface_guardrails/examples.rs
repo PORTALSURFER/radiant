@@ -61,6 +61,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
             vec!["text_input(", ".bind(", "toggle(", ".on_change("],
         ),
         (
+            "animation_showcase",
+            vec![".animation(", ".on_frame(", "AnimationMessage::Frame"],
+        ),
+        (
             "layout_rows_columns",
             vec!["row([", "column([", ".padding(", ".fill_width()"],
         ),

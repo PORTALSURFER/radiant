@@ -467,6 +467,9 @@ stateful examples.
 Run `cargo run --example context_menu` for a generic menu/context-menu sandbox
 that composes `MenuItem`, `menu(...)`, and `context_menu_overlay(...)` with
 normal state callbacks.
+Run `cargo run --example animation_showcase` for a frame-driven UI sandbox that
+uses `.animation(...)` and `.on_frame(...)` through the stateful application
+builder.
 
 ## Quality Gate
 

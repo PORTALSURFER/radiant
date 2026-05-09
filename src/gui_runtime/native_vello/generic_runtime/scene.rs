@@ -29,11 +29,15 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     scene.reset();
-    let mut stats = RetainedSurfaceEncodeStats::default();
+    let mut stats = RetainedSurfaceEncodeStats {
+        paint_plan_primitives: plan.primitives.len(),
+        ..RetainedSurfaceEncodeStats::default()
+    };
     let mut text_runs = Vec::new();
     for primitive in &plan.primitives {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
+                stats.clip_layer_count = stats.clip_layer_count.saturating_add(1);
                 flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
                 scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &to_kurbo_rect(clip.rect));
             }
@@ -61,6 +65,7 @@ where
                 encode_polyline_stroke(scene, stroke.color, stroke.width, &stroke.points);
             }
             PaintPrimitive::Text(text) => {
+                stats.text_primitive_count = stats.text_primitive_count.saturating_add(1);
                 let align = match text.align {
                     PaintTextAlign::Left => TextAlign::Left,
                     PaintTextAlign::Center => TextAlign::Center,
@@ -92,11 +97,13 @@ where
                 );
             }
             PaintPrimitive::TextInput(input) => {
+                stats.text_input_count = stats.text_input_count.saturating_add(1);
                 flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
                 encode_text_input(scene, text_renderer, input, animation_time);
-                stats.text_run_count = stats.text_run_count.saturating_add(1);
+                stats.record_text_runs(1);
             }
             PaintPrimitive::Image(draw) => {
+                stats.image_count = stats.image_count.saturating_add(1);
                 encode_image(
                     scene,
                     Arc::clone(&draw.image.pixels),
@@ -106,17 +113,17 @@ where
                     draw.rect,
                 );
             }
-            PaintPrimitive::GpuSurface(_) => {}
+            PaintPrimitive::GpuSurface(_) => {
+                stats.gpu_surface_count = stats.gpu_surface_count.saturating_add(1);
+            }
             PaintPrimitive::CustomSurface(custom) => {
+                stats.custom_surface_count = stats.custom_surface_count.saturating_add(1);
                 if let Some(retained) = custom.retained {
                     if let Some(frame) =
                         retained_cache.cached_frame(retained, custom.rect, viewport)
                     {
                         stats.cache_hits = stats.cache_hits.saturating_add(1);
-                        stats.primitive_count =
-                            stats.primitive_count.saturating_add(frame.primitives.len());
-                        stats.text_run_count =
-                            stats.text_run_count.saturating_add(frame.text_runs.len());
+                        stats.record_retained_frame(frame);
                         encode_paint_frame_to_scene(frame, scene, text_renderer);
                         continue;
                     }
@@ -124,10 +131,7 @@ where
                     if let Some(frame) =
                         bridge.render_retained_surface(retained, custom.rect, viewport)
                     {
-                        stats.primitive_count =
-                            stats.primitive_count.saturating_add(frame.primitives.len());
-                        stats.text_run_count =
-                            stats.text_run_count.saturating_add(frame.text_runs.len());
+                        stats.record_retained_frame(&frame);
                         encode_paint_frame_to_scene(&frame, scene, text_renderer);
                         retained_cache.store(retained, custom.rect, viewport, frame);
                         continue;

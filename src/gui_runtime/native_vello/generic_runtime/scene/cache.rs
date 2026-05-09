@@ -15,10 +15,47 @@ struct RetainedSurfaceFrameCacheEntry {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceEncodeStats {
+    pub paint_plan_primitives: usize,
+    pub clip_layer_count: usize,
+    pub text_primitive_count: usize,
+    pub text_input_count: usize,
+    pub image_count: usize,
+    pub gpu_surface_count: usize,
+    pub custom_surface_count: usize,
     pub bridge_calls: u32,
     pub cache_hits: u32,
-    pub primitive_count: usize,
+    pub retained_frame_primitive_count: usize,
+    pub retained_frame_text_run_count: usize,
     pub text_run_count: usize,
+}
+
+impl RetainedSurfaceEncodeStats {
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn record_text_runs(
+        &mut self,
+        count: usize,
+    ) {
+        self.text_run_count = self.text_run_count.saturating_add(count);
+    }
+
+    pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn record_retained_frame(
+        &mut self,
+        frame: &PaintFrame,
+    ) {
+        self.retained_frame_primitive_count = self
+            .retained_frame_primitive_count
+            .saturating_add(frame.primitives.len());
+        self.retained_frame_text_run_count = self
+            .retained_frame_text_run_count
+            .saturating_add(frame.text_runs.len());
+        self.text_run_count = self.text_run_count.saturating_add(frame.text_runs.len());
+        self.image_count = self.image_count.saturating_add(
+            frame
+                .primitives
+                .iter()
+                .filter(|primitive| matches!(primitive, Primitive::Image(_)))
+                .count(),
+        );
+    }
 }
 
 impl RetainedSurfaceFrameCache {

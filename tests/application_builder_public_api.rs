@@ -10,7 +10,7 @@ use radiant::{
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, TextWrap,
-        ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetTone,
+        ToggleWidget, Widget, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{thread, time::Duration};
@@ -486,6 +486,61 @@ fn application_builder_grid_lowers_to_fixed_column_tile_layout() {
     assert_eq!(first.min.y, second.min.y);
     assert!(third.min.y > first.min.y);
     assert_eq!(first.height(), 28.0);
+}
+
+#[test]
+fn application_builder_dense_control_panel_uses_generic_focusable_widgets() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::column([
+        ui::row([
+            ui::toggle("Enabled", true).message(|_| ()).id(10),
+            ui::toggle("Link", false).message(|_| ()).id(11),
+        ])
+        .id(2)
+        .fill_width(),
+        ui::grid_with_gaps(
+            (0..3).map(|index| {
+                ui::column([
+                    ui::text(format!("Param {index}"))
+                        .id(100 + index)
+                        .height(22.0),
+                    ui::row([
+                        ui::button("-").subtle().message(()).id(200 + index * 2),
+                        ui::button("+").primary().message(()).id(201 + index * 2),
+                    ]),
+                ])
+                .id(50 + index)
+                .style(WidgetStyle {
+                    tone: WidgetTone::Neutral,
+                    prominence: WidgetProminence::Subtle,
+                })
+                .padding(8.0)
+                .height(96.0)
+            }),
+            3,
+            8.0,
+            8.0,
+        )
+        .id(3)
+        .fill_width(),
+    ])
+    .id(1)
+    .padding(12.0)
+    .spacing(10.0)
+    .into_surface();
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 180.0)),
+    );
+
+    let focus_order = surface.keyboard_focus_order();
+    assert_eq!(focus_order.len(), 8);
+    assert!(focus_order.contains(&10));
+    assert!(focus_order.contains(&205));
+    assert_eq!(layout.rects[&50].min.y, layout.rects[&51].min.y);
+    assert!(layout.rects[&51].min.x > layout.rects[&50].max.x);
+    assert_eq!(layout.rects[&50].height(), 96.0);
 }
 
 #[test]

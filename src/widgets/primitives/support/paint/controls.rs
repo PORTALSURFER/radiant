@@ -1,4 +1,6 @@
-use super::chrome::{push_button_chrome, push_checkbox_chrome, push_control_chrome};
+mod button;
+
+use super::chrome::{push_checkbox_chrome, push_control_chrome};
 use crate::gui::types::{Point, Rect};
 use crate::runtime::{
     PaintFillRect, PaintPrimitive, PaintStrokePolyline, PaintStrokeRect, PaintTextAlign,
@@ -8,10 +10,12 @@ use crate::runtime::{
 use crate::theme::ThemeTokens;
 
 use super::super::super::{
-    badge::BadgeWidget, button::ButtonWidget, card::CardWidget, drag_handle::DragHandleWidget,
-    list_item::ListItemWidget, scrollbar::ScrollbarAxis, scrollbar::ScrollbarWidget,
-    selectable::SelectableWidget, text::TextWidget, text::TextWrap, toggle::ToggleWidget,
+    badge::BadgeWidget, card::CardWidget, drag_handle::DragHandleWidget, list_item::ListItemWidget,
+    scrollbar::ScrollbarAxis, scrollbar::ScrollbarWidget, selectable::SelectableWidget,
+    text::TextWidget, text::TextWrap, toggle::ToggleWidget,
 };
+
+pub(in crate::widgets::primitives) use button::push_button_widget_paint;
 
 pub(in crate::widgets::primitives) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
@@ -29,31 +33,6 @@ pub(in crate::widgets::primitives) fn push_text_widget_paint(
         PaintTextAlign::Left,
         text.wrap,
         text_font_size(bounds),
-    );
-}
-
-pub(in crate::widgets::primitives) fn push_button_widget_paint(
-    primitives: &mut Vec<PaintPrimitive>,
-    button: &ButtonWidget,
-    bounds: Rect,
-    theme: &ThemeTokens,
-) {
-    push_button_chrome(primitives, &button.common, bounds, theme);
-    push_text_run(
-        primitives,
-        button.common.id,
-        button.props.label.clone(),
-        inset_rect(bounds, 8.0, 4.0),
-        optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), button_font_size(bounds)),
-        crate::widgets::resolve_widget_visual_tokens(
-            theme,
-            button.common.style,
-            button.common.state,
-        )
-        .foreground,
-        PaintTextAlign::Center,
-        TextWrap::None,
-        button_font_size(bounds),
     );
 }
 

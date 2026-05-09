@@ -2,7 +2,7 @@
 
 use radiant::prelude::*;
 use radiant::{
-    layout::{Point, Rect, Vector2, layout_tree},
+    layout::{Point, Rect, Vector2},
     runtime::PaintPrimitive,
     theme::ThemeTokens,
 };
@@ -46,17 +46,16 @@ struct PrimitiveCounts {
 
 fn run_rendering_benchmark(rows: u64) -> BenchmarkReport {
     let surface = benchmark_surface(rows).into_surface();
-    let layout = layout_tree(
-        &surface.layout_node(),
+    let frame = surface.frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 720.0)),
+        &ThemeTokens::default(),
     );
-    let plan = surface.paint_plan(&layout, &ThemeTokens::default());
 
     BenchmarkReport {
         rows,
-        layout_rects: layout.rects.len(),
-        materialized_nodes: layout.stats.materialized_nodes,
-        primitives: PrimitiveCounts::from_primitives(&plan.primitives),
+        layout_rects: frame.layout.rects.len(),
+        materialized_nodes: frame.layout.stats.materialized_nodes,
+        primitives: PrimitiveCounts::from_primitives(&frame.paint_plan.primitives),
     }
 }
 

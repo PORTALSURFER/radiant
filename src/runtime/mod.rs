@@ -52,6 +52,6 @@ pub(crate) use paint::{
 };
 pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
 pub use surface::{
-    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay,
-    SurfaceWidget, UiSurface, View, WidgetMessageMapper,
+    Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,
+    SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };

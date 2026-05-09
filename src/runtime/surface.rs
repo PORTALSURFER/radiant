@@ -3,6 +3,7 @@
 mod builders;
 mod clipping;
 mod focus;
+mod frame;
 mod input;
 mod layout;
 mod node;
@@ -11,6 +12,7 @@ mod scroll;
 mod traversal;
 mod widget;
 
+pub use frame::SurfaceFrame;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 

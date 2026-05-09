@@ -133,8 +133,7 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         (
             "rendering_benchmark",
             vec![
-                "layout_tree(",
-                "paint_plan(",
+                "surface.frame(",
                 "PrimitiveCounts::from_primitives(",
                 "radiant_rendering_benchmark",
             ],

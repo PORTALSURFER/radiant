@@ -8,6 +8,7 @@ mod commands;
 mod events;
 mod focus;
 mod pointer;
+mod scroll;
 mod state;
 
 pub use commands::CommandOutcome;

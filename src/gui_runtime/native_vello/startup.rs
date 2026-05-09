@@ -1,8 +1,8 @@
 use super::*;
-use serde::Serialize;
 
-const STARTUP_PROFILE_ENV: &str = "RADIANT_NATIVE_STARTUP_PROFILE";
-const STARTUP_PROFILE_LOG_PREFIX: &str = "[native-vello-startup]";
+mod logging;
+
+use serde::Serialize;
 
 /// Machine-readable native startup timing payload exported by the runtime.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -60,7 +60,7 @@ pub(super) struct StartupTimingProfile {
 
 impl StartupTimingProfile {
     pub(super) fn new() -> Self {
-        let enabled = crate::env_flags::env_var_truthy(STARTUP_PROFILE_ENV);
+        let enabled = logging::startup_profile_enabled();
         Self {
             enabled,
             ..Self::default()
@@ -106,57 +106,7 @@ impl StartupTimingProfile {
     }
 
     pub(super) fn maybe_emit_summary(&mut self) {
-        if self.summary_emitted {
-            return;
-        }
-        let Some(artifact) = self.export_completed_artifact() else {
-            return;
-        };
-        info!(
-            window_create_ms = artifact.window_create_ms.unwrap_or_default(),
-            window_revealed_ms = artifact.window_revealed_ms.unwrap_or_default(),
-            wgpu_surface_create_ms = artifact.wgpu_surface_create_ms.unwrap_or_default(),
-            wgpu_device_ready_ms = artifact.wgpu_device_ready_ms.unwrap_or_default(),
-            surface_ready_ms = artifact.surface_ready_ms.unwrap_or_default(),
-            renderer_build_ms = artifact.renderer_build_ms.unwrap_or_default(),
-            renderer_ready_ms = artifact.renderer_ready_ms.unwrap_or_default(),
-            first_scene_ready_ms = artifact.first_scene_ready_ms.unwrap_or_default(),
-            first_redraw_started_ms = artifact.first_redraw_started_ms.unwrap_or_default(),
-            first_present_draw_ms = artifact.first_present_draw_ms.unwrap_or_default(),
-            first_present_ms = artifact.first_present_ms.unwrap_or_default(),
-            deferred_model_refresh_ms = artifact.deferred_model_refresh_ms.unwrap_or_default(),
-            deferred_model_refresh_total_ms =
-                artifact.deferred_model_refresh_total_ms.unwrap_or_default(),
-            "native vello startup timing summary"
-        );
-        if self.enabled {
-            eprintln!(
-                "{STARTUP_PROFILE_LOG_PREFIX} window_create_ms={:.3} \
-window_revealed_ms={:.3} \
-wgpu_surface_create_ms={:.3} \
-wgpu_device_ready_ms={:.3} \
-surface_ready_ms={:.3} renderer_ready_ms={:.3} \
-renderer_build_ms={:.3} first_scene_ready_ms={:.3} \
-first_redraw_started_ms={:.3} \
-first_present_draw_ms={:.3} first_present_ms={:.3} \
-deferred_model_refresh_ms={:.3} \
-deferred_model_refresh_total_ms={:.3}",
-                artifact.window_create_ms.unwrap_or_default(),
-                artifact.window_revealed_ms.unwrap_or_default(),
-                artifact.wgpu_surface_create_ms.unwrap_or_default(),
-                artifact.wgpu_device_ready_ms.unwrap_or_default(),
-                artifact.surface_ready_ms.unwrap_or_default(),
-                artifact.renderer_ready_ms.unwrap_or_default(),
-                artifact.renderer_build_ms.unwrap_or_default(),
-                artifact.first_scene_ready_ms.unwrap_or_default(),
-                artifact.first_redraw_started_ms.unwrap_or_default(),
-                artifact.first_present_draw_ms.unwrap_or_default(),
-                artifact.first_present_ms.unwrap_or_default(),
-                artifact.deferred_model_refresh_ms.unwrap_or_default(),
-                artifact.deferred_model_refresh_total_ms.unwrap_or_default(),
-            );
-        }
-        self.summary_emitted = true;
+        logging::emit_summary_if_ready(self);
     }
 
     pub(super) fn export_artifact(&self) -> Option<NativeStartupTimingArtifact> {
@@ -284,15 +234,6 @@ deferred_model_refresh_total_ms={:.3}",
         Some("startup_exited_before_first_present")
     }
 
-    fn emit_failure_reason_if_needed(&self) {
-        let Some(reason) = self.failure_reason() else {
-            return;
-        };
-        if self.enabled {
-            eprintln!("{STARTUP_PROFILE_LOG_PREFIX} status=failed reason={reason}");
-        }
-    }
-
     #[cfg(test)]
     pub(super) fn did_emit_summary(&self) -> bool {
         self.summary_emitted
@@ -306,7 +247,7 @@ deferred_model_refresh_total_ms={:.3}",
 
 impl Drop for StartupTimingProfile {
     fn drop(&mut self) {
-        self.emit_failure_reason_if_needed();
+        logging::emit_failure_reason_if_needed(self);
     }
 }
 

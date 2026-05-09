@@ -1,15 +1,15 @@
 //! Reusable button primitive.
 
+mod input;
+
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard, push_button_widget_paint};
+use super::support::{WidgetCommon, push_button_widget_paint};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{
-    ButtonMessage, DragHandleMessage, PointerButton, WidgetInput, WidgetOutput,
-};
+use crate::widgets::interaction::{ButtonMessage, WidgetInput, WidgetOutput};
 
 /// Immutable public properties for a reusable button widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -75,81 +75,7 @@ impl ButtonWidget {
     /// The button emits [`ButtonMessage::Activate`] when a primary press is
     /// released inside bounds or when the focused widget receives Enter/Space.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ButtonMessage> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            self.state.armed = false;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    self.state.armed = self.common.state.hovered;
-                    if self.props.drag {
-                        let message = if self.state.dragged {
-                            DragHandleMessage::Moved { position }
-                        } else {
-                            self.state.dragged = true;
-                            DragHandleMessage::Started { position }
-                        };
-                        return Some(ButtonMessage::Drag(message));
-                    }
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.focused = true;
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.state.armed = true;
-                self.state.dragged = false;
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Secondary,
-            } if bounds.contains(position) && self.props.secondary_click => {
-                self.common.state.hovered = true;
-                Some(ButtonMessage::SecondaryActivate { position })
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                if self.state.dragged {
-                    self.common.state.pressed = false;
-                    self.common.state.hovered = bounds.contains(position);
-                    self.state.armed = false;
-                    self.state.dragged = false;
-                    return Some(ButtonMessage::Drag(DragHandleMessage::Ended { position }));
-                }
-                let activated =
-                    self.common.state.pressed && self.state.armed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.state.armed = false;
-                self.state.dragged = false;
-                activated.then_some(ButtonMessage::Activate)
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                    self.state.armed = false;
-                    self.state.dragged = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused && activate_on_keyboard(key) =>
-            {
-                Some(ButtonMessage::Activate)
-            }
-            _ => None,
-        }
+        input::handle_button_input(self, bounds, input)
     }
 }
 

@@ -5,7 +5,7 @@ use crate::runtime::{PaintFillRect, PaintPrimitive, push_axis_stroke};
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::scrollbar::{ScrollbarAxis, ScrollbarWidget};
 
-pub(in crate::widgets::primitives) fn push_scrollbar_widget_paint(
+pub(super) fn push_scrollbar_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     scrollbar: &ScrollbarWidget,
     bounds: Rect,

@@ -5,12 +5,13 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, clamp_fraction, push_scrollbar_widget_paint};
+use super::support::{WidgetCommon, clamp_fraction};
 use crate::widgets::contract::{FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ScrollbarMessage, WidgetInput, WidgetOutput};
 
 mod geometry;
 mod input;
+mod paint;
 use geometry::{axis_length, axis_rect, axis_start};
 
 const MIN_THUMB_PIXELS: f32 = 12.0;
@@ -127,7 +128,7 @@ impl Widget for ScrollbarWidget {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        push_scrollbar_widget_paint(primitives, self, bounds, theme);
+        paint::push_scrollbar_widget_paint(primitives, self, bounds, theme);
     }
 }
 

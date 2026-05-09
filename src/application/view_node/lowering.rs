@@ -83,6 +83,28 @@ where
                     SurfaceNode::container(id, policy, children)
                 }
             }
+            ViewNodeKind::VirtualScroll { child, overscan_px } => {
+                let policy = ContainerPolicy {
+                    kind: ContainerKind::ScrollView,
+                    overflow: crate::layout::OverflowPolicy::Scroll,
+                    virtualization: Some(VirtualizationPolicy {
+                        enabled: true,
+                        axis: VirtualizationAxis::Vertical,
+                        overscan_px,
+                    }),
+                    padding: self.padding,
+                    align_main: self.align_main.unwrap_or(MainAlign::Start),
+                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
+                    ..ContainerPolicy::default()
+                };
+                let children = vec![SurfaceChild::fill(child.lower(ids, child_scope))];
+                if let Some(style) = self.style {
+                    SurfaceNode::styled_container(id, policy, style, children)
+                        .with_container_hoverable(self.hoverable)
+                } else {
+                    SurfaceNode::container(id, policy, children)
+                }
+            }
             ViewNodeKind::Stack { children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Stack,

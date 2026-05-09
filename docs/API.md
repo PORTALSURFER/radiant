@@ -450,8 +450,8 @@ path as real input.
 Run `cargo run --example gpu_surface` for a small retained-GPU-surface sandbox
 that uses the prelude `gpu_surface(...)` application builder with generated
 demo atlas data.
-Run `cargo run --example virtualized_list` for a large public-runtime list
-sandbox that projects 10k selectable rows through `SurfaceNode::virtual_scroll_area`.
+Run `cargo run --example virtualized_list` for a large application-builder list
+sandbox that projects 10k selectable rows through `virtual_list(...)`.
 
 ## Quality Gate
 

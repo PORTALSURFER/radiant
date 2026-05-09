@@ -52,7 +52,8 @@ pub mod prelude {
         overlay_panel, passive_button, passive_text_input, passive_toggle, retained_canvas,
         retained_canvas_with, row, row_key, scroll, scroll_column,
         selectable_sortable_details_list, sortable_details_list, spacer, stack, text, text_input,
-        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, widget, window,
+        text_input_mapped, toggle, toggle_mapped, tree_list, tree_list_with_drag, virtual_list,
+        virtual_scroll, widget, window,
     };
     pub use crate::runtime::{
         Command, GpuHoverCursor, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,

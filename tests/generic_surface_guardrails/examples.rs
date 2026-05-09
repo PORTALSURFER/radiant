@@ -66,6 +66,10 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         ),
         ("list", vec!["list(", "list_row(", ".fill_height()"]),
         (
+            "virtualized_list",
+            vec!["radiant::app(", "virtual_list(", "list_row(", ".update("],
+        ),
+        (
             "styling",
             vec![
                 ".primary()",

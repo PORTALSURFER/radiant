@@ -1,7 +1,9 @@
 //! Public API coverage for Radiant application builder ergonomics.
 
 use radiant::{
-    layout::{Point, Rect, Vector2, layout_tree},
+    layout::{
+        LayoutDebugOptions, LayoutState, Point, Rect, Vector2, layout_tree, layout_tree_with_state,
+    },
     runtime::{
         Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeRunOptions, RuntimeBridge, UiSurface,
         WidgetMessageMapper,
@@ -270,6 +272,45 @@ fn application_builder_lists_keep_row_heights_stable_across_item_counts() {
     assert_eq!(two.rects[&11].height(), 52.0);
     assert_eq!(ten.rects[&10].height(), 52.0);
     assert_eq!(ten.rects[&11].height(), 52.0);
+}
+
+#[test]
+fn application_builder_virtual_list_records_virtual_window() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<DemoMessage> = ui::virtual_list(
+        0..512_u64,
+        |index| {
+            ui::list_row(
+                index,
+                [ui::button(format!("Row {index:03}"))
+                    .message(DemoMessage::Increment)
+                    .id(1_000 + index)],
+            )
+            .id(10_000 + index)
+        },
+        64.0,
+    )
+    .id(2)
+    .into_surface();
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(2, Vector2::new(0.0, 640.0));
+
+    let output = layout_tree_with_state(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 180.0)),
+        &state,
+        LayoutDebugOptions::default(),
+    );
+    let window = output
+        .virtual_windows
+        .get(&2)
+        .expect("virtual_list should lower to a virtualized scroll viewport");
+
+    assert_eq!(window.total_children, 512);
+    assert!(window.first_index > 0);
+    assert!(window.culled_after > 0);
+    assert!(surface.find_widget(1_000).is_some());
 }
 
 #[test]

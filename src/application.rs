@@ -9,7 +9,7 @@ use crate::{
     gui_runtime::NativeRunOptions,
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, NodeId, SizeModeCross,
-        SizeModeMain, SlotParams, Vector2,
+        SizeModeMain, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
     },
     runtime::{
         Command, GpuSurfaceContent, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,

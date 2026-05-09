@@ -150,6 +150,27 @@ pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
     }
 }
 
+/// Build a vertically virtualized scroll viewport around one child view.
+pub fn virtual_scroll<Message>(child: ViewNode<Message>, overscan_px: f32) -> ViewNode<Message> {
+    ViewNode {
+        kind: ViewNodeKind::VirtualScroll {
+            child: Box::new(child),
+            overscan_px,
+        },
+        id: None,
+        key: None,
+        sizing: None,
+        slot: SlotBehavior::default(),
+        padding: Insets::default(),
+        align_main: None,
+        align_cross: None,
+        style: None,
+        hoverable: false,
+        input_only: false,
+        text_wrap: None,
+    }
+}
+
 /// Build a scroll viewport containing a column projected from an iterator.
 pub fn scroll_column<Message, Item>(
     items: impl IntoIterator<Item = Item>,
@@ -164,6 +185,17 @@ pub fn list<Message, Item>(
     project: impl FnMut(Item) -> ViewNode<Message>,
 ) -> ViewNode<Message> {
     scroll_column(items, project)
+        .style(WidgetStyle::default())
+        .fill_height()
+}
+
+/// Build a vertically virtualized list with stable intrinsic-height rows.
+pub fn virtual_list<Message, Item>(
+    items: impl IntoIterator<Item = Item>,
+    project: impl FnMut(Item) -> ViewNode<Message>,
+    overscan_px: f32,
+) -> ViewNode<Message> {
+    virtual_scroll(column(items.into_iter().map(project).collect::<Vec<_>>()), overscan_px)
         .style(WidgetStyle::default())
         .fill_height()
 }

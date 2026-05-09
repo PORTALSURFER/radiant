@@ -4,8 +4,7 @@ use crate::runtime::{
     inset_rect, optical_centered_baseline,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::WidgetCommon;
-use crate::widgets::primitives::text_input::TextInputWidget;
+use crate::widgets::primitives::{WidgetCommon, text_input::TextInputWidget};
 
 fn push_text_input_chrome(
     primitives: &mut Vec<PaintPrimitive>,
@@ -46,7 +45,7 @@ fn push_text_input_chrome(
     }
 }
 
-pub(in crate::widgets::primitives) fn push_text_input_widget_paint(
+pub(super) fn push_text_input_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     input: &TextInputWidget,
     bounds: Rect,

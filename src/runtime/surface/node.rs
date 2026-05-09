@@ -5,7 +5,7 @@ use crate::{
         ContainerKind, ContainerPolicy, GridPolicy, NodeId, OverflowPolicy, SlotParams,
         VirtualizationAxis, VirtualizationPolicy,
     },
-    widgets::{Widget, WidgetId, WidgetInput, WidgetOutput, WidgetStyle},
+    widgets::{Widget, WidgetStyle},
 };
 
 /// One slot-owned child attachment inside a surface container.
@@ -301,62 +301,6 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(container) => container.id,
             Self::Widget(widget) => widget.id(),
             Self::Overlay(overlay) => overlay.id,
-        }
-    }
-
-    pub(super) fn handle_input(
-        &mut self,
-        widget_id: WidgetId,
-        bounds: Rect,
-        input: WidgetInput,
-    ) -> Option<WidgetOutput> {
-        match self {
-            Self::Container(container) => container
-                .children
-                .iter_mut()
-                .find_map(|child| child.child.handle_input(widget_id, bounds, input.clone())),
-            Self::Widget(widget) => widget.handle_input(widget_id, bounds, input),
-            Self::Overlay(_) => None,
-        }
-    }
-
-    pub(super) fn dispatch_output(
-        &self,
-        widget_id: WidgetId,
-        output: &WidgetOutput,
-    ) -> Option<Message> {
-        match self {
-            Self::Container(container) => container
-                .children
-                .iter()
-                .find_map(|child| child.child.dispatch_output(widget_id, output)),
-            Self::Widget(widget) => widget.dispatch_output(widget_id, output.clone()),
-            Self::Overlay(_) => None,
-        }
-    }
-
-    pub(super) fn find_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
-        match self {
-            Self::Container(container) => container
-                .children
-                .iter()
-                .find_map(|child| child.child.find_widget(widget_id)),
-            Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
-            Self::Overlay(_) => None,
-        }
-    }
-
-    pub(super) fn find_widget_mut(
-        &mut self,
-        widget_id: WidgetId,
-    ) -> Option<&mut SurfaceWidget<Message>> {
-        match self {
-            Self::Container(container) => container
-                .children
-                .iter_mut()
-                .find_map(|child| child.child.find_widget_mut(widget_id)),
-            Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
-            Self::Overlay(_) => None,
         }
     }
 }

@@ -17,8 +17,8 @@ use crate::{
     },
     widgets::{
         BadgeWidget, ButtonWidget, CanvasWidget, CardWidget, DragHandleWidget, GpuSurfaceMessage,
-        GpuSurfaceWidget, ImageWidget, SelectableWidget, TextInputWidget, TextWidget, TextWrap,
-        ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
+        GpuSurfaceWidget, ImageWidget, SelectableWidget, TextAlign, TextInputWidget, TextWidget,
+        TextWrap, ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
         WidgetTone,
     },
 };

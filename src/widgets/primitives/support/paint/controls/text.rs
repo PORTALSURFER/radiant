@@ -5,7 +5,7 @@ use crate::runtime::{
     PaintPrimitive, PaintTextAlign, optical_centered_baseline, push_text_run, text_font_size,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::text::TextWidget;
+use crate::widgets::primitives::text::{TextAlign, TextWidget};
 
 pub(in crate::widgets::primitives) fn push_text_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
@@ -20,7 +20,11 @@ pub(in crate::widgets::primitives) fn push_text_widget_paint(
         bounds,
         optical_centered_baseline(bounds, text_font_size(bounds)),
         theme.text_primary,
-        PaintTextAlign::Left,
+        match text.align {
+            TextAlign::Left => PaintTextAlign::Left,
+            TextAlign::Center => PaintTextAlign::Center,
+            TextAlign::Right => PaintTextAlign::Right,
+        },
         text.wrap,
         text_font_size(bounds),
     );

@@ -63,7 +63,7 @@ pub mod prelude {
         ResourceLoadState, ResourceRequest, ResourceSlot, WindowManifest, WindowSpec,
     };
     pub use crate::widgets::{
-        DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, Widget, WidgetOutput,
+        DragHandleMessage, GpuSurfaceMessage, GpuSurfaceWidget, TextAlign, Widget, WidgetOutput,
         WidgetProminence, WidgetStyle, WidgetTone,
     };
 }

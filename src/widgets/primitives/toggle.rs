@@ -1,6 +1,7 @@
 //! Reusable toggle primitive.
 
 mod input;
+mod model;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
@@ -11,21 +12,7 @@ use super::support::{WidgetCommon, push_toggle_widget_paint};
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{ToggleMessage, WidgetInput, WidgetOutput};
 
-/// Immutable public properties for a reusable toggle widget.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ToggleProps {
-    /// User-visible toggle label.
-    pub label: String,
-}
-
-/// Mutable interaction state for a reusable toggle widget.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct ToggleState {
-    /// Whether the toggle is currently checked/on.
-    pub checked: bool,
-    /// Whether a primary press started inside the toggle and is still armed.
-    pub armed: bool,
-}
+pub use model::{ToggleProps, ToggleState};
 
 /// Public toggle primitive.
 #[derive(Clone, Debug, PartialEq)]

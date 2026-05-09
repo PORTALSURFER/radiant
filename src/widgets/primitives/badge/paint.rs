@@ -1,15 +1,16 @@
 //! Badge paint command generation.
 
-use super::super::chrome::push_control_chrome;
 use crate::gui::types::Rect;
 use crate::runtime::{
     PaintPrimitive, PaintTextAlign, button_font_size, inset_rect, optical_centered_baseline,
     push_text_run,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::{badge::BadgeWidget, text::TextWrap};
+use crate::widgets::primitives::{
+    badge::BadgeWidget, support::push_control_chrome, text::TextWrap,
+};
 
-pub(in crate::widgets::primitives) fn push_badge_widget_paint(
+pub(super) fn push_badge_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     badge: &BadgeWidget,
     bounds: Rect,

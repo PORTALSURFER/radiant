@@ -3,8 +3,8 @@
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
 use crate::runtime::{
-    GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintGpuSurface,
-    PaintPrimitive, SurfaceNode,
+    GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceOverlay, PaintPrimitive,
+    SurfaceNode,
 };
 use crate::theme::ThemeTokens;
 
@@ -13,6 +13,8 @@ use crate::widgets::contract::{
     FocusBehavior, PaintBounds, Widget, WidgetId, WidgetSizing, WidgetStyle,
 };
 use crate::widgets::interaction::{GpuSurfaceMessage, WidgetInput, WidgetOutput};
+
+mod paint;
 
 /// Reusable widget that reserves a retained native GPU surface.
 #[derive(Clone, Debug, PartialEq)]
@@ -117,15 +119,7 @@ impl Widget for GpuSurfaceWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
-            widget_id: self.common.id,
-            key: self.key,
-            revision: self.revision,
-            rect: bounds,
-            content: self.content.clone(),
-            capabilities: self.capabilities,
-            overlays: self.overlays.clone(),
-        }));
+        paint::push_gpu_surface_widget_paint(primitives, self, bounds);
     }
 }
 

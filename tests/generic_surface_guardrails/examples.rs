@@ -127,6 +127,15 @@ fn focused_examples_are_registered_and_stay_on_application_builders() {
         ),
         ("keys", vec![".key(", "list_row(", ".reverse()"]),
         (
+            "focus_controls",
+            vec![
+                ".update_with(",
+                "context.focus(",
+                "text_input(",
+                ".message(",
+            ],
+        ),
+        (
             "custom_widget",
             vec![
                 "impl Widget for StatusChip",

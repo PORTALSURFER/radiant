@@ -120,6 +120,10 @@ name = "keys"
 path = "examples/keys.rs"
 
 [[example]]
+name = "focus_controls"
+path = "examples/focus_controls.rs"
+
+[[example]]
 name = "custom_widget"
 path = "examples/custom_widget.rs"
 

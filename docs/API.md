@@ -479,6 +479,8 @@ wrapping, truncation, fixed text heights, fill sizing, and explicit baselines
 through the application-builder API.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
+Run `cargo run --example focus_controls` for an input/focus sandbox that uses
+`UpdateContext::focus(...)` to move keyboard focus from normal app messages.
 
 ## Quality Gate
 

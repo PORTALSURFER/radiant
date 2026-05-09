@@ -6,7 +6,8 @@ use radiant::{
     },
     runtime::{
         Command, DEFAULT_NATIVE_WINDOW_TITLE, NativeGpuBackend, NativeGpuOptions, NativeRunOptions,
-        RuntimeBridge, SurfaceRuntime, UiSurface, WidgetMessageMapper, WindowSpec,
+        NativeTextOptions, RuntimeBridge, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        WindowSpec,
     },
     widgets::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, SelectableMessage,
@@ -125,6 +126,27 @@ fn native_run_options_expose_gpu_backend_policy() {
     );
     assert_eq!(options.gpu.backend, NativeGpuBackend::Dx12);
     assert_eq!(spec.native_options().gpu.backend, NativeGpuBackend::Vulkan);
+}
+
+#[test]
+fn native_run_options_expose_text_font_policy() {
+    let options = NativeRunOptions {
+        text: NativeTextOptions {
+            font_paths: vec!["fonts/App.ttf".into()],
+        },
+        ..NativeRunOptions::default()
+    };
+    let spec = WindowSpec::new("main", "Main").font_path("fonts/Spec.ttf");
+
+    assert!(NativeRunOptions::default().text.font_paths.is_empty());
+    assert_eq!(
+        options.text.font_paths[0],
+        std::path::PathBuf::from("fonts/App.ttf")
+    );
+    assert_eq!(
+        spec.native_options().text.font_paths[0],
+        std::path::PathBuf::from("fonts/Spec.ttf")
+    );
 }
 
 #[test]

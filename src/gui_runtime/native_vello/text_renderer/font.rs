@@ -2,8 +2,8 @@
 
 use super::*;
 
-pub(super) fn load_native_font() -> Option<FontData> {
-    for path in native_font_candidates() {
+pub(super) fn load_native_font(preferred_paths: &[PathBuf]) -> Option<FontData> {
+    for path in native_font_candidates(preferred_paths) {
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
         };
@@ -12,8 +12,8 @@ pub(super) fn load_native_font() -> Option<FontData> {
     None
 }
 
-pub(super) fn native_font_candidates() -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
+pub(super) fn native_font_candidates(preferred_paths: &[PathBuf]) -> Vec<PathBuf> {
+    let mut candidates = preferred_paths.to_vec();
     if let Ok(path) = std::env::var("RADIANT_NATIVE_FONT_PATH") {
         candidates.push(PathBuf::from(path));
     }
@@ -63,4 +63,17 @@ pub(super) fn native_font_candidates() -> Vec<PathBuf> {
     }
 
     candidates
+}
+
+#[cfg(test)]
+mod tests {
+    use super::native_font_candidates;
+    use std::path::PathBuf;
+
+    #[test]
+    fn preferred_font_paths_are_checked_before_fallbacks() {
+        let candidates = native_font_candidates(&[PathBuf::from("host-font.ttf")]);
+
+        assert_eq!(candidates.first(), Some(&PathBuf::from("host-font.ttf")));
+    }
 }

@@ -109,6 +109,9 @@ requested on platforms that support it.
 without exposing normal app code to raw WGPU setup; the default remains WGPU's
 environment-aware adapter selection, while diagnostics or platform work can
 request a specific backend such as DX12, Vulkan, Metal, GL, or browser WebGPU.
+`NativeTextOptions` lets hosts provide preferred font files before Radiant falls
+back to environment or system fonts, keeping text/font policy explicit without
+moving application asset loading into the renderer.
 `WindowSpec` describes one host-managed window without opening the platform
 runtime. It carries a stable host key plus native options, so multi-window or
 embedded hosts can keep a manifest of windows and attach a separate bridge or

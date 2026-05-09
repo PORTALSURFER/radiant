@@ -166,6 +166,7 @@ where
     Bridge: RuntimeBridge<Message>,
 {
     fn new(options: NativeRunOptions, bridge: Bridge, viewport: Vector2) -> Self {
+        let text_renderer = NativeTextRenderer::with_options(&options.text);
         Self {
             options,
             core: GenericNativeRuntimeCore::new(bridge, viewport),
@@ -174,7 +175,7 @@ where
             render_ctx: None,
             render_surface: None,
             renderer: None,
-            text_renderer: NativeTextRenderer::new(),
+            text_renderer,
             scene: Scene::new(),
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),

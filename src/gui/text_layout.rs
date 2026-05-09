@@ -1,45 +1,14 @@
 //! Generic retained helpers for simple text-line placement.
 
-use crate::gui::types::{Point, Rect};
-use std::sync::{Mutex, OnceLock};
+mod cache;
 
-const CACHE_LIMIT: usize = 128;
+use crate::gui::types::{Point, Rect};
+use cache::{TextLineKey, cached_text_line};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TextLineMode {
+pub(super) enum TextLineMode {
     Center,
     Top,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct TextLineKey {
-    mode: TextLineMode,
-    family_id: u64,
-    bounds: RectKey,
-    insets: InsetsKey,
-    font_size: u32,
-    min_top_inset: u32,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct TextLineEntry {
-    key: TextLineKey,
-    rect: Rect,
-}
-
-#[derive(Debug, Default)]
-struct TextLineCache {
-    entries: Vec<TextLineEntry>,
-    #[cfg(test)]
-    misses: usize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct RectKey {
-    min_x: u32,
-    min_y: u32,
-    max_x: u32,
-    max_y: u32,
 }
 
 /// Insets applied before resolving a single text-line placement rectangle.
@@ -53,14 +22,6 @@ pub struct TextLineInsets {
     pub top: f32,
     /// Bottom inset applied before line placement.
     pub bottom: f32,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct InsetsKey {
-    left: u32,
-    right: u32,
-    top: u32,
-    bottom: u32,
 }
 
 impl TextLineInsets {
@@ -137,39 +98,10 @@ fn text_line(
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    let key = TextLineKey {
-        mode,
-        family_id,
-        bounds: RectKey::from(bounds),
-        insets: InsetsKey::from(insets),
-        font_size: font_size.to_bits(),
-        min_top_inset: min_top_inset.to_bits(),
-    };
+    let key = TextLineKey::new(mode, family_id, bounds, insets, font_size, min_top_inset);
     cached_text_line(key, || {
         compute_text_line(bounds, font_size, insets, min_top_inset, mode)
     })
-}
-
-fn cached_text_line(key: TextLineKey, compute: impl FnOnce() -> Rect) -> Rect {
-    let mut cache = cache()
-        .lock()
-        .expect("text-line micro-layout cache poisoned");
-    if let Some(index) = cache.entries.iter().position(|entry| entry.key == key) {
-        let entry = cache.entries.remove(index);
-        cache.entries.push(entry);
-        return entry.rect;
-    }
-
-    let rect = compute();
-    #[cfg(test)]
-    {
-        cache.misses += 1;
-    }
-    if cache.entries.len() == CACHE_LIMIT {
-        cache.entries.remove(0);
-    }
-    cache.entries.push(TextLineEntry { key, rect });
-    rect
 }
 
 fn compute_text_line(
@@ -223,37 +155,10 @@ fn inset_rect(rect: Rect, insets: TextLineInsets) -> Rect {
     Rect::from_min_max(Point::new(min_x, min_y), Point::new(max_x, max_y))
 }
 
-fn cache() -> &'static Mutex<TextLineCache> {
-    static CACHE: OnceLock<Mutex<TextLineCache>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(TextLineCache::default()))
-}
-
-impl From<Rect> for RectKey {
-    fn from(rect: Rect) -> Self {
-        Self {
-            min_x: rect.min.x.to_bits(),
-            min_y: rect.min.y.to_bits(),
-            max_x: rect.max.x.to_bits(),
-            max_y: rect.max.y.to_bits(),
-        }
-    }
-}
-
-impl From<TextLineInsets> for InsetsKey {
-    fn from(insets: TextLineInsets) -> Self {
-        Self {
-            left: insets.left.to_bits(),
-            right: insets.right.to_bits(),
-            top: insets.top.to_bits(),
-            bottom: insets.bottom.to_bits(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::MutexGuard;
+    use std::sync::{Mutex, MutexGuard, OnceLock};
 
     fn test_guard() -> MutexGuard<'static, ()> {
         static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -264,18 +169,11 @@ mod tests {
     }
 
     fn reset_cache() {
-        let mut cache = cache()
-            .lock()
-            .expect("text-line micro-layout cache poisoned");
-        cache.entries.clear();
-        cache.misses = 0;
+        cache::reset_for_test();
     }
 
     fn cache_misses() -> usize {
-        cache()
-            .lock()
-            .expect("text-line micro-layout cache poisoned")
-            .misses
+        cache::misses_for_test()
     }
 
     #[test]

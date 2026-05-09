@@ -4,8 +4,9 @@ use radiant::{
     gui::repaint::RepaintSignal,
     layout::Vector2,
     runtime::{
-        App, Command, RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface,
-        WidgetMessageMapper, declarative_command_runtime_bridge, declarative_runtime_bridge,
+        App, Command, ResourceLoad, ResourceLoadState, ResourceSlot, RuntimeBridge, SurfaceChild,
+        SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        declarative_command_runtime_bridge, declarative_runtime_bridge,
     },
     widgets::{
         ButtonMessage, ButtonWidget, TextInputMessage, TextInputWidget, TextWidget, Widget,
@@ -156,6 +157,22 @@ fn declarative_command_bridge_supports_command_update_flow() {
     assert!(outcome.repaint_requested);
     assert_eq!(runtime.bridge().state().count, 1);
     assert_eq!(runtime.bridge().state().name, "Closure");
+}
+
+#[test]
+fn runtime_resource_slot_tracks_host_owned_background_results() {
+    let mut preview = ResourceSlot::new("preview");
+
+    preview.mark_loading();
+    assert_eq!(preview.state(), ResourceLoadState::Loading);
+
+    assert!(preview.apply(ResourceLoad::ready("preview", String::from("decoded"))));
+    assert_eq!(preview.state(), ResourceLoadState::Ready);
+    assert_eq!(preview.value().map(String::as_str), Some("decoded"));
+
+    assert!(preview.apply(ResourceLoad::failed("preview", "invalid resource")));
+    assert_eq!(preview.state(), ResourceLoadState::Failed);
+    assert_eq!(preview.error(), Some("invalid resource"));
 }
 
 fn project_app_once(app: &mut impl App<DemoMessage>) -> Arc<UiSurface<DemoMessage>> {

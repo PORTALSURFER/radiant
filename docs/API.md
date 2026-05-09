@@ -242,11 +242,15 @@ return `CommandOutcome` with dispatched-message and repaint-request summaries.
 reducers that need to queue messages, batch runtime-visible work, request
 repaint, schedule delayed messages, run background work, move focus, or request
 runtime exit.
-`ResourceSlot<T>`, `ResourceLoad<T>`, and `ResourceLoadState` provide a small
-runtime-level state contract for host-owned background resource work. Radiant
-does not own the filesystem or asset decoder, but examples and apps can use the
-same key/state/result shape for loading images, previews, manifests, fonts, or
-other resources through `Command::perform(...)` or `UpdateContext::spawn(...)`.
+`ResourceSlot<T>`, `ResourceRequest`, `ResourceLoad<T>`, and
+`ResourceLoadState` provide a small runtime-level state contract for host-owned
+background resource work. Radiant does not own the filesystem or asset decoder,
+but examples and apps can use the same key/state/result shape for loading
+images, previews, manifests, fonts, or other resources through
+`Command::perform(...)` or `UpdateContext::spawn(...)`. Use
+`ResourceSlot::begin_load()` and `ResourceSlot::apply_for(...)` when repeated
+loads for the same key can overlap; stale worker completions are ignored instead
+of replacing the current result.
 
 Any widget can emit its own output type with `WidgetOutput::typed(...)` and
 route it with `WidgetMessageMapper::typed(...)`. Built-in primitive modules may

@@ -3,7 +3,7 @@
 use radiant::prelude::*;
 use radiant::{
     layout::{Point, Rect, Vector2},
-    runtime::PaintPrimitive,
+    runtime::SurfacePaintStats,
     theme::ThemeTokens,
 };
 
@@ -29,19 +29,7 @@ struct BenchmarkReport {
     rows: u64,
     layout_rects: usize,
     materialized_nodes: usize,
-    primitives: PrimitiveCounts,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct PrimitiveCounts {
-    total: usize,
-    fills: usize,
-    strokes: usize,
-    text: usize,
-    clips: usize,
-    images: usize,
-    custom_surfaces: usize,
-    gpu_surfaces: usize,
+    primitives: SurfacePaintStats,
 }
 
 fn run_rendering_benchmark(rows: u64) -> BenchmarkReport {
@@ -55,7 +43,7 @@ fn run_rendering_benchmark(rows: u64) -> BenchmarkReport {
         rows,
         layout_rects: frame.layout.rects.len(),
         materialized_nodes: frame.layout.stats.materialized_nodes,
-        primitives: PrimitiveCounts::from_primitives(&frame.paint_plan.primitives),
+        primitives: frame.paint_plan.stats(),
     }
 }
 
@@ -106,30 +94,6 @@ fn benchmark_row(index: u64) -> View {
     .spacing(10.0)
     .height(46.0)
     .fill_width()
-}
-
-impl PrimitiveCounts {
-    fn from_primitives(primitives: &[PaintPrimitive]) -> Self {
-        let mut counts = Self {
-            total: primitives.len(),
-            ..Self::default()
-        };
-        for primitive in primitives {
-            match primitive {
-                PaintPrimitive::ClipStart(_) | PaintPrimitive::ClipEnd(_) => counts.clips += 1,
-                PaintPrimitive::FillRect(_) | PaintPrimitive::FillPolygon(_) => counts.fills += 1,
-                PaintPrimitive::StrokeRect(_)
-                | PaintPrimitive::StrokePolygon(_)
-                | PaintPrimitive::StrokePolyline(_) => counts.strokes += 1,
-                PaintPrimitive::Text(_) | PaintPrimitive::TextInput(_) => counts.text += 1,
-                PaintPrimitive::Image(_) => counts.images += 1,
-                PaintPrimitive::CustomSurface(_) => counts.custom_surfaces += 1,
-                PaintPrimitive::GpuSurface(_) => counts.gpu_surfaces += 1,
-                PaintPrimitive::OverlayPanel(_) => {}
-            }
-        }
-        counts
-    }
 }
 
 #[cfg(test)]

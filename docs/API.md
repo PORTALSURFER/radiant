@@ -353,6 +353,10 @@ need scroll offsets, virtualization state, or layout debugging.
 event-driven runtime state, including hover-aware paint and refreshed layout, so
 custom host loops do not need to stitch viewport, layout, and paint data
 manually after dispatching events.
+`SurfacePaintPlan::stats()` returns `SurfacePaintStats` primitive counts for
+diagnostics, benchmarks, and host renderers that need to inspect Vello-friendly,
+custom retained, and GPU-surface frame shape without duplicating primitive
+matching logic.
 
 Paint primitive generation is owned by the projected surface types that carry
 the visual contract: widgets implement widget paint through the `Widget` trait,

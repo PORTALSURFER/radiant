@@ -424,6 +424,9 @@ surface layout plus paint-plan generation, GPU signal-summary construction, and
 GPU-surface primitive projection. The harness performs sanity assertions, but
 does not enforce machine-dependent pass/fail timing thresholds; use the output
 for local comparisons, profiling runs, and regression investigation.
+Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
+that builds a large declarative surface, runs layout plus paint-plan generation,
+and prints parseable primitive-count diagnostics.
 
 For interactive native runs, set `RADIANT_NATIVE_RENDER_PROFILE=1` to emit a
 per-frame `radiant native render profile` tracing line. The profile separates

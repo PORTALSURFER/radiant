@@ -1,43 +1,9 @@
 use super::*;
 
+mod artifact;
 mod logging;
 
-use serde::Serialize;
-
-/// Machine-readable native startup timing payload exported by the runtime.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct NativeStartupTimingArtifact {
-    /// Whether startup reached the first-present summary path.
-    pub status: String,
-    /// Explicit startup failure reason when startup exits before first present.
-    pub failure_reason: Option<String>,
-    /// Milliseconds from startup init to native window creation.
-    pub window_create_ms: Option<f64>,
-    /// Milliseconds from startup init to window reveal.
-    pub window_revealed_ms: Option<f64>,
-    /// Milliseconds from window creation to wgpu surface creation.
-    pub wgpu_surface_create_ms: Option<f64>,
-    /// Milliseconds from window creation to wgpu device readiness.
-    pub wgpu_device_ready_ms: Option<f64>,
-    /// Milliseconds from startup init to render surface readiness.
-    pub surface_ready_ms: Option<f64>,
-    /// Milliseconds spent constructing the renderer.
-    pub renderer_build_ms: Option<f64>,
-    /// Milliseconds from startup init to renderer readiness.
-    pub renderer_ready_ms: Option<f64>,
-    /// Milliseconds from startup init to first scene readiness.
-    pub first_scene_ready_ms: Option<f64>,
-    /// Milliseconds from startup init to first redraw start.
-    pub first_redraw_started_ms: Option<f64>,
-    /// Milliseconds from first redraw start to first present.
-    pub first_present_draw_ms: Option<f64>,
-    /// Milliseconds from startup init to first present.
-    pub first_present_ms: Option<f64>,
-    /// Milliseconds between first present and deferred startup refresh completion.
-    pub deferred_model_refresh_ms: Option<f64>,
-    /// Milliseconds from startup init to deferred startup refresh completion.
-    pub deferred_model_refresh_total_ms: Option<f64>,
-}
+pub use artifact::NativeStartupTimingArtifact;
 
 /// Startup lifecycle timing breakdown for first paint and deferred refresh.
 #[derive(Debug, Default)]
@@ -110,116 +76,7 @@ impl StartupTimingProfile {
     }
 
     pub(super) fn export_artifact(&self) -> Option<NativeStartupTimingArtifact> {
-        self.export_completed_artifact()
-            .or_else(|| self.export_incomplete_artifact())
-    }
-
-    fn export_completed_artifact(&self) -> Option<NativeStartupTimingArtifact> {
-        let (Some(init_started_at), Some(window_created_at), Some(first_presented_at)) = (
-            self.init_started_at,
-            self.window_created_at,
-            self.first_presented_at,
-        ) else {
-            return None;
-        };
-        let surface_ready_at = self.surface_ready_at.unwrap_or(first_presented_at);
-        let renderer_ready_at = self.renderer_ready_at.unwrap_or(first_presented_at);
-        let first_scene_ready_at = self.first_scene_ready_at.unwrap_or(first_presented_at);
-        let deferred_model_refresh_done_at = self
-            .deferred_model_refresh_done_at
-            .unwrap_or(first_presented_at);
-        let window_create_ms = Some(ms_between(init_started_at, window_created_at));
-        let first_present_ms = Some(ms_between(init_started_at, first_presented_at));
-
-        Some(NativeStartupTimingArtifact {
-            status: String::from("complete"),
-            failure_reason: None,
-            window_create_ms,
-            window_revealed_ms: Some(
-                self.window_revealed_at
-                    .map(|at| ms_between(init_started_at, at))
-                    .unwrap_or_else(|| ms_between(init_started_at, first_presented_at)),
-            ),
-            wgpu_surface_create_ms: Some(
-                self.wgpu_surface_created_at
-                    .map(|at| ms_between(window_created_at, at))
-                    .unwrap_or(0.0),
-            ),
-            wgpu_device_ready_ms: Some(
-                self.wgpu_device_ready_at
-                    .map(|at| ms_between(window_created_at, at))
-                    .unwrap_or(0.0),
-            ),
-            surface_ready_ms: Some(ms_between(init_started_at, surface_ready_at)),
-            renderer_build_ms: Some(
-                self.renderer_started_at
-                    .map(|at| ms_between(at, renderer_ready_at))
-                    .unwrap_or(0.0),
-            ),
-            renderer_ready_ms: Some(ms_between(init_started_at, renderer_ready_at)),
-            first_scene_ready_ms: Some(ms_between(init_started_at, first_scene_ready_at)),
-            first_redraw_started_ms: Some(
-                self.first_redraw_started_at
-                    .map(|at| ms_between(init_started_at, at))
-                    .unwrap_or_else(|| ms_between(init_started_at, first_scene_ready_at)),
-            ),
-            first_present_draw_ms: Some(
-                self.first_redraw_started_at
-                    .map(|at| ms_between(at, first_presented_at))
-                    .unwrap_or(0.0),
-            ),
-            first_present_ms,
-            deferred_model_refresh_ms: Some(ms_between(
-                first_presented_at,
-                deferred_model_refresh_done_at,
-            )),
-            deferred_model_refresh_total_ms: Some(ms_between(
-                init_started_at,
-                deferred_model_refresh_done_at,
-            )),
-        })
-    }
-
-    fn export_incomplete_artifact(&self) -> Option<NativeStartupTimingArtifact> {
-        let init_started_at = self.init_started_at?;
-        let status = self.failure_reason()?;
-        let window_created_at = self.window_created_at;
-        let renderer_ready_at = self.renderer_ready_at;
-
-        Some(NativeStartupTimingArtifact {
-            status: String::from("incomplete"),
-            failure_reason: Some(status.to_string()),
-            window_create_ms: window_created_at.map(|at| ms_between(init_started_at, at)),
-            window_revealed_ms: self
-                .window_revealed_at
-                .map(|at| ms_between(init_started_at, at)),
-            wgpu_surface_create_ms: window_created_at.and_then(|window_created_at| {
-                self.wgpu_surface_created_at
-                    .map(|at| ms_between(window_created_at, at))
-            }),
-            wgpu_device_ready_ms: window_created_at.and_then(|window_created_at| {
-                self.wgpu_device_ready_at
-                    .map(|at| ms_between(window_created_at, at))
-            }),
-            surface_ready_ms: self
-                .surface_ready_at
-                .map(|at| ms_between(init_started_at, at)),
-            renderer_build_ms: self
-                .renderer_started_at
-                .zip(renderer_ready_at)
-                .map(|(started_at, ready_at)| ms_between(started_at, ready_at)),
-            renderer_ready_ms: renderer_ready_at.map(|at| ms_between(init_started_at, at)),
-            first_scene_ready_ms: self
-                .first_scene_ready_at
-                .map(|at| ms_between(init_started_at, at)),
-            first_redraw_started_ms: self
-                .first_redraw_started_at
-                .map(|at| ms_between(init_started_at, at)),
-            first_present_draw_ms: None,
-            first_present_ms: None,
-            deferred_model_refresh_ms: None,
-            deferred_model_refresh_total_ms: None,
-        })
+        artifact::export_startup_timing_artifact(self)
     }
 
     /// Return the explicit startup-profile failure reason for a run that exited

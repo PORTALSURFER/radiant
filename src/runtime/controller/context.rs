@@ -44,6 +44,19 @@ where
             .paint_plan_with_hover(&self.layout, theme, self.hovered_container)
     }
 
+    /// Package the current runtime viewport, layout, and paint plan for a host renderer.
+    ///
+    /// Unlike [`UiSurface::frame`](crate::runtime::UiSurface::frame), this uses
+    /// the runtime's current event-driven state, including hover-aware container
+    /// paint and any layout refreshed by dispatched messages or resize events.
+    pub fn frame(&self, theme: &ThemeTokens) -> SurfaceFrame {
+        SurfaceFrame {
+            viewport: self.viewport,
+            layout: self.layout.clone(),
+            paint_plan: self.paint_plan(theme),
+        }
+    }
+
     /// Return the current logical viewport size.
     pub fn viewport(&self) -> Vector2 {
         Vector2::new(self.viewport.width(), self.viewport.height())

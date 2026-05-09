@@ -2,15 +2,10 @@ use super::widget::{SurfaceWidget, WidgetMessageMapper};
 use crate::{
     gui::types::Rect,
     layout::{
-        ContainerKind, ContainerPolicy, GridPolicy, LayoutNode, LayoutOutput, NodeId,
-        OverflowPolicy, SlotChild, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, GridPolicy, LayoutNode, NodeId, OverflowPolicy, SlotChild,
+        SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
     },
-    runtime::paint::{
-        SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome,
-        push_overlay_panel, push_scroll_affordance, scroll_content_clip_rect,
-    },
-    theme::ThemeTokens,
-    widgets::{Widget, WidgetId, WidgetInput, WidgetOutput, WidgetState, WidgetStyle},
+    widgets::{Widget, WidgetId, WidgetInput, WidgetOutput, WidgetStyle},
 };
 
 /// One slot-owned child attachment inside a surface container.
@@ -101,10 +96,10 @@ pub enum SurfaceNode<Message> {
 /// Non-interactive floating overlay descriptor.
 #[derive(Clone)]
 pub struct SurfaceOverlay {
-    id: NodeId,
-    rect: Rect,
-    label: Option<String>,
-    style: WidgetStyle,
+    pub(super) id: NodeId,
+    pub(super) rect: Rect,
+    pub(super) label: Option<String>,
+    pub(super) style: WidgetStyle,
 }
 
 impl<Message> Clone for SurfaceNode<Message> {
@@ -378,82 +373,6 @@ impl<Message> SurfaceNode<Message> {
                 .find_map(|child| child.child.find_widget_mut(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
             Self::Overlay(_) => None,
-        }
-    }
-
-    pub(super) fn append_paint(
-        &self,
-        layout: &LayoutOutput,
-        theme: &ThemeTokens,
-        plan: &mut SurfacePaintPlan,
-        hovered_container: Option<NodeId>,
-    ) {
-        match self {
-            Self::Container(container) => {
-                if let Some(style) = container.style {
-                    push_container_chrome(
-                        &mut plan.primitives,
-                        container.id,
-                        layout,
-                        theme,
-                        style,
-                        WidgetState {
-                            hovered: hovered_container == Some(container.id),
-                            ..WidgetState::default()
-                        },
-                    );
-                }
-                if container.policy.kind == ContainerKind::ScrollView {
-                    if let Some(bounds) = layout.rects.get(&container.id).copied() {
-                        push_clip_start(
-                            &mut plan.primitives,
-                            container.id,
-                            scroll_content_clip_rect(container.id, layout, bounds),
-                        );
-                        for child in &container.children {
-                            child
-                                .child
-                                .append_paint(layout, theme, plan, hovered_container);
-                        }
-                        push_clip_end(&mut plan.primitives, container.id);
-                        if let Some(content_id) =
-                            container.children.first().map(|child| child.child.id())
-                        {
-                            push_scroll_affordance(
-                                &mut plan.primitives,
-                                container.id,
-                                content_id,
-                                layout,
-                                theme,
-                            );
-                        }
-                    }
-                } else {
-                    for child in &container.children {
-                        child
-                            .child
-                            .append_paint(layout, theme, plan, hovered_container);
-                    }
-                }
-            }
-            Self::Widget(widget) => {
-                let Some(bounds) = layout.rects.get(&widget.id()).copied() else {
-                    return;
-                };
-                widget
-                    .widget_object()
-                    .append_paint(&mut plan.primitives, bounds, layout, theme);
-            }
-            Self::Overlay(overlay) => {
-                push_overlay_panel(
-                    &mut plan.primitives,
-                    overlay.id,
-                    overlay.rect,
-                    overlay.label.clone(),
-                    theme,
-                    overlay.style,
-                );
-            }
         }
     }
 }

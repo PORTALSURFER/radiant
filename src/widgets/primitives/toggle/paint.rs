@@ -1,15 +1,18 @@
 //! Toggle paint command generation.
 
-use super::super::chrome::{push_checkbox_chrome, push_control_chrome};
 use crate::gui::types::Rect;
 use crate::runtime::{
     PaintPrimitive, PaintTextAlign, inset_rect, optical_centered_baseline, push_text_run,
     text_font_size,
 };
 use crate::theme::ThemeTokens;
-use crate::widgets::primitives::{text::TextWrap, toggle::ToggleWidget};
+use crate::widgets::primitives::{
+    support::{push_checkbox_chrome, push_control_chrome},
+    text::TextWrap,
+    toggle::ToggleWidget,
+};
 
-pub(in crate::widgets::primitives) fn push_toggle_widget_paint(
+pub(super) fn push_toggle_widget_paint(
     primitives: &mut Vec<PaintPrimitive>,
     toggle: &ToggleWidget,
     bounds: Rect,

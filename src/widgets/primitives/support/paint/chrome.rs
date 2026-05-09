@@ -36,7 +36,7 @@ pub(in crate::widgets::primitives) fn push_button_chrome(
     }
 }
 
-pub(super) fn push_control_chrome(
+pub(in crate::widgets::primitives) fn push_control_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     common: &WidgetCommon,
     bounds: Rect,
@@ -64,7 +64,7 @@ pub(super) fn push_control_chrome(
     }
 }
 
-pub(super) fn push_checkbox_chrome(
+pub(in crate::widgets::primitives) fn push_checkbox_chrome(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: WidgetId,
     bounds: Rect,

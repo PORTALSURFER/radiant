@@ -13,6 +13,8 @@
 //! Native Vello exposes a generic [`crate::runtime::RuntimeBridge`] entrypoint
 //! for reusable host applications.
 
+use std::path::PathBuf;
+
 pub(crate) mod native_vello;
 
 /// Default title for generic Radiant native windows.
@@ -56,6 +58,13 @@ pub struct NativeGpuOptions {
     pub backend: NativeGpuBackend,
 }
 
+/// Native text/font policy used by backend runtime adapters.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NativeTextOptions {
+    /// Host-preferred font files checked before environment and system fallbacks.
+    pub font_paths: Vec<PathBuf>,
+}
+
 /// Window configuration shared by native runtime entry points.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NativeRunOptions {
@@ -81,6 +90,8 @@ pub struct NativeRunOptions {
     pub target_fps: u32,
     /// GPU adapter/backend policy for native renderers.
     pub gpu: NativeGpuOptions,
+    /// Text and font policy for native renderers.
+    pub text: NativeTextOptions,
 }
 
 impl Default for NativeRunOptions {
@@ -95,6 +106,7 @@ impl Default for NativeRunOptions {
             icon: None,
             target_fps: 120,
             gpu: NativeGpuOptions::default(),
+            text: NativeTextOptions::default(),
         }
     }
 }
@@ -178,6 +190,12 @@ impl WindowSpec {
     /// Set the preferred native GPU backend for this window.
     pub fn gpu_backend(mut self, backend: NativeGpuBackend) -> Self {
         self.options.gpu.backend = backend;
+        self
+    }
+
+    /// Add a preferred font file checked before native fallback fonts.
+    pub fn font_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.options.text.font_paths.push(path.into());
         self
     }
 

@@ -56,7 +56,12 @@ pub(super) struct NativeTextRenderer {
 
 impl NativeTextRenderer {
     pub(super) fn new() -> Self {
-        let loaded_font = font::load_native_font().map(|font| LoadedFont { font });
+        Self::with_options(&NativeTextOptions::default())
+    }
+
+    pub(super) fn with_options(options: &NativeTextOptions) -> Self {
+        let loaded_font =
+            font::load_native_font(&options.font_paths).map(|font| LoadedFont { font });
         if loaded_font.is_none() {
             eprintln!(
                 "Native vello text renderer: no fallback font found; text runs will be skipped"

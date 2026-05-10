@@ -20,13 +20,11 @@ impl NativeTextRenderer {
             font_size_bits: font_size.to_bits(),
         };
 
-        if let Some(layout) = self
-            .layout_cache
-            .get(&key)
-            .map(|layout| layout as *const TextLayout)
-        {
+        // Split hit detection from the returned borrow so cache profiling can
+        // stay safe without extending an immutable borrow across the miss path.
+        if self.layout_cache.contains_key(&key) {
             self.text_layout_hits = self.text_layout_hits.saturating_add(1);
-            return Some(unsafe { &*layout });
+            return self.layout_cache.get(&key);
         }
 
         self.text_layout_misses = self.text_layout_misses.saturating_add(1);

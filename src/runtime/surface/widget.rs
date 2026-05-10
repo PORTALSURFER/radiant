@@ -151,6 +151,21 @@ impl<Message> SurfaceWidget<Message> {
             .flatten()
     }
 
+    pub(in crate::runtime) fn dispatch_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> super::WidgetDispatchResult<Message> {
+        let Some(output) = self.handle_input(widget_id, bounds, input) else {
+            return super::WidgetDispatchResult::NoOutput;
+        };
+        self.messages
+            .map_output(output)
+            .map(super::WidgetDispatchResult::Message)
+            .unwrap_or(super::WidgetDispatchResult::UnmappedOutput)
+    }
+
     pub(super) fn dispatch_output(
         &self,
         widget_id: WidgetId,

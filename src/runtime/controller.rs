@@ -18,6 +18,7 @@ pub use events::Event;
 
 use super::{
     Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceTraversalIndex, UiSurface,
+    WidgetDispatchResult,
 };
 use crate::{
     gui::{
@@ -169,15 +170,19 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return false;
         };
-        let Some(output) = self.surface.dispatch_widget_input(widget_id, bounds, input) else {
-            self.capture_pointer_capture_state(widget_id);
-            return self.surface.find_widget(widget_id).is_some();
+        let Some(result) = self
+            .surface
+            .dispatch_widget_input_message(widget_id, bounds, input)
+        else {
+            return false;
         };
         self.capture_pointer_capture_state(widget_id);
-        if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
-            self.dispatch_message(message);
-        } else {
-            self.relayout();
+        match result {
+            WidgetDispatchResult::Message(message) => {
+                self.dispatch_message(message);
+            }
+            WidgetDispatchResult::UnmappedOutput => self.relayout(),
+            WidgetDispatchResult::NoOutput => {}
         }
         true
     }

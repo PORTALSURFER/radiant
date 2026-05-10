@@ -17,8 +17,9 @@ pub use context::RuntimeContext;
 pub use events::Event;
 
 use super::{
-    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection,
-    SurfaceTraversalIndex, SurfaceWidget, UiSurface, WidgetDispatchResult, WidgetPath,
+    ClipAncestors, Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan,
+    SurfaceRuntimeProjection, SurfaceTraversalIndex, SurfaceWidget, UiSurface,
+    WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::{
@@ -76,8 +77,8 @@ where
     styled_container_hit_rank: HashMap<NodeId, usize>,
     visible_styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
-    widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
-    container_clip_ancestors: BTreeMap<NodeId, Vec<NodeId>>,
+    widget_clip_ancestors: BTreeMap<WidgetId, ClipAncestors>,
+    container_clip_ancestors: BTreeMap<NodeId, ClipAncestors>,
     scroll_content_by_container: BTreeMap<NodeId, NodeId>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,

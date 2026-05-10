@@ -52,10 +52,11 @@ pub(crate) use paint::{
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
 pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
+pub(in crate::runtime) use surface::{
+    ClipAncestors, SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
+    WidgetPath,
+};
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,
     SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
-};
-pub(in crate::runtime) use surface::{
-    SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult, WidgetPath,
 };

@@ -2,6 +2,7 @@
 
 mod cache;
 mod context;
+mod direct;
 mod dirty;
 mod helpers;
 mod layout;

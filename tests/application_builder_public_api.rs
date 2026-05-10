@@ -227,7 +227,8 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
         .min_size(640, 480)
         .spec("main");
     let inspector = WindowSpec::new("inspector", "Inspector")
-        .size(320, 500)
+        .logical_size(320.5, 500.25)
+        .min_logical_size(300.25, 420.5)
         .drag_and_drop(false)
         .target_fps(60);
 
@@ -236,10 +237,13 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
     assert_eq!(main.inner_size(), Some([800.0, 600.0]));
     assert_eq!(main.min_inner_size(), Some([640.0, 480.0]));
     assert_eq!(inspector.title(), "Inspector");
+    assert_eq!(inspector.inner_size(), Some([320.5, 500.25]));
+    assert_eq!(inspector.min_inner_size(), Some([300.25, 420.5]));
     assert!(!inspector.drag_and_drop_enabled());
     assert_eq!(inspector.target_frame_rate(), 60);
     let options: NativeRunOptions = inspector.into();
-    assert_eq!(options.inner_size, Some([320.0, 500.0]));
+    assert_eq!(options.inner_size, Some([320.5, 500.25]));
+    assert_eq!(options.min_inner_size, Some([300.25, 420.5]));
 }
 
 #[test]

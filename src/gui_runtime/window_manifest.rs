@@ -38,14 +38,24 @@ impl WindowSpec {
     }
 
     /// Set the initial logical window size.
-    pub fn size(mut self, width: u32, height: u32) -> Self {
-        self.options.inner_size = Some([width as f32, height as f32]);
+    pub fn size(self, width: u32, height: u32) -> Self {
+        self.logical_size(width as f32, height as f32)
+    }
+
+    /// Set the initial logical window size using floating-point logical pixels.
+    pub fn logical_size(mut self, width: f32, height: f32) -> Self {
+        self.options.inner_size = Some([width, height]);
         self
     }
 
     /// Set the minimum logical window size.
-    pub fn min_size(mut self, width: u32, height: u32) -> Self {
-        self.options.min_inner_size = Some([width as f32, height as f32]);
+    pub fn min_size(self, width: u32, height: u32) -> Self {
+        self.min_logical_size(width as f32, height as f32)
+    }
+
+    /// Set the minimum logical window size using floating-point logical pixels.
+    pub fn min_logical_size(mut self, width: f32, height: f32) -> Self {
+        self.options.min_inner_size = Some([width, height]);
         self
     }
 

@@ -16,9 +16,13 @@ use image::encode_image;
 use shape::{encode_polygon_fill, encode_polygon_stroke, encode_polyline_stroke, encode_rect};
 use text_input::encode_text_input;
 
-pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
-    plan: &crate::runtime::SurfacePaintPlan,
-    context: SurfaceSceneEncodeContext<'_, Bridge>,
+pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<
+    'plan,
+    Bridge,
+    Message,
+>(
+    plan: &'plan crate::runtime::SurfacePaintPlan,
+    context: SurfaceSceneEncodeContext<'_, 'plan, Bridge>,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,
@@ -76,8 +80,8 @@ where
                     PaintTextAlign::Right => TextAlign::Right,
                 };
                 let baseline_offset = text.baseline.unwrap_or(text.font_size);
-                text_runs.push(TextRun {
-                    text: text.text.clone(),
+                text_runs.push(SceneTextRun {
+                    text: text.text.as_str(),
                     position: Point::new(
                         text.rect.min.x,
                         text.rect.min.y + baseline_offset - text.font_size,
@@ -160,12 +164,12 @@ where
     stats
 }
 
-pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Bridge> {
+pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, 'plan, Bridge> {
     pub scene: &'a mut Scene,
     pub text_renderer: &'a mut NativeTextRenderer,
     pub bridge: &'a mut Bridge,
     pub viewport: Vector2,
     pub retained_cache: &'a mut RetainedSurfaceFrameCache,
-    pub text_runs: &'a mut Vec<TextRun>,
+    pub text_runs: &'a mut Vec<SceneTextRun<'plan>>,
     pub animation_time: Duration,
 }

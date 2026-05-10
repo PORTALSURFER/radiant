@@ -252,14 +252,14 @@ fn retained_custom_surface_cache_rejects_volatile_descriptor() {
     assert_eq!(core.runtime.bridge().render_count, 2);
 }
 
-fn encode_plan<Bridge, Message>(
-    plan: &crate::runtime::SurfacePaintPlan,
+fn encode_plan<'plan, Bridge, Message>(
+    plan: &'plan crate::runtime::SurfacePaintPlan,
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
     bridge: &mut Bridge,
     viewport: Vector2,
     retained_cache: &mut RetainedSurfaceFrameCache,
-    text_runs: &mut Vec<TextRun>,
+    text_runs: &mut Vec<SceneTextRun<'plan>>,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,

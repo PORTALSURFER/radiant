@@ -148,7 +148,6 @@ where
     renderer: Option<Renderer>,
     text_renderer: NativeTextRenderer,
     scene: Scene,
-    scene_text_runs: Vec<TextRun>,
     gpu_surface_renderer: GpuSurfaceRenderer,
     last_paint_plan: SurfacePaintPlan,
     retained_surface_cache: RetainedSurfaceFrameCache,
@@ -184,7 +183,6 @@ where
             renderer: None,
             text_renderer,
             scene: Scene::new(),
-            scene_text_runs: Vec::new(),
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
@@ -219,6 +217,7 @@ where
         let plan = self.core.paint_plan();
         self.update_gpu_surface_hit_rects(&plan.primitives);
         let viewport = self.core.runtime.viewport();
+        let mut scene_text_runs = Vec::with_capacity(plan.primitives.len().min(64));
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
             &plan,
             SurfaceSceneEncodeContext {
@@ -227,7 +226,7 @@ where
                 bridge: self.core.runtime.bridge_mut(),
                 viewport,
                 retained_cache: &mut self.retained_surface_cache,
-                text_runs: &mut self.scene_text_runs,
+                text_runs: &mut scene_text_runs,
                 animation_time: self.animation_origin.elapsed(),
             },
         );

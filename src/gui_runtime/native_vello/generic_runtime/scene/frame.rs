@@ -4,14 +4,14 @@ use crate::gui_runtime::native_vello::*;
 pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn flush_text_runs(
     scene: &mut Scene,
     text_renderer: &mut NativeTextRenderer,
-    text_runs: &mut Vec<TextRun>,
+    text_runs: &mut Vec<SceneTextRun<'_>>,
     stats: &mut RetainedSurfaceEncodeStats,
 ) {
     if text_runs.is_empty() {
         return;
     }
     stats.record_text_runs(text_runs.len());
-    text_renderer.draw_text_runs(scene, text_runs);
+    text_renderer.draw_scene_text_runs(scene, text_runs.iter().copied());
     text_runs.clear();
 }
 

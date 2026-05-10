@@ -70,10 +70,18 @@ where
         message: Message,
         outcome: &mut CommandOutcome,
     ) {
+        let refresh_before = outcome.surface_refresh_requested;
         outcome.messages_dispatched += 1;
-        outcome.surface_refresh_requested = true;
         let command = self.bridge.update(message);
+        let paint_only = command_requests_paint_only(&command);
+        let messages_before_command = outcome.messages_dispatched;
         self.execute_command_inner(command, outcome);
+        let command_dispatched_messages = outcome.messages_dispatched > messages_before_command;
+        if !paint_only || command_dispatched_messages {
+            outcome.surface_refresh_requested = true;
+        } else {
+            outcome.surface_refresh_requested = refresh_before;
+        }
     }
 
     fn execute_command_inner(&mut self, command: Command<Message>, outcome: &mut CommandOutcome) {
@@ -92,7 +100,6 @@ where
             Command::RequestPaintOnly => {
                 self.repaint_requested = true;
                 outcome.repaint_requested = true;
-                outcome.surface_refresh_requested = false;
             }
             Command::After { delay, message } => {
                 if self.bridge.schedule_message(delay, message) {
@@ -112,5 +119,19 @@ where
                 self.exit_requested = true;
             }
         }
+    }
+}
+
+fn command_requests_paint_only<Message>(command: &Command<Message>) -> bool {
+    match command {
+        Command::RequestPaintOnly => true,
+        Command::Batch(commands) => commands.iter().any(command_requests_paint_only),
+        Command::None
+        | Command::Message(_)
+        | Command::RequestRepaint
+        | Command::After { .. }
+        | Command::Perform { .. }
+        | Command::Focus(_)
+        | Command::Exit => false,
     }
 }

@@ -38,7 +38,11 @@ mod widget_view;
 pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
 include!("application/view_node.rs");
 include!("application/tree_list.rs");
-include!("application/details_list.rs");
+mod details_list;
+pub use details_list::{
+    DetailsColumn, DetailsRow, DetailsSort, SortDirection, selectable_sortable_details_list,
+    sortable_details_list,
+};
 mod property_panel;
 pub use property_panel::{PropertyRow, property_panel, selectable_property_panel};
 mod menu;

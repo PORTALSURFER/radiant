@@ -1,3 +1,9 @@
+use crate::{
+    application::{StateStringCallback, StateView, button, column, row, scroll, text},
+    widgets::{WidgetProminence, WidgetStyle, WidgetTone},
+};
+use std::sync::Arc;
+
 /// Sort direction displayed by a sortable details-list column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SortDirection {
@@ -87,10 +93,7 @@ pub struct DetailsRow {
 
 impl DetailsRow {
     /// Build one details-list row.
-    pub fn new(
-        id: impl ToString,
-        cells: impl IntoIterator<Item = impl Into<String>>,
-    ) -> Self {
+    pub fn new(id: impl ToString, cells: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
             id: id.to_string(),
             cells: cells.into_iter().map(Into::into).collect(),
@@ -224,10 +227,7 @@ fn details_row<State: 'static>(
     row
 }
 
-fn sized_cell<State: 'static>(
-    column: &DetailsColumn,
-    cell: StateView<State>,
-) -> StateView<State> {
+fn sized_cell<State: 'static>(column: &DetailsColumn, cell: StateView<State>) -> StateView<State> {
     match column.width {
         Some(width) => cell.size(width as f32, 20.0),
         None => cell.fill_width().height(20.0),

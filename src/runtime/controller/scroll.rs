@@ -97,6 +97,7 @@ where
                     .is_some_and(|overflow| {
                         overflow.policy == OverflowPolicy::Scroll && (overflow.x || overflow.y)
                     })
+                && self.container_clip_contains_point(*node_id, point)
         })
     }
 }

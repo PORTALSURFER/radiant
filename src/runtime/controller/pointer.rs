@@ -46,7 +46,7 @@ where
             })
     }
 
-    fn container_clip_contains_point(&self, node_id: NodeId, point: Point) -> bool {
+    pub(super) fn container_clip_contains_point(&self, node_id: NodeId, point: Point) -> bool {
         self.container_clip_ancestors
             .get(&node_id)
             .is_none_or(|clip_nodes| {

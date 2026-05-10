@@ -22,6 +22,11 @@ impl<Message> SurfaceNode<Message> {
         match self {
             Self::Container(container) => {
                 let is_scroll = container.policy.kind == ContainerKind::ScrollView;
+                if !scroll_stack.is_empty() {
+                    index
+                        .container_clip_ancestors
+                        .insert(container.id, scroll_stack.clone());
+                }
                 if is_scroll {
                     scroll_stack.push(container.id);
                     index.scroll_container_order.push(container.id);
@@ -33,11 +38,6 @@ impl<Message> SurfaceNode<Message> {
                 }
                 if container.style.is_some() && container.hoverable {
                     index.styled_container_order.push(container.id);
-                    if !scroll_stack.is_empty() {
-                        index
-                            .container_clip_ancestors
-                            .insert(container.id, scroll_stack.clone());
-                    }
                 }
                 for child in &container.children {
                     child.child.collect_runtime_index(scroll_stack, index);

@@ -3,15 +3,9 @@ use crate::runtime::{GpuSurfaceContent, PaintGpuSurface};
 use std::sync::Arc;
 
 impl GpuSurfaceRenderer {
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn render_signal(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        target_view: &wgpu::TextureView,
-        target_format: wgpu::TextureFormat,
-        target_size: Vector2,
+        target: &mut GpuSurfaceRenderTarget<'_>,
         surface: &PaintGpuSurface,
         stats: &mut GpuSurfaceRenderStats,
     ) {
@@ -53,7 +47,7 @@ impl GpuSurfaceRenderer {
             level.buckets.len(),
             level_index,
         );
-        self.ensure_pipeline(device, target_format);
+        self.ensure_pipeline(target.device, target.format);
         if self
             .signal_bodies
             .get(&surface.key)
@@ -64,11 +58,7 @@ impl GpuSurfaceRenderer {
                 return;
             };
             self.render_texture_view(
-                device,
-                encoder,
-                target_view,
-                target_format,
-                target_size,
+                target,
                 surface,
                 &body.view,
                 [0.0, 0.0, body_key.width as f32, body_key.height as f32],
@@ -76,7 +66,7 @@ impl GpuSurfaceRenderer {
             );
             return;
         }
-        self.ensure_signal_pipeline(device, wgpu::TextureFormat::Rgba8Unorm);
+        self.ensure_signal_pipeline(target.device, wgpu::TextureFormat::Rgba8Unorm);
         let uniforms = SignalUniforms {
             dest: [0.0, 0.0, body_key.width as f32, body_key.height as f32],
             frame_range: [
@@ -97,23 +87,25 @@ impl GpuSurfaceRenderer {
             cursor_color: [1.0, 1.0, 1.0, 0.92],
         };
         self.ensure_signal_buffer(
-            device,
-            queue,
+            target.device,
+            target.queue,
             surface.key,
             surface.revision ^ ((level_index as u64) << 32),
             level.buckets.as_ref(),
             &uniforms,
         );
-        self.ensure_signal_body_texture(device, encoder, surface.key, body_key, stats);
+        self.ensure_signal_body_texture(
+            target.device,
+            target.encoder,
+            surface.key,
+            body_key,
+            stats,
+        );
         let Some(body) = self.signal_bodies.get(&surface.key) else {
             return;
         };
         self.render_texture_view(
-            device,
-            encoder,
-            target_view,
-            target_format,
-            target_size,
+            target,
             surface,
             &body.view,
             [0.0, 0.0, body_key.width as f32, body_key.height as f32],

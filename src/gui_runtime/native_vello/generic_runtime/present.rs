@@ -106,12 +106,14 @@ where
         );
         profile.full_screen_blit = started.elapsed();
         let gpu_surface_stats = self.gpu_surface_renderer.render(
-            &dev_handle.device,
-            &dev_handle.queue,
-            &mut encoder,
-            &surface_view,
-            surface.config.format,
-            Vector2::new(surface.config.width as f32, surface.config.height as f32),
+            &mut gpu_surface::GpuSurfaceRenderTarget {
+                device: &dev_handle.device,
+                queue: &dev_handle.queue,
+                encoder: &mut encoder,
+                target_view: &surface_view,
+                format: surface.config.format,
+                size: Vector2::new(surface.config.width as f32, surface.config.height as f32),
+            },
             &self.last_paint_plan.primitives,
         );
         let started = Instant::now();

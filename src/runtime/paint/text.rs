@@ -1,31 +1,11 @@
 //! Text paint helpers for backend-neutral paint plans.
 
-use crate::gui::types::{Rect, Rgba8};
-use crate::widgets::{TextWrap, WidgetId};
+use crate::gui::types::Rect;
 
-use super::{PaintPrimitive, PaintTextAlign, PaintTextRun};
+use super::{PaintPrimitive, PaintTextRun};
 
-pub(crate) fn push_text_run(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: WidgetId,
-    text: String,
-    rect: Rect,
-    baseline: Option<f32>,
-    color: Rgba8,
-    align: PaintTextAlign,
-    wrap: TextWrap,
-    font_size: f32,
-) {
-    primitives.push(PaintPrimitive::Text(PaintTextRun {
-        widget_id,
-        text,
-        rect,
-        font_size,
-        baseline,
-        color,
-        align,
-        wrap,
-    }));
+pub(crate) fn push_text_run(primitives: &mut Vec<PaintPrimitive>, run: PaintTextRun) {
+    primitives.push(PaintPrimitive::Text(run));
 }
 
 pub(crate) fn text_font_size(rect: Rect) -> f32 {

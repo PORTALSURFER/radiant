@@ -637,9 +637,10 @@ label without owning product-specific preference names.
 as `TextLineInsets`, `centered_text_line`, `top_text_line`, and
 `TextLineLayoutCache`. The plain placement helpers are deterministic and
 side-effect free; renderer adapters that need retention can pass an owned cache
-to `centered_text_line_with_cache` or `top_text_line_with_cache`. That keeps
-hot-path text geometry reuse explicit, backend-owned, and free of hidden global
-synchronization while avoiding host-domain text semantics.
+and font-family cache key to `centered_text_line_with_cache` or
+`top_text_line_with_cache`. That keeps hot-path text geometry reuse explicit,
+backend-owned, and free of hidden global synchronization while avoiding
+host-domain text semantics.
 
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,

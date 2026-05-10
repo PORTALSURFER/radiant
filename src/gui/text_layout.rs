@@ -54,9 +54,7 @@ pub fn centered_text_line(
     font_size: f32,
     insets: TextLineInsets,
     min_top_inset: f32,
-    family_id: u64,
 ) -> Rect {
-    let _ = family_id;
     compute_text_line(
         bounds,
         font_size,
@@ -87,8 +85,7 @@ pub fn centered_text_line_with_cache(
 }
 
 /// Resolve a top-aligned text-line rect.
-pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets, family_id: u64) -> Rect {
-    let _ = family_id;
+pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets) -> Rect {
     compute_text_line(bounds, font_size, insets, 0.0, TextLineMode::Top)
 }
 
@@ -273,7 +270,7 @@ mod tests {
     #[test]
     fn top_line_uses_top_edge_after_horizontal_inset() {
         let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 60.0));
-        let line = top_text_line(bounds, 11.0, TextLineInsets::horizontal(5.0), 3);
+        let line = top_text_line(bounds, 11.0, TextLineInsets::horizontal(5.0));
         assert_eq!(line.min, Point::new(15.0, 20.0));
         assert_eq!(line.max, Point::new(205.0, 31.0));
     }

@@ -104,6 +104,7 @@ fn surface_runtime_executes_command_messages_and_repaint_requests() {
 
     assert_eq!(outcome.messages_dispatched, 3);
     assert!(outcome.repaint_requested);
+    assert!(outcome.surface_refresh_requested);
     assert!(runtime.repaint_requested());
     assert!(runtime.take_repaint_requested());
     assert!(!runtime.repaint_requested());
@@ -263,6 +264,7 @@ impl RuntimeBridge<CommandDemoMessage> for CommandDemoBridge {
                 Command::message(CommandDemoMessage::Rename(String::from("Commands"))),
                 Command::request_repaint(),
                 Command::message(CommandDemoMessage::Increment),
+                Command::request_paint_only(),
             ]),
             CommandDemoMessage::Increment => {
                 self.state.count += 1;

@@ -10,14 +10,10 @@ use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
 
 mod input;
+mod model;
 mod paint;
 
-/// Immutable public properties for a reusable selectable surface.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SelectableProps {
-    /// User-visible selectable label.
-    pub label: String,
-}
+pub use model::SelectableProps;
 
 /// Public selectable primitive for cards, rows, tiles, and options.
 #[derive(Clone, Debug, PartialEq)]

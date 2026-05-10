@@ -1,8 +1,7 @@
-//! Retained cache for text-line micro-layout.
+//! Owned cache for text-line micro-layout.
 
 use crate::gui::text_layout::{TextLineInsets, TextLineMode};
 use crate::gui::types::Rect;
-use std::sync::{Mutex, OnceLock};
 
 const CACHE_LIMIT: usize = 128;
 
@@ -42,9 +41,15 @@ struct TextLineEntry {
     rect: Rect,
 }
 
-#[derive(Debug, Default)]
-struct TextLineCache {
+/// Bounded, renderer-owned cache for deterministic single-line text placement.
+///
+/// Keep one cache per renderer, adapter, or layout owner that wants retained
+/// text-line geometry. This avoids a process-global lock while still letting
+/// hot paths reuse repeated label placement calculations.
+#[derive(Debug)]
+pub struct TextLineLayoutCache {
     entries: Vec<TextLineEntry>,
+    limit: usize,
     #[cfg(test)]
     misses: usize,
 }
@@ -65,31 +70,74 @@ struct InsetsKey {
     bottom: u32,
 }
 
-pub(super) fn cached_text_line(key: TextLineKey, compute: impl FnOnce() -> Rect) -> Rect {
-    let mut cache = cache()
-        .lock()
-        .expect("text-line micro-layout cache poisoned");
-    if let Some(index) = cache.entries.iter().position(|entry| entry.key == key) {
-        let entry = cache.entries.remove(index);
-        cache.entries.push(entry);
-        return entry.rect;
+impl TextLineLayoutCache {
+    /// Create a bounded text-line geometry cache with Radiant's default capacity.
+    pub fn new() -> Self {
+        Self::with_capacity(CACHE_LIMIT)
     }
 
-    let rect = compute();
+    /// Create a bounded text-line geometry cache with a custom capacity.
+    pub fn with_capacity(limit: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(limit.min(CACHE_LIMIT)),
+            limit: limit.max(1),
+            #[cfg(test)]
+            misses: 0,
+        }
+    }
+
+    /// Return the number of cached text-line placements currently retained.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Return whether this cache currently holds no retained placements.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Drop all retained text-line placements.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        #[cfg(test)]
+        {
+            self.misses = 0;
+        }
+    }
+
+    pub(super) fn cached_text_line(
+        &mut self,
+        key: TextLineKey,
+        compute: impl FnOnce() -> Rect,
+    ) -> Rect {
+        if let Some(index) = self.entries.iter().position(|entry| entry.key == key) {
+            let entry = self.entries.remove(index);
+            self.entries.push(entry);
+            return entry.rect;
+        }
+
+        let rect = compute();
+        #[cfg(test)]
+        {
+            self.misses += 1;
+        }
+        if self.entries.len() == self.limit {
+            self.entries.remove(0);
+        }
+        self.entries.push(TextLineEntry { key, rect });
+        rect
+    }
+
     #[cfg(test)]
-    {
-        cache.misses += 1;
+    pub(super) fn misses_for_test(&self) -> usize {
+        self.misses
     }
-    if cache.entries.len() == CACHE_LIMIT {
-        cache.entries.remove(0);
-    }
-    cache.entries.push(TextLineEntry { key, rect });
-    rect
 }
 
-fn cache() -> &'static Mutex<TextLineCache> {
-    static CACHE: OnceLock<Mutex<TextLineCache>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(TextLineCache::default()))
+impl Default for TextLineLayoutCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl From<Rect> for RectKey {
@@ -112,21 +160,4 @@ impl From<TextLineInsets> for InsetsKey {
             bottom: insets.bottom.to_bits(),
         }
     }
-}
-
-#[cfg(test)]
-pub(super) fn reset_for_test() {
-    let mut cache = cache()
-        .lock()
-        .expect("text-line micro-layout cache poisoned");
-    cache.entries.clear();
-    cache.misses = 0;
-}
-
-#[cfg(test)]
-pub(super) fn misses_for_test() -> usize {
-    cache()
-        .lock()
-        .expect("text-line micro-layout cache poisoned")
-        .misses
 }

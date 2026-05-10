@@ -3,7 +3,9 @@
 mod cache;
 
 use crate::gui::types::{Point, Rect};
-use cache::{TextLineKey, cached_text_line};
+use cache::TextLineKey;
+
+pub use cache::TextLineLayoutCache;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum TextLineMode {
@@ -46,7 +48,7 @@ impl TextLineInsets {
     }
 }
 
-/// Resolve a vertically centered text-line rect through the retained micro-layout cache.
+/// Resolve a vertically centered text-line rect.
 pub fn centered_text_line(
     bounds: Rect,
     font_size: f32,
@@ -54,7 +56,27 @@ pub fn centered_text_line(
     min_top_inset: f32,
     family_id: u64,
 ) -> Rect {
+    let _ = family_id;
+    compute_text_line(
+        bounds,
+        font_size,
+        insets,
+        min_top_inset,
+        TextLineMode::Center,
+    )
+}
+
+/// Resolve a vertically centered text-line rect through an owned micro-layout cache.
+pub fn centered_text_line_with_cache(
+    cache: &mut TextLineLayoutCache,
+    bounds: Rect,
+    font_size: f32,
+    insets: TextLineInsets,
+    min_top_inset: f32,
+    family_id: u64,
+) -> Rect {
     text_line(
+        Some(cache),
         bounds,
         font_size,
         insets,
@@ -64,9 +86,29 @@ pub fn centered_text_line(
     )
 }
 
-/// Resolve a top-aligned text-line rect through the retained micro-layout cache.
+/// Resolve a top-aligned text-line rect.
 pub fn top_text_line(bounds: Rect, font_size: f32, insets: TextLineInsets, family_id: u64) -> Rect {
-    text_line(bounds, font_size, insets, 0.0, family_id, TextLineMode::Top)
+    let _ = family_id;
+    compute_text_line(bounds, font_size, insets, 0.0, TextLineMode::Top)
+}
+
+/// Resolve a top-aligned text-line rect through an owned micro-layout cache.
+pub fn top_text_line_with_cache(
+    cache: &mut TextLineLayoutCache,
+    bounds: Rect,
+    font_size: f32,
+    insets: TextLineInsets,
+    family_id: u64,
+) -> Rect {
+    text_line(
+        Some(cache),
+        bounds,
+        font_size,
+        insets,
+        0.0,
+        family_id,
+        TextLineMode::Top,
+    )
 }
 
 /// Snap a text-line rectangle so its bottom edge lands on a full pixel.
@@ -87,6 +129,7 @@ pub fn snap_text_baseline_to_pixel(line: Rect) -> Rect {
 }
 
 fn text_line(
+    cache: Option<&mut TextLineLayoutCache>,
     bounds: Rect,
     font_size: f32,
     insets: TextLineInsets,
@@ -98,10 +141,12 @@ fn text_line(
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
+    let compute = || compute_text_line(bounds, font_size, insets, min_top_inset, mode);
+    let Some(cache) = cache else {
+        return compute();
+    };
     let key = TextLineKey::new(mode, family_id, bounds, insets, font_size, min_top_inset);
-    cached_text_line(key, || {
-        compute_text_line(bounds, font_size, insets, min_top_inset, mode)
-    })
+    cache.cached_text_line(key, compute)
 }
 
 fn compute_text_line(
@@ -158,64 +203,98 @@ fn inset_rect(rect: Rect, insets: TextLineInsets) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard, OnceLock};
-
-    fn test_guard() -> MutexGuard<'static, ()> {
-        static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        TEST_LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .expect("text-line micro-layout test lock poisoned")
-    }
-
-    fn reset_cache() {
-        cache::reset_for_test();
-    }
-
-    fn cache_misses() -> usize {
-        cache::misses_for_test()
-    }
 
     #[test]
     fn centered_line_reuses_cached_geometry_for_identical_inputs() {
-        let _guard = test_guard();
-        reset_cache();
+        let mut cache = TextLineLayoutCache::new();
         let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 60.0));
-        let first = centered_text_line(bounds, 12.0, TextLineInsets::symmetric(8.0, 3.0), 0.0, 1);
-        let second = centered_text_line(bounds, 12.0, TextLineInsets::symmetric(8.0, 3.0), 0.0, 1);
+        let first = centered_text_line_with_cache(
+            &mut cache,
+            bounds,
+            12.0,
+            TextLineInsets::symmetric(8.0, 3.0),
+            0.0,
+            1,
+        );
+        let second = centered_text_line_with_cache(
+            &mut cache,
+            bounds,
+            12.0,
+            TextLineInsets::symmetric(8.0, 3.0),
+            0.0,
+            1,
+        );
         assert_eq!(first, second);
-        assert_eq!(cache_misses(), 1);
+        assert_eq!(cache.misses_for_test(), 1);
     }
 
     #[test]
     fn centered_line_invalidates_when_font_bounds_or_insets_change() {
-        let _guard = test_guard();
-        reset_cache();
+        let mut cache = TextLineLayoutCache::new();
         let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 60.0));
-        let base = centered_text_line(bounds, 12.0, TextLineInsets::symmetric(8.0, 3.0), 0.0, 2);
-        let taller = centered_text_line(bounds, 14.0, TextLineInsets::symmetric(8.0, 3.0), 0.0, 2);
-        let wider = centered_text_line(
+        let base = centered_text_line_with_cache(
+            &mut cache,
+            bounds,
+            12.0,
+            TextLineInsets::symmetric(8.0, 3.0),
+            0.0,
+            2,
+        );
+        let taller = centered_text_line_with_cache(
+            &mut cache,
+            bounds,
+            14.0,
+            TextLineInsets::symmetric(8.0, 3.0),
+            0.0,
+            2,
+        );
+        let wider = centered_text_line_with_cache(
+            &mut cache,
             Rect::from_min_max(Point::new(10.0, 20.0), Point::new(230.0, 60.0)),
             12.0,
             TextLineInsets::symmetric(8.0, 3.0),
             0.0,
             2,
         );
-        let inset = centered_text_line(bounds, 12.0, TextLineInsets::symmetric(10.0, 3.0), 0.0, 2);
+        let inset = centered_text_line_with_cache(
+            &mut cache,
+            bounds,
+            12.0,
+            TextLineInsets::symmetric(10.0, 3.0),
+            0.0,
+            2,
+        );
         assert_ne!(base, taller);
         assert_ne!(base, wider);
         assert_ne!(base, inset);
-        assert_eq!(cache_misses(), 4);
+        assert_eq!(cache.misses_for_test(), 4);
     }
 
     #[test]
     fn top_line_uses_top_edge_after_horizontal_inset() {
-        let _guard = test_guard();
-        reset_cache();
         let bounds = Rect::from_min_max(Point::new(10.0, 20.0), Point::new(210.0, 60.0));
         let line = top_text_line(bounds, 11.0, TextLineInsets::horizontal(5.0), 3);
         assert_eq!(line.min, Point::new(15.0, 20.0));
         assert_eq!(line.max, Point::new(205.0, 31.0));
+    }
+
+    #[test]
+    fn explicit_cache_eviction_keeps_capacity_bounded() {
+        let mut cache = TextLineLayoutCache::with_capacity(2);
+        let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 40.0));
+
+        for family_id in 1..=3 {
+            let _ = top_text_line_with_cache(
+                &mut cache,
+                bounds,
+                12.0,
+                TextLineInsets::horizontal(4.0),
+                family_id,
+            );
+        }
+
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.misses_for_test(), 3);
     }
 
     #[test]

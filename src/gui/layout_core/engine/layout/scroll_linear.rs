@@ -117,6 +117,32 @@ fn build_uniform_linear_metrics(
     }
     let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
     let mut uniform_main: Option<f32> = None;
+    if let Some(main_size) = known_uniform_linear_main_size(content, axis) {
+        let spacing_total = spacing * count.saturating_sub(1) as f32;
+        let total_main = main_size * count as f32 + spacing_total;
+        if total_main > available_main + f32::EPSILON {
+            return None;
+        }
+        let (leading_offset, distributed_spacing) = align_main_offsets(
+            content.policy.align_main,
+            available_main,
+            total_main,
+            spacing,
+            count,
+        );
+        return Some(LinearVirtualMetrics {
+            spans: Vec::new(),
+            main_sizes: Vec::new(),
+            uniform: Some(UniformVirtualMetrics {
+                count,
+                main_size,
+                step: main_size + distributed_spacing,
+            }),
+            total_main,
+            leading_offset,
+            distributed_spacing,
+        });
+    }
     for child in &content.children {
         if main_margin_total_for_slot(horizontal, child) > 0.0 {
             return None;
@@ -191,6 +217,18 @@ pub(super) fn known_linear_main_extent(
         content.known_main_extent_horizontal
     } else {
         content.known_main_extent_vertical
+    }
+}
+
+fn known_uniform_linear_main_size(
+    content: &ContainerNode,
+    axis: VirtualizationAxis,
+) -> Option<f32> {
+    let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
+    if horizontal {
+        content.known_uniform_main_horizontal
+    } else {
+        content.known_uniform_main_vertical
     }
 }
 

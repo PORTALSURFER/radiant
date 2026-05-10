@@ -28,6 +28,25 @@ fn backspace_deletes_selection_before_single_character() {
 }
 
 #[test]
+fn selected_text_clamps_stale_byte_offsets_to_text_boundaries() {
+    let editor = SingleLineTextEditorState {
+        anchor_byte: 1,
+        cursor_byte: usize::MAX,
+        scroll_start_byte: 0,
+    };
+
+    assert_eq!(editor.selected_text("aé日").as_deref(), Some("é日"));
+
+    let editor = SingleLineTextEditorState {
+        anchor_byte: 2,
+        cursor_byte: 4,
+        scroll_start_byte: 0,
+    };
+
+    assert_eq!(editor.selected_text("aé日").as_deref(), Some("é"));
+}
+
+#[test]
 fn sanitize_single_line_insert_strips_line_breaks_and_controls() {
     assert_eq!(
         sanitize_single_line_insert("it\ne\tm\u{7}"),

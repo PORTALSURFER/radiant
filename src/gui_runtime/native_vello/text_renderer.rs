@@ -2,10 +2,7 @@
 
 use super::NativeTextOptions;
 use crate::gui::paint::{TextAlign, TextRun};
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::sync::Arc;
 use vello::{
     Glyph, Scene,
     peniko::{Fill, FontData},
@@ -16,6 +13,7 @@ mod encoding;
 mod font;
 mod layout;
 
+use cache::TextLayoutCache;
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
 #[derive(Clone, Debug)]
@@ -43,9 +41,6 @@ pub(super) struct TextLayoutKey {
     font_size_bits: u32,
 }
 
-const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
-const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
-
 #[derive(Clone)]
 pub(super) struct LoadedFont {
     font: FontData,
@@ -53,19 +48,7 @@ pub(super) struct LoadedFont {
 
 pub(super) struct NativeTextRenderer {
     loaded_font: Option<LoadedFont>,
-    layout_cache: HashMap<TextLayoutKey, TextLayout>,
-    layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
-    layout_cache_stamps: HashMap<TextLayoutKey, u64>,
-    layout_cache_clock: u64,
-    atom_cache: HashMap<Arc<str>, u64>,
-    atom_cache_order: VecDeque<(Arc<str>, u64)>,
-    atom_cache_clock: u64,
-    text_layout_hits: u64,
-    text_layout_misses: u64,
-    text_layout_evictions: u64,
-    text_atom_hits: u64,
-    text_atom_misses: u64,
-    text_atom_evictions: u64,
+    layout_cache: TextLayoutCache,
 }
 
 impl NativeTextRenderer {
@@ -83,19 +66,7 @@ impl NativeTextRenderer {
         }
         Self {
             loaded_font,
-            layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
-            layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
-            layout_cache_stamps: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
-            layout_cache_clock: 0,
-            atom_cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
-            atom_cache_order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
-            atom_cache_clock: 0,
-            text_layout_hits: 0,
-            text_layout_misses: 0,
-            text_layout_evictions: 0,
-            text_atom_hits: 0,
-            text_atom_misses: 0,
-            text_atom_evictions: 0,
+            layout_cache: TextLayoutCache::new(),
         }
     }
 
@@ -108,7 +79,10 @@ impl NativeTextRenderer {
             if run.text.is_empty() || run.font_size <= 0.0 {
                 continue;
             }
-            let Some(layout) = self.layout_for(&font_data, &run.text, run.font_size) else {
+            let Some(layout) = self
+                .layout_cache
+                .layout_for(&font_data, &run.text, run.font_size)
+            else {
                 continue;
             };
             let mut origin_x = run.position.x;
@@ -141,7 +115,13 @@ impl NativeTextRenderer {
 
     pub(super) fn layout_text(&mut self, text: &str, font_size: f32) -> Option<&TextLayout> {
         let font = self.loaded_font.as_ref()?.font.clone();
-        self.layout_for(&font, text, font_size)
+        self.layout_cache.layout_for(&font, text, font_size)
+    }
+
+    pub(in crate::gui_runtime::native_vello) fn take_layout_profile_counters(
+        &mut self,
+    ) -> (u64, u64, u64, u64, u64, u64) {
+        self.layout_cache.take_profile_counters()
     }
 }
 
@@ -162,13 +142,6 @@ impl TextLayout {
 mod tests {
     use super::*;
 
-    fn layout_key(label: &str) -> TextLayoutKey {
-        TextLayoutKey {
-            text: Arc::from(label),
-            font_size_bits: 12.0_f32.to_bits(),
-        }
-    }
-
     #[test]
     fn empty_layout_preserves_terminal_cursor_stop() {
         let layout = TextLayout::empty_for("tempo");
@@ -181,86 +154,5 @@ mod tests {
                 x: 0.0,
             }]
         );
-    }
-
-    #[test]
-    fn intern_text_reuses_cached_atom_and_tracks_hits() {
-        let mut renderer = NativeTextRenderer::new();
-
-        let first = renderer.intern_text("content row");
-        let second = renderer.intern_text("content row");
-
-        assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(renderer.take_layout_profile_counters(), (0, 0, 0, 1, 1, 0));
-    }
-
-    #[test]
-    fn atom_cache_eviction_drops_old_entries_once_capacity_is_exceeded() {
-        let mut renderer = NativeTextRenderer::new();
-        for index in 0..=TEXT_ATOM_CACHE_CAPACITY {
-            let _ = renderer.intern_text(format!("label-{index}").as_str());
-        }
-
-        let (_, _, _, _, misses, evictions) = renderer.take_layout_profile_counters();
-        assert_eq!(misses, (TEXT_ATOM_CACHE_CAPACITY as u64) + 1);
-        assert!(evictions > 0);
-        assert!(renderer.atom_cache.len() <= TEXT_ATOM_CACHE_CAPACITY);
-    }
-
-    #[test]
-    fn atom_cache_hit_queue_compacts_after_repeated_reuse() {
-        let mut renderer = NativeTextRenderer::new();
-        let _ = renderer.intern_text("content row");
-        for _ in 0..=TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
-            let _ = renderer.intern_text("content row");
-        }
-
-        assert_eq!(renderer.atom_cache.len(), 1);
-        assert!(renderer.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY);
-    }
-
-    #[test]
-    fn layout_cache_eviction_keeps_recently_used_entries() {
-        let mut renderer = NativeTextRenderer::new();
-        for index in 0..TEXT_LAYOUT_CACHE_CAPACITY {
-            let key = layout_key(&format!("label-{index}"));
-            renderer
-                .layout_cache
-                .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
-            renderer.touch_layout_cache_key(&key);
-        }
-
-        let hot_key = layout_key("label-0");
-        renderer.touch_layout_cache_key(&hot_key);
-        renderer.evict_stale_layouts();
-
-        let fresh_key = layout_key("label-fresh");
-        renderer.layout_cache.insert(
-            fresh_key.clone(),
-            TextLayout::empty_for(fresh_key.text.as_ref()),
-        );
-        renderer.touch_layout_cache_key(&fresh_key);
-
-        assert!(renderer.layout_cache.contains_key(&hot_key));
-        assert!(renderer.layout_cache.contains_key(&fresh_key));
-        assert!(renderer.layout_cache.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
-        assert_eq!(renderer.text_layout_evictions, 1);
-    }
-
-    #[test]
-    fn layout_cache_hit_queue_compacts_after_repeated_reuse() {
-        let mut renderer = NativeTextRenderer::new();
-        let key = layout_key("content row");
-        renderer
-            .layout_cache
-            .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
-        renderer.touch_layout_cache_key(&key);
-
-        for _ in 0..=TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {
-            renderer.touch_layout_cache_key(&key);
-        }
-
-        assert_eq!(renderer.layout_cache.len(), 1);
-        assert!(renderer.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
     }
 }

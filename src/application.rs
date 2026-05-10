@@ -5,13 +5,12 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
-    gui::types::{ImageRgba, Point, Rect},
+    gui::types::{Point, Rect},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
-    runtime::{GpuSurfaceContent, SurfaceNode, WidgetMessageMapper},
+    runtime::{SurfaceNode, WidgetMessageMapper},
     widgets::{
-        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
-        RetainedSurfaceDescriptor, TextAlign, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
-        Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        CanvasWidget, RetainedSurfaceDescriptor, TextAlign, TextWrap, WidgetProminence,
+        WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::sync::Arc;
@@ -47,9 +46,19 @@ include!("application/details_list.rs");
 include!("application/property_panel.rs");
 include!("application/menu.rs");
 include!("application/retained_canvas.rs");
-include!("application/builders.rs");
+mod builders;
+pub use builders::{
+    canvas, card, custom_widget, custom_widget_mapped, gpu_surface, gpu_surface_input, image,
+    passive_button, passive_text_input, passive_toggle, spacer, text, widget,
+};
+pub(in crate::application) use builders::{
+    danger_style, default_badge_sizing, default_button_sizing, default_canvas_sizing,
+    default_drag_handle_sizing, default_selectable_sizing, default_text_input_sizing,
+    default_toggle_sizing, primary_style, view_node_from_widget,
+};
 mod control_builders;
 pub use control_builders::*;
-include!("application/layout_builders.rs");
+mod layout_builders;
+pub use layout_builders::*;
 mod ids;
 pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

@@ -14,13 +14,13 @@ where
 {
     /// Declare whether this app currently needs animation-driven frames.
     pub fn animation(mut self, animation: impl FnMut(&mut State) -> bool + 'static) -> Self {
-        self.animation = Some(Box::new(animation));
+        self.lifecycle.animation = Some(Box::new(animation));
         self
     }
 
     /// Declare the message emitted for each active animation frame.
     pub fn on_frame(mut self, message: impl FnMut() -> Message + 'static) -> Self {
-        self.frame_message = Some(Box::new(message));
+        self.lifecycle.frame_message = Some(Box::new(message));
         self
     }
 
@@ -29,7 +29,7 @@ where
         mut self,
         subscriptions: impl FnMut(&mut State) -> Subscription<Message> + 'static,
     ) -> Self {
-        self.subscriptions = Some(Box::new(subscriptions));
+        self.lifecycle.subscriptions = Some(Box::new(subscriptions));
         self
     }
 
@@ -44,7 +44,7 @@ where
         ) -> ShortcutResolution<Message>
         + 'static,
     ) -> Self {
-        self.shortcuts = Some(Box::new(shortcuts));
+        self.lifecycle.shortcuts = Some(Box::new(shortcuts));
         self
     }
 
@@ -53,7 +53,7 @@ where
         mut self,
         startup: impl FnMut(&mut State, &mut UpdateContext<Message>) + 'static,
     ) -> Self {
-        self.startup = Some(Box::new(startup));
+        self.lifecycle.startup = Some(Box::new(startup));
         self
     }
 
@@ -62,7 +62,7 @@ where
         mut self,
         shutdown: impl FnMut(&mut State) -> Option<serde_json::Value> + 'static,
     ) -> Self {
-        self.shutdown = Some(Box::new(shutdown));
+        self.lifecycle.shutdown = Some(Box::new(shutdown));
         self
     }
 
@@ -71,7 +71,7 @@ where
         mut self,
         close_requested: impl FnMut(&mut State) -> bool + 'static,
     ) -> Self {
-        self.close_requested = Some(Box::new(close_requested));
+        self.lifecycle.close_requested = Some(Box::new(close_requested));
         self
     }
 
@@ -87,7 +87,9 @@ where
         ) -> Option<crate::gui::paint::PaintFrame>
         + 'static,
     ) -> Self {
-        self.retained_painters.insert(key, Box::new(paint));
+        self.lifecycle
+            .retained_painters
+            .insert(key, Box::new(paint));
         self
     }
 }

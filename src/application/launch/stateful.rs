@@ -8,6 +8,47 @@ pub struct StatefulAppBuilder<State> {
     options: NativeRunOptions,
 }
 
+struct StatefulLifecycle<State, Message> {
+    animation: Option<AppAnimation<State>>,
+    frame_message: Option<AppFrameMessage<Message>>,
+    subscriptions: Option<AppSubscriptions<State, Message>>,
+    shortcuts: Option<AppShortcuts<State, Message>>,
+    startup: Option<AppStartup<State, Message>>,
+    shutdown: Option<AppShutdown<State>>,
+    close_requested: Option<AppCloseRequested<State>>,
+    retained_painters: HashMap<u64, RetainedPainter<State>>,
+}
+
+impl<State, Message> Default for StatefulLifecycle<State, Message> {
+    fn default() -> Self {
+        Self {
+            animation: None,
+            frame_message: None,
+            subscriptions: None,
+            shortcuts: None,
+            startup: None,
+            shutdown: None,
+            close_requested: None,
+            retained_painters: HashMap::new(),
+        }
+    }
+}
+
+impl<State, Message> StatefulLifecycle<State, Message> {
+    fn into_bridge_lifecycle(self) -> AppBridgeLifecycle<State, Message> {
+        AppBridgeLifecycle {
+            animation: self.animation,
+            frame_message: self.frame_message,
+            subscriptions: self.subscriptions,
+            shortcuts: self.shortcuts,
+            startup: self.startup,
+            shutdown: self.shutdown,
+            close_requested: self.close_requested,
+            retained_painters: self.retained_painters,
+        }
+    }
+}
+
 impl<State> StatefulAppBuilder<State> {
     pub(super) fn new(state: State) -> Self {
         Self {
@@ -63,14 +104,7 @@ impl<State> StatefulAppBuilder<State> {
             state: self.state,
             options: self.options,
             project,
-            animation: None,
-            frame_message: None,
-            subscriptions: None,
-            shortcuts: None,
-            startup: None,
-            shutdown: None,
-            close_requested: None,
-            retained_painters: HashMap::new(),
+            lifecycle: StatefulLifecycle::default(),
             _message: PhantomData,
             _view: PhantomData,
         }
@@ -82,14 +116,7 @@ pub struct StatefulAppWithView<State, Message, Project, View> {
     state: State,
     options: NativeRunOptions,
     project: Project,
-    animation: Option<AppAnimation<State>>,
-    frame_message: Option<AppFrameMessage<Message>>,
-    subscriptions: Option<AppSubscriptions<State, Message>>,
-    shortcuts: Option<AppShortcuts<State, Message>>,
-    startup: Option<AppStartup<State, Message>>,
-    shutdown: Option<AppShutdown<State>>,
-    close_requested: Option<AppCloseRequested<State>>,
-    retained_painters: HashMap<u64, RetainedPainter<State>>,
+    lifecycle: StatefulLifecycle<State, Message>,
     _message: PhantomData<Message>,
     _view: PhantomData<View>,
 }
@@ -128,14 +155,7 @@ where
             options: self.options,
             project: self.project,
             update,
-            animation: self.animation,
-            frame_message: self.frame_message,
-            subscriptions: self.subscriptions,
-            shortcuts: self.shortcuts,
-            startup: self.startup,
-            shutdown: self.shutdown,
-            close_requested: self.close_requested,
-            retained_painters: self.retained_painters,
+            lifecycle: self.lifecycle,
             _message: PhantomData,
             _view: PhantomData,
         }
@@ -184,16 +204,7 @@ where
                 action.run(state);
                 context.request_repaint();
             },
-            AppBridgeLifecycle {
-                animation: self.animation,
-                frame_message: self.frame_message,
-                subscriptions: self.subscriptions,
-                shortcuts: self.shortcuts,
-                startup: self.startup,
-                shutdown: self.shutdown,
-                close_requested: self.close_requested,
-                retained_painters: self.retained_painters,
-            },
+            self.lifecycle.into_bridge_lifecycle(),
         )
     }
 }
@@ -204,14 +215,7 @@ pub struct RunnableStatefulApp<State, Message, Project, Update, View> {
     options: NativeRunOptions,
     project: Project,
     update: Update,
-    animation: Option<AppAnimation<State>>,
-    frame_message: Option<AppFrameMessage<Message>>,
-    subscriptions: Option<AppSubscriptions<State, Message>>,
-    shortcuts: Option<AppShortcuts<State, Message>>,
-    startup: Option<AppStartup<State, Message>>,
-    shutdown: Option<AppShutdown<State>>,
-    close_requested: Option<AppCloseRequested<State>>,
-    retained_painters: HashMap<u64, RetainedPainter<State>>,
+    lifecycle: StatefulLifecycle<State, Message>,
     _message: PhantomData<Message>,
     _view: PhantomData<View>,
 }
@@ -243,16 +247,7 @@ where
             self.state,
             self.project,
             self.update,
-            AppBridgeLifecycle {
-                animation: self.animation,
-                frame_message: self.frame_message,
-                subscriptions: self.subscriptions,
-                shortcuts: self.shortcuts,
-                startup: self.startup,
-                shutdown: self.shutdown,
-                close_requested: self.close_requested,
-                retained_painters: self.retained_painters,
-            },
+            self.lifecycle.into_bridge_lifecycle(),
         )
     }
 }

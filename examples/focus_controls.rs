@@ -9,7 +9,8 @@ const SEARCH_ID: u64 = 11;
 enum FocusMessage {
     FocusName,
     FocusSearch,
-    Edited,
+    NameChanged(String),
+    SearchChanged(String),
 }
 
 #[derive(Default)]
@@ -58,7 +59,7 @@ fn project_surface(state: &mut FocusState) -> View<FocusMessage> {
         row([
             text("Name").size(80.0, 34.0),
             text_input(state.name.clone())
-                .message(|_| FocusMessage::Edited)
+                .message(FocusMessage::NameChanged)
                 .id(NAME_ID)
                 .fill_width(),
         ])
@@ -67,13 +68,13 @@ fn project_surface(state: &mut FocusState) -> View<FocusMessage> {
         row([
             text("Search").size(80.0, 34.0),
             text_input(state.search.clone())
-                .message(|_| FocusMessage::Edited)
+                .message(FocusMessage::SearchChanged)
                 .id(SEARCH_ID)
                 .fill_width(),
         ])
         .fill_width()
         .spacing(10.0),
-        text(state.status.clone()).height(28.0).fill_width(),
+        text(state.status.clone()).id(12).height(28.0).fill_width(),
     ])
     .padding(16.0)
     .spacing(12.0)
@@ -95,9 +96,73 @@ fn update(
             context.focus(SEARCH_ID);
             context.request_repaint();
         }
-        FocusMessage::Edited => {
-            state.status = String::from("Focused input edited");
+        FocusMessage::NameChanged(value) => {
+            state.name = value;
+            state.status = String::from("Name field edited");
             context.request_repaint();
         }
+        FocusMessage::SearchChanged(value) => {
+            state.search = value;
+            state.status = String::from("Search field edited");
+            context.request_repaint();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::{
+        layout::Vector2,
+        runtime::{Event, SurfaceRuntime},
+        widgets::{TextInputWidget, TextWidget, Widget},
+    };
+
+    #[test]
+    fn focus_controls_text_inputs_keep_typed_edits_after_programmatic_focus() {
+        let bridge = radiant::app(FocusState {
+            name: String::from("Radiant"),
+            search: String::new(),
+            status: String::from("Choose a focus target"),
+        })
+        .view(project_surface)
+        .update_with(update)
+        .into_bridge();
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(560.0, 240.0));
+
+        runtime.dispatch_message(FocusMessage::FocusSearch);
+        assert_eq!(runtime.focused_widget(), Some(SEARCH_ID));
+        assert_eq!(
+            runtime.dispatch_event(Event::Character('x')),
+            Some(SEARCH_ID)
+        );
+
+        let search = widget_ref::<TextInputWidget, _>(runtime.surface(), SEARCH_ID, "search input");
+        assert_eq!(search.state.value, "x");
+        assert_eq!(
+            widget_ref::<TextWidget, _>(runtime.surface(), 12, "status").text,
+            "Search field edited"
+        );
+
+        runtime.dispatch_message(FocusMessage::FocusName);
+        assert_eq!(runtime.focused_widget(), Some(NAME_ID));
+        assert_eq!(runtime.dispatch_event(Event::Character('!')), Some(NAME_ID));
+
+        let name = widget_ref::<TextInputWidget, _>(runtime.surface(), NAME_ID, "name input");
+        assert_eq!(name.state.value, "Radiant!");
+    }
+
+    fn widget_ref<'a, WidgetType, Message>(
+        surface: &'a radiant::runtime::UiSurface<Message>,
+        widget_id: u64,
+        label: &str,
+    ) -> &'a WidgetType
+    where
+        WidgetType: Widget + 'static,
+    {
+        surface
+            .find_widget(widget_id)
+            .and_then(|widget| widget.widget_object().as_any().downcast_ref::<WidgetType>())
+            .unwrap_or_else(|| panic!("{label} should be projected"))
     }
 }

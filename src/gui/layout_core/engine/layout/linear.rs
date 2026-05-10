@@ -1,8 +1,8 @@
 //! Row and column layout implementation.
 
 use super::super::helpers::{
-    LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
-    main_margin_total, place_child_rect,
+    LayoutAxis, LinearLayoutState, align_main_offsets, allocate_fill_sizes,
+    apply_linear_overflow_policy, main_margin_total, place_child_rect,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
@@ -19,20 +19,11 @@ pub(super) fn layout_linear(
     if container.children.is_empty() {
         return;
     }
+    let axis = LayoutAxis::from_horizontal(horizontal);
     let policy = &container.policy;
     let spacing = policy.spacing.max(0.0);
-    let available_main = if horizontal {
-        content.width()
-    } else {
-        content.height()
-    }
-    .max(0.0);
-    let available_cross = if horizontal {
-        content.height()
-    } else {
-        content.width()
-    }
-    .max(0.0);
+    let available_main = axis.main_extent(content).max(0.0);
+    let available_cross = axis.cross_extent(content).max(0.0);
 
     if let Some(window) = context.linear_window(container.id) {
         let states = collect_layout_states(
@@ -146,11 +137,7 @@ pub(super) fn layout_linear(
     );
 
     if total_main > available_main {
-        let (x, y) = if horizontal {
-            (true, false)
-        } else {
-            (false, true)
-        };
+        let (x, y) = axis.overflow_flags();
         context.record_overflow(container.id, policy.overflow, x, y);
     }
 }

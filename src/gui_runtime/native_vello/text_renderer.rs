@@ -1,6 +1,20 @@
 //! Native text and primitive color/geometry encoding helpers for Vello scenes.
 
-use super::*;
+use super::{NativeTextOptions, WindowIconRgba};
+use crate::gui::{
+    paint::{TextAlign, TextRun},
+    types::{Rect as UiRect, Rgba8},
+};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
+use vello::{
+    Glyph, Scene,
+    kurbo::Rect as KurboRect,
+    peniko::{Color, Fill, FontData},
+};
+use winit::window::Icon;
 
 mod cache;
 mod font;

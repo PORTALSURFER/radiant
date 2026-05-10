@@ -1,6 +1,11 @@
 //! Glyph-layout helpers for the native text renderer.
 
-use super::*;
+use super::{GlyphLayout, NativeTextRenderer, TextCursorStop, TextLayout};
+use skrifa::{
+    MetadataProvider,
+    instance::{LocationRef, Size as FontSize},
+};
+use vello::peniko::FontData;
 
 impl NativeTextRenderer {
     pub(super) fn compute_layout(

@@ -148,6 +148,9 @@ where
         &mut self,
         command: TextEditCommand,
     ) -> GenericRouteOutcome {
+        if self.runtime.focused_text_input_id().is_none() {
+            return self.route_outcome(false);
+        }
         let routed = self
             .runtime
             .dispatch_focused_input(WidgetInput::TextEdit(command))

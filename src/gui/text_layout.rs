@@ -295,6 +295,25 @@ mod tests {
     }
 
     #[test]
+    fn custom_cache_capacity_is_clamped_to_default_limit() {
+        let mut cache = TextLineLayoutCache::with_capacity(usize::MAX);
+        let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(120.0, 40.0));
+
+        for family_id in 0..256 {
+            let _ = top_text_line_with_cache(
+                &mut cache,
+                bounds,
+                12.0,
+                TextLineInsets::horizontal(4.0),
+                family_id,
+            );
+        }
+
+        assert_eq!(cache.len(), 128);
+        assert_eq!(cache.misses_for_test(), 256);
+    }
+
+    #[test]
     fn snap_text_baseline_to_pixel_keeps_height_and_rounds_bottom_edge() {
         let line = Rect::from_min_max(Point::new(10.0, 20.25), Point::new(110.0, 34.75));
 

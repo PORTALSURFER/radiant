@@ -78,9 +78,10 @@ impl TextLineLayoutCache {
 
     /// Create a bounded text-line geometry cache with a custom capacity.
     pub fn with_capacity(limit: usize) -> Self {
+        let limit = limit.clamp(1, CACHE_LIMIT);
         Self {
-            entries: Vec::with_capacity(limit.min(CACHE_LIMIT)),
-            limit: limit.max(1),
+            entries: Vec::with_capacity(limit),
+            limit,
             #[cfg(test)]
             misses: 0,
         }

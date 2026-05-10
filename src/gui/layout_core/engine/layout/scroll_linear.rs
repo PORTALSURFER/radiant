@@ -118,6 +118,34 @@ pub(super) fn build_linear_metrics(
     }
 }
 
+/// Resolve the main-axis content extent for virtualized fixed-size children
+/// without measuring every child.
+pub(super) fn fixed_linear_main_extent(
+    content: &ContainerNode,
+    axis: VirtualizationAxis,
+) -> Option<f32> {
+    let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
+    let spacing = content.policy.spacing.max(0.0);
+    let spacing_total = spacing * content.children.len().saturating_sub(1) as f32;
+    let mut total = spacing_total;
+    for child in &content.children {
+        let SizeModeMain::Fixed(size) = child.slot.size_main else {
+            return None;
+        };
+        let main = if horizontal {
+            child.slot.constraints.clamp_w(size.max(0.0))
+                + child.slot.margin.left
+                + child.slot.margin.right
+        } else {
+            child.slot.constraints.clamp_h(size.max(0.0))
+                + child.slot.margin.top
+                + child.slot.margin.bottom
+        };
+        total += main;
+    }
+    Some(total)
+}
+
 /// Return true when virtualized metrics are safe to consume.
 pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usize) -> bool {
     if metrics.spans.len() != expected_len || metrics.main_sizes.len() != expected_len {
@@ -156,7 +184,11 @@ fn collect_layout_states<'a>(
 ) -> Vec<LinearLayoutState<'a>> {
     let mut states = Vec::with_capacity(container.children.len());
     for child in &container.children {
-        let measured = measure_node(&child.child, child.slot.constraints, context);
+        let measured = if matches!(child.slot.size_main, SizeModeMain::Intrinsic) {
+            measure_node(&child.child, child.slot.constraints, context)
+        } else {
+            Vector2::default()
+        };
         let main = resolve_main_for_virtual(horizontal, child, measured, available_main, context);
         states.push(LinearLayoutState::new(child, measured, main));
     }

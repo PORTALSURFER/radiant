@@ -12,7 +12,8 @@ use super::scroll_helpers::{
     sanitize_overscan,
 };
 use super::scroll_linear::{
-    build_linear_metrics, collect_subtree_ids_from_container, metrics_is_valid,
+    build_linear_metrics, collect_subtree_ids_from_container, fixed_linear_main_extent,
+    metrics_is_valid,
 };
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
@@ -30,9 +31,12 @@ pub(super) fn layout_scroll_view(
         return;
     };
     let slot = child.slot;
-    let measured = super::super::measure::measure_node(&child.child, slot.constraints, context);
     let viewport_w = (content.width() - slot.margin.left - slot.margin.right).max(0.0);
     let viewport_h = (content.height() - slot.margin.top - slot.margin.bottom).max(0.0);
+    let measured = virtual_fixed_content_size(container, &child.child, viewport_w, viewport_h)
+        .unwrap_or_else(|| {
+            super::super::measure::measure_node(&child.child, slot.constraints, context)
+        });
     let width = measured.x.max(viewport_w);
     let height = measured.y.max(viewport_h);
     let max_x = (width - viewport_w).max(0.0);
@@ -83,6 +87,32 @@ pub(super) fn layout_scroll_view(
             height > viewport_h,
         );
     }
+}
+
+fn virtual_fixed_content_size(
+    container: &ContainerNode,
+    child: &LayoutNode,
+    viewport_w: f32,
+    viewport_h: f32,
+) -> Option<Vector2> {
+    let policy = container.policy.virtualization?;
+    if !policy.enabled {
+        return None;
+    }
+    let LayoutNode::Container(content) = child else {
+        return None;
+    };
+    let horizontal = match (content.policy.kind, policy.axis) {
+        (ContainerKind::Row, VirtualizationAxis::Horizontal) => true,
+        (ContainerKind::Column, VirtualizationAxis::Vertical) => false,
+        _ => return None,
+    };
+    let main = fixed_linear_main_extent(content, policy.axis)?;
+    Some(if horizontal {
+        Vector2::new(main, viewport_h)
+    } else {
+        Vector2::new(viewport_w, main)
+    })
 }
 
 fn layout_virtualized_child(

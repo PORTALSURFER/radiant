@@ -48,6 +48,10 @@ impl TextInputWidget {
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<TextInputMessage> {
         input::handle_text_input(self, bounds, input)
     }
+
+    pub(super) fn accepts_editing_input(&self) -> bool {
+        self.common.state.focused && !self.common.state.disabled && !self.common.state.read_only
+    }
 }
 
 impl Widget for TextInputWidget {
@@ -72,7 +76,7 @@ impl Widget for TextInputWidget {
     }
 
     fn accepts_text_input(&self) -> bool {
-        true
+        self.accepts_editing_input()
     }
 
     fn selected_text(&self) -> Option<String> {

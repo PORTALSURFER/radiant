@@ -91,6 +91,46 @@ fn surface_runtime_preserves_text_input_caret_selection_across_value_refreshes()
 }
 
 #[test]
+fn surface_runtime_reports_focused_text_input_only_when_editable() {
+    let mut runtime = text_input_runtime(false, false);
+    assert!(runtime.focus_widget(12));
+    assert_eq!(runtime.focused_text_input_id(), Some(12));
+
+    let mut read_only_runtime = text_input_runtime(false, true);
+    assert!(read_only_runtime.focus_widget(12));
+    assert_eq!(read_only_runtime.focused_text_input_id(), None);
+
+    let mut disabled_runtime = text_input_runtime(true, false);
+    assert!(disabled_runtime.focus_widget(12));
+    assert_eq!(disabled_runtime.focused_text_input_id(), None);
+}
+
+fn text_input_runtime(
+    disabled: bool,
+    read_only: bool,
+) -> SurfaceRuntime<impl RuntimeBridge<DemoMessage>, DemoMessage> {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        move |_state: &mut DemoState| {
+            let mut input = TextInputWidget::new(
+                12,
+                "editable",
+                WidgetSizing::new(Vector2::new(120.0, 28.0), Vector2::new(180.0, 28.0)),
+            );
+            input.common.state.disabled = disabled;
+            input.common.state.read_only = read_only;
+            Arc::new(UiSurface::new(SurfaceNode::static_widget(input)))
+        },
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    SurfaceRuntime::new(bridge, Vector2::new(220.0, 40.0))
+}
+
+#[test]
 fn surface_runtime_resolves_host_shortcuts_before_widget_key_routing() {
     let mut runtime = SurfaceRuntime::new(ShortcutDemoBridge::default(), Vector2::new(420.0, 32.0));
 

@@ -7,8 +7,8 @@ use radiant::{
         BadgeMessage, BadgeWidget, ButtonMessage, ButtonWidget, CardWidget, DragHandleMessage,
         DragHandleWidget, ImageWidget, ListItemMessage, ListItemWidget, PointerButton,
         ScrollbarAxis, ScrollbarMessage, ScrollbarWidget, SelectableMessage, SelectableWidget,
-        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, WidgetInput, WidgetKey,
-        WidgetSizing,
+        TextInputMessage, TextInputWidget, ToggleMessage, ToggleWidget, Widget, WidgetInput,
+        WidgetKey, WidgetSizing,
     },
 };
 use std::sync::Arc;
@@ -293,6 +293,37 @@ fn text_input_edits_and_submits_single_line_values() {
             value: String::from("ab"),
         })
     );
+}
+
+#[test]
+fn text_input_accepts_text_input_only_while_focused_and_editable() {
+    let mut input = TextInputWidget::new(
+        3,
+        "ab",
+        WidgetSizing::new(Vector2::new(96.0, 28.0), Vector2::new(160.0, 28.0)),
+    );
+
+    assert!(!input.accepts_text_input());
+
+    let _ = input.handle_input(Rect::default(), WidgetInput::FocusChanged(true));
+    assert!(input.accepts_text_input());
+
+    input.common.state.read_only = true;
+    assert!(!input.accepts_text_input());
+    assert_eq!(
+        input.handle_input(Rect::default(), WidgetInput::Character('z')),
+        None
+    );
+    assert_eq!(input.state.value, "ab");
+
+    input.common.state.read_only = false;
+    input.common.state.disabled = true;
+    assert!(!input.accepts_text_input());
+    assert_eq!(
+        input.handle_input(Rect::default(), WidgetInput::KeyPress(WidgetKey::Backspace)),
+        None
+    );
+    assert_eq!(input.state.value, "ab");
 }
 
 #[test]

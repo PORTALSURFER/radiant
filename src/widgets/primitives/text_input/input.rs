@@ -40,26 +40,13 @@ pub(super) fn handle_text_input(
             text_input.common.state.focused = focused;
             None
         }
-        WidgetInput::Character(ch)
-            if text_input.common.state.focused
-                && !text_input.common.state.disabled
-                && !text_input.common.state.read_only
-                && !ch.is_control() =>
-        {
+        WidgetInput::Character(ch) if text_input.accepts_editing_input() && !ch.is_control() => {
             text_input.insert_text(ch.encode_utf8(&mut [0; 4]))
         }
-        WidgetInput::KeyPress(key)
-            if text_input.common.state.focused
-                && !text_input.common.state.disabled
-                && !text_input.common.state.read_only =>
-        {
+        WidgetInput::KeyPress(key) if text_input.accepts_editing_input() => {
             text_input.handle_key_input(key)
         }
-        WidgetInput::TextEdit(command)
-            if text_input.common.state.focused
-                && !text_input.common.state.disabled
-                && !text_input.common.state.read_only =>
-        {
+        WidgetInput::TextEdit(command) if text_input.accepts_editing_input() => {
             text_input.handle_text_edit(command)
         }
         _ => None,

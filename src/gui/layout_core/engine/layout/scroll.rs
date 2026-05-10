@@ -1,9 +1,10 @@
 //! ScrollView layout including optional linear virtualization.
 
-use super::super::{
-    LayoutContext, LayoutDiagnosticCode, ResolvedLinearWindow, VirtualWindowInfo,
-    VirtualizationCacheKey, virtualization_policy_fingerprint,
+use super::super::cache::{
+    LinearVirtualMetrics, ResolvedLinearWindow, VirtualizationCacheKey,
+    virtualization_policy_fingerprint,
 };
+use super::super::{LayoutContext, LayoutDiagnosticCode, VirtualWindowInfo};
 use super::layout_node;
 use super::scroll_helpers::{
     clamp_scroll_offset, compute_virtual_window, cursor_before_first, record_window_debug,
@@ -240,7 +241,7 @@ fn cached_or_build_metrics(
     constraints: Constraints,
     axis: VirtualizationAxis,
     context: &mut LayoutContext,
-) -> Arc<super::super::LinearVirtualMetrics> {
+) -> Arc<LinearVirtualMetrics> {
     let key = VirtualizationCacheKey::new(
         content.id,
         constraints,

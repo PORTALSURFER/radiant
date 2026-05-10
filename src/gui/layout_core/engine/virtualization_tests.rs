@@ -161,6 +161,44 @@ fn fixed_size_virtualized_scroll_avoids_cold_full_list_measurement() {
 }
 
 #[test]
+fn virtualized_metrics_cache_tracks_fixed_row_shape_changes() {
+    let mut engine = LayoutEngine::default();
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(0.0, 160.0));
+    let viewport = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(240.0, 140.0));
+
+    let first = engine.layout_with_state(
+        &fixed_virtualized_scroll_root(24.0),
+        viewport,
+        &state,
+        LayoutDebugOptions::default(),
+    );
+    let second = engine.layout_with_state(
+        &fixed_virtualized_scroll_root(40.0),
+        viewport,
+        &state,
+        LayoutDebugOptions::default(),
+    );
+
+    assert_eq!(
+        first
+            .virtual_windows
+            .get(&1)
+            .expect("first virtual window")
+            .resolved_total_main,
+        24.0 * 128.0 + 2.0 * 127.0
+    );
+    assert_eq!(
+        second
+            .virtual_windows
+            .get(&1)
+            .expect("second virtual window")
+            .resolved_total_main,
+        40.0 * 128.0 + 2.0 * 127.0
+    );
+}
+
+#[test]
 fn virtualization_policy_is_ignored_for_unsupported_content_kind() {
     let root = scroll_with_content(ContainerKind::Wrap, 128, VirtualizationAxis::Vertical, 0.0);
     let output = layout_tree_with_state(
@@ -177,6 +215,48 @@ fn virtualization_policy_is_ignored_for_unsupported_content_kind() {
             .any(|item| item.code == LayoutDiagnosticCode::VirtualizationPolicyIgnored)
     );
     assert!(!output.virtual_windows.contains_key(&1));
+}
+
+fn fixed_virtualized_scroll_root(row_height: f32) -> LayoutNode {
+    let children = (0..128_u64)
+        .map(|index| SlotChild {
+            slot: SlotParams {
+                size_main: SizeModeMain::Fixed(row_height),
+                size_cross: SizeModeCross::Fill,
+                constraints: Constraints::unconstrained(),
+                margin: Default::default(),
+                align_cross_override: None,
+                allow_fixed_compress: false,
+            },
+            child: LayoutNode::widget(index + 10, Vector2::new(180.0, 20.0)),
+        })
+        .collect::<Vec<_>>();
+
+    LayoutNode::container(
+        1,
+        ContainerPolicy {
+            kind: ContainerKind::ScrollView,
+            overflow: OverflowPolicy::Scroll,
+            virtualization: Some(VirtualizationPolicy {
+                enabled: true,
+                axis: VirtualizationAxis::Vertical,
+                overscan_px: 24.0,
+            }),
+            ..ContainerPolicy::default()
+        },
+        vec![SlotChild {
+            slot: SlotParams::fill(),
+            child: LayoutNode::container(
+                2,
+                ContainerPolicy {
+                    kind: ContainerKind::Column,
+                    spacing: 2.0,
+                    ..ContainerPolicy::default()
+                },
+                children,
+            ),
+        }],
+    )
 }
 
 #[test]

@@ -1,15 +1,9 @@
 //! Cache keys and virtualized linear metrics for the layout engine.
 
 use super::super::constraints::Constraints;
-use super::super::model::{
-    CrossAlign, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, VirtualizationAxis,
-};
+use super::super::model::VirtualizationAxis;
 use super::super::tree::{ContainerNode, LayoutNode, NodeId};
-use std::{
-    collections::BTreeSet,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::{collections::BTreeSet, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::gui::layout_core::engine) struct ConstraintKey {
@@ -106,88 +100,5 @@ pub(in crate::gui::layout_core::engine) struct CachedVirtualMetrics {
 pub(in crate::gui::layout_core::engine) fn virtualization_policy_fingerprint(
     container: &ContainerNode,
 ) -> u64 {
-    fn push_f32(hasher: &mut std::collections::hash_map::DefaultHasher, value: f32) {
-        value.to_bits().hash(hasher);
-    }
-
-    fn main_mode_code(mode: SizeModeMain) -> u8 {
-        match mode {
-            SizeModeMain::Fixed(_) => 0,
-            SizeModeMain::Fill(_) => 1,
-            SizeModeMain::Percent(_) => 2,
-            SizeModeMain::Intrinsic => 3,
-        }
-    }
-
-    fn cross_mode_code(mode: SizeModeCross) -> u8 {
-        match mode {
-            SizeModeCross::Fixed(_) => 0,
-            SizeModeCross::Fill => 1,
-            SizeModeCross::Intrinsic => 2,
-        }
-    }
-
-    fn align_main_code(value: MainAlign) -> u8 {
-        match value {
-            MainAlign::Start => 0,
-            MainAlign::Center => 1,
-            MainAlign::End => 2,
-            MainAlign::SpaceBetween => 3,
-            MainAlign::SpaceAround => 4,
-            MainAlign::SpaceEvenly => 5,
-        }
-    }
-
-    fn align_cross_code(value: CrossAlign) -> u8 {
-        match value {
-            CrossAlign::Start => 0,
-            CrossAlign::Center => 1,
-            CrossAlign::End => 2,
-            CrossAlign::Stretch => 3,
-        }
-    }
-
-    fn overflow_code(value: OverflowPolicy) -> u8 {
-        match value {
-            OverflowPolicy::Clip => 0,
-            OverflowPolicy::Scroll => 1,
-            OverflowPolicy::Wrap => 2,
-            OverflowPolicy::Shrink => 3,
-        }
-    }
-
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    hasher.write_u8(align_main_code(container.policy.align_main));
-    hasher.write_u8(align_cross_code(container.policy.align_cross));
-    hasher.write_u8(overflow_code(container.policy.overflow));
-    push_f32(&mut hasher, container.policy.spacing);
-    for child in &container.children {
-        hasher.write_u64(child.child.id());
-        hasher.write_u64(child.child.state_version());
-        hasher.write_u8(main_mode_code(child.slot.size_main));
-        match child.slot.size_main {
-            SizeModeMain::Fixed(value)
-            | SizeModeMain::Fill(value)
-            | SizeModeMain::Percent(value) => push_f32(&mut hasher, value),
-            SizeModeMain::Intrinsic => {}
-        }
-        hasher.write_u8(cross_mode_code(child.slot.size_cross));
-        if let SizeModeCross::Fixed(value) = child.slot.size_cross {
-            push_f32(&mut hasher, value);
-        }
-        push_f32(&mut hasher, child.slot.constraints.min_w);
-        push_f32(&mut hasher, child.slot.constraints.max_w);
-        push_f32(&mut hasher, child.slot.constraints.min_h);
-        push_f32(&mut hasher, child.slot.constraints.max_h);
-        push_f32(&mut hasher, child.slot.margin.left);
-        push_f32(&mut hasher, child.slot.margin.right);
-        push_f32(&mut hasher, child.slot.margin.top);
-        push_f32(&mut hasher, child.slot.margin.bottom);
-        hasher.write_u8(match child.slot.align_cross_override {
-            None => 0,
-            Some(value) => 1 + align_cross_code(value),
-        });
-        hasher.write_u8(u8::from(child.slot.allow_fixed_compress));
-    }
-    hasher.finish()
+    container.state_version
 }

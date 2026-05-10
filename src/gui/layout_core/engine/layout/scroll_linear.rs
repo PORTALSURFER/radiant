@@ -2,8 +2,8 @@
 
 use super::super::cache::{LinearVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
-    align_main_offsets, allocate_fill_sizes, compress_if_needed, main_margin_total,
-    scale_sizes_to_fit,
+    LinearLayoutState, align_main_offsets, allocate_fill_sizes, compress_if_needed,
+    main_margin_total, scale_sizes_to_fit,
 };
 use super::super::measure::measure_node;
 use super::super::{LayoutContext, LayoutDiagnosticCode};
@@ -33,12 +33,12 @@ pub(super) fn build_linear_metrics(
 
     let fixed_main = states
         .iter()
-        .filter(|(slot_child, _, _, _)| !matches!(slot_child.slot.size_main, SizeModeMain::Fill(_)))
-        .map(|(_, _, main, _)| *main)
+        .filter(|state| !matches!(state.slot_child.slot.size_main, SizeModeMain::Fill(_)))
+        .map(|state| state.main)
         .sum::<f32>();
     let fill_weight = states
         .iter()
-        .filter_map(|(slot_child, _, _, _)| match slot_child.slot.size_main {
+        .filter_map(|state| match state.slot_child.slot.size_main {
             SizeModeMain::Fill(weight) => Some(weight.max(0.0)),
             _ => None,
         })
@@ -53,7 +53,13 @@ pub(super) fn build_linear_metrics(
 
     let mut sizes: Vec<f32> = states
         .iter()
-        .map(|(_, _, main, fill)| if *fill > 0.0 { *fill } else { *main })
+        .map(|state| {
+            if state.fill > 0.0 {
+                state.fill
+            } else {
+                state.main
+            }
+        })
         .collect();
 
     let mut total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
@@ -81,7 +87,8 @@ pub(super) fn build_linear_metrics(
     let mut spans = Vec::with_capacity(states.len());
     let mut main_sizes = Vec::with_capacity(states.len());
     let mut cursor = leading_offset;
-    for (index, (slot_child, _, _, _)) in states.iter().enumerate() {
+    for (index, state) in states.iter().enumerate() {
+        let slot_child = state.slot_child;
         let margin_before = if horizontal {
             slot_child.slot.margin.left
         } else {
@@ -146,12 +153,12 @@ fn collect_layout_states<'a>(
     context: &mut LayoutContext,
     horizontal: bool,
     available_main: f32,
-) -> Vec<(&'a SlotChild, Vector2, f32, f32)> {
+) -> Vec<LinearLayoutState<'a>> {
     let mut states = Vec::with_capacity(container.children.len());
     for child in &container.children {
         let measured = measure_node(&child.child, child.slot.constraints, context);
         let main = resolve_main_for_virtual(horizontal, child, measured, available_main, context);
-        states.push((child, measured, main, 0.0));
+        states.push(LinearLayoutState::new(child, measured, main));
     }
     states
 }
@@ -162,7 +169,7 @@ fn apply_linear_overflow_policy(
     horizontal: bool,
     available_main: f32,
     spacing_total: f32,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
     sizes: &mut [f32],
     context: &mut LayoutContext,
 ) {

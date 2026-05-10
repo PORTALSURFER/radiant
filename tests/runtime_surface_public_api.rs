@@ -94,6 +94,39 @@ fn surface_runtime_hit_testing_prefers_topmost_declarative_widget() {
 }
 
 #[test]
+fn surface_runtime_hit_testing_skips_passive_widget_leaves() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        |_state: &mut DemoState| {
+            Arc::new(UiSurface::new(SurfaceNode::stack(
+                70,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::button(
+                        80,
+                        "Interactive",
+                        WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                        DemoMessage::Increment,
+                    )),
+                    SurfaceChild::fill(SurfaceNode::static_widget(TextWidget::new(
+                        90,
+                        "Passive label",
+                        WidgetSizing::fixed(Vector2::new(120.0, 40.0)),
+                    ))),
+                ],
+            )))
+        },
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let runtime = SurfaceRuntime::new(bridge, Vector2::new(140.0, 60.0));
+
+    assert_eq!(runtime.widget_at(Point::new(16.0, 16.0)), Some(80));
+}
+
+#[test]
 fn surface_runtime_executes_command_messages_and_repaint_requests() {
     let bridge = CommandDemoBridge {
         state: DemoState::default(),

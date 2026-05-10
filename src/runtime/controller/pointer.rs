@@ -11,10 +11,14 @@ where
             .rev()
             .copied()
             .find(|widget_id| {
-                self.layout
-                    .rects
-                    .get(widget_id)
-                    .is_some_and(|rect| rect.contains(point))
+                self.surface
+                    .find_widget(*widget_id)
+                    .is_some_and(|widget| widget.receives_pointer_hit_testing())
+                    && self
+                        .layout
+                        .rects
+                        .get(widget_id)
+                        .is_some_and(|rect| rect.contains(point))
                     && self.widget_clip_contains_point(*widget_id, point)
             })
     }

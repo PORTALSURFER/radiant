@@ -1,11 +1,13 @@
+use crate::layout::{SizeModeCross, SizeModeMain, SlotParams};
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-struct SlotBehavior {
-    width: AxisSlotBehavior,
-    height: AxisSlotBehavior,
+pub(super) struct SlotBehavior {
+    pub(super) width: AxisSlotBehavior,
+    pub(super) height: AxisSlotBehavior,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-enum AxisSlotBehavior {
+pub(super) enum AxisSlotBehavior {
     #[default]
     Default,
     Intrinsic,
@@ -15,7 +17,7 @@ enum AxisSlotBehavior {
 }
 
 impl SlotBehavior {
-    fn to_slot_params(self, horizontal: bool) -> SlotParams {
+    pub(super) fn to_slot_params(self, horizontal: bool) -> SlotParams {
         let main_axis = if horizontal { self.width } else { self.height };
         let cross_axis = if horizontal { self.height } else { self.width };
         SlotParams {

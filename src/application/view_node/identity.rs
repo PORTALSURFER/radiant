@@ -1,5 +1,10 @@
+use super::{ViewNode, ViewNodeKind};
+use crate::application::scoped_key_id;
+use crate::layout::NodeId;
+use std::collections::HashSet;
+
 impl<Message> ViewNode<Message> {
-    fn collect_reserved_ids(&self, scope: u64, ids: &mut HashSet<NodeId>) {
+    pub(super) fn collect_reserved_ids(&self, scope: u64, ids: &mut HashSet<NodeId>) {
         if let Some(id) = self.resolved_id(scope) {
             ids.insert(id);
         }
@@ -25,7 +30,7 @@ impl<Message> ViewNode<Message> {
         }
     }
 
-    fn resolved_id(&self, scope: u64) -> Option<NodeId> {
+    pub(super) fn resolved_id(&self, scope: u64) -> Option<NodeId> {
         self.id
             .or_else(|| self.key.as_ref().map(|key| scoped_key_id(scope, key)))
     }

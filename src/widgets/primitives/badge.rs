@@ -5,12 +5,13 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{
     FocusBehavior, Widget, WidgetId, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
 };
-use crate::widgets::interaction::{BadgeMessage, PointerButton, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{BadgeMessage, WidgetInput, WidgetOutput};
 
+mod input;
 mod paint;
 
 /// Immutable public properties for a reusable badge or pill widget.
@@ -58,55 +59,7 @@ impl BadgeWidget {
 
     /// Route one backend-neutral interaction into the badge.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<BadgeMessage> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            self.state.armed = false;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    self.state.armed = self.common.state.hovered;
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.focused = true;
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.state.armed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                let activated =
-                    self.common.state.pressed && self.state.armed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.state.armed = false;
-                activated.then_some(BadgeMessage::Activate)
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                    self.state.armed = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused && activate_on_keyboard(key) =>
-            {
-                Some(BadgeMessage::Activate)
-            }
-            _ => None,
-        }
+        input::handle_badge_input(self, bounds, input)
     }
 }
 

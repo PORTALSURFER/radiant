@@ -123,8 +123,8 @@ fn example_view(state: &mut ExampleState) -> StateView<ExampleState> {
             selectable_sortable_details_list(
                 [
                     DetailsColumn::flexible("name", "Name"),
-                    DetailsColumn::fixed("kind", "Kind", 120),
-                    DetailsColumn::fixed("state", "State", 96),
+                    DetailsColumn::fixed("kind", "Kind", 120.0),
+                    DetailsColumn::fixed("state", "State", 96.0),
                 ],
                 state.rows(),
                 Some(state.sort.clone()),

@@ -190,17 +190,13 @@ fn layout_virtualized_child(
     let first_before_margin =
         first_before_margin(content_container.children.as_slice(), first, horizontal);
     let cursor_main_start = cursor_before_first(first_before_margin, first, &metrics);
-    let selected_sizes = metrics.main_sizes[first..last_exclusive].to_vec();
     context.set_linear_window(
         child.child.id(),
         ResolvedLinearWindow {
             first,
             last_exclusive,
             cursor_main_start,
-            distributed_spacing: metrics.distributed_spacing,
-            main_sizes: selected_sizes,
-            leading_offset: metrics.leading_offset,
-            total_main: metrics.total_main,
+            metrics: Arc::clone(&metrics),
         },
     );
     layout_node(&child.child, child_rect, context);

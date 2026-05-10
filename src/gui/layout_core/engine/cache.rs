@@ -94,10 +94,7 @@ pub(in crate::gui::layout_core::engine) struct ResolvedLinearWindow {
     pub(super) first: usize,
     pub(super) last_exclusive: usize,
     pub(super) cursor_main_start: f32,
-    pub(super) distributed_spacing: f32,
-    pub(super) main_sizes: Vec<f32>,
-    pub(super) leading_offset: f32,
-    pub(super) total_main: f32,
+    pub(super) metrics: Arc<LinearVirtualMetrics>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

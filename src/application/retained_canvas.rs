@@ -1,3 +1,9 @@
+use crate::{
+    application::{MappedWidget, ViewNode, default_canvas_sizing, view_node_from_widget},
+    runtime::WidgetMessageMapper,
+    widgets::{CanvasWidget, RetainedSurfaceDescriptor},
+};
+
 /// Build a retained canvas view with app-owned paint supplied by the app builder.
 pub fn retained_canvas(key: u64) -> RetainedCanvasBuilder {
     RetainedCanvasBuilder {
@@ -49,9 +55,9 @@ impl RetainedCanvasBuilder {
 
     /// Build a non-emitting retained canvas view.
     pub fn view<Message: 'static>(self) -> ViewNode<Message> {
-        view_node_from_widget(CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(
-            self.descriptor,
-        ))
+        view_node_from_widget(
+            CanvasWidget::new(0, default_canvas_sizing()).with_retained_surface(self.descriptor),
+        )
     }
 
     /// Build a retained canvas that maps canvas input to host messages.

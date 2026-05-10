@@ -5,7 +5,10 @@
 //! responsibilities and vocabulary rather than locking `radiant` into one
 //! retained-tree implementation.
 
-use super::{WidgetCommon, WidgetInput, WidgetOutput};
+use super::{
+    WidgetCommon, WidgetInput, WidgetOutput,
+    primitives::{TextAlign, TextWrap},
+};
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{LayoutNode, LayoutOutput, NodeId},
@@ -211,6 +214,16 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// Return the selected text for focused text-editing widgets.
     fn selected_text(&self) -> Option<String> {
         None
+    }
+
+    /// Apply a declarative text wrapping policy when this widget supports text layout.
+    fn set_text_wrap(&mut self, _wrap: TextWrap) -> bool {
+        false
+    }
+
+    /// Apply a declarative horizontal text alignment policy when this widget supports text layout.
+    fn set_text_align(&mut self, _align: TextAlign) -> bool {
+        false
     }
 
     /// Append backend-neutral paint primitives for this widget.

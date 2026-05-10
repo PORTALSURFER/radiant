@@ -78,6 +78,16 @@ impl Widget for TextWidget {
         None
     }
 
+    fn set_text_wrap(&mut self, wrap: TextWrap) -> bool {
+        self.wrap = wrap;
+        true
+    }
+
+    fn set_text_align(&mut self, align: TextAlign) -> bool {
+        self.align = align;
+        true
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

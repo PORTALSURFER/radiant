@@ -45,6 +45,77 @@ struct DemoState {
     name: String,
 }
 
+#[derive(Clone)]
+struct CustomTextPolicyWidget {
+    common: radiant::widgets::WidgetCommon,
+    wrap: TextWrap,
+    align: TextAlign,
+}
+
+impl CustomTextPolicyWidget {
+    fn new(id: u64) -> Self {
+        Self {
+            common: radiant::widgets::WidgetCommon::new(
+                id,
+                WidgetSizing::fixed(Vector2::new(120.0, 24.0)),
+            ),
+            wrap: TextWrap::None,
+            align: TextAlign::Left,
+        }
+    }
+}
+
+impl Widget for CustomTextPolicyWidget {
+    fn common(&self) -> &radiant::widgets::WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut radiant::widgets::WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(
+        &mut self,
+        _bounds: Rect,
+        _input: radiant::widgets::WidgetInput,
+    ) -> Option<radiant::widgets::WidgetOutput> {
+        None
+    }
+
+    fn set_text_wrap(&mut self, wrap: TextWrap) -> bool {
+        self.wrap = wrap;
+        true
+    }
+
+    fn set_text_align(&mut self, align: TextAlign) -> bool {
+        self.align = align;
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &radiant::layout::LayoutOutput,
+        theme: &radiant::theme::ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::Text(radiant::runtime::PaintTextRun {
+            widget_id: self.common.id,
+            text: "custom".to_owned(),
+            rect: bounds,
+            font_size: 13.0,
+            baseline: Some(17.0),
+            color: theme.text_primary,
+            align: match self.align {
+                TextAlign::Left => radiant::runtime::PaintTextAlign::Left,
+                TextAlign::Center => radiant::runtime::PaintTextAlign::Center,
+                TextAlign::Right => radiant::runtime::PaintTextAlign::Right,
+            },
+            wrap: self.wrap,
+        }));
+    }
+}
+
 fn widget_ref<'a, T, Message>(surface: &'a UiSurface<Message>, id: u64, expected: &str) -> &'a T
 where
     T: Widget + 'static,
@@ -962,6 +1033,22 @@ fn application_builder_typography_helpers_lower_text_policies_and_baselines() {
     assert_eq!(layout.rects[&11].height(), 28.0);
     assert_eq!(layout.rects[&12].height(), layout.rects[&13].height());
     assert!(layout.rects[&13].min.x >= layout.rects[&12].max.x + 8.0);
+}
+
+#[test]
+fn application_builder_text_policy_modifiers_use_widget_contract() {
+    use radiant::prelude::{self as ui, IntoView};
+
+    let surface: UiSurface<()> = ui::widget(CustomTextPolicyWidget::new(0))
+        .wrap()
+        .align_text(TextAlign::Right)
+        .id(10)
+        .into_surface();
+
+    let custom = widget_ref::<CustomTextPolicyWidget, _>(&surface, 10, "custom text policy");
+
+    assert_eq!(custom.wrap, TextWrap::Word);
+    assert_eq!(custom.align, TextAlign::Right);
 }
 
 #[test]

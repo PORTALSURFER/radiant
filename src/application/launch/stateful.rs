@@ -1,5 +1,7 @@
 use super::*;
 
+mod lifecycle;
+
 /// Initial builder for simple stateful Radiant apps.
 pub struct StatefulAppBuilder<State> {
     state: State,
@@ -142,8 +144,6 @@ where
         }))
     }
 }
-
-include!("stateful/lifecycle.rs");
 
 impl<State, Project, View> StatefulAppWithView<State, StateAction<State>, Project, View>
 where

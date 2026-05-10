@@ -3,16 +3,14 @@
 use super::{
     AppAnimation, AppBridge, AppCloseRequested, AppFrameMessage, AppRuntime, AppShortcuts,
     AppShutdown, AppStartup, AppSubscriptions, AppUpdate, Result, RetainedPainter, StateAction,
-    Subscription, UpdateContext,
+    UpdateContext,
 };
 use crate::{
-    gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution, types::Vector2},
     gui_runtime::{NativeRunOptions, WindowSpec},
     runtime::{
         Command, RuntimeBridge, SurfaceNode, UiSurface, declarative_command_runtime_bridge,
         run_native_vello_runtime,
     },
-    widgets::RetainedSurfaceDescriptor,
 };
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 

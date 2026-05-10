@@ -11,6 +11,7 @@ mod traversal;
 mod widget;
 
 pub use frame::SurfaceFrame;
+pub(in crate::runtime) use input::WidgetDispatchResult;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
 pub(in crate::runtime) use traversal::SurfaceTraversalIndex;
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
@@ -107,6 +108,16 @@ impl<Message> UiSurface<Message> {
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
         self.root.handle_input(widget_id, bounds, input)
+    }
+
+    pub(in crate::runtime) fn dispatch_widget_input_message(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: crate::gui::types::Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut(widget_id)
+            .map(|widget| widget.dispatch_input(widget_id, bounds, input))
     }
 
     /// Find one projected widget by stable id.

@@ -4,6 +4,12 @@ use crate::{
     widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
 
+pub(in crate::runtime) enum WidgetDispatchResult<Message> {
+    NoOutput,
+    UnmappedOutput,
+    Message(Message),
+}
+
 impl<Message> SurfaceNode<Message> {
     pub(super) fn handle_input(
         &mut self,

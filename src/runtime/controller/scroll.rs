@@ -58,7 +58,7 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return false;
         };
-        let Some(output) = self.surface.dispatch_widget_input(
+        let Some(result) = self.surface.dispatch_widget_input_message(
             widget_id,
             bounds,
             WidgetInput::Wheel {
@@ -66,19 +66,20 @@ where
                 delta,
             },
         ) else {
-            self.capture_pointer_capture_state(widget_id);
             return false;
         };
         self.capture_pointer_capture_state(widget_id);
-        if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
-            if refresh_after_message {
-                self.dispatch_message(message);
-            } else {
-                let mut outcome = CommandOutcome::default();
-                self.dispatch_message_inner(message, &mut outcome);
+        match result {
+            WidgetDispatchResult::Message(message) => {
+                if refresh_after_message {
+                    self.dispatch_message(message);
+                } else {
+                    let mut outcome = CommandOutcome::default();
+                    self.dispatch_message_inner(message, &mut outcome);
+                }
             }
-        } else {
-            self.relayout();
+            WidgetDispatchResult::UnmappedOutput => self.relayout(),
+            WidgetDispatchResult::NoOutput => return false,
         }
         true
     }

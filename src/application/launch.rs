@@ -1,10 +1,6 @@
 //! Window and stateful application launch builders.
 
-use super::{
-    AppAnimation, AppBridge, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppShortcuts,
-    AppShutdown, AppStartup, AppSubscriptions, AppUpdate, Result, RetainedPainter, StateAction,
-    UpdateContext,
-};
+use super::{AppBridge, AppUpdate, Result, StateAction, UpdateContext};
 use crate::{
     gui_runtime::{NativeRunOptions, WindowSpec},
     runtime::{
@@ -12,7 +8,7 @@ use crate::{
         run_native_vello_runtime,
     },
 };
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc};
 
 /// Build a native window launcher for a simple Radiant view.
 pub fn window(title: impl Into<String>) -> WindowBuilder {

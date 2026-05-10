@@ -1,4 +1,5 @@
 use super::*;
+use lifecycle::StatefulLifecycle;
 
 mod lifecycle;
 
@@ -6,47 +7,6 @@ mod lifecycle;
 pub struct StatefulAppBuilder<State> {
     state: State,
     options: NativeRunOptions,
-}
-
-struct StatefulLifecycle<State, Message> {
-    animation: Option<AppAnimation<State>>,
-    frame_message: Option<AppFrameMessage<Message>>,
-    subscriptions: Option<AppSubscriptions<State, Message>>,
-    shortcuts: Option<AppShortcuts<State, Message>>,
-    startup: Option<AppStartup<State, Message>>,
-    shutdown: Option<AppShutdown<State>>,
-    close_requested: Option<AppCloseRequested<State>>,
-    retained_painters: HashMap<u64, RetainedPainter<State>>,
-}
-
-impl<State, Message> Default for StatefulLifecycle<State, Message> {
-    fn default() -> Self {
-        Self {
-            animation: None,
-            frame_message: None,
-            subscriptions: None,
-            shortcuts: None,
-            startup: None,
-            shutdown: None,
-            close_requested: None,
-            retained_painters: HashMap::new(),
-        }
-    }
-}
-
-impl<State, Message> StatefulLifecycle<State, Message> {
-    fn into_bridge_lifecycle(self) -> AppBridgeLifecycle<State, Message> {
-        AppBridgeLifecycle {
-            animation: self.animation,
-            frame_message: self.frame_message,
-            subscriptions: self.subscriptions,
-            shortcuts: self.shortcuts,
-            startup: self.startup,
-            shutdown: self.shutdown,
-            close_requested: self.close_requested,
-            retained_painters: self.retained_painters,
-        }
-    }
 }
 
 impl<State> StatefulAppBuilder<State> {

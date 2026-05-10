@@ -7,11 +7,8 @@
 use crate::{
     gui::types::{Point, Rect},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
-    runtime::{SurfaceNode, WidgetMessageMapper},
-    widgets::{
-        CanvasWidget, RetainedSurfaceDescriptor, TextAlign, TextWrap, WidgetProminence,
-        WidgetSizing, WidgetStyle, WidgetTone,
-    },
+    runtime::SurfaceNode,
+    widgets::{TextAlign, TextWrap, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
 use std::sync::Arc;
 
@@ -45,7 +42,8 @@ include!("application/tree_list.rs");
 include!("application/details_list.rs");
 include!("application/property_panel.rs");
 include!("application/menu.rs");
-include!("application/retained_canvas.rs");
+mod retained_canvas;
+pub use retained_canvas::{RetainedCanvasBuilder, retained_canvas, retained_canvas_with};
 mod builders;
 pub use builders::{
     canvas, card, custom_widget, custom_widget_mapped, gpu_surface, gpu_surface_input, image,

@@ -81,7 +81,7 @@ where
                 };
                 let baseline_offset = text.baseline.unwrap_or(text.font_size);
                 text_runs.push(SceneTextRun {
-                    text: text.text.as_str(),
+                    text: text.text.as_ref(),
                     position: Point::new(
                         text.rect.min.x,
                         text.rect.min.y + baseline_offset - text.font_size,

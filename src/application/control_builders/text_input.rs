@@ -34,7 +34,7 @@ impl TextInputBuilder {
         map: impl Fn(String) -> Message + Send + Sync + 'static,
     ) -> ViewNode<Message> {
         let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
-        input.props.placeholder = self.placeholder;
+        input.props.placeholder = self.placeholder.map(Into::into);
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(move |message| match message {
@@ -75,7 +75,7 @@ impl TextInputBuilder {
         let field = Arc::new(field);
         let submit = Arc::new(submit);
         let mut input = TextInputWidget::new(0, self.value, default_text_input_sizing());
-        input.props.placeholder = self.placeholder;
+        input.props.placeholder = self.placeholder.map(Into::into);
         let mut node = view_node_from_widget(MappedWidget::new(
             input,
             WidgetMessageMapper::text_input(move |message| {

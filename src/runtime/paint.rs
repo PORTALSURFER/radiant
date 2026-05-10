@@ -125,7 +125,7 @@ pub(super) fn push_overlay_panel(
                 primitives,
                 PaintTextRun {
                     widget_id,
-                    text: label,
+                    text: label.into(),
                     rect: inset_rect(rect, 48.0, 4.0),
                     baseline: optical_centered_baseline(
                         inset_rect(rect, 48.0, 4.0),

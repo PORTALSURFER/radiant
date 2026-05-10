@@ -101,7 +101,7 @@ impl Widget for CustomTextPolicyWidget {
     ) {
         primitives.push(PaintPrimitive::Text(radiant::runtime::PaintTextRun {
             widget_id: self.common.id,
-            text: "custom".to_owned(),
+            text: "custom".into(),
             rect: bounds,
             font_size: 13.0,
             baseline: Some(17.0),

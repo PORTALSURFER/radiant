@@ -1,8 +1,10 @@
+use crate::runtime::PaintText;
+
 /// Immutable public properties for a reusable badge or pill widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BadgeProps {
     /// User-visible badge label.
-    pub label: String,
+    pub label: PaintText,
 }
 
 /// Mutable interaction state for a reusable badge or pill widget.

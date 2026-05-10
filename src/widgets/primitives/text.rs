@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -38,7 +38,7 @@ pub struct TextWidget {
     /// Shared widget contract.
     pub common: WidgetCommon,
     /// Displayed text content.
-    pub text: String,
+    pub text: PaintText,
     /// Wrapping policy used for intrinsic sizing and paint.
     pub wrap: TextWrap,
     /// Horizontal alignment used inside the assigned text rectangle.
@@ -47,7 +47,7 @@ pub struct TextWidget {
 
 impl TextWidget {
     /// Build a label/text widget with a preferred intrinsic size.
-    pub fn new(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, text: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.paint.paints_focus = false;
         Self {
@@ -101,7 +101,7 @@ impl Widget for TextWidget {
 
 impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting text leaf node.
-    pub fn text(id: WidgetId, text: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn text(id: WidgetId, text: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         Self::static_widget(TextWidget::new(id, text, sizing))
     }
 }

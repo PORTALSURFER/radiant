@@ -1,10 +1,12 @@
 //! Button data model types.
 
+use crate::runtime::PaintText;
+
 /// Immutable public properties for a reusable button widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ButtonProps {
     /// User-visible label rendered inside the button surface.
-    pub label: String,
+    pub label: PaintText,
     /// Whether secondary/right clicks should emit a distinct activation message.
     pub secondary_click: bool,
     /// Whether primary pointer drags should emit drag lifecycle messages.

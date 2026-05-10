@@ -85,7 +85,7 @@ impl Widget for StatusChip {
         }));
         primitives.push(PaintPrimitive::Text(PaintTextRun {
             widget_id: self.common.id,
-            text: if self.active { "Active" } else { "Idle" }.to_owned(),
+            text: if self.active { "Active" } else { "Idle" }.into(),
             rect: bounds,
             font_size: 14.0,
             baseline: Some(21.0),

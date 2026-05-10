@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -30,7 +30,7 @@ pub struct BadgeWidget {
 
 impl BadgeWidget {
     /// Build a badge descriptor with optional activation semantics.
-    pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         common.style = WidgetStyle {
@@ -104,6 +104,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(BadgeMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        let label = label.into();
         Self::widget(
             BadgeWidget::new(id, label, sizing),
             WidgetMessageMapper::badge(map),

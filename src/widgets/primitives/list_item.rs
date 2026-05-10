@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -18,14 +18,14 @@ pub struct ListItemWidget {
     /// Shared widget contract.
     pub common: WidgetCommon,
     /// Primary row label.
-    pub label: String,
+    pub label: PaintText,
     /// Optional secondary text.
-    pub detail: Option<String>,
+    pub detail: Option<PaintText>,
 }
 
 impl ListItemWidget {
     /// Build a list-item descriptor that can be focused, selected, and invoked.
-    pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
@@ -75,6 +75,7 @@ impl<Message> WidgetMessageMapper<Message> {
 impl<Message> SurfaceNode<Message> {
     /// Build a non-emitting list item leaf node.
     pub fn list_item(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+        let label = label.into();
         Self::static_widget(ListItemWidget::new(id, label, sizing))
     }
 
@@ -98,6 +99,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ListItemMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        let label = label.into();
         Self::widget(
             ListItemWidget::new(id, label, sizing),
             WidgetMessageMapper::list_item(map),

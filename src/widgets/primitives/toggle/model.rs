@@ -1,10 +1,12 @@
 //! Toggle data model types.
 
+use crate::runtime::PaintText;
+
 /// Immutable public properties for a reusable toggle widget.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ToggleProps {
     /// User-visible toggle label.
-    pub label: String,
+    pub label: PaintText,
 }
 
 /// Mutable interaction state for a reusable toggle widget.

@@ -78,7 +78,7 @@ fn text_value<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String {
         .downcast_ref::<TextWidget>()
         .expect("widget is text")
         .text
-        .clone()
+        .to_string()
 }
 
 #[test]
@@ -251,7 +251,7 @@ fn button_label<Message>(surface: &UiSurface<Message>, widget_id: u64) -> String
         .expect("widget is button")
         .props
         .label
-        .clone()
+        .to_string()
 }
 
 #[test]

@@ -13,7 +13,10 @@ use super::model::{
 };
 use super::tree::{ContainerNode, LayoutNode, NodeId};
 use crate::gui::types::{Point, Rect, Vector2};
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use context::LayoutContext;
 pub use types::{
@@ -112,7 +115,7 @@ pub(super) struct ResolvedLinearWindow {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct CachedVirtualMetrics {
-    pub(super) metrics: LinearVirtualMetrics,
+    pub(super) metrics: Arc<LinearVirtualMetrics>,
     pub(super) dependencies: BTreeSet<NodeId>,
 }
 

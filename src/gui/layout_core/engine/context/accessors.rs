@@ -5,6 +5,7 @@ use crate::gui::layout_core::engine::{
 };
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
+use std::sync::Arc;
 
 impl<'a> LayoutContext<'a> {
     pub(crate) fn cached_measure(
@@ -34,16 +35,16 @@ impl<'a> LayoutContext<'a> {
     pub(crate) fn cached_virtual_metrics(
         &self,
         key: VirtualizationCacheKey,
-    ) -> Option<LinearVirtualMetrics> {
+    ) -> Option<Arc<LinearVirtualMetrics>> {
         self.virtual_cache
             .get(&key)
-            .map(|entry| entry.metrics.clone())
+            .map(|entry| Arc::clone(&entry.metrics))
     }
 
     pub(crate) fn remember_virtual_metrics(
         &mut self,
         key: VirtualizationCacheKey,
-        metrics: LinearVirtualMetrics,
+        metrics: Arc<LinearVirtualMetrics>,
         dependencies: std::collections::BTreeSet<NodeId>,
     ) {
         self.virtual_cache.insert(

@@ -17,8 +17,8 @@ pub use context::RuntimeContext;
 pub use events::Event;
 
 use super::{
-    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceTraversalIndex, SurfaceWidget,
-    UiSurface, WidgetDispatchResult,
+    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection,
+    SurfaceTraversalIndex, SurfaceWidget, UiSurface, WidgetDispatchResult,
 };
 use crate::{
     gui::{
@@ -97,7 +97,10 @@ where
     pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
         let viewport = state::normalized_viewport(viewport);
         let surface = bridge.pull_surface();
-        let layout_root = surface.layout_node();
+        let SurfaceRuntimeProjection {
+            layout_root,
+            traversal,
+        } = surface.runtime_projection();
         let layout_state = LayoutState::default();
         let mut layout_engine = LayoutEngine::default();
         let layout = layout_engine.layout_with_state(
@@ -106,7 +109,6 @@ where
             &layout_state,
             LayoutDebugOptions::default(),
         );
-        let traversal = surface.runtime_traversal_index();
         let pointer_hit_rank = hit_rank(&traversal.pointer_hit_order);
         let wheel_hit_rank = hit_rank(&traversal.wheel_hit_order);
         let styled_container_hit_rank = hit_rank(&traversal.styled_container_order);
@@ -165,14 +167,17 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
-        let traversal = next_surface.runtime_traversal_index();
+        let SurfaceRuntimeProjection {
+            layout_root,
+            traversal,
+        } = next_surface.runtime_projection();
         next_surface.synchronize_widget_state_from_paths(
             &self.surface,
             &traversal.widget_paths,
             &self.widget_paths,
         );
         self.surface = next_surface;
-        self.layout_root = self.surface.layout_node();
+        self.layout_root = layout_root;
         self.restore_pointer_capture_state();
         self.relayout_with_traversal(traversal);
         if self

@@ -12,6 +12,7 @@ mod widget;
 
 pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
+pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
 pub(in crate::runtime) use traversal::SurfaceTraversalIndex;
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};

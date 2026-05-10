@@ -11,14 +11,8 @@ impl<Message> SurfaceNode<Message> {
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
-        match self {
-            Self::Container(container) => container
-                .children
-                .iter_mut()
-                .find_map(|child| child.child.handle_input(widget_id, bounds, input.clone())),
-            Self::Widget(widget) => widget.handle_input(widget_id, bounds, input),
-            Self::Overlay(_) => None,
-        }
+        self.find_widget_mut(widget_id)
+            .and_then(|widget| widget.handle_input(widget_id, bounds, input))
     }
 
     pub(super) fn dispatch_output(

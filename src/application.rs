@@ -6,11 +6,8 @@
 
 use crate::{
     gui::types::{ImageRgba, Point, Rect},
-    layout::{
-        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, NodeId,
-        SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
-    },
-    runtime::{GpuSurfaceContent, SurfaceChild, SurfaceNode, WidgetMessageMapper},
+    layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
+    runtime::{GpuSurfaceContent, SurfaceNode, WidgetMessageMapper},
     widgets::{
         ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
         RetainedSurfaceDescriptor, TextAlign, TextInputWidget, TextWidget, TextWrap, ToggleWidget,

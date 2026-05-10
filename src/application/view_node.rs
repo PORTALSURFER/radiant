@@ -1,4 +1,13 @@
-include!("view_node/slot.rs");
+#[path = "view_node/identity.rs"]
+mod identity;
+#[path = "view_node/lowering.rs"]
+mod lowering;
+#[path = "view_node/modifiers.rs"]
+mod modifiers;
+#[path = "view_node/slot.rs"]
+mod slot;
+
+use slot::SlotBehavior;
 
 /// Application view node with generated identity and default sizing.
 pub struct ViewNode<Message> {
@@ -17,7 +26,7 @@ pub struct ViewNode<Message> {
     text_align: Option<TextAlign>,
 }
 
-enum ViewNodeKind<Message> {
+pub(super) enum ViewNodeKind<Message> {
     Runtime(SurfaceNode<Message>),
     Widget(Box<dyn WidgetView<Message>>),
     Row {
@@ -50,9 +59,6 @@ enum ViewNodeKind<Message> {
     },
 }
 
-include!("view_node/identity.rs");
-include!("view_node/modifiers.rs");
-
 impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
     fn from(node: SurfaceNode<Message>) -> Self {
         Self {
@@ -72,6 +78,4 @@ impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
         }
     }
 }
-
-include!("view_node/lowering.rs");
 

@@ -55,6 +55,7 @@ where
             LayoutDebugOptions::default(),
         );
         self.widget_hit_order = traversal.widget_paint_order;
+        self.widget_paths = traversal.widget_paths;
         self.focusable_widget_order = traversal.focusable_widget_order;
         self.pointer_hit_order = traversal.pointer_hit_order;
         self.pointer_hit_rank = hit_rank(&self.pointer_hit_order);

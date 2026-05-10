@@ -60,6 +60,18 @@ impl<Message> SurfaceNode<Message> {
             .and_then(|widget| widget.handle_input(widget_id, bounds, input))
     }
 
+    pub(super) fn dispatch_input_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .map(|widget| widget.dispatch_input(widget_id, bounds, input))
+    }
+
     pub(super) fn dispatch_output(
         &self,
         widget_id: WidgetId,
@@ -98,5 +110,75 @@ impl<Message> SurfaceNode<Message> {
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
             Self::Overlay(_) => None,
         }
+    }
+
+    fn find_widget_mut_at_path(
+        &mut self,
+        child_path: &[usize],
+    ) -> Option<&mut SurfaceWidget<Message>> {
+        match (self, child_path.split_first()) {
+            (Self::Widget(widget), None) => Some(widget),
+            (Self::Container(container), Some((child_index, remaining_path))) => container
+                .children
+                .get_mut(*child_index)?
+                .child
+                .find_widget_mut_at_path(remaining_path),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        gui::types::{Point, Vector2},
+        widgets::{ButtonWidget, WidgetSizing},
+    };
+
+    #[test]
+    fn dispatch_input_at_child_path_routes_without_tree_search() {
+        let mut root: SurfaceNode<()> = SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(10, "First", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(20, "Second", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        );
+
+        let result = root.dispatch_input_at_path(
+            20,
+            &[1],
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(80.0, 28.0)),
+            WidgetInput::PointerMove {
+                position: Point::new(8.0, 8.0),
+            },
+        );
+
+        assert!(matches!(result, Some(WidgetDispatchResult::NoOutput)));
+        assert!(
+            root.find_widget(20)
+                .expect("target widget exists")
+                .widget()
+                .common()
+                .state
+                .hovered
+        );
+        assert!(
+            !root
+                .find_widget(10)
+                .expect("sibling widget exists")
+                .widget()
+                .common()
+                .state
+                .hovered
+        );
     }
 }

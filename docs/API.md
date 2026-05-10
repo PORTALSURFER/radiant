@@ -489,11 +489,11 @@ cargo bench --bench perf_harness
 
 The harness prints parseable `radiant_perf` metric lines for layout, runtime
 surface, and GPU-surface data preparation scenarios. It currently covers deep
-layout trees, 1k wrap layout, 10k virtualized scroll layout, large declarative
-surface layout plus paint-plan generation, GPU signal-summary construction, and
-GPU-surface primitive projection. The harness performs sanity assertions, but
-does not enforce machine-dependent pass/fail timing thresholds; use the output
-for local comparisons, profiling runs, and regression investigation.
+layout trees, 1k wrap layout, 10k virtualized scroll layout, fixed-size 10k
+virtualized scroll layout, large declarative surface layout plus paint-plan
+generation, GPU signal-summary construction, and GPU-surface primitive
+projection. The harness performs sanity assertions, but it does not enforce machine-dependent pass/fail timing thresholds; use the output for local
+comparisons, profiling runs, and regression investigation.
 Run `cargo run --example rendering_benchmark` for a checked public-API sandbox
 that builds a large declarative surface, runs layout plus paint-plan generation,
 and prints parseable primitive-count diagnostics.
@@ -575,8 +575,9 @@ the prelude builders.
 Run `cargo run --example grid_gallery` for a fixed-column gallery sandbox that
 uses `grid_with_gaps(...)` with normal nested views and styling.
 Run `cargo run --example theme_playground` for a theme-token sandbox that
-combines `ThemeTokens`, viewport density policy, and widget visual-token
-resolution with normal application views.
+compares density scale, tone, prominence, and interactive state through normal
+application views. It is intended to make theme policy visually inspectable, not
+only to prove that token colors resolve.
 Run `cargo run --example focus_controls` for an input/focus sandbox that uses
 `UpdateContext::focus(...)` and app-level `.shortcuts(...)` to move keyboard
 focus from normal app messages.

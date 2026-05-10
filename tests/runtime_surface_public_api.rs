@@ -8,7 +8,7 @@ use radiant::{
         shortcuts::ShortcutResolution,
         types::{ImageRgba, Rgba8},
     },
-    layout::{Point, Rect, Vector2, layout_tree},
+    layout::{Point, Rect, Vector2, VirtualizationAxis, layout_tree},
     runtime::{
         Command, Element, Event, FocusTraversal, GpuHoverCursor, GpuSurfaceCapabilities,
         GpuSurfaceContent, GpuSurfaceOverlay, PaintPrimitive, Renderer, RuntimeBridge,
@@ -187,6 +187,52 @@ fn surface_runtime_executes_focus_exit_and_deferred_commands() {
     let exit = runtime.execute_command(Command::exit());
     assert!(exit.exit_requested);
     assert!(runtime.take_exit_requested());
+}
+
+#[test]
+fn surface_runtime_scrolls_virtual_list_with_cached_layout_and_bounded_paint_plan() {
+    let bridge = declarative_runtime_bridge(
+        (),
+        |_state: &mut ()| {
+            let rows = (0..10_000_u64)
+                .map(|index| {
+                    SurfaceChild::fill(SurfaceNode::static_widget(TextWidget::new(
+                        index + 10,
+                        format!("Row {index:05}"),
+                        WidgetSizing::fixed(Vector2::new(160.0, 28.0)).with_baseline(18.0),
+                    )))
+                })
+                .collect::<Vec<_>>();
+            Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+                1,
+                SurfaceNode::column(2, 4.0, rows),
+                VirtualizationAxis::Vertical,
+                96.0,
+            )))
+        },
+        |_state: &mut (), _message: DemoMessage| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(220.0, 120.0));
+
+    assert!(runtime.scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, 3_000.0)));
+
+    let layout = runtime.layout();
+    let window = layout
+        .virtual_windows
+        .get(&1)
+        .expect("virtual scroll window should be resolved");
+    assert!(window.first_index > 0);
+    assert!(window.last_index_exclusive - window.first_index < 128);
+    assert!(
+        layout.stats.measured_nodes < 64,
+        "scroll relayout should reuse virtual metrics instead of measuring the full list"
+    );
+
+    let paint = runtime.paint_plan(&ThemeTokens::default());
+    assert!(
+        paint.primitives.len() < 160,
+        "virtual scroll paint should stay bounded to the materialized window"
+    );
 }
 
 fn project_surface(state: &mut DemoState) -> Arc<UiSurface<DemoMessage>> {

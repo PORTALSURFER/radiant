@@ -1,8 +1,10 @@
 use crate::gui_runtime::native_vello::*;
 
+const MAX_RETAINED_SURFACE_FRAMES: usize = 64;
+
 #[derive(Clone, Debug, Default)]
 pub(in crate::gui_runtime::native_vello) struct RetainedSurfaceFrameCache {
-    entry: Option<RetainedSurfaceFrameCacheEntry>,
+    entries: Vec<RetainedSurfaceFrameCacheEntry>,
 }
 
 #[derive(Clone, Debug)]
@@ -60,22 +62,19 @@ impl RetainedSurfaceEncodeStats {
 
 impl RetainedSurfaceFrameCache {
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn cached_frame(
-        &self,
+        &mut self,
         descriptor: RetainedSurfaceDescriptor,
         rect: UiRect,
         viewport: Vector2,
     ) -> Option<&PaintFrame> {
-        if descriptor.volatile || descriptor.dirty_mask != 0 {
+        if !cacheable_descriptor(descriptor) {
+            self.invalidate_descriptor_key(descriptor.key);
             return None;
         }
-        let entry = self.entry.as_ref()?;
-        (entry.descriptor.key == descriptor.key
-            && entry.descriptor.revision == descriptor.revision
-            && entry.descriptor.dirty_mask == 0
-            && !entry.descriptor.volatile
-            && entry.rect == rect
-            && entry.viewport == viewport)
-            .then_some(&entry.frame)
+        self.entries
+            .iter()
+            .find(|entry| entry.matches(descriptor, rect, viewport))
+            .map(|entry| &entry.frame)
     }
 
     pub(in crate::gui_runtime::native_vello::generic_runtime::scene) fn store(
@@ -85,14 +84,52 @@ impl RetainedSurfaceFrameCache {
         viewport: Vector2,
         frame: PaintFrame,
     ) {
-        if descriptor.volatile || descriptor.dirty_mask != 0 {
+        if !cacheable_descriptor(descriptor) {
+            self.invalidate_descriptor_key(descriptor.key);
             return;
         }
-        self.entry = Some(RetainedSurfaceFrameCacheEntry {
+        self.entries
+            .retain(|entry| !entry.same_surface_geometry(descriptor, rect, viewport));
+        self.entries.push(RetainedSurfaceFrameCacheEntry {
             descriptor,
             rect,
             viewport,
             frame,
         });
+        if self.entries.len() > MAX_RETAINED_SURFACE_FRAMES {
+            self.entries.remove(0);
+        }
     }
+
+    fn invalidate_descriptor_key(&mut self, key: u64) {
+        self.entries.retain(|entry| entry.descriptor.key != key);
+    }
+}
+
+impl RetainedSurfaceFrameCacheEntry {
+    fn matches(
+        &self,
+        descriptor: RetainedSurfaceDescriptor,
+        rect: UiRect,
+        viewport: Vector2,
+    ) -> bool {
+        self.descriptor.key == descriptor.key
+            && self.descriptor.revision == descriptor.revision
+            && cacheable_descriptor(self.descriptor)
+            && self.rect == rect
+            && self.viewport == viewport
+    }
+
+    fn same_surface_geometry(
+        &self,
+        descriptor: RetainedSurfaceDescriptor,
+        rect: UiRect,
+        viewport: Vector2,
+    ) -> bool {
+        self.descriptor.key == descriptor.key && self.rect == rect && self.viewport == viewport
+    }
+}
+
+fn cacheable_descriptor(descriptor: RetainedSurfaceDescriptor) -> bool {
+    !descriptor.volatile && descriptor.dirty_mask == 0
 }

@@ -1,24 +1,22 @@
-//! Native text and primitive color/geometry encoding helpers for Vello scenes.
+//! Native text rendering for Vello scenes.
 
-use super::{NativeTextOptions, WindowIconRgba};
-use crate::gui::{
-    paint::{TextAlign, TextRun},
-    types::{Rect as UiRect, Rgba8},
-};
+use super::NativeTextOptions;
+use crate::gui::paint::{TextAlign, TextRun};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
 use vello::{
     Glyph, Scene,
-    kurbo::Rect as KurboRect,
-    peniko::{Color, Fill, FontData},
+    peniko::{Fill, FontData},
 };
-use winit::window::Icon;
 
 mod cache;
+mod encoding;
 mod font;
 mod layout;
+
+pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
 #[derive(Clone, Debug)]
 pub(super) struct GlyphLayout {
@@ -158,23 +156,6 @@ impl TextLayout {
             }],
         }
     }
-}
-
-pub(super) fn to_kurbo_rect(rect: UiRect) -> KurboRect {
-    KurboRect::new(
-        rect.min.x as f64,
-        rect.min.y as f64,
-        rect.max.x as f64,
-        rect.max.y as f64,
-    )
-}
-
-pub(super) fn color_from_rgba(color: Rgba8) -> Color {
-    Color::from_rgba8(color.r, color.g, color.b, color.a)
-}
-
-pub(super) fn icon_from_rgba(icon: &WindowIconRgba) -> Option<Icon> {
-    Icon::from_rgba(icon.rgba.clone(), icon.width, icon.height).ok()
 }
 
 #[cfg(test)]

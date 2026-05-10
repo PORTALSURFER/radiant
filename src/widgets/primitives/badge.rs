@@ -12,21 +12,10 @@ use crate::widgets::contract::{
 use crate::widgets::interaction::{BadgeMessage, WidgetInput, WidgetOutput};
 
 mod input;
+mod model;
 mod paint;
 
-/// Immutable public properties for a reusable badge or pill widget.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct BadgeProps {
-    /// User-visible badge label.
-    pub label: String,
-}
-
-/// Mutable interaction state for a reusable badge or pill widget.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct BadgeState {
-    /// Whether a primary press started inside the badge and is still armed.
-    pub armed: bool,
-}
+pub use model::{BadgeProps, BadgeState};
 
 /// Public badge/pill primitive.
 #[derive(Clone, Debug, PartialEq)]

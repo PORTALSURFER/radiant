@@ -10,14 +10,10 @@ use super::support::WidgetCommon;
 use crate::widgets::contract::{Widget, WidgetId, WidgetSizing};
 use crate::widgets::interaction::{WidgetInput, WidgetOutput};
 
+mod model;
 mod paint;
 
-/// Immutable public properties for a reusable image widget.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageProps {
-    /// Shared RGBA image payload.
-    pub image: Arc<ImageRgba>,
-}
+pub use model::ImageProps;
 
 /// Public image primitive for raster content.
 #[derive(Clone, Debug, PartialEq)]

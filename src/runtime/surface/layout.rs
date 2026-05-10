@@ -1,6 +1,5 @@
 use super::*;
 use crate::layout::{ContainerKind, LayoutNode, SlotChild, Vector2};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub(in crate::runtime) struct SurfaceRuntimeProjection {
     pub(in crate::runtime) layout_root: LayoutNode,
@@ -9,23 +8,13 @@ pub(in crate::runtime) struct SurfaceRuntimeProjection {
 
 impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_projection(&self) -> SurfaceRuntimeProjection {
-        let mut traversal = SurfaceTraversalIndex {
-            widget_paint_order: Vec::new(),
-            focusable_widget_order: Vec::new(),
-            keyboard_focus_order: Vec::new(),
-            pointer_hit_order: Vec::new(),
-            wheel_hit_order: Vec::new(),
-            widget_paths: HashMap::new(),
-            container_hover_suppression: BTreeSet::new(),
-            styled_container_order: Vec::new(),
-            scroll_container_order: Vec::new(),
-            widget_clip_ancestors: BTreeMap::new(),
-            container_clip_ancestors: BTreeMap::new(),
-            scroll_content_by_container: BTreeMap::new(),
-        };
-        let layout_root =
-            self.root
-                .project_runtime(&mut Vec::new(), &mut Vec::new(), &mut traversal);
+        let stats = self.root.runtime_traversal_stats();
+        let mut traversal = SurfaceTraversalIndex::with_stats(stats);
+        let layout_root = self.root.project_runtime(
+            &mut Vec::with_capacity(stats.max_scroll_depth),
+            &mut Vec::with_capacity(stats.max_depth),
+            &mut traversal,
+        );
         SurfaceRuntimeProjection {
             layout_root,
             traversal,
@@ -36,15 +25,13 @@ impl<Message> UiSurface<Message> {
 impl<Message> SurfaceNode<Message> {
     pub(super) fn layout_node(&self) -> LayoutNode {
         match self {
-            Self::Container(container) => LayoutNode::container(
-                container.id,
-                container.policy.clone(),
-                container
-                    .children
-                    .iter()
-                    .map(|child| SlotChild::new(child.slot, child.child.layout_node()))
-                    .collect(),
-            ),
+            Self::Container(container) => {
+                let mut children = Vec::with_capacity(container.children.len());
+                for child in &container.children {
+                    children.push(SlotChild::new(child.slot, child.child.layout_node()));
+                }
+                LayoutNode::container(container.id, container.policy.clone(), children)
+            }
             Self::Widget(widget) => widget.layout_node(),
             Self::Overlay(overlay) => LayoutNode::widget(overlay.id, Vector2::new(0.0, 0.0)),
         }
@@ -76,20 +63,16 @@ impl<Message> SurfaceNode<Message> {
                 if container.style.is_some() && container.hoverable {
                     traversal.styled_container_order.push(container.id);
                 }
-                let children = container
-                    .children
-                    .iter()
-                    .enumerate()
-                    .map(|(child_index, child)| {
-                        child_path.push(child_index);
-                        let child_layout =
-                            child
-                                .child
-                                .project_runtime(scroll_stack, child_path, traversal);
-                        child_path.pop();
-                        SlotChild::new(child.slot, child_layout)
-                    })
-                    .collect();
+                let mut children = Vec::with_capacity(container.children.len());
+                for (child_index, child) in container.children.iter().enumerate() {
+                    child_path.push(child_index);
+                    let child_layout =
+                        child
+                            .child
+                            .project_runtime(scroll_stack, child_path, traversal);
+                    child_path.pop();
+                    children.push(SlotChild::new(child.slot, child_layout));
+                }
                 if is_scroll {
                     scroll_stack.pop();
                 }

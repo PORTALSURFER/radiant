@@ -41,6 +41,15 @@ impl WidgetPath {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(in crate::runtime) struct SurfaceTraversalStats {
+    pub(in crate::runtime) widgets: usize,
+    pub(in crate::runtime) scroll_containers: usize,
+    pub(in crate::runtime) styled_hoverable_containers: usize,
+    pub(in crate::runtime) max_depth: usize,
+    pub(in crate::runtime) max_scroll_depth: usize,
+}
+
 pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
@@ -56,7 +65,65 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) scroll_content_by_container: BTreeMap<NodeId, NodeId>,
 }
 
+impl SurfaceTraversalIndex {
+    pub(in crate::runtime) fn with_stats(stats: SurfaceTraversalStats) -> Self {
+        Self {
+            widget_paint_order: Vec::with_capacity(stats.widgets),
+            focusable_widget_order: Vec::with_capacity(stats.widgets),
+            keyboard_focus_order: Vec::with_capacity(stats.widgets),
+            pointer_hit_order: Vec::with_capacity(stats.widgets),
+            wheel_hit_order: Vec::with_capacity(stats.widgets),
+            widget_paths: HashMap::with_capacity(stats.widgets),
+            container_hover_suppression: BTreeSet::new(),
+            styled_container_order: Vec::with_capacity(stats.styled_hoverable_containers),
+            scroll_container_order: Vec::with_capacity(stats.scroll_containers),
+            widget_clip_ancestors: BTreeMap::new(),
+            container_clip_ancestors: BTreeMap::new(),
+            scroll_content_by_container: BTreeMap::new(),
+        }
+    }
+}
+
 impl<Message> SurfaceNode<Message> {
+    pub(in crate::runtime) fn runtime_traversal_stats(&self) -> SurfaceTraversalStats {
+        let mut stats = SurfaceTraversalStats::default();
+        self.collect_runtime_traversal_stats(0, 0, &mut stats);
+        stats
+    }
+
+    fn collect_runtime_traversal_stats(
+        &self,
+        depth: usize,
+        scroll_depth: usize,
+        stats: &mut SurfaceTraversalStats,
+    ) {
+        stats.max_depth = stats.max_depth.max(depth);
+        stats.max_scroll_depth = stats.max_scroll_depth.max(scroll_depth);
+        match self {
+            Self::Container(container) => {
+                let is_scroll = container.policy.kind == ContainerKind::ScrollView;
+                if is_scroll {
+                    stats.scroll_containers += 1;
+                }
+                if container.style.is_some() && container.hoverable {
+                    stats.styled_hoverable_containers += 1;
+                }
+                let child_scroll_depth = scroll_depth + usize::from(is_scroll);
+                for child in &container.children {
+                    child.child.collect_runtime_traversal_stats(
+                        depth + 1,
+                        child_scroll_depth,
+                        stats,
+                    );
+                }
+            }
+            Self::Widget(_) => {
+                stats.widgets += 1;
+            }
+            Self::Overlay(_) => {}
+        }
+    }
+
     fn collect_runtime_index(
         &self,
         scroll_stack: &mut Vec<NodeId>,
@@ -128,22 +195,13 @@ impl<Message> SurfaceNode<Message> {
 
 impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn runtime_traversal_index(&self) -> SurfaceTraversalIndex {
-        let mut index = SurfaceTraversalIndex {
-            widget_paint_order: Vec::new(),
-            focusable_widget_order: Vec::new(),
-            keyboard_focus_order: Vec::new(),
-            pointer_hit_order: Vec::new(),
-            wheel_hit_order: Vec::new(),
-            widget_paths: HashMap::new(),
-            container_hover_suppression: BTreeSet::new(),
-            styled_container_order: Vec::new(),
-            scroll_container_order: Vec::new(),
-            widget_clip_ancestors: BTreeMap::new(),
-            container_clip_ancestors: BTreeMap::new(),
-            scroll_content_by_container: BTreeMap::new(),
-        };
-        self.root
-            .collect_runtime_index(&mut Vec::new(), &mut Vec::new(), &mut index);
+        let stats = self.root.runtime_traversal_stats();
+        let mut index = SurfaceTraversalIndex::with_stats(stats);
+        self.root.collect_runtime_index(
+            &mut Vec::with_capacity(stats.max_scroll_depth),
+            &mut Vec::with_capacity(stats.max_depth),
+            &mut index,
+        );
         index
     }
 }

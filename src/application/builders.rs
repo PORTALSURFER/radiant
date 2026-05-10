@@ -1,4 +1,19 @@
-fn view_node_from_widget<Message>(widget: impl WidgetView<Message> + 'static) -> ViewNode<Message> {
+use crate::{
+    application::{DynamicWidget, MappedWidget, SlotBehavior, ViewNode, ViewNodeKind, WidgetView},
+    gui::types::ImageRgba,
+    layout::{Insets, Vector2},
+    runtime::{GpuSurfaceContent, WidgetMessageMapper},
+    widgets::{
+        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
+        TextInputWidget, TextWidget, ToggleWidget, Widget, WidgetOutput, WidgetProminence,
+        WidgetSizing, WidgetStyle, WidgetTone,
+    },
+};
+use std::sync::Arc;
+
+pub(in crate::application) fn view_node_from_widget<Message>(
+    widget: impl WidgetView<Message> + 'static,
+) -> ViewNode<Message> {
     ViewNode {
         kind: ViewNodeKind::Widget(Box::new(widget)),
         id: None,
@@ -146,26 +161,26 @@ fn default_text_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(160.0, 24.0)).with_baseline(17.0)
 }
 
-fn default_button_sizing(label: &str) -> WidgetSizing {
+pub(in crate::application) fn default_button_sizing(label: &str) -> WidgetSizing {
     let width = (label.chars().count() as f32 * 9.0 + 36.0).clamp(88.0, 260.0);
     WidgetSizing::fixed(Vector2::new(width, 36.0)).with_baseline(23.0)
 }
 
-fn default_drag_handle_sizing() -> WidgetSizing {
+pub(in crate::application) fn default_drag_handle_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(24.0, 24.0))
 }
 
-fn default_badge_sizing(label: &str) -> WidgetSizing {
+pub(in crate::application) fn default_badge_sizing(label: &str) -> WidgetSizing {
     let width = (label.chars().count() as f32 * 8.0 + 24.0).clamp(56.0, 180.0);
     WidgetSizing::fixed(Vector2::new(width, 24.0)).with_baseline(17.0)
 }
 
-fn default_selectable_sizing(label: &str) -> WidgetSizing {
+pub(in crate::application) fn default_selectable_sizing(label: &str) -> WidgetSizing {
     let width = (label.chars().count() as f32 * 8.0 + 28.0).clamp(92.0, 260.0);
     WidgetSizing::fixed(Vector2::new(width, 30.0)).with_baseline(20.0)
 }
 
-fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
+pub(in crate::application) fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
     if compact {
         return WidgetSizing::fixed(Vector2::new(22.0, 22.0)).with_baseline(16.0);
     }
@@ -173,11 +188,11 @@ fn default_toggle_sizing(label: &str, compact: bool) -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(width, 30.0))
 }
 
-fn default_text_input_sizing() -> WidgetSizing {
+pub(in crate::application) fn default_text_input_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(180.0, 42.0), Vector2::new(280.0, 42.0)).with_baseline(26.0)
 }
 
-fn default_canvas_sizing() -> WidgetSizing {
+pub(in crate::application) fn default_canvas_sizing() -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(1.0, 1.0))
 }
 
@@ -189,14 +204,14 @@ fn default_gpu_surface_sizing() -> WidgetSizing {
     WidgetSizing::new(Vector2::new(160.0, 90.0), Vector2::new(320.0, 180.0))
 }
 
-fn primary_style() -> WidgetStyle {
+pub(in crate::application) fn primary_style() -> WidgetStyle {
     WidgetStyle {
         tone: WidgetTone::Accent,
         prominence: WidgetProminence::Strong,
     }
 }
 
-fn danger_style() -> WidgetStyle {
+pub(in crate::application) fn danger_style() -> WidgetStyle {
     WidgetStyle {
         tone: WidgetTone::Danger,
         prominence: WidgetProminence::Normal,

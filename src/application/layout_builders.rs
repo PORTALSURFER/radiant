@@ -1,3 +1,9 @@
+use crate::{
+    application::{SlotBehavior, ViewNode, ViewNodeKind, primary_style},
+    layout::{Insets, Vector2},
+    widgets::WidgetStyle,
+};
+
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
     ViewNode {
@@ -239,9 +245,12 @@ pub fn virtual_list<Message, Item>(
     project: impl FnMut(Item) -> ViewNode<Message>,
     overscan_px: f32,
 ) -> ViewNode<Message> {
-    virtual_scroll(column(items.into_iter().map(project).collect::<Vec<_>>()), overscan_px)
-        .style(WidgetStyle::default())
-        .fill_height()
+    virtual_scroll(
+        column(items.into_iter().map(project).collect::<Vec<_>>()),
+        overscan_px,
+    )
+    .style(WidgetStyle::default())
+    .fill_height()
 }
 
 /// Build a keyed list row with full-width, fixed-height defaults.

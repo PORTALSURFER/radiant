@@ -20,7 +20,7 @@ impl NativeTextRenderer {
 
         let mut x = 0.0_f32;
         let mut glyphs = Vec::with_capacity(text.len());
-        let mut cursor_stops = Vec::with_capacity(text.chars().count() + 1);
+        let mut cursor_stops = Vec::with_capacity(text.len().saturating_add(1));
         cursor_stops.push(TextCursorStop {
             byte_index: 0,
             x: 0.0,

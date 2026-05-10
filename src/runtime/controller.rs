@@ -18,7 +18,7 @@ pub use events::Event;
 
 use super::{
     Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceRuntimeProjection,
-    SurfaceTraversalIndex, SurfaceWidget, UiSurface, WidgetDispatchResult,
+    SurfaceTraversalIndex, SurfaceWidget, UiSurface, WidgetDispatchResult, WidgetPath,
 };
 use crate::{
     gui::{
@@ -66,7 +66,7 @@ where
     pointer_hit_order: Vec<WidgetId>,
     pointer_hit_rank: HashMap<WidgetId, usize>,
     visible_pointer_hit_order: Vec<WidgetId>,
-    widget_paths: HashMap<WidgetId, Vec<usize>>,
+    widget_paths: HashMap<WidgetId, WidgetPath>,
     container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     wheel_hit_order: Vec<WidgetId>,

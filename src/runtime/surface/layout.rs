@@ -100,7 +100,7 @@ impl<Message> SurfaceNode<Message> {
                 traversal
                     .widget_paths
                     .entry(widget.id())
-                    .or_insert_with(|| child_path.clone());
+                    .or_insert_with(|| WidgetPath::from_slice(child_path));
                 if widget.is_focusable() {
                     traversal.focusable_widget_order.push(widget.id());
                 }

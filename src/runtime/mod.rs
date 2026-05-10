@@ -57,5 +57,5 @@ pub use surface::{
     SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };
 pub(in crate::runtime) use surface::{
-    SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
+    SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult, WidgetPath,
 };

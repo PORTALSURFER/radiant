@@ -23,21 +23,17 @@ impl NativeTextRenderer {
         // Split hit detection from the returned borrow so cache profiling can
         // stay safe without extending an immutable borrow across the miss path.
         if self.layout_cache.contains_key(&key) {
+            self.touch_layout_cache_key(&key);
             self.text_layout_hits = self.text_layout_hits.saturating_add(1);
             return self.layout_cache.get(&key);
         }
 
         self.text_layout_misses = self.text_layout_misses.saturating_add(1);
 
-        if self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY
-            && let Some(evicted_key) = self.layout_cache_order.pop_front()
-            && self.layout_cache.remove(&evicted_key).is_some()
-        {
-            self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
-        }
+        self.evict_stale_layouts();
 
         let layout = Self::compute_layout(font, text, font_size)?;
-        self.layout_cache_order.push_back(key.clone());
+        self.touch_layout_cache_key(&key);
         let cached_layout = self.layout_cache.entry(key).or_insert(layout);
         Some(cached_layout)
     }
@@ -84,6 +80,48 @@ impl NativeTextRenderer {
         self.atom_cache_order.push_back((Arc::clone(&atom), stamp));
         self.evict_stale_atoms();
         atom
+    }
+
+    /// Record layout-cache recency without reallocating the cached layout.
+    pub(super) fn touch_layout_cache_key(&mut self, key: &TextLayoutKey) {
+        self.layout_cache_clock = self.layout_cache_clock.saturating_add(1);
+        let stamp = self.layout_cache_clock;
+        self.layout_cache_stamps.insert(key.clone(), stamp);
+        self.layout_cache_order.push_back((key.clone(), stamp));
+        self.compact_layout_cache_order_if_needed();
+    }
+
+    /// Compact queued layout-order metadata after repeated cache hits append stale stamps.
+    fn compact_layout_cache_order_if_needed(&mut self) {
+        if self.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {
+            return;
+        }
+        let mut ordered_layouts: Vec<_> = self
+            .layout_cache_stamps
+            .iter()
+            .map(|(key, stamp)| (key.clone(), *stamp))
+            .collect();
+        ordered_layouts.sort_by_key(|(_, stamp)| *stamp);
+        self.layout_cache_order = ordered_layouts.into_iter().collect();
+    }
+
+    /// Evict stale layout-cache entries by last-use stamp so hot text survives churn.
+    pub(super) fn evict_stale_layouts(&mut self) {
+        while self.layout_cache.len() >= TEXT_LAYOUT_CACHE_CAPACITY {
+            let Some((candidate, queued_stamp)) = self.layout_cache_order.pop_front() else {
+                break;
+            };
+            let Some(current_stamp) = self.layout_cache_stamps.get(&candidate) else {
+                continue;
+            };
+            if *current_stamp != queued_stamp {
+                continue;
+            }
+            self.layout_cache_stamps.remove(&candidate);
+            if self.layout_cache.remove(&candidate).is_some() {
+                self.text_layout_evictions = self.text_layout_evictions.saturating_add(1);
+            }
+        }
     }
 
     /// Compact queued atom-order metadata after repeated cache hits append stale stamps.

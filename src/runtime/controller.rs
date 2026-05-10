@@ -17,8 +17,8 @@ pub use context::RuntimeContext;
 pub use events::Event;
 
 use super::{
-    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceTraversalIndex, UiSurface,
-    WidgetDispatchResult,
+    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceTraversalIndex, SurfaceWidget,
+    UiSurface, WidgetDispatchResult,
 };
 use crate::{
     gui::{
@@ -235,6 +235,30 @@ where
         };
         self.surface
             .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
+    }
+
+    fn dispatch_raw_surface_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> bool {
+        let Some(child_path) = self.widget_paths.get(&widget_id) else {
+            return self
+                .surface
+                .dispatch_widget_input(widget_id, bounds, input)
+                .is_some();
+        };
+        self.surface
+            .dispatch_widget_input_at_path(widget_id, child_path, bounds, input)
+            .is_some()
+    }
+
+    fn surface_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
+        self.widget_paths
+            .get(&widget_id)
+            .and_then(|child_path| self.surface.find_widget_at_path(widget_id, child_path))
+            .or_else(|| self.surface.find_widget(widget_id))
     }
 }
 

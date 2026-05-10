@@ -21,10 +21,9 @@ impl GpuSurfaceRenderer {
         let Some(buffer) = self.signals.get(&key) else {
             return;
         };
-        let pipeline = self
-            .signal_pipeline
-            .as_ref()
-            .expect("gpu signal surface pipeline");
+        let Some(pipeline) = self.signal_pipeline.as_ref() else {
+            return;
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("radiant_gpu_signal_body_texture"),
             size: wgpu::Extent3d {
@@ -151,18 +150,18 @@ impl GpuSurfaceRenderer {
                 && buffer.sample_count == values.len()
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
-            let buffer = self.signals.get(&key).expect("checked signal buffer");
-            queue.write_buffer(
-                &buffer.uniform_buffer,
-                0,
-                signal_uniforms_as_bytes(uniforms),
-            );
+            if let Some(buffer) = self.signals.get(&key) {
+                queue.write_buffer(
+                    &buffer.uniform_buffer,
+                    0,
+                    signal_uniforms_as_bytes(uniforms),
+                );
+            }
             return;
         }
-        let pipeline = self
-            .signal_pipeline
-            .as_ref()
-            .expect("gpu signal surface pipeline");
+        let Some(pipeline) = self.signal_pipeline.as_ref() else {
+            return;
+        };
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
             contents: summary_bucket_bytes(&values),

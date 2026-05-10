@@ -1,8 +1,6 @@
 use super::{ViewNode, ViewNodeKind};
 use crate::{
-    application::{
-        IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext,
-    },
+    application::{IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext},
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, MainAlign, VirtualizationAxis,
         VirtualizationPolicy,

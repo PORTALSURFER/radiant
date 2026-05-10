@@ -135,7 +135,7 @@ where
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
         let traversal = next_surface.runtime_traversal_index();
-        next_surface.synchronize_widget_state_from(&self.surface, &traversal.widget_paint_order);
+        next_surface.synchronize_widget_state_from(&self.surface);
         self.surface = next_surface;
         self.restore_pointer_capture_state();
         self.relayout_with_traversal(traversal);

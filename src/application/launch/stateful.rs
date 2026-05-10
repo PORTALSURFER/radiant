@@ -1,3 +1,5 @@
+use super::*;
+
 /// Initial builder for simple stateful Radiant apps.
 pub struct StatefulAppBuilder<State> {
     state: State,
@@ -5,7 +7,7 @@ pub struct StatefulAppBuilder<State> {
 }
 
 impl<State> StatefulAppBuilder<State> {
-    fn new(state: State) -> Self {
+    pub(super) fn new(state: State) -> Self {
         Self {
             state,
             options: NativeRunOptions::default(),

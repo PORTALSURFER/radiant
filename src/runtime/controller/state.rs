@@ -35,6 +35,16 @@ where
         self.relayout_with_traversal(traversal);
     }
 
+    pub(super) fn relayout_current_surface(&mut self) {
+        self.layout = self.layout_engine.layout_with_state(
+            &self.surface.layout_node(),
+            self.viewport,
+            &self.layout_state,
+            LayoutDebugOptions::default(),
+        );
+        self.sync_scroll_offsets();
+    }
+
     pub(super) fn relayout_with_traversal(&mut self, traversal: SurfaceTraversalIndex) {
         self.layout = self.layout_engine.layout_with_state(
             &self.surface.layout_node(),

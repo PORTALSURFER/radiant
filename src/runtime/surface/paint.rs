@@ -136,8 +136,16 @@ impl<Message> SurfaceNode<Message> {
                 container.append_chrome_paint(context, plan);
                 if container.is_scroll_view() {
                     if container.begin_scroll_clip(context, plan) {
-                        for child in &container.children {
-                            child.child.append_paint_with_context(context, plan);
+                        for (index, child) in container.children.iter().enumerate() {
+                            if index == 0 {
+                                child.child.append_virtual_window_paint_for_scroll(
+                                    container.id,
+                                    context,
+                                    plan,
+                                );
+                            } else {
+                                child.child.append_paint_with_context(context, plan);
+                            }
                         }
                         container.end_scroll_clip(plan);
                         container.append_scroll_affordance(context, plan);
@@ -160,6 +168,32 @@ impl<Message> SurfaceNode<Message> {
                 );
             }
             Self::Overlay(overlay) => overlay.append_paint(context, plan),
+        }
+    }
+
+    fn append_virtual_window_paint_for_scroll(
+        &self,
+        scroll_id: NodeId,
+        context: &SurfacePaintContext<'_>,
+        plan: &mut SurfacePaintPlan,
+    ) {
+        let Some(window) = context.layout.virtual_windows.get(&scroll_id) else {
+            self.append_paint_with_context(context, plan);
+            return;
+        };
+        let Self::Container(container) = self else {
+            self.append_paint_with_context(context, plan);
+            return;
+        };
+
+        container.append_chrome_paint(context, plan);
+        let first = window.first_index.min(container.children.len());
+        let last = window
+            .last_index_exclusive
+            .min(container.children.len())
+            .max(first);
+        for child in &container.children[first..last] {
+            child.child.append_paint_with_context(context, plan);
         }
     }
 }

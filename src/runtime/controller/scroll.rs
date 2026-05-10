@@ -19,7 +19,7 @@ where
                 (current.y + delta.y).max(0.0),
             ),
         );
-        self.relayout();
+        self.relayout_current_surface();
         true
     }
 

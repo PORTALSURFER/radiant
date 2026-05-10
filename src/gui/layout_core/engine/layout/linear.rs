@@ -44,8 +44,14 @@ pub(super) fn layout_linear(
             window.last_exclusive,
         );
         let cursor_main_start = window.cursor_main_start;
-        let distributed_spacing = window.distributed_spacing;
-        let sizes = window.main_sizes;
+        let distributed_spacing = window.metrics.distributed_spacing;
+        let sizes = if window.first <= window.last_exclusive
+            && window.last_exclusive <= window.metrics.main_sizes.len()
+        {
+            &window.metrics.main_sizes[window.first..window.last_exclusive]
+        } else {
+            &[]
+        };
         if sizes.len() == states.len() {
             place_linear_children(
                 container,
@@ -53,7 +59,7 @@ pub(super) fn layout_linear(
                 horizontal,
                 available_cross,
                 &states,
-                &sizes,
+                sizes,
                 cursor_main_start,
                 distributed_spacing,
                 context,

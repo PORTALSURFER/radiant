@@ -43,6 +43,7 @@ where
             LayoutDebugOptions::default(),
         );
         self.widget_hit_order = traversal.widget_paint_order;
+        self.pointer_hit_order = traversal.pointer_hit_order;
         self.keyboard_focus_order = traversal.keyboard_focus_order;
         self.styled_container_hit_order = traversal.styled_container_order;
         self.scroll_hit_order = traversal.scroll_container_order;

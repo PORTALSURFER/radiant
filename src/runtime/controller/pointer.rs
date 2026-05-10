@@ -6,19 +6,15 @@ where
 {
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.widget_hit_order
+        self.pointer_hit_order
             .iter()
             .rev()
             .copied()
             .find(|widget_id| {
-                self.surface
-                    .find_widget(*widget_id)
-                    .is_some_and(|widget| widget.receives_pointer_hit_testing())
-                    && self
-                        .layout
-                        .rects
-                        .get(widget_id)
-                        .is_some_and(|rect| rect.contains(point))
+                self.layout
+                    .rects
+                    .get(widget_id)
+                    .is_some_and(|rect| rect.contains(point))
                     && self.widget_clip_contains_point(*widget_id, point)
             })
     }

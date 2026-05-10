@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
+    pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
     pub(in crate::runtime) widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
@@ -50,6 +51,9 @@ impl<Message> SurfaceNode<Message> {
                 if widget.is_keyboard_focusable() {
                     index.keyboard_focus_order.push(widget.id());
                 }
+                if widget.receives_pointer_hit_testing() {
+                    index.pointer_hit_order.push(widget.id());
+                }
                 if !scroll_stack.is_empty() {
                     index
                         .widget_clip_ancestors
@@ -66,6 +70,7 @@ impl<Message> UiSurface<Message> {
         let mut index = SurfaceTraversalIndex {
             widget_paint_order: Vec::new(),
             keyboard_focus_order: Vec::new(),
+            pointer_hit_order: Vec::new(),
             styled_container_order: Vec::new(),
             scroll_container_order: Vec::new(),
             widget_clip_ancestors: BTreeMap::new(),

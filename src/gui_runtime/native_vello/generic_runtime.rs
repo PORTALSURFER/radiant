@@ -3,7 +3,7 @@
 use super::*;
 use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
 use crate::layout::Rect;
-use crate::runtime::{PaintPrimitive, SurfacePaintPlan};
+use crate::runtime::SurfacePaintPlan;
 use crate::theme::ThemeTokens;
 
 mod core;
@@ -13,6 +13,7 @@ mod input;
 mod keyboard;
 mod lifecycle;
 mod present;
+mod runtime_helpers;
 mod scene;
 mod surface;
 mod window;
@@ -24,6 +25,10 @@ use gpu_surface::GpuSurfaceRenderer;
 use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
+use runtime_helpers::{
+    animation_frame_interval, fast_pointer_move_gpu_surface_hit_rects, maybe_log_route_profile,
+    render_profile_enabled, scroll_delta_to_logical,
+};
 pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, encode_surface_paint_plan_to_scene,
 };
@@ -239,51 +244,6 @@ where
         self.fast_pointer_move_gpu_surface_hit_rects =
             fast_pointer_move_gpu_surface_hit_rects(primitives);
     }
-}
-
-fn fast_pointer_move_gpu_surface_hit_rects(primitives: &[PaintPrimitive]) -> Vec<Rect> {
-    primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) if surface.capabilities.fast_pointer_move => {
-                Some(surface.rect)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-fn animation_frame_interval(target_fps: u32) -> Duration {
-    let fps = target_fps.clamp(1, 240);
-    Duration::from_secs_f64(1.0 / f64::from(fps))
-}
-
-fn scroll_delta_to_logical(delta: MouseScrollDelta) -> Vector2 {
-    match delta {
-        MouseScrollDelta::LineDelta(x, y) => Vector2::new(-(x * 40.0), -(y * 40.0)),
-        MouseScrollDelta::PixelDelta(position) => {
-            Vector2::new(-(position.x as f32), -(position.y as f32))
-        }
-    }
-}
-
-fn maybe_log_route_profile(reason: &'static str, elapsed: Duration, outcome: GenericRouteOutcome) {
-    if !render_profile_enabled() {
-        return;
-    }
-    info!(
-        reason,
-        event_route_us = elapsed.as_micros(),
-        routed = outcome.routed,
-        repaint_requested = outcome.repaint_requested,
-        "radiant native input profile"
-    );
-}
-
-fn render_profile_enabled() -> bool {
-    std::env::var("RADIANT_NATIVE_RENDER_PROFILE")
-        .ok()
-        .is_some_and(|value| crate::env_flags::is_truthy(&value))
 }
 
 #[cfg(test)]

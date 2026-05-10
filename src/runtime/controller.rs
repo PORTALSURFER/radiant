@@ -26,10 +26,7 @@ use crate::{
         input::KeyPress,
         types::{Point, Rect, Vector2},
     },
-    layout::{
-        LayoutDebugOptions, LayoutOutput, LayoutState, NodeId, OverflowPolicy,
-        layout_tree_with_state,
-    },
+    layout::{LayoutDebugOptions, LayoutEngine, LayoutOutput, LayoutState, NodeId, OverflowPolicy},
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
@@ -60,6 +57,7 @@ where
     bridge: Bridge,
     viewport: Rect,
     surface: UiSurface<Message>,
+    layout_engine: LayoutEngine,
     layout: LayoutOutput,
     layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
@@ -91,7 +89,8 @@ where
         let viewport = state::normalized_viewport(viewport);
         let surface = bridge.pull_surface();
         let layout_state = LayoutState::default();
-        let layout = layout_tree_with_state(
+        let mut layout_engine = LayoutEngine::default();
+        let layout = layout_engine.layout_with_state(
             &surface.layout_node(),
             viewport,
             &layout_state,
@@ -102,6 +101,7 @@ where
             bridge,
             viewport,
             surface,
+            layout_engine,
             layout,
             layout_state,
             widget_hit_order: traversal.widget_paint_order,

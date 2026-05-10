@@ -37,8 +37,7 @@ where
     /// Traversal uses stable tree order and wraps at either end. Returns the new
     /// focus target, or `None` when no keyboard-focusable widgets are projected.
     pub fn traverse_focus(&mut self, direction: FocusTraversal) -> Option<WidgetId> {
-        let order = self.surface.keyboard_focus_order();
-        let next = next_focus_target(self.focused_widget, &order, direction)?;
+        let next = next_focus_target(self.focused_widget, &self.keyboard_focus_order, direction)?;
         self.focus_widget(next).then_some(next)
     }
 

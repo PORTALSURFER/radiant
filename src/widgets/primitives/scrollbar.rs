@@ -103,6 +103,12 @@ impl Widget for ScrollbarWidget {
         ScrollbarWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<ScrollbarWidget>() {
+            self.state.drag_grip_fraction = previous.state.drag_grip_fraction;
+        }
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

@@ -195,6 +195,24 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
     /// Route one backend-neutral input event into this widget.
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput>;
 
+    /// Reconcile retained widget-local state from the previous projected widget.
+    ///
+    /// The generic runtime calls this when a host message reprojects the
+    /// declarative surface. Built-in and custom widgets can preserve transient
+    /// interaction details such as caret, selection, or drag state without
+    /// requiring the runtime controller to know concrete widget types.
+    fn synchronize_from_previous(&mut self, _previous: &dyn Widget) {}
+
+    /// Return whether this widget accepts text-editing input while focused.
+    fn accepts_text_input(&self) -> bool {
+        false
+    }
+
+    /// Return the selected text for focused text-editing widgets.
+    fn selected_text(&self) -> Option<String> {
+        None
+    }
+
     /// Append backend-neutral paint primitives for this widget.
     fn append_paint(
         &self,

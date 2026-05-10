@@ -58,9 +58,7 @@ where
         self.surface.find_widget(widget_id).and_then(|widget| {
             widget
                 .widget_object()
-                .as_any()
-                .downcast_ref::<TextInputWidget>()
-                .is_some()
+                .accepts_text_input()
                 .then_some(widget_id)
         })
     }
@@ -68,17 +66,9 @@ where
     /// Return selected text from the focused text input, if any.
     pub fn focused_text_selection(&self) -> Option<String> {
         let widget_id = self.focused_text_input_id()?;
-        self.surface.find_widget(widget_id).and_then(|widget| {
-            if let Some(input) = widget
-                .widget_object()
-                .as_any()
-                .downcast_ref::<TextInputWidget>()
-            {
-                input.selected_text()
-            } else {
-                None
-            }
-        })
+        self.surface
+            .find_widget(widget_id)
+            .and_then(|widget| widget.widget_object().selected_text())
     }
 
     /// Resolve one keypress through host-owned shortcuts before falling back to

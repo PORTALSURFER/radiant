@@ -17,8 +17,6 @@
 //! - [`runtime`]: generic declarative view/message bridge for new hosts
 //! - [`theme`]: reusable visual tokens for generic widgets and containers
 
-#![allow(clippy::too_many_arguments)]
-
 /// Readable application and view builder implementation.
 mod application;
 /// Shared environment-flag parsing helpers used by runtime internals.

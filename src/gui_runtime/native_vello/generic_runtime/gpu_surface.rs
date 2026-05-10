@@ -31,15 +31,19 @@ pub(super) struct GpuSurfaceRenderer {
     signal_summaries: HashMap<u64, CachedSignalSummary>,
 }
 
+pub(super) struct GpuSurfaceRenderTarget<'a> {
+    pub(super) device: &'a wgpu::Device,
+    pub(super) queue: &'a wgpu::Queue,
+    pub(super) encoder: &'a mut wgpu::CommandEncoder,
+    pub(super) target_view: &'a wgpu::TextureView,
+    pub(super) format: wgpu::TextureFormat,
+    pub(super) size: Vector2,
+}
+
 impl GpuSurfaceRenderer {
     pub(super) fn render(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        target_view: &wgpu::TextureView,
-        target_format: wgpu::TextureFormat,
-        target_size: Vector2,
+        target: &mut GpuSurfaceRenderTarget<'_>,
         primitives: &[PaintPrimitive],
     ) -> GpuSurfaceRenderStats {
         let mut stats = GpuSurfaceRenderStats::default();
@@ -55,47 +59,19 @@ impl GpuSurfaceRenderer {
                     if atlas.width == 0 || atlas.height == 0 {
                         continue;
                     }
-                    self.render_atlas(
-                        device,
-                        queue,
-                        encoder,
-                        target_view,
-                        target_format,
-                        target_size,
-                        surface,
-                        *source_rect,
-                        &mut stats,
-                    );
+                    self.render_atlas(target, surface, *source_rect, &mut stats);
                 }
                 GpuSurfaceContent::SignalBands { samples, .. } => {
                     if samples.is_empty() {
                         continue;
                     }
-                    self.render_signal(
-                        device,
-                        queue,
-                        encoder,
-                        target_view,
-                        target_format,
-                        target_size,
-                        surface,
-                        &mut stats,
-                    );
+                    self.render_signal(target, surface, &mut stats);
                 }
                 GpuSurfaceContent::SignalSummaryBands { summary, .. } => {
                     if summary.levels.is_empty() {
                         continue;
                     }
-                    self.render_signal(
-                        device,
-                        queue,
-                        encoder,
-                        target_view,
-                        target_format,
-                        target_size,
-                        surface,
-                        &mut stats,
-                    );
+                    self.render_signal(target, surface, &mut stats);
                 }
             }
         }

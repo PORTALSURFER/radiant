@@ -2,8 +2,8 @@
 
 use crate::gui::types::Rect;
 use crate::runtime::{
-    PaintPrimitive, PaintTextAlign, inset_rect, optical_centered_baseline, push_text_run,
-    text_font_size,
+    PaintPrimitive, PaintTextAlign, PaintTextRun, inset_rect, optical_centered_baseline,
+    push_text_run, text_font_size,
 };
 use crate::theme::ThemeTokens;
 use crate::widgets::primitives::{
@@ -34,16 +34,20 @@ pub(super) fn push_toggle_widget_paint(
         );
     } else {
         push_control_chrome(primitives, &toggle.common, bounds, theme);
+        let font_size = text_font_size(bounds);
+        let rect = inset_rect(bounds, 8.0, 4.0);
         push_text_run(
             primitives,
-            toggle.common.id,
-            toggle.props.label.clone(),
-            inset_rect(bounds, 8.0, 4.0),
-            optical_centered_baseline(inset_rect(bounds, 8.0, 4.0), text_font_size(bounds)),
-            tokens.foreground,
-            PaintTextAlign::Left,
-            TextWrap::None,
-            text_font_size(bounds),
+            PaintTextRun {
+                widget_id: toggle.common.id,
+                text: toggle.props.label.clone(),
+                rect,
+                baseline: optical_centered_baseline(rect, font_size),
+                color: tokens.foreground,
+                align: PaintTextAlign::Left,
+                wrap: TextWrap::None,
+                font_size,
+            },
         );
     }
 }

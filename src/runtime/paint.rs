@@ -123,14 +123,19 @@ pub(super) fn push_overlay_panel(
         if let Some(label) = label {
             push_text_run(
                 primitives,
-                widget_id,
-                label,
-                inset_rect(rect, 48.0, 4.0),
-                optical_centered_baseline(inset_rect(rect, 48.0, 4.0), text_font_size(rect)),
-                theme.text_primary,
-                PaintTextAlign::Left,
-                TextWrap::None,
-                text_font_size(rect),
+                PaintTextRun {
+                    widget_id,
+                    text: label,
+                    rect: inset_rect(rect, 48.0, 4.0),
+                    baseline: optical_centered_baseline(
+                        inset_rect(rect, 48.0, 4.0),
+                        text_font_size(rect),
+                    ),
+                    color: theme.text_primary,
+                    align: PaintTextAlign::Left,
+                    wrap: TextWrap::None,
+                    font_size: text_font_size(rect),
+                },
             );
         }
     } else {

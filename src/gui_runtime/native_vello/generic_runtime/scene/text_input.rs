@@ -97,10 +97,10 @@ fn draw_text_input_text(
         return;
     }
     let baseline_offset = input.baseline.unwrap_or(input.font_size);
-    text_renderer.draw_text_runs(
+    text_renderer.draw_scene_text_runs(
         scene,
-        &[TextRun {
-            text: text.to_string(),
+        [SceneTextRun {
+            text,
             position: Point::new(
                 input.rect.min.x,
                 input.rect.min.y + baseline_offset - input.font_size,

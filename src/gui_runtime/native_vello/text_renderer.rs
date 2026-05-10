@@ -16,6 +16,29 @@ mod layout;
 use cache::{TextLayoutCache, TextLayoutProfileCounters};
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SceneTextRun<'a> {
+    pub(super) text: &'a str,
+    pub(super) position: crate::gui::types::Point,
+    pub(super) font_size: f32,
+    pub(super) color: crate::gui::types::Rgba8,
+    pub(super) max_width: Option<f32>,
+    pub(super) align: TextAlign,
+}
+
+impl<'a> From<&'a TextRun> for SceneTextRun<'a> {
+    fn from(run: &'a TextRun) -> Self {
+        Self {
+            text: run.text.as_str(),
+            position: run.position,
+            font_size: run.font_size,
+            color: run.color,
+            max_width: run.max_width,
+            align: run.align,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct GlyphLayout {
     id: u32,
@@ -71,6 +94,14 @@ impl NativeTextRenderer {
     }
 
     pub(super) fn draw_text_runs(&mut self, scene: &mut Scene, text_runs: &[TextRun]) {
+        self.draw_scene_text_runs(scene, text_runs.iter().map(SceneTextRun::from));
+    }
+
+    pub(super) fn draw_scene_text_runs<'a>(
+        &mut self,
+        scene: &mut Scene,
+        text_runs: impl IntoIterator<Item = SceneTextRun<'a>>,
+    ) {
         let Some(loaded_font) = self.loaded_font.as_ref() else {
             return;
         };
@@ -81,7 +112,7 @@ impl NativeTextRenderer {
             }
             let Some(layout) = self
                 .layout_cache
-                .layout_for(font_data, &run.text, run.font_size)
+                .layout_for(font_data, run.text, run.font_size)
             else {
                 continue;
             };

@@ -2,7 +2,7 @@
 
 use super::{NativeGpuBackend, NativeRunOptions, NativeTextOptions, WindowIconRgba};
 use crate::gui::{
-    paint::{PaintFrame, Primitive, TextAlign, TextRun},
+    paint::{PaintFrame, Primitive, TextAlign},
     types::{Point, Rect as UiRect, Rgba8, Vector2},
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, PaintTextInput, RuntimeBridge};

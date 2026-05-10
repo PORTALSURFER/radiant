@@ -111,12 +111,6 @@ where
         let Some(widget_id) = widget_id else {
             return false;
         };
-        self.surface.find_widget(widget_id).is_some_and(|widget| {
-            let common = widget.widget_object().common();
-            if !common.paint.paints_state_layers {
-                return false;
-            }
-            common.focus != FocusBehavior::None || common.paint.suppresses_container_hover
-        })
+        self.container_hover_suppression.contains(&widget_id)
     }
 }

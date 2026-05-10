@@ -3,6 +3,7 @@ use crate::{
     gui::types::Rect,
     widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
+use std::collections::BTreeMap;
 
 pub(in crate::runtime) enum WidgetDispatchResult<Message> {
     NoOutput,
@@ -11,6 +12,44 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
+    pub(super) fn collect_widgets<'a>(
+        &'a self,
+        widgets: &mut BTreeMap<WidgetId, &'a SurfaceWidget<Message>>,
+    ) {
+        match self {
+            Self::Container(container) => {
+                for child in &container.children {
+                    child.child.collect_widgets(widgets);
+                }
+            }
+            Self::Widget(widget) => {
+                widgets.entry(widget.id()).or_insert(widget);
+            }
+            Self::Overlay(_) => {}
+        }
+    }
+
+    pub(super) fn synchronize_widget_state_from(
+        &mut self,
+        previous_widgets: &BTreeMap<WidgetId, &SurfaceWidget<Message>>,
+    ) {
+        match self {
+            Self::Container(container) => {
+                for child in &mut container.children {
+                    child.child.synchronize_widget_state_from(previous_widgets);
+                }
+            }
+            Self::Widget(widget) => {
+                if let Some(previous_widget) = previous_widgets.get(&widget.id()) {
+                    widget
+                        .widget_object_mut()
+                        .synchronize_from_previous(previous_widget.widget_object());
+                }
+            }
+            Self::Overlay(_) => {}
+        }
+    }
+
     pub(super) fn handle_input(
         &mut self,
         widget_id: WidgetId,

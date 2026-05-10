@@ -1,3 +1,9 @@
+use crate::{
+    application::{StateCallback, StateStringCallback, StateView, button, column, row, text},
+    widgets::{WidgetProminence, WidgetStyle, WidgetTone},
+};
+use std::sync::Arc;
+
 /// One row in a generic inspector/property panel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PropertyRow {
@@ -34,11 +40,7 @@ pub fn property_panel<State: 'static>(
     title: impl Into<String>,
     rows: impl IntoIterator<Item = PropertyRow>,
 ) -> StateView<State> {
-    selectable_property_panel(
-        title,
-        rows,
-        None::<fn(&mut State, String)>,
-    )
+    selectable_property_panel(title, rows, None::<fn(&mut State, String)>)
 }
 
 /// Build an inspector/property panel with selectable rows.
@@ -71,7 +73,11 @@ fn property_row<State: 'static>(
 ) -> StateView<State> {
     let row_id = row_data.id.clone();
     let selected = row_data.selected;
-    let label = property_cell(row_data.label, format!("property-{}-label", row_data.id), None);
+    let label = property_cell(
+        row_data.label,
+        format!("property-{}-label", row_data.id),
+        None,
+    );
     let value = property_cell(
         row_data.value,
         format!("property-{}-value", row_data.id),

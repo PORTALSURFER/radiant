@@ -39,7 +39,8 @@ pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext
 include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
-include!("application/property_panel.rs");
+mod property_panel;
+pub use property_panel::{PropertyRow, property_panel, selectable_property_panel};
 mod menu;
 pub use menu::{MenuItem, context_menu_overlay, menu};
 mod retained_canvas;

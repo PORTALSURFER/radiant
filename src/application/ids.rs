@@ -1,14 +1,19 @@
-struct IdGenerator {
+use crate::layout::NodeId;
+use std::collections::HashSet;
+
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+pub(in crate::application) struct IdGenerator {
     next: NodeId,
     reserved: HashSet<NodeId>,
 }
 
 impl IdGenerator {
-    fn new(reserved: HashSet<NodeId>) -> Self {
+    pub(in crate::application) fn new(reserved: HashSet<NodeId>) -> Self {
         Self { next: 1, reserved }
     }
 
-    fn next(&mut self) -> NodeId {
+    pub(in crate::application) fn next(&mut self) -> NodeId {
         while self.reserved.contains(&self.next) {
             self.next += 1;
         }
@@ -19,8 +24,8 @@ impl IdGenerator {
     }
 }
 
-fn scoped_key_id(scope: u64, key: &str) -> NodeId {
-    let mut hash = ROOT_KEY_SCOPE;
+pub(in crate::application) fn scoped_key_id(scope: u64, key: &str) -> NodeId {
+    let mut hash = super::ROOT_KEY_SCOPE;
     hash = hash_bytes(hash, &scope.to_le_bytes());
     hash = hash_bytes(hash, key.as_bytes());
     if hash == 0 { 1 } else { hash }

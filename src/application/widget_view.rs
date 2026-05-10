@@ -1,3 +1,10 @@
+use crate::{
+    layout::NodeId,
+    runtime::{SurfaceNode, WidgetMessageMapper},
+    widgets::{TextAlign, TextWrap, Widget, WidgetOutput, WidgetSizing, WidgetStyle},
+};
+use std::sync::Arc;
+
 /// App-builder context supplied when a widget view becomes a runtime surface node.
 ///
 /// Implementors usually call [`WidgetViewContext::apply_to`] before returning a
@@ -6,11 +13,11 @@
 pub struct WidgetViewContext {
     /// Stable runtime id assigned by the view tree.
     pub id: NodeId,
-    sizing: Option<WidgetSizing>,
-    style: Option<WidgetStyle>,
-    input_only: bool,
-    text_wrap: Option<TextWrap>,
-    text_align: Option<TextAlign>,
+    pub(in crate::application) sizing: Option<WidgetSizing>,
+    pub(in crate::application) style: Option<WidgetStyle>,
+    pub(in crate::application) input_only: bool,
+    pub(in crate::application) text_wrap: Option<TextWrap>,
+    pub(in crate::application) text_align: Option<TextAlign>,
 }
 
 impl WidgetViewContext {

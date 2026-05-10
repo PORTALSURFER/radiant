@@ -6,10 +6,13 @@ fn main() {
     let manifest = build_window_manifest();
     let view_count = build_window_views().len();
     for spec in manifest.specs() {
-        let options = spec.native_options();
         println!(
             "radiant_window_spec key={} title={} size={:?} min_size={:?} views={}",
-            spec.key, options.title, options.inner_size, options.min_inner_size, view_count
+            spec.key,
+            spec.title(),
+            spec.inner_size(),
+            spec.min_inner_size(),
+            view_count
         );
     }
 }
@@ -71,16 +74,10 @@ mod tests {
             ["main", "inspector", "preview"]
         );
         assert_eq!(
-            manifest.get("main").unwrap().native_options().inner_size,
+            manifest.get("main").unwrap().inner_size(),
             Some([900.0, 620.0])
         );
-        assert!(
-            !manifest
-                .get("preview")
-                .unwrap()
-                .native_options()
-                .drag_and_drop
-        );
+        assert!(!manifest.get("preview").unwrap().drag_and_drop_enabled());
         let first_view = views.into_iter().next().expect("main view exists");
         assert!(first_view.into_surface().find_widget(3).is_some());
     }

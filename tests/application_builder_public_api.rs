@@ -232,11 +232,12 @@ fn window_specs_describe_multiple_windows_without_opening_runtime() {
         .target_fps(60);
 
     assert_eq!(main.key, "main");
-    assert_eq!(main.native_options().title, "Main");
-    assert_eq!(main.native_options().inner_size, Some([800.0, 600.0]));
-    assert_eq!(inspector.native_options().title, "Inspector");
-    assert!(!inspector.native_options().drag_and_drop);
-    assert_eq!(inspector.clone().into_native_options().target_fps, 60);
+    assert_eq!(main.title(), "Main");
+    assert_eq!(main.inner_size(), Some([800.0, 600.0]));
+    assert_eq!(main.min_inner_size(), Some([640.0, 480.0]));
+    assert_eq!(inspector.title(), "Inspector");
+    assert!(!inspector.drag_and_drop_enabled());
+    assert_eq!(inspector.target_frame_rate(), 60);
     let options: NativeRunOptions = inspector.into();
     assert_eq!(options.inner_size, Some([320.0, 500.0]));
 }
@@ -252,11 +253,7 @@ fn window_manifest_validates_stable_unique_window_keys() {
     assert_eq!(manifest.len(), 2);
     assert_eq!(manifest.keys().collect::<Vec<_>>(), ["main", "inspector"]);
     assert_eq!(
-        manifest
-            .get("inspector")
-            .unwrap()
-            .native_options()
-            .inner_size,
+        manifest.get("inspector").unwrap().inner_size(),
         Some([320.0, 500.0])
     );
     assert!(manifest.validate().is_ok());

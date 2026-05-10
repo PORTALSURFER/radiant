@@ -7,9 +7,8 @@
 use crate::{
     layout::{CrossAlign, Insets, MainAlign, NodeId},
     runtime::SurfaceNode,
-    widgets::{TextAlign, TextWrap, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
+    widgets::{TextAlign, TextWrap, WidgetSizing, WidgetStyle},
 };
-use std::sync::Arc;
 
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
 
@@ -37,7 +36,8 @@ pub use launch::*;
 mod widget_view;
 pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
 include!("application/view_node.rs");
-include!("application/tree_list.rs");
+mod tree_list;
+pub use tree_list::{TreeListItem, tree_list, tree_list_with_drag};
 mod details_list;
 pub use details_list::{
     DetailsColumn, DetailsRow, DetailsSort, SortDirection, selectable_sortable_details_list,

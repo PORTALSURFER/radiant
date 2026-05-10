@@ -7,8 +7,9 @@ use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{DragHandleMessage, PointerButton, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{DragHandleMessage, WidgetInput, WidgetOutput};
 
+mod input;
 mod paint;
 
 /// Public drag handle primitive for pointer-driven reordering.
@@ -28,40 +29,7 @@ impl DragHandleWidget {
 
     /// Route one backend-neutral interaction into the handle.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<DragHandleMessage> {
-        if self.common.state.disabled {
-            return None;
-        }
-
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                self.common
-                    .state
-                    .pressed
-                    .then_some(DragHandleMessage::Moved { position })
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.pressed = true;
-                self.common.state.active = true;
-                Some(DragHandleMessage::Started { position })
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                self.common.state.pressed = false;
-                self.common.state.active = false;
-                Some(DragHandleMessage::Ended { position })
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                None
-            }
-            _ => None,
-        }
+        input::handle_drag_handle_input(self, bounds, input)
     }
 }
 

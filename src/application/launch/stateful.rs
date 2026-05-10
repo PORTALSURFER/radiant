@@ -175,28 +175,26 @@ where
 
     /// Lower this direct-callback app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<StateAction<State>> {
-        AppBridge {
-            state: self.state,
-            project: self.project,
-            update: |state: &mut State,
-                     action: StateAction<State>,
-                     context: &mut UpdateContext<StateAction<State>>| {
+        AppBridge::new(
+            self.state,
+            self.project,
+            |state: &mut State,
+             action: StateAction<State>,
+             context: &mut UpdateContext<StateAction<State>>| {
                 action.run(state);
                 context.request_repaint();
             },
-            runtime: Arc::new(AppRuntime::default()),
-            animation: self.animation,
-            frame_message: self.frame_message,
-            subscriptions: self.subscriptions,
-            shortcuts: self.shortcuts,
-            startup: self.startup,
-            shutdown: self.shutdown,
-            close_requested: self.close_requested,
-            retained_painters: self.retained_painters,
-            subscriptions_started: false,
-            startup_ran: false,
-            _view: PhantomData,
-        }
+            AppBridgeLifecycle {
+                animation: self.animation,
+                frame_message: self.frame_message,
+                subscriptions: self.subscriptions,
+                shortcuts: self.shortcuts,
+                startup: self.startup,
+                shutdown: self.shutdown,
+                close_requested: self.close_requested,
+                retained_painters: self.retained_painters,
+            },
+        )
     }
 }
 
@@ -241,22 +239,20 @@ where
 
     /// Lower this app into the existing runtime bridge without opening a window.
     pub fn into_bridge(self) -> impl RuntimeBridge<Message> {
-        AppBridge {
-            state: self.state,
-            project: self.project,
-            update: self.update,
-            runtime: Arc::new(AppRuntime::default()),
-            animation: self.animation,
-            frame_message: self.frame_message,
-            subscriptions: self.subscriptions,
-            shortcuts: self.shortcuts,
-            startup: self.startup,
-            shutdown: self.shutdown,
-            close_requested: self.close_requested,
-            retained_painters: self.retained_painters,
-            subscriptions_started: false,
-            startup_ran: false,
-            _view: PhantomData,
-        }
+        AppBridge::new(
+            self.state,
+            self.project,
+            self.update,
+            AppBridgeLifecycle {
+                animation: self.animation,
+                frame_message: self.frame_message,
+                subscriptions: self.subscriptions,
+                shortcuts: self.shortcuts,
+                startup: self.startup,
+                shutdown: self.shutdown,
+                close_requested: self.close_requested,
+                retained_painters: self.retained_painters,
+            },
+        )
     }
 }

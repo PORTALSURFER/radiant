@@ -61,6 +61,12 @@ fn main() {
         RUNTIME_ITERATIONS,
         move || virtualized_hover.step(),
     );
+    let mut refresh_large_tree = StatefulRefreshBench::new();
+    run_scenario(
+        "runtime_refresh_large_tree",
+        RUNTIME_ITERATIONS,
+        move || refresh_large_tree.step(),
+    );
     run_scenario(
         "gpu_signal_summary",
         GPU_ITERATIONS,
@@ -383,6 +389,34 @@ impl RuntimeBridge<()> for VirtualWheelBridge {
             VirtualizationAxis::Vertical,
             96.0,
         )))
+    }
+}
+
+struct StatefulRefreshBench {
+    runtime: SurfaceRuntime<RefreshBridge, ()>,
+}
+
+impl StatefulRefreshBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(RefreshBridge { revision: 0 }, Vector2::new(960.0, 720.0)),
+        }
+    }
+
+    fn step(&mut self) {
+        self.runtime.refresh();
+        black_box(self.runtime.layout());
+    }
+}
+
+struct RefreshBridge {
+    revision: u64,
+}
+
+impl RuntimeBridge<()> for RefreshBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        self.revision = self.revision.wrapping_add(1);
+        Arc::new(UiSurface::new(runtime_surface_node(1_000)))
     }
 }
 

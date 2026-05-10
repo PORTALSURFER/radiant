@@ -166,7 +166,11 @@ where
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
         let traversal = next_surface.runtime_traversal_index();
-        next_surface.synchronize_widget_state_from(&self.surface);
+        next_surface.synchronize_widget_state_from_paths(
+            &self.surface,
+            &traversal.widget_paths,
+            &self.widget_paths,
+        );
         self.surface = next_surface;
         self.layout_root = self.surface.layout_node();
         self.restore_pointer_capture_state();

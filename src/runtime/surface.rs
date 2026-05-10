@@ -22,7 +22,7 @@ use crate::{
     theme::ThemeTokens,
     widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 /// Top-level immutable UI surface projected by a generic Radiant host.
 pub struct UiSurface<Message> {
@@ -170,9 +170,16 @@ impl<Message> UiSurface<Message> {
             .is_some_and(SurfaceWidget::is_focusable)
     }
 
-    pub(in crate::runtime) fn synchronize_widget_state_from(&mut self, previous: &Self) {
-        let mut previous_widgets = BTreeMap::new();
-        previous.root.collect_widgets(&mut previous_widgets);
-        self.root.synchronize_widget_state_from(&previous_widgets);
+    pub(in crate::runtime) fn synchronize_widget_state_from_paths(
+        &mut self,
+        previous: &Self,
+        current_paths: &HashMap<WidgetId, Vec<usize>>,
+        previous_paths: &HashMap<WidgetId, Vec<usize>>,
+    ) {
+        self.root.synchronize_widget_state_from_paths(
+            current_paths,
+            &previous.root,
+            previous_paths,
+        );
     }
 }

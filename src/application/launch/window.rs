@@ -1,10 +1,12 @@
+use super::*;
+
 /// Builder for no-state native windows.
 pub struct WindowBuilder {
     options: NativeRunOptions,
 }
 
 impl WindowBuilder {
-    fn new(title: impl Into<String>) -> Self {
+    pub(super) fn new(title: impl Into<String>) -> Self {
         Self {
             options: NativeRunOptions {
                 title: title.into(),

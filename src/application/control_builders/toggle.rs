@@ -1,3 +1,5 @@
+use super::*;
+
 /// Builder for toggles that can emit messages or mutate state directly.
 pub struct ToggleBuilder {
     label: String,

@@ -1,3 +1,5 @@
+use super::*;
+
 /// Builder for compact drag handles that can emit messages or mutate state directly.
 pub struct DragHandleBuilder;
 

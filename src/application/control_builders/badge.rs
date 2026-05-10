@@ -1,3 +1,5 @@
+use super::*;
+
 /// Builder for badges that can emit messages or mutate state directly.
 pub struct BadgeBuilder {
     label: String,

@@ -76,11 +76,11 @@ impl<Message> Command<Message> {
     }
 
     /// Build a command that dispatches multiple commands in order.
-    pub fn batch(commands: impl IntoIterator<Item = Command<Message>>) -> Self {
-        let commands = commands
-            .into_iter()
-            .filter(|command| !command.is_empty())
-            .collect::<Vec<_>>();
+    pub fn batch(command_iter: impl IntoIterator<Item = Command<Message>>) -> Self {
+        let mut commands = Vec::new();
+        for command in command_iter {
+            command.append_to_batch(&mut commands);
+        }
         if commands.is_empty() {
             Self::None
         } else {
@@ -158,6 +158,18 @@ impl<Message> Command<Message> {
         }
     }
 
+    fn append_to_batch(self, commands: &mut Vec<Command<Message>>) {
+        match self {
+            Self::None => {}
+            Self::Batch(nested) => {
+                for command in nested {
+                    command.append_to_batch(commands);
+                }
+            }
+            command => commands.push(command),
+        }
+    }
+
     /// Flatten immediate host-defined messages carried by this command.
     ///
     /// Runtime-visible effects such as delayed messages, background work, focus,
@@ -200,6 +212,26 @@ mod tests {
             Command::batch([Command::message("second")]),
         ]);
 
+        assert_eq!(command.into_messages(), vec!["first", "second"]);
+    }
+
+    #[test]
+    fn batch_flattens_nested_command_groups() {
+        let command = Command::batch([
+            Command::batch([Command::message("first")]),
+            Command::batch([
+                Command::none(),
+                Command::batch([Command::message("second")]),
+            ]),
+        ]);
+
+        let Command::Batch(commands) = &command else {
+            panic!("non-empty nested batch should stay a batch");
+        };
+
+        assert_eq!(commands.len(), 2);
+        assert!(matches!(commands[0], Command::Message("first")));
+        assert!(matches!(commands[1], Command::Message("second")));
         assert_eq!(command.into_messages(), vec!["first", "second"]);
     }
 

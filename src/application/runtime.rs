@@ -11,6 +11,7 @@ use std::sync::Arc;
 mod bridge;
 mod queue;
 mod subscription;
+mod threading;
 mod update_context;
 
 pub(in crate::application) use bridge::{AppBridge, AppBridgeLifecycle};

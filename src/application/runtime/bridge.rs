@@ -1,5 +1,5 @@
-use super::subscription::spawn_subscription;
 use super::*;
+use super::{subscription::spawn_subscription, threading::spawn_runtime_thread};
 use crate::{
     application::IntoView,
     gui::{
@@ -144,17 +144,14 @@ where
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        let _ = thread::Builder::new()
-            .name(String::from("radiant-delayed-message"))
-            .spawn(move || {
-                if !delay.is_zero() {
-                    thread::sleep(delay);
-                }
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue(message);
-                }
-            });
-        true
+        spawn_runtime_thread("radiant-delayed-message", move || {
+            if !delay.is_zero() {
+                thread::sleep(delay);
+            }
+            if let Some(runtime) = runtime.upgrade() {
+                let _ = runtime.enqueue(message);
+            }
+        })
     }
 
     fn spawn_message_task(
@@ -166,15 +163,12 @@ where
             return false;
         }
         let runtime = Arc::downgrade(&self.runtime);
-        let _ = thread::Builder::new()
-            .name(format!("radiant-task-{name}"))
-            .spawn(move || {
-                let message = work();
-                if let Some(runtime) = runtime.upgrade() {
-                    let _ = runtime.enqueue(message);
-                }
-            });
-        true
+        spawn_runtime_thread(format!("radiant-task-{name}"), move || {
+            let message = work();
+            if let Some(runtime) = runtime.upgrade() {
+                let _ = runtime.enqueue(message);
+            }
+        })
     }
 
     fn take_runtime_commands(&mut self) -> Vec<Command<Message>> {

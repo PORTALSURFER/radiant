@@ -10,7 +10,7 @@ where
     /// focus. Focus changes are routed into affected widgets so their retained
     /// interaction state can update before the next paint plan.
     pub fn focus_widget(&mut self, widget_id: WidgetId) -> bool {
-        if !self.surface.is_focusable_widget(widget_id) {
+        if !self.focusable_widget_order.contains(&widget_id) {
             return false;
         }
         if self.focused_widget == Some(widget_id) {

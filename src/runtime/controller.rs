@@ -63,6 +63,7 @@ where
     layout: LayoutOutput,
     layout_state: LayoutState,
     widget_hit_order: Vec<WidgetId>,
+    focusable_widget_order: Vec<WidgetId>,
     pointer_hit_order: Vec<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     styled_container_hit_order: Vec<NodeId>,
@@ -103,6 +104,7 @@ where
             layout,
             layout_state,
             widget_hit_order: traversal.widget_paint_order,
+            focusable_widget_order: traversal.focusable_widget_order,
             pointer_hit_order: traversal.pointer_hit_order,
             keyboard_focus_order: traversal.keyboard_focus_order,
             styled_container_hit_order: traversal.styled_container_order,
@@ -137,19 +139,19 @@ where
         self.relayout_with_traversal(traversal);
         if self
             .focused_widget
-            .is_some_and(|widget_id| !self.surface.is_focusable_widget(widget_id))
+            .is_some_and(|widget_id| !self.focusable_widget_order.contains(&widget_id))
         {
             self.focused_widget = None;
         }
         if self
             .pointer_capture
-            .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
+            .is_some_and(|widget_id| !self.widget_hit_order.contains(&widget_id))
         {
             self.pointer_capture = None;
         }
         if self
             .hovered_widget
-            .is_some_and(|widget_id| self.surface.find_widget(widget_id).is_none())
+            .is_some_and(|widget_id| !self.widget_hit_order.contains(&widget_id))
         {
             self.hovered_widget = None;
         }

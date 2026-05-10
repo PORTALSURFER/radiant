@@ -37,7 +37,7 @@ where
         self.widget_clip_ancestors
             .get(&widget_id)
             .is_none_or(|clip_nodes| {
-                clip_nodes.iter().all(|node_id| {
+                clip_nodes.as_slice().iter().all(|node_id| {
                     self.layout
                         .rects
                         .get(node_id)
@@ -50,7 +50,7 @@ where
         self.container_clip_ancestors
             .get(&node_id)
             .is_none_or(|clip_nodes| {
-                clip_nodes.iter().all(|clip_node| {
+                clip_nodes.as_slice().iter().all(|clip_node| {
                     self.layout
                         .rects
                         .get(clip_node)

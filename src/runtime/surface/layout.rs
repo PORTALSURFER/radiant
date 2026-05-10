@@ -49,7 +49,7 @@ impl<Message> SurfaceNode<Message> {
                 if !scroll_stack.is_empty() {
                     traversal
                         .container_clip_ancestors
-                        .insert(container.id, scroll_stack.clone());
+                        .insert(container.id, ClipAncestors::from_slice(scroll_stack));
                 }
                 if is_scroll {
                     scroll_stack.push(container.id);
@@ -102,7 +102,7 @@ impl<Message> SurfaceNode<Message> {
                 if !scroll_stack.is_empty() {
                     traversal
                         .widget_clip_ancestors
-                        .insert(widget.id(), scroll_stack.clone());
+                        .insert(widget.id(), ClipAncestors::from_slice(scroll_stack));
                 }
                 widget.layout_node()
             }

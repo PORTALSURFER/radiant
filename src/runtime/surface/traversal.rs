@@ -3,6 +3,7 @@ use crate::layout::ContainerKind;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 const INLINE_WIDGET_PATH_LEN: usize = 4;
+const INLINE_CLIP_ANCESTOR_LEN: usize = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::runtime) struct WidgetPath {
@@ -41,6 +42,43 @@ impl WidgetPath {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::runtime) struct ClipAncestors {
+    inline: [NodeId; INLINE_CLIP_ANCESTOR_LEN],
+    len: u8,
+    overflow: Option<Box<[NodeId]>>,
+}
+
+impl ClipAncestors {
+    pub(in crate::runtime) fn from_slice(ancestors: &[NodeId]) -> Self {
+        if ancestors.len() <= INLINE_CLIP_ANCESTOR_LEN {
+            let mut inline = [0; INLINE_CLIP_ANCESTOR_LEN];
+            inline[..ancestors.len()].copy_from_slice(ancestors);
+            return Self {
+                inline,
+                len: ancestors.len() as u8,
+                overflow: None,
+            };
+        }
+        Self {
+            inline: [0; INLINE_CLIP_ANCESTOR_LEN],
+            len: 0,
+            overflow: Some(ancestors.into()),
+        }
+    }
+
+    pub(in crate::runtime) fn as_slice(&self) -> &[NodeId] {
+        self.overflow
+            .as_deref()
+            .unwrap_or(&self.inline[..self.len as usize])
+    }
+
+    #[cfg(test)]
+    fn is_inline(&self) -> bool {
+        self.overflow.is_none()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(in crate::runtime) struct SurfaceTraversalStats {
     pub(in crate::runtime) widgets: usize,
@@ -60,8 +98,8 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) container_hover_suppression: BTreeSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
-    pub(in crate::runtime) widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
-    pub(in crate::runtime) container_clip_ancestors: BTreeMap<NodeId, Vec<NodeId>>,
+    pub(in crate::runtime) widget_clip_ancestors: BTreeMap<WidgetId, ClipAncestors>,
+    pub(in crate::runtime) container_clip_ancestors: BTreeMap<NodeId, ClipAncestors>,
     pub(in crate::runtime) scroll_content_by_container: BTreeMap<NodeId, NodeId>,
 }
 
@@ -136,7 +174,7 @@ impl<Message> SurfaceNode<Message> {
                 if !scroll_stack.is_empty() {
                     index
                         .container_clip_ancestors
-                        .insert(container.id, scroll_stack.clone());
+                        .insert(container.id, ClipAncestors::from_slice(scroll_stack));
                 }
                 if is_scroll {
                     scroll_stack.push(container.id);
@@ -185,7 +223,7 @@ impl<Message> SurfaceNode<Message> {
                 if !scroll_stack.is_empty() {
                     index
                         .widget_clip_ancestors
-                        .insert(widget.id(), scroll_stack.clone());
+                        .insert(widget.id(), ClipAncestors::from_slice(scroll_stack));
                 }
             }
             Self::Overlay(_) => {}
@@ -219,5 +257,16 @@ mod tests {
         let deep = WidgetPath::from_slice(&[1, 2, 3, 4, 5]);
         assert!(!deep.is_inline());
         assert_eq!(deep.as_slice(), &[1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn clip_ancestors_use_inline_storage_for_common_scroll_depths() {
+        let shallow = ClipAncestors::from_slice(&[10, 20]);
+        assert!(shallow.is_inline());
+        assert_eq!(shallow.as_slice(), &[10, 20]);
+
+        let deep = ClipAncestors::from_slice(&[10, 20, 30]);
+        assert!(!deep.is_inline());
+        assert_eq!(deep.as_slice(), &[10, 20, 30]);
     }
 }

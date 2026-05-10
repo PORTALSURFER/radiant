@@ -36,7 +36,7 @@ where
     }
 
     pub(super) fn relayout_with_traversal(&mut self, traversal: SurfaceTraversalIndex) {
-        self.layout = layout_tree_with_state(
+        self.layout = self.layout_engine.layout_with_state(
             &self.surface.layout_node(),
             self.viewport,
             &self.layout_state,

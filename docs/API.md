@@ -379,7 +379,9 @@ the visual contract: widgets implement widget paint through the `Widget` trait,
 and containers/overlays append their own chrome, clipping, scroll affordances,
 and overlay primitives during surface traversal. The surface runtime
 orchestrates layout-aware traversal and collection; backend adapters consume the
-resulting paint plan.
+resulting paint plan. Runtime paint plans pre-size their primitive storage from
+resolved layout shape before traversal, so large declarative surfaces avoid
+starting every frame from an allocation-free but undersized command buffer.
 
 Standard widgets emit Vello-friendly paint primitives such as fills, strokes,
 text, images, clips, and overlays. Specialized realtime visuals can instead
@@ -665,6 +667,13 @@ invalidation primitives such as `InvalidationMask`, `RetainedSegmentMask`,
 feedback exist so backend runtimes can avoid unnecessary full-tree rebuilds and
 full redraws while still falling back conservatively when a host cannot provide
 fine-grained hints.
+
+`SurfaceRuntime` retains a `LayoutEngine` across refreshes and viewport changes
+instead of using the stateless one-shot layout helpers internally. That lets the
+runtime preserve layout measurement and virtualization caches while still
+accepting fresh immutable `UiSurface` snapshots from the host. Direct
+`UiSurface::frame(...)` calls remain one-shot by design for embedded hosts that
+want a single packaged frame without owning runtime state.
 
 The lifecycle is:
 

@@ -118,12 +118,13 @@ impl<Message> SurfaceWidget<Message> {
 
     /// Return whether this widget participates in runtime focus management.
     pub fn is_focusable(&self) -> bool {
-        self.widget.common().focus != FocusBehavior::None
+        self.widget.common().focus != FocusBehavior::None && !self.widget.common().state.disabled
     }
 
     /// Return whether this widget participates in keyboard focus traversal.
     pub fn is_keyboard_focusable(&self) -> bool {
         self.widget.common().focus == FocusBehavior::Keyboard
+            && !self.widget.common().state.disabled
     }
 
     pub(super) fn layout_node(&self) -> LayoutNode {

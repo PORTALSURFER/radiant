@@ -101,8 +101,43 @@ fn surface_runtime_reports_focused_text_input_only_when_editable() {
     assert_eq!(read_only_runtime.focused_text_input_id(), None);
 
     let mut disabled_runtime = text_input_runtime(true, false);
-    assert!(disabled_runtime.focus_widget(12));
+    assert!(!disabled_runtime.focus_widget(12));
     assert_eq!(disabled_runtime.focused_text_input_id(), None);
+}
+
+#[test]
+fn surface_runtime_keeps_disabled_widgets_out_of_focus_order() {
+    let bridge = declarative_runtime_bridge(
+        DemoState::default(),
+        |_state: &mut DemoState| {
+            let mut disabled = ButtonWidget::new(
+                11,
+                "Disabled",
+                WidgetSizing::fixed(Vector2::new(96.0, 28.0)),
+            );
+            disabled.common.state.disabled = true;
+            let enabled =
+                ButtonWidget::new(12, "Enabled", WidgetSizing::fixed(Vector2::new(96.0, 28.0)));
+            Arc::new(UiSurface::new(SurfaceNode::row(
+                1,
+                8.0,
+                vec![
+                    SurfaceChild::fill(SurfaceNode::static_widget(disabled)),
+                    SurfaceChild::fill(SurfaceNode::static_widget(enabled)),
+                ],
+            )))
+        },
+        |state: &mut DemoState, message| match message {
+            DemoMessage::Increment => state.count += 1,
+            DemoMessage::Rename(name) => state.name = name,
+            DemoMessage::CanvasInput(_) => {}
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 40.0));
+
+    assert_eq!(runtime.surface().keyboard_focus_order(), vec![12]);
+    assert!(!runtime.focus_widget(11));
+    assert_eq!(runtime.traverse_focus(FocusTraversal::Forward), Some(12));
 }
 
 fn text_input_runtime(

@@ -89,9 +89,13 @@ pub trait Renderer {
 impl SurfacePaintPlan {
     /// Build an empty paint plan for the provided theme.
     pub fn empty(theme: &ThemeTokens) -> Self {
+        Self::empty_with_capacity(theme, 0)
+    }
+
+    pub(crate) fn empty_with_capacity(theme: &ThemeTokens, primitive_capacity: usize) -> Self {
         Self {
             clear_color: theme.clear_color,
-            primitives: Vec::new(),
+            primitives: Vec::with_capacity(primitive_capacity),
         }
     }
 
@@ -116,5 +120,20 @@ impl SurfacePaintPlan {
             }
         }
         stats
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_with_capacity_presizes_primitive_storage() {
+        let theme = ThemeTokens::default();
+        let plan = SurfacePaintPlan::empty_with_capacity(&theme, 128);
+
+        assert_eq!(plan.clear_color, theme.clear_color);
+        assert!(plan.primitives.is_empty());
+        assert!(plan.primitives.capacity() >= 128);
     }
 }

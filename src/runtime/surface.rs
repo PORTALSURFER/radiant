@@ -86,7 +86,8 @@ impl<Message> UiSurface<Message> {
         theme: &ThemeTokens,
         hovered_container: Option<NodeId>,
     ) -> SurfacePaintPlan {
-        let mut plan = SurfacePaintPlan::empty(theme);
+        let mut plan =
+            SurfacePaintPlan::empty_with_capacity(theme, layout.rects.len().saturating_mul(2));
         self.root
             .append_paint(layout, theme, &mut plan, hovered_container);
         plan

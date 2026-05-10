@@ -13,7 +13,7 @@ mod encoding;
 mod font;
 mod layout;
 
-use cache::TextLayoutCache;
+use cache::{TextLayoutCache, TextLayoutProfileCounters};
 pub(super) use encoding::{color_from_rgba, icon_from_rgba, to_kurbo_rect};
 
 #[derive(Clone, Debug)]
@@ -120,7 +120,7 @@ impl NativeTextRenderer {
 
     pub(in crate::gui_runtime::native_vello) fn take_layout_profile_counters(
         &mut self,
-    ) -> (u64, u64, u64, u64, u64, u64) {
+    ) -> TextLayoutProfileCounters {
         self.layout_cache.take_profile_counters()
     }
 }

@@ -8,6 +8,16 @@ use vello::peniko::FontData;
 const TEXT_LAYOUT_CACHE_CAPACITY: usize = 2_048;
 const TEXT_ATOM_CACHE_CAPACITY: usize = 4_096;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(in crate::gui_runtime::native_vello) struct TextLayoutProfileCounters {
+    pub layout_hits: u64,
+    pub layout_misses: u64,
+    pub layout_evictions: u64,
+    pub atom_hits: u64,
+    pub atom_misses: u64,
+    pub atom_evictions: u64,
+}
+
 pub(super) struct TextLayoutCache {
     layout_cache: HashMap<TextLayoutKey, TextLayout>,
     layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
@@ -73,15 +83,15 @@ impl TextLayoutCache {
         Some(cached_layout)
     }
 
-    pub(super) fn take_profile_counters(&mut self) -> (u64, u64, u64, u64, u64, u64) {
-        let counters = (
-            self.text_layout_hits,
-            self.text_layout_misses,
-            self.text_layout_evictions,
-            self.text_atom_hits,
-            self.text_atom_misses,
-            self.text_atom_evictions,
-        );
+    pub(super) fn take_profile_counters(&mut self) -> TextLayoutProfileCounters {
+        let counters = TextLayoutProfileCounters {
+            layout_hits: self.text_layout_hits,
+            layout_misses: self.text_layout_misses,
+            layout_evictions: self.text_layout_evictions,
+            atom_hits: self.text_atom_hits,
+            atom_misses: self.text_atom_misses,
+            atom_evictions: self.text_atom_evictions,
+        };
         self.text_layout_hits = 0;
         self.text_layout_misses = 0;
         self.text_layout_evictions = 0;
@@ -209,7 +219,17 @@ mod tests {
         let second = cache.intern_text("content row");
 
         assert!(Arc::ptr_eq(&first, &second));
-        assert_eq!(cache.take_profile_counters(), (0, 0, 0, 1, 1, 0));
+        assert_eq!(
+            cache.take_profile_counters(),
+            TextLayoutProfileCounters {
+                layout_hits: 0,
+                layout_misses: 0,
+                layout_evictions: 0,
+                atom_hits: 1,
+                atom_misses: 1,
+                atom_evictions: 0,
+            }
+        );
     }
 
     #[test]
@@ -219,9 +239,9 @@ mod tests {
             let _ = cache.intern_text(format!("label-{index}").as_str());
         }
 
-        let (_, _, _, _, misses, evictions) = cache.take_profile_counters();
-        assert_eq!(misses, (TEXT_ATOM_CACHE_CAPACITY as u64) + 1);
-        assert!(evictions > 0);
+        let counters = cache.take_profile_counters();
+        assert_eq!(counters.atom_misses, (TEXT_ATOM_CACHE_CAPACITY as u64) + 1);
+        assert!(counters.atom_evictions > 0);
         assert!(cache.atom_cache.len() <= TEXT_ATOM_CACHE_CAPACITY);
     }
 

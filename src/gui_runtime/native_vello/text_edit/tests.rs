@@ -61,10 +61,9 @@ fn build_text_field_layout_uses_one_full_layout_pass() {
 
     let layout = build_text_field_layout(&mut renderer, &mut editor, "item alpha beta", 14.0, 48.0);
 
-    let (layout_hits, layout_misses, _, _, atom_misses, _) =
-        renderer.take_layout_profile_counters();
-    assert_eq!((layout_hits, layout_misses), (0, 1));
-    assert_eq!(atom_misses, 1);
+    let counters = renderer.take_layout_profile_counters();
+    assert_eq!((counters.layout_hits, counters.layout_misses), (0, 1));
+    assert_eq!(counters.atom_misses, 1);
     assert!(!layout.visible_text.is_empty());
     assert!(byte_index_for_local_x(&layout, 0.0) <= "item alpha beta".len());
 }

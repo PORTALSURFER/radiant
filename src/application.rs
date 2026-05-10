@@ -5,31 +5,19 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
-    gui::types::{ImageRgba, Point},
+    gui::types::{ImageRgba, Point, Rect},
     layout::{
         ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, Insets, MainAlign, NodeId,
         SizeModeCross, SizeModeMain, SlotParams, Vector2, VirtualizationAxis, VirtualizationPolicy,
     },
-    runtime::{
-        Command, GpuSurfaceContent, RuntimeBridge, SurfaceChild, SurfaceNode, UiSurface,
-        WidgetMessageMapper,
-    },
+    runtime::{GpuSurfaceContent, SurfaceChild, SurfaceNode, WidgetMessageMapper},
     widgets::{
         ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
-        TextAlign, TextInputWidget, TextWidget, TextWrap, ToggleWidget, Widget, WidgetOutput,
-        WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
+        RetainedSurfaceDescriptor, TextAlign, TextInputWidget, TextWidget, TextWrap, ToggleWidget,
+        Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
-use std::{
-    collections::{HashMap, HashSet},
-    marker::PhantomData,
-    sync::{
-        Arc, Mutex, Weak,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread,
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc};
 
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -44,7 +32,13 @@ pub type View<Message = ()> = ViewNode<Message>;
 pub type StateView<State> = View<StateAction<State>>;
 
 include!("application/state.rs");
-include!("application/runtime.rs");
+mod runtime;
+pub(in crate::application) use runtime::{
+    AppAnimation, AppBridge, AppCloseRequested, AppFrameMessage, AppRuntime, AppShortcuts,
+    AppShutdown, AppStartup, AppSubscriptions, AppUpdate, RetainedPainter, StateCallback,
+    StateDragCallback, StateStringCallback,
+};
+pub use runtime::{Subscription, UpdateContext};
 mod launch;
 pub use launch::*;
 include!("application/widget_view.rs");

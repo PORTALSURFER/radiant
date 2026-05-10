@@ -1,3 +1,6 @@
+use crate::{runtime::Command, widgets::WidgetId};
+use std::time::Duration;
+
 /// Context supplied to app update closures for runtime-visible follow-up work.
 pub struct UpdateContext<Message> {
     commands: Vec<Command<Message>>,
@@ -59,7 +62,7 @@ impl<Message> UpdateContext<Message> {
         self.command(Command::exit());
     }
 
-    fn into_command(self) -> Command<Message> {
+    pub(super) fn into_command(self) -> Command<Message> {
         Command::batch(self.commands)
     }
 }

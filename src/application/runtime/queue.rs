@@ -1,4 +1,10 @@
-struct AppRuntime<Message> {
+use crate::{gui::repaint::RepaintSignal, runtime::Command};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+
+pub(in crate::application) struct AppRuntime<Message> {
     pending: Mutex<Vec<Message>>,
     commands: Mutex<Vec<Command<Message>>>,
     repaint: Mutex<Option<Arc<dyn RepaintSignal>>>,
@@ -19,7 +25,7 @@ impl<Message> Default for AppRuntime<Message> {
 }
 
 impl<Message> AppRuntime<Message> {
-    fn enqueue(&self, message: Message) -> bool {
+    pub(super) fn enqueue(&self, message: Message) -> bool {
         if !self.is_alive() {
             return false;
         }
@@ -28,14 +34,14 @@ impl<Message> AppRuntime<Message> {
         true
     }
 
-    fn enqueue_frame(&self, message: Message) -> bool {
+    pub(super) fn enqueue_frame(&self, message: Message) -> bool {
         if self.frame_pending.swap(true, Ordering::AcqRel) {
             return false;
         }
         self.enqueue(message)
     }
 
-    fn enqueue_command(&self, command: Command<Message>) -> bool {
+    pub(super) fn enqueue_command(&self, command: Command<Message>) -> bool {
         if !self.is_alive() || command.is_empty() {
             return false;
         }
@@ -44,17 +50,17 @@ impl<Message> AppRuntime<Message> {
         true
     }
 
-    fn take_pending(&self) -> Vec<Message> {
+    pub(super) fn take_pending(&self) -> Vec<Message> {
         let pending = std::mem::take(&mut *lock_runtime_state(&self.pending));
         self.frame_pending.store(false, Ordering::Release);
         pending
     }
 
-    fn take_commands(&self) -> Vec<Command<Message>> {
+    pub(super) fn take_commands(&self) -> Vec<Command<Message>> {
         std::mem::take(&mut *lock_runtime_state(&self.commands))
     }
 
-    fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
+    pub(super) fn install_repaint(&self, signal: Arc<dyn RepaintSignal>) {
         *lock_runtime_state(&self.repaint) = Some(signal);
     }
 
@@ -65,20 +71,22 @@ impl<Message> AppRuntime<Message> {
         }
     }
 
-    fn shutdown(&self) {
+    pub(super) fn shutdown(&self) {
         self.alive.store(false, Ordering::Release);
         self.frame_pending.store(false, Ordering::Release);
         lock_runtime_state(&self.pending).clear();
         lock_runtime_state(&self.commands).clear();
     }
 
-    fn is_alive(&self) -> bool {
+    pub(super) fn is_alive(&self) -> bool {
         self.alive.load(Ordering::Acquire)
     }
 }
 
 fn lock_runtime_state<T>(state: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 #[cfg(test)]

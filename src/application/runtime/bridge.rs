@@ -1,19 +1,33 @@
-struct AppBridge<State, Message, Project, Update, View> {
-    state: State,
-    project: Project,
-    update: Update,
-    runtime: Arc<AppRuntime<Message>>,
-    animation: Option<AppAnimation<State>>,
-    frame_message: Option<AppFrameMessage<Message>>,
-    subscriptions: Option<AppSubscriptions<State, Message>>,
-    shortcuts: Option<AppShortcuts<State, Message>>,
-    startup: Option<AppStartup<State, Message>>,
-    shutdown: Option<AppShutdown<State>>,
-    close_requested: Option<AppCloseRequested<State>>,
-    retained_painters: HashMap<u64, RetainedPainter<State>>,
-    subscriptions_started: bool,
-    startup_ran: bool,
-    _view: PhantomData<View>,
+use super::subscription::spawn_subscription;
+use super::*;
+use crate::{
+    application::IntoView,
+    gui::{
+        focus::FocusSurface, input::KeyPress, paint::PaintFrame as GuiPaintFrame,
+        repaint::RepaintSignal, shortcuts::ShortcutResolution, types::Rect,
+    },
+    layout::Vector2,
+    runtime::{Command, RuntimeBridge, UiSurface},
+    widgets::RetainedSurfaceDescriptor,
+};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc, thread, time::Duration};
+
+pub(in crate::application) struct AppBridge<State, Message, Project, Update, View> {
+    pub(in crate::application) state: State,
+    pub(in crate::application) project: Project,
+    pub(in crate::application) update: Update,
+    pub(in crate::application) runtime: Arc<AppRuntime<Message>>,
+    pub(in crate::application) animation: Option<AppAnimation<State>>,
+    pub(in crate::application) frame_message: Option<AppFrameMessage<Message>>,
+    pub(in crate::application) subscriptions: Option<AppSubscriptions<State, Message>>,
+    pub(in crate::application) shortcuts: Option<AppShortcuts<State, Message>>,
+    pub(in crate::application) startup: Option<AppStartup<State, Message>>,
+    pub(in crate::application) shutdown: Option<AppShutdown<State>>,
+    pub(in crate::application) close_requested: Option<AppCloseRequested<State>>,
+    pub(in crate::application) retained_painters: HashMap<u64, RetainedPainter<State>>,
+    pub(in crate::application) subscriptions_started: bool,
+    pub(in crate::application) startup_ran: bool,
+    pub(in crate::application) _view: PhantomData<View>,
 }
 
 impl<State, Message, Project, Update, View> AppBridge<State, Message, Project, Update, View>
@@ -70,7 +84,10 @@ where
         }
         if !self.subscriptions_started {
             if let Some(subscriptions) = self.subscriptions.as_mut() {
-                spawn_subscription(Arc::downgrade(&self.runtime), subscriptions(&mut self.state));
+                spawn_subscription(
+                    Arc::downgrade(&self.runtime),
+                    subscriptions(&mut self.state),
+                );
             }
             self.subscriptions_started = true;
         }

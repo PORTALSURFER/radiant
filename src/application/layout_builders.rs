@@ -1,29 +1,15 @@
 use crate::{
-    application::{SlotBehavior, ViewNode, ViewNodeKind, primary_style},
-    layout::{Insets, Vector2},
+    application::{ViewNode, ViewNodeKind, primary_style},
+    layout::Vector2,
     widgets::WidgetStyle,
 };
 
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Row {
-            spacing: 8.0,
-            children: children.into_iter().collect(),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Row {
+        spacing: 8.0,
+        children: children.into_iter().collect(),
+    })
 }
 
 /// Build a keyed row container with fill-slot children.
@@ -36,24 +22,10 @@ pub fn row_key<Message>(
 
 /// Build a column container with fill-slot children.
 pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Column {
-            spacing: 6.0,
-            children: children.into_iter().collect(),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Column {
+        spacing: 6.0,
+        children: children.into_iter().collect(),
+    })
 }
 
 /// Build a keyed column container with fill-slot children.
@@ -79,47 +51,19 @@ pub fn grid_with_gaps<Message>(
     column_gap: f32,
     row_gap: f32,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Grid {
-            columns,
-            column_gap,
-            row_gap,
-            children: children.into_iter().collect(),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Grid {
+        columns,
+        column_gap,
+        row_gap,
+        children: children.into_iter().collect(),
+    })
 }
 
 /// Build a stack container that overlays children in paint order.
 pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Stack {
-            children: children.into_iter().collect(),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Stack {
+        children: children.into_iter().collect(),
+    })
 }
 
 /// Build a floating overlay panel in surface coordinates.
@@ -130,95 +74,40 @@ pub fn overlay_panel<Message>(
     width: f32,
     height: f32,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::OverlayPanel {
-            rect: crate::gui::types::Rect::from_min_size(
-                crate::gui::types::Point::new(x, y),
-                Vector2::new(width, height),
-            ),
-            label: Some(label.into()),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::OverlayPanel {
+        rect: crate::gui::types::Rect::from_min_size(
+            crate::gui::types::Point::new(x, y),
+            Vector2::new(width, height),
+        ),
+        label: Some(label.into()),
+    })
 }
 
 /// Build a floating drop marker in surface coordinates.
 pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::OverlayPanel {
-            rect: crate::gui::types::Rect::from_min_size(
-                crate::gui::types::Point::new(x, y),
-                Vector2::new(width, height),
-            ),
-            label: None,
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: Some(primary_style()),
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::OverlayPanel {
+        rect: crate::gui::types::Rect::from_min_size(
+            crate::gui::types::Point::new(x, y),
+            Vector2::new(width, height),
+        ),
+        label: None,
+    })
+    .style(primary_style())
 }
 
 /// Build a scroll viewport around one child view.
 pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Scroll {
-            child: Box::new(child),
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Scroll {
+        child: Box::new(child),
+    })
 }
 
 /// Build a vertically virtualized scroll viewport around one child view.
 pub fn virtual_scroll<Message>(child: ViewNode<Message>, overscan_px: f32) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::VirtualScroll {
-            child: Box::new(child),
-            overscan_px,
-        },
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::VirtualScroll {
+        child: Box::new(child),
+        overscan_px,
+    })
 }
 
 /// Build a scroll viewport containing a column projected from an iterator.

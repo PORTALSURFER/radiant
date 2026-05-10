@@ -7,7 +7,7 @@ mod modifiers;
 #[path = "view_node/slot.rs"]
 mod slot;
 
-pub(in crate::application) use slot::SlotBehavior;
+use slot::SlotBehavior;
 
 use crate::{
     application::WidgetView,
@@ -18,19 +18,19 @@ use crate::{
 
 /// Application view node with generated identity and default sizing.
 pub struct ViewNode<Message> {
-    pub(in crate::application) kind: ViewNodeKind<Message>,
-    pub(in crate::application) id: Option<NodeId>,
-    pub(in crate::application) key: Option<String>,
-    pub(in crate::application) sizing: Option<WidgetSizing>,
-    pub(in crate::application) slot: SlotBehavior,
-    pub(in crate::application) padding: Insets,
-    pub(in crate::application) align_main: Option<MainAlign>,
-    pub(in crate::application) align_cross: Option<CrossAlign>,
+    kind: ViewNodeKind<Message>,
+    id: Option<NodeId>,
+    key: Option<String>,
+    sizing: Option<WidgetSizing>,
+    slot: SlotBehavior,
+    padding: Insets,
+    align_main: Option<MainAlign>,
+    align_cross: Option<CrossAlign>,
     pub(in crate::application) style: Option<WidgetStyle>,
-    pub(in crate::application) hoverable: bool,
-    pub(in crate::application) input_only: bool,
-    pub(in crate::application) text_wrap: Option<TextWrap>,
-    pub(in crate::application) text_align: Option<TextAlign>,
+    hoverable: bool,
+    input_only: bool,
+    text_wrap: Option<TextWrap>,
+    text_align: Option<TextAlign>,
 }
 
 pub(in crate::application) enum ViewNodeKind<Message> {
@@ -68,8 +68,14 @@ pub(in crate::application) enum ViewNodeKind<Message> {
 
 impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
     fn from(node: SurfaceNode<Message>) -> Self {
+        Self::new(ViewNodeKind::Runtime(node))
+    }
+}
+
+impl<Message> ViewNode<Message> {
+    pub(in crate::application) fn new(kind: ViewNodeKind<Message>) -> Self {
         Self {
-            kind: ViewNodeKind::Runtime(node),
+            kind,
             id: None,
             key: None,
             sizing: None,

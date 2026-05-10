@@ -1,7 +1,7 @@
 use crate::{
-    application::{DynamicWidget, MappedWidget, SlotBehavior, ViewNode, ViewNodeKind, WidgetView},
+    application::{DynamicWidget, MappedWidget, ViewNode, ViewNodeKind, WidgetView},
     gui::types::ImageRgba,
-    layout::{Insets, Vector2},
+    layout::Vector2,
     runtime::{GpuSurfaceContent, WidgetMessageMapper},
     widgets::{
         ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
@@ -14,21 +14,7 @@ use std::sync::Arc;
 pub(in crate::application) fn view_node_from_widget<Message>(
     widget: impl WidgetView<Message> + 'static,
 ) -> ViewNode<Message> {
-    ViewNode {
-        kind: ViewNodeKind::Widget(Box::new(widget)),
-        id: None,
-        key: None,
-        sizing: None,
-        slot: SlotBehavior::default(),
-        padding: Insets::default(),
-        align_main: None,
-        align_cross: None,
-        style: None,
-        hoverable: false,
-        input_only: false,
-        text_wrap: None,
-        text_align: None,
-    }
+    ViewNode::new(ViewNodeKind::Widget(Box::new(widget)))
 }
 
 /// Build a view node from any application widget view.

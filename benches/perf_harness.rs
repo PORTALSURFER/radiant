@@ -43,10 +43,11 @@ fn main() {
         LAYOUT_ITERATIONS,
         move || fixed_scroll.step(),
     );
+    let runtime_surface = StatefulRuntimeSurfaceBench::new();
     run_scenario(
         "runtime_surface_large_tree",
         RUNTIME_ITERATIONS,
-        bench_runtime_surface_large_tree,
+        move || runtime_surface.step(),
     );
     let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
     run_scenario(
@@ -274,13 +275,30 @@ fn virtualized_scroll_tree(count: u64, size_main: SizeModeMain) -> LayoutNode {
     )
 }
 
-fn bench_runtime_surface_large_tree() {
-    let surface = UiSurface::<()>::new(runtime_surface_node(250));
-    let output = layout_tree(&surface.layout_node(), viewport(960.0, 720.0));
-    let plan = surface.paint_plan(&output, &ThemeTokens::default());
-    assert!(output.rects.len() >= 250);
-    assert!(!plan.primitives.is_empty());
-    black_box((output, plan));
+struct StatefulRuntimeSurfaceBench {
+    surface: UiSurface<()>,
+    layout_node: LayoutNode,
+    theme: ThemeTokens,
+}
+
+impl StatefulRuntimeSurfaceBench {
+    fn new() -> Self {
+        let surface = UiSurface::<()>::new(runtime_surface_node(250));
+        let layout_node = surface.layout_node();
+        Self {
+            surface,
+            layout_node,
+            theme: ThemeTokens::default(),
+        }
+    }
+
+    fn step(&self) {
+        let output = layout_tree(&self.layout_node, viewport(960.0, 720.0));
+        let plan = self.surface.paint_plan(&output, &self.theme);
+        assert!(output.rects.len() >= 250);
+        assert!(!plan.primitives.is_empty());
+        black_box((output, plan));
+    }
 }
 
 struct StatefulVirtualizedWheelBench {

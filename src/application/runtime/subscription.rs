@@ -1,4 +1,5 @@
 use super::AppRuntime;
+use super::threading::spawn_runtime_thread;
 use std::{
     sync::{Arc, Weak},
     thread,
@@ -94,33 +95,29 @@ pub(super) fn spawn_subscription<Message>(
         }
         Subscription::Interval { id, every, message } => {
             let delay = every.max(Duration::from_millis(1));
-            let _ = thread::Builder::new()
-                .name(format!("radiant-subscription-{id}"))
-                .spawn(move || {
-                    loop {
-                        thread::sleep(delay);
-                        let Some(runtime) = runtime.upgrade() else {
-                            break;
-                        };
-                        if !runtime.enqueue(message()) {
-                            break;
-                        }
+            spawn_runtime_thread(format!("radiant-subscription-{id}"), move || {
+                loop {
+                    thread::sleep(delay);
+                    let Some(runtime) = runtime.upgrade() else {
+                        break;
+                    };
+                    if !runtime.enqueue(message()) {
+                        break;
                     }
-                });
+                }
+            });
         }
         Subscription::Worker { id, receiver } => {
-            let _ = thread::Builder::new()
-                .name(format!("radiant-worker-subscription-{id}"))
-                .spawn(move || {
-                    for message in receiver {
-                        let Some(runtime) = runtime.upgrade() else {
-                            break;
-                        };
-                        if !runtime.enqueue(message) {
-                            break;
-                        }
+            spawn_runtime_thread(format!("radiant-worker-subscription-{id}"), move || {
+                for message in receiver {
+                    let Some(runtime) = runtime.upgrade() else {
+                        break;
+                    };
+                    if !runtime.enqueue(message) {
+                        break;
                     }
-                });
+                }
+            });
         }
     }
 }

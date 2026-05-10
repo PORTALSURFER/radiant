@@ -175,6 +175,7 @@ fn performance_harness_is_registered_and_documented() {
         "layout_deep_nesting",
         "layout_wrap_1k",
         "layout_virtualized_10k",
+        "layout_virtualized_fixed_10k",
         "runtime_surface_large_tree",
         "gpu_signal_summary",
         "gpu_surface_projection",

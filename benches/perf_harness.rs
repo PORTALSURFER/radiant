@@ -33,6 +33,11 @@ fn main() {
         bench_virtualized_10k,
     );
     run_scenario(
+        "layout_virtualized_fixed_10k",
+        LAYOUT_ITERATIONS,
+        bench_virtualized_fixed_10k,
+    );
+    run_scenario(
         "runtime_surface_large_tree",
         RUNTIME_ITERATIONS,
         bench_runtime_surface_large_tree,
@@ -120,7 +125,7 @@ fn wrap_tree(count: u64) -> LayoutNode {
 }
 
 fn bench_virtualized_10k() {
-    let root = virtualized_scroll_tree(10_000);
+    let root = virtualized_scroll_tree(10_000, SizeModeMain::Intrinsic);
     let mut state = LayoutState::default();
     state.scroll_offsets.insert(1, Vector2::new(0.0, 20_000.0));
     let output = layout_tree_with_state(
@@ -138,12 +143,32 @@ fn bench_virtualized_10k() {
     black_box(output);
 }
 
-fn virtualized_scroll_tree(count: u64) -> LayoutNode {
+fn bench_virtualized_fixed_10k() {
+    let root = virtualized_scroll_tree(10_000, SizeModeMain::Fixed(28.0));
+    let mut state = LayoutState::default();
+    state.scroll_offsets.insert(1, Vector2::new(0.0, 20_000.0));
+    let output = layout_tree_with_state(
+        &root,
+        viewport(300.0, 140.0),
+        &state,
+        LayoutDebugOptions::default(),
+    );
+    let window = output
+        .virtual_windows
+        .get(&1)
+        .expect("virtual window metadata");
+    assert_eq!(window.total_children, 10_000);
+    assert!(output.stats.materialized_nodes < 256);
+    assert!(output.stats.measured_nodes < 64);
+    black_box(output);
+}
+
+fn virtualized_scroll_tree(count: u64, size_main: SizeModeMain) -> LayoutNode {
     let items = (0..count)
         .map(|index| {
             SlotChild::new(
                 SlotParams {
-                    size_main: SizeModeMain::Intrinsic,
+                    size_main,
                     size_cross: SizeModeCross::Fill,
                     constraints: radiant::layout::Constraints::unconstrained(),
                     margin: Default::default(),

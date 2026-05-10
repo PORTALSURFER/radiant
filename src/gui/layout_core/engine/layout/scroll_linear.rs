@@ -9,7 +9,7 @@ use super::super::helpers::{
 use super::super::measure::measure_node;
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{SizeModeMain, VirtualizationAxis};
-use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};
+use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild, WidgetNode};
 use crate::gui::types::Vector2;
 use std::collections::BTreeSet;
 
@@ -120,15 +120,15 @@ pub(super) fn build_linear_metrics(
 
 /// Resolve the main-axis content extent for virtualized fixed-size children
 /// without measuring every child.
-pub(super) fn fixed_linear_main_extent(
+pub(super) fn known_linear_main_extent(
     content: &ContainerNode,
     axis: VirtualizationAxis,
 ) -> Option<f32> {
     let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
     if horizontal {
-        content.fixed_main_extent_horizontal
+        content.known_main_extent_horizontal
     } else {
-        content.fixed_main_extent_vertical
+        content.known_main_extent_vertical
     }
 }
 
@@ -171,7 +171,8 @@ fn collect_layout_states<'a>(
     let mut states = Vec::with_capacity(container.children.len());
     for child in &container.children {
         let measured = if matches!(child.slot.size_main, SizeModeMain::Intrinsic) {
-            measure_node(&child.child, child.slot.constraints, context)
+            direct_widget_intrinsic_size(&child.child)
+                .unwrap_or_else(|| measure_node(&child.child, child.slot.constraints, context))
         } else {
             Vector2::default()
         };
@@ -179,6 +180,14 @@ fn collect_layout_states<'a>(
         states.push(LinearLayoutState::new(child, measured, main));
     }
     states
+}
+
+fn direct_widget_intrinsic_size(node: &LayoutNode) -> Option<Vector2> {
+    let LayoutNode::Widget(WidgetNode { intrinsic, .. }) = node else {
+        return None;
+    };
+    (intrinsic.x.is_finite() && intrinsic.y.is_finite())
+        .then_some(Vector2::new(intrinsic.x.max(0.0), intrinsic.y.max(0.0)))
 }
 
 fn resolve_main_for_virtual(

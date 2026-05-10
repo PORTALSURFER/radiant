@@ -87,6 +87,34 @@ where
         (self.update)(&mut self.state, message, &mut context);
         context.into_command()
     }
+
+    fn run_startup_once(&mut self) {
+        if self.startup_ran {
+            return;
+        }
+        if let Some(startup) = self.startup.as_mut() {
+            let mut context = UpdateContext::default();
+            startup(&mut self.state, &mut context);
+            self.runtime.enqueue_command(context.into_command());
+        }
+        self.startup_ran = true;
+    }
+
+    fn start_subscriptions_once(&mut self)
+    where
+        Message: Send + 'static,
+    {
+        if self.subscriptions_started {
+            return;
+        }
+        if let Some(subscriptions) = self.subscriptions.as_mut() {
+            spawn_subscription(
+                Arc::downgrade(&self.runtime),
+                subscriptions(&mut self.state),
+            );
+        }
+        self.subscriptions_started = true;
+    }
 }
 
 impl<State, Message, Project, Update, View> RuntimeBridge<Message>
@@ -120,23 +148,8 @@ where
 
     fn install_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
         self.runtime.install_repaint(signal);
-        if !self.startup_ran {
-            if let Some(startup) = self.startup.as_mut() {
-                let mut context = UpdateContext::default();
-                startup(&mut self.state, &mut context);
-                self.runtime.enqueue_command(context.into_command());
-            }
-            self.startup_ran = true;
-        }
-        if !self.subscriptions_started {
-            if let Some(subscriptions) = self.subscriptions.as_mut() {
-                spawn_subscription(
-                    Arc::downgrade(&self.runtime),
-                    subscriptions(&mut self.state),
-                );
-            }
-            self.subscriptions_started = true;
-        }
+        self.run_startup_once();
+        self.start_subscriptions_once();
     }
 
     fn schedule_message(&mut self, delay: Duration, message: Message) -> bool {

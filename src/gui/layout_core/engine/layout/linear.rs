@@ -2,7 +2,7 @@
 
 use super::super::helpers::{
     LayoutAxis, LinearLayoutState, align_main_offsets, allocate_fill_sizes,
-    apply_linear_overflow_policy, main_margin_total, place_child_rect,
+    apply_linear_overflow_policy, linear_sizing_summary, place_child_rect, resolved_main_sizes,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
@@ -92,38 +92,17 @@ pub(super) fn layout_linear(
         0,
         container.children.len(),
     );
-    let fixed_main = states
-        .iter()
-        .filter(|state| !matches!(state.slot_child.slot.size_main, SizeModeMain::Fill(_)))
-        .map(|state| state.main)
-        .sum::<f32>();
-    let fill_weight = states
-        .iter()
-        .filter_map(|state| match state.slot_child.slot.size_main {
-            SizeModeMain::Fill(weight) => Some(weight.max(0.0)),
-            _ => None,
-        })
-        .sum::<f32>();
-    let margin_total = main_margin_total(horizontal, &states);
+    let summary = linear_sizing_summary(horizontal, &states);
 
     let spacing_total = spacing * (states.len().saturating_sub(1) as f32);
-    let remaining = (available_main - fixed_main - margin_total - spacing_total).max(0.0);
-    if fill_weight > 0.0 {
-        allocate_fill_sizes(horizontal, remaining, fill_weight, &mut states);
+    let remaining =
+        (available_main - summary.fixed_main - summary.margin_total - spacing_total).max(0.0);
+    if summary.fill_weight > 0.0 {
+        allocate_fill_sizes(horizontal, remaining, summary.fill_weight, &mut states);
     }
 
-    let mut sizes: Vec<f32> = states
-        .iter()
-        .map(|state| {
-            if state.fill > 0.0 {
-                state.fill
-            } else {
-                state.main
-            }
-        })
-        .collect();
-
-    let mut total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
+    let (mut sizes, mut total_main) = resolved_main_sizes(&states);
+    total_main += summary.margin_total + spacing_total;
     if total_main > available_main {
         apply_linear_overflow_policy(
             container,
@@ -134,7 +113,7 @@ pub(super) fn layout_linear(
             &mut sizes,
             context,
         );
-        total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
+        total_main = sizes.iter().sum::<f32>() + summary.margin_total + spacing_total;
     }
 
     let (leading, distributed_spacing) = align_main_offsets(

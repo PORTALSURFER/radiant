@@ -1,6 +1,6 @@
 use super::*;
 use crate::layout::ContainerKind;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
@@ -8,6 +8,7 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
+    pub(in crate::runtime) widget_paths: HashMap<WidgetId, Vec<usize>>,
     pub(in crate::runtime) container_hover_suppression: BTreeSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
@@ -20,6 +21,7 @@ impl<Message> SurfaceNode<Message> {
     fn collect_runtime_index(
         &self,
         scroll_stack: &mut Vec<NodeId>,
+        child_path: &mut Vec<usize>,
         index: &mut SurfaceTraversalIndex,
     ) {
         match self {
@@ -42,8 +44,12 @@ impl<Message> SurfaceNode<Message> {
                 if container.style.is_some() && container.hoverable {
                     index.styled_container_order.push(container.id);
                 }
-                for child in &container.children {
-                    child.child.collect_runtime_index(scroll_stack, index);
+                for (child_index, child) in container.children.iter().enumerate() {
+                    child_path.push(child_index);
+                    child
+                        .child
+                        .collect_runtime_index(scroll_stack, child_path, index);
+                    child_path.pop();
                 }
                 if is_scroll {
                     scroll_stack.pop();
@@ -51,6 +57,7 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(widget) => {
                 index.widget_paint_order.push(widget.id());
+                index.widget_paths.insert(widget.id(), child_path.clone());
                 if widget.is_focusable() {
                     index.focusable_widget_order.push(widget.id());
                 }
@@ -85,6 +92,7 @@ impl<Message> UiSurface<Message> {
             keyboard_focus_order: Vec::new(),
             pointer_hit_order: Vec::new(),
             wheel_hit_order: Vec::new(),
+            widget_paths: HashMap::new(),
             container_hover_suppression: BTreeSet::new(),
             styled_container_order: Vec::new(),
             scroll_container_order: Vec::new(),
@@ -92,7 +100,8 @@ impl<Message> UiSurface<Message> {
             container_clip_ancestors: BTreeMap::new(),
             scroll_content_by_container: BTreeMap::new(),
         };
-        self.root.collect_runtime_index(&mut Vec::new(), &mut index);
+        self.root
+            .collect_runtime_index(&mut Vec::new(), &mut Vec::new(), &mut index);
         index
     }
 }

@@ -58,7 +58,7 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return false;
         };
-        let Some(result) = self.surface.dispatch_widget_input_message(
+        let Some(result) = self.dispatch_surface_input(
             widget_id,
             bounds,
             WidgetInput::Wheel {

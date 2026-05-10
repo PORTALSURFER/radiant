@@ -66,6 +66,7 @@ where
     pointer_hit_order: Vec<WidgetId>,
     pointer_hit_rank: HashMap<WidgetId, usize>,
     visible_pointer_hit_order: Vec<WidgetId>,
+    widget_paths: HashMap<WidgetId, Vec<usize>>,
     container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     wheel_hit_order: Vec<WidgetId>,
@@ -131,6 +132,7 @@ where
             pointer_hit_order: traversal.pointer_hit_order,
             pointer_hit_rank,
             visible_pointer_hit_order,
+            widget_paths: traversal.widget_paths,
             container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
             wheel_hit_order: traversal.wheel_hit_order,
@@ -206,10 +208,7 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return false;
         };
-        let Some(result) = self
-            .surface
-            .dispatch_widget_input_message(widget_id, bounds, input)
-        else {
+        let Some(result) = self.dispatch_surface_input(widget_id, bounds, input) else {
             return false;
         };
         self.capture_pointer_capture_state(widget_id);
@@ -221,6 +220,21 @@ where
             WidgetDispatchResult::NoOutput => {}
         }
         true
+    }
+
+    fn dispatch_surface_input(
+        &mut self,
+        widget_id: WidgetId,
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetDispatchResult<Message>> {
+        let Some(child_path) = self.widget_paths.get(&widget_id) else {
+            return self
+                .surface
+                .dispatch_widget_input_message(widget_id, bounds, input);
+        };
+        self.surface
+            .dispatch_widget_input_message_at_path(widget_id, child_path, bounds, input)
     }
 }
 

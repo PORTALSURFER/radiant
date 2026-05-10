@@ -2,10 +2,11 @@ use super::{ViewNode, ViewNodeKind};
 use crate::{
     application::{IdGenerator, IntoView, ROOT_KEY_SCOPE, WidgetViewContext},
     layout::{
-        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, MainAlign, VirtualizationAxis,
-        VirtualizationPolicy,
+        ContainerKind, ContainerPolicy, CrossAlign, GridPolicy, MainAlign, NodeId,
+        VirtualizationAxis, VirtualizationPolicy,
     },
     runtime::{SurfaceChild, SurfaceNode},
+    widgets::WidgetStyle,
 };
 use std::collections::HashSet;
 
@@ -17,66 +18,141 @@ where
         let mut reserved = HashSet::new();
         self.collect_reserved_ids(ROOT_KEY_SCOPE, &mut reserved);
         let mut ids = IdGenerator::new(reserved);
-        self.lower(&mut ids, ROOT_KEY_SCOPE)
+        ViewLowering::new(&mut ids).lower_node(self, ROOT_KEY_SCOPE)
     }
 }
 
-impl<Message> ViewNode<Message>
-where
-    Message: 'static,
-{
-    fn lower(self, ids: &mut IdGenerator, scope: u64) -> SurfaceNode<Message> {
-        let id = self.resolved_id(scope).unwrap_or_else(|| ids.next());
+struct ViewLowering<'a> {
+    ids: &'a mut IdGenerator,
+}
+
+impl<'a> ViewLowering<'a> {
+    fn new(ids: &'a mut IdGenerator) -> Self {
+        Self { ids }
+    }
+
+    fn next_node_id<Message>(&mut self, node: &ViewNode<Message>, scope: u64) -> NodeId {
+        node.resolved_id(scope).unwrap_or_else(|| self.ids.next())
+    }
+
+    fn lower_child<Message>(
+        &mut self,
+        child: ViewNode<Message>,
+        scope: u64,
+        parent_horizontal: bool,
+    ) -> SurfaceChild<Message>
+    where
+        Message: 'static,
+    {
+        let slot = child.slot.to_slot_params(parent_horizontal);
+        SurfaceChild::new(slot, self.lower_node(child, scope))
+    }
+
+    fn lower_slot_children<Message>(
+        &mut self,
+        children: Vec<ViewNode<Message>>,
+        scope: u64,
+        parent_horizontal: bool,
+    ) -> Vec<SurfaceChild<Message>>
+    where
+        Message: 'static,
+    {
+        children
+            .into_iter()
+            .map(|child| self.lower_child(child, scope, parent_horizontal))
+            .collect()
+    }
+
+    fn lower_fill_child<Message>(
+        &mut self,
+        child: ViewNode<Message>,
+        scope: u64,
+    ) -> SurfaceChild<Message>
+    where
+        Message: 'static,
+    {
+        SurfaceChild::fill(self.lower_node(child, scope))
+    }
+
+    fn lower_fill_children<Message>(
+        &mut self,
+        children: Vec<ViewNode<Message>>,
+        scope: u64,
+    ) -> Vec<SurfaceChild<Message>>
+    where
+        Message: 'static,
+    {
+        children
+            .into_iter()
+            .map(|child| self.lower_fill_child(child, scope))
+            .collect()
+    }
+
+    fn lower_container<Message>(
+        &mut self,
+        id: NodeId,
+        policy: ContainerPolicy,
+        style: Option<WidgetStyle>,
+        hoverable: bool,
+        children: Vec<SurfaceChild<Message>>,
+    ) -> SurfaceNode<Message> {
+        if let Some(style) = style {
+            SurfaceNode::styled_container(id, policy, style, children)
+                .with_container_hoverable(hoverable)
+        } else {
+            SurfaceNode::container(id, policy, children)
+        }
+    }
+
+    fn lower_node<Message>(&mut self, node: ViewNode<Message>, scope: u64) -> SurfaceNode<Message>
+    where
+        Message: 'static,
+    {
+        let id = self.next_node_id(&node, scope);
         let child_scope = id;
-        match self.kind {
+        let style = node.style;
+        let hoverable = node.hoverable;
+        let padding = node.padding;
+        let align_main = node.align_main.unwrap_or(MainAlign::Start);
+        let align_cross = node.align_cross.unwrap_or(CrossAlign::Stretch);
+        let base_policy = || ContainerPolicy {
+            padding,
+            align_main,
+            align_cross,
+            ..ContainerPolicy::default()
+        };
+        let styled_container =
+            |lowering: &mut Self, policy: ContainerPolicy, children: Vec<SurfaceChild<Message>>| {
+                lowering.lower_container(id, policy, style, hoverable, children)
+            };
+
+        match node.kind {
             ViewNodeKind::Runtime(node) => node,
             ViewNodeKind::Widget(widget) => widget.into_surface_node(WidgetViewContext {
                 id,
-                sizing: self.sizing,
-                style: self.style,
-                input_only: self.input_only,
-                text_wrap: self.text_wrap,
-                text_align: self.text_align,
+                sizing: node.sizing,
+                style,
+                input_only: node.input_only,
+                text_wrap: node.text_wrap,
+                text_align: node.text_align,
             }),
             ViewNodeKind::Row { spacing, children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Row,
                     spacing,
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = children
-                    .into_iter()
-                    .map(|child| child.lower_child(ids, child_scope, true))
-                    .collect();
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = self.lower_slot_children(children, child_scope, true);
+                styled_container(self, policy, children)
             }
             ViewNodeKind::Column { spacing, children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Column,
                     spacing,
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = children
-                    .into_iter()
-                    .map(|child| child.lower_child(ids, child_scope, false))
-                    .collect();
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = self.lower_slot_children(children, child_scope, false);
+                styled_container(self, policy, children)
             }
             ViewNodeKind::Grid {
                 columns,
@@ -91,38 +167,19 @@ where
                         column_gap,
                         row_gap,
                     },
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = children
-                    .into_iter()
-                    .map(|child| child.lower_child(ids, child_scope, false))
-                    .collect();
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = self.lower_slot_children(children, child_scope, false);
+                styled_container(self, policy, children)
             }
             ViewNodeKind::Scroll { child } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::ScrollView,
                     overflow: crate::layout::OverflowPolicy::Scroll,
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = vec![SurfaceChild::fill(child.lower(ids, child_scope))];
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = vec![self.lower_fill_child(*child, child_scope)];
+                styled_container(self, policy, children)
             }
             ViewNodeKind::VirtualScroll { child, overscan_px } => {
                 let policy = ContainerPolicy {
@@ -133,55 +190,26 @@ where
                         axis: VirtualizationAxis::Vertical,
                         overscan_px,
                     }),
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = vec![SurfaceChild::fill(child.lower(ids, child_scope))];
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = vec![self.lower_fill_child(*child, child_scope)];
+                styled_container(self, policy, children)
             }
             ViewNodeKind::Stack { children } => {
                 let policy = ContainerPolicy {
                     kind: ContainerKind::Stack,
-                    padding: self.padding,
-                    align_main: self.align_main.unwrap_or(MainAlign::Start),
-                    align_cross: self.align_cross.unwrap_or(CrossAlign::Stretch),
-                    ..ContainerPolicy::default()
+                    ..base_policy()
                 };
-                let children = children
-                    .into_iter()
-                    .map(|child| SurfaceChild::fill(child.lower(ids, child_scope)))
-                    .collect();
-                if let Some(style) = self.style {
-                    SurfaceNode::styled_container(id, policy, style, children)
-                        .with_container_hoverable(self.hoverable)
-                } else {
-                    SurfaceNode::container(id, policy, children)
-                }
+                let children = self.lower_fill_children(children, child_scope);
+                styled_container(self, policy, children)
             }
             ViewNodeKind::OverlayPanel { rect, label } => {
                 if let Some(label) = label {
-                    SurfaceNode::overlay_panel(id, rect, label, self.style.unwrap_or_default())
+                    SurfaceNode::overlay_panel(id, rect, label, style.unwrap_or_default())
                 } else {
-                    SurfaceNode::overlay_marker(id, rect, self.style.unwrap_or_default())
+                    SurfaceNode::overlay_marker(id, rect, style.unwrap_or_default())
                 }
             }
         }
-    }
-
-    fn lower_child(
-        self,
-        ids: &mut IdGenerator,
-        scope: u64,
-        parent_horizontal: bool,
-    ) -> SurfaceChild<Message> {
-        let slot = self.slot.to_slot_params(parent_horizontal);
-        SurfaceChild::new(slot, self.lower(ids, scope))
     }
 }

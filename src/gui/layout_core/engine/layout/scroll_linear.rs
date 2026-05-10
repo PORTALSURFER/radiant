@@ -125,25 +125,11 @@ pub(super) fn fixed_linear_main_extent(
     axis: VirtualizationAxis,
 ) -> Option<f32> {
     let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
-    let spacing = content.policy.spacing.max(0.0);
-    let spacing_total = spacing * content.children.len().saturating_sub(1) as f32;
-    let mut total = spacing_total;
-    for child in &content.children {
-        let SizeModeMain::Fixed(size) = child.slot.size_main else {
-            return None;
-        };
-        let main = if horizontal {
-            child.slot.constraints.clamp_w(size.max(0.0))
-                + child.slot.margin.left
-                + child.slot.margin.right
-        } else {
-            child.slot.constraints.clamp_h(size.max(0.0))
-                + child.slot.margin.top
-                + child.slot.margin.bottom
-        };
-        total += main;
+    if horizontal {
+        content.fixed_main_extent_horizontal
+    } else {
+        content.fixed_main_extent_vertical
     }
-    Some(total)
 }
 
 /// Return true when virtualized metrics are safe to consume.

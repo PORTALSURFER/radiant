@@ -37,6 +37,12 @@ fn main() {
         LAYOUT_ITERATIONS,
         bench_virtualized_fixed_10k,
     );
+    let mut fixed_scroll = StatefulVirtualizedScrollBench::new();
+    run_scenario(
+        "layout_virtualized_fixed_scroll_10k",
+        LAYOUT_ITERATIONS,
+        move || fixed_scroll.step(),
+    );
     run_scenario(
         "runtime_surface_large_tree",
         RUNTIME_ITERATIONS,
@@ -161,6 +167,55 @@ fn bench_virtualized_fixed_10k() {
     assert!(output.stats.materialized_nodes < 256);
     assert!(output.stats.measured_nodes < 64);
     black_box(output);
+}
+
+struct StatefulVirtualizedScrollBench {
+    root: LayoutNode,
+    engine: radiant::layout::LayoutEngine,
+    state: LayoutState,
+    offset: f32,
+}
+
+impl StatefulVirtualizedScrollBench {
+    fn new() -> Self {
+        let root = virtualized_scroll_tree(10_000, SizeModeMain::Fixed(28.0));
+        let mut engine = radiant::layout::LayoutEngine::default();
+        let state = LayoutState::default();
+        let output = engine.layout_with_state(
+            &root,
+            viewport(300.0, 140.0),
+            &state,
+            LayoutDebugOptions::default(),
+        );
+        assert!(output.virtual_windows.contains_key(&1));
+        Self {
+            root,
+            engine,
+            state,
+            offset: 0.0,
+        }
+    }
+
+    fn step(&mut self) {
+        self.offset = (self.offset + 360.0) % 120_000.0;
+        self.state
+            .scroll_offsets
+            .insert(1, Vector2::new(0.0, self.offset));
+        let output = self.engine.layout_with_state(
+            &self.root,
+            viewport(300.0, 140.0),
+            &self.state,
+            LayoutDebugOptions::default(),
+        );
+        let window = output
+            .virtual_windows
+            .get(&1)
+            .expect("virtual window metadata");
+        assert_eq!(window.total_children, 10_000);
+        assert!(output.stats.materialized_nodes < 256);
+        assert!(output.stats.measured_nodes < 64);
+        black_box(output);
+    }
 }
 
 fn virtualized_scroll_tree(count: u64, size_main: SizeModeMain) -> LayoutNode {

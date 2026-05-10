@@ -144,24 +144,23 @@ impl GpuSurfaceRenderer {
         buckets: &[GpuSignalSummaryBucket],
         uniforms: &SignalUniforms,
     ) {
-        let values = summary_buckets_as_f32s(buckets);
-        if self.signals.get(&key).is_some_and(|buffer| {
+        let sample_count = summary_bucket_value_count(buckets);
+        if let Some(buffer) = self.signals.get(&key).filter(|buffer| {
             buffer.revision == revision
-                && buffer.sample_count == values.len()
+                && buffer.sample_count == sample_count
                 && buffer.pipeline_generation == self.signal_pipeline_generation
         }) {
-            if let Some(buffer) = self.signals.get(&key) {
-                queue.write_buffer(
-                    &buffer.uniform_buffer,
-                    0,
-                    signal_uniforms_as_bytes(uniforms),
-                );
-            }
+            queue.write_buffer(
+                &buffer.uniform_buffer,
+                0,
+                signal_uniforms_as_bytes(uniforms),
+            );
             return;
         }
         let Some(pipeline) = self.signal_pipeline.as_ref() else {
             return;
         };
+        let values = summary_buckets_as_f32s(buckets);
         let sample_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("radiant_gpu_signal_summary_buckets"),
             contents: summary_bucket_bytes(&values),

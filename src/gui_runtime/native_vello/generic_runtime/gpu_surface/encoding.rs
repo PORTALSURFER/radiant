@@ -17,6 +17,10 @@ pub(super) fn summary_buckets_as_f32s(buckets: &[GpuSignalSummaryBucket]) -> Vec
     values
 }
 
+pub(super) fn summary_bucket_value_count(buckets: &[GpuSignalSummaryBucket]) -> usize {
+    buckets.len().saturating_mul(2)
+}
+
 pub(super) fn summary_bucket_bytes(values: &[f32]) -> &[u8] {
     gpu_upload_slice_as_bytes(values)
 }
@@ -75,6 +79,7 @@ mod tests {
         let values = summary_buckets_as_f32s(&buckets);
 
         assert_eq!(values, vec![-0.25, 0.75, -1.0, 1.0]);
+        assert_eq!(summary_bucket_value_count(&buckets), values.len());
         assert_eq!(
             summary_bucket_bytes(&values).len(),
             values.len() * std::mem::size_of::<f32>()

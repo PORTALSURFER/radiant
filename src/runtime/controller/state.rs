@@ -31,17 +31,23 @@ where
     }
 
     pub(super) fn relayout(&mut self) {
+        let traversal = self.surface.runtime_traversal_index();
+        self.relayout_with_traversal(traversal);
+    }
+
+    pub(super) fn relayout_with_traversal(&mut self, traversal: SurfaceTraversalIndex) {
         self.layout = layout_tree_with_state(
             &self.surface.layout_node(),
             self.viewport,
             &self.layout_state,
             LayoutDebugOptions::default(),
         );
-        self.widget_hit_order = self.surface.widget_paint_order();
-        self.styled_container_hit_order = self.surface.styled_container_order();
-        self.scroll_hit_order = self.surface.scroll_container_order();
-        self.widget_clip_ancestors = self.surface.widget_clip_ancestors();
-        self.container_clip_ancestors = self.surface.container_clip_ancestors();
+        self.widget_hit_order = traversal.widget_paint_order;
+        self.styled_container_hit_order = traversal.styled_container_order;
+        self.scroll_hit_order = traversal.scroll_container_order;
+        self.widget_clip_ancestors = traversal.widget_clip_ancestors;
+        self.container_clip_ancestors = traversal.container_clip_ancestors;
+        self.scroll_content_by_container = traversal.scroll_content_by_container;
         self.sync_scroll_offsets();
     }
 
@@ -57,7 +63,7 @@ where
                 let child_rect = self
                     .layout
                     .rects
-                    .get(&self.surface.scroll_content_id(diagnostic.node_id)?)?;
+                    .get(self.scroll_content_by_container.get(&diagnostic.node_id)?)?;
                 let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
                 Some((
                     diagnostic.node_id,

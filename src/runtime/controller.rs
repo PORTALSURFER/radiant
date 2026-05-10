@@ -16,7 +16,9 @@ pub use commands::CommandOutcome;
 pub use context::RuntimeContext;
 pub use events::Event;
 
-use super::{Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, UiSurface};
+use super::{
+    Command, RuntimeBridge, SurfaceFrame, SurfacePaintPlan, SurfaceTraversalIndex, UiSurface,
+};
 use crate::{
     gui::{
         focus::FocusSurface,
@@ -64,6 +66,7 @@ where
     scroll_hit_order: Vec<NodeId>,
     widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
     container_clip_ancestors: BTreeMap<NodeId, Vec<NodeId>>,
+    scroll_content_by_container: BTreeMap<NodeId, NodeId>,
     focused_widget: Option<WidgetId>,
     pending_key_chord: Option<KeyPress>,
     hovered_container: Option<NodeId>,
@@ -89,22 +92,19 @@ where
             &layout_state,
             LayoutDebugOptions::default(),
         );
-        let widget_hit_order = surface.widget_paint_order();
-        let styled_container_hit_order = surface.styled_container_order();
-        let scroll_hit_order = surface.scroll_container_order();
-        let widget_clip_ancestors = surface.widget_clip_ancestors();
-        let container_clip_ancestors = surface.container_clip_ancestors();
+        let traversal = surface.runtime_traversal_index();
         Self {
             bridge,
             viewport,
             surface,
             layout,
             layout_state,
-            widget_hit_order,
-            styled_container_hit_order,
-            scroll_hit_order,
-            widget_clip_ancestors,
-            container_clip_ancestors,
+            widget_hit_order: traversal.widget_paint_order,
+            styled_container_hit_order: traversal.styled_container_order,
+            scroll_hit_order: traversal.scroll_container_order,
+            widget_clip_ancestors: traversal.widget_clip_ancestors,
+            container_clip_ancestors: traversal.container_clip_ancestors,
+            scroll_content_by_container: traversal.scroll_content_by_container,
             focused_widget: None,
             pending_key_chord: None,
             hovered_container: None,
@@ -125,10 +125,11 @@ where
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
         let mut next_surface = self.bridge.pull_surface();
-        next_surface.synchronize_widget_state_from(&self.surface);
+        let traversal = next_surface.runtime_traversal_index();
+        next_surface.synchronize_widget_state_from(&self.surface, &traversal.widget_paint_order);
         self.surface = next_surface;
         self.restore_pointer_capture_state();
-        self.relayout();
+        self.relayout_with_traversal(traversal);
         if self
             .focused_widget
             .is_some_and(|widget_id| !self.surface.is_focusable_widget(widget_id))

@@ -51,6 +51,7 @@ pub(crate) use paint::{
     optical_centered_baseline, push_axis_stroke, push_text_run, text_font_size,
 };
 pub use resource::{ResourceKey, ResourceLoad, ResourceLoadState, ResourceRequest, ResourceSlot};
+pub(in crate::runtime) use surface::SurfaceTraversalIndex;
 pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,
     SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,

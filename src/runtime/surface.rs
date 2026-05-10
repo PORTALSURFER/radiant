@@ -1,19 +1,18 @@
 //! Generic declarative view-tree types for message-driven Radiant hosts.
 
 mod builders;
-mod clipping;
 mod focus;
 mod frame;
 mod input;
 mod layout;
 mod node;
 mod paint;
-mod scroll;
 mod traversal;
 mod widget;
 
 pub use frame::SurfaceFrame;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
+pub(in crate::runtime) use traversal::SurfaceTraversalIndex;
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 
 use super::paint::SurfacePaintPlan;
@@ -126,12 +125,16 @@ impl<Message> UiSurface<Message> {
             .is_some_and(SurfaceWidget::is_focusable)
     }
 
-    pub(in crate::runtime) fn synchronize_widget_state_from(&mut self, previous: &Self) {
-        for widget_id in self.widget_paint_order() {
-            let Some(previous_widget) = previous.find_widget(widget_id) else {
+    pub(in crate::runtime) fn synchronize_widget_state_from(
+        &mut self,
+        previous: &Self,
+        widget_order: &[WidgetId],
+    ) {
+        for widget_id in widget_order {
+            let Some(previous_widget) = previous.find_widget(*widget_id) else {
                 continue;
             };
-            let Some(widget) = self.find_widget_mut(widget_id) else {
+            let Some(widget) = self.find_widget_mut(*widget_id) else {
                 continue;
             };
             widget

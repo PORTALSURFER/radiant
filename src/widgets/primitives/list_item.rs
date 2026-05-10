@@ -5,10 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{ListItemMessage, PointerButton, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{ListItemMessage, WidgetInput, WidgetOutput};
 
+mod input;
 mod paint;
 
 /// Public list-row or list-item primitive.
@@ -36,41 +37,7 @@ impl ListItemWidget {
 
     /// Route one backend-neutral interaction into the list item.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<ListItemMessage> {
-        if self.common.state.disabled {
-            return None;
-        }
-
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.pressed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                let was_pressed = self.common.state.pressed;
-                self.common.state.pressed = false;
-                (was_pressed && bounds.contains(position)).then_some(ListItemMessage::Invoked)
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                None
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused && activate_on_keyboard(key) =>
-            {
-                Some(ListItemMessage::Invoked)
-            }
-            _ => None,
-        }
+        input::handle_list_item_input(self, bounds, input)
     }
 }
 

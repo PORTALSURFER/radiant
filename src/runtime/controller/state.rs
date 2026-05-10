@@ -31,8 +31,9 @@ where
     }
 
     pub(super) fn relayout(&mut self) {
-        self.layout_root = self.surface.layout_node();
-        let traversal = self.surface.runtime_traversal_index();
+        let projection = self.surface.runtime_projection();
+        self.layout_root = projection.layout_root;
+        let traversal = projection.traversal;
         self.relayout_with_traversal(traversal);
     }
 

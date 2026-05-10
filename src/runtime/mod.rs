@@ -56,4 +56,6 @@ pub use surface::{
     Element, MessageMapper, SurfaceChild, SurfaceContainer, SurfaceFrame, SurfaceNode,
     SurfaceOverlay, SurfaceWidget, UiSurface, View, WidgetMessageMapper,
 };
-pub(in crate::runtime) use surface::{SurfaceTraversalIndex, WidgetDispatchResult};
+pub(in crate::runtime) use surface::{
+    SurfaceRuntimeProjection, SurfaceTraversalIndex, WidgetDispatchResult,
+};

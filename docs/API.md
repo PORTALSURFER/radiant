@@ -429,7 +429,9 @@ declared by widget contracts rather than by host-domain code.
 clamp/round contract for adapters that must project logical pointer positions
 into compact integer coordinates.
 `radiant::gui::text_layout::snap_text_baseline_to_pixel` provides shared
-baseline snapping for retained text rows.
+baseline snapping for retained text rows. `TextLineLayoutCache` lets renderer
+adapters own text-line placement caches explicitly instead of sharing a
+process-global lock.
 `Rect::inset_horizontal` provides product-neutral horizontal text and control
 inset geometry.
 `Rect::center` provides shared midpoint geometry for routing, hit testing, and
@@ -632,9 +634,12 @@ visibility, a primary text value, fixed-size toggle state, and an auxiliary
 label without owning product-specific preference names.
 
 `radiant::gui::text_layout` contains retained text-line placement helpers such
-as `TextLineInsets`, `centered_text_line`, and `top_text_line`. These helpers
-provide deterministic cached geometry for renderer adapters that need to place
-single-line labels without owning host-domain text semantics.
+as `TextLineInsets`, `centered_text_line`, `top_text_line`, and
+`TextLineLayoutCache`. The plain placement helpers are deterministic and
+side-effect free; renderer adapters that need retention can pass an owned cache
+to `centered_text_line_with_cache` or `top_text_line_with_cache`. That keeps
+hot-path text geometry reuse explicit, backend-owned, and free of hidden global
+synchronization while avoiding host-domain text semantics.
 
 `radiant::gui::visualization` contains generic visualization models such as
 `TimelineViewport`, `TimelineTransportState`, `TimelineEditPreview`,

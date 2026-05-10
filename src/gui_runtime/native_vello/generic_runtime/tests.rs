@@ -72,6 +72,38 @@ fn generic_core_routes_pointer_and_key_input_to_host_messages() {
 }
 
 #[test]
+fn generic_core_routes_text_edit_commands_only_to_text_inputs() {
+    let bridge = demo_bridge();
+    let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));
+    let button_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&11)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("button should be laid out");
+
+    assert!(
+        core.route_pointer_press(button_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(!core.route_text_edit(TextEditCommand::SelectAll).routed);
+
+    let input_point = core
+        .runtime
+        .layout()
+        .rects
+        .get(&12)
+        .map(|rect| Point::new(rect.min.x + 2.0, rect.min.y + 2.0))
+        .expect("text input should be laid out");
+    assert!(
+        core.route_pointer_press(input_point, PointerButton::Primary)
+            .routed
+    );
+    assert!(core.route_text_edit(TextEditCommand::SelectAll).routed);
+}
+
+#[test]
 fn generic_canvas_can_receive_keyboard_focus_and_text_input() {
     let bridge = CanvasBridge::default();
     let mut core = GenericNativeRuntimeCore::new(bridge, Vector2::new(320.0, 40.0));

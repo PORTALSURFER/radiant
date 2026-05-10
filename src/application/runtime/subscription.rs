@@ -1,3 +1,10 @@
+use super::AppRuntime;
+use std::{
+    sync::{Arc, Weak},
+    thread,
+    time::Duration,
+};
+
 /// App-level subscription sources evaluated when the native runtime starts.
 pub enum Subscription<Message> {
     /// No subscription.
@@ -55,10 +62,7 @@ impl<Message> Subscription<Message> {
     }
 
     /// Build a worker-message subscription from a receiver.
-    pub const fn worker(
-        id: &'static str,
-        receiver: std::sync::mpsc::Receiver<Message>,
-    ) -> Self {
+    pub const fn worker(id: &'static str, receiver: std::sync::mpsc::Receiver<Message>) -> Self {
         Self::Worker { id, receiver }
     }
 
@@ -75,7 +79,7 @@ impl<Message> Subscription<Message> {
     }
 }
 
-fn spawn_subscription<Message>(
+pub(super) fn spawn_subscription<Message>(
     runtime: Weak<AppRuntime<Message>>,
     subscription: Subscription<Message>,
 ) where
@@ -154,8 +158,17 @@ mod subscription_tests {
         };
 
         assert_eq!(subscriptions.len(), 3);
-        assert!(matches!(subscriptions[0], Subscription::Interval { id: "first", .. }));
-        assert!(matches!(subscriptions[1], Subscription::Worker { id: "second", .. }));
-        assert!(matches!(subscriptions[2], Subscription::Interval { id: "third", .. }));
+        assert!(matches!(
+            subscriptions[0],
+            Subscription::Interval { id: "first", .. }
+        ));
+        assert!(matches!(
+            subscriptions[1],
+            Subscription::Worker { id: "second", .. }
+        ));
+        assert!(matches!(
+            subscriptions[2],
+            Subscription::Interval { id: "third", .. }
+        ));
     }
 }

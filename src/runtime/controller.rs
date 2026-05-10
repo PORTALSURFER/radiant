@@ -57,6 +57,7 @@ where
     bridge: Bridge,
     viewport: Rect,
     surface: UiSurface<Message>,
+    layout_root: crate::layout::LayoutNode,
     layout_engine: LayoutEngine,
     layout: LayoutOutput,
     layout_state: LayoutState,
@@ -65,6 +66,7 @@ where
     pointer_hit_order: Vec<WidgetId>,
     container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
+    wheel_hit_order: Vec<WidgetId>,
     styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
     widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
@@ -88,10 +90,11 @@ where
     pub fn new(mut bridge: Bridge, viewport: Vector2) -> Self {
         let viewport = state::normalized_viewport(viewport);
         let surface = bridge.pull_surface();
+        let layout_root = surface.layout_node();
         let layout_state = LayoutState::default();
         let mut layout_engine = LayoutEngine::default();
         let layout = layout_engine.layout_with_state(
-            &surface.layout_node(),
+            &layout_root,
             viewport,
             &layout_state,
             LayoutDebugOptions::default(),
@@ -101,6 +104,7 @@ where
             bridge,
             viewport,
             surface,
+            layout_root,
             layout_engine,
             layout,
             layout_state,
@@ -109,6 +113,7 @@ where
             pointer_hit_order: traversal.pointer_hit_order,
             container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
+            wheel_hit_order: traversal.wheel_hit_order,
             styled_container_hit_order: traversal.styled_container_order,
             scroll_hit_order: traversal.scroll_container_order,
             widget_clip_ancestors: traversal.widget_clip_ancestors,
@@ -137,6 +142,7 @@ where
         let traversal = next_surface.runtime_traversal_index();
         next_surface.synchronize_widget_state_from(&self.surface);
         self.surface = next_surface;
+        self.layout_root = self.surface.layout_node();
         self.restore_pointer_capture_state();
         self.relayout_with_traversal(traversal);
         if self

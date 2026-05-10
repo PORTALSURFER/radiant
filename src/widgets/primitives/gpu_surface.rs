@@ -112,6 +112,10 @@ impl Widget for GpuSurfaceWidget {
             .then(|| WidgetOutput::typed(GpuSurfaceMessage::Input { input }))
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        self.emits_input || self.capabilities.coalesce_vertical_wheel
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

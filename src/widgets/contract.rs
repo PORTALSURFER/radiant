@@ -211,6 +211,11 @@ pub trait Widget: WidgetClone + Send + Sync + Any {
         false
     }
 
+    /// Return whether this widget wants wheel input before scroll fallback.
+    fn accepts_wheel_input(&self) -> bool {
+        false
+    }
+
     /// Return the selected text for focused text-editing widgets.
     fn selected_text(&self) -> Option<String> {
         None

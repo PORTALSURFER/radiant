@@ -84,6 +84,10 @@ impl Widget for CanvasWidget {
         CanvasWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

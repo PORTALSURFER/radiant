@@ -33,7 +33,7 @@ where
             })
     }
 
-    fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
+    pub(super) fn widget_clip_contains_point(&self, widget_id: WidgetId, point: Point) -> bool {
         self.widget_clip_ancestors
             .get(&widget_id)
             .is_none_or(|clip_nodes| {

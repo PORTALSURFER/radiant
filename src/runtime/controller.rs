@@ -28,10 +28,7 @@ use crate::{
         layout_tree_with_state,
     },
     theme::ThemeTokens,
-    widgets::{
-        FocusBehavior, ScrollbarState, ScrollbarWidget, TextInputState, TextInputWidget, WidgetId,
-        WidgetInput, WidgetKey, WidgetState,
-    },
+    widgets::{FocusBehavior, WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
 use std::collections::BTreeMap;
 
@@ -73,8 +70,6 @@ where
     hovered_widget: Option<WidgetId>,
     pointer_capture: Option<WidgetId>,
     pointer_capture_state: Option<(WidgetId, WidgetState)>,
-    scrollbar_states: BTreeMap<WidgetId, ScrollbarState>,
-    text_input_states: BTreeMap<WidgetId, TextInputState>,
     repaint_requested: bool,
     exit_requested: bool,
 }
@@ -116,8 +111,6 @@ where
             hovered_widget: None,
             pointer_capture: None,
             pointer_capture_state: None,
-            scrollbar_states: BTreeMap::new(),
-            text_input_states: BTreeMap::new(),
             repaint_requested: false,
             exit_requested: false,
         }
@@ -131,9 +124,9 @@ where
 
     /// Reproject the latest host state into a fresh immutable surface snapshot.
     pub fn refresh(&mut self) {
-        self.surface = self.bridge.pull_surface();
-        self.restore_text_input_states();
-        self.restore_scrollbar_states();
+        let mut next_surface = self.bridge.pull_surface();
+        next_surface.synchronize_widget_state_from(&self.surface);
+        self.surface = next_surface;
         self.restore_pointer_capture_state();
         self.relayout();
         if self
@@ -174,11 +167,9 @@ where
             return false;
         };
         let Some(output) = self.surface.dispatch_widget_input(widget_id, bounds, input) else {
-            self.capture_text_input_state(widget_id);
             self.capture_pointer_capture_state(widget_id);
             return self.surface.find_widget(widget_id).is_some();
         };
-        self.capture_text_input_state(widget_id);
         self.capture_pointer_capture_state(widget_id);
         if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
             self.dispatch_message(message);

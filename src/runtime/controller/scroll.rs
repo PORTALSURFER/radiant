@@ -66,11 +66,9 @@ where
                 delta,
             },
         ) else {
-            self.capture_text_input_state(widget_id);
             self.capture_pointer_capture_state(widget_id);
             return false;
         };
-        self.capture_text_input_state(widget_id);
         self.capture_pointer_capture_state(widget_id);
         if let Some(message) = self.surface.dispatch_widget_output(widget_id, output) {
             if refresh_after_message {

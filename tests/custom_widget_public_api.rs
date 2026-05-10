@@ -36,6 +36,7 @@ enum CustomWidgetMessage {
 struct CustomStatusWidget {
     common: WidgetCommon,
     label: &'static str,
+    activation_count: usize,
 }
 
 impl CustomStatusWidget {
@@ -45,6 +46,7 @@ impl CustomStatusWidget {
         Self {
             common,
             label: "custom",
+            activation_count: 0,
         }
     }
 }
@@ -68,9 +70,11 @@ impl Widget for CustomStatusWidget {
                 position,
                 button: PointerButton::Primary,
             } if bounds.contains(position) => {
+                self.activation_count += 1;
                 Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
             }
             WidgetInput::KeyPress(WidgetKey::Enter) if self.common.state.focused => {
+                self.activation_count += 1;
                 Some(WidgetOutput::custom(CustomWidgetMessage::Activated))
             }
             WidgetInput::FocusChanged(focused) => {
@@ -78,6 +82,12 @@ impl Widget for CustomStatusWidget {
                 None
             }
             _ => None,
+        }
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<CustomStatusWidget>() {
+            self.activation_count = previous.activation_count;
         }
     }
 
@@ -117,6 +127,51 @@ fn widget_fill_color(plan: &radiant::runtime::SurfacePaintPlan, widget_id: u64) 
             PaintPrimitive::FillRect(fill) if fill.widget_id == widget_id => Some(fill.color),
             _ => None,
         })
+}
+
+#[test]
+fn runtime_lets_custom_widgets_reconcile_retained_state_after_refresh() {
+    use radiant::prelude as ui;
+
+    let bridge = ui::app(DemoState::default())
+        .view(|state| {
+            ui::column([
+                ui::custom_widget_mapped(
+                    CustomStatusWidget::new(1),
+                    |message: CustomWidgetMessage| DemoMessage::Rename(format!("{message:?}")),
+                )
+                .id(30),
+                ui::text(state.name.clone()).id(31),
+            ])
+        })
+        .update(|state, message| {
+            if let DemoMessage::Rename(name) = message {
+                state.name = name;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(160.0, 48.0));
+
+    assert!(runtime.dispatch_input(
+        30,
+        WidgetInput::PointerRelease {
+            position: Point::new(12.0, 12.0),
+            button: PointerButton::Primary,
+        },
+    ));
+
+    let custom = runtime
+        .surface()
+        .find_widget(30)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<CustomStatusWidget>()
+        })
+        .expect("custom widget should remain projected");
+
+    assert_eq!(custom.activation_count, 1);
 }
 
 #[test]

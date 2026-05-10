@@ -63,6 +63,22 @@ impl Widget for TextInputWidget {
         TextInputWidget::handle_input(self, bounds, input).map(WidgetOutput::typed)
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        if let Some(previous) = previous.as_any().downcast_ref::<TextInputWidget>()
+            && self.state.value == previous.state.value
+        {
+            self.state = previous.state.clone();
+        }
+    }
+
+    fn accepts_text_input(&self) -> bool {
+        true
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        self.selected_text()
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

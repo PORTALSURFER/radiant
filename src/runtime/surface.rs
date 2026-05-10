@@ -125,4 +125,18 @@ impl<Message> UiSurface<Message> {
         self.find_widget(widget_id)
             .is_some_and(SurfaceWidget::is_focusable)
     }
+
+    pub(in crate::runtime) fn synchronize_widget_state_from(&mut self, previous: &Self) {
+        for widget_id in self.widget_paint_order() {
+            let Some(previous_widget) = previous.find_widget(widget_id) else {
+                continue;
+            };
+            let Some(widget) = self.find_widget_mut(widget_id) else {
+                continue;
+            };
+            widget
+                .widget_object_mut()
+                .synchronize_from_previous(previous_widget.widget_object());
+        }
+    }
 }

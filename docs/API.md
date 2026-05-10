@@ -233,6 +233,11 @@ Widget identity is explicit through stable `WidgetId` values. Stable identity is
 required for focus, input capture, message routing, and efficient updates.
 The application view builders generate IDs as a convenience, then lower into these
 same `SurfaceNode`, `SurfaceChild`, and `WidgetSizing` contracts.
+When a host update reprojects the surface, the runtime matches widgets by stable
+ID and calls `Widget::synchronize_from_previous(...)`. Built-in widgets use that
+hook for transient interaction state such as text-input caret/selection and
+scrollbar drag grip state, and custom widgets can use the same hook for their
+own retained state without adding runtime downcasts or central widget cases.
 
 ## Message And Command
 

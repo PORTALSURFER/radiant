@@ -36,26 +36,46 @@ pub(super) fn layout_linear(
         );
         let cursor_main_start = window.cursor_main_start;
         let distributed_spacing = window.metrics.distributed_spacing;
-        let sizes = if window.first <= window.last_exclusive
-            && window.last_exclusive <= window.metrics.main_sizes.len()
-        {
-            &window.metrics.main_sizes[window.first..window.last_exclusive]
+        if let Some(uniform) = window.metrics.uniform {
+            if window.last_exclusive <= uniform.count {
+                place_linear_children(
+                    container,
+                    content,
+                    horizontal,
+                    available_cross,
+                    &states,
+                    LinearChildSizes::Uniform {
+                        main_size: uniform.main_size,
+                        len: states.len(),
+                    },
+                    cursor_main_start,
+                    distributed_spacing,
+                    context,
+                );
+                return;
+            }
         } else {
-            &[]
-        };
-        if sizes.len() == states.len() {
-            place_linear_children(
-                container,
-                content,
-                horizontal,
-                available_cross,
-                &states,
-                sizes,
-                cursor_main_start,
-                distributed_spacing,
-                context,
-            );
-            return;
+            let sizes = if window.first <= window.last_exclusive
+                && window.last_exclusive <= window.metrics.main_sizes.len()
+            {
+                &window.metrics.main_sizes[window.first..window.last_exclusive]
+            } else {
+                &[]
+            };
+            if sizes.len() == states.len() {
+                place_linear_children(
+                    container,
+                    content,
+                    horizontal,
+                    available_cross,
+                    &states,
+                    LinearChildSizes::Slice(sizes),
+                    cursor_main_start,
+                    distributed_spacing,
+                    context,
+                );
+                return;
+            }
         }
         context.push_diagnostic(
             container.id,
@@ -130,7 +150,7 @@ pub(super) fn layout_linear(
         horizontal,
         available_cross,
         &states,
-        &sizes,
+        LinearChildSizes::Slice(&sizes),
         leading,
         distributed_spacing,
         context,
@@ -139,6 +159,27 @@ pub(super) fn layout_linear(
     if total_main > available_main {
         let (x, y) = axis.overflow_flags();
         context.record_overflow(container.id, policy.overflow, x, y);
+    }
+}
+
+enum LinearChildSizes<'a> {
+    Slice(&'a [f32]),
+    Uniform { main_size: f32, len: usize },
+}
+
+impl LinearChildSizes<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Slice(sizes) => sizes.len(),
+            Self::Uniform { len, .. } => *len,
+        }
+    }
+
+    fn get(&self, index: usize) -> Option<f32> {
+        match self {
+            Self::Slice(sizes) => sizes.get(index).copied(),
+            Self::Uniform { main_size, len } => (index < *len).then_some(*main_size),
+        }
     }
 }
 
@@ -178,11 +219,14 @@ fn place_linear_children(
     horizontal: bool,
     available_cross: f32,
     states: &[LinearLayoutState<'_>],
-    sizes: &[f32],
+    sizes: LinearChildSizes<'_>,
     leading: f32,
     distributed_spacing: f32,
     context: &mut LayoutContext,
 ) {
+    if sizes.len() != states.len() {
+        return;
+    }
     let mut cursor = leading;
     for (index, state) in states.iter().enumerate() {
         let slot_child = state.slot_child;
@@ -198,7 +242,9 @@ fn place_linear_children(
             slot.margin.bottom
         };
         cursor += main_margin_before;
-        let child_main = sizes[index].max(0.0);
+        let Some(child_main) = sizes.get(index).map(|size| size.max(0.0)) else {
+            return;
+        };
         let child_cross = resolve_cross_layout(
             horizontal,
             slot.size_cross,

@@ -16,10 +16,9 @@ use crate::{
         WidgetMessageMapper, declarative_command_runtime_bridge, run_native_vello_runtime,
     },
     widgets::{
-        BadgeWidget, ButtonWidget, CanvasWidget, CardWidget, DragHandleWidget, GpuSurfaceMessage,
-        GpuSurfaceWidget, ImageWidget, SelectableWidget, TextAlign, TextInputWidget, TextWidget,
-        TextWrap, ToggleWidget, Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle,
-        WidgetTone,
+        ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
+        TextAlign, TextInputWidget, TextWidget, TextWrap, ToggleWidget, Widget, WidgetOutput,
+        WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{
@@ -56,6 +55,7 @@ include!("application/property_panel.rs");
 include!("application/menu.rs");
 include!("application/retained_canvas.rs");
 include!("application/builders.rs");
-include!("application/control_builders.rs");
+mod control_builders;
+pub use control_builders::*;
 include!("application/layout_builders.rs");
 include!("application/ids.rs");

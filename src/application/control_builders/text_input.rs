@@ -1,3 +1,5 @@
+use super::*;
+
 /// Builder for text inputs that can emit messages or mutate state directly.
 pub struct TextInputBuilder {
     value: String,

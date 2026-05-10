@@ -1,14 +1,14 @@
 //! Shared linear virtualization resolution routines for ScrollView.
 
+use super::super::LayoutContext;
 use super::super::cache::{LinearVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
-    LinearLayoutState, align_main_offsets, allocate_fill_sizes, compress_if_needed,
-    main_margin_total, scale_sizes_to_fit,
+    LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
+    main_margin_total,
 };
 use super::super::measure::measure_node;
-use super::super::{LayoutContext, LayoutDiagnosticCode};
 use crate::gui::layout_core::constraints::Constraints;
-use crate::gui::layout_core::model::{OverflowPolicy, SizeModeMain, VirtualizationAxis};
+use crate::gui::layout_core::model::{SizeModeMain, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};
 use crate::gui::types::Vector2;
 use std::collections::BTreeSet;
@@ -161,45 +161,6 @@ fn collect_layout_states<'a>(
         states.push(LinearLayoutState::new(child, measured, main));
     }
     states
-}
-
-#[allow(clippy::too_many_arguments)]
-fn apply_linear_overflow_policy(
-    container: &ContainerNode,
-    horizontal: bool,
-    available_main: f32,
-    spacing_total: f32,
-    states: &[LinearLayoutState<'_>],
-    sizes: &mut [f32],
-    context: &mut LayoutContext,
-) {
-    let policy = container.policy.overflow;
-    let margin_total = main_margin_total(horizontal, states);
-
-    match policy {
-        OverflowPolicy::Clip => {
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-        }
-        OverflowPolicy::Scroll => {
-            context.push_diagnostic(
-                container.id,
-                LayoutDiagnosticCode::OverflowOccurred,
-                "linear container overflowed and delegated to scroll policy",
-            );
-        }
-        OverflowPolicy::Wrap => {
-            context.push_diagnostic(
-                container.id,
-                LayoutDiagnosticCode::OverflowPolicyDefaulted,
-                "overflow wrap policy is unsupported for Row/Column; use ContainerKind::Wrap",
-            );
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-        }
-        OverflowPolicy::Shrink => {
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-            scale_sizes_to_fit(available_main, sizes, margin_total, spacing_total);
-        }
-    }
 }
 
 fn resolve_main_for_virtual(

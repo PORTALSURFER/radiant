@@ -1,8 +1,9 @@
 //! Shared linear sizing and overflow helpers.
 
 use crate::gui::layout_core::constraints::Constraints;
-use crate::gui::layout_core::model::{MainAlign, SizeModeMain};
-use crate::gui::layout_core::tree::SlotChild;
+use crate::gui::layout_core::engine::{LayoutContext, LayoutDiagnosticCode};
+use crate::gui::layout_core::model::{MainAlign, OverflowPolicy, SizeModeMain};
+use crate::gui::layout_core::tree::{ContainerNode, SlotChild};
 use crate::gui::types::Vector2;
 
 pub(in crate::gui::layout_core::engine) struct LinearLayoutState<'a> {
@@ -123,7 +124,45 @@ pub(in crate::gui::layout_core::engine) fn compress_if_needed(
     }
 }
 
-pub(in crate::gui::layout_core::engine) fn scale_sizes_to_fit(
+pub(in crate::gui::layout_core::engine) fn apply_linear_overflow_policy(
+    container: &ContainerNode,
+    horizontal: bool,
+    available_main: f32,
+    spacing_total: f32,
+    states: &[LinearLayoutState<'_>],
+    sizes: &mut [f32],
+    context: &mut LayoutContext,
+) {
+    let policy = container.policy.overflow;
+    let margin_total = main_margin_total(horizontal, states);
+
+    match policy {
+        OverflowPolicy::Clip => {
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+        }
+        OverflowPolicy::Scroll => {
+            context.push_diagnostic(
+                container.id,
+                LayoutDiagnosticCode::OverflowOccurred,
+                "linear container overflowed and delegated to scroll policy",
+            );
+        }
+        OverflowPolicy::Wrap => {
+            context.push_diagnostic(
+                container.id,
+                LayoutDiagnosticCode::OverflowPolicyDefaulted,
+                "overflow wrap policy is unsupported for Row/Column; use ContainerKind::Wrap",
+            );
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+        }
+        OverflowPolicy::Shrink => {
+            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
+            scale_sizes_to_fit(available_main, sizes, margin_total, spacing_total);
+        }
+    }
+}
+
+fn scale_sizes_to_fit(
     available_main: f32,
     sizes: &mut [f32],
     main_margin_total: f32,

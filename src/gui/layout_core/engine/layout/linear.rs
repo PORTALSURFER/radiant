@@ -1,12 +1,12 @@
 //! Row and column layout implementation.
 
 use super::super::helpers::{
-    LinearLayoutState, align_main_offsets, allocate_fill_sizes, compress_if_needed,
-    main_margin_total, place_child_rect, scale_sizes_to_fit,
+    LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
+    main_margin_total, place_child_rect,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
-use crate::gui::layout_core::model::{OverflowPolicy, SizeModeCross, SizeModeMain, SlotParams};
+use crate::gui::layout_core::model::{SizeModeCross, SizeModeMain, SlotParams};
 use crate::gui::layout_core::tree::{ContainerNode, NodeId, SlotChild};
 use crate::gui::types::{Rect, Vector2};
 
@@ -150,44 +150,6 @@ pub(super) fn layout_linear(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn apply_linear_overflow_policy(
-    container: &ContainerNode,
-    horizontal: bool,
-    available_main: f32,
-    spacing_total: f32,
-    states: &[LinearLayoutState<'_>],
-    sizes: &mut [f32],
-    context: &mut LayoutContext,
-) {
-    let policy = container.policy.overflow;
-    let margin_total = main_margin_total(horizontal, states);
-
-    match policy {
-        OverflowPolicy::Clip => {
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-        }
-        OverflowPolicy::Scroll => {
-            context.push_diagnostic(
-                container.id,
-                LayoutDiagnosticCode::OverflowOccurred,
-                "linear container overflowed and delegated to scroll policy",
-            );
-        }
-        OverflowPolicy::Wrap => {
-            context.push_diagnostic(
-                container.id,
-                LayoutDiagnosticCode::OverflowPolicyDefaulted,
-                "overflow wrap policy is unsupported for Row/Column; use ContainerKind::Wrap",
-            );
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-        }
-        OverflowPolicy::Shrink => {
-            compress_if_needed(horizontal, available_main, states, sizes, spacing_total);
-            scale_sizes_to_fit(available_main, sizes, margin_total, spacing_total);
-        }
-    }
-}
-
 fn collect_layout_states<'a>(
     container: &'a ContainerNode,
     context: &mut LayoutContext,

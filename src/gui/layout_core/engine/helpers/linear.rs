@@ -13,6 +13,12 @@ pub(in crate::gui::layout_core::engine) struct LinearLayoutState<'a> {
     pub fill: f32,
 }
 
+pub(in crate::gui::layout_core::engine) struct LinearSizingSummary {
+    pub fixed_main: f32,
+    pub fill_weight: f32,
+    pub margin_total: f32,
+}
+
 impl<'a> LinearLayoutState<'a> {
     pub fn new(slot_child: &'a SlotChild, measured: Vector2, main: f32) -> Self {
         Self {
@@ -24,27 +30,70 @@ impl<'a> LinearLayoutState<'a> {
     }
 }
 
+pub(in crate::gui::layout_core::engine) fn linear_sizing_summary(
+    horizontal: bool,
+    states: &[LinearLayoutState<'_>],
+) -> LinearSizingSummary {
+    let mut fixed_main = 0.0;
+    let mut fill_weight = 0.0;
+    let mut margin_total = 0.0;
+    for state in states {
+        match state.slot_child.slot.size_main {
+            SizeModeMain::Fill(weight) => {
+                fill_weight += weight.max(0.0);
+            }
+            _ => {
+                fixed_main += state.main;
+            }
+        }
+        margin_total += if horizontal {
+            state.slot_child.slot.margin.left + state.slot_child.slot.margin.right
+        } else {
+            state.slot_child.slot.margin.top + state.slot_child.slot.margin.bottom
+        };
+    }
+    LinearSizingSummary {
+        fixed_main,
+        fill_weight,
+        margin_total,
+    }
+}
+
+pub(in crate::gui::layout_core::engine) fn resolved_main_sizes(
+    states: &[LinearLayoutState<'_>],
+) -> (Vec<f32>, f32) {
+    let mut total_main = 0.0;
+    let mut sizes = Vec::with_capacity(states.len());
+    for state in states {
+        let size = if state.fill > 0.0 {
+            state.fill
+        } else {
+            state.main
+        };
+        total_main += size;
+        sizes.push(size);
+    }
+    (sizes, total_main)
+}
+
 pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
     horizontal: bool,
     remaining: f32,
     total_weight: f32,
     states: &mut [LinearLayoutState<'_>],
 ) {
-    let mut unresolved: Vec<usize> = states
-        .iter()
-        .enumerate()
-        .filter_map(|(index, state)| match state.slot_child.slot.size_main {
-            SizeModeMain::Fill(weight) if weight > 0.0 => Some((index, weight)),
-            _ => None,
-        })
-        .map(|(index, _)| index)
-        .collect();
+    let mut unresolved = Vec::with_capacity(states.len());
+    for (index, state) in states.iter().enumerate() {
+        if matches!(state.slot_child.slot.size_main, SizeModeMain::Fill(weight) if weight > 0.0) {
+            unresolved.push(index);
+        }
+    }
 
     let mut remaining_space = remaining;
     let mut remaining_weight = total_weight;
     while !unresolved.is_empty() {
         let mut changed = false;
-        let mut next_unresolved = Vec::new();
+        let mut next_unresolved = Vec::with_capacity(unresolved.len());
         for index in unresolved {
             let state = &mut states[index];
             let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {

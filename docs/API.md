@@ -555,8 +555,8 @@ Run `cargo run --example split_workspace` for an editor-style split workspace
 that uses `SplitPaneSidebarState`, `SplitPaneSlot`, and generic Radiant views
 without adding docking-specific runtime concepts.
 Run `cargo run --example node_editor` for a node-editor-style workspace that
-composes retained canvas metadata, drop markers, card stacks, selectables, and
-drag handles through public application builders.
+composes retained canvas metadata, connection markers, draggable card stacks,
+selectables, and port rewiring through public application builders.
 Run `cargo run --example timeline_editor` for a timeline-editor-style sandbox
 that projects `TimelineSurfaceState`, `TimelineMotionState`, retained canvas
 metadata, marker selection, and transport controls through normal app views.

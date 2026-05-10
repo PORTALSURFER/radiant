@@ -1,6 +1,7 @@
 //! Fallback native-font discovery helpers for the Vello text renderer.
 
-use super::*;
+use std::path::PathBuf;
+use vello::peniko::{Blob, FontData};
 
 pub(super) fn load_native_font(preferred_paths: &[PathBuf]) -> Option<FontData> {
     for path in native_font_candidates(preferred_paths) {

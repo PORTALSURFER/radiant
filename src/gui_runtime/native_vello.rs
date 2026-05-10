@@ -7,22 +7,17 @@ use crate::gui::{
 };
 use crate::runtime::{PaintPrimitive, PaintTextAlign, PaintTextInput, RuntimeBridge};
 use crate::widgets::{RetainedSurfaceDescriptor, TextEditCommand, WidgetKey};
-use skrifa::{
-    MetadataProvider,
-    instance::{LocationRef, Size as FontSize},
-};
 use std::{
-    collections::{HashMap, VecDeque},
-    path::PathBuf,
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
 use vello::util::{RenderContext, RenderSurface};
 use vello::{
-    AaConfig, AaSupport, Glyph, RenderParams, Renderer, RendererOptions, Scene,
-    kurbo::{Affine, BezPath, Circle, Point as KurboPoint, Rect as KurboRect},
-    peniko::{Blob, Color, Fill, FontData, Gradient, ImageAlphaType, ImageData, ImageFormat},
+    AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene,
+    kurbo::{Affine, BezPath, Circle, Point as KurboPoint},
+    peniko::{Blob, Fill, Gradient, ImageAlphaType, ImageData, ImageFormat},
     wgpu,
 };
 use winit::{
@@ -31,7 +26,7 @@ use winit::{
     event::{ElementState, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, NamedKey, PhysicalKey},
-    window::{Icon, Window, WindowAttributes, WindowId},
+    window::{Window, WindowAttributes, WindowId},
 };
 
 mod generic_runtime;

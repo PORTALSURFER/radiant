@@ -1,6 +1,11 @@
 //! Layout-cache and atom-cache helpers for the native text renderer.
 
-use super::*;
+use super::{
+    NativeTextRenderer, TEXT_ATOM_CACHE_CAPACITY, TEXT_LAYOUT_CACHE_CAPACITY, TextLayout,
+    TextLayoutKey,
+};
+use std::sync::Arc;
+use vello::peniko::FontData;
 
 impl NativeTextRenderer {
     pub(super) fn layout_for<'a>(

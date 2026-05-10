@@ -14,22 +14,22 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 impl<Message> SurfaceNode<Message> {
     pub(super) fn synchronize_widget_state_from_paths(
         &mut self,
-        current_paths: &HashMap<WidgetId, Vec<usize>>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
         previous: &Self,
-        previous_paths: &HashMap<WidgetId, Vec<usize>>,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
     ) {
         for (widget_id, current_path) in current_paths {
             let Some(previous_path) = previous_paths.get(widget_id) else {
                 continue;
             };
             let Some(previous_widget) = previous
-                .find_widget_at_path(previous_path)
+                .find_widget_at_path(previous_path.as_slice())
                 .filter(|widget| widget.id() == *widget_id)
             else {
                 continue;
             };
             let Some(current_widget) = self
-                .find_widget_mut_at_path(current_path)
+                .find_widget_mut_at_path(current_path.as_slice())
                 .filter(|widget| widget.id() == *widget_id)
             else {
                 continue;
@@ -274,8 +274,14 @@ mod tests {
             },
         );
 
-        let previous_paths = HashMap::from([(10, vec![0]), (20, vec![1])]);
-        let current_paths = HashMap::from([(20, vec![0]), (10, vec![1])]);
+        let previous_paths = HashMap::from([
+            (10, WidgetPath::from_slice(&[0])),
+            (20, WidgetPath::from_slice(&[1])),
+        ]);
+        let current_paths = HashMap::from([
+            (20, WidgetPath::from_slice(&[0])),
+            (10, WidgetPath::from_slice(&[1])),
+        ]);
         current.synchronize_widget_state_from_paths(&current_paths, &previous, &previous_paths);
 
         let moved = current

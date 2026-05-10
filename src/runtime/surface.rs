@@ -14,7 +14,7 @@ pub use frame::SurfaceFrame;
 pub(in crate::runtime) use input::WidgetDispatchResult;
 pub(in crate::runtime) use layout::SurfaceRuntimeProjection;
 pub use node::{SurfaceChild, SurfaceContainer, SurfaceNode, SurfaceOverlay};
-pub(in crate::runtime) use traversal::SurfaceTraversalIndex;
+pub(in crate::runtime) use traversal::{SurfaceTraversalIndex, WidgetPath};
 pub use widget::{MessageMapper, SurfaceWidget, WidgetMessageMapper};
 
 use super::paint::SurfacePaintPlan;
@@ -116,12 +116,12 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn dispatch_widget_input_at_path(
         &mut self,
         widget_id: WidgetId,
-        child_path: &[usize],
+        child_path: &WidgetPath,
         bounds: crate::gui::types::Rect,
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
         self.root
-            .handle_input_at_path(widget_id, child_path, bounds, input)
+            .handle_input_at_path(widget_id, child_path.as_slice(), bounds, input)
     }
 
     pub(in crate::runtime) fn dispatch_widget_input_message(
@@ -137,12 +137,12 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn dispatch_widget_input_message_at_path(
         &mut self,
         widget_id: WidgetId,
-        child_path: &[usize],
+        child_path: &WidgetPath,
         bounds: crate::gui::types::Rect,
         input: WidgetInput,
     ) -> Option<WidgetDispatchResult<Message>> {
         self.root
-            .dispatch_input_at_path(widget_id, child_path, bounds, input)
+            .dispatch_input_at_path(widget_id, child_path.as_slice(), bounds, input)
     }
 
     /// Find one projected widget by stable id.
@@ -153,10 +153,10 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn find_widget_at_path(
         &self,
         widget_id: WidgetId,
-        child_path: &[usize],
+        child_path: &WidgetPath,
     ) -> Option<&SurfaceWidget<Message>> {
         self.root
-            .find_widget_at_path(child_path)
+            .find_widget_at_path(child_path.as_slice())
             .filter(|widget| widget.id() == widget_id)
     }
 
@@ -174,8 +174,8 @@ impl<Message> UiSurface<Message> {
     pub(in crate::runtime) fn synchronize_widget_state_from_paths(
         &mut self,
         previous: &Self,
-        current_paths: &HashMap<WidgetId, Vec<usize>>,
-        previous_paths: &HashMap<WidgetId, Vec<usize>>,
+        current_paths: &HashMap<WidgetId, WidgetPath>,
+        previous_paths: &HashMap<WidgetId, WidgetPath>,
     ) {
         self.root.synchronize_widget_state_from_paths(
             current_paths,

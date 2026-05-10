@@ -2,13 +2,52 @@ use super::*;
 use crate::layout::ContainerKind;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+const INLINE_WIDGET_PATH_LEN: usize = 4;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::runtime) struct WidgetPath {
+    inline: [usize; INLINE_WIDGET_PATH_LEN],
+    len: u8,
+    overflow: Option<Box<[usize]>>,
+}
+
+impl WidgetPath {
+    pub(in crate::runtime) fn from_slice(path: &[usize]) -> Self {
+        if path.len() <= INLINE_WIDGET_PATH_LEN {
+            let mut inline = [0; INLINE_WIDGET_PATH_LEN];
+            inline[..path.len()].copy_from_slice(path);
+            return Self {
+                inline,
+                len: path.len() as u8,
+                overflow: None,
+            };
+        }
+        Self {
+            inline: [0; INLINE_WIDGET_PATH_LEN],
+            len: 0,
+            overflow: Some(path.into()),
+        }
+    }
+
+    pub(in crate::runtime) fn as_slice(&self) -> &[usize] {
+        self.overflow
+            .as_deref()
+            .unwrap_or(&self.inline[..self.len as usize])
+    }
+
+    #[cfg(test)]
+    fn is_inline(&self) -> bool {
+        self.overflow.is_none()
+    }
+}
+
 pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) widget_paint_order: Vec<WidgetId>,
     pub(in crate::runtime) focusable_widget_order: Vec<WidgetId>,
     pub(in crate::runtime) keyboard_focus_order: Vec<WidgetId>,
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
-    pub(in crate::runtime) widget_paths: HashMap<WidgetId, Vec<usize>>,
+    pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
     pub(in crate::runtime) container_hover_suppression: BTreeSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
@@ -60,7 +99,7 @@ impl<Message> SurfaceNode<Message> {
                 index
                     .widget_paths
                     .entry(widget.id())
-                    .or_insert_with(|| child_path.clone());
+                    .or_insert_with(|| WidgetPath::from_slice(child_path));
                 if widget.is_focusable() {
                     index.focusable_widget_order.push(widget.id());
                 }
@@ -106,5 +145,21 @@ impl<Message> UiSurface<Message> {
         self.root
             .collect_runtime_index(&mut Vec::new(), &mut Vec::new(), &mut index);
         index
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn widget_path_uses_inline_storage_for_common_shallow_paths() {
+        let shallow = WidgetPath::from_slice(&[1, 2, 3, 4]);
+        assert!(shallow.is_inline());
+        assert_eq!(shallow.as_slice(), &[1, 2, 3, 4]);
+
+        let deep = WidgetPath::from_slice(&[1, 2, 3, 4, 5]);
+        assert!(!deep.is_inline());
+        assert_eq!(deep.as_slice(), &[1, 2, 3, 4, 5]);
     }
 }

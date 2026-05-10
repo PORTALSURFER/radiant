@@ -64,10 +64,13 @@ where
     widget_hit_order: Vec<WidgetId>,
     focusable_widget_order: Vec<WidgetId>,
     pointer_hit_order: Vec<WidgetId>,
+    visible_pointer_hit_order: Vec<WidgetId>,
     container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     wheel_hit_order: Vec<WidgetId>,
+    visible_wheel_hit_order: Vec<WidgetId>,
     styled_container_hit_order: Vec<NodeId>,
+    visible_styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
     widget_clip_ancestors: BTreeMap<WidgetId, Vec<NodeId>>,
     container_clip_ancestors: BTreeMap<NodeId, Vec<NodeId>>,
@@ -100,6 +103,10 @@ where
             LayoutDebugOptions::default(),
         );
         let traversal = surface.runtime_traversal_index();
+        let visible_pointer_hit_order = visible_hit_order(&layout, &traversal.pointer_hit_order);
+        let visible_wheel_hit_order = visible_hit_order(&layout, &traversal.wheel_hit_order);
+        let visible_styled_container_hit_order =
+            visible_hit_order(&layout, &traversal.styled_container_order);
         Self {
             bridge,
             viewport,
@@ -111,10 +118,13 @@ where
             widget_hit_order: traversal.widget_paint_order,
             focusable_widget_order: traversal.focusable_widget_order,
             pointer_hit_order: traversal.pointer_hit_order,
+            visible_pointer_hit_order,
             container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
             wheel_hit_order: traversal.wheel_hit_order,
+            visible_wheel_hit_order,
             styled_container_hit_order: traversal.styled_container_order,
+            visible_styled_container_hit_order,
             scroll_hit_order: traversal.scroll_container_order,
             widget_clip_ancestors: traversal.widget_clip_ancestors,
             container_clip_ancestors: traversal.container_clip_ancestors,
@@ -198,4 +208,12 @@ where
         }
         true
     }
+}
+
+fn visible_hit_order(layout: &LayoutOutput, order: &[NodeId]) -> Vec<NodeId> {
+    order
+        .iter()
+        .copied()
+        .filter(|node_id| layout.rects.contains_key(node_id))
+        .collect()
 }

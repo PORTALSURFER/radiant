@@ -6,7 +6,7 @@ where
 {
     /// Return the first projected widget whose laid-out bounds contain `point`.
     pub fn widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.pointer_hit_order
+        self.visible_pointer_hit_order
             .iter()
             .rev()
             .copied()
@@ -20,7 +20,7 @@ where
     }
 
     pub(super) fn styled_container_at(&self, point: Point) -> Option<NodeId> {
-        self.styled_container_hit_order
+        self.visible_styled_container_hit_order
             .iter()
             .rev()
             .copied()

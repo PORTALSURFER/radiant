@@ -85,7 +85,7 @@ where
     }
 
     fn wheel_widget_at(&self, point: Point) -> Option<WidgetId> {
-        self.wheel_hit_order
+        self.visible_wheel_hit_order
             .iter()
             .rev()
             .copied()

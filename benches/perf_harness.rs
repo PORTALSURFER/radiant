@@ -8,8 +8,8 @@ use radiant::{
         VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, RuntimeBridge,
-        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
+        Event, GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive,
+        RuntimeBridge, SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
     widgets::{ButtonWidget, GpuSurfaceWidget, TextWidget, WidgetSizing},
@@ -53,6 +53,12 @@ fn main() {
         "runtime_virtualized_list_wheel_10k",
         RUNTIME_ITERATIONS,
         move || virtualized_wheel.step(),
+    );
+    let mut virtualized_hover = StatefulVirtualizedHoverBench::new();
+    run_scenario(
+        "runtime_virtualized_list_hover_10k",
+        RUNTIME_ITERATIONS,
+        move || virtualized_hover.step(),
     );
     run_scenario(
         "gpu_signal_summary",
@@ -296,6 +302,33 @@ impl StatefulVirtualizedWheelBench {
             .runtime
             .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
         assert!(handled);
+        black_box(self.runtime.layout());
+    }
+}
+
+struct StatefulVirtualizedHoverBench {
+    runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
+    offset: f32,
+}
+
+impl StatefulVirtualizedHoverBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(VirtualWheelBridge, Vector2::new(220.0, 120.0)),
+            offset: 0.0,
+        }
+    }
+
+    fn step(&mut self) {
+        self.offset = (self.offset + 360.0) % 120_000.0;
+        let scrolled = self
+            .runtime
+            .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
+        assert!(scrolled);
+        let hovered = self.runtime.dispatch_event(Event::PointerMove {
+            position: Point::new(24.0, 24.0),
+        });
+        assert!(hovered.is_some());
         black_box(self.runtime.layout());
     }
 }

@@ -56,7 +56,9 @@ pub(super) struct LoadedFont {
 pub(super) struct NativeTextRenderer {
     loaded_font: Option<LoadedFont>,
     layout_cache: HashMap<TextLayoutKey, TextLayout>,
-    layout_cache_order: VecDeque<TextLayoutKey>,
+    layout_cache_order: VecDeque<(TextLayoutKey, u64)>,
+    layout_cache_stamps: HashMap<TextLayoutKey, u64>,
+    layout_cache_clock: u64,
     atom_cache: HashMap<Arc<str>, u64>,
     atom_cache_order: VecDeque<(Arc<str>, u64)>,
     atom_cache_clock: u64,
@@ -85,6 +87,8 @@ impl NativeTextRenderer {
             loaded_font,
             layout_cache: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
             layout_cache_order: VecDeque::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY),
+            layout_cache_stamps: HashMap::with_capacity(TEXT_LAYOUT_CACHE_CAPACITY / 2),
+            layout_cache_clock: 0,
             atom_cache: HashMap::with_capacity(TEXT_ATOM_CACHE_CAPACITY / 2),
             atom_cache_order: VecDeque::with_capacity(TEXT_ATOM_CACHE_CAPACITY),
             atom_cache_clock: 0,
@@ -177,6 +181,13 @@ pub(super) fn icon_from_rgba(icon: &WindowIconRgba) -> Option<Icon> {
 mod tests {
     use super::*;
 
+    fn layout_key(label: &str) -> TextLayoutKey {
+        TextLayoutKey {
+            text: Arc::from(label),
+            font_size_bits: 12.0_f32.to_bits(),
+        }
+    }
+
     #[test]
     fn empty_layout_preserves_terminal_cursor_stop() {
         let layout = TextLayout::empty_for("tempo");
@@ -225,5 +236,50 @@ mod tests {
 
         assert_eq!(renderer.atom_cache.len(), 1);
         assert!(renderer.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY);
+    }
+
+    #[test]
+    fn layout_cache_eviction_keeps_recently_used_entries() {
+        let mut renderer = NativeTextRenderer::new();
+        for index in 0..TEXT_LAYOUT_CACHE_CAPACITY {
+            let key = layout_key(&format!("label-{index}"));
+            renderer
+                .layout_cache
+                .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
+            renderer.touch_layout_cache_key(&key);
+        }
+
+        let hot_key = layout_key("label-0");
+        renderer.touch_layout_cache_key(&hot_key);
+        renderer.evict_stale_layouts();
+
+        let fresh_key = layout_key("label-fresh");
+        renderer.layout_cache.insert(
+            fresh_key.clone(),
+            TextLayout::empty_for(fresh_key.text.as_ref()),
+        );
+        renderer.touch_layout_cache_key(&fresh_key);
+
+        assert!(renderer.layout_cache.contains_key(&hot_key));
+        assert!(renderer.layout_cache.contains_key(&fresh_key));
+        assert!(renderer.layout_cache.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
+        assert_eq!(renderer.text_layout_evictions, 1);
+    }
+
+    #[test]
+    fn layout_cache_hit_queue_compacts_after_repeated_reuse() {
+        let mut renderer = NativeTextRenderer::new();
+        let key = layout_key("content row");
+        renderer
+            .layout_cache
+            .insert(key.clone(), TextLayout::empty_for(key.text.as_ref()));
+        renderer.touch_layout_cache_key(&key);
+
+        for _ in 0..=TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {
+            renderer.touch_layout_cache_key(&key);
+        }
+
+        assert_eq!(renderer.layout_cache.len(), 1);
+        assert!(renderer.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY);
     }
 }

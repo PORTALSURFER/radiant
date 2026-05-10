@@ -74,13 +74,47 @@ pub(in crate::gui::layout_core::engine) struct VirtualSpan {
     pub(super) end: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui::layout_core::engine) struct UniformVirtualMetrics {
+    pub(super) count: usize,
+    pub(super) main_size: f32,
+    pub(super) step: f32,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::gui::layout_core::engine) struct LinearVirtualMetrics {
     pub(super) spans: Vec<VirtualSpan>,
     pub(super) main_sizes: Vec<f32>,
+    pub(super) uniform: Option<UniformVirtualMetrics>,
     pub(super) total_main: f32,
     pub(super) leading_offset: f32,
     pub(super) distributed_spacing: f32,
+}
+
+impl LinearVirtualMetrics {
+    pub(super) fn len(&self) -> usize {
+        self.uniform
+            .map(|uniform| uniform.count)
+            .unwrap_or(self.spans.len())
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub(super) fn span(&self, index: usize) -> Option<VirtualSpan> {
+        if let Some(uniform) = self.uniform {
+            if index >= uniform.count {
+                return None;
+            }
+            let start = self.leading_offset + uniform.step * index as f32;
+            return Some(VirtualSpan {
+                start,
+                end: start + uniform.main_size,
+            });
+        }
+        self.spans.get(index).copied()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

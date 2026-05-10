@@ -1,7 +1,7 @@
 //! Shared linear virtualization resolution routines for ScrollView.
 
 use super::super::LayoutContext;
-use super::super::cache::{LinearVirtualMetrics, VirtualSpan};
+use super::super::cache::{LinearVirtualMetrics, UniformVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
     LinearLayoutState, align_main_offsets, allocate_fill_sizes, apply_linear_overflow_policy,
     main_margin_total,
@@ -29,6 +29,12 @@ pub(super) fn build_linear_metrics(
     .max(0.0);
 
     let spacing = content.policy.spacing.max(0.0);
+    if let Some(metrics) =
+        build_uniform_linear_metrics(content, axis, context, available_main, spacing)
+    {
+        return metrics;
+    }
+
     let mut states = collect_layout_states(content, context, horizontal, available_main);
 
     let fixed_main = states
@@ -112,9 +118,86 @@ pub(super) fn build_linear_metrics(
     LinearVirtualMetrics {
         spans,
         main_sizes,
+        uniform: None,
         total_main,
         leading_offset,
         distributed_spacing,
+    }
+}
+
+fn build_uniform_linear_metrics(
+    content: &ContainerNode,
+    axis: VirtualizationAxis,
+    context: &mut LayoutContext,
+    available_main: f32,
+    spacing: f32,
+) -> Option<LinearVirtualMetrics> {
+    let count = content.children.len();
+    if count == 0 {
+        return None;
+    }
+    let horizontal = matches!(axis, VirtualizationAxis::Horizontal);
+    let mut uniform_main: Option<f32> = None;
+    for child in &content.children {
+        if main_margin_total_for_slot(horizontal, child) > 0.0 {
+            return None;
+        }
+        let raw = match child.slot.size_main {
+            SizeModeMain::Fixed(value) => value,
+            SizeModeMain::Intrinsic => {
+                let measured = direct_widget_intrinsic_size(&child.child)?;
+                if horizontal { measured.x } else { measured.y }
+            }
+            SizeModeMain::Percent(_) | SizeModeMain::Fill(_) => return None,
+        };
+        let main = context.clamp_main(
+            child.child.id(),
+            horizontal,
+            child.slot.constraints,
+            raw.max(0.0),
+        );
+        if !main.is_finite() {
+            return None;
+        }
+        match uniform_main {
+            Some(expected) if (expected - main).abs() > f32::EPSILON => return None,
+            Some(_) => {}
+            None => uniform_main = Some(main),
+        }
+    }
+
+    let main_size = uniform_main?;
+    let spacing_total = spacing * count.saturating_sub(1) as f32;
+    let total_main = main_size * count as f32 + spacing_total;
+    if total_main > available_main + f32::EPSILON {
+        return None;
+    }
+    let (leading_offset, distributed_spacing) = align_main_offsets(
+        content.policy.align_main,
+        available_main,
+        total_main,
+        spacing,
+        count,
+    );
+    Some(LinearVirtualMetrics {
+        spans: Vec::new(),
+        main_sizes: Vec::new(),
+        uniform: Some(UniformVirtualMetrics {
+            count,
+            main_size,
+            step: main_size + distributed_spacing,
+        }),
+        total_main,
+        leading_offset,
+        distributed_spacing,
+    })
+}
+
+fn main_margin_total_for_slot(horizontal: bool, child: &SlotChild) -> f32 {
+    if horizontal {
+        child.slot.margin.left + child.slot.margin.right
+    } else {
+        child.slot.margin.top + child.slot.margin.bottom
     }
 }
 
@@ -134,7 +217,12 @@ pub(super) fn known_linear_main_extent(
 
 /// Return true when virtualized metrics are safe to consume.
 pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usize) -> bool {
-    if metrics.spans.len() != expected_len || metrics.main_sizes.len() != expected_len {
+    if metrics.len() != expected_len {
+        return false;
+    }
+    if metrics.uniform.is_none()
+        && (metrics.spans.len() != expected_len || metrics.main_sizes.len() != expected_len)
+    {
         return false;
     }
     if !metrics.total_main.is_finite()
@@ -142,6 +230,12 @@ pub(super) fn metrics_is_valid(metrics: &LinearVirtualMetrics, expected_len: usi
         || !metrics.distributed_spacing.is_finite()
     {
         return false;
+    }
+    if let Some(uniform) = metrics.uniform {
+        return uniform.main_size.is_finite()
+            && uniform.main_size >= 0.0
+            && uniform.step.is_finite()
+            && uniform.step >= 0.0;
     }
     metrics.spans.iter().all(|span| {
         span.start.is_finite()

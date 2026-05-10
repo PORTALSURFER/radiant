@@ -37,25 +37,25 @@ pub struct ContainerNode {
     pub children: Vec<SlotChild>,
     /// Version used by persistent layout caches.
     pub(crate) state_version: u64,
-    /// Precomputed horizontal fixed-row/column extent when every child has a fixed main size.
-    pub(crate) fixed_main_extent_horizontal: Option<f32>,
-    /// Precomputed vertical fixed-row/column extent when every child has a fixed main size.
-    pub(crate) fixed_main_extent_vertical: Option<f32>,
+    /// Precomputed horizontal row/column extent when every child has a direct known main size.
+    pub(crate) known_main_extent_horizontal: Option<f32>,
+    /// Precomputed vertical row/column extent when every child has a direct known main size.
+    pub(crate) known_main_extent_vertical: Option<f32>,
 }
 
 impl ContainerNode {
     /// Construct a container node with ordered slot children.
     pub fn new(id: NodeId, policy: ContainerPolicy, children: Vec<SlotChild>) -> Self {
         let state_version = container_state_version(id, &policy, &children);
-        let fixed_main_extent_horizontal = fixed_main_extent(true, policy.spacing, &children);
-        let fixed_main_extent_vertical = fixed_main_extent(false, policy.spacing, &children);
+        let known_main_extent_horizontal = known_main_extent(true, policy.spacing, &children);
+        let known_main_extent_vertical = known_main_extent(false, policy.spacing, &children);
         Self {
             id,
             policy,
             children,
             state_version,
-            fixed_main_extent_horizontal,
-            fixed_main_extent_vertical,
+            known_main_extent_horizontal,
+            known_main_extent_vertical,
         }
     }
 }
@@ -179,22 +179,36 @@ fn hash_f32(value: f32, hasher: &mut impl Hasher) {
     value.to_bits().hash(hasher);
 }
 
-fn fixed_main_extent(horizontal: bool, spacing: f32, children: &[SlotChild]) -> Option<f32> {
+fn known_main_extent(horizontal: bool, spacing: f32, children: &[SlotChild]) -> Option<f32> {
     let spacing_total = spacing.max(0.0) * children.len().saturating_sub(1) as f32;
     let mut total = spacing_total;
     for child in children {
-        let SizeModeMain::Fixed(size) = child.slot.size_main else {
-            return None;
+        let size = match child.slot.size_main {
+            SizeModeMain::Fixed(size) => size.max(0.0),
+            SizeModeMain::Intrinsic => direct_widget_intrinsic_main(horizontal, &child.child)?,
+            SizeModeMain::Fill(_) | SizeModeMain::Percent(_) => return None,
         };
         let constraints = child.slot.constraints.normalized();
         let main = if horizontal {
-            constraints.clamp_w(size.max(0.0)) + child.slot.margin.left + child.slot.margin.right
+            constraints.clamp_w(size) + child.slot.margin.left + child.slot.margin.right
         } else {
-            constraints.clamp_h(size.max(0.0)) + child.slot.margin.top + child.slot.margin.bottom
+            constraints.clamp_h(size) + child.slot.margin.top + child.slot.margin.bottom
         };
         total += main;
     }
     Some(total)
+}
+
+fn direct_widget_intrinsic_main(horizontal: bool, node: &LayoutNode) -> Option<f32> {
+    let LayoutNode::Widget(widget) = node else {
+        return None;
+    };
+    let main = if horizontal {
+        widget.intrinsic.x
+    } else {
+        widget.intrinsic.y
+    };
+    main.is_finite().then_some(main.max(0.0))
 }
 
 fn container_kind_code(value: ContainerKind) -> u8 {

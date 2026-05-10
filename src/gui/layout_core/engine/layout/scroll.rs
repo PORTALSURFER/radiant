@@ -12,7 +12,7 @@ use super::scroll_helpers::{
     sanitize_overscan,
 };
 use super::scroll_linear::{
-    build_linear_metrics, collect_subtree_ids_from_container, fixed_linear_main_extent,
+    build_linear_metrics, collect_subtree_ids_from_container, known_linear_main_extent,
     metrics_is_valid,
 };
 use crate::gui::layout_core::constraints::Constraints;
@@ -107,7 +107,7 @@ fn virtual_fixed_content_size(
         (ContainerKind::Column, VirtualizationAxis::Vertical) => false,
         _ => return None,
     };
-    let main = fixed_linear_main_extent(content, policy.axis)?;
+    let main = known_linear_main_extent(content, policy.axis)?;
     Some(if horizontal {
         Vector2::new(main, viewport_h)
     } else {

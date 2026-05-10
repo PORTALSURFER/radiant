@@ -95,6 +95,10 @@ fn scroll_virtualization_limits_materialized_nodes_for_large_lists() {
     assert!(info.culled_after > 0);
     assert!(info.last_index_exclusive - info.first_index < 64);
     assert!(output.stats.materialized_nodes < 128);
+    assert!(
+        output.stats.measured_nodes < 64,
+        "direct intrinsic widget rows should not force cold full-list measurement"
+    );
     assert_eq!(output.rects.len(), output.stats.materialized_nodes);
 }
 

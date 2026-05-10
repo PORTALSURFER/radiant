@@ -2,6 +2,7 @@
 
 use super::{TextLayout, TextLayoutKey, layout::compute_layout};
 use std::collections::{HashMap, VecDeque};
+use std::mem;
 use std::sync::Arc;
 use vello::peniko::FontData;
 
@@ -139,13 +140,17 @@ impl TextLayoutCache {
         if self.layout_cache_order.len() <= TEXT_LAYOUT_CACHE_CAPACITY.saturating_mul(2) {
             return;
         }
-        let mut ordered_layouts: Vec<_> = self
-            .layout_cache_stamps
-            .iter()
-            .map(|(key, stamp)| (key.clone(), *stamp))
-            .collect();
-        ordered_layouts.sort_by_key(|(_, stamp)| *stamp);
-        self.layout_cache_order = ordered_layouts.into_iter().collect();
+        let mut compacted = VecDeque::with_capacity(self.layout_cache_stamps.len());
+        for (key, queued_stamp) in mem::take(&mut self.layout_cache_order) {
+            if self
+                .layout_cache_stamps
+                .get(&key)
+                .is_some_and(|current_stamp| *current_stamp == queued_stamp)
+            {
+                compacted.push_back((key, queued_stamp));
+            }
+        }
+        self.layout_cache_order = compacted;
     }
 
     /// Evict stale layout-cache entries by last-use stamp so hot text survives churn.
@@ -172,13 +177,17 @@ impl TextLayoutCache {
         if self.atom_cache_order.len() <= TEXT_ATOM_CACHE_CAPACITY.saturating_mul(2) {
             return;
         }
-        let mut ordered_atoms: Vec<_> = self
-            .atom_cache
-            .iter()
-            .map(|(atom, stamp)| (Arc::clone(atom), *stamp))
-            .collect();
-        ordered_atoms.sort_by_key(|(_, stamp)| *stamp);
-        self.atom_cache_order = ordered_atoms.into_iter().collect();
+        let mut compacted = VecDeque::with_capacity(self.atom_cache.len());
+        for (atom, queued_stamp) in mem::take(&mut self.atom_cache_order) {
+            if self
+                .atom_cache
+                .get(atom.as_ref())
+                .is_some_and(|current_stamp| *current_stamp == queued_stamp)
+            {
+                compacted.push_back((atom, queued_stamp));
+            }
+        }
+        self.atom_cache_order = compacted;
     }
 
     /// Evict stale atom-cache entries using insertion stamps for bounded memory.

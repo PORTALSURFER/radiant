@@ -29,11 +29,11 @@ impl<Message> Subscription<Message> {
     }
 
     /// Batch multiple subscriptions.
-    pub fn batch(subscriptions: impl IntoIterator<Item = Subscription<Message>>) -> Self {
-        let subscriptions = subscriptions
-            .into_iter()
-            .filter(|subscription| !matches!(subscription, Subscription::None))
-            .collect::<Vec<_>>();
+    pub fn batch(subscription_iter: impl IntoIterator<Item = Subscription<Message>>) -> Self {
+        let mut subscriptions = Vec::new();
+        for subscription in subscription_iter {
+            subscription.append_to_batch(&mut subscriptions);
+        }
         if subscriptions.is_empty() {
             Self::None
         } else {
@@ -60,6 +60,18 @@ impl<Message> Subscription<Message> {
         receiver: std::sync::mpsc::Receiver<Message>,
     ) -> Self {
         Self::Worker { id, receiver }
+    }
+
+    fn append_to_batch(self, subscriptions: &mut Vec<Subscription<Message>>) {
+        match self {
+            Self::None => {}
+            Self::Batch(nested) => {
+                for subscription in nested {
+                    subscription.append_to_batch(subscriptions);
+                }
+            }
+            subscription => subscriptions.push(subscription),
+        }
     }
 }
 
@@ -106,5 +118,44 @@ fn spawn_subscription<Message>(
                     }
                 });
         }
+    }
+}
+
+#[cfg(test)]
+mod subscription_tests {
+    use super::Subscription;
+    use std::{sync::mpsc, time::Duration};
+
+    #[test]
+    fn batch_drops_empty_subscriptions() {
+        let subscription = Subscription::<u32>::batch([Subscription::none()]);
+
+        assert!(matches!(subscription, Subscription::None));
+    }
+
+    #[test]
+    fn batch_flattens_nested_subscriptions_in_order() {
+        let (_sender, receiver) = mpsc::channel::<u32>();
+        let subscription = Subscription::batch([
+            Subscription::interval("first", Duration::from_millis(10), || 1),
+            Subscription::batch([
+                Subscription::none(),
+                Subscription::worker("second", receiver),
+                Subscription::batch([Subscription::interval(
+                    "third",
+                    Duration::from_millis(10),
+                    || 3,
+                )]),
+            ]),
+        ]);
+
+        let Subscription::Batch(subscriptions) = subscription else {
+            panic!("non-empty subscriptions should stay batched");
+        };
+
+        assert_eq!(subscriptions.len(), 3);
+        assert!(matches!(subscriptions[0], Subscription::Interval { id: "first", .. }));
+        assert!(matches!(subscriptions[1], Subscription::Worker { id: "second", .. }));
+        assert!(matches!(subscriptions[2], Subscription::Interval { id: "third", .. }));
     }
 }

@@ -1,0 +1,83 @@
+//! Box-like container measurement strategies.
+
+use super::super::measure_node;
+use crate::gui::layout_core::constraints::Constraints;
+use crate::gui::layout_core::engine::LayoutContext;
+use crate::gui::layout_core::tree::{ContainerNode, SlotChild};
+use crate::gui::types::Vector2;
+
+pub(super) fn measure_stack(
+    children: &[SlotChild],
+    constraints: Constraints,
+    context: &mut LayoutContext,
+) -> Vector2 {
+    let mut max_w: f32 = 0.0;
+    let mut max_h: f32 = 0.0;
+    for slot_child in children {
+        let child_size = measure_node(&slot_child.child, slot_child.slot.constraints, context);
+        let width = child_size.x + slot_child.slot.margin.left + slot_child.slot.margin.right;
+        let height = child_size.y + slot_child.slot.margin.top + slot_child.slot.margin.bottom;
+        max_w = max_w.max(width.min(constraints.max_w));
+        max_h = max_h.max(height.min(constraints.max_h));
+    }
+    Vector2::new(max_w, max_h)
+}
+
+pub(super) fn measure_aspect_box(
+    container: &ContainerNode,
+    constraints: Constraints,
+    context: &mut LayoutContext,
+) -> Vector2 {
+    let ratio = container.policy.aspect_ratio.unwrap_or(1.0).max(0.0001);
+    let (target_w, target_h) = fit_aspect_box(constraints.max_w, constraints.max_h, ratio);
+    if let Some(child) = container.children.first() {
+        let _ = measure_node(
+            &child.child,
+            Constraints::new(0.0, target_w, 0.0, target_h),
+            context,
+        );
+    }
+    Vector2::new(target_w, target_h)
+}
+
+pub(super) fn measure_switch_layout(
+    container: &ContainerNode,
+    constraints: Constraints,
+    context: &mut LayoutContext,
+) -> Vector2 {
+    let selected = select_switch_child(container, constraints.max_w);
+    if let Some(index) = selected
+        && let Some(child) = container.children.get(index)
+    {
+        return measure_node(&child.child, child.slot.constraints, context);
+    }
+    Vector2::new(0.0, 0.0)
+}
+
+fn select_switch_child(container: &ContainerNode, width: f32) -> Option<usize> {
+    if container.children.is_empty() {
+        return None;
+    }
+    if container.policy.switch_breakpoints.is_empty() {
+        return Some(0);
+    }
+
+    for (index, breakpoint) in container.policy.switch_breakpoints.iter().enumerate() {
+        if breakpoint.contains(width) && index < container.children.len() {
+            return Some(index);
+        }
+    }
+    Some(0)
+}
+
+fn fit_aspect_box(max_w: f32, max_h: f32, ratio: f32) -> (f32, f32) {
+    if max_w <= 0.0 || max_h <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let by_width_h = max_w / ratio;
+    if by_width_h <= max_h {
+        return (max_w, by_width_h.max(0.0));
+    }
+    let by_height_w = max_h * ratio;
+    (by_height_w.max(0.0), max_h)
+}

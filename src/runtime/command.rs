@@ -81,10 +81,10 @@ impl<Message> Command<Message> {
         for command in command_iter {
             command.append_to_batch(&mut commands);
         }
-        if commands.is_empty() {
-            Self::None
-        } else {
-            Self::Batch(commands)
+        match commands.len() {
+            0 => Self::None,
+            1 => commands.pop().expect("single command exists"),
+            _ => Self::Batch(commands),
         }
     }
 
@@ -233,6 +233,13 @@ mod tests {
         assert!(matches!(commands[0], Command::Message("first")));
         assert!(matches!(commands[1], Command::Message("second")));
         assert_eq!(command.into_messages(), vec!["first", "second"]);
+    }
+
+    #[test]
+    fn batch_collapses_single_command_groups() {
+        let command = Command::batch([Command::none(), Command::batch([Command::message("only")])]);
+
+        assert!(matches!(command, Command::Message("only")));
     }
 
     #[test]

@@ -1,3 +1,12 @@
+use crate::{
+    application::{
+        StateDragCallback, StateStringCallback, StateView, button, column, drag_handle, row,
+        scroll, text,
+    },
+    widgets::{DragHandleMessage, WidgetProminence, WidgetStyle, WidgetTone},
+};
+use std::sync::Arc;
+
 /// One visible row in a compact tree list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TreeListItem {
@@ -71,7 +80,7 @@ pub fn tree_list<State: 'static>(
         on_select,
         on_toggle,
         None::<fn(&mut State, String)>,
-        None::<fn(&mut State, String, crate::widgets::DragHandleMessage)>,
+        None::<fn(&mut State, String, DragHandleMessage)>,
     )
 }
 
@@ -81,9 +90,7 @@ pub fn tree_list_with_drag<State: 'static>(
     on_select: impl Fn(&mut State, String) + Send + Sync + 'static,
     on_toggle: impl Fn(&mut State, String) + Send + Sync + 'static,
     on_context: Option<impl Fn(&mut State, String) + Send + Sync + 'static>,
-    on_drag: Option<
-        impl Fn(&mut State, String, crate::widgets::DragHandleMessage) + Send + Sync + 'static,
-    >,
+    on_drag: Option<impl Fn(&mut State, String, DragHandleMessage) + Send + Sync + 'static>,
 ) -> StateView<State> {
     let on_select: StateStringCallback<State> = Arc::new(on_select);
     let on_toggle: StateStringCallback<State> = Arc::new(on_toggle);
@@ -155,10 +162,14 @@ fn tree_list_row<State: 'static>(
                     .key(format!("tree-list-drag-{}", item.id))
                     .size(22.0, 22.0)
             } else {
-                text("").key(format!("tree-list-drag-spacer-{}", item.id)).size(22.0, 22.0)
+                text("")
+                    .key(format!("tree-list-drag-spacer-{}", item.id))
+                    .size(22.0, 22.0)
             }
         } else {
-            text("").key(format!("tree-list-drag-spacer-{}", item.id)).size(22.0, 22.0)
+            text("")
+                .key(format!("tree-list-drag-spacer-{}", item.id))
+                .size(22.0, 22.0)
         },
         if item.has_children {
             button(expander)
@@ -167,7 +178,9 @@ fn tree_list_row<State: 'static>(
                 .size(32.0, 22.0)
                 .subtle()
         } else {
-            text("").key(format!("tree-list-spacer-{}", item.id)).size(32.0, 22.0)
+            text("")
+                .key(format!("tree-list-spacer-{}", item.id))
+                .size(32.0, 22.0)
         },
         label,
     ])

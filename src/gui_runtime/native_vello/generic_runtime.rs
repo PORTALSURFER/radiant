@@ -26,8 +26,8 @@ use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
 use runtime_helpers::{
-    animation_frame_interval, fast_pointer_move_gpu_surface_hit_rects, maybe_log_route_profile,
-    render_profile_enabled, scroll_delta_to_logical,
+    animation_frame_interval, collect_fast_pointer_move_gpu_surface_hit_rects,
+    maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,
 };
 pub(in crate::gui_runtime::native_vello) use scene::{
     RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SurfaceSceneEncodeContext,
@@ -246,8 +246,10 @@ where
     }
 
     fn update_gpu_surface_hit_rects(&mut self, primitives: &[PaintPrimitive]) {
-        self.fast_pointer_move_gpu_surface_hit_rects =
-            fast_pointer_move_gpu_surface_hit_rects(primitives);
+        collect_fast_pointer_move_gpu_surface_hit_rects(
+            primitives,
+            &mut self.fast_pointer_move_gpu_surface_hit_rects,
+        );
     }
 }
 

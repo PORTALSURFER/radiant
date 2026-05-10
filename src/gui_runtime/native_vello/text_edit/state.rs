@@ -181,8 +181,14 @@ impl SingleLineTextEditorState {
 
     /// Return the currently selected text, if any.
     pub(in crate::gui_runtime::native_vello) fn selected_text(&self, text: &str) -> Option<String> {
-        let (start, end) = self.selection_range();
+        let (start, end) = self.clamped_selection_range(text);
         (start < end).then(|| text[start..end].to_string())
+    }
+
+    fn clamped_selection_range(&self, text: &str) -> (usize, usize) {
+        let start = clamp_to_char_boundary(text, self.anchor_byte.min(self.cursor_byte));
+        let end = clamp_to_char_boundary(text, self.anchor_byte.max(self.cursor_byte));
+        (start, end)
     }
 }
 

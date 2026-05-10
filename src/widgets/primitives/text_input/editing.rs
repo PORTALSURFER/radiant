@@ -16,16 +16,14 @@ impl TextInputWidget {
 
     /// Return the selected character range sorted from start to end.
     pub fn selection_range(&self) -> (usize, usize) {
-        if !self.has_selection() {
-            return (self.state.caret, self.state.caret);
+        let char_len = self.char_len();
+        let caret = self.state.caret.min(char_len);
+        let anchor = self.state.selection_anchor.min(char_len);
+        if anchor == caret {
+            return (caret, caret);
         }
-        let start = self.state.selection_anchor.min(self.state.caret);
-        let end = self
-            .state
-            .selection_anchor
-            .max(self.state.caret)
-            .saturating_add(1)
-            .min(self.char_len());
+        let start = anchor.min(caret);
+        let end = anchor.max(caret).saturating_add(1).min(char_len);
         (start, end)
     }
 

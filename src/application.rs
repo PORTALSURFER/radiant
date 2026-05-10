@@ -5,8 +5,7 @@
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
 use crate::{
-    gui::types::{Point, Rect},
-    layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},
+    layout::{CrossAlign, Insets, MainAlign, NodeId},
     runtime::SurfaceNode,
     widgets::{TextAlign, TextWrap, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone},
 };
@@ -41,7 +40,8 @@ include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
 include!("application/property_panel.rs");
-include!("application/menu.rs");
+mod menu;
+pub use menu::{MenuItem, context_menu_overlay, menu};
 mod retained_canvas;
 pub use retained_canvas::{RetainedCanvasBuilder, retained_canvas, retained_canvas_with};
 mod builders;

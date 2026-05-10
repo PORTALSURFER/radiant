@@ -63,6 +63,7 @@ impl GpuSurfaceRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         surface: &PaintGpuSurface,
+        stats: &mut GpuSurfaceRenderStats,
     ) {
         let GpuSurfaceContent::RgbaAtlas { atlas, .. } = &surface.content else {
             return;
@@ -119,6 +120,7 @@ impl GpuSurfaceRenderer {
                 view,
             },
         );
+        stats.atlas_texture_uploads += 1;
     }
 
     pub(super) fn ensure_pipeline(
@@ -205,6 +207,7 @@ impl GpuSurfaceRenderer {
         frames: usize,
         band_count: usize,
         samples: &Arc<[f32]>,
+        stats: &mut GpuSurfaceRenderStats,
     ) -> Arc<GpuSignalSummary> {
         if let Some(cached) = self.signal_summaries.get(&key)
             && cached.revision == revision
@@ -212,6 +215,7 @@ impl GpuSurfaceRenderer {
             && cached.band_count == band_count
             && cached.sample_count == samples.len()
         {
+            stats.signal_summary_cache_hits += 1;
             return Arc::clone(&cached.summary);
         }
         let summary = Arc::new(GpuSignalSummary::from_interleaved_samples(
@@ -227,6 +231,7 @@ impl GpuSurfaceRenderer {
                 summary: Arc::clone(&summary),
             },
         );
+        stats.signal_summary_builds += 1;
         summary
     }
 
@@ -243,5 +248,42 @@ impl GpuSurfaceRenderer {
             self.signal_pipeline = Some(SignalPipeline::new(device, target_format));
             self.signal_pipeline_generation = self.signal_pipeline_generation.wrapping_add(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_signal_summary_reports_builds_and_hits() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        let first = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+
+        assert_eq!(stats.signal_summary_builds, 1);
+        assert_eq!(stats.signal_summary_cache_hits, 0);
+
+        let second = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(stats.signal_summary_builds, 1);
+        assert_eq!(stats.signal_summary_cache_hits, 1);
+    }
+
+    #[test]
+    fn cached_signal_summary_rebuilds_when_source_shape_changes() {
+        let mut renderer = GpuSurfaceRenderer::default();
+        let samples: Arc<[f32]> = [-0.5, 0.25, 0.75, -0.25].into_iter().collect();
+        let mut stats = GpuSurfaceRenderStats::default();
+
+        let first = renderer.cached_signal_summary(7, 1, 4, 1, &samples, &mut stats);
+        let second = renderer.cached_signal_summary(7, 1, 2, 2, &samples, &mut stats);
+
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert_eq!(stats.signal_summary_builds, 2);
+        assert_eq!(stats.signal_summary_cache_hits, 0);
     }
 }

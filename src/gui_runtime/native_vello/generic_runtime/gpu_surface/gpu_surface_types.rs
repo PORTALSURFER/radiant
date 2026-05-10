@@ -2,6 +2,9 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GpuSurfaceRenderStats {
+    pub(crate) atlas_texture_uploads: usize,
+    pub(crate) signal_summary_builds: usize,
+    pub(crate) signal_summary_cache_hits: usize,
     pub(crate) signal_body_renders: usize,
     pub(crate) signal_body_cache_hits: usize,
     pub(crate) signal_body_encode_elapsed: Duration,

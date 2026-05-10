@@ -10,7 +10,7 @@ impl GpuSurfaceRenderer {
         source_rect: UiRect,
         stats: &mut GpuSurfaceRenderStats,
     ) {
-        self.ensure_texture(target.device, target.queue, surface);
+        self.ensure_texture(target.device, target.queue, surface, stats);
         self.ensure_pipeline(target.device, target.format);
         let Some(texture) = self.textures.get(&surface.key) else {
             return;

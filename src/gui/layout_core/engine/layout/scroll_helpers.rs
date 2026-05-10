@@ -1,6 +1,7 @@
 //! Shared helper logic for scroll virtualization.
 
-use super::super::{LayoutContext, LinearVirtualMetrics};
+use super::super::LayoutContext;
+use super::super::cache::LinearVirtualMetrics;
 use crate::gui::types::{Point, Rect, Vector2};
 
 /// Compute a virtualized child window over cached span metrics.

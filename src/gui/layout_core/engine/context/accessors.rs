@@ -1,5 +1,5 @@
 use super::LayoutContext;
-use crate::gui::layout_core::engine::{
+use crate::gui::layout_core::engine::cache::{
     CachedVirtualMetrics, LinearVirtualMetrics, MeasureCacheKey, ResolvedLinearWindow,
     VirtualizationCacheKey,
 };

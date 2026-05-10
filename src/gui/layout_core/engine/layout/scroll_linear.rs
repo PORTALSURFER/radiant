@@ -1,11 +1,12 @@
 //! Shared linear virtualization resolution routines for ScrollView.
 
+use super::super::cache::{LinearVirtualMetrics, VirtualSpan};
 use super::super::helpers::{
     align_main_offsets, allocate_fill_sizes, compress_if_needed, main_margin_total,
     scale_sizes_to_fit,
 };
 use super::super::measure::measure_node;
-use super::super::{LayoutContext, LayoutDiagnosticCode, LinearVirtualMetrics, VirtualSpan};
+use super::super::{LayoutContext, LayoutDiagnosticCode};
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{OverflowPolicy, SizeModeMain, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, NodeId, SlotChild};

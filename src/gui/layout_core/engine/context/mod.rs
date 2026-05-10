@@ -10,10 +10,10 @@ mod accessors;
 mod clamp;
 mod diagnostics;
 
-use super::{
-    CachedVirtualMetrics, LayoutDebugOptions, LayoutOutput, LayoutState, MeasureCacheKey,
-    ResolvedLinearWindow, VirtualizationCacheKey,
+use super::cache::{
+    CachedVirtualMetrics, MeasureCacheKey, ResolvedLinearWindow, VirtualizationCacheKey,
 };
+use super::{LayoutDebugOptions, LayoutOutput, LayoutState};
 use crate::gui::layout_core::tree::NodeId;
 use crate::gui::types::Vector2;
 use std::collections::{BTreeSet, HashMap};

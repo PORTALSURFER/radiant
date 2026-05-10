@@ -127,6 +127,15 @@ impl<Message> SurfaceWidget<Message> {
             && !self.widget.common().state.disabled
     }
 
+    /// Return whether this widget can be a pointer hit-test target.
+    pub fn receives_pointer_hit_testing(&self) -> bool {
+        let common = self.widget.common();
+        !common.state.disabled
+            && (common.focus != FocusBehavior::None
+                || common.paint.suppresses_container_hover
+                || self.messages.map.is_some())
+    }
+
     pub(super) fn layout_node(&self) -> LayoutNode {
         self.widget.common().layout_node()
     }

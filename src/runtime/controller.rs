@@ -31,9 +31,9 @@ use crate::{
         layout_tree_with_state,
     },
     theme::ThemeTokens,
-    widgets::{FocusBehavior, WidgetId, WidgetInput, WidgetKey, WidgetState},
+    widgets::{WidgetId, WidgetInput, WidgetKey, WidgetState},
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Direction for deterministic keyboard focus traversal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -65,6 +65,7 @@ where
     widget_hit_order: Vec<WidgetId>,
     focusable_widget_order: Vec<WidgetId>,
     pointer_hit_order: Vec<WidgetId>,
+    container_hover_suppression: BTreeSet<WidgetId>,
     keyboard_focus_order: Vec<WidgetId>,
     styled_container_hit_order: Vec<NodeId>,
     scroll_hit_order: Vec<NodeId>,
@@ -106,6 +107,7 @@ where
             widget_hit_order: traversal.widget_paint_order,
             focusable_widget_order: traversal.focusable_widget_order,
             pointer_hit_order: traversal.pointer_hit_order,
+            container_hover_suppression: traversal.container_hover_suppression,
             keyboard_focus_order: traversal.keyboard_focus_order,
             styled_container_hit_order: traversal.styled_container_order,
             scroll_hit_order: traversal.scroll_container_order,

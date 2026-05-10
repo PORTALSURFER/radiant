@@ -45,6 +45,7 @@ where
         self.widget_hit_order = traversal.widget_paint_order;
         self.focusable_widget_order = traversal.focusable_widget_order;
         self.pointer_hit_order = traversal.pointer_hit_order;
+        self.container_hover_suppression = traversal.container_hover_suppression;
         self.keyboard_focus_order = traversal.keyboard_focus_order;
         self.styled_container_hit_order = traversal.styled_container_order;
         self.scroll_hit_order = traversal.scroll_container_order;

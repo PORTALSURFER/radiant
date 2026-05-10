@@ -136,6 +136,13 @@ impl<Message> SurfaceWidget<Message> {
                 || self.messages.map.is_some())
     }
 
+    pub(in crate::runtime) fn suppresses_container_hover(&self) -> bool {
+        let common = self.widget.common();
+        !common.state.disabled
+            && common.paint.paints_state_layers
+            && (common.focus != FocusBehavior::None || common.paint.suppresses_container_hover)
+    }
+
     pub(super) fn layout_node(&self) -> LayoutNode {
         self.widget.common().layout_node()
     }

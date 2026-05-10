@@ -1,3 +1,10 @@
+use super::StatefulAppWithView;
+use crate::{
+    application::{IntoView, Subscription, UpdateContext},
+    gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution, types::Vector2},
+    widgets::RetainedSurfaceDescriptor,
+};
+
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
 where
     Project: FnMut(&mut State) -> View + 'static,
@@ -30,12 +37,12 @@ where
     pub fn shortcuts(
         mut self,
         shortcuts: impl FnMut(
-                &mut State,
-                Option<KeyPress>,
-                KeyPress,
-                FocusSurface,
-            ) -> ShortcutResolution<Message>
-            + 'static,
+            &mut State,
+            Option<KeyPress>,
+            KeyPress,
+            FocusSurface,
+        ) -> ShortcutResolution<Message>
+        + 'static,
     ) -> Self {
         self.shortcuts = Some(Box::new(shortcuts));
         self
@@ -73,12 +80,12 @@ where
         mut self,
         key: u64,
         paint: impl FnMut(
-                &mut State,
-                RetainedSurfaceDescriptor,
-                crate::gui::types::Rect,
-                Vector2,
-            ) -> Option<crate::gui::paint::PaintFrame>
-            + 'static,
+            &mut State,
+            RetainedSurfaceDescriptor,
+            crate::gui::types::Rect,
+            Vector2,
+        ) -> Option<crate::gui::paint::PaintFrame>
+        + 'static,
     ) -> Self {
         self.retained_painters.insert(key, Box::new(paint));
         self

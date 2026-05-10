@@ -101,6 +101,10 @@ or `.update_command(...)` on the app when reducers need to return
 use `.update_with(...)` and an `UpdateContext<Message>` to emit messages,
 request repaint, move focus, start background work, schedule delayed messages,
 or request runtime exit.
+Higher-level application helpers follow the same logical-coordinate sizing
+model as view modifiers: fixed details-list columns use `f32` logical widths
+through `DetailsColumn::fixed(...)`, matching `.size(...)`, `.fixed(...)`, and
+other layout builders instead of introducing a separate integer sizing model.
 `NativeRunOptions` keeps platform/window integration policy behind Radiant's
 native runtime boundary. Common launch code can stay platform-neutral while
 still configuring window title, logical size, minimum size, maximized state,

@@ -507,6 +507,21 @@ fn application_builders_support_direct_callbacks_scroll_and_sizing_helpers() {
 }
 
 #[test]
+fn details_columns_use_logical_widths() {
+    use radiant::prelude::DetailsColumn;
+
+    assert_eq!(
+        DetailsColumn::fixed("kind", "Kind", 120.5),
+        DetailsColumn {
+            id: String::from("kind"),
+            label: String::from("Kind"),
+            width: Some(120.5),
+        }
+    );
+    assert_eq!(DetailsColumn::flexible("name", "Name").width, None);
+}
+
+#[test]
 fn application_builders_scope_keys_and_bind_text_inputs_to_state_fields() {
     use radiant::prelude::{self as ui, IntoView};
 

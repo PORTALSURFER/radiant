@@ -50,14 +50,14 @@ impl DetailsSort {
 }
 
 /// One sortable details-list column.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DetailsColumn {
     /// Stable caller-owned column id.
     pub id: String,
     /// Header label.
     pub label: String,
     /// Fixed logical width, or `None` for the flexible primary column.
-    pub width: Option<u32>,
+    pub width: Option<f32>,
 }
 
 impl DetailsColumn {
@@ -71,7 +71,7 @@ impl DetailsColumn {
     }
 
     /// Build a fixed-width details-list column.
-    pub fn fixed(id: impl ToString, label: impl Into<String>, width: u32) -> Self {
+    pub fn fixed(id: impl ToString, label: impl Into<String>, width: f32) -> Self {
         Self {
             id: id.to_string(),
             label: label.into(),
@@ -229,7 +229,7 @@ fn details_row<State: 'static>(
 
 fn sized_cell<State: 'static>(column: &DetailsColumn, cell: StateView<State>) -> StateView<State> {
     match column.width {
-        Some(width) => cell.size(width as f32, 20.0),
+        Some(width) => cell.size(width, 20.0),
         None => cell.fill_width().height(20.0),
     }
 }

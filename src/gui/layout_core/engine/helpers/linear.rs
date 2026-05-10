@@ -5,21 +5,37 @@ use crate::gui::layout_core::model::{MainAlign, SizeModeMain};
 use crate::gui::layout_core::tree::SlotChild;
 use crate::gui::types::Vector2;
 
+pub(in crate::gui::layout_core::engine) struct LinearLayoutState<'a> {
+    pub slot_child: &'a SlotChild,
+    pub measured: Vector2,
+    pub main: f32,
+    pub fill: f32,
+}
+
+impl<'a> LinearLayoutState<'a> {
+    pub fn new(slot_child: &'a SlotChild, measured: Vector2, main: f32) -> Self {
+        Self {
+            slot_child,
+            measured,
+            main,
+            fill: 0.0,
+        }
+    }
+}
+
 pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
     horizontal: bool,
     remaining: f32,
     total_weight: f32,
-    states: &mut [(&SlotChild, Vector2, f32, f32)],
+    states: &mut [LinearLayoutState<'_>],
 ) {
     let mut unresolved: Vec<usize> = states
         .iter()
         .enumerate()
-        .filter_map(
-            |(index, (slot_child, _, _, _))| match slot_child.slot.size_main {
-                SizeModeMain::Fill(weight) if weight > 0.0 => Some((index, weight)),
-                _ => None,
-            },
-        )
+        .filter_map(|(index, state)| match state.slot_child.slot.size_main {
+            SizeModeMain::Fill(weight) if weight > 0.0 => Some((index, weight)),
+            _ => None,
+        })
         .map(|(index, _)| index)
         .collect();
 
@@ -29,17 +45,17 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
         let mut changed = false;
         let mut next_unresolved = Vec::new();
         for index in unresolved {
-            let (slot_child, _, _, fill_size) = &mut states[index];
-            let SizeModeMain::Fill(weight) = slot_child.slot.size_main else {
+            let state = &mut states[index];
+            let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {
                 continue;
             };
             if remaining_weight <= 0.0 {
-                *fill_size = 0.0;
+                state.fill = 0.0;
                 continue;
             }
             let proposed = remaining_space * (weight / remaining_weight);
-            let clamped = clamp_main(horizontal, proposed, slot_child.slot.constraints);
-            *fill_size = clamped;
+            let clamped = clamp_main(horizontal, proposed, state.slot_child.slot.constraints);
+            state.fill = clamped;
             if (clamped - proposed).abs() > f32::EPSILON {
                 changed = true;
                 remaining_space = (remaining_space - clamped).max(0.0);
@@ -50,14 +66,14 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
         }
         if !changed {
             for index in next_unresolved {
-                let (slot_child, _, _, fill_size) = &mut states[index];
-                let SizeModeMain::Fill(weight) = slot_child.slot.size_main else {
+                let state = &mut states[index];
+                let SizeModeMain::Fill(weight) = state.slot_child.slot.size_main else {
                     continue;
                 };
                 if remaining_weight <= 0.0 {
-                    *fill_size = 0.0;
+                    state.fill = 0.0;
                 } else {
-                    *fill_size = remaining_space * (weight / remaining_weight);
+                    state.fill = remaining_space * (weight / remaining_weight);
                 }
             }
             break;
@@ -69,7 +85,7 @@ pub(in crate::gui::layout_core::engine) fn allocate_fill_sizes(
 pub(in crate::gui::layout_core::engine) fn compress_if_needed(
     horizontal: bool,
     available_main: f32,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
     sizes: &mut [f32],
     spacing_total: f32,
 ) {
@@ -127,19 +143,19 @@ pub(in crate::gui::layout_core::engine) fn scale_sizes_to_fit(
 fn reduce_group(
     horizontal: bool,
     predicate: fn(SizeModeMain, bool) -> bool,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
     overflow: &mut f32,
     sizes: &mut [f32],
 ) {
-    for (index, (slot_child, _, _, _)) in states.iter().enumerate() {
-        let mode = slot_child.slot.size_main;
-        if !predicate(mode, slot_child.slot.allow_fixed_compress) {
+    for (index, state) in states.iter().enumerate() {
+        let mode = state.slot_child.slot.size_main;
+        if !predicate(mode, state.slot_child.slot.allow_fixed_compress) {
             continue;
         }
         let min_main = if horizontal {
-            slot_child.slot.constraints.min_w
+            state.slot_child.slot.constraints.min_w
         } else {
-            slot_child.slot.constraints.min_h
+            state.slot_child.slot.constraints.min_h
         };
         let reducible = (sizes[index] - min_main).max(0.0);
         if reducible <= 0.0 {
@@ -156,15 +172,15 @@ fn reduce_group(
 
 pub(in crate::gui::layout_core::engine) fn main_margin_total(
     horizontal: bool,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
 ) -> f32 {
     states
         .iter()
-        .map(|(slot_child, _, _, _)| {
+        .map(|state| {
             if horizontal {
-                slot_child.slot.margin.left + slot_child.slot.margin.right
+                state.slot_child.slot.margin.left + state.slot_child.slot.margin.right
             } else {
-                slot_child.slot.margin.top + slot_child.slot.margin.bottom
+                state.slot_child.slot.margin.top + state.slot_child.slot.margin.bottom
             }
         })
         .sum::<f32>()

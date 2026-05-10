@@ -1,8 +1,8 @@
 //! Row and column layout implementation.
 
 use super::super::helpers::{
-    align_main_offsets, allocate_fill_sizes, compress_if_needed, main_margin_total,
-    place_child_rect, scale_sizes_to_fit,
+    LinearLayoutState, align_main_offsets, allocate_fill_sizes, compress_if_needed,
+    main_margin_total, place_child_rect, scale_sizes_to_fit,
 };
 use super::super::{LayoutContext, LayoutDiagnosticCode};
 use super::layout_node;
@@ -77,12 +77,12 @@ pub(super) fn layout_linear(
     );
     let fixed_main = states
         .iter()
-        .filter(|(slot_child, _, _, _)| !matches!(slot_child.slot.size_main, SizeModeMain::Fill(_)))
-        .map(|(_, _, main, _)| *main)
+        .filter(|state| !matches!(state.slot_child.slot.size_main, SizeModeMain::Fill(_)))
+        .map(|state| state.main)
         .sum::<f32>();
     let fill_weight = states
         .iter()
-        .filter_map(|(slot_child, _, _, _)| match slot_child.slot.size_main {
+        .filter_map(|state| match state.slot_child.slot.size_main {
             SizeModeMain::Fill(weight) => Some(weight.max(0.0)),
             _ => None,
         })
@@ -97,7 +97,13 @@ pub(super) fn layout_linear(
 
     let mut sizes: Vec<f32> = states
         .iter()
-        .map(|(_, _, main, fill)| if *fill > 0.0 { *fill } else { *main })
+        .map(|state| {
+            if state.fill > 0.0 {
+                state.fill
+            } else {
+                state.main
+            }
+        })
         .collect();
 
     let mut total_main = sizes.iter().sum::<f32>() + margin_total + spacing_total;
@@ -149,7 +155,7 @@ fn apply_linear_overflow_policy(
     horizontal: bool,
     available_main: f32,
     spacing_total: f32,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
     sizes: &mut [f32],
     context: &mut LayoutContext,
 ) {
@@ -189,7 +195,7 @@ fn collect_layout_states<'a>(
     available_main: f32,
     start_index: usize,
     end_index_exclusive: usize,
-) -> Vec<(&'a SlotChild, Vector2, f32, f32)> {
+) -> Vec<LinearLayoutState<'a>> {
     let clamped_start = start_index.min(container.children.len());
     let clamped_end = end_index_exclusive.min(container.children.len());
     let selected = &container.children[clamped_start..clamped_end];
@@ -205,7 +211,7 @@ fn collect_layout_states<'a>(
             context,
             child.child.id(),
         );
-        states.push((child, measured, main, 0.0));
+        states.push(LinearLayoutState::new(child, measured, main));
     }
     states
 }
@@ -216,14 +222,15 @@ fn place_linear_children(
     content: Rect,
     horizontal: bool,
     available_cross: f32,
-    states: &[(&SlotChild, Vector2, f32, f32)],
+    states: &[LinearLayoutState<'_>],
     sizes: &[f32],
     leading: f32,
     distributed_spacing: f32,
     context: &mut LayoutContext,
 ) {
     let mut cursor = leading;
-    for (index, (slot_child, measured, _, _)) in states.iter().enumerate() {
+    for (index, state) in states.iter().enumerate() {
+        let slot_child = state.slot_child;
         let slot = slot_child.slot;
         let main_margin_before = if horizontal {
             slot.margin.left
@@ -240,7 +247,7 @@ fn place_linear_children(
         let child_cross = resolve_cross_layout(
             horizontal,
             slot.size_cross,
-            *measured,
+            state.measured,
             available_cross,
             slot,
             context,

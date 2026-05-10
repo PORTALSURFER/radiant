@@ -1,9 +1,55 @@
 use super::StatefulAppWithView;
+use crate::application::{
+    AppAnimation, AppBridgeLifecycle, AppCloseRequested, AppFrameMessage, AppShortcuts,
+    AppShutdown, AppStartup, AppSubscriptions, RetainedPainter,
+};
 use crate::{
     application::{IntoView, Subscription, UpdateContext},
     gui::{focus::FocusSurface, input::KeyPress, shortcuts::ShortcutResolution, types::Vector2},
     widgets::RetainedSurfaceDescriptor,
 };
+use std::collections::HashMap;
+
+pub(super) struct StatefulLifecycle<State, Message> {
+    pub(super) animation: Option<AppAnimation<State>>,
+    pub(super) frame_message: Option<AppFrameMessage<Message>>,
+    pub(super) subscriptions: Option<AppSubscriptions<State, Message>>,
+    pub(super) shortcuts: Option<AppShortcuts<State, Message>>,
+    pub(super) startup: Option<AppStartup<State, Message>>,
+    pub(super) shutdown: Option<AppShutdown<State>>,
+    pub(super) close_requested: Option<AppCloseRequested<State>>,
+    pub(super) retained_painters: HashMap<u64, RetainedPainter<State>>,
+}
+
+impl<State, Message> Default for StatefulLifecycle<State, Message> {
+    fn default() -> Self {
+        Self {
+            animation: None,
+            frame_message: None,
+            subscriptions: None,
+            shortcuts: None,
+            startup: None,
+            shutdown: None,
+            close_requested: None,
+            retained_painters: HashMap::new(),
+        }
+    }
+}
+
+impl<State, Message> StatefulLifecycle<State, Message> {
+    pub(super) fn into_bridge_lifecycle(self) -> AppBridgeLifecycle<State, Message> {
+        AppBridgeLifecycle {
+            animation: self.animation,
+            frame_message: self.frame_message,
+            subscriptions: self.subscriptions,
+            shortcuts: self.shortcuts,
+            startup: self.startup,
+            shutdown: self.shutdown,
+            close_requested: self.close_requested,
+            retained_painters: self.retained_painters,
+        }
+    }
+}
 
 impl<State, Message, Project, View> StatefulAppWithView<State, Message, Project, View>
 where

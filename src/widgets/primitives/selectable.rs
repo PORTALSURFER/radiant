@@ -5,10 +5,11 @@ use crate::layout::LayoutOutput;
 use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
-use super::support::{WidgetCommon, activate_on_keyboard};
+use super::support::WidgetCommon;
 use crate::widgets::contract::{FocusBehavior, Widget, WidgetId, WidgetSizing};
-use crate::widgets::interaction::{PointerButton, SelectableMessage, WidgetInput, WidgetOutput};
+use crate::widgets::interaction::{SelectableMessage, WidgetInput, WidgetOutput};
 
+mod input;
 mod paint;
 
 /// Immutable public properties for a reusable selectable surface.
@@ -48,48 +49,7 @@ impl SelectableWidget {
 
     /// Route one backend-neutral interaction into the selectable.
     pub fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<SelectableMessage> {
-        if self.common.state.disabled {
-            return None;
-        }
-
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-            } if bounds.contains(position) => {
-                self.common.state.pressed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-            } => {
-                let was_pressed = self.common.state.pressed;
-                self.common.state.pressed = false;
-                (was_pressed && bounds.contains(position)).then(|| self.toggle_selected())
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                None
-            }
-            WidgetInput::KeyPress(key)
-                if self.common.state.focused && activate_on_keyboard(key) =>
-            {
-                Some(self.toggle_selected())
-            }
-            _ => None,
-        }
-    }
-
-    fn toggle_selected(&mut self) -> SelectableMessage {
-        self.common.state.selected = !self.common.state.selected;
-        SelectableMessage::SelectionChanged {
-            selected: self.common.state.selected,
-        }
+        input::handle_selectable_input(self, bounds, input)
     }
 }
 

@@ -13,7 +13,7 @@ mod queue;
 mod subscription;
 mod update_context;
 
-pub(in crate::application) use bridge::AppBridge;
+pub(in crate::application) use bridge::{AppBridge, AppBridgeLifecycle};
 pub(in crate::application) use queue::AppRuntime;
 pub use subscription::Subscription;
 pub use update_context::UpdateContext;

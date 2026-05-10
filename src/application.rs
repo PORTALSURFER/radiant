@@ -14,10 +14,9 @@ use crate::{
         Widget, WidgetOutput, WidgetProminence, WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Result type used by native launch helpers.
 pub type Result<T = ()> = std::result::Result<T, String>;
@@ -28,7 +27,9 @@ pub type View<Message = ()> = ViewNode<Message>;
 /// Application view node type for direct state-callback apps.
 pub type StateView<State> = View<StateAction<State>>;
 
-include!("application/state.rs");
+mod state;
+pub(in crate::application) use state::OptionalBaseline;
+pub use state::StateAction;
 mod runtime;
 pub(in crate::application) use runtime::{
     AppAnimation, AppBridge, AppCloseRequested, AppFrameMessage, AppRuntime, AppShortcuts,
@@ -38,7 +39,8 @@ pub(in crate::application) use runtime::{
 pub use runtime::{Subscription, UpdateContext};
 mod launch;
 pub use launch::*;
-include!("application/widget_view.rs");
+mod widget_view;
+pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
 include!("application/view_node.rs");
 include!("application/tree_list.rs");
 include!("application/details_list.rs");
@@ -49,4 +51,5 @@ include!("application/builders.rs");
 mod control_builders;
 pub use control_builders::*;
 include!("application/layout_builders.rs");
-include!("application/ids.rs");
+mod ids;
+pub(in crate::application) use ids::{IdGenerator, scoped_key_id};

@@ -38,7 +38,7 @@ pub fn resolve_widget_visual_tokens(
     {
         emphasis
     } else if state.pressed || state.active || state.selected {
-        accent_fill(theme, emphasis)
+        active_fill(theme, emphasis)
     } else if matches!(style.prominence, WidgetProminence::Subtle)
         && !matches!(style.tone, WidgetTone::Neutral)
     {
@@ -71,6 +71,11 @@ pub fn resolve_widget_visual_tokens(
             && !matches!(style.tone, WidgetTone::Neutral))
     {
         theme.text_primary
+    } else if matches!(
+        (style.prominence, style.tone),
+        (WidgetProminence::Subtle, WidgetTone::Neutral)
+    ) {
+        theme.text_muted
     } else {
         match style.tone {
             WidgetTone::Neutral => theme.text_primary,
@@ -83,6 +88,8 @@ pub fn resolve_widget_visual_tokens(
         theme.border_emphasis
     } else if state.pressed || state.hovered {
         blend(theme.border_emphasis, emphasis, theme.state_hover_soft)
+    } else if matches!(style.prominence, WidgetProminence::Subtle) {
+        theme.grid_soft
     } else {
         theme.border
     };
@@ -107,15 +114,15 @@ fn tone_color(theme: &ThemeTokens, tone: WidgetTone) -> Rgba8 {
 
 fn prominence_fill(theme: &ThemeTokens, prominence: WidgetProminence) -> Rgba8 {
     match prominence {
-        WidgetProminence::Subtle => theme.surface_base,
+        WidgetProminence::Subtle => theme.bg_primary,
         WidgetProminence::Normal => theme.surface_raised,
         WidgetProminence::Strong => theme.surface_overlay,
     }
 }
 
-fn accent_fill(theme: &ThemeTokens, emphasis: Rgba8) -> Rgba8 {
+fn active_fill(theme: &ThemeTokens, emphasis: Rgba8) -> Rgba8 {
     if emphasis == theme.text_primary {
-        theme.surface_raised
+        theme.surface_overlay
     } else {
         emphasis
     }
@@ -184,6 +191,26 @@ mod tests {
     }
 
     #[test]
+    fn neutral_active_controls_use_selected_surface() {
+        let theme = ThemeTokens::default();
+        let base =
+            resolve_widget_visual_tokens(&theme, WidgetStyle::default(), WidgetState::default());
+        let active = resolve_widget_visual_tokens(
+            &theme,
+            WidgetStyle::default(),
+            WidgetState {
+                active: true,
+                ..WidgetState::default()
+            },
+        );
+
+        assert_eq!(base.fill, theme.surface_raised);
+        assert_eq!(active.fill, theme.surface_overlay);
+        assert_ne!(active.fill, base.fill);
+        assert_eq!(active.foreground, theme.text_primary);
+    }
+
+    #[test]
     fn hover_and_press_states_change_control_chrome() {
         let theme = ThemeTokens::default();
         let base =
@@ -212,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn subtle_toned_controls_use_lifted_fill() {
+    fn subtle_controls_use_recessed_fill_and_toned_controls_lift() {
         let theme = ThemeTokens::default();
         let neutral = resolve_widget_visual_tokens(
             &theme,
@@ -231,7 +258,9 @@ mod tests {
             WidgetState::default(),
         );
 
-        assert_eq!(neutral.fill, theme.surface_base);
+        assert_eq!(neutral.fill, theme.bg_primary);
+        assert_eq!(neutral.foreground, theme.text_muted);
+        assert_eq!(neutral.border, theme.grid_soft);
         assert_ne!(danger.fill, theme.surface_base);
         assert_eq!(danger.foreground, theme.accent_danger);
     }

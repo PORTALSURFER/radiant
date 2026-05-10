@@ -30,7 +30,8 @@ use runtime_helpers::{
     render_profile_enabled, scroll_delta_to_logical,
 };
 pub(in crate::gui_runtime::native_vello) use scene::{
-    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, encode_surface_paint_plan_to_scene,
+    RetainedSurfaceEncodeStats, RetainedSurfaceFrameCache, SurfaceSceneEncodeContext,
+    encode_surface_paint_plan_to_scene,
 };
 use window::generic_window_attributes;
 
@@ -147,6 +148,7 @@ where
     renderer: Option<Renderer>,
     text_renderer: NativeTextRenderer,
     scene: Scene,
+    scene_text_runs: Vec<TextRun>,
     gpu_surface_renderer: GpuSurfaceRenderer,
     last_paint_plan: SurfacePaintPlan,
     retained_surface_cache: RetainedSurfaceFrameCache,
@@ -182,6 +184,7 @@ where
             renderer: None,
             text_renderer,
             scene: Scene::new(),
+            scene_text_runs: Vec::new(),
             gpu_surface_renderer: GpuSurfaceRenderer::default(),
             last_paint_plan: SurfacePaintPlan::empty(&ThemeTokens::default()),
             retained_surface_cache: RetainedSurfaceFrameCache::default(),
@@ -218,12 +221,15 @@ where
         let viewport = self.core.runtime.viewport();
         self.last_scene_stats = encode_surface_paint_plan_to_scene(
             &plan,
-            &mut self.scene,
-            &mut self.text_renderer,
-            self.core.runtime.bridge_mut(),
-            viewport,
-            &mut self.retained_surface_cache,
-            self.animation_origin.elapsed(),
+            SurfaceSceneEncodeContext {
+                scene: &mut self.scene,
+                text_renderer: &mut self.text_renderer,
+                bridge: self.core.runtime.bridge_mut(),
+                viewport,
+                retained_cache: &mut self.retained_surface_cache,
+                text_runs: &mut self.scene_text_runs,
+                animation_time: self.animation_origin.elapsed(),
+            },
         );
         self.scene_texture_dirty = true;
         self.last_paint_plan = plan;

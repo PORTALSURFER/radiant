@@ -18,31 +18,35 @@ use text_input::encode_text_input;
 
 pub(in crate::gui_runtime::native_vello) fn encode_surface_paint_plan_to_scene<Bridge, Message>(
     plan: &crate::runtime::SurfacePaintPlan,
-    scene: &mut Scene,
-    text_renderer: &mut NativeTextRenderer,
-    bridge: &mut Bridge,
-    viewport: Vector2,
-    retained_cache: &mut RetainedSurfaceFrameCache,
-    animation_time: Duration,
+    context: SurfaceSceneEncodeContext<'_, Bridge>,
 ) -> RetainedSurfaceEncodeStats
 where
     Bridge: RuntimeBridge<Message>,
 {
+    let SurfaceSceneEncodeContext {
+        scene,
+        text_renderer,
+        bridge,
+        viewport,
+        retained_cache,
+        text_runs,
+        animation_time,
+    } = context;
     scene.reset();
+    text_runs.clear();
     let mut stats = RetainedSurfaceEncodeStats {
         paint_plan_primitives: plan.primitives.len(),
         ..RetainedSurfaceEncodeStats::default()
     };
-    let mut text_runs = Vec::new();
     for primitive in &plan.primitives {
         match primitive {
             PaintPrimitive::ClipStart(clip) => {
                 stats.clip_layer_count = stats.clip_layer_count.saturating_add(1);
-                flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                 scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &to_kurbo_rect(clip.rect));
             }
             PaintPrimitive::ClipEnd(_) => {
-                flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                 scene.pop_layer();
             }
             PaintPrimitive::FillRect(fill) => encode_rect(scene, fill.color, fill.rect),
@@ -98,7 +102,7 @@ where
             }
             PaintPrimitive::TextInput(input) => {
                 stats.text_input_count = stats.text_input_count.saturating_add(1);
-                flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+                flush_text_runs(scene, text_renderer, text_runs, &mut stats);
                 encode_text_input(scene, text_renderer, input, animation_time);
                 stats.record_text_runs(1);
             }
@@ -152,6 +156,16 @@ where
             }
         }
     }
-    flush_text_runs(scene, text_renderer, &mut text_runs, &mut stats);
+    flush_text_runs(scene, text_renderer, text_runs, &mut stats);
     stats
+}
+
+pub(in crate::gui_runtime::native_vello) struct SurfaceSceneEncodeContext<'a, Bridge> {
+    pub scene: &'a mut Scene,
+    pub text_renderer: &'a mut NativeTextRenderer,
+    pub bridge: &'a mut Bridge,
+    pub viewport: Vector2,
+    pub retained_cache: &'a mut RetainedSurfaceFrameCache,
+    pub text_runs: &'a mut Vec<TextRun>,
+    pub animation_time: Duration,
 }

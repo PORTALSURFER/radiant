@@ -261,4 +261,24 @@ mod tests {
         );
         assert!(!input.common.state.pressed);
     }
+
+    #[test]
+    fn text_input_selection_range_clamps_stale_public_state() {
+        let mut input = TextInputWidget::new(
+            7,
+            "abc",
+            WidgetSizing::new(Vector2::new(100.0, 28.0), Vector2::new(160.0, 28.0)),
+        );
+        input.state.selection_anchor = usize::MAX;
+        input.state.caret = 1;
+
+        assert_eq!(input.selection_range(), (1, 3));
+        assert_eq!(input.selected_text().as_deref(), Some("bc"));
+
+        input.state.selection_anchor = 9;
+        input.state.caret = 7;
+
+        assert_eq!(input.selection_range(), (3, 3));
+        assert_eq!(input.selected_text(), None);
+    }
 }

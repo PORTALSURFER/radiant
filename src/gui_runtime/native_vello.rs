@@ -23,7 +23,7 @@ use vello::{
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, Size},
-    event::{ElementState, MouseScrollDelta, WindowEvent},
+    event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{Key, NamedKey, PhysicalKey},
     window::{Window, WindowAttributes, WindowId},

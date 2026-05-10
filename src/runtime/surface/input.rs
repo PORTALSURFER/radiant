@@ -3,7 +3,7 @@ use crate::{
     gui::types::Rect,
     widgets::{WidgetId, WidgetInput, WidgetOutput},
 };
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 pub(in crate::runtime) enum WidgetDispatchResult<Message> {
     NoOutput,
@@ -12,41 +12,31 @@ pub(in crate::runtime) enum WidgetDispatchResult<Message> {
 }
 
 impl<Message> SurfaceNode<Message> {
-    pub(super) fn collect_widgets<'a>(
-        &'a self,
-        widgets: &mut BTreeMap<WidgetId, &'a SurfaceWidget<Message>>,
-    ) {
-        match self {
-            Self::Container(container) => {
-                for child in &container.children {
-                    child.child.collect_widgets(widgets);
-                }
-            }
-            Self::Widget(widget) => {
-                widgets.entry(widget.id()).or_insert(widget);
-            }
-            Self::Overlay(_) => {}
-        }
-    }
-
-    pub(super) fn synchronize_widget_state_from(
+    pub(super) fn synchronize_widget_state_from_paths(
         &mut self,
-        previous_widgets: &BTreeMap<WidgetId, &SurfaceWidget<Message>>,
+        current_paths: &HashMap<WidgetId, Vec<usize>>,
+        previous: &Self,
+        previous_paths: &HashMap<WidgetId, Vec<usize>>,
     ) {
-        match self {
-            Self::Container(container) => {
-                for child in &mut container.children {
-                    child.child.synchronize_widget_state_from(previous_widgets);
-                }
-            }
-            Self::Widget(widget) => {
-                if let Some(previous_widget) = previous_widgets.get(&widget.id()) {
-                    widget
-                        .widget_object_mut()
-                        .synchronize_from_previous(previous_widget.widget_object());
-                }
-            }
-            Self::Overlay(_) => {}
+        for (widget_id, current_path) in current_paths {
+            let Some(previous_path) = previous_paths.get(widget_id) else {
+                continue;
+            };
+            let Some(previous_widget) = previous
+                .find_widget_at_path(previous_path)
+                .filter(|widget| widget.id() == *widget_id)
+            else {
+                continue;
+            };
+            let Some(current_widget) = self
+                .find_widget_mut_at_path(current_path)
+                .filter(|widget| widget.id() == *widget_id)
+            else {
+                continue;
+            };
+            current_widget
+                .widget_object_mut()
+                .synchronize_from_previous(previous_widget.widget_object());
         }
     }
 
@@ -160,7 +150,7 @@ mod tests {
     use super::*;
     use crate::{
         gui::types::{Point, Vector2},
-        widgets::{ButtonWidget, WidgetSizing},
+        widgets::{ButtonWidget, PointerButton, ScrollbarAxis, ScrollbarWidget, WidgetSizing},
     };
 
     #[test]
@@ -233,5 +223,68 @@ mod tests {
             20
         );
         assert!(root.find_widget_at_path(&[2]).is_none());
+    }
+
+    #[test]
+    fn synchronize_widget_state_from_paths_preserves_state_after_reorder() {
+        let mut previous: SurfaceNode<()> = SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(10, "First", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ScrollbarWidget::new(
+                        20,
+                        ScrollbarAxis::Vertical,
+                        WidgetSizing::fixed(Vector2::new(16.0, 100.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        );
+        let mut current: SurfaceNode<()> = SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ScrollbarWidget::new(
+                        20,
+                        ScrollbarAxis::Vertical,
+                        WidgetSizing::fixed(Vector2::new(16.0, 100.0)),
+                    ),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(10, "First", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        );
+
+        let _ = previous.dispatch_input_at_path(
+            20,
+            &[1],
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(16.0, 100.0)),
+            WidgetInput::PointerPress {
+                position: Point::new(8.0, 8.0),
+                button: PointerButton::Primary,
+            },
+        );
+
+        let previous_paths = HashMap::from([(10, vec![0]), (20, vec![1])]);
+        let current_paths = HashMap::from([(20, vec![0]), (10, vec![1])]);
+        current.synchronize_widget_state_from_paths(&current_paths, &previous, &previous_paths);
+
+        let moved = current
+            .find_widget_at_path(&[0])
+            .expect("moved widget exists")
+            .widget()
+            .as_any()
+            .downcast_ref::<ScrollbarWidget>()
+            .expect("moved widget stays a scrollbar");
+        assert_eq!(moved.state.drag_grip_fraction, Some(0.08));
     }
 }

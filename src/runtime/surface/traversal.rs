@@ -57,7 +57,10 @@ impl<Message> SurfaceNode<Message> {
             }
             Self::Widget(widget) => {
                 index.widget_paint_order.push(widget.id());
-                index.widget_paths.insert(widget.id(), child_path.clone());
+                index
+                    .widget_paths
+                    .entry(widget.id())
+                    .or_insert_with(|| child_path.clone());
                 if widget.is_focusable() {
                     index.focusable_widget_order.push(widget.id());
                 }

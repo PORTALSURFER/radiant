@@ -74,14 +74,14 @@ impl NativeTextRenderer {
         let Some(loaded_font) = self.loaded_font.as_ref() else {
             return;
         };
-        let font_data = loaded_font.font.clone();
+        let font_data = &loaded_font.font;
         for run in text_runs {
             if run.text.is_empty() || run.font_size <= 0.0 {
                 continue;
             }
             let Some(layout) = self
                 .layout_cache
-                .layout_for(&font_data, &run.text, run.font_size)
+                .layout_for(font_data, &run.text, run.font_size)
             else {
                 continue;
             };
@@ -106,7 +106,7 @@ impl NativeTextRenderer {
                     y: baseline,
                 });
             scene
-                .draw_glyphs(&font_data)
+                .draw_glyphs(font_data)
                 .font_size(run.font_size)
                 .brush(color_from_rgba(run.color))
                 .draw(Fill::NonZero, glyph_iter);
@@ -114,8 +114,8 @@ impl NativeTextRenderer {
     }
 
     pub(super) fn layout_text(&mut self, text: &str, font_size: f32) -> Option<&TextLayout> {
-        let font = self.loaded_font.as_ref()?.font.clone();
-        self.layout_cache.layout_for(&font, text, font_size)
+        let font = &self.loaded_font.as_ref()?.font;
+        self.layout_cache.layout_for(font, text, font_size)
     }
 
     pub(in crate::gui_runtime::native_vello) fn take_layout_profile_counters(

@@ -22,6 +22,7 @@ impl GpuSurfaceRenderer {
                     *frames,
                     *band_count,
                     samples,
+                    stats,
                 );
                 (*frames, *band_count, *frame_range, summary)
             }

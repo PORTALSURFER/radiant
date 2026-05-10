@@ -16,7 +16,7 @@ use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::model::{ContainerKind, VirtualizationAxis};
 use crate::gui::layout_core::tree::{ContainerNode, LayoutNode, SlotChild};
 use crate::gui::types::{Point, Rect, Vector2};
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 /// Layout a scroll container and optionally virtualize large linear child lists.
 pub(super) fn layout_scroll_view(
@@ -240,7 +240,7 @@ fn cached_or_build_metrics(
     constraints: Constraints,
     axis: VirtualizationAxis,
     context: &mut LayoutContext,
-) -> super::super::LinearVirtualMetrics {
+) -> Arc<super::super::LinearVirtualMetrics> {
     let key = VirtualizationCacheKey::new(
         content.id,
         constraints,
@@ -252,10 +252,10 @@ fn cached_or_build_metrics(
         return metrics;
     }
 
-    let metrics = build_linear_metrics(content, constraints, axis, context);
+    let metrics = Arc::new(build_linear_metrics(content, constraints, axis, context));
     let mut dependencies = BTreeSet::new();
     collect_subtree_ids_from_container(content, &mut dependencies);
-    context.remember_virtual_metrics(key, metrics.clone(), dependencies);
+    context.remember_virtual_metrics(key, Arc::clone(&metrics), dependencies);
     metrics
 }
 

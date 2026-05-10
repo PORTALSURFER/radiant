@@ -2,7 +2,7 @@ use crate::{
     application::{DynamicWidget, MappedWidget, ViewNode, ViewNodeKind, WidgetView},
     gui::types::ImageRgba,
     layout::Vector2,
-    runtime::{GpuSurfaceContent, WidgetMessageMapper},
+    runtime::{GpuSurfaceContent, PaintText, WidgetMessageMapper},
     widgets::{
         ButtonWidget, CanvasWidget, CardWidget, GpuSurfaceMessage, GpuSurfaceWidget, ImageWidget,
         TextInputWidget, TextWidget, ToggleWidget, Widget, WidgetOutput, WidgetProminence,
@@ -24,12 +24,17 @@ pub fn widget<Message>(widget: impl WidgetView<Message> + 'static) -> ViewNode<M
 
 /// Build a non-interactive text view with generated identity and default sizing.
 pub fn text<Message: 'static>(value: impl Into<String>) -> ViewNode<Message> {
-    view_node_from_widget(TextWidget::new(0, value, default_text_sizing()))
+    view_node_from_widget(TextWidget::new(
+        0,
+        PaintText::from(value.into()),
+        default_text_sizing(),
+    ))
 }
 
 /// Build a passive button view for retained surfaces that need button chrome
 /// without host messages.
 pub fn passive_button<Message: 'static>(label: impl Into<String>) -> ViewNode<Message> {
+    let label = label.into();
     view_node_from_widget(ButtonWidget::new(0, label, default_button_sizing("")))
 }
 
@@ -39,6 +44,7 @@ pub fn passive_toggle<Message: 'static>(
     label: impl Into<String>,
     checked: bool,
 ) -> ViewNode<Message> {
+    let label = label.into();
     view_node_from_widget(
         ToggleWidget::new(0, label, default_toggle_sizing("", true)).with_checked(checked),
     )
@@ -53,7 +59,7 @@ pub fn passive_text_input<Message: 'static>(
     let mut input = TextInputWidget::new(0, value, default_text_input_sizing());
     let placeholder = placeholder.into();
     if !placeholder.is_empty() {
-        input.props.placeholder = Some(placeholder);
+        input.props.placeholder = Some(placeholder.into());
     }
     view_node_from_widget(input)
 }

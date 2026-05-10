@@ -10,4 +10,4 @@ pub use shape::{
     PaintFillPolygon, PaintFillRect, PaintStrokePolygon, PaintStrokePolyline, PaintStrokeRect,
 };
 pub use surface::{PaintCustomSurface, PaintGpuSurface, PaintImage};
-pub use text::{PaintOverlayPanel, PaintTextAlign, PaintTextInput, PaintTextRun};
+pub use text::{PaintOverlayPanel, PaintText, PaintTextAlign, PaintTextInput, PaintTextRun};

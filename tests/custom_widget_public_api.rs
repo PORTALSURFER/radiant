@@ -109,7 +109,7 @@ impl Widget for CustomStatusWidget {
         }));
         primitives.push(PaintPrimitive::Text(radiant::runtime::PaintTextRun {
             widget_id: self.common.id,
-            text: self.label.to_owned(),
+            text: self.label.into(),
             rect: bounds,
             font_size: 13.0,
             baseline: Some(18.0),

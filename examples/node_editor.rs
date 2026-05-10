@@ -460,6 +460,6 @@ mod tests {
             .downcast_ref::<TextWidget>()
             .expect("status widget is text")
             .text
-            .clone()
+            .to_string()
     }
 }

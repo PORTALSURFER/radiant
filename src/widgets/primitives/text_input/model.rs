@@ -1,8 +1,10 @@
+use crate::runtime::PaintText;
+
 /// Immutable public properties for a reusable single-line text input.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TextInputProps {
     /// Optional placeholder shown when the current value is empty.
-    pub placeholder: Option<String>,
+    pub placeholder: Option<PaintText>,
     /// Whether Enter should emit a submit message instead of inserting text.
     pub submit_on_enter: bool,
     /// Optional maximum number of Unicode scalar values accepted by the field.

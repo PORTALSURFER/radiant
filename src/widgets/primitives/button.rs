@@ -6,7 +6,7 @@ mod paint;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -28,7 +28,7 @@ pub struct ButtonWidget {
 
 impl ButtonWidget {
     /// Build a button descriptor with keyboard focus and activation semantics.
-    pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
@@ -115,6 +115,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ButtonMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        let label = label.into();
         Self::widget(
             ButtonWidget::new(id, label, sizing),
             WidgetMessageMapper::button(map),

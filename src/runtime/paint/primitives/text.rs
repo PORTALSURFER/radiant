@@ -2,6 +2,7 @@ use crate::{
     gui::types::{Rect, Rgba8},
     widgets::{TextInputState, TextWrap, WidgetId, WidgetStyle},
 };
+use std::{fmt, ops::Deref, sync::Arc};
 
 /// Horizontal alignment for generic text paint primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -14,13 +15,95 @@ pub enum PaintTextAlign {
     Right,
 }
 
+/// Shared text payload used by backend-neutral paint primitives.
+///
+/// Paint plans are owned replayable artifacts, but most widget labels are
+/// stable across frames. Sharing the text storage keeps repeated paint-plan
+/// construction from reallocating every label string.
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct PaintText(Arc<str>);
+
+impl PaintText {
+    /// Return the text as a borrowed string slice.
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+
+    /// Return true when this text has no bytes.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<String> for PaintText {
+    fn from(value: String) -> Self {
+        Self(Arc::from(value))
+    }
+}
+
+impl From<&str> for PaintText {
+    fn from(value: &str) -> Self {
+        Self(Arc::from(value))
+    }
+}
+
+impl From<&String> for PaintText {
+    fn from(value: &String) -> Self {
+        Self(Arc::from(value.as_str()))
+    }
+}
+
+impl AsRef<str> for PaintText {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Deref for PaintText {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for PaintText {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<&str> for PaintText {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<PaintText> for &str {
+    fn eq(&self, other: &PaintText) -> bool {
+        *self == other.as_str()
+    }
+}
+
+impl PartialEq<String> for PaintText {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl PartialEq<PaintText> for String {
+    fn eq(&self, other: &PaintText) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
 /// Single-line text primitive in logical surface coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaintTextRun {
     /// Widget that produced this text run.
     pub widget_id: WidgetId,
     /// Text content to paint.
-    pub text: String,
+    pub text: PaintText,
     /// Text layout rectangle.
     pub rect: Rect,
     /// Font size in logical pixels per em.
@@ -43,7 +126,7 @@ pub struct PaintOverlayPanel {
     /// Overlay rectangle in logical surface coordinates.
     pub rect: Rect,
     /// Optional text label to paint inside the panel.
-    pub label: Option<String>,
+    pub label: Option<PaintText>,
     /// Panel style.
     pub style: WidgetStyle,
 }
@@ -56,7 +139,7 @@ pub struct PaintTextInput {
     /// Text layout rectangle inside the control chrome.
     pub rect: Rect,
     /// Optional placeholder shown when the value is empty.
-    pub placeholder: Option<String>,
+    pub placeholder: Option<PaintText>,
     /// Current text input state.
     pub state: TextInputState,
     /// Font size in logical pixels per em.
@@ -73,4 +156,20 @@ pub struct PaintTextInput {
     pub caret_color: Rgba8,
     /// Whether the field currently owns keyboard focus.
     pub focused: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paint_text_converts_compares_and_shares_storage() {
+        let text: PaintText = String::from("Tempo").into();
+        let cloned = text.clone();
+
+        assert_eq!(text.as_str(), "Tempo");
+        assert_eq!(text, "Tempo");
+        assert_eq!("Tempo", cloned);
+        assert!(Arc::ptr_eq(&text.0, &cloned.0));
+    }
 }

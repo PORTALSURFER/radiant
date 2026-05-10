@@ -6,7 +6,7 @@ mod paint;
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -28,7 +28,7 @@ pub struct ToggleWidget {
 
 impl ToggleWidget {
     /// Build a toggle descriptor with value-change semantics.
-    pub fn new(id: WidgetId, label: impl Into<String>, sizing: WidgetSizing) -> Self {
+    pub fn new(id: WidgetId, label: impl Into<PaintText>, sizing: WidgetSizing) -> Self {
         let mut common = WidgetCommon::new(id, sizing);
         common.focus = FocusBehavior::Keyboard;
         Self {
@@ -136,6 +136,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(ToggleMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        let label = label.into();
         Self::widget(
             ToggleWidget::new(id, label, sizing).with_checked(checked),
             WidgetMessageMapper::toggle(map),

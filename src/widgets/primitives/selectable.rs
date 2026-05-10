@@ -2,7 +2,7 @@
 
 use crate::gui::types::Rect;
 use crate::layout::LayoutOutput;
-use crate::runtime::{PaintPrimitive, SurfaceNode, WidgetMessageMapper};
+use crate::runtime::{PaintPrimitive, PaintText, SurfaceNode, WidgetMessageMapper};
 use crate::theme::ThemeTokens;
 
 use super::support::WidgetCommon;
@@ -28,7 +28,7 @@ impl SelectableWidget {
     /// Build a selectable descriptor with the provided selected state.
     pub fn new(
         id: WidgetId,
-        label: impl Into<String>,
+        label: impl Into<PaintText>,
         selected: bool,
         sizing: WidgetSizing,
     ) -> Self {
@@ -102,6 +102,7 @@ impl<Message> SurfaceNode<Message> {
         sizing: WidgetSizing,
         map: impl Fn(SelectableMessage) -> Message + Send + Sync + 'static,
     ) -> Self {
+        let label = label.into();
         Self::widget(
             SelectableWidget::new(id, label, selected, sizing),
             WidgetMessageMapper::selectable(map),

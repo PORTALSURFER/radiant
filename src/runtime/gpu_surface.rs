@@ -94,11 +94,19 @@ impl GpuSignalSummary {
         let band_count = band_count.max(1);
         let mut levels = Vec::new();
         let mut bucket_frames = 1usize;
+        let mut previous_buckets: Option<Arc<[GpuSignalSummaryBucket]>> = None;
         while bucket_frames <= frames.max(1) {
+            let buckets = match previous_buckets.as_deref() {
+                Some(previous) => {
+                    merge_signal_summary_level(previous, frames, band_count, bucket_frames)
+                }
+                None => build_signal_summary_level(samples, frames, band_count, bucket_frames),
+            };
             levels.push(GpuSignalSummaryLevel {
                 bucket_frames,
-                buckets: build_signal_summary_level(samples, frames, band_count, bucket_frames),
+                buckets: Arc::clone(&buckets),
             });
+            previous_buckets = Some(buckets);
             if bucket_frames >= frames.max(1) {
                 break;
             }
@@ -164,6 +172,36 @@ fn build_signal_summary_level(
     buckets.into()
 }
 
+fn merge_signal_summary_level(
+    previous: &[GpuSignalSummaryBucket],
+    frames: usize,
+    band_count: usize,
+    bucket_frames: usize,
+) -> Arc<[GpuSignalSummaryBucket]> {
+    let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
+    let previous_bucket_count = previous.len() / band_count.max(1);
+    let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
+    for bucket in 0..bucket_count {
+        let first = bucket.saturating_mul(2);
+        let second = first + 1;
+        for band in 0..band_count {
+            let mut summary = previous
+                .get(first.saturating_mul(band_count).saturating_add(band))
+                .copied()
+                .unwrap_or_default();
+            if second < previous_bucket_count
+                && let Some(next) =
+                    previous.get(second.saturating_mul(band_count).saturating_add(band))
+            {
+                summary.min = summary.min.min(next.min);
+                summary.max = summary.max.max(next.max);
+            }
+            buckets.push(summary);
+        }
+    }
+    buckets.into()
+}
+
 /// Lightweight GPU-surface overlay.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GpuSurfaceOverlay {
@@ -176,4 +214,39 @@ pub enum GpuSurfaceOverlay {
         /// Cursor width in logical pixels.
         width: f32,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn signal_summary_merges_partial_higher_level_buckets() {
+        let samples = [-0.1, 0.2, -0.7, 0.4, 0.3, -0.8, 0.9, -0.2, -0.5, 0.1];
+        let summary = GpuSignalSummary::from_interleaved_samples(&samples, 5, 2);
+        let level = summary
+            .levels
+            .iter()
+            .find(|level| level.bucket_frames == 4)
+            .expect("4-frame summary level");
+
+        assert_eq!(
+            &level.buckets[..],
+            &[
+                GpuSignalSummaryBucket {
+                    min: -0.7,
+                    max: 0.9
+                },
+                GpuSignalSummaryBucket {
+                    min: -0.8,
+                    max: 0.4
+                },
+                GpuSignalSummaryBucket {
+                    min: -0.5,
+                    max: -0.5
+                },
+                GpuSignalSummaryBucket { min: 0.1, max: 0.1 },
+            ]
+        );
+    }
 }

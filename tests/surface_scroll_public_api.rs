@@ -243,6 +243,56 @@ fn surface_runtime_does_not_hit_scrolled_content_outside_scroll_viewport() {
 }
 
 #[test]
+fn surface_runtime_does_not_scroll_nested_view_outside_parent_clip() {
+    let bridge = declarative_runtime_bridge(
+        Arc::new(UiSurface::<DemoMessage>::new(SurfaceNode::scroll_area(
+            20,
+            SurfaceNode::column(
+                21,
+                0.0,
+                vec![
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::text(
+                            30,
+                            "Spacer",
+                            WidgetSizing::fixed(Vector2::new(220.0, 100.0)),
+                        ),
+                    ),
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::scroll_area(
+                            40,
+                            SurfaceNode::column(
+                                41,
+                                0.0,
+                                (0..8)
+                                    .map(|index| {
+                                        SurfaceChild::new(
+                                            intrinsic_slot(),
+                                            SurfaceNode::text(
+                                                100 + index,
+                                                format!("Nested {index}"),
+                                                WidgetSizing::fixed(Vector2::new(220.0, 24.0)),
+                                            ),
+                                        )
+                                    })
+                                    .collect(),
+                            ),
+                        ),
+                    ),
+                ],
+            ),
+        ))),
+        |surface| Arc::clone(surface),
+        |_, _message| {},
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(240.0, 80.0));
+
+    assert!(!runtime.scroll_at(Point::new(20.0, 110.0), Vector2::new(0.0, 24.0)));
+}
+
+#[test]
 fn surface_node_virtual_scroll_area_helper_records_virtual_window() {
     let rows = (0..256)
         .map(|index| {

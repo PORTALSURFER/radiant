@@ -31,13 +31,14 @@ where
     }
 
     pub(super) fn relayout(&mut self) {
+        self.layout_root = self.surface.layout_node();
         let traversal = self.surface.runtime_traversal_index();
         self.relayout_with_traversal(traversal);
     }
 
     pub(super) fn relayout_current_surface(&mut self) {
         self.layout = self.layout_engine.layout_with_state(
-            &self.surface.layout_node(),
+            &self.layout_root,
             self.viewport,
             &self.layout_state,
             LayoutDebugOptions::default(),
@@ -47,7 +48,7 @@ where
 
     pub(super) fn relayout_with_traversal(&mut self, traversal: SurfaceTraversalIndex) {
         self.layout = self.layout_engine.layout_with_state(
-            &self.surface.layout_node(),
+            &self.layout_root,
             self.viewport,
             &self.layout_state,
             LayoutDebugOptions::default(),
@@ -57,6 +58,7 @@ where
         self.pointer_hit_order = traversal.pointer_hit_order;
         self.container_hover_suppression = traversal.container_hover_suppression;
         self.keyboard_focus_order = traversal.keyboard_focus_order;
+        self.wheel_hit_order = traversal.wheel_hit_order;
         self.styled_container_hit_order = traversal.styled_container_order;
         self.scroll_hit_order = traversal.scroll_container_order;
         self.widget_clip_ancestors = traversal.widget_clip_ancestors;

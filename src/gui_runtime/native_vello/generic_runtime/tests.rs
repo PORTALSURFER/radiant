@@ -410,6 +410,10 @@ impl Widget for TestGpuWheelWidget {
         }
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        true
+    }
+
     fn append_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

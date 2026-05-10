@@ -8,11 +8,11 @@ use radiant::{
         VirtualizationPolicy, layout_tree, layout_tree_with_state,
     },
     runtime::{
-        GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, SurfaceChild,
-        SurfaceNode, UiSurface,
+        GpuSignalSummary, GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, RuntimeBridge,
+        SurfaceChild, SurfaceNode, SurfaceRuntime, UiSurface, WidgetMessageMapper,
     },
     theme::ThemeTokens,
-    widgets::{GpuSurfaceWidget, TextWidget, WidgetSizing},
+    widgets::{ButtonWidget, GpuSurfaceWidget, TextWidget, WidgetSizing},
 };
 use std::{
     hint::black_box,
@@ -47,6 +47,12 @@ fn main() {
         "runtime_surface_large_tree",
         RUNTIME_ITERATIONS,
         bench_runtime_surface_large_tree,
+    );
+    let mut virtualized_wheel = StatefulVirtualizedWheelBench::new();
+    run_scenario(
+        "runtime_virtualized_list_wheel_10k",
+        RUNTIME_ITERATIONS,
+        move || virtualized_wheel.step(),
     );
     run_scenario(
         "gpu_signal_summary",
@@ -269,6 +275,64 @@ fn bench_runtime_surface_large_tree() {
     assert!(output.rects.len() >= 250);
     assert!(!plan.primitives.is_empty());
     black_box((output, plan));
+}
+
+struct StatefulVirtualizedWheelBench {
+    runtime: SurfaceRuntime<VirtualWheelBridge, ()>,
+    offset: f32,
+}
+
+impl StatefulVirtualizedWheelBench {
+    fn new() -> Self {
+        Self {
+            runtime: SurfaceRuntime::new(VirtualWheelBridge, Vector2::new(220.0, 120.0)),
+            offset: 0.0,
+        }
+    }
+
+    fn step(&mut self) {
+        self.offset = (self.offset + 360.0) % 120_000.0;
+        let handled = self
+            .runtime
+            .wheel_or_scroll_at(Point::new(24.0, 24.0), Vector2::new(0.0, self.offset));
+        assert!(handled);
+        black_box(self.runtime.layout());
+    }
+}
+
+struct VirtualWheelBridge;
+
+impl RuntimeBridge<()> for VirtualWheelBridge {
+    fn project_surface(&mut self) -> Arc<UiSurface<()>> {
+        let rows = (0..10_000_u64)
+            .map(|index| {
+                SurfaceChild::new(
+                    SlotParams {
+                        size_main: SizeModeMain::Fixed(28.0),
+                        size_cross: SizeModeCross::Fill,
+                        constraints: radiant::layout::Constraints::unconstrained(),
+                        margin: Default::default(),
+                        align_cross_override: None,
+                        allow_fixed_compress: false,
+                    },
+                    SurfaceNode::widget(
+                        ButtonWidget::new(
+                            index + 10,
+                            format!("Row {index:05}"),
+                            WidgetSizing::fixed(Vector2::new(160.0, 28.0)),
+                        ),
+                        WidgetMessageMapper::none(),
+                    ),
+                )
+            })
+            .collect();
+        Arc::new(UiSurface::new(SurfaceNode::virtual_scroll_area(
+            1,
+            SurfaceNode::column(2, 4.0, rows),
+            VirtualizationAxis::Vertical,
+            96.0,
+        )))
+    }
 }
 
 fn runtime_surface_node(count: u64) -> SurfaceNode<()> {

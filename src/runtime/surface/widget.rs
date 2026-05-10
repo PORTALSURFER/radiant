@@ -136,6 +136,10 @@ impl<Message> SurfaceWidget<Message> {
                 || self.messages.map.is_some())
     }
 
+    pub(in crate::runtime) fn receives_wheel_input(&self) -> bool {
+        !self.widget.common().state.disabled && self.widget.accepts_wheel_input()
+    }
+
     pub(in crate::runtime) fn suppresses_container_hover(&self) -> bool {
         let common = self.widget.common();
         !common.state.disabled

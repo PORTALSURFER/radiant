@@ -52,7 +52,7 @@ where
         delta: Vector2,
         refresh_after_message: bool,
     ) -> bool {
-        let Some(widget_id) = self.widget_at(point) else {
+        let Some(widget_id) = self.wheel_widget_at(point) else {
             return false;
         };
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
@@ -82,6 +82,20 @@ where
             WidgetDispatchResult::NoOutput => return false,
         }
         true
+    }
+
+    fn wheel_widget_at(&self, point: Point) -> Option<WidgetId> {
+        self.wheel_hit_order
+            .iter()
+            .rev()
+            .copied()
+            .find(|widget_id| {
+                self.layout
+                    .rects
+                    .get(widget_id)
+                    .is_some_and(|rect| rect.contains(point))
+                    && self.widget_clip_contains_point(*widget_id, point)
+            })
     }
 
     fn scroll_container_at(&self, point: Point) -> Option<NodeId> {

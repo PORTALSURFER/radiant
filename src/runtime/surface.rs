@@ -112,6 +112,17 @@ impl<Message> UiSurface<Message> {
         self.root.handle_input(widget_id, bounds, input)
     }
 
+    pub(in crate::runtime) fn dispatch_widget_input_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: crate::gui::types::Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        self.root
+            .handle_input_at_path(widget_id, child_path, bounds, input)
+    }
+
     pub(in crate::runtime) fn dispatch_widget_input_message(
         &mut self,
         widget_id: WidgetId,
@@ -136,6 +147,16 @@ impl<Message> UiSurface<Message> {
     /// Find one projected widget by stable id.
     pub fn find_widget(&self, widget_id: WidgetId) -> Option<&SurfaceWidget<Message>> {
         self.root.find_widget(widget_id)
+    }
+
+    pub(in crate::runtime) fn find_widget_at_path(
+        &self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+    ) -> Option<&SurfaceWidget<Message>> {
+        self.root
+            .find_widget_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
     }
 
     /// Find one projected widget by stable id for in-place runtime interaction.

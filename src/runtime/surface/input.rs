@@ -60,6 +60,18 @@ impl<Message> SurfaceNode<Message> {
             .and_then(|widget| widget.handle_input(widget_id, bounds, input))
     }
 
+    pub(super) fn handle_input_at_path(
+        &mut self,
+        widget_id: WidgetId,
+        child_path: &[usize],
+        bounds: Rect,
+        input: WidgetInput,
+    ) -> Option<WidgetOutput> {
+        self.find_widget_mut_at_path(child_path)
+            .filter(|widget| widget.id() == widget_id)
+            .and_then(|widget| widget.handle_input(widget_id, bounds, input))
+    }
+
     pub(super) fn dispatch_input_at_path(
         &mut self,
         widget_id: WidgetId,
@@ -95,6 +107,21 @@ impl<Message> SurfaceNode<Message> {
                 .find_map(|child| child.child.find_widget(widget_id)),
             Self::Widget(widget) => (widget.id() == widget_id).then_some(widget),
             Self::Overlay(_) => None,
+        }
+    }
+
+    pub(super) fn find_widget_at_path(
+        &self,
+        child_path: &[usize],
+    ) -> Option<&SurfaceWidget<Message>> {
+        match (self, child_path.split_first()) {
+            (Self::Widget(widget), None) => Some(widget),
+            (Self::Container(container), Some((child_index, remaining_path))) => container
+                .children
+                .get(*child_index)?
+                .child
+                .find_widget_at_path(remaining_path),
+            _ => None,
         }
     }
 
@@ -180,5 +207,31 @@ mod tests {
                 .state
                 .hovered
         );
+    }
+
+    #[test]
+    fn find_widget_at_child_path_returns_only_the_target_leaf() {
+        let root: SurfaceNode<()> = SurfaceNode::column(
+            1,
+            0.0,
+            vec![
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(10, "First", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+                SurfaceChild::fill(SurfaceNode::widget(
+                    ButtonWidget::new(20, "Second", WidgetSizing::fixed(Vector2::new(80.0, 28.0))),
+                    WidgetMessageMapper::none(),
+                )),
+            ],
+        );
+
+        assert_eq!(
+            root.find_widget_at_path(&[1])
+                .expect("target widget exists")
+                .id(),
+            20
+        );
+        assert!(root.find_widget_at_path(&[2]).is_none());
     }
 }

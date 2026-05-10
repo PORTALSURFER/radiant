@@ -54,7 +54,7 @@ where
     /// Return whether the current focus target is a text input.
     pub fn focused_text_input_id(&self) -> Option<WidgetId> {
         let widget_id = self.focused_widget?;
-        self.surface.find_widget(widget_id).and_then(|widget| {
+        self.surface_widget(widget_id).and_then(|widget| {
             widget
                 .widget_object()
                 .accepts_text_input()
@@ -65,8 +65,7 @@ where
     /// Return selected text from the focused text input, if any.
     pub fn focused_text_selection(&self) -> Option<String> {
         let widget_id = self.focused_text_input_id()?;
-        self.surface
-            .find_widget(widget_id)
+        self.surface_widget(widget_id)
             .and_then(|widget| widget.widget_object().selected_text())
     }
 
@@ -101,11 +100,8 @@ where
         let Some(bounds) = self.layout.rects.get(&widget_id).copied() else {
             return;
         };
-        let _ = self.surface.dispatch_widget_input(
-            widget_id,
-            bounds,
-            WidgetInput::FocusChanged(focused),
-        );
+        let _ =
+            self.dispatch_raw_surface_input(widget_id, bounds, WidgetInput::FocusChanged(focused));
     }
 }
 

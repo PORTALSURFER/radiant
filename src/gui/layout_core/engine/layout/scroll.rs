@@ -4,6 +4,7 @@ use super::super::cache::{
     LinearVirtualMetrics, ResolvedLinearWindow, VirtualizationCacheKey,
     virtualization_policy_fingerprint,
 };
+use super::super::helpers::LayoutAxis;
 use super::super::{LayoutContext, LayoutDiagnosticCode, VirtualWindowInfo};
 use super::layout_node;
 use super::scroll_helpers::{
@@ -121,24 +122,11 @@ fn layout_virtualized_child(
         }
     };
 
-    let available_main = if horizontal {
-        child_rect.width()
-    } else {
-        child_rect.height()
-    }
-    .max(0.0);
-    let available_cross = if horizontal {
-        child_rect.height()
-    } else {
-        child_rect.width()
-    }
-    .max(0.0);
+    let axis = LayoutAxis::from_horizontal(horizontal);
+    let available_main = axis.main_extent(child_rect).max(0.0);
+    let available_cross = axis.cross_extent(child_rect).max(0.0);
 
-    let viewport_main_size = if horizontal {
-        viewport_rect.width()
-    } else {
-        viewport_rect.height()
-    };
+    let viewport_main_size = axis.main_extent(viewport_rect);
     let viewport_main_start = if horizontal { offset.x } else { offset.y };
 
     let constraints = if horizontal {

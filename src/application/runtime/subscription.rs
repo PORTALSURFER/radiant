@@ -41,10 +41,10 @@ impl<Message> Subscription<Message> {
         for subscription in subscription_iter {
             subscription.append_to_batch(&mut subscriptions);
         }
-        if subscriptions.is_empty() {
-            Self::None
-        } else {
-            Self::Batch(subscriptions)
+        match subscriptions.len() {
+            0 => Self::None,
+            1 => subscriptions.pop().expect("single subscription exists"),
+            _ => Self::Batch(subscriptions),
         }
     }
 
@@ -169,6 +169,23 @@ mod subscription_tests {
         assert!(matches!(
             subscriptions[2],
             Subscription::Interval { id: "third", .. }
+        ));
+    }
+
+    #[test]
+    fn batch_collapses_single_subscription_groups() {
+        let subscription = Subscription::batch([
+            Subscription::none(),
+            Subscription::batch([Subscription::interval(
+                "only",
+                Duration::from_millis(10),
+                || 1_u32,
+            )]),
+        ]);
+
+        assert!(matches!(
+            subscription,
+            Subscription::Interval { id: "only", .. }
         ));
     }
 }

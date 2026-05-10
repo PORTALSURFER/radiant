@@ -3,6 +3,7 @@
 use super::layout_node;
 use super::linear::resolve_nonfill_main;
 use crate::gui::layout_core::engine::LayoutContext;
+use crate::gui::layout_core::engine::direct::direct_widget_measure;
 use crate::gui::layout_core::tree::ContainerNode;
 use crate::gui::types::{Point, Rect, Vector2};
 
@@ -15,8 +16,9 @@ pub(super) fn layout_wrap(container: &ContainerNode, content: Rect, context: &mu
     let mut line_h = 0.0;
 
     for child in &container.children {
-        let measured =
-            super::super::measure::measure_node(&child.child, child.slot.constraints, context);
+        let measured = direct_widget_measure(child).unwrap_or_else(|| {
+            super::super::measure::measure_node(&child.child, child.slot.constraints, context)
+        });
         let width = resolve_nonfill_main(
             true,
             child,

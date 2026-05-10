@@ -3,6 +3,7 @@
 use super::super::measure_node;
 use crate::gui::layout_core::constraints::Constraints;
 use crate::gui::layout_core::engine::LayoutContext;
+use crate::gui::layout_core::engine::direct::direct_widget_measure;
 use crate::gui::layout_core::tree::ContainerNode;
 use crate::gui::types::Vector2;
 
@@ -21,7 +22,12 @@ pub(super) fn measure_wrap(
     let mut used_w: f32 = 0.0;
 
     for child in &container.children {
-        let measured = measure_node(&child.child, child.slot.constraints, context);
+        let measured = if let Some(measured) = direct_widget_measure(child) {
+            context.record_measured_size(child.child.id(), measured);
+            measured
+        } else {
+            measure_node(&child.child, child.slot.constraints, context)
+        };
         let item_w = measured.x + child.slot.margin.left + child.slot.margin.right;
         let item_h = measured.y + child.slot.margin.top + child.slot.margin.bottom;
         let proposed = if line_w <= 0.0 {

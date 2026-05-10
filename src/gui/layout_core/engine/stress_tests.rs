@@ -65,6 +65,10 @@ fn large_wrap_list_layout_produces_valid_rects() {
     );
 
     assert_eq!(output.rects.len(), 1_001);
+    assert!(
+        output.stats.measured_nodes < 8,
+        "direct widget wrap children should not pay generic measure-cache overhead"
+    );
     for rect in output.rects.values() {
         assert!(rect.width().is_finite());
         assert!(rect.height().is_finite());

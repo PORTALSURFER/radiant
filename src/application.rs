@@ -4,16 +4,14 @@
 //! deterministic widget ids, supplies default widget sizing, and lowers every
 //! view into the existing [`UiSurface`](crate::runtime::UiSurface) tree.
 
-use crate::{
-    layout::{CrossAlign, Insets, MainAlign, NodeId},
-    runtime::SurfaceNode,
-    widgets::{TextAlign, TextWrap, WidgetSizing, WidgetStyle},
-};
-
 const ROOT_KEY_SCOPE: u64 = 0xcbf2_9ce4_8422_2325;
 
 /// Result type used by native launch helpers.
 pub type Result<T = ()> = std::result::Result<T, String>;
+
+mod view_node;
+pub use view_node::ViewNode;
+pub(in crate::application) use view_node::{SlotBehavior, ViewNodeKind};
 
 /// Application view node type used by builder functions.
 pub type View<Message = ()> = ViewNode<Message>;
@@ -35,7 +33,6 @@ mod launch;
 pub use launch::*;
 mod widget_view;
 pub use widget_view::{DynamicWidget, MappedWidget, WidgetView, WidgetViewContext};
-include!("application/view_node.rs");
 mod tree_list;
 pub use tree_list::{TreeListItem, tree_list, tree_list_with_drag};
 mod details_list;

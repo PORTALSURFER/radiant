@@ -1,7 +1,4 @@
-use super::{
-    ViewNode, ViewNodeKind,
-    slot::AxisSlotBehavior,
-};
+use super::{ViewNode, ViewNodeKind, slot::AxisSlotBehavior};
 use crate::{
     application::{OptionalBaseline, danger_style, primary_style},
     layout::{CrossAlign, Insets, MainAlign, NodeId, Vector2},

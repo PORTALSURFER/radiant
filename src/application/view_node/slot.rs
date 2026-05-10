@@ -1,7 +1,7 @@
 use crate::layout::{SizeModeCross, SizeModeMain, SlotParams};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct SlotBehavior {
+pub(in crate::application) struct SlotBehavior {
     pub(super) width: AxisSlotBehavior,
     pub(super) height: AxisSlotBehavior,
 }

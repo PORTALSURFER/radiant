@@ -49,6 +49,11 @@ fn main() {
         RUNTIME_ITERATIONS,
         bench_app_virtual_list_projection_10k,
     );
+    run_scenario(
+        "app_virtual_list_projection_generated_child_ids_10k",
+        RUNTIME_ITERATIONS,
+        bench_app_virtual_list_projection_generated_child_ids_10k,
+    );
     let runtime_surface = StatefulRuntimeSurfaceBench::new();
     run_scenario(
         "runtime_surface_large_tree",
@@ -296,6 +301,27 @@ fn bench_app_virtual_list_projection_10k() {
                 [button(format!("Row {index:05}"))
                     .message(())
                     .id(index + 20_000)
+                    .fill_width()
+                    .height(28.0)],
+            )
+            .height(32.0)
+        },
+        96.0,
+    )
+    .into_surface();
+    let layout = surface.layout_node();
+    assert_eq!(layout.id(), 1);
+    black_box((surface, layout));
+}
+
+fn bench_app_virtual_list_projection_generated_child_ids_10k() {
+    let surface = virtual_list(
+        0..10_000_u64,
+        |index| {
+            list_row_id(
+                index + 10_000,
+                [button(format!("Row {index:05}"))
+                    .message(())
                     .fill_width()
                     .height(28.0)],
             )

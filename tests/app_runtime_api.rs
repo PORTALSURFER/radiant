@@ -391,13 +391,45 @@ fn active_animation_frame_messages_are_coalesced_until_drained() {
 
     assert!(runtime.bridge_mut().needs_animation());
     assert!(runtime.bridge_mut().needs_animation());
+    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(!runtime.bridge_mut().queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 1);
     assert_eq!(text_value(runtime.surface(), 10), "Frame (1)");
 
     assert!(runtime.bridge_mut().needs_animation());
+    assert!(runtime.bridge_mut().queue_animation_frame());
     let drained = runtime.drain_runtime_messages();
     assert_eq!(drained.messages_dispatched, 1);
+}
+
+#[test]
+fn polling_animation_activity_does_not_queue_frame_messages() {
+    let bridge = app(DemoState::default())
+        .view(|state: &mut DemoState| {
+            UiSurface::new(SurfaceNode::static_widget(TextWidget::new(
+                10,
+                format!("Frame ({})", state.count),
+                WidgetSizing::fixed(Vector2::new(140.0, 20.0)).with_baseline(14.0),
+            )))
+        })
+        .animation(|_| true)
+        .on_frame(|| DemoMessage::Increment)
+        .update_with(|state, message, _context| {
+            if matches!(message, DemoMessage::Increment) {
+                state.count += 1;
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(180.0, 40.0));
+
+    assert!(runtime.bridge_mut().needs_animation());
+    assert!(runtime.bridge_mut().needs_animation());
+
+    let drained = runtime.drain_runtime_messages();
+
+    assert_eq!(drained.messages_dispatched, 0);
+    assert_eq!(text_value(runtime.surface(), 10), "Frame (0)");
 }
 
 #[test]

@@ -140,6 +140,16 @@ pub trait RuntimeBridge<Message> {
         false
     }
 
+    /// Queue one host-defined animation-frame message if the host is currently
+    /// animating.
+    ///
+    /// This is intentionally separate from [`Self::needs_animation`] so native
+    /// backends can poll animation activity without producing queued work or
+    /// repaint wakeups as a side effect.
+    fn queue_animation_frame(&mut self) -> bool {
+        false
+    }
+
     /// Render a host-retained custom surface into backend-neutral paint data.
     ///
     /// Generic widgets can reserve custom paint through a retained canvas while

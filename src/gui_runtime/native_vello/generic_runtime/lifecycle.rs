@@ -122,7 +122,8 @@ where
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
-        if !self.core.needs_animation() && !self.core.has_focused_text_input() {
+        let needs_animation = self.core.needs_animation();
+        if !needs_animation && !self.core.has_focused_text_input() {
             event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
@@ -131,6 +132,9 @@ where
         let next_frame = self.last_redraw.checked_add(interval).unwrap_or(now);
         if now >= next_frame {
             if !self.redraw_requested {
+                if needs_animation {
+                    self.core.queue_animation_frame();
+                }
                 let outcome = self.core.drain_runtime_messages();
                 if outcome.exit_requested {
                     event_loop.exit();

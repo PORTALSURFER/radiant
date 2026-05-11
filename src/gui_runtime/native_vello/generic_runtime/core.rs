@@ -72,6 +72,10 @@ where
         self.runtime.bridge_mut().needs_animation()
     }
 
+    pub(super) fn queue_animation_frame(&mut self) -> bool {
+        self.runtime.bridge_mut().queue_animation_frame()
+    }
+
     fn route_outcome(&mut self, routed: bool) -> GenericRouteOutcome {
         GenericRouteOutcome {
             routed,

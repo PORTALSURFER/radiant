@@ -216,14 +216,20 @@ where
     }
 
     fn needs_animation(&mut self) -> bool {
+        self.animation
+            .as_mut()
+            .is_some_and(|animation| animation(&mut self.state))
+    }
+
+    fn queue_animation_frame(&mut self) -> bool {
         let active = self
             .animation
             .as_mut()
             .is_some_and(|animation| animation(&mut self.state));
         if active && let Some(frame_message) = self.frame_message.as_mut() {
-            self.runtime.enqueue_frame(frame_message());
+            return self.runtime.enqueue_frame(frame_message());
         }
-        active
+        false
     }
 
     fn render_retained_surface(

@@ -53,12 +53,13 @@ pub mod prelude {
         retained_canvas, retained_canvas_with, row, row_key, scroll, scroll_column, selectable,
         selectable_mapped, selectable_property_panel, selectable_sortable_details_list,
         sortable_details_list, spacer, stack, text, text_input, text_input_mapped, toggle,
-        toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_scroll, widget,
-        window,
+        toggle_mapped, tree_list, tree_list_with_drag, virtual_list, virtual_list_window,
+        virtual_scroll, widget, window,
     };
     pub use crate::gui::{
         focus::FocusSurface,
         input::{KeyCode, KeyPress},
+        list::{VirtualListWindow, VirtualListWindowRequest, resolve_virtual_list_window},
         shortcuts::ShortcutResolution,
     };
     pub use crate::runtime::{

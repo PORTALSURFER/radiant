@@ -117,6 +117,42 @@ fn surface_paint_plan_clips_scroll_content_and_draws_scrollbar_affordance() {
 }
 
 #[test]
+fn surface_paint_plan_culls_scroll_content_outside_visible_clip() {
+    let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::scroll_area(
+        31,
+        SurfaceNode::column(
+            32,
+            2.0,
+            (0..64)
+                .map(|index| {
+                    SurfaceChild::new(
+                        intrinsic_slot(),
+                        SurfaceNode::text(
+                            100 + index,
+                            format!("Row {index}"),
+                            WidgetSizing::fixed(Vector2::new(180.0, 24.0)),
+                        ),
+                    )
+                })
+                .collect(),
+        ),
+    ));
+    let layout = layout_tree(
+        &surface.layout_node(),
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(220.0, 80.0)),
+    );
+
+    let plan = surface.paint_plan(&layout, &Default::default());
+    let stats = plan.stats();
+
+    assert!(stats.text > 0);
+    assert!(
+        stats.text < 8,
+        "normal scroll paint should emit only text rows intersecting the visible clip"
+    );
+}
+
+#[test]
 fn styled_scroll_container_paints_own_chrome_then_clips_content() {
     let surface: UiSurface<DemoMessage> = UiSurface::new(SurfaceNode::styled_container(
         31,

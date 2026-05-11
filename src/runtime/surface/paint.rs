@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    gui::types::Rect,
     layout::{ContainerKind, LayoutOutput, NodeId},
     runtime::paint::{
         SurfacePaintPlan, push_clip_end, push_clip_start, push_container_chrome,
@@ -13,6 +14,7 @@ pub(super) struct SurfacePaintContext<'a> {
     layout: &'a LayoutOutput,
     theme: &'a ThemeTokens,
     hovered_container: Option<NodeId>,
+    clip_rect: Option<Rect>,
 }
 
 impl<'a> SurfacePaintContext<'a> {
@@ -25,6 +27,7 @@ impl<'a> SurfacePaintContext<'a> {
             layout,
             theme,
             hovered_container,
+            clip_rect: None,
         }
     }
 
@@ -34,6 +37,57 @@ impl<'a> SurfacePaintContext<'a> {
             ..WidgetState::default()
         }
     }
+
+    fn clipped_to(&self, clip_rect: Rect) -> Self {
+        let clip_rect = self
+            .clip_rect
+            .map(|current| current.clamp_to(clip_rect))
+            .unwrap_or(clip_rect);
+        Self {
+            layout: self.layout,
+            theme: self.theme,
+            hovered_container: self.hovered_container,
+            clip_rect: Some(clip_rect),
+        }
+    }
+
+    fn should_paint_node(&self, node_id: NodeId) -> bool {
+        let Some(clip_rect) = self.clip_rect else {
+            return true;
+        };
+        self.layout
+            .rects
+            .get(&node_id)
+            .is_none_or(|rect| rects_overlap(*rect, clip_rect))
+    }
+
+    fn child_is_past_ordered_clip<Message>(
+        &self,
+        container: &SurfaceContainer<Message>,
+        child_id: NodeId,
+    ) -> bool {
+        let Some(clip_rect) = self.clip_rect else {
+            return false;
+        };
+        if container.policy.kind != ContainerKind::Column {
+            return false;
+        }
+        self.layout
+            .rects
+            .get(&child_id)
+            .is_some_and(|rect| rect.min.y >= clip_rect.max.y)
+    }
+}
+
+fn rects_overlap(a: Rect, b: Rect) -> bool {
+    a.width() > 0.0
+        && a.height() > 0.0
+        && b.width() > 0.0
+        && b.height() > 0.0
+        && a.min.x < b.max.x
+        && a.max.x > b.min.x
+        && a.min.y < b.max.y
+        && a.max.y > b.min.y
 }
 
 impl<Message> SurfaceContainer<Message> {
@@ -63,16 +117,11 @@ impl<Message> SurfaceContainer<Message> {
         &self,
         context: &SurfacePaintContext<'_>,
         plan: &mut SurfacePaintPlan,
-    ) -> bool {
-        let Some(bounds) = context.layout.rects.get(&self.id).copied() else {
-            return false;
-        };
-        push_clip_start(
-            &mut plan.primitives,
-            self.id,
-            scroll_content_clip_rect(self.id, context.layout, bounds),
-        );
-        true
+    ) -> Option<Rect> {
+        let bounds = context.layout.rects.get(&self.id).copied()?;
+        let clip_rect = scroll_content_clip_rect(self.id, context.layout, bounds);
+        push_clip_start(&mut plan.primitives, self.id, clip_rect);
+        Some(clip_rect)
     }
 
     pub(super) fn end_scroll_clip(&self, plan: &mut SurfacePaintPlan) {
@@ -135,16 +184,19 @@ impl<Message> SurfaceNode<Message> {
             Self::Container(container) => {
                 container.append_chrome_paint(context, plan);
                 if container.is_scroll_view() {
-                    if container.begin_scroll_clip(context, plan) {
+                    if let Some(clip_rect) = container.begin_scroll_clip(context, plan) {
+                        let clipped_context = context.clipped_to(clip_rect);
                         for (index, child) in container.children.iter().enumerate() {
                             if index == 0 {
                                 child.child.append_virtual_window_paint_for_scroll(
                                     container.id,
-                                    context,
+                                    &clipped_context,
                                     plan,
                                 );
-                            } else {
-                                child.child.append_paint_with_context(context, plan);
+                            } else if clipped_context.should_paint_node(child.child.id()) {
+                                child
+                                    .child
+                                    .append_paint_with_context(&clipped_context, plan);
                             }
                         }
                         container.end_scroll_clip(plan);
@@ -152,7 +204,12 @@ impl<Message> SurfaceNode<Message> {
                     }
                 } else {
                     for child in &container.children {
-                        child.child.append_paint_with_context(context, plan);
+                        if context.child_is_past_ordered_clip(container, child.child.id()) {
+                            break;
+                        }
+                        if context.should_paint_node(child.child.id()) {
+                            child.child.append_paint_with_context(context, plan);
+                        }
                     }
                 }
             }
@@ -160,6 +217,9 @@ impl<Message> SurfaceNode<Message> {
                 let Some(bounds) = context.layout.rects.get(&widget.id()).copied() else {
                     return;
                 };
+                if !context.should_paint_node(widget.id()) {
+                    return;
+                }
                 widget.widget_object().append_paint(
                     &mut plan.primitives,
                     bounds,
@@ -193,7 +253,12 @@ impl<Message> SurfaceNode<Message> {
             .min(container.children.len())
             .max(first);
         for child in &container.children[first..last] {
-            child.child.append_paint_with_context(context, plan);
+            if context.child_is_past_ordered_clip(container, child.child.id()) {
+                break;
+            }
+            if context.should_paint_node(child.child.id()) {
+                child.child.append_paint_with_context(context, plan);
+            }
         }
     }
 }

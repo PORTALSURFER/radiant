@@ -27,13 +27,10 @@ impl<Message> ViewNode<Message> {
         }
         let child_scope = self.child_scope(scope);
         match &self.kind {
-            ViewNodeKind::Row { children, .. } | ViewNodeKind::Column { children, .. } => {
-                reserve_child_identity_capacity(children, ids);
-                for child in children {
-                    child.collect_reserved_ids(child_scope, ids);
-                }
-            }
-            ViewNodeKind::Stack { children } => {
+            ViewNodeKind::Row { children, .. }
+            | ViewNodeKind::Column { children, .. }
+            | ViewNodeKind::Grid { children, .. }
+            | ViewNodeKind::Stack { children } => {
                 reserve_child_identity_capacity(children, ids);
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);
@@ -82,7 +79,7 @@ impl<Message> ViewNode<Message> {
 mod tests {
     use super::*;
     use crate::{
-        application::{ROOT_KEY_SCOPE, column, row, row_key, text},
+        application::{ROOT_KEY_SCOPE, column, grid, row, row_key, text},
         runtime::{SurfaceNode, WidgetMessageMapper},
         widgets::{ButtonWidget, WidgetSizing},
     };
@@ -126,6 +123,24 @@ mod tests {
 
         assert_eq!(ids.len(), 128);
         assert!(ids.capacity() >= 128);
+    }
+
+    #[test]
+    fn reserved_id_collection_includes_grid_child_identities() {
+        let view: ViewNode<()> = grid(
+            (0..16)
+                .map(|index| row_key(format!("tile-{index}"), [text("action").id(10_000 + index)])),
+            4,
+        );
+        let mut ids = Vec::new();
+
+        view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+        assert_eq!(ids.len(), 32);
+        for id in 10_000..10_016 {
+            assert!(ids.contains(&id));
+        }
+        assert!(ids.capacity() >= 32);
     }
 
     #[test]

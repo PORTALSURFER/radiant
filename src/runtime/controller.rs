@@ -113,14 +113,26 @@ where
         let pointer_hit_rank = hit_rank(&traversal.pointer_hit_order);
         let wheel_hit_rank = hit_rank(&traversal.wheel_hit_order);
         let styled_container_hit_rank = hit_rank(&traversal.styled_container_order);
-        let visible_pointer_hit_order =
-            visible_hit_order(&layout, &traversal.pointer_hit_order, &pointer_hit_rank);
-        let visible_wheel_hit_order =
-            visible_hit_order(&layout, &traversal.wheel_hit_order, &wheel_hit_rank);
-        let visible_styled_container_hit_order = visible_hit_order(
+        let mut visible_pointer_hit_order = Vec::new();
+        collect_visible_hit_order(
+            &layout,
+            &traversal.pointer_hit_order,
+            &pointer_hit_rank,
+            &mut visible_pointer_hit_order,
+        );
+        let mut visible_wheel_hit_order = Vec::new();
+        collect_visible_hit_order(
+            &layout,
+            &traversal.wheel_hit_order,
+            &wheel_hit_rank,
+            &mut visible_wheel_hit_order,
+        );
+        let mut visible_styled_container_hit_order = Vec::new();
+        collect_visible_hit_order(
             &layout,
             &traversal.styled_container_order,
             &styled_container_hit_rank,
+            &mut visible_styled_container_hit_order,
         );
         Self {
             bridge,
@@ -281,27 +293,43 @@ fn hit_rank(order: &[NodeId]) -> HashMap<NodeId, usize> {
         .collect()
 }
 
+fn collect_visible_hit_order(
+    layout: &LayoutOutput,
+    order: &[NodeId],
+    rank: &HashMap<NodeId, usize>,
+    out: &mut Vec<NodeId>,
+) {
+    const SPARSE_LAYOUT_SCAN_FACTOR: usize = 4;
+    out.clear();
+    if order.len() <= layout.rects.len().saturating_mul(SPARSE_LAYOUT_SCAN_FACTOR) {
+        out.extend(
+            order
+                .iter()
+                .copied()
+                .filter(|node_id| layout.rects.contains_key(node_id)),
+        );
+        return;
+    }
+
+    out.extend(
+        layout
+            .rects
+            .keys()
+            .filter(|node_id| rank.contains_key(node_id))
+            .copied(),
+    );
+    out.sort_by_key(|node_id| rank.get(node_id).copied().unwrap_or(usize::MAX));
+}
+
+#[cfg(test)]
 fn visible_hit_order(
     layout: &LayoutOutput,
     order: &[NodeId],
     rank: &HashMap<NodeId, usize>,
 ) -> Vec<NodeId> {
-    const SPARSE_LAYOUT_SCAN_FACTOR: usize = 4;
-    if order.len() <= layout.rects.len().saturating_mul(SPARSE_LAYOUT_SCAN_FACTOR) {
-        return order
-            .iter()
-            .copied()
-            .filter(|node_id| layout.rects.contains_key(node_id))
-            .collect();
-    }
-
-    let mut visible = layout
-        .rects
-        .keys()
-        .filter_map(|node_id| rank.get(node_id).map(|rank| (*rank, *node_id)))
-        .collect::<Vec<_>>();
-    visible.sort_by_key(|(rank, _)| *rank);
-    visible.into_iter().map(|(_, node_id)| node_id).collect()
+    let mut visible = Vec::new();
+    collect_visible_hit_order(layout, order, rank, &mut visible);
+    visible
 }
 
 #[cfg(test)]
@@ -321,5 +349,26 @@ mod tests {
         let rank = hit_rank(&order);
 
         assert_eq!(visible_hit_order(&layout, &order, &rank), vec![100, 50, 2]);
+    }
+
+    #[test]
+    fn dense_visible_hit_order_reuses_output_buffer() {
+        let mut layout = LayoutOutput::default();
+        for node_id in [100, 50, 2] {
+            layout.rects.insert(
+                node_id,
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(10.0, 10.0)),
+            );
+        }
+        let order = vec![100, 200, 201, 202, 203, 204, 205, 206, 207, 50, 208, 209, 2];
+        let rank = hit_rank(&order);
+        let mut visible = Vec::with_capacity(8);
+        visible.push(999);
+        let capacity = visible.capacity();
+
+        collect_visible_hit_order(&layout, &order, &rank, &mut visible);
+
+        assert_eq!(visible, vec![100, 50, 2]);
+        assert_eq!(visible.capacity(), capacity);
     }
 }

@@ -6,10 +6,12 @@ use crate::{
 
 /// Build a row container with fill-slot children.
 pub fn row<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
+    let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Row {
         spacing: 8.0,
-        children: children.into_iter().collect(),
+        children,
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a keyed row container with fill-slot children.
@@ -22,10 +24,12 @@ pub fn row_key<Message>(
 
 /// Build a column container with fill-slot children.
 pub fn column<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
+    let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Column {
         spacing: 6.0,
-        children: children.into_iter().collect(),
+        children,
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a keyed column container with fill-slot children.
@@ -51,19 +55,21 @@ pub fn grid_with_gaps<Message>(
     column_gap: f32,
     row_gap: f32,
 ) -> ViewNode<Message> {
+    let (children, has_reserved_descendant_identity) = collect_children(children);
     ViewNode::new(ViewNodeKind::Grid {
         columns,
         column_gap,
         row_gap,
-        children: children.into_iter().collect(),
+        children,
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a stack container that overlays children in paint order.
 pub fn stack<Message>(children: impl IntoIterator<Item = ViewNode<Message>>) -> ViewNode<Message> {
-    ViewNode::new(ViewNodeKind::Stack {
-        children: children.into_iter().collect(),
-    })
+    let (children, has_reserved_descendant_identity) = collect_children(children);
+    ViewNode::new(ViewNodeKind::Stack { children })
+        .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a floating overlay panel in surface coordinates.
@@ -97,17 +103,21 @@ pub fn drop_marker<Message>(x: f32, y: f32, width: f32, height: f32) -> ViewNode
 
 /// Build a scroll viewport around one child view.
 pub fn scroll<Message>(child: ViewNode<Message>) -> ViewNode<Message> {
+    let has_reserved_descendant_identity = child.has_reserved_identity_in_subtree();
     ViewNode::new(ViewNodeKind::Scroll {
         child: Box::new(child),
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a vertically virtualized scroll viewport around one child view.
 pub fn virtual_scroll<Message>(child: ViewNode<Message>, overscan_px: f32) -> ViewNode<Message> {
+    let has_reserved_descendant_identity = child.has_reserved_identity_in_subtree();
     ViewNode::new(ViewNodeKind::VirtualScroll {
         child: Box::new(child),
         overscan_px,
     })
+    .with_reserved_descendant_identity(has_reserved_descendant_identity)
 }
 
 /// Build a scroll viewport containing a column projected from an iterator.
@@ -166,4 +176,17 @@ fn apply_list_row_chrome<Message>(row: ViewNode<Message>) -> ViewNode<Message> {
         .padding_x(18.0)
         .padding_y(10.0)
         .spacing(16.0)
+}
+
+fn collect_children<Message>(
+    children: impl IntoIterator<Item = ViewNode<Message>>,
+) -> (Vec<ViewNode<Message>>, bool) {
+    let mut has_reserved_descendant_identity = false;
+    let children = children
+        .into_iter()
+        .inspect(|child| {
+            has_reserved_descendant_identity |= child.has_reserved_identity_in_subtree();
+        })
+        .collect();
+    (children, has_reserved_descendant_identity)
 }

@@ -21,6 +21,8 @@ pub struct ViewNode<Message> {
     kind: ViewNodeKind<Message>,
     id: Option<NodeId>,
     key: Option<String>,
+    has_reserved_identity: bool,
+    has_reserved_descendant_identity: bool,
     sizing: Option<WidgetSizing>,
     slot: SlotBehavior,
     padding: Insets,
@@ -68,7 +70,7 @@ pub(in crate::application) enum ViewNodeKind<Message> {
 
 impl<Message> From<SurfaceNode<Message>> for ViewNode<Message> {
     fn from(node: SurfaceNode<Message>) -> Self {
-        Self::new(ViewNodeKind::Runtime(node))
+        Self::new(ViewNodeKind::Runtime(node)).with_reserved_identity()
     }
 }
 
@@ -78,6 +80,8 @@ impl<Message> ViewNode<Message> {
             kind,
             id: None,
             key: None,
+            has_reserved_identity: false,
+            has_reserved_descendant_identity: false,
             sizing: None,
             slot: SlotBehavior::default(),
             padding: Insets::default(),
@@ -89,5 +93,22 @@ impl<Message> ViewNode<Message> {
             text_wrap: None,
             text_align: None,
         }
+    }
+
+    pub(in crate::application) fn with_reserved_descendant_identity(
+        mut self,
+        has_reserved_descendant_identity: bool,
+    ) -> Self {
+        self.has_reserved_descendant_identity = has_reserved_descendant_identity;
+        self
+    }
+
+    pub(in crate::application) fn has_reserved_identity_in_subtree(&self) -> bool {
+        self.has_reserved_identity || self.has_reserved_descendant_identity
+    }
+
+    fn with_reserved_identity(mut self) -> Self {
+        self.has_reserved_identity = true;
+        self
     }
 }

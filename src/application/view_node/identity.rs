@@ -28,13 +28,13 @@ impl<Message> ViewNode<Message> {
         let child_scope = self.child_scope(scope);
         match &self.kind {
             ViewNodeKind::Row { children, .. } | ViewNodeKind::Column { children, .. } => {
-                ids.reserve(children.len());
+                reserve_child_identity_capacity(children, ids);
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);
                 }
             }
             ViewNodeKind::Stack { children } => {
-                ids.reserve(children.len());
+                reserve_child_identity_capacity(children, ids);
                 for child in children {
                     child.collect_reserved_ids(child_scope, ids);
                 }
@@ -54,6 +54,16 @@ impl<Message> ViewNode<Message> {
     fn child_scope(&self, parent_scope: u64) -> u64 {
         self.resolved_id(parent_scope).unwrap_or(parent_scope)
     }
+}
+
+fn reserve_child_identity_capacity<Message>(children: &[ViewNode<Message>], ids: &mut Vec<NodeId>) {
+    let mut own_reserved = 0;
+    let mut nested_reserved = 0;
+    for child in children {
+        own_reserved += usize::from(child.has_reserved_identity);
+        nested_reserved += usize::from(child.has_reserved_descendant_identity);
+    }
+    ids.reserve(own_reserved + nested_reserved);
 }
 
 #[cfg(test)]
@@ -86,5 +96,19 @@ mod tests {
 
         assert_eq!(ids.len(), 1);
         assert!(ids.contains(&view.resolved_id(ROOT_KEY_SCOPE).unwrap()));
+    }
+
+    #[test]
+    fn reserved_id_collection_presizes_for_nested_child_identities() {
+        let view: ViewNode<()> = column(
+            (0..64)
+                .map(|index| row_key(format!("row-{index}"), [text("action").id(10_000 + index)])),
+        );
+        let mut ids = Vec::new();
+
+        view.collect_reserved_ids(ROOT_KEY_SCOPE, &mut ids);
+
+        assert_eq!(ids.len(), 128);
+        assert!(ids.capacity() >= 128);
     }
 }

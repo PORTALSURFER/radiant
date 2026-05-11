@@ -113,35 +113,37 @@ where
     }
 
     fn sync_scroll_offsets(&mut self) {
-        let clamped: Vec<(NodeId, Vector2)> = self
-            .layout
-            .diagnostics
-            .iter()
-            .filter(|diagnostic| {
-                diagnostic.code == crate::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
-            })
-            .filter_map(|diagnostic| {
-                let child_rect = self
-                    .layout
-                    .rects
-                    .get(self.scroll_content_by_container.get(&diagnostic.node_id)?)?;
-                let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
-                Some((
-                    diagnostic.node_id,
-                    Vector2::new(
-                        self.layout_state
-                            .scroll_offset(diagnostic.node_id)
-                            .x
-                            .min((child_rect.width() - viewport_rect.width()).max(0.0)),
-                        self.layout_state
-                            .scroll_offset(diagnostic.node_id)
-                            .y
-                            .min((child_rect.height() - viewport_rect.height()).max(0.0)),
-                    ),
-                ))
-            })
-            .collect();
-        for (node_id, offset) in clamped {
+        self.scroll_clamp_updates.clear();
+        self.scroll_clamp_updates.extend(
+            self.layout
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| {
+                    diagnostic.code
+                        == crate::layout::LayoutDiagnosticCode::InvalidScrollOffsetClamped
+                })
+                .filter_map(|diagnostic| {
+                    let child_rect = self
+                        .layout
+                        .rects
+                        .get(self.scroll_content_by_container.get(&diagnostic.node_id)?)?;
+                    let viewport_rect = self.layout.rects.get(&diagnostic.node_id)?;
+                    Some((
+                        diagnostic.node_id,
+                        Vector2::new(
+                            self.layout_state
+                                .scroll_offset(diagnostic.node_id)
+                                .x
+                                .min((child_rect.width() - viewport_rect.width()).max(0.0)),
+                            self.layout_state
+                                .scroll_offset(diagnostic.node_id)
+                                .y
+                                .min((child_rect.height() - viewport_rect.height()).max(0.0)),
+                        ),
+                    ))
+                }),
+        );
+        for (node_id, offset) in self.scroll_clamp_updates.drain(..) {
             self.layout_state.scroll_offsets.insert(node_id, offset);
         }
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::layout::ContainerKind;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 const INLINE_WIDGET_PATH_LEN: usize = 4;
 const INLINE_CLIP_ANCESTOR_LEN: usize = 2;
@@ -95,12 +95,12 @@ pub(in crate::runtime) struct SurfaceTraversalIndex {
     pub(in crate::runtime) pointer_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) wheel_hit_order: Vec<WidgetId>,
     pub(in crate::runtime) widget_paths: HashMap<WidgetId, WidgetPath>,
-    pub(in crate::runtime) container_hover_suppression: BTreeSet<WidgetId>,
+    pub(in crate::runtime) container_hover_suppression: HashSet<WidgetId>,
     pub(in crate::runtime) styled_container_order: Vec<NodeId>,
     pub(in crate::runtime) scroll_container_order: Vec<NodeId>,
-    pub(in crate::runtime) widget_clip_ancestors: BTreeMap<WidgetId, ClipAncestors>,
-    pub(in crate::runtime) container_clip_ancestors: BTreeMap<NodeId, ClipAncestors>,
-    pub(in crate::runtime) scroll_content_by_container: BTreeMap<NodeId, NodeId>,
+    pub(in crate::runtime) widget_clip_ancestors: HashMap<WidgetId, ClipAncestors>,
+    pub(in crate::runtime) container_clip_ancestors: HashMap<NodeId, ClipAncestors>,
+    pub(in crate::runtime) scroll_content_by_container: HashMap<NodeId, NodeId>,
 }
 
 impl SurfaceTraversalIndex {
@@ -112,12 +112,16 @@ impl SurfaceTraversalIndex {
             pointer_hit_order: Vec::with_capacity(stats.widgets),
             wheel_hit_order: Vec::with_capacity(stats.widgets),
             widget_paths: HashMap::with_capacity(stats.widgets),
-            container_hover_suppression: BTreeSet::new(),
+            container_hover_suppression: HashSet::with_capacity(stats.widgets),
             styled_container_order: Vec::with_capacity(stats.styled_hoverable_containers),
             scroll_container_order: Vec::with_capacity(stats.scroll_containers),
-            widget_clip_ancestors: BTreeMap::new(),
-            container_clip_ancestors: BTreeMap::new(),
-            scroll_content_by_container: BTreeMap::new(),
+            widget_clip_ancestors: HashMap::with_capacity(if stats.scroll_containers == 0 {
+                0
+            } else {
+                stats.widgets
+            }),
+            container_clip_ancestors: HashMap::new(),
+            scroll_content_by_container: HashMap::with_capacity(stats.scroll_containers),
         }
     }
 }

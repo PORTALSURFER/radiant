@@ -47,7 +47,7 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
     let mut text_renderer = NativeTextRenderer::new();
     let mut retained_cache = RetainedSurfaceFrameCache::default();
     let mut text_runs = Vec::new();
-    let mut hit_rects = Vec::new();
+    let mut interaction_regions = Vec::new();
     let rect = Rect::from_min_size(Point::new(8.0, 12.0), Vector2::new(64.0, 32.0));
     let plan = SurfacePaintPlan {
         clear_color: ThemeTokens::default().clear_color,
@@ -78,13 +78,21 @@ fn scene_encoding_collects_fast_pointer_gpu_surface_hit_rects() {
             viewport: Vector2::new(320.0, 180.0),
             retained_cache: &mut retained_cache,
             text_runs: &mut text_runs,
-            fast_pointer_move_gpu_surface_hit_rects: &mut hit_rects,
+            gpu_surface_interaction_regions: &mut interaction_regions,
             animation_time: Duration::ZERO,
         },
     );
 
     assert_eq!(stats.gpu_surface_count, 1);
-    assert_eq!(hit_rects, [rect]);
+    assert_eq!(
+        interaction_regions,
+        [GpuSurfaceInteractionRegion {
+            rect,
+            fast_pointer_move: true,
+            coalesce_vertical_wheel: false,
+            native_hover_cursor: None,
+        }]
+    );
 }
 
 #[test]
@@ -312,7 +320,7 @@ fn encode_plan<'plan, Bridge, Message>(
 where
     Bridge: RuntimeBridge<Message>,
 {
-    let mut fast_pointer_move_gpu_surface_hit_rects = Vec::new();
+    let mut gpu_surface_interaction_regions = Vec::new();
     encode_surface_paint_plan_to_scene(
         plan,
         SurfaceSceneEncodeContext {
@@ -322,7 +330,7 @@ where
             viewport,
             retained_cache,
             text_runs,
-            fast_pointer_move_gpu_surface_hit_rects: &mut fast_pointer_move_gpu_surface_hit_rects,
+            gpu_surface_interaction_regions: &mut gpu_surface_interaction_regions,
             animation_time: Duration::ZERO,
         },
     )

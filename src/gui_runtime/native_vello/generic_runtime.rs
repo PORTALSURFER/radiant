@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::gui::repaint::{CoalescingRepaintSignal, RepaintSignal};
-use crate::layout::Rect;
 use crate::runtime::SurfacePaintPlan;
 use crate::theme::ThemeTokens;
 
@@ -26,7 +25,7 @@ use gpu_surface_interaction::PendingGpuSurfaceWheel;
 use input::{key_code_from_winit, keypress_from_input, pointer_button_from_winit};
 use present::RenderFrameProfile;
 use runtime_helpers::{
-    animation_frame_interval, collect_fast_pointer_move_gpu_surface_hit_rects,
+    GpuSurfaceInteractionRegion, animation_frame_interval, collect_gpu_surface_interaction_regions,
     maybe_log_route_profile, render_profile_enabled, scroll_delta_to_logical,
 };
 pub(in crate::gui_runtime::native_vello) use scene::{
@@ -161,7 +160,7 @@ where
     animation_origin: Instant,
     last_redraw: Instant,
     last_scene_stats: RetainedSurfaceEncodeStats,
-    fast_pointer_move_gpu_surface_hit_rects: Vec<Rect>,
+    gpu_surface_interaction_regions: Vec<GpuSurfaceInteractionRegion>,
     scene_texture_dirty: bool,
     deferred_surface_refresh: bool,
     pending_gpu_surface_wheel: Option<PendingGpuSurfaceWheel>,
@@ -196,7 +195,7 @@ where
             animation_origin: Instant::now(),
             last_redraw: Instant::now(),
             last_scene_stats: RetainedSurfaceEncodeStats::default(),
-            fast_pointer_move_gpu_surface_hit_rects: Vec::new(),
+            gpu_surface_interaction_regions: Vec::new(),
             scene_texture_dirty: true,
             deferred_surface_refresh: false,
             pending_gpu_surface_wheel: None,
@@ -226,8 +225,7 @@ where
                 viewport,
                 retained_cache: &mut self.retained_surface_cache,
                 text_runs: &mut scene_text_runs,
-                fast_pointer_move_gpu_surface_hit_rects: &mut self
-                    .fast_pointer_move_gpu_surface_hit_rects,
+                gpu_surface_interaction_regions: &mut self.gpu_surface_interaction_regions,
                 animation_time: self.animation_origin.elapsed(),
             },
         );
